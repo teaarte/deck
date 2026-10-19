@@ -3,6 +3,7 @@ package codex
 //go:generate go run ./gen protocol.go protocol.schema.json
 
 import (
+	"cmp"
 	"context"
 	deckhome "deck2/internal/home"
 	"encoding/json"
@@ -29,13 +30,22 @@ type Adapter struct {
 	Dir string
 	// Linger is how long the app-server may take to exit after its turn before its process group is killed.
 	Linger time.Duration
+	// name, model and effort are of a model of deck's settings the app-server runs; empty for its own default.
+	name, model, effort string
 }
 
 func New(home string) *Adapter {
 	return &Adapter{Binary: "codex", Home: deckhome.Layout(home), Dir: deckhome.Layout(home).Codex(), Linger: 10 * time.Second}
 }
 
-func (a *Adapter) Name() string { return "codex" }
+func (a *Adapter) Name() string { return cmp.Or(a.name, "codex") }
+
+// With is the app-server on a model of deck's settings, by its id in Codex and its effort.
+func (a *Adapter) With(name, model, effort string) provider.Provider {
+	c := *a
+	c.name, c.model, c.effort = name, model, effort
+	return &c
+}
 
 // QuestionTool is the ask tool of the gateway; the question tool of Codex itself is experimental.
 func (a *Adapter) QuestionTool() string { return provider.AskTool }

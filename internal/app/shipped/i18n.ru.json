@@ -166,7 +166,7 @@
   "Enable": "Включить",
   "Until then it is a draft: nothing runs by itself, and only its trials run.": "До тех пор это черновик: сам ничего не запускает, работают только пробные запуски.",
   "A .zip of a module or a folder of this machine; it comes as a draft, and deck shows what it may do before you enable it.": "Архив .zip модуля или папка на этой машине; модуль приходит черновиком, и до включения deck показывает, что он сможет делать.",
-  "A model of a connection; its kind and price come from the connection's catalog when left out.": "Модель подключения; вид и цену deck берёт из каталога подключения, если их не указать.",
+  "A model of a connection; its kind and price come from the connection's catalog when left out. A model of the connection claude-code or codex runs agent turns in that CLI on the subscription, its effort in options, such as {\"effort\": \"low\"}.": "Модель подключения; вид и цену deck берёт из каталога подключения, если их не указать. Модель подключения claude-code или codex ведёт ходы агента в этом CLI по подписке, effort — в options, например {\"effort\": \"low\"}.",
   "The model each command of a module runs on; the one picked here comes first.": "На какой модели идёт каждая команда модуля; выбранная здесь идёт первой.",
   "The model each kind of work of the scripts of a module goes to.": "На какую модель идёт каждый вид работы скриптов модуля.",
   "The model of each kind of work where a module or command has none of its own.": "Модель каждого вида работы там, где у модуля или команды нет своей.",

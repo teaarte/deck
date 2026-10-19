@@ -1977,6 +1977,32 @@
    "title": "InitializeResponse",
    "type": "object"
   },
+  "InputModality": {
+   "description": "Canonical user-input modality tags advertised by a model.",
+   "oneOf": [
+    {
+     "description": "Plain text turns and tool payloads.",
+     "enum": [
+      "text"
+     ],
+     "type": "string"
+    },
+    {
+     "description": "Image attachments included in user turns.",
+     "enum": [
+      "image"
+     ],
+     "type": "string"
+    },
+    {
+     "description": "Audio attachments included in user turns.",
+     "enum": [
+      "audio"
+     ],
+     "type": "string"
+    }
+   ]
+  },
   "InternalChatMessageMetadataPassthrough": {
    "description": "Internal Responses API passthrough metadata copied into underlying chat messages.\n\nResponses API strongly types this payload. Do not modify it without first getting API approval and making the corresponding Responses API change.",
    "properties": {
@@ -2321,6 +2347,249 @@
    ],
    "type": "string"
   },
+  "Model": {
+   "properties": {
+    "additionalSpeedTiers": {
+     "default": [],
+     "description": "Deprecated: use `serviceTiers` instead.",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "availabilityNux": {
+     "anyOf": [
+      {
+       "$ref": "#/definitions/ModelAvailabilityNux"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "defaultReasoningEffort": {
+     "$ref": "#/definitions/ReasoningEffort"
+    },
+    "defaultServiceTier": {
+     "default": null,
+     "description": "Catalog default service tier id for this model, when one is configured.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "description": {
+     "type": "string"
+    },
+    "displayName": {
+     "type": "string"
+    },
+    "hidden": {
+     "type": "boolean"
+    },
+    "id": {
+     "type": "string"
+    },
+    "inputModalities": {
+     "default": [
+      "text",
+      "image"
+     ],
+     "items": {
+      "$ref": "#/definitions/InputModality"
+     },
+     "type": "array"
+    },
+    "isDefault": {
+     "type": "boolean"
+    },
+    "model": {
+     "type": "string"
+    },
+    "modelSpecialty": {
+     "default": null,
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "multiAgentVersion": {
+     "anyOf": [
+      {
+       "$ref": "#/definitions/MultiAgentVersion"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "Multi-agent runtime declared by this model, when available."
+    },
+    "serviceTiers": {
+     "default": [],
+     "items": {
+      "$ref": "#/definitions/ModelServiceTier"
+     },
+     "type": "array"
+    },
+    "supportedReasoningEfforts": {
+     "items": {
+      "$ref": "#/definitions/ReasoningEffortOption"
+     },
+     "type": "array"
+    },
+    "supportsPersonality": {
+     "default": false,
+     "type": "boolean"
+    },
+    "upgrade": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "upgradeInfo": {
+     "anyOf": [
+      {
+       "$ref": "#/definitions/ModelUpgradeInfo"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "defaultReasoningEffort",
+    "description",
+    "displayName",
+    "hidden",
+    "id",
+    "isDefault",
+    "model",
+    "supportedReasoningEfforts"
+   ],
+   "type": "object"
+  },
+  "ModelAvailabilityNux": {
+   "properties": {
+    "message": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "message"
+   ],
+   "type": "object"
+  },
+  "ModelListParams": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "properties": {
+    "cursor": {
+     "description": "Opaque pagination cursor returned by a previous call.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "includeHidden": {
+     "description": "When true, include models that are hidden from the default picker list.",
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "limit": {
+     "description": "Optional page size; defaults to a reasonable server-side value.",
+     "format": "uint32",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   },
+   "title": "ModelListParams",
+   "type": "object"
+  },
+  "ModelListResponse": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "properties": {
+    "data": {
+     "items": {
+      "$ref": "#/definitions/Model"
+     },
+     "type": "array"
+    },
+    "nextCursor": {
+     "description": "Opaque cursor to pass to the next call to continue after the last item. If None, there are no more items to return.",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "data"
+   ],
+   "title": "ModelListResponse",
+   "type": "object"
+  },
+  "ModelServiceTier": {
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "description",
+    "id",
+    "name"
+   ],
+   "type": "object"
+  },
+  "ModelUpgradeInfo": {
+   "properties": {
+    "migrationMarkdown": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "model": {
+     "type": "string"
+    },
+    "modelLink": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "retirementAt": {
+     "description": "Informational Unix timestamp for this upgrade's scheduled retirement, if known.",
+     "format": "int64",
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "upgradeCopy": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "model"
+   ],
+   "type": "object"
+  },
   "MultiAgentMode": {
    "description": "Controls the effective multi-agent delegation instructions for a turn. `custom` means the configured mode hint defines the policy instead of a built-in policy.",
    "oneOf": [
@@ -2345,6 +2614,15 @@
      "type": "object"
     }
    ]
+  },
+  "MultiAgentVersion": {
+   "description": "Multi-agent runtime supported by a model.",
+   "enum": [
+    "disabled",
+    "v1",
+    "v2"
+   ],
+   "type": "string"
   },
   "NetworkAccess": {
    "enum": [
@@ -2669,6 +2947,21 @@
    "description": "A non-empty reasoning effort value advertised by the model.",
    "minLength": 1,
    "type": "string"
+  },
+  "ReasoningEffortOption": {
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "reasoningEffort": {
+     "$ref": "#/definitions/ReasoningEffort"
+    }
+   },
+   "required": [
+    "description",
+    "reasoningEffort"
+   ],
+   "type": "object"
   },
   "ReasoningItemContent": {
    "oneOf": [

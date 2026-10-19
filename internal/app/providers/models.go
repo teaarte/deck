@@ -271,8 +271,8 @@ type modelSetIn struct {
 	CallUSD      float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
 	Subscription *bool   `opt:"" desc:"The owner pays the model by a subscription: deck shows what a call would cost as an estimate and leaves it out of the money spent; a model changed without it keeps its own"`
 	Free         *bool   `opt:"" desc:"The model costs nothing, so a trial or a draft calls it without the owner's yes; a model changed without it or a price keeps its own, a new one takes it from the catalog of the connection"`
-	Options      string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text or {\"voice\": \"…\"} of tts; a model changed without them keeps its own, {} clears them"`
-	Agent        string  `opt:"" desc:"The ACP agent that runs a text model inside the sandbox of deck with a shell and files, for agent commands; the name is then the name of a provider. A model changed without it keeps its own"`
+	Options      string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text, {\"voice\": \"…\"} of tts, or {\"effort\": \"low\"} of a model of a CLI, the one option it takes; a model changed without them keeps its own, {} clears them"`
+	Agent        string  `opt:"" desc:"The agent that runs a text model for agent commands: claude-code or codex, the CLI on the owner's subscription, on the connection of the same name; or an ACP agent inside the sandbox of deck with a shell and files. The name is then the name of a provider. A model changed without it keeps its own"`
 	// CheckMinutes give a slow model more time for its self-check.
 	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`
 }
@@ -288,6 +288,9 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	in.Name = cmp.Or(in.Name, in.Connection+"/"+in.Model)
 	if strings.ContainsAny(in.Name, " @") {
 		return nil, registry.Invalid("deck: a model name has no spaces or @, got %q", in.Name)
+	}
+	if c.Api == APICLI {
+		in.Agent = cmp.Or(in.Agent, c.Name)
 	}
 	if in.Agent != "" {
 		if err := s.checkAgent(ctx, act.Workspace, c, in); err != nil {
@@ -310,7 +313,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if m.Unit != UnitToken && m.OutputUsd.Valid {
 		return nil, registry.Invalid("deck: a model priced per %s has one price, input_usd per million; output_usd is for tokens", m.Unit)
 	}
-	if unpriced || m.Kind == "" {
+	if c.Api != APICLI && (unpriced || m.Kind == "") {
 		if got, ok := s.catalog(ctx, act.Workspace, c, in.Model); ok {
 			if unpriced {
 				m.InputUsd, m.OutputUsd, m.CallUsd, m.Free = got.InputUsd, got.OutputUsd, got.CallUsd, got.Free
@@ -326,6 +329,9 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	}
 	if in.Subscription != nil {
 		m.Subscription = store.Bool(*in.Subscription)
+	}
+	if c.Api == APICLI {
+		m.Subscription = 1
 	}
 	m.Kind = cmp.Or(m.Kind, RoleText)
 	if in.Options != "" {
@@ -368,14 +374,19 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 }
 
 // checkAgent refuses a model in an agent deck cannot run: an agent it does not know or that is not installed, a
-// name that is not one of a provider, an API that is not OpenAI-compatible.
+// name that is not one of a provider, an API that is not OpenAI-compatible, a model or effort its CLI does not list.
 func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connection, in modelSetIn) error {
+	cli, _ := s.builtinNamed(in.Agent).(provider.Modeled)
 	switch {
-	case acp.Agents[in.Agent].Start == nil:
-		return registry.Invalid("deck: no ACP agent %q; deck knows %s", in.Agent, strings.Join(acp.Names(), ", "))
+	case c.Api == APICLI && in.Agent != c.Name:
+		return registry.Invalid("deck: the models of connection %s run in %s, not %s", c.Name, c.Name, in.Agent)
+	case cli != nil && c.Api != APICLI:
+		return registry.Invalid("deck: a model of %s is on its own connection %s, not %s", in.Agent, in.Agent, c.Name)
+	case cli == nil && acp.Agents[in.Agent].Start == nil:
+		return registry.Invalid("deck: no agent %q; deck knows %s", in.Agent, strings.Join(s.agentNames(), ", "))
 	case !access.ProjectName.MatchString(in.Name) || s.builtinNamed(in.Name) != nil:
 		return registry.Invalid("deck: a model in an agent is a provider; name it with lowercase letters, digits and '-', not %q or a built-in provider", in.Name)
-	case c.Api != "openai":
+	case cli == nil && c.Api != "openai":
 		return registry.Invalid("deck: an agent runs a model of an OpenAI-compatible connection, not %s", c.Api)
 	case in.CheckMinutes < 0 || in.CheckMinutes > 60:
 		return registry.Invalid("deck: check_minutes is 1 to 60, or 0 for deck's own ceiling")
@@ -386,10 +397,70 @@ func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connecti
 		return err
 	case n > 0:
 		return registry.Invalid("deck: another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
+	case cli != nil:
+		return s.checkCLI(ctx, workspace, cli, in)
 	case !installed(cmp.Or(s.ACPBinaries[in.Agent], in.Agent)):
 		return registry.Invalid("deck: %s is not installed on this machine", in.Agent)
 	}
 	return nil
+}
+
+// checkCLI refuses a model its CLI does not list or cannot run deck's turns on, and an effort the model does not take;
+// the options of a model of a CLI are its effort alone.
+func (s *Service) checkCLI(ctx context.Context, workspace int64, cli provider.Modeled, in modelSetIn) error {
+	options := in.Options
+	if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: in.Name}); err == nil && options == "" {
+		options = old.Model.Options
+	}
+	effort, err := cliEffort(cmp.Or(options, "{}"))
+	if err != nil {
+		return err
+	}
+	list, err := cli.Models(ctx)
+	if err != nil {
+		return registry.Invalid("deck: %v", err)
+	}
+	var names []string
+	for _, m := range list {
+		names = append(names, m.Names[0])
+		if !slices.Contains(m.Names, in.Model) {
+			continue
+		}
+		switch {
+		case m.Refused != "":
+			return registry.Invalid("deck: %s: %s", in.Model, m.Refused)
+		case effort != "" && len(m.Efforts) == 0:
+			return registry.Invalid("deck: %s takes no effort in %s; leave effort out of options", in.Model, in.Agent)
+		case effort != "" && !slices.Contains(m.Efforts, effort):
+			return registry.Invalid("deck: %s takes effort %s in %s, not %q", in.Model, strings.Join(m.Efforts, ", "), in.Agent, effort)
+		}
+		return nil
+	}
+	return registry.Invalid("deck: %s lists no model %q; it lists %s", in.Agent, in.Model, strings.Join(names, ", "))
+}
+
+// cliEffort is the effort of the options of a model of a CLI, the one field they take.
+func cliEffort(options string) (string, error) {
+	var o map[string]any
+	if err := json.Unmarshal([]byte(options), &o); err != nil {
+		return "", registry.Invalid("deck: options are a JSON object: %v", err)
+	}
+	effort, ok := o["effort"].(string)
+	if len(o) > 1 || len(o) == 1 && !ok {
+		return "", registry.Invalid(`deck: the options of a model of a CLI are its effort alone, such as {"effort": "low"}`)
+	}
+	return effort, nil
+}
+
+// agentNames are the agents a model runs in: the built-in CLIs that run other models, then the ACP agents.
+func (s *Service) agentNames() []string {
+	var out []string
+	for _, pv := range s.Builtin {
+		if _, ok := pv.(provider.Modeled); ok {
+			out = append(out, pv.Name())
+		}
+	}
+	return append(out, acp.Names()...)
 }
 
 func positive(f float64) sql.NullFloat64 { return sql.NullFloat64{Float64: f, Valid: f > 0} }

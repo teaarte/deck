@@ -230,6 +230,21 @@ type Subscribed interface {
 	OnSubscription()
 }
 
+// Model is a model a CLI lists: the names it answers to, the efforts it takes, and why deck's turns cannot run on
+// it, empty when they can.
+type Model struct {
+	Names   []string
+	Efforts []string
+	Refused string
+}
+
+// Modeled is a built-in provider whose CLI runs other models: Models are those the CLI lists, With is the provider
+// on one of them under the name deck's settings give it.
+type Modeled interface {
+	Models(ctx context.Context) ([]Model, error)
+	With(name, model, effort string) Provider
+}
+
 // SelfChecker is a provider whose adapter deck checks at start, on a button and on a broken turn.
 type SelfChecker interface {
 	SelfCheck(ctx context.Context) Check

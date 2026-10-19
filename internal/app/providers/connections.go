@@ -11,6 +11,10 @@ import (
 	"deck2/internal/store/db"
 )
 
+// APICLI is the API of a connection deck keeps itself for an agent CLI on the owner's subscription: no address, no
+// key, its models run agent turns in the CLI of its name.
+const APICLI = "cli"
+
 type connectionView struct {
 	Name string `json:"name"`
 	API  string `json:"api"`
@@ -48,6 +52,9 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 			return nil, err
 		}
 	}
+	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == APICLI {
+		return nil, registry.Invalid("deck: connection %s is the %s CLI on the owner's subscription, which deck keeps itself; name another one", in.Name, in.Name)
+	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if old, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.KeySecret == "" {
 			in.KeySecret = old.KeySecret
@@ -67,6 +74,9 @@ type connectionRemoveIn struct {
 }
 
 func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in connectionRemoveIn) (any, error) {
+	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && c.Api == APICLI {
+		return nil, registry.Invalid("deck: connection %s is the %s CLI, which deck keeps itself; remove its models instead", in.Name, in.Name)
+	}
 	var n int64
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		models, err := q.ListModels(ctx, act.Workspace)

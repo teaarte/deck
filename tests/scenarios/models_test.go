@@ -101,6 +101,8 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 		"local":          "http://localhost:11434/v1 none openai",
 		"stt":            "https://api.openai.com/v1/audio/transcriptions secret openai raw",
 		"openai-api-key": "https://api.example.com/v1 secret OPENAI_API_KEY openai",
+		"claude-code":    " none cli",
+		"codex":          " none cli",
 	}
 	if len(conns) != len(want) || counts["openrouter"] != 3 {
 		t.Fatalf("one connection per address and key: %v %v", conns, counts)

@@ -2,6 +2,7 @@ package claudecode
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"deck2/internal/home"
 	"encoding/json"
@@ -26,6 +27,8 @@ type Adapter struct {
 	// Linger is how long the CLI may stay silent after its result before its process group is killed; TaskLinger
 	// is that time while a task it started has not reported.
 	Linger, TaskLinger time.Duration
+	// name, model and effort are of a model of deck's settings the CLI runs; empty for its own default.
+	name, model, effort string
 }
 
 // New runs the CLI for the deck whose folder is root.
@@ -34,7 +37,14 @@ func New(root string) *Adapter {
 	return &Adapter{Binary: "claude", ConfigDir: h.Sessions(), Linger: 90 * time.Second, TaskLinger: 30 * time.Minute}
 }
 
-func (a *Adapter) Name() string { return "claude-code" }
+func (a *Adapter) Name() string { return cmp.Or(a.name, "claude-code") }
+
+// With is the CLI on a model of deck's settings, by its name in the CLI and its effort.
+func (a *Adapter) With(name, model, effort string) provider.Provider {
+	c := *a
+	c.name, c.model, c.effort = name, model, effort
+	return &c
+}
 
 // OnSubscription: the CLI runs on the owner's login, never on a key.
 func (a *Adapter) OnSubscription() {}
@@ -54,6 +64,12 @@ func (a *Adapter) Caps() provider.Caps {
 func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []string {
 	args := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
 		"--strict-mcp-config", "--mcp-config", mcp, "--settings", settings, "--permission-mode", "auto"}
+	if a.model != "" {
+		args = append(args, "--model", a.model)
+	}
+	if a.effort != "" {
+		args = append(args, "--effort", a.effort)
+	}
 	if req.NoNetwork {
 		args = append(args, "--tools", strings.Join(offlineTools, ","), "--disallowedTools", strings.Join(webTools, ","))
 	}

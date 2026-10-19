@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -117,9 +118,11 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 		}
 		t.model = r.Model
 	}
+	t.model = cmp.Or(t.a.model, t.model)
 	text, _ := json.Marshal(TextUserInput{Type: "text", Text: t.req.Prompt})
 	var started TurnStartResponse
-	if err := t.call(ctx, "turn/start", TurnStartParams{ThreadID: t.thread, Input: []UserInput{text}, Permissions: profile}, &started); err != nil {
+	if err := t.call(ctx, "turn/start", TurnStartParams{ThreadID: t.thread, Input: []UserInput{text}, Permissions: profile,
+		Model: t.a.model, Effort: ReasoningEffort(t.a.effort)}, &started); err != nil {
 		return t.res, fmt.Errorf("the prompt did not reach codex: %w", err)
 	}
 	t.turnID = started.Turn.ID

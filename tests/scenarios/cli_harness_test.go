@@ -119,3 +119,26 @@ func waitCalls(t *testing.T, c *fakeCLI, n int) {
 		time.Sleep(20 * time.Millisecond)
 	}
 }
+
+// models sets what the fake CLI lists as its models, from a recorded answer to initialize.
+func (c *fakeCLI) models(fixture string) {
+	b, err := os.ReadFile(filepath.Join(c.fixtures, fixture))
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(c.dir, "models"), b, 0o644); err != nil {
+		c.t.Fatal(err)
+	}
+}
+
+// checksPass makes every self-check of the fake CLI pass however its calls are numbered: the CLI acts as in auto
+// mode and replays the recorded self-check turn and its resume.
+func (c *fakeCLI) checksPass() {
+	c.approving()
+	first, _ := filepath.Abs("testdata/claude/selfcheck.jsonl")
+	resume, _ := filepath.Abs("testdata/claude/selfcheck_resume.jsonl")
+	b, _ := os.ReadFile(filepath.Join(c.dir, "before"))
+	c.before(string(b) + `
+if grep -q 'deck-check-' "$c/stdin"; then stream='` + first + `'; fi
+if grep -q 'Give the same word and answer again' "$c/stdin"; then stream='` + resume + `'; fi`)
+}

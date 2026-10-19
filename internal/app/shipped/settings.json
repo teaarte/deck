@@ -25,11 +25,11 @@
       ]},
       {"title": "Models", "icon": "cpu", "blocks": [
         {"type": "dialog", "name": "model", "title": "Add a model", "icon": "plus", "primary": true, "blocks": [
-          {"type": "form", "command": "deck.model_set", "description": "A model of a connection; its kind and price come from the connection's catalog when left out.",
+          {"type": "form", "command": "deck.model_set", "description": "A model of a connection; its kind and price come from the connection's catalog when left out. A model of the connection claude-code or codex runs agent turns in that CLI on the subscription, its effort in options, such as {\"effort\": \"low\"}.",
             "values": {"connection": "=param.connection", "model": "=param.model", "name": "=param.name", "kind": "=param.kind", "agent": "=param.agent", "free": "=param.free", "subscription": "=param.subscription",
               "input_usd": "=param.input_usd", "output_usd": "=param.output_usd", "call_usd": "=param.call_usd", "unit": "=param.unit", "options": "=param.options"},
             "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
-              "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing' && name != 'claude-code' && name != 'codex'"}, "value": "name"}}}]},
+              "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing'"}, "value": "name"}}}]},
         {"type": "table", "title": "Models", "source": {"from": "deck.models_list", "rows": "models", "sort": "-used"}, "filter": ["kind", "connection", "status"],
           "description": "Every model deck reaches, those that work goes to first; the others are dimmed.",
           "columns": [
@@ -110,8 +110,8 @@
             {"label": "Key", "bind": "key"}
           ],
           "actions": [
-            {"verb": "edit", "screen": "settings", "params": {"tab": "Connections", "dialog": "connection", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}},
-            {"verb": "remove", "confirm": true, "command": "deck.connection_remove", "params": {"name": "=name"}, "when": "models == 0"}
+            {"verb": "edit", "screen": "settings", "params": {"tab": "Connections", "dialog": "connection", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}, "when": "api != 'cli'"},
+            {"verb": "remove", "confirm": true, "command": "deck.connection_remove", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
           ]}
       ]},
       {"title": "Interface", "icon": "palette", "blocks": [{"type": "appearance", "title": "Appearance", "icon": "palette"},

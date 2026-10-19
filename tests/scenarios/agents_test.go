@@ -113,8 +113,11 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("the agents show why one gives no version: %+v", agents)
 	}
 	conns := blockData[[]screenRow](t, e.settingsBlock("Connections", nil)["rows"])
-	if len(conns) != 2 || conns[0].Cells[0] != "router" || conns[1].Cells[0] != "whisper" || fmt.Sprint(verb(t, conns[1].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
+	if len(conns) != 4 || conns[2].Cells[0] != "router" || conns[3].Cells[0] != "whisper" || fmt.Sprint(verb(t, conns[3].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
 		t.Fatalf("the connections tab lists the connections, the whisper of deck too, and edits each as it is: %+v", conns)
+	}
+	if conns[0].Cells[0] != "claude-code" || conns[1].Cells[0] != "codex" || len(conns[0].Actions)+len(conns[1].Actions) != 0 {
+		t.Fatalf("the connections of the CLIs are deck's own, with no edit or remove: %+v", conns[:2])
 	}
 	secrets := blockData[[]screenRow](t, e.settingsBlock("Secrets", nil)["rows"])
 	if !strings.Contains(fmt.Sprint(secrets), "wiki") {

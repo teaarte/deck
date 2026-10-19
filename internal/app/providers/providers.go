@@ -83,7 +83,18 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 		return nil, registry.Invalid("deck: the url of connection %q holds a user, query or key; set it again with deck.connection_set and key", c.Name)
 	}
 	if m.Agent == "" {
-		return nil, registry.Invalid("deck: model %q runs in no agent; set it again with deck.model_set and agent %s", name, strings.Join(acp.Names(), " or "))
+		return nil, registry.Invalid("deck: model %q runs in no agent; set it again with deck.model_set and agent %s", name, strings.Join(s.agentNames(), " or "))
+	}
+	if c.Api == APICLI {
+		cli, ok := s.builtinNamed(m.Agent).(provider.Modeled)
+		if !ok {
+			return nil, registry.Invalid("deck: model %q runs in %s, which this deck does not run", name, m.Agent)
+		}
+		effort, err := cliEffort(m.Options)
+		if err != nil {
+			return nil, err
+		}
+		return cli.With(name, m.Model, effort), nil
 	}
 	a, err := acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], Model: m.Model,
 		NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
@@ -366,7 +377,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.connectionRemove),
 		registry.Def("model_set", "Set model",
 			"Adds or changes a model of a connection with its kind and price; what is left out comes from the catalog of the connection. A module or the master proposes a model it needs this way, and the owner adds it with one button.",
-			registry.Everyone, s.modelSet).Enum("agent", acp.Names()...).As(registry.External),
+			registry.Everyone, s.modelSet).Enum("agent", s.agentNames()...).As(registry.External),
 		registry.Def("model_remove", "Remove model", "Removes a model; assignments that name it skip it.",
 			registry.OwnerOnly, s.modelRemove),
 		s.modelCallCommand(),

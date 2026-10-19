@@ -588,6 +588,8 @@ type InputImageDynamicToolCallOutputContentItem struct {
 	Type     string `json:"type"`
 }
 
+type InputModality = json.RawMessage
+
 type InputTextAgentMessageInputContent struct {
 	Text string `json:"text"`
 	Type string `json:"type"`
@@ -747,7 +749,59 @@ type MisalignmentSteer struct {
 
 type ModeKind string
 
+type Model struct {
+	AdditionalSpeedTiers      []string                `json:"additionalSpeedTiers,omitempty"`
+	AvailabilityNux           *ModelAvailabilityNux   `json:"availabilityNux,omitempty"`
+	DefaultReasoningEffort    ReasoningEffort         `json:"defaultReasoningEffort"`
+	DefaultServiceTier        string                  `json:"defaultServiceTier,omitempty"`
+	Description               string                  `json:"description"`
+	DisplayName               string                  `json:"displayName"`
+	Hidden                    bool                    `json:"hidden"`
+	ID                        string                  `json:"id"`
+	InputModalities           []InputModality         `json:"inputModalities,omitempty"`
+	IsDefault                 bool                    `json:"isDefault"`
+	Model                     string                  `json:"model"`
+	ModelSpecialty            string                  `json:"modelSpecialty,omitempty"`
+	MultiAgentVersion         MultiAgentVersion       `json:"multiAgentVersion,omitempty"`
+	ServiceTiers              []ModelServiceTier      `json:"serviceTiers,omitempty"`
+	SupportedReasoningEfforts []ReasoningEffortOption `json:"supportedReasoningEfforts"`
+	SupportsPersonality       bool                    `json:"supportsPersonality,omitempty"`
+	Upgrade                   string                  `json:"upgrade,omitempty"`
+	UpgradeInfo               *ModelUpgradeInfo       `json:"upgradeInfo,omitempty"`
+}
+
+type ModelAvailabilityNux struct {
+	Message string `json:"message"`
+}
+
+type ModelListParams struct {
+	Cursor        string `json:"cursor,omitempty"`
+	IncludeHidden bool   `json:"includeHidden,omitempty"`
+	Limit         int64  `json:"limit,omitempty"`
+}
+
+type ModelListResponse struct {
+	Data       []Model `json:"data"`
+	NextCursor string  `json:"nextCursor,omitempty"`
+}
+
+type ModelServiceTier struct {
+	Description string `json:"description"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+}
+
+type ModelUpgradeInfo struct {
+	MigrationMarkdown string `json:"migrationMarkdown,omitempty"`
+	Model             string `json:"model"`
+	ModelLink         string `json:"modelLink,omitempty"`
+	RetirementAt      int64  `json:"retirementAt,omitempty"`
+	UpgradeCopy       string `json:"upgradeCopy,omitempty"`
+}
+
 type MultiAgentMode = json.RawMessage
+
+type MultiAgentVersion string
 
 type NamespaceDynamicToolSpec struct {
 	Description string                     `json:"description"`
@@ -870,6 +924,11 @@ type ReadOnlySandboxPolicy struct {
 }
 
 type ReasoningEffort string
+
+type ReasoningEffortOption struct {
+	Description     string          `json:"description"`
+	ReasoningEffort ReasoningEffort `json:"reasoningEffort"`
+}
 
 type ReasoningItemContent = json.RawMessage
 

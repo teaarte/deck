@@ -19,7 +19,7 @@ import (
 
 // roots are the types the adapter sends or reads.
 var roots = []string{
-	"InitializeParams", "InitializeResponse", "GetAccountParams", "GetAccountResponse", "ConfigReadParams",
+	"InitializeParams", "InitializeResponse", "GetAccountParams", "GetAccountResponse", "ConfigReadParams", "ModelListParams", "ModelListResponse",
 	"SkillsListParams", "SkillsListResponse", "SkillsExtraRootsSetParams",
 	"ThreadStartParams", "ThreadStartResponse", "ThreadResumeParams", "ThreadResumeResponse",
 	"TurnStartParams", "TurnStartResponse", "TurnInterruptParams", "TurnSteerParams",

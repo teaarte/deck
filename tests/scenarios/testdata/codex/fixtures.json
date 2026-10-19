@@ -172,5 +172,11 @@
   "date": "2026-10-17",
   "kind": "synthetic",
   "note": "hang.jsonl whose last call spent the window: the reached limit comes right after the turn completed"
+ },
+ "models.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-10-19",
+  "kind": "real",
+  "note": "initialize and model/list of the app-server, no model called; codexHome and userAgent replaced"
  }
 }

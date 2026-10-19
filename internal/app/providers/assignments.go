@@ -125,6 +125,9 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 		if err != nil {
 			return nil, registry.NotFound("deck: no model %q", name)
 		}
+		if row.Connection.Api == APICLI {
+			return nil, registry.Invalid("deck: model %s runs agent turns in %s; assign it to agent commands", name, row.Model.Agent)
+		}
 		if row.Model.Kind != in.Role {
 			return nil, registry.Invalid("deck: model %s is of kind %s, not %s", name, row.Model.Kind, in.Role)
 		}
@@ -211,5 +214,5 @@ func (s *Service) NoSearch(ctx context.Context, workspace int64) string {
 // inAgent says a provider is a model in an ACP agent, whose web is deck's.
 func (s *Service) inAgent(ctx context.Context, workspace int64, name string) bool {
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
-	return err == nil && row.Model.Agent != ""
+	return err == nil && row.Model.Agent != "" && row.Connection.Api != APICLI
 }

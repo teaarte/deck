@@ -43,7 +43,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   a connection (`model:`) and of pushes is of its workspace, `00033_reopened` — when a process was last sent back to
   work, the base of its duration and of its week in the cockpit, `00034_folder_outbox` — the folder of a deleted record
   and, by an SQL trigger, of a deleted project go through the outbox, `00035_chat_file_ids` — the files of a
-  chat message are stored file ids, `00036_retention_subject` — the health of retention is `retention:<project>`, `00037_file_process` — the process that made a file, `00038_no_dsh`, `00039_topic_model` — the model a chat topic answers on, `00040_fault` — the type and details of a failure of a process, the failed process one follows, the same unread note of deck counted), `00041_again` — the input of one more run of a script, tool or model command a call for its record left while it ran, deck's messages to a process, the stops deck makes `deck.stopped`, sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  chat message are stored file ids, `00036_retention_subject` — the health of retention is `retention:<project>`, `00037_file_process` — the process that made a file, `00038_no_dsh`, `00039_topic_model` — the model a chat topic answers on, `00040_fault` — the type and details of a failure of a process, the failed process one follows, the same unread note of deck counted), `00041_again` — the input of one more run of a script, tool or model command a call for its record left while it ran, deck's messages to a process, the stops deck makes `deck.stopped`, `00042_cli` — the connections claude-code and codex of the CLIs on the subscription, which deck keeps itself, sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
   refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
   writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
@@ -72,7 +72,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `providers` (connections, models with prices and options, assignments with fallbacks — kinds text, image, tts,
   stt, music, video (deck polls the job, `video.go`), search (a SearXNG the agents in ACP agents search through, `web.go` with `web_search` and `web_fetch`) —, a module calls only models of deck's settings (`Route`) and proposes one by `model_set`, held for the
   owner; a model that did not answer is red in health with the model that took its work; the providers of agent
-  turns — built-in or a model in an ACP agent, the agents found with their version, self-checks at start, by button
+  turns — built-in, a model of a CLI on its connection claude-code or codex (its effort in options, checked against
+  the models the CLI lists) or a model in an ACP agent, the agents found with their version, self-checks at start, by button
   and on a broken turn — the routes, limits and rights of direct calls `deck.model_call` (a script's call through the proxy goes by its rules) and of
   the model of an ACP turn), `devices` (feed with notes of deck and `feed_read`, push, speech to text through
   `deck.model_call`), `chat`, `records`
@@ -117,7 +118,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`; a call for a record
   whose process of the command runs joins it — a message to an agent, one more run after a script (`join.go`); an
   agent of a record reads the last processes of it, a hand-on what the refused one did and heard (`thread.go`); a tool or model command is
-  one gateway call (`tool.go`); what it takes from deck is
+  one gateway call (`tool.go`); what a process and its tree left — records, files of deck, changes of documents — for a
+  broken reply of the master and a trial (`left.go`); what it takes from deck is
   `Deps` (functions), the deadlines of processes are `Due` (ceilings, pauses, silent, empty results); a turn its model refused (a limit, no answer) goes on as a
   new process on the next model of the assignment, told what the first did (`handon.go`), else a limit pauses
 - `internal/home` — the layout of `DECK_HOME`: `state/` only deck reads (deck's key of pushes in `state/push`, apart

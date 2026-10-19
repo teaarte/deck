@@ -13,8 +13,11 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -98,8 +101,8 @@ type processView struct {
 	RecordTitle string `json:"record_title,omitempty"`
 	// Title is the title of its command, the way the owner reads it.
 	Title string `json:"title,omitempty"`
-	Since       string `json:"since,omitempty"`
-	Long        bool   `json:"long,omitempty"`
+	Since string `json:"since,omitempty"`
+	Long  bool   `json:"long,omitempty"`
 	process.Shown
 	// Retry marks a failed process the owner may run again: the owner is among the callers of its command.
 	Retry bool `json:"retry,omitempty"`
@@ -342,17 +345,81 @@ func (s *Service) processRework(ctx context.Context, act registry.Actor, in proc
 }
 
 type processLogIn struct {
-	Process int64 `type:"process" desc:"Process id"`
-	Limit   int64 `opt:"" desc:"At most this many events"`
+	Process int64  `type:"process" desc:"Process id"`
+	Limit   int64  `opt:"" desc:"At most this many events, 50 by default"`
+	Before  int64  `opt:"" desc:"Only the events before the one of this number n: the page before one read"`
+	After   *int64 `opt:"" desc:"Only the events after the one of this number n, the first of them; 0 reads from the start"`
+	Only    string `opt:"" enum:"errors|tools|messages" desc:"Only errors (failed tool calls with their calls, refusals, stderr, limits hit), tool calls with their results, or the agent's messages"`
 }
 
-// processLog returns the last events of a process; deck clears the logs of old runs.
-func (s *Service) processLog(ctx context.Context, act registry.Actor, in processLogIn) ([]json.RawMessage, error) {
+// logEvent is an event of the log of a process with its number in the log.
+type logEvent struct {
+	N      int64  `json:"n"`
+	At     string `json:"at"`
+	Kind   string `json:"kind"`
+	ID     string `json:"id,omitempty"`
+	Title  string `json:"title,omitempty"`
+	Status string `json:"status,omitempty"`
+	Text   string `json:"text,omitempty"`
+}
+
+// logText is how much of the text of an event a page of more than one gives.
+const logText = 1000
+
+// processLog is a page of the events of a process, oldest first; deck clears the logs of old runs.
+func (s *Service) processLog(ctx context.Context, act registry.Actor, in processLogIn) ([]logEvent, error) {
 	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
-	in.Limit = registry.Limit(in.Limit, 200, 1000)
-	return s.Runner.Tail(in.Process, int(in.Limit))
+	raw, err := s.Runner.Tail(in.Process, math.MaxInt)
+	if err != nil {
+		return nil, err
+	}
+	all := make([]logEvent, 0, len(raw))
+	failed := map[string]bool{}
+	for i, r := range raw {
+		var e logEvent
+		_ = json.Unmarshal(r, &e)
+		e.N = int64(i + 1)
+		if e.Kind == provider.EventToolUpdate && e.Status == "failed" {
+			failed[e.ID] = true
+		}
+		all = append(all, e)
+	}
+	var page []logEvent
+	for _, e := range all {
+		if (in.Before == 0 || e.N < in.Before) && (in.After == nil || e.N > *in.After) && logKind(e, in.Only, failed) {
+			page = append(page, e)
+		}
+	}
+	limit := int(registry.Limit(in.Limit, 50, 1000))
+	if len(page) > limit {
+		if in.After != nil {
+			page = page[:limit]
+		} else {
+			page = page[len(page)-limit:]
+		}
+	}
+	for i := range page {
+		if t := page[i].Text; limit > 1 && len(t) > logText {
+			page[i].Text = fmt.Sprintf("%s [%d of %d bytes; limit 1 with after %d gives it whole]", untrusted.Cut(t, logText), logText, len(t), page[i].N-1)
+		}
+	}
+	return page, nil
+}
+
+// logKind reports whether an event is of the kind asked: errors, tools or messages; every one for none.
+func logKind(e logEvent, only string, failed map[string]bool) bool {
+	switch only {
+	case "errors":
+		return e.Kind == provider.EventStderr || e.Kind == provider.EventDenied || failed[e.ID] && e.ID != "" ||
+			e.Kind == provider.EventRateLimit && !strings.HasPrefix(e.Text, "allowed")
+	case "tools":
+		return e.Kind == provider.EventTool || e.Kind == provider.EventToolUpdate || e.Kind == provider.EventDenied
+	case "messages":
+		return e.Kind == provider.EventMessage
+	}
+	return true
 }
 
 func (s *Service) processCommands() []*registry.Command {
@@ -376,7 +443,7 @@ func (s *Service) processCommands() []*registry.Command {
 			"Sends a finished agent process back to the same session with a remark; changed artifacts get new revisions.",
 			registry.OwnerSide, s.processRework),
 		registry.Read("process_log", "Process log",
-			"Returns the last events of a process, while it runs and for a week after it ended.",
+			"Gives a page of the events of a process, oldest first, each with its number n: the last ones, or those before or after a number; only errors, tool calls or messages; a text longer than 1000 bytes is cut, and a page of one event gives it whole. While it runs and for a week after it ended.",
 			registry.Everyone, s.processLog).On("log"),
 	}
 }

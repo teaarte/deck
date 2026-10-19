@@ -601,7 +601,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project what your own runs wrote, with an undo of its data for the owner in
    the feed, and when it takes a file, folder or process you did not make it waits for the owner's yes; the rest only the owner, by a button);
    say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives
-   the state and result; `process_log` shows the events of a process, also after it ended,
+   the state and result; `process_log` shows the events of a process, also after it ended, a page at a time
+   (`before` the first `n` read for the page before it, `only` `errors` for what failed),
    and a local model may think for many minutes before its first one: wait with
    `process_get` and `wait` in the foreground (up to 30 minutes on Claude Code and Codex). `processes_list`
    with `command` and `brief` and `records_list` with `where` (an expression, as in a source) and `fields` keep long lists short. Time the trial on the provider the command will run on and set

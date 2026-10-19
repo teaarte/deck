@@ -16,7 +16,7 @@ def call(command, inp=None):
     req = urllib.request.Request(os.environ["DECK_URL"] + "/commands/" + command, data=json.dumps(inp or {}).encode(),
                                  headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=120) as r:
+        with urllib.request.urlopen(req, timeout=3600) as r:
             body = r.read().decode()
     except urllib.error.HTTPError as e:
         # No type: deck types a failure by its own last error answer.
@@ -26,7 +26,8 @@ def call(command, inp=None):
 
 @contextlib.contextmanager
 def locked(path):
-    """Holds the lock of path (a .lock file beside it) for a read-modify-write of it."""
+    """Holds the lock of path (flock of a .lock file beside it) for a read-modify-write of it; the Node helper's lock
+    does not see it, so one file is written by scripts of one language."""
     with open(path + ".lock", "a") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
         try:
@@ -59,19 +60,18 @@ def write(path, text):
 def run(main):
     """The entry point: runs main, prints its result, and turns a failure nobody caught into the one form deck reads."""
     try:
-        result = main(json.load(sys.stdin))
+        print(json.dumps(main(json.load(sys.stdin))))
     except Failure as f:
         out = {"error": f.error}
         if f.type:
             out["type"] = f.type
         if f.details is not None:
             out["details"] = f.details
-        print(json.dumps(out))
+        print(json.dumps(out, default=str))
         sys.exit(1)
     except Exception as e:
         print(json.dumps({"error": f"{type(e).__name__}: {e}"[:300], "details": traceback.format_exc()[-4000:]}))
         sys.exit(1)
-    print(json.dumps(result))
 
 
 # Example: a step that reads a record, fails on bad input in its own words, and adds a line to a file of its data.

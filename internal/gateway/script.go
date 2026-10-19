@@ -66,7 +66,13 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 		}
 		rw := &refusing{ResponseWriter: w}
 		mux.ServeHTTP(rw, r)
-		if rw.status < 400 {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		e := g.sessions[tok]
+		if e == nil {
+			return
+		}
+		if e.lastOK = rw.status < 400; e.lastOK {
 			return
 		}
 		call := strings.TrimPrefix(r.URL.Path, "/commands/")
@@ -74,14 +80,10 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 		if rest, ok := strings.CutPrefix(r.URL.Path, "/models/"); ok {
 			call, model = "the model proxy "+strings.SplitN(rest, "/", 2)[0], true
 		}
-		g.mu.Lock()
-		if e := g.sessions[tok]; e != nil {
-			e.refused = append(e.refused, Refusal{Call: call, Status: rw.status, Model: model, Text: strings.TrimSpace(rw.text.String())})
-			if len(e.refused) > 5 {
-				e.refused = e.refused[1:]
-			}
+		e.refused = append(e.refused, Refusal{Call: call, Status: rw.status, Model: model, Text: strings.TrimSpace(rw.text.String())})
+		if len(e.refused) > 5 {
+			e.refused = e.refused[1:]
 		}
-		g.mu.Unlock()
 	})
 }
 
@@ -137,14 +139,15 @@ func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 	return body, err
 }
 
-// Refusals are the last calls of the script of tok deck answered with an error, oldest first.
-func (g *Gateway) Refusals(tok string) []Refusal {
+// Refusals are the last calls of the script of tok deck answered with an error, oldest first; last says the last of
+// them is the last call the script made.
+func (g *Gateway) Refusals(tok string) (calls []Refusal, last bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if e := g.sessions[tok]; e != nil {
-		return slices.Clone(e.refused)
+		return slices.Clone(e.refused), len(e.refused) > 0 && !e.lastOK
 	}
-	return nil
+	return nil, false
 }
 
 func (g *Gateway) session(tok string) *Session {

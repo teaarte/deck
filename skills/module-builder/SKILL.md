@@ -376,10 +376,10 @@ end of stderr after it. `type` says whose the failure is, and the master's `on_e
 tell the owner: `script.failed` (the default: a bug of the script), `input.invalid` (the input or the data it read
 is not what the script takes), `program.missing`, `network` (a site is down or answers wrong), `rights.denied`
 (a folder or a domain the project has no right to), `model.limit` and `model.unavailable` (a model deck called
-refused). Any other type is `script.failed`. A failure with no type or `script.failed` after deck answered a call
-of the script with an error takes the type of the last such answer — 400, 404 or 422 `input.invalid`, 403
-`rights.denied`, 429 of a model `model.limit`, 5xx of a model `model.unavailable`, 429 or 5xx of another command
-`network` — and deck adds the answers to the failure, so a script need not catch deck's errors only to type them.
+refused). Any other type is `script.failed`. A failure with no type or `script.failed` right after deck answered the
+last call of the script with an error takes the type of that answer — 400, 404 or 422 `input.invalid`, 403
+`rights.denied`, 429 of a model `model.limit`, 5xx of a model `model.unavailable`, 429 or a 5xx past 500 of another
+command `network` — and deck adds its error answers to the failure, so a script need not catch them only to type them.
 Without a non-zero exit stdout stays the result, so a result schema
 may have a field `error` of its own; nothing to do (nothing new, a record already done) is a result, not a
 failure. Print the failure only where the run really ends: a helper that a caller may catch (a spend not logged, a

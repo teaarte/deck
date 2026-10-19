@@ -102,6 +102,8 @@ type entry struct {
 	commands string
 	// refused are the last calls of a script deck answered with an error.
 	refused []Refusal
+	// lastOK says the last call of the script was answered without an error.
+	lastOK bool
 }
 
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {

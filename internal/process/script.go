@@ -95,7 +95,8 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	if err != nil {
-		fail(refused(r.gw.Refusals(tok), fault.Of(err)))
+		calls, last := r.gw.Refusals(tok)
+		fail(refused(calls, last, fault.Of(err)))
 		return
 	}
 	result := string(bytes.TrimSpace(out))
@@ -127,9 +128,9 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	r.finish(bg, id, StateDone, result, false, nil)
 }
 
-// refused adds to the failure of a script the calls deck answered with an error, which the script may not have
-// printed; a failure it did not name takes the type of the last of them, when a script may give that type.
-func refused(calls []gateway.Refusal, f *fault.F) *fault.F {
+// refused adds to the failure of a script deck's error answers to its calls; a failure it did not name takes the
+// type of the last one when that was its last call and a script may give that type.
+func refused(calls []gateway.Refusal, last bool, f *fault.F) *fault.F {
 	if len(calls) == 0 {
 		return f
 	}
@@ -138,8 +139,8 @@ func refused(calls []gateway.Refusal, f *fault.F) *fault.F {
 		lines[i] = untrusted.Cut(fmt.Sprintf("%s: %d %s", c.Call, c.Status, c.Text), 300)
 	}
 	out := *f
-	last := calls[len(calls)-1]
-	if t := statusType(last.Status, last.Model); out.Type == fault.ScriptFailed && fault.FromScript(t) == t {
+	c := calls[len(calls)-1]
+	if t := statusType(c.Status, c.Model); last && out.Type == fault.ScriptFailed && fault.FromScript(t) == t {
 		out.Type = t
 	}
 	out.Text += "; deck refused its calls: " + strings.Join(lines, "; ")

@@ -14,6 +14,7 @@ export class Failure extends Error {
 }
 
 // call calls a deck command and returns its result; an error answer throws Failure with deck's answer as details.
+// fetch gives up on an answer after 5 minutes: a longer command is started and then read with deck.process_get.
 export async function call(command, input = {}) {
   const res = await fetch(`${process.env.DECK_URL}/commands/${command}`, {
     method: "POST",
@@ -26,26 +27,40 @@ export async function call(command, input = {}) {
   return body.trim() ? JSON.parse(body) : null;
 }
 
-// locked runs fn holding the lock of file for a read-modify-write of it. Node has no flock, so the lock is a
-// .lock file made exclusively beside it; one left by a run that died is taken after two minutes.
+// locked runs fn holding file.lock, made exclusively and kept fresh (Node has no flock); one a dead run left is taken
+// after a minute. The Python helper's flock does not see it: one file is written by scripts of one language.
 export async function locked(file, fn) {
   const lock = file + ".lock";
+  const mine = `${process.pid}.${Math.random()}`;
   for (let i = 0; ; i++) {
     try {
-      fs.closeSync(fs.openSync(lock, "wx"));
+      fs.writeFileSync(lock, mine, { flag: "wx" });
       break;
     } catch (e) {
       if (e.code !== "EEXIST") throw e;
       try {
-        if (Date.now() - fs.statSync(lock).mtimeMs > 120_000) fs.rmSync(lock, { force: true });
+        if (Date.now() - fs.statSync(lock).mtimeMs > 60_000) {
+          const stale = `${lock}.${mine}.stale`;
+          fs.renameSync(lock, stale);
+          fs.rmSync(stale, { force: true });
+          continue;
+        }
       } catch {}
       await new Promise((r) => setTimeout(r, Math.min(50 * (i + 1), 500)));
     }
   }
+  const fresh = setInterval(() => {
+    try {
+      fs.utimesSync(lock, new Date(), new Date());
+    } catch {}
+  }, 15_000);
   try {
     return await fn();
   } finally {
-    fs.rmSync(lock, { force: true });
+    clearInterval(fresh);
+    try {
+      if (fs.readFileSync(lock, "utf8") === mine) fs.rmSync(lock, { force: true });
+    } catch {}
   }
 }
 
@@ -79,7 +94,7 @@ export async function run(main) {
     console.log(JSON.stringify(await main(input)));
   } catch (e) {
     const out = e instanceof Failure ? { error: e.message, type: e.type, details: e.details }
-      : { error: String(e).slice(0, 300), details: String(e.stack || e).slice(-4000) };
+      : { error: String(e).slice(0, 300), details: String(e?.stack ?? e).slice(-4000) };
     console.log(JSON.stringify(out));
     process.exitCode = 1;
   }

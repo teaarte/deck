@@ -187,7 +187,7 @@ func TestTheMasterGetsTheTypeOfAFailure(t *testing.T) {
 }
 
 // callScript calls deck at key with the body other and, refused, fails with the type it is given or with a bare
-// traceback when none.
+// traceback when none; with use it handles the refusal, calls deck again and fails on a bug of its own.
 const callScript = `import json, os, sys, urllib.request, urllib.error
 inp = json.load(sys.stdin)
 req = urllib.request.Request(os.environ["DECK_URL"] + "/" + inp["key"], data=inp["other"].encode(),
@@ -195,6 +195,11 @@ req = urllib.request.Request(os.environ["DECK_URL"] + "/" + inp["key"], data=inp
 try:
     urllib.request.urlopen(req, timeout=60)
 except urllib.error.HTTPError as e:
+    if inp.get("use"):
+        ok = urllib.request.Request(os.environ["DECK_URL"] + "/commands/deck.records_list", data=b'{"collection": "items"}',
+            headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
+        urllib.request.urlopen(ok, timeout=60)
+        raise KeyError("a bug after the refusal was handled")
     if inp.get("type"):
         print(json.dumps({"error": "deck said no", "type": inp["type"]}))
         sys.exit(1)
@@ -202,12 +207,15 @@ except urllib.error.HTTPError as e:
 print("{}")
 `
 
-// TestAScriptFailedOnDecksAnswerTakesItsType: a script that fails on an error answer of deck without naming a type
-// takes the type of that answer; a type the script names stays.
+// TestAScriptFailedOnDecksAnswerTakesItsType: a script failing on deck's error answer with no type takes its type;
+// a type the script names stays, and a refusal it handled before a later call is not its type.
 func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
-		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+		"/v1/chat/completions": func(_ int, body map[string]any) (int, string, string) {
+			if body["model"] == "m2" {
+				return 500, "application/json", `{"error": {"message": "overloaded"}}`
+			}
 			return 429, "application/json", `{"error": {"message": "rate limited"}}`
 		},
 	})
@@ -215,16 +223,19 @@ func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 	e.must("deck.secret_set", map[string]any{"name": "cloud", "value": "sk-cloud"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": api.URL + "/v1", "key_secret": "cloud"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "cloud", "model": "m1", "kind": "text", "name": "m1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "cloud", "model": "m2", "kind": "text", "name": "m2"}, nil)
 	e.createProject("calls", scriptManifest("call", "", `, "models": ["cloud"]`))
 	e.saveScript("calls", "scripts/main.py", callScript)
-	for _, c := range []struct{ key, body, named, want, says string }{
-		{"commands/deck.record_get", `{"record": 987654}`, "", "input.invalid", "deck refused its calls: deck.record_get: 404"},
-		{"commands/deck.record_get", `{"record": 987654}`, "script.failed", "input.invalid", "deck.record_get: 404"},
-		{"commands/deck.settings_list", `{}`, "", "rights.denied", "deck.settings_list: 403"},
-		{"commands/deck.record_get", `{"record": 987654}`, "network", "network", "deck.record_get: 404"},
-		{"models/cloud/chat/completions", `{"model": "m1", "messages": [{"role": "user", "content": "hi"}]}`, "", "model.limit", "the model proxy cloud: 429"},
+	for _, c := range []struct{ key, body, named, use, want, says string }{
+		{"commands/deck.record_get", `{"record": 987654}`, "", "", "input.invalid", "deck refused its calls: deck.record_get: 404"},
+		{"commands/deck.record_get", `{"record": 987654}`, "script.failed", "", "input.invalid", "deck.record_get: 404"},
+		{"commands/deck.settings_list", `{}`, "", "", "rights.denied", "deck.settings_list: 403"},
+		{"commands/deck.record_get", `{"record": 987654}`, "network", "", "network", "deck.record_get: 404"},
+		{"commands/deck.record_get", `{"record": 987654}`, "", "handled", "script.failed", "deck.record_get: 404"},
+		{"models/cloud/chat/completions", `{"model": "m1", "messages": [{"role": "user", "content": "hi"}]}`, "", "", "model.limit", "the model proxy cloud: 429"},
+		{"models/cloud/chat/completions", `{"model": "m2", "messages": [{"role": "user", "content": "hi"}]}`, "", "", "model.unavailable", "the model proxy cloud: 500"},
 	} {
-		got := e.waitScript(e.start("calls", "call", map[string]any{"key": c.key, "other": c.body, "type": c.named}), "done", "error")
+		got := e.waitScript(e.start("calls", "call", map[string]any{"key": c.key, "other": c.body, "type": c.named, "use": c.use}), "done", "error")
 		f := e.fault(got.ID)
 		if f.ErrorType != c.want || !strings.Contains(f.Error, c.says) {
 			t.Fatalf("%s %q: want %s with %q, got %s: %s", c.key, c.named, c.want, c.says, f.ErrorType, f.Error)
@@ -232,9 +243,8 @@ func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 	}
 }
 
-// TestTheHelpersOfTheSkillRunAsScripts: the Python and Node helpers module-builder ships run as scripts of a module
-// in deck's sandbox: deck's error answer is the details of a failure deck types, a failure the script names keeps
-// its type, and a file of its data is replaced whole, nothing of the write left beside it.
+// TestTheHelpersOfTheSkillRunAsScripts: module-builder's helpers run as scripts in the sandbox: deck's answer is the
+// details of a failure deck types, a named type stays, runs side by side add to one file, no .tmp left.
 func TestTheHelpersOfTheSkillRunAsScripts(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -263,14 +273,24 @@ func TestTheHelpersOfTheSkillRunAsScripts(t *testing.T) {
 			if f.ErrorType != "input.invalid" || !strings.Contains(f.Error, "no value to add") {
 				t.Fatalf("the failure the script names: %+v", f)
 			}
-			var last proc
-			for _, v := range []string{"a", "b"} {
-				last = e.waitScript(e.start(name, "step", map[string]any{"value": v}), "done", "error")
+			var ids []int64
+			for _, v := range []string{"a", "b", "c", "d"} {
+				ids = append(ids, e.start(name, "step", map[string]any{"value": v}))
 			}
+			for _, id := range ids {
+				if p := e.waitScript(id, "done", "error"); p.State != "done" {
+					t.Fatalf("a run side by side: %+v", e.fault(id))
+				}
+			}
+			last := e.waitScript(e.start(name, "step", map[string]any{"value": "e"}), "done", "error")
 			var out struct {
 				Values, Files []string
 			}
-			if last.State != "done" || json.Unmarshal(last.Result, &out) != nil || strings.Join(out.Values, ",") != "a,b" ||
+			if last.State != "done" || json.Unmarshal(last.Result, &out) != nil {
+				t.Fatalf("the last run: %+v", last)
+			}
+			got := slices.Sorted(slices.Values(out.Values))
+			if strings.Join(got, ",") != "a,b,c,d,e" ||
 				!slices.Contains(out.Files, "values.json") || strings.Contains(strings.Join(out.Files, ","), ".tmp") {
 				t.Fatalf("the file is replaced whole: %+v %s", last, last.Result)
 			}

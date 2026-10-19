@@ -201,14 +201,14 @@ func callFault(err error, tool bool) *fault.F {
 }
 
 // statusType is the type of a failure of a call of deck by the status deck answered; only a call of a model meets a
-// model's limit or fault, any other one the network's.
+// model's limit or fault, any other one the network's past deck's own 500.
 func statusType(st int, model bool) string {
 	switch {
 	case !model && (st == http.StatusTooManyRequests || st > 500):
 		return fault.Network
 	case st == http.StatusTooManyRequests:
 		return fault.ModelLimit
-	case st > 500:
+	case st >= 500:
 		return fault.ModelUnavailable
 	case st == http.StatusForbidden:
 		return fault.RightsDenied

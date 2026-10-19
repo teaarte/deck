@@ -76,11 +76,11 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 			return
 		}
 		call := strings.TrimPrefix(r.URL.Path, "/commands/")
-		model := call == ModelCommand
+		model, proxy := call == ModelCommand, false
 		if rest, ok := strings.CutPrefix(r.URL.Path, "/models/"); ok {
-			call, model = "the model proxy "+strings.SplitN(rest, "/", 2)[0], true
+			call, model, proxy = "the model proxy "+strings.SplitN(rest, "/", 2)[0], true, true
 		}
-		e.refused = append(e.refused, Refusal{Call: call, Status: rw.status, Model: model, Text: strings.TrimSpace(rw.text.String())})
+		e.refused = append(e.refused, Refusal{Call: call, Status: rw.status, Model: model, Proxy: proxy, Text: strings.TrimSpace(rw.text.String())})
 		if len(e.refused) > 5 {
 			e.refused = e.refused[1:]
 		}
@@ -88,11 +88,12 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 }
 
 // Refusal is a call of a script deck answered with an error: the command, or the model proxy and its connection,
-// the status and the start of the answer. Model says the call was of a model.
+// the status and the start of the answer. Model says the call was of a model; Proxy that the status is the model's own.
 type Refusal struct {
 	Call   string
 	Status int
 	Model  bool
+	Proxy  bool
 	Text   string
 }
 
@@ -125,6 +126,9 @@ func (w *refusing) Flush() {
 		f.Flush()
 	}
 }
+
+// Unwrap gives http.ResponseController and http.MaxBytesReader the writer of the server.
+func (w *refusing) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // ReadBody reads the body of a command call up to 32 MB and answers 413 or 400 itself when it cannot.
 func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {

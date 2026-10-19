@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -140,7 +141,11 @@ func refused(calls []gateway.Refusal, last bool, f *fault.F) *fault.F {
 	}
 	out := *f
 	c := calls[len(calls)-1]
-	if t := statusType(c.Status, c.Model); last && out.Type == fault.ScriptFailed && fault.FromScript(t) == t {
+	t := statusType(c.Status, c.Model)
+	if c.Proxy && c.Status == http.StatusInternalServerError {
+		t = fault.ModelUnavailable // the proxy passes the model's status as it is
+	}
+	if last && out.Type == fault.ScriptFailed && fault.FromScript(t) == t {
 		out.Type = t
 	}
 	out.Text += "; deck refused its calls: " + strings.Join(lines, "; ")

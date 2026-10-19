@@ -38,14 +38,7 @@ export async function locked(file, fn) {
       break;
     } catch (e) {
       if (e.code !== "EEXIST") throw e;
-      try {
-        if (Date.now() - fs.statSync(lock).mtimeMs > 60_000) {
-          const stale = `${lock}.${mine}.stale`;
-          fs.renameSync(lock, stale);
-          fs.rmSync(stale, { force: true });
-          continue;
-        }
-      } catch {}
+      if (breakStale(lock)) continue;
       await new Promise((r) => setTimeout(r, Math.min(50 * (i + 1), 500)));
     }
   }
@@ -61,6 +54,33 @@ export async function locked(file, fn) {
     try {
       if (fs.readFileSync(lock, "utf8") === mine) fs.rmSync(lock, { force: true });
     } catch {}
+  }
+}
+
+// breakStale removes a lock a dead run left, one remover at a time: it looks at the lock again holding lock.break, so a
+// lock another run has just taken stays.
+function breakStale(lock) {
+  const old = (f) => {
+    try {
+      return Date.now() - fs.statSync(f).mtimeMs > 60_000;
+    } catch {
+      return false;
+    }
+  };
+  if (!old(lock)) return false;
+  const brk = lock + ".break";
+  if (old(brk)) fs.rmSync(brk, { force: true });
+  try {
+    fs.writeFileSync(brk, "", { flag: "wx" });
+  } catch {
+    return false;
+  }
+  try {
+    if (!old(lock)) return false;
+    fs.rmSync(lock, { force: true });
+    return true;
+  } finally {
+    fs.rmSync(brk, { force: true });
   }
 }
 

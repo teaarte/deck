@@ -108,6 +108,9 @@ type processView struct {
 	Retry bool `json:"retry,omitempty"`
 	// SlotAhead is how many processes wait for an agent slot before one that waits for it.
 	SlotAhead *int64 `json:"slot_ahead,omitempty"`
+	// Left is what a trial and the processes it started left, and LeftNote what that list does not hold.
+	Left     []process.Left `json:"left,omitempty"`
+	LeftNote string         `json:"left_note,omitempty"`
 }
 
 func msTime(v sql.NullInt64) string {
@@ -294,7 +297,26 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		}
 	}
 	v.CostUSD, v.SubscriptionUSD = provider.Spent(calls, func(c db.ListProcessModelCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
+	if p.Trial != 0 {
+		if v.Left, err = process.LeftBy(ctx, s.St.Q, p.ID); err != nil {
+			return processView{}, err
+		}
+		v.LeftNote = process.LeftNote
+	}
 	return v, nil
+}
+
+type processLeftIn struct {
+	Process int64 `type:"process" desc:"Process id"`
+}
+
+// processLeft is what a process and the processes it started left, for its page.
+func (s *Service) processLeft(ctx context.Context, act registry.Actor, in processLeftIn) ([]process.Left, error) {
+	p, err := s.ownProcess(ctx, act, in.Process)
+	if err != nil {
+		return nil, err
+	}
+	return process.LeftBy(ctx, s.St.Q, p.ID)
 }
 
 // waitLimit is how long process_get may wait for the caller: short of the limit of its tool calls, if it has one.
@@ -430,6 +452,9 @@ func (s *Service) processCommands() []*registry.Command {
 		registry.Read("process_get", "Process status",
 			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner, and an agent's slot is free for others meanwhile; a process waiting for an agent slot names in slot_ahead how many wait before it.",
 			registry.Everyone, s.processGet).On("processes", "usage", "asks"),
+		registry.Read("process_left", "Left by a process",
+			"Lists what a process and the processes it started left: the changes of documents of an enabled project with whether they can be undone, the records and the files of deck they made; not what was written into the data folder.",
+			registry.Everyone, s.processLeft).On("collection", "files", "feed", "processes"),
 		registry.Def("process_retry", "Run a failed process again",
 			"Starts the command of a failed process again with the same input, as the owner calls it.",
 			registry.OwnerOnly, s.processRetry),

@@ -608,7 +608,9 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    someone, and keep `master` in a list you give. The `after` triggers it sets off run as trials too, so a whole chain can be tried from
    its first command. A trial is not a sandbox: internal writes (records, documents) are real and stay
    in the draft, and so is what scripts write to `$DECK_DATA`, which you cannot reach: keep what a module
-   remembers (seen items, cursors) in records when trials must be undone. Before the hand-over, delete what
+   remembers (seen items, cursors) in records when trials must be undone. `process_get` of a trial lists in `left`
+   the records, files of deck and changes of documents it and its chain left, which the owner undoes on the page of
+   the process; what went to `$DECK_DATA` is not listed. Before the hand-over, delete what
    the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project what your own runs wrote, with an undo of its data for the owner in
    the feed, and when it takes a file, folder or process you did not make it waits for the owner's yes; the rest only the owner, by a button);
    say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives

@@ -60,19 +60,22 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64) *cutVie
 		return nil
 	}
 	v := &cutView{Did: ch.did(ctx, p.ID), Undo: []undoView{}, Retry: []action{}}
-	if changes, err := ch.St.Q.ListTreeChanges(ctx, p.ID); err == nil {
-		for _, f := range changes {
-			if !f.UndoneAt.Valid && f.Command != "" {
-				v.Undo = append(v.Undo, undoView{Text: untrusted.Cut(f.Text, 200), Action: chatAction("undo", registry.Builtin+".feed_undo", map[string]any{"entry": f.ID})})
-			}
-		}
-	}
-	if recs, err := ch.St.Q.ListTreeRecords(ctx, p.ID); err == nil {
-		for _, r := range recs {
-			a := chatAction("delete", registry.Builtin+".record_delete", map[string]any{"record": r.ID})
+	left, _ := process.LeftBy(ctx, ch.St.Q, p.ID)
+	for _, l := range left {
+		var a action
+		switch {
+		case l.Kind == process.LeftChange && l.Undo:
+			a = chatAction("undo", registry.Builtin+".feed_undo", map[string]any{"entry": l.ID})
+		case l.Kind == process.LeftRecord:
+			a = chatAction("delete", registry.Builtin+".record_delete", map[string]any{"record": l.ID})
 			a["confirm"], a["parts"] = true, manifest.RecordParts
-			v.Undo = append(v.Undo, undoView{Text: fmt.Sprintf("record %s of %s.%s", untrusted.Line(r.Key, 80), r.Project, r.Collection), Action: a})
+		case l.Kind == process.LeftFile:
+			a = chatAction("delete", registry.Builtin+".file_delete", map[string]any{"file": l.ID})
+			a["confirm"] = true
+		default:
+			continue
 		}
+		v.Undo = append(v.Undo, undoView{Text: l.Text, Action: a})
 	}
 	for _, name := range ch.others(ctx, p) {
 		a := chatAction("retry", registry.Builtin+".chat_retry", map[string]any{"message": message, "provider": name})

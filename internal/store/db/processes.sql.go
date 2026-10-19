@@ -1544,7 +1544,7 @@ WITH RECURSIVE tree(id) AS (
     UNION ALL
     SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
 )
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats FROM feed WHERE kind = 'change' AND process_id IN (SELECT id FROM tree) ORDER BY id
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats FROM feed WHERE kind = 'change' AND process_id IN (SELECT id FROM tree) ORDER BY id LIMIT 200
 `
 
 func (q *Queries) ListTreeChanges(ctx context.Context, id int64) ([]Feed, error) {
@@ -1590,6 +1590,51 @@ func (q *Queries) ListTreeChanges(ctx context.Context, id int64) ([]Feed, error)
 	return items, nil
 }
 
+const listTreeFiles = `-- name: ListTreeFiles :many
+WITH RECURSIVE tree(id) AS (
+    SELECT CAST(?1 AS INTEGER)
+    UNION ALL
+    SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
+)
+SELECT f.id, f.name, f.size, j.name AS project FROM file f JOIN project j ON j.id = f.project_id
+WHERE f.process_id IN (SELECT id FROM tree) AND f.owner_kind != 'trash' ORDER BY f.id LIMIT 200
+`
+
+type ListTreeFilesRow struct {
+	ID      int64
+	Name    string
+	Size    int64
+	Project string
+}
+
+func (q *Queries) ListTreeFiles(ctx context.Context, id int64) ([]ListTreeFilesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTreeFiles, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTreeFilesRow
+	for rows.Next() {
+		var i ListTreeFilesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Size,
+			&i.Project,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTreeRecords = `-- name: ListTreeRecords :many
 WITH RECURSIVE tree(id) AS (
     SELECT CAST(?1 AS INTEGER)
@@ -1597,7 +1642,7 @@ WITH RECURSIVE tree(id) AS (
     SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
 )
 SELECT r.id, r.collection, r.key, j.name AS project FROM record r JOIN project j ON j.id = r.project_id
-WHERE r.process_id IN (SELECT id FROM tree) ORDER BY r.id
+WHERE r.process_id IN (SELECT id FROM tree) ORDER BY r.id LIMIT 200
 `
 
 type ListTreeRecordsRow struct {

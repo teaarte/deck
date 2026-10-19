@@ -115,7 +115,7 @@ func (sv *Saver) manifestSave(ctx context.Context, act registry.Actor, in manife
 func (sv *Saver) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("manifest_get", "Get manifest",
-			"Returns the current manifest of a project.",
+			"Returns the current manifest of a project as text; with fields such as manifest.writes, manifest.commands.<name> or manifest.screens.<name>, only that part of it, as text in the same form.",
 			registry.Everyone, sv.manifestGet).On("projects"),
 		registry.Def("manifest_save", "Save manifest",
 			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current one replaced with new ones.",

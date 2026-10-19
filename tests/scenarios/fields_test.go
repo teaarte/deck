@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	deckhome "deck2/internal/home"
@@ -94,5 +95,44 @@ func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 	e.must("deck.command_describe", map[string]any{"command": "deck.records_upsert"}, &d)
 	if _, ok := d.Input.Properties["fields"]; ok {
 		t.Fatalf("a command that writes takes no fields: %+v", d.Input)
+	}
+}
+
+// TestFieldsReachIntoTheManifestText: fields of manifest_get give a part of the manifest as text in the form it is
+// stored in, an item of a named list by its name, and an old part for manifest_save may come from that text.
+func TestFieldsReachIntoTheManifestText(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("source", sourceManifest)
+	var whole struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "source"}, &whole)
+
+	var m struct {
+		Revision int64
+		Manifest string
+	}
+	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"revision", "manifest.collections.private"}}, &m)
+	want := "{\n  \"collections\": [\n    {\n      \"name\": \"private\",\n      \"description\": \"Not shared.\","
+	if m.Revision == 0 || !strings.HasPrefix(m.Manifest, want) || strings.Contains(m.Manifest, `"items"`) || strings.Contains(m.Manifest, `"version"`) {
+		t.Fatalf("a named item of a list comes as text, its keys in their order:\n%s", m.Manifest)
+	}
+	for line := range strings.SplitSeq(m.Manifest, "\n") {
+		if l := strings.TrimSpace(line); l != "" && !strings.Contains(whole.Manifest, l) {
+			t.Fatalf("each line of the part is a line of the whole text: %q", l)
+		}
+	}
+	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.name", "manifest.version"}}, &m)
+	var part struct {
+		Version     int
+		Collections []map[string]any
+	}
+	if json.Unmarshal([]byte(m.Manifest), &part) != nil || part.Version != 12 || len(part.Collections) != 2 || !slices.Equal(keysOf(part.Collections[1]), []string{"name"}) {
+		t.Fatalf("a field of every item of a list: %s", m.Manifest)
+	}
+
+	e.must("deck.manifest_save", map[string]any{"project": "source", "old": []string{`"description": "Not shared."`}, "new": []string{`"description": "Kept apart."`}}, nil)
+	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.private.description"}}, &m)
+	if !strings.Contains(m.Manifest, "Kept apart.") {
+		t.Fatalf("an old part taken from a part of the manifest saves: %s", m.Manifest)
 	}
 }

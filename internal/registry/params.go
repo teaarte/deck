@@ -183,7 +183,8 @@ func Read[In, Out any](name, title, desc string, callers []string, h func(ctx co
 		return c
 	}
 	c.params = append(c.params, Param{Name: "fields", Type: "string[]", Optional: true,
-		Desc: "Only these fields of the result, of each of its rows; a.b is the field b of a"})
+		Desc: "Only these fields of the result, of each of its rows; a.b is the field b of a, also inside a JSON text a holds, " +
+			"where a.<name> of a list is its item of that name"})
 	c.Input = Params(c.params...)
 	whole := c.Handler
 	sh := shapeOf(reflect.TypeFor[Out]())
@@ -279,6 +280,10 @@ func (t tree) cut(v any) any {
 		for i := range v {
 			v[i] = t.cut(v[i])
 		}
+	case string:
+		if s, ok := t.text(v); ok {
+			return s
+		}
 	case map[string]any:
 		out := map[string]any{}
 		for name, sub := range t {
@@ -291,6 +296,104 @@ func (t tree) cut(v any) any {
 		return out
 	}
 	return v
+}
+
+// text is the parts of a JSON text named by the tree, in the order and indentation of the text; ok is false when
+// the text is no JSON object or array.
+func (t tree) text(s string) (string, bool) {
+	raw := bytes.TrimSpace([]byte(s))
+	if len(t) == 0 || len(raw) == 0 || raw[0] != '{' && raw[0] != '[' || !json.Valid(raw) {
+		return s, false
+	}
+	var buf bytes.Buffer
+	if json.Indent(&buf, t.keep(raw), "", "  ") != nil {
+		return s, false
+	}
+	return buf.String(), true
+}
+
+// keep is the parts of a JSON value named by the tree, the kept keys in their order; a name no item of a list has
+// as a field picks the items of that name.
+func (t tree) keep(raw json.RawMessage) json.RawMessage {
+	raw = bytes.TrimSpace(raw)
+	if len(t) == 0 || len(raw) == 0 {
+		return raw
+	}
+	var b bytes.Buffer
+	switch raw[0] {
+	case '{':
+		d := json.NewDecoder(bytes.NewReader(raw))
+		_, _ = d.Token()
+		b.WriteByte('{')
+		for d.More() {
+			k, _ := d.Token()
+			var v json.RawMessage
+			if d.Decode(&v) != nil {
+				return raw
+			}
+			name, _ := k.(string)
+			sub, ok := t[name]
+			if !ok {
+				continue
+			}
+			if b.Len() > 1 {
+				b.WriteByte(',')
+			}
+			e := json.NewEncoder(&b)
+			e.SetEscapeHTML(false)
+			_ = e.Encode(name)
+			b.WriteByte(':')
+			b.Write(sub.keep(v))
+		}
+		b.WriteByte('}')
+	case '[':
+		var items []map[string]json.RawMessage
+		if json.Unmarshal(raw, &items) != nil {
+			var list []json.RawMessage
+			if json.Unmarshal(raw, &list) != nil {
+				return raw
+			}
+			return t.list(list, func(json.RawMessage) (tree, bool) { return t, true })
+		}
+		named := tree{}
+		for k, sub := range t {
+			if !slices.ContainsFunc(items, func(it map[string]json.RawMessage) bool { _, ok := it[k]; return ok }) {
+				named[k] = sub
+			}
+		}
+		var list []json.RawMessage
+		_ = json.Unmarshal(raw, &list)
+		return t.list(list, func(it json.RawMessage) (tree, bool) {
+			if len(named) == 0 {
+				return t, true
+			}
+			var n struct{ Name *string }
+			if json.Unmarshal(it, &n) != nil || n.Name == nil {
+				return nil, false
+			}
+			sub, ok := named[*n.Name]
+			return sub, ok
+		})
+	default:
+		return raw
+	}
+	return b.Bytes()
+}
+
+// list is the items of a list each picks, cut by the tree it gives.
+func (t tree) list(items []json.RawMessage, pick func(json.RawMessage) (tree, bool)) json.RawMessage {
+	b := []byte{'['}
+	for _, it := range items {
+		sub, ok := pick(it)
+		if !ok {
+			continue
+		}
+		if len(b) > 1 {
+			b = append(b, ',')
+		}
+		b = append(b, sub.keep(it)...)
+	}
+	return append(b, ']')
 }
 
 var rawType = reflect.TypeFor[json.RawMessage]()

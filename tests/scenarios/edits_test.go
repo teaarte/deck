@@ -206,6 +206,22 @@ func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
 		}
 	}
 
+	other := func(in map[string]any) (int, string) {
+		in["project"], in["name"], in["kind"] = "web", "notes/b.md", "doc"
+		code, body := e.call("deck.document_save", in)
+		return code, string(body)
+	}
+	other(map[string]any{"text": "x x x\nlimit = 10\n"})
+	for _, c := range []struct{ old, says string }{
+		{"x x", "occurs 2 times; take more"},
+		{"x\nx", "occurs 2 times with spaces"},
+		{"limit = 1\n", "not in the current text"},
+	} {
+		if code, body := other(map[string]any{"old": []string{c.old}, "new": []string{"y"}}); code != 422 || !strings.Contains(body, c.says) {
+			t.Fatalf("%q: want %q, got %d %s", c.old, c.says, code, body)
+		}
+	}
+
 	e.createProject("notes", sourceManifest)
 	if code, body := e.call("deck.manifest_save", map[string]any{"project": "notes", "old": []string{"\"name\": \"private\",\n\"description\": \"Not shared.\""},
 		"new": []string{"\"name\": \"private\",\n      \"description\": \"Kept apart.\""}}); code != 200 {

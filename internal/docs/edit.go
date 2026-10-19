@@ -25,34 +25,36 @@ func Edit(text string, old, new []string) (string, error) {
 		if o == "" {
 			return "", registry.Invalid("deck: old text %d is empty", i+1)
 		}
-		switch n := strings.Count(text, o); {
-		case n == 1:
-			at := strings.Index(text, o)
-			parts = append(parts, part{at, at + len(o), i, new[i]})
+		switch at := places(text, o, nil); {
+		case len(at) == 1:
+			parts = append(parts, part{at[0], at[0] + len(o), i, new[i]})
 			continue
-		case n > 1:
-			return "", registry.Invalid("deck: old text %d occurs %d times; take more of its surroundings so it occurs once: %q", i+1, n, untrusted.Cut(o, 80))
+		case len(at) > 1:
+			return "", registry.Invalid("deck: old text %d occurs %d times; take more of its surroundings so it occurs once: %q", i+1, len(at), untrusted.Cut(o, 80))
 		}
 		if flat == nil {
 			flat = spacedOf(text)
 		}
-		core := strings.TrimSpace(o)
+		core := strings.Trim(o, " \t\n\r")
+		lead, trail := o[:strings.Index(o, core)], o[strings.Index(o, core)+len(core):]
 		f := spacedOf(core).text
-		n := strings.Count(flat.text, f)
-		if core == "" {
-			n = 0
+		var at []int
+		if core != "" {
+			at = places(flat.text, f, func(k int) bool {
+				end := k + len(f)
+				return (lead == "" || k == 0 || flat.text[k-1] == ' ') && (trail == "" || end == len(flat.text) || flat.text[end] == ' ')
+			})
 		}
-		switch n {
+		switch len(at) {
 		case 1:
-			k := strings.Index(flat.text, f)
-			lead, trail := o[:strings.Index(o, core)], o[strings.Index(o, core)+len(core):]
+			k := at[0]
 			nw := strings.TrimSuffix(strings.TrimPrefix(new[i], lead), trail)
 			parts = append(parts, part{flat.at[k], flat.at[k+len(f)-1] + 1, i, nw})
 		case 0:
 			return "", registry.Invalid("deck: old text %d is not in the current text, not even with spaces and line breaks taken as one: %q%s",
 				i+1, untrusted.Cut(o, 80), flat.closest(text, f))
 		default:
-			return "", registry.Invalid("deck: old text %d occurs %d times with spaces and line breaks taken as one; take more of its surroundings so it occurs once: %q", i+1, n, untrusted.Cut(o, 80))
+			return "", registry.Invalid("deck: old text %d occurs %d times with spaces and line breaks taken as one; take more of its surroundings so it occurs once: %q", i+1, len(at), untrusted.Cut(o, 80))
 		}
 	}
 	slices.SortFunc(parts, func(a, b part) int { return a.at - b.at })
@@ -70,6 +72,21 @@ func Edit(text string, old, new []string) (string, error) {
 	}
 	b.WriteString(text[last:])
 	return b.String(), nil
+}
+
+// places are where part starts in s, overlapping ones too, those ok takes when it is given.
+func places(s, part string, ok func(int) bool) []int {
+	var out []int
+	for from := 0; ; {
+		k := strings.Index(s[from:], part)
+		if k < 0 {
+			return out
+		}
+		if ok == nil || ok(from+k) {
+			out = append(out, from+k)
+		}
+		from += k + 1
+	}
 }
 
 // spaced is a text with each run of spaces, tabs and line breaks as one space, and where each byte of it is in the

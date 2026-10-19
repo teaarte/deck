@@ -299,7 +299,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Gives the tokens, calls and cost of model calls of the last days: a row for every day, or the totals of each provider or project with their share; by provider also the runs each model did.",
 			registry.OwnerOnly, s.spendDaily).On("usage", "processes"),
 		registry.Read("runs_daily", "Runs by day",
-			"Gives the processes started on each of the last days: all; started by a schedule; failed — every run that failed or was cut, not trials, as Schedule → Failed lists them, closed ones too; open — those of the failed that processes_list with failed still gives, of the last week, not closed by the owner, not made good by a later run, not for want of deck's tools (health shows those).",
+			"Gives the processes started on each of the last days: all; started by a schedule; failed — every run that failed or was cut, not trials, as Schedule → Failed lists them, closed ones too; open — those of the failed still open, each process counted, of the last week, not closed by the owner, not made good by a later run, not for want of deck's tools (health shows those); processes_list with failed gives them, the same failure of a command one row with its repeats.",
 			registry.OwnerSide, s.runsDaily).On("processes"),
 	}
 }

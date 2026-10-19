@@ -7,6 +7,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 
 	"deck2/schemas"
@@ -312,8 +313,8 @@ func (t tree) text(s string) (string, bool) {
 	return buf.String(), true
 }
 
-// keep is the parts of a JSON value named by the tree, the kept keys in their order; a name no item of a list has
-// as a field picks the items of that name.
+// keep is the parts of a JSON value named by the tree, the kept keys in their order; the name of an item of a list
+// picks the items of that name.
 func (t tree) keep(raw json.RawMessage) json.RawMessage {
 	raw = bytes.TrimSpace(raw)
 	if len(t) == 0 || len(raw) == 0 {
@@ -357,7 +358,7 @@ func (t tree) keep(raw json.RawMessage) json.RawMessage {
 		}
 		named := tree{}
 		for k, sub := range t {
-			if !slices.ContainsFunc(items, func(it map[string]json.RawMessage) bool { _, ok := it[k]; return ok }) {
+			if slices.ContainsFunc(items, func(it map[string]json.RawMessage) bool { return string(it["name"]) == strconv.Quote(k) }) {
 				named[k] = sub
 			}
 		}

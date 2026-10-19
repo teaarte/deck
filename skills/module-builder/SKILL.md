@@ -382,7 +382,9 @@ of the script with an error takes the type of the last such answer — 400, 404 
 `network` — and deck adds the answers to the failure, so a script need not catch deck's errors only to type them.
 Without a non-zero exit stdout stays the result, so a result schema
 may have a field `error` of its own; nothing to do (nothing new, a record already done) is a result, not a
-failure. A script runs in a sandbox:
+failure. Print the failure only where the run really ends: a helper that a caller may catch (a spend not logged, a
+check another script loads as a library) raises, and the top of the script turns what nobody caught into the one form,
+so stdout never holds two JSON documents. A script runs in a sandbox:
 
 - write access only to its run folder and `$DECK_DATA`; the project folders are read-only;
 - of the owner's home folder it reads only the runtimes deck finds on `PATH` (an nvm node, a pyenv python) and
@@ -420,7 +422,10 @@ failure. A script runs in a sandbox:
   (MLX). That work is an agent command on Claude Code in a project with network: its shell binds ports, uses the
   GPU and keeps its caches like the owner's own; the script readies the inputs and the agent renders;
 - a script runs alone: its folder holds only its own file, so a helper shared by scripts is repeated in each
-  (or read with `document_get` into the work folder);
+  (or read with `document_get` into the work folder). This skill has such a helper, `helpers/deck_helper.py` and
+  `helpers/deck_helper.mjs`: the one form of a failure printed only at the entry point, calls of deck with deck's
+  answer as the details, a file of `$DECK_DATA` replaced whole under its lock. A script that calls deck or rewrites
+  a file takes the part above their example instead of a helper of its own;
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
   (`command_describe` gives the input and `result` schemas while you write the script; works through the proxy or without it).
   A 200 body is the command's result itself, with no wrapper; an error is plain text with a 4xx/5xx status, 410

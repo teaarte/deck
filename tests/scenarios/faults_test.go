@@ -3,6 +3,10 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -225,5 +229,51 @@ func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 		if f.ErrorType != c.want || !strings.Contains(f.Error, c.says) {
 			t.Fatalf("%s %q: want %s with %q, got %s: %s", c.key, c.named, c.want, c.says, f.ErrorType, f.Error)
 		}
+	}
+}
+
+// TestTheHelpersOfTheSkillRunAsScripts: the Python and Node helpers module-builder ships run as scripts of a module
+// in deck's sandbox: deck's error answer is the details of a failure deck types, a failure the script names keeps
+// its type, and a file of its data is replaced whole, nothing of the write left beside it.
+func TestTheHelpersOfTheSkillRunAsScripts(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	for _, c := range []struct{ runtime, file string }{{"python", "deck_helper.py"}, {"node", "deck_helper.mjs"}} {
+		t.Run(c.runtime, func(t *testing.T) {
+			if _, err := exec.LookPath(map[string]string{"python": "python3", "node": "node"}[c.runtime]); err != nil {
+				t.Skip(c.runtime + " is not installed")
+			}
+			var doc struct{ Text string }
+			e.must("deck.document_get", map[string]any{"name": "skills/module-builder/helpers/" + c.file}, &doc)
+			name := "h" + c.runtime
+			script := "scripts/main" + filepath.Ext(c.file)
+			e.createProject(name, fmt.Sprintf(`{"version": 12,
+  "commands": [{"name": "step", "title": "Step", "description": "Adds a value.", "class": "internal",
+    "input": {"type": "object", "properties": {"record": {"type": "integer"}, "value": {"type": "string"}}},
+    "result": {"type": "object"}, "executor": {"type": "script", "script": "main"}}],
+  "scripts": [{"name": "main", "file": %q, "runtime": %q}]}`, script, c.runtime))
+			e.saveScript(name, script, doc.Text)
+
+			f := e.fault(e.waitScript(e.start(name, "step", map[string]any{"record": 987654}), "error").ID)
+			if f.ErrorType != "input.invalid" || !strings.Contains(f.Error, "deck.record_get: deck answered 404") ||
+				!strings.Contains(f.ErrorDetails, "987654") {
+				t.Fatalf("deck's answer is the details and deck types the failure: %+v", f)
+			}
+			f = e.fault(e.waitScript(e.start(name, "step", map[string]any{}), "error").ID)
+			if f.ErrorType != "input.invalid" || !strings.Contains(f.Error, "no value to add") {
+				t.Fatalf("the failure the script names: %+v", f)
+			}
+			var last proc
+			for _, v := range []string{"a", "b"} {
+				last = e.waitScript(e.start(name, "step", map[string]any{"value": v}), "done", "error")
+			}
+			var out struct {
+				Values, Files []string
+			}
+			if last.State != "done" || json.Unmarshal(last.Result, &out) != nil || strings.Join(out.Values, ",") != "a,b" ||
+				!slices.Contains(out.Files, "values.json") || strings.Contains(strings.Join(out.Files, ","), ".tmp") {
+				t.Fatalf("the file is replaced whole: %+v %s", last, last.Result)
+			}
+		})
 	}
 }

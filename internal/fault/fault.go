@@ -55,7 +55,8 @@ func Types() []string {
 // Whose is whose a failure of type t is; empty for no failure.
 func Whose(t string) string { return whose[t] }
 
-// ByScript are the types a script may give its own failure; any other becomes script.failed.
+// ByScript are the types a script may give its own failure; any other becomes script.failed. One that gives none
+// takes the type of deck's last error answer to its calls, by the status, when that type is of this set.
 var ByScript = []string{ScriptFailed, InputInvalid, ProgramMissing, RightsDenied, Network, ModelLimit, ModelUnavailable}
 
 // F is a failure: its type, the text for the owner and the details (stderr, codes, the error of a program).

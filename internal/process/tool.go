@@ -197,18 +197,23 @@ func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) 
 
 // callFault is the failure of a gateway call by the status it answered; a tool's upstream is the network, not a model.
 func callFault(err error, tool bool) *fault.F {
-	t := fault.DeckInternal
-	switch st := registry.Status(err); {
-	case tool && (st == http.StatusTooManyRequests || st > 500):
-		t = fault.Network
+	return fault.New(statusType(registry.Status(err), !tool), err.Error())
+}
+
+// statusType is the type of a failure of a call of deck by the status deck answered; only a call of a model meets a
+// model's limit or fault, any other one the network's.
+func statusType(st int, model bool) string {
+	switch {
+	case !model && (st == http.StatusTooManyRequests || st > 500):
+		return fault.Network
 	case st == http.StatusTooManyRequests:
-		t = fault.ModelLimit
+		return fault.ModelLimit
 	case st > 500:
-		t = fault.ModelUnavailable
+		return fault.ModelUnavailable
 	case st == http.StatusForbidden:
-		t = fault.RightsDenied
+		return fault.RightsDenied
 	case st == http.StatusBadRequest || st == http.StatusUnprocessableEntity || st == http.StatusNotFound:
-		t = fault.InputInvalid
+		return fault.InputInvalid
 	}
-	return fault.New(t, err.Error())
+	return fault.DeckInternal
 }

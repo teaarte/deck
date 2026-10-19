@@ -181,3 +181,49 @@ func TestTheMasterGetsTheTypeOfAFailure(t *testing.T) {
 		t.Fatalf("the master gets the type and whose it is: %s", got.Input)
 	}
 }
+
+// callScript calls deck at key with the body other and, refused, fails with the type it is given or with a bare
+// traceback when none.
+const callScript = `import json, os, sys, urllib.request, urllib.error
+inp = json.load(sys.stdin)
+req = urllib.request.Request(os.environ["DECK_URL"] + "/" + inp["key"], data=inp["other"].encode(),
+    headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
+try:
+    urllib.request.urlopen(req, timeout=60)
+except urllib.error.HTTPError as e:
+    if inp.get("type"):
+        print(json.dumps({"error": "deck said no", "type": inp["type"]}))
+        sys.exit(1)
+    raise
+print("{}")
+`
+
+// TestAScriptFailedOnDecksAnswerTakesItsType: a script that fails on an error answer of deck without naming a type
+// takes the type of that answer; a type the script names stays.
+func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
+	t.Parallel()
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 429, "application/json", `{"error": {"message": "rate limited"}}`
+		},
+	})
+	e := newEnv(t, nil)
+	e.must("deck.secret_set", map[string]any{"name": "cloud", "value": "sk-cloud"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": api.URL + "/v1", "key_secret": "cloud"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "cloud", "model": "m1", "kind": "text", "name": "m1"}, nil)
+	e.createProject("calls", scriptManifest("call", "", `, "models": ["cloud"]`))
+	e.saveScript("calls", "scripts/main.py", callScript)
+	for _, c := range []struct{ key, body, named, want, says string }{
+		{"commands/deck.record_get", `{"record": 987654}`, "", "input.invalid", "deck refused its calls: deck.record_get: 404"},
+		{"commands/deck.record_get", `{"record": 987654}`, "script.failed", "input.invalid", "deck.record_get: 404"},
+		{"commands/deck.settings_list", `{}`, "", "rights.denied", "deck.settings_list: 403"},
+		{"commands/deck.record_get", `{"record": 987654}`, "network", "network", "deck.record_get: 404"},
+		{"models/cloud/chat/completions", `{"model": "m1", "messages": [{"role": "user", "content": "hi"}]}`, "", "model.limit", "the model proxy cloud: 429"},
+	} {
+		got := e.waitScript(e.start("calls", "call", map[string]any{"key": c.key, "other": c.body, "type": c.named}), "done", "error")
+		f := e.fault(got.ID)
+		if f.ErrorType != c.want || !strings.Contains(f.Error, c.says) {
+			t.Fatalf("%s %q: want %s with %q, got %s: %s", c.key, c.named, c.want, c.says, f.ErrorType, f.Error)
+		}
+	}
+}

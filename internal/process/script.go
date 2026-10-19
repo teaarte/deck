@@ -127,19 +127,20 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	r.finish(bg, id, StateDone, result, false, nil)
 }
 
-// refused adds to the failure of a script the calls deck refused it, which the script may not have printed; a failure
-// it did not name is then one of rights.
-func refused(calls []string, f *fault.F) *fault.F {
+// refused adds to the failure of a script the calls deck answered with an error, which the script may not have
+// printed; a failure it did not name takes the type of the last of them, when a script may give that type.
+func refused(calls []gateway.Refusal, f *fault.F) *fault.F {
 	if len(calls) == 0 {
 		return f
 	}
 	lines := make([]string, len(calls))
 	for i, c := range calls {
-		lines[i] = untrusted.Cut(c, 300)
+		lines[i] = untrusted.Cut(fmt.Sprintf("%s: %d %s", c.Call, c.Status, c.Text), 300)
 	}
 	out := *f
-	if out.Type == fault.ScriptFailed {
-		out.Type = fault.RightsDenied
+	last := calls[len(calls)-1]
+	if t := statusType(last.Status, last.Model); out.Type == fault.ScriptFailed && fault.FromScript(t) == t {
+		out.Type = t
 	}
 	out.Text += "; deck refused its calls: " + strings.Join(lines, "; ")
 	out.Details = "deck refused:\n" + strings.Join(lines, "\n") + "\n\n" + out.Details

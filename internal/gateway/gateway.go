@@ -100,8 +100,8 @@ type entry struct {
 	tools   []string
 	// commands are the commands its tools were made of, so a renew that changes nothing leaves them.
 	commands string
-	// refused are the calls of a script deck refused, the command and the text of the refusal.
-	refused []string
+	// refused are the last calls of a script deck answered with an error.
+	refused []Refusal
 }
 
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {

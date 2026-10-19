@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
@@ -36,13 +37,6 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 		}
 		out, err := g.call(r.Context(), s.actor(), r.PathValue("name"), body)
 		if err != nil {
-			if registry.Status(err) == http.StatusForbidden {
-				g.mu.Lock()
-				if e := g.sessions[tok]; e != nil && len(e.refused) < 5 {
-					e.refused = append(e.refused, r.PathValue("name")+": "+err.Error())
-				}
-				g.mu.Unlock()
-			}
 			http.Error(w, err.Error(), registry.Status(err))
 			return
 		}
@@ -70,8 +64,64 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 			http.Error(w, "deck: unknown or finished process token", http.StatusUnauthorized)
 			return
 		}
-		mux.ServeHTTP(w, r)
+		rw := &refusing{ResponseWriter: w}
+		mux.ServeHTTP(rw, r)
+		if rw.status < 400 {
+			return
+		}
+		call := strings.TrimPrefix(r.URL.Path, "/commands/")
+		model := call == ModelCommand
+		if rest, ok := strings.CutPrefix(r.URL.Path, "/models/"); ok {
+			call, model = "the model proxy "+strings.SplitN(rest, "/", 2)[0], true
+		}
+		g.mu.Lock()
+		if e := g.sessions[tok]; e != nil {
+			e.refused = append(e.refused, Refusal{Call: call, Status: rw.status, Model: model, Text: strings.TrimSpace(rw.text.String())})
+			if len(e.refused) > 5 {
+				e.refused = e.refused[1:]
+			}
+		}
+		g.mu.Unlock()
 	})
+}
+
+// Refusal is a call of a script deck answered with an error: the command, or the model proxy and its connection,
+// the status and the start of the answer. Model says the call was of a model.
+type Refusal struct {
+	Call   string
+	Status int
+	Model  bool
+	Text   string
+}
+
+// refusing keeps the status of an answer and, for an error, the start of its body.
+type refusing struct {
+	http.ResponseWriter
+	status int
+	text   strings.Builder
+}
+
+func (w *refusing) WriteHeader(code int) {
+	if w.status == 0 {
+		w.status = code
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *refusing) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	if w.status >= 400 && w.text.Len() < 1000 {
+		w.text.Write(b[:min(len(b), 1000-w.text.Len())])
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *refusing) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 // ReadBody reads the body of a command call up to 32 MB and answers 413 or 400 itself when it cannot.
@@ -87,8 +137,8 @@ func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 	return body, err
 }
 
-// Refusals are the calls of the script of tok deck refused, oldest first.
-func (g *Gateway) Refusals(tok string) []string {
+// Refusals are the last calls of the script of tok deck answered with an error, oldest first.
+func (g *Gateway) Refusals(tok string) []Refusal {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if e := g.sessions[tok]; e != nil {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,14 @@ import (
 
 	"deck2/internal/untrusted"
 )
+
+// toolWord is tools as a word, not a field of a message such as tool_call_id.
+var toolWord = regexp.MustCompile(`(?i)\btools?\b`)
+
+// noTools says a refusal of a model API is that it takes no tools, not a field of what the agent sent.
+func noTools(refusal string) bool {
+	return toolWord.MatchString(refusal) && strings.Contains(strings.ToLower(refusal), "support")
+}
 
 // ShellCheck is what the self-check of an adapter whose agent has a shell of its own differs in.
 type ShellCheck struct {
@@ -127,7 +136,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			c.Err = fmt.Errorf("%s: the agent read a file deck hides", what)
 		case res.Refusal != "" && raw == nil && strings.HasPrefix(res.Refusal, "404 "):
 			c.Err = fmt.Errorf("%s: the model API does not know the model (%s): check the model id and the url of the connection", what, res.Refusal)
-		case res.Refusal != "" && raw == nil && strings.Contains(strings.ToLower(res.Refusal), "tool"):
+		case res.Refusal != "" && raw == nil && noTools(res.Refusal):
 			c.Err = fmt.Errorf("%s: the model API refused a call with tools (%s): it may not take tool calls for this model; pick a model or a connection that does", what, res.Refusal)
 		case res.Refusal != "" && raw == nil:
 			c.Err = fmt.Errorf("%s: the model API refused what %s sent (%s): %s and this connection do not fit; pick another agent or connection for the model", what, s.Agent, res.Refusal, s.Agent)

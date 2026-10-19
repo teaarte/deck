@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -54,6 +55,8 @@ type Service struct {
 
 	mu    sync.Mutex
 	check map[string]*checks
+	// plain are the models whose API refused the reasoning an agent hands back, by address and model, while deck runs.
+	plain sync.Map
 	// found is set once the ACP agents were looked for.
 	found bool
 }
@@ -98,11 +101,17 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	}
 	a, err := acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], Model: m.Model,
 		NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
-		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, m, c)})
+		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, m, c), Plain: s.plainOf(c.Url+" "+m.Model)})
 	if err != nil {
 		return nil, registry.Invalid("deck: %v", err)
 	}
 	return a, nil
+}
+
+// plainOf is the flag of a model whose API takes no reasoning back, kept while deck runs.
+func (s *Service) plainOf(key string) *atomic.Bool {
+	v, _ := s.plain.LoadOrStore(key, &atomic.Bool{})
+	return v.(*atomic.Bool)
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.

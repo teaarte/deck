@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"deck2/internal/provider"
@@ -29,8 +30,8 @@ type entry struct {
 	last       int
 	retryAfter string
 	refusal    string
-	// plain is set once the model API refused the reasoning an agent hands back in the history.
-	plain bool
+	// plain is set once the model API refused the reasoning an agent hands back in the history; it is of the model.
+	plain *atomic.Bool
 }
 
 func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -52,9 +53,7 @@ func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w = &status{ResponseWriter: w, e: e}
-		e.mu.Lock()
-		plain := e.plain
-		e.mu.Unlock()
+		plain := e.plain.Load()
 		if plain {
 			body = withoutReasoning(body)
 		}
@@ -66,9 +65,7 @@ func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h := &held{w: w, header: http.Header{}}
 		send(h, body)
 		if badRequest(h.code) && !plain && refusesReasoning(h.buf.Bytes()) {
-			e.mu.Lock()
-			e.plain = true
-			e.mu.Unlock()
+			e.plain.Store(true)
 			send(w, withoutReasoning(body))
 			return
 		}

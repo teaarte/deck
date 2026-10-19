@@ -9,7 +9,7 @@ import (
 )
 
 // TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout: an API that refuses the reasoning Goose hands back
-// in its history, as Groq does, gets the call again without it, and the rest of the turn without asking.
+// in its history, as Groq does, gets the call again without it, and the later calls of the model without asking.
 func TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout(t *testing.T) {
 	t.Parallel()
 	f := newACP(t)
@@ -26,8 +26,11 @@ func TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout(t *testing.T) 
 	echoed := `{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}, {"role": "assistant", "content": null, "reasoning_content": "I run it", "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "shell", "arguments": "{}"}}]}, {"role": "tool", "tool_call_id": "c1", "content": "done"}], "tools": [{"type": "function", "function": {"name": "shell"}}]}}`
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, echoed, echoed,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
+	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, echoed,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
 	e := acpEnv(t, f, "goose", llm)
-	if got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error"); got.State != "done" {
+	p := e.acpProject("paint", colorManifest)
+	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the turn goes on: %+v", got)
 	}
 	for _, m := range f.call(4).model {
@@ -37,6 +40,9 @@ func TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout(t *testing.T) 
 	}
 	if refused != 1 {
 		t.Fatalf("once refused, the calls of the turn go without reasoning: refused %d", refused)
+	}
+	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || refused != 1 || f.call(5).model[0]["status"] != float64(200) {
+		t.Fatalf("the next turn on the model goes without reasoning from its first call: %+v refused %d", got, refused)
 	}
 }
 
@@ -69,6 +75,9 @@ func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 			[]string{"self-check of goose", "does not know the model (404", "check the model id"}},
 		{"no tools", `tool calling is not supported for this model`, []string{forgot}, "error",
 			[]string{"self-check of goose", "refused a call with tools", "may not take tool calls"}},
+		{"a field of tools", `'messages.3' : property 'tool_call_id' is unsupported`, []string{forgot}, "error",
+			[]string{"the model API refused what goose sent (400", "tool_call_id", "do not fit"}},
+		{"tools of the model", `'tools' is not supported with this model`, []string{forgot}, "error", []string{"refused a call with tools"}},
 		{"words", "", []string{words}, "error", []string{"the model does not manage", "made no tool call", "The word is written."}},
 		{"forgot twice", "", []string{forgot, strings.Replace(second, submit, "", 1)}, "error",
 			[]string{"the model does not manage", "reminded of result_submit", "without calling result_submit"}},

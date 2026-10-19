@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -44,6 +45,9 @@ type Config struct {
 	Now func() time.Time
 	// CheckCeiling bounds a self-check of a slow model; deck's own when zero.
 	CheckCeiling time.Duration
+	// Plain is set once the model API refused the reasoning the agent hands back, for every turn after; nil keeps it
+	// for one turn.
+	Plain *atomic.Bool
 }
 
 type Adapter struct {
@@ -134,7 +138,10 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
-	e := &entry{mcp: mcp, api: a.cfg.API(req.OnUsage), modelAt: "/model/" + nonce.Hex(16), now: a.now}
+	e := &entry{mcp: mcp, api: a.cfg.API(req.OnUsage), modelAt: "/model/" + nonce.Hex(16), now: a.now, plain: a.cfg.Plain}
+	if e.plain == nil {
+		e.plain = &atomic.Bool{}
+	}
 	var domains []string
 	if !req.NoNetwork {
 		domains = req.Hosts

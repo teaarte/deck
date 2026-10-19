@@ -299,7 +299,7 @@ WITH RECURSIVE tree(id) AS (
     UNION ALL
     SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
 )
-SELECT * FROM feed WHERE kind = 'change' AND process_id IN (SELECT id FROM tree) ORDER BY id LIMIT 200;
+SELECT * FROM feed WHERE kind = 'change' AND undone_at IS NULL AND process_id IN (SELECT id FROM tree) ORDER BY id LIMIT 200;
 
 -- name: ListTreeRecords :many
 WITH RECURSIVE tree(id) AS (
@@ -317,7 +317,7 @@ WITH RECURSIVE tree(id) AS (
     SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
 )
 SELECT f.id, f.name, f.size, j.name AS project FROM file f JOIN project j ON j.id = f.project_id
-WHERE f.process_id IN (SELECT id FROM tree) AND f.owner_kind != 'trash' ORDER BY f.id LIMIT 200;
+WHERE f.process_id IN (SELECT id FROM tree) AND f.owner_kind NOT IN ('trash', 'keeping') ORDER BY f.id LIMIT 200;
 
 -- name: ListChildProcesses :many
 SELECT sqlc.embed(p), j.name AS project FROM process p JOIN project j ON j.id = p.project_id

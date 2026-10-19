@@ -285,12 +285,18 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if strings.TrimSpace(in.Model) == "" {
 		return nil, registry.Invalid("deck: a model needs its name in the API")
 	}
+	if c.Api == APICLI && in.Name == "" {
+		base, _, _ := strings.Cut(in.Model, "[")
+		in.Name = in.Connection + "-" + strings.NewReplacer(".", "-", "/", "-").Replace(base)
+	}
 	in.Name = cmp.Or(in.Name, in.Connection+"/"+in.Model)
 	if strings.ContainsAny(in.Name, " @") {
 		return nil, registry.Invalid("deck: a model name has no spaces or @, got %q", in.Name)
 	}
 	if c.Api == APICLI {
 		in.Agent = cmp.Or(in.Agent, c.Name)
+	} else if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.Agent == "" && old.Connection.Api == APICLI {
+		return nil, registry.Invalid("deck: %s is a model of %s; a model of connection %s takes another name, or an agent", in.Name, old.Connection.Name, c.Name)
 	}
 	if in.Agent != "" {
 		if err := s.checkAgent(ctx, act.Workspace, c, in); err != nil {

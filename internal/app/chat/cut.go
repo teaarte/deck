@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 
@@ -60,7 +61,10 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64) *cutVie
 		return nil
 	}
 	v := &cutView{Did: ch.did(ctx, p.ID), Undo: []undoView{}, Retry: []action{}}
-	left, _ := process.LeftBy(ctx, ch.St.Q, p.ID)
+	left, err := process.LeftBy(ctx, ch.St.Q, p.ID)
+	if err != nil {
+		slog.Error("what a broken reply left", "process", p.ID, "err", err)
+	}
 	for _, l := range left {
 		var a action
 		switch {

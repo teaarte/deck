@@ -28,28 +28,26 @@ type Left struct {
 	Undo bool   `json:"undo,omitempty"`
 }
 
-// LeftBy is what a process and the processes it started left, changes first.
+// LeftBy is what a process and the processes it started left, changes first; on an error, what it read before.
 func LeftBy(ctx context.Context, q *db.Queries, id int64) ([]Left, error) {
 	out := []Left{}
 	changes, err := q.ListTreeChanges(ctx, id)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	for _, f := range changes {
-		if !f.UndoneAt.Valid {
-			out = append(out, Left{Kind: LeftChange, ID: f.ID, Text: untrusted.Cut(f.Text, 200), Undo: f.Command != ""})
-		}
+		out = append(out, Left{Kind: LeftChange, ID: f.ID, Text: untrusted.Cut(f.Text, 200), Undo: f.Command != ""})
 	}
 	recs, err := q.ListTreeRecords(ctx, id)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	for _, r := range recs {
 		out = append(out, Left{Kind: LeftRecord, ID: r.ID, Text: fmt.Sprintf("record %s of %s.%s", untrusted.Line(r.Key, 80), r.Project, r.Collection)})
 	}
 	files, err := q.ListTreeFiles(ctx, id)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	for _, f := range files {
 		out = append(out, Left{Kind: LeftFile, ID: f.ID, Text: fmt.Sprintf("file %s of %s, %d bytes", untrusted.Line(f.Name, 80), f.Project, f.Size)})

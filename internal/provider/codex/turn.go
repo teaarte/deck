@@ -1,7 +1,6 @@
 package codex
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -94,7 +93,7 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 	policy := json.RawMessage(`"on-request"`)
 	if t.thread == "" {
 		var r ThreadStartResponse
-		if err := t.call(ctx, "thread/start", ThreadStartParams{Cwd: t.req.Cwd, ApprovalPolicy: policy, Config: config}, &r); err != nil {
+		if err := t.call(ctx, "thread/start", ThreadStartParams{Cwd: t.req.Cwd, ApprovalPolicy: policy, Config: config, Model: t.a.model}, &r); err != nil {
 			return t.res, err
 		}
 		if r.Thread.ID == "" {
@@ -106,7 +105,7 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 		}
 	} else {
 		var r ThreadResumeResponse
-		err := t.call(ctx, "thread/resume", ThreadResumeParams{ThreadID: t.thread, Cwd: t.req.Cwd, ApprovalPolicy: policy, Config: config}, &r)
+		err := t.call(ctx, "thread/resume", ThreadResumeParams{ThreadID: t.thread, Cwd: t.req.Cwd, ApprovalPolicy: policy, Config: config, Model: t.a.model}, &r)
 		if err != nil && strings.Contains(err.Error(), "no rollout found") {
 			return provider.Result{SessionMissing: true}, nil
 		}
@@ -118,7 +117,6 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 		}
 		t.model = r.Model
 	}
-	t.model = cmp.Or(t.a.model, t.model)
 	text, _ := json.Marshal(TextUserInput{Type: "text", Text: t.req.Prompt})
 	var started TurnStartResponse
 	if err := t.call(ctx, "turn/start", TurnStartParams{ThreadID: t.thread, Input: []UserInput{text}, Permissions: profile,

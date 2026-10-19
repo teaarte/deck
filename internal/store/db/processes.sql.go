@@ -1544,7 +1544,7 @@ WITH RECURSIVE tree(id) AS (
     UNION ALL
     SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
 )
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats FROM feed WHERE kind = 'change' AND process_id IN (SELECT id FROM tree) ORDER BY id LIMIT 200
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats FROM feed WHERE kind = 'change' AND undone_at IS NULL AND process_id IN (SELECT id FROM tree) ORDER BY id LIMIT 200
 `
 
 func (q *Queries) ListTreeChanges(ctx context.Context, id int64) ([]Feed, error) {
@@ -1597,7 +1597,7 @@ WITH RECURSIVE tree(id) AS (
     SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
 )
 SELECT f.id, f.name, f.size, j.name AS project FROM file f JOIN project j ON j.id = f.project_id
-WHERE f.process_id IN (SELECT id FROM tree) AND f.owner_kind != 'trash' ORDER BY f.id LIMIT 200
+WHERE f.process_id IN (SELECT id FROM tree) AND f.owner_kind NOT IN ('trash', 'keeping') ORDER BY f.id LIMIT 200
 `
 
 type ListTreeFilesRow struct {

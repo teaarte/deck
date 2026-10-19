@@ -103,6 +103,19 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	}); i < 0 || !slices.Contains(cmds[i].Choices, "sonnet-low") {
 		t.Fatalf("the picker of the command offers it: %+v", cmds)
 	}
+
+	e.refused("deck.model_call", map[string]any{"kind": "text", "model": "sonnet-low", "prompt": "hi"}, 422, "its models run agent turns")
+	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
+	e.refused("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "sonnet-low"}, 422, "is a model of claude-code")
+	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "txt", "kind": "text", "free": true}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"txt"}}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "txt"}, nil)
+	e.refused("deck.model_call", map[string]any{"kind": "text", "prompt": "hi"}, 422, "no model of @text")
+	var named struct{ Name string }
+	e.must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus[1m]"}, &named)
+	if named.Name != "claude-code-opus" {
+		t.Fatalf("a model of a CLI is named after its connection and model when left out: %q", named.Name)
+	}
 }
 
 // TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne: opus at its limit hands the work on to sonnet, each
@@ -174,9 +187,12 @@ func TestAModelOfCodexRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	if s := c.call(4).request("turn/start"); string(s["model"]) != `"gpt-6-luna"` {
 		t.Fatalf("the self-check runs on the model: %s", s["model"])
 	}
+	if s := cc.request("thread/start"); string(s["model"]) != `"gpt-6-luna"` {
+		t.Fatalf("the thread starts on the model: %s", s["model"])
+	}
 	var calls []map[string]any
 	e.modelCalls("", id, &calls)
-	if len(calls) == 0 || calls[0]["gen_ai.provider.name"] != "luna-low" || calls[0]["gen_ai.response.model"] != "gpt-6-luna" {
+	if len(calls) == 0 || calls[0]["gen_ai.provider.name"] != "luna-low" {
 		t.Fatalf("its spend goes by the model: %v", calls)
 	}
 }

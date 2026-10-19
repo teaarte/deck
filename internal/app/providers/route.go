@@ -50,7 +50,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 		}
 		for _, name := range names {
 			row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: name})
-			if err == nil && (connection == "@" || connection == row.Connection.Name) {
+			if err == nil && row.Connection.Api != APICLI && (connection == "@" || connection == row.Connection.Name) {
 				picks = append(picks, pick{row.Model, row.Connection})
 			}
 		}

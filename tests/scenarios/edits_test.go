@@ -233,3 +233,32 @@ func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
 		t.Fatalf("the manifest took the edit: %s", m.Manifest)
 	}
 }
+
+// TestAnOldPartOfAScriptKeepsItsSpaces: in a script spaces mean something, so an old part with other indentation
+// is refused with the closest text instead of being found loosely.
+func TestAnOldPartOfAScriptKeepsItsSpaces(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("web", webNotes)
+	text := "def run(x):\n  if x:\n    y = 1\n  return y\n"
+	save := func(in map[string]any) (int, string) {
+		in["project"], in["name"], in["kind"] = "web", "scripts/run.py", "script"
+		code, body := e.call("deck.document_save", in)
+		return code, string(body)
+	}
+	if code, body := save(map[string]any{"text": text}); code != 200 {
+		t.Fatalf("first save: %d %s", code, body)
+	}
+	code, body := save(map[string]any{"old": []string{"        y = 1\n        return y"}, "new": []string{"        y = 2\n        return y"}})
+	if code != 422 || !strings.Contains(body, "as it is") || !strings.Contains(body, "the closest is at line 3") {
+		t.Fatalf("another indentation is refused with the closest text: %d %s", code, body)
+	}
+	if code, body := save(map[string]any{"old": []string{"    y = 1\n"}, "new": []string{"    y = 2\n"}}); code != 200 {
+		t.Fatalf("the exact part: %d %s", code, body)
+	}
+	var d documentV
+	e.must("deck.document_get", map[string]any{"project": "web", "name": "scripts/run.py"}, &d)
+	if want := strings.Replace(text, "y = 1", "y = 2", 1); d.Text != want {
+		t.Fatalf("the script: %q, want %q", d.Text, want)
+	}
+}

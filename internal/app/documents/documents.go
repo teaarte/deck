@@ -207,7 +207,7 @@ type documentSaveIn struct {
 	Name       string   `desc:"Document name (path), e.g. notes/criteria.md; memory/MEMORY.md and memory/<fact>.md for memory"`
 	Kind       string   `opt:"" desc:"Document kind; needed only to create a document"`
 	Text       string   `type:"text" opt:"" desc:"Full new text; leave it out to change parts of the current text with old and new"`
-	Old        []string `type:"text[]" opt:"" desc:"Parts of the current text to replace, each occurring in it exactly once, as it is or with runs of spaces and line breaks taken as one"`
+	Old        []string `type:"text[]" opt:"" desc:"Parts of the current text to replace, each occurring in it exactly once, as it is or, in md documents, with runs of spaces and line breaks taken as one"`
 	New        []string `type:"text[]" opt:"" desc:"The text that replaces each old part, in the same order"`
 	IfRevision int64    `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 	Project    string   `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
@@ -323,7 +323,7 @@ func editText(ctx context.Context, q *db.Queries, ref docs.Ref, in *documentSave
 	if err != nil {
 		return err
 	}
-	in.Text, err = docs.Edit(r.Text, in.Old, in.New)
+	in.Text, err = docs.Edit(r.Text, in.Old, in.New, docs.Loose(d.Kind, d.Name))
 	return err
 }
 

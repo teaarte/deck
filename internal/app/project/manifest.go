@@ -100,7 +100,7 @@ func (sv *Saver) manifestSave(ctx context.Context, act registry.Actor, in manife
 		if err != nil {
 			return nil, err
 		}
-		if in.Manifest, err = docs.Edit(raised(r.Text), in.Old, in.New); err != nil {
+		if in.Manifest, err = docs.Edit(raised(r.Text), in.Old, in.New, true); err != nil {
 			return nil, err
 		}
 		in.IfRevision = d.Current

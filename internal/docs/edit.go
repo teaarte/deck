@@ -9,9 +9,13 @@ import (
 	"deck2/internal/untrusted"
 )
 
+// Loose says runs of spaces and line breaks of a document may be taken as one when an old part is found: in prose
+// and the manifest, not where indentation is meaning, as in scripts, custom blocks and other files.
+func Loose(kind, name string) bool { return kind == KindManifest || Editable(kind, name) }
+
 // Edit replaces each old part of the text with its new one; each old part must occur in the text exactly once, as
-// it is or else with runs of spaces and line breaks taken as one, and the parts may not overlap.
-func Edit(text string, old, new []string) (string, error) {
+// it is or else, when loose, with runs of spaces and line breaks taken as one, and the parts may not overlap.
+func Edit(text string, old, new []string, loose bool) (string, error) {
 	if len(old) != len(new) {
 		return "", registry.Invalid("deck: %d old texts and %d new ones; give one new text for each old one", len(old), len(new))
 	}
@@ -34,6 +38,10 @@ func Edit(text string, old, new []string) (string, error) {
 		}
 		if flat == nil {
 			flat = spacedOf(text)
+		}
+		if !loose {
+			return "", registry.Invalid("deck: old text %d is not in the current text as it is, spaces and line breaks too, which mean something here: %q%s",
+				i+1, untrusted.Cut(o, 80), flat.closest(text, spacedOf(strings.Trim(o, " \t\n\r")).text))
 		}
 		core := strings.Trim(o, " \t\n\r")
 		lead, trail := o[:strings.Index(o, core)], o[strings.Index(o, core)+len(core):]

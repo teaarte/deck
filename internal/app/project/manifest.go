@@ -74,7 +74,7 @@ func format(text string) int {
 type manifestSaveIn struct {
 	Project    string   `type:"project" desc:"Project name"`
 	Manifest   string   `type:"json" opt:"" desc:"The whole manifest JSON; leave it out to change parts of the current one with old and new"`
-	Old        []string `type:"text[]" opt:"" desc:"Parts of the current manifest as manifest_get gives it to replace, each occurring in it exactly once"`
+	Old        []string `type:"text[]" opt:"" desc:"Parts of the current manifest as manifest_get gives it to replace, each occurring in it exactly once, as it is or with runs of spaces and line breaks taken as one"`
 	New        []string `type:"text[]" opt:"" desc:"The text that replaces each old part, in the same order"`
 	Reason     string   `opt:"" desc:"Why it changed"`
 	IfRevision int64    `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`

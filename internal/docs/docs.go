@@ -14,7 +14,6 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 )
 
 const (
@@ -191,42 +190,6 @@ func Merge3(edit, base, next string) (string, []Conflict) {
 		out = append(out, r.Ok...)
 	}
 	return strings.Join(out, "\n"), conflicts
-}
-
-// Edit replaces each old part of the text with its new one; each old part must occur in the text exactly once,
-// and the parts may not overlap.
-func Edit(text string, old, new []string) (string, error) {
-	if len(old) != len(new) {
-		return "", registry.Invalid("deck: %d old texts and %d new ones; give one new text for each old one", len(old), len(new))
-	}
-	type part struct{ at, i int }
-	parts := make([]part, 0, len(old))
-	for i, o := range old {
-		switch n := strings.Count(text, o); {
-		case o == "":
-			return "", registry.Invalid("deck: old text %d is empty", i+1)
-		case n == 0:
-			return "", registry.Invalid("deck: old text %d is not in the current text: %q", i+1, untrusted.Cut(o, 80))
-		case n > 1:
-			return "", registry.Invalid("deck: old text %d occurs %d times; take more of its surroundings so it occurs once: %q", i+1, n, untrusted.Cut(o, 80))
-		}
-		parts = append(parts, part{strings.Index(text, o), i})
-	}
-	slices.SortFunc(parts, func(a, b part) int { return a.at - b.at })
-	var b strings.Builder
-	last, prev := 0, 0
-	for _, p := range parts {
-		if p.at < last {
-			a, b := min(p.i, prev), max(p.i, prev)
-			return "", registry.Invalid("deck: old text %d overlaps old text %d (%q); give the two as one old text", b+1, a+1, untrusted.Cut(old[a], 80))
-		}
-		prev = p.i
-		b.WriteString(text[last:p.at])
-		b.WriteString(new[p.i])
-		last = p.at + len(old[p.i])
-	}
-	b.WriteString(text[last:])
-	return b.String(), nil
 }
 
 // CurrentText returns the current text of a document of the given kind ("" for any); empty when missing.

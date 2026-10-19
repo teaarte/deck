@@ -173,3 +173,47 @@ func TestAManifestStoredWithEscapedAmpersandsChangesByItsCharacters(t *testing.T
 		t.Fatalf("the old part matches the escaped text, the escaped backslash stays, and the manifest is stored with &:\n%s", m.Manifest)
 	}
 }
+
+// TestAnOldPartAcrossAHardLineBreakIsFound: an old part on one line finds the text wrapped by hard breaks, keeping
+// them around it; many such places or none show the closest text; a manifest takes unindented lines alike.
+func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("web", webNotes)
+	save := func(in map[string]any) (int, string) {
+		in["project"], in["name"], in["kind"] = "web", "notes/skill.md", "doc"
+		code, body := e.call("deck.document_save", in)
+		return code, string(body)
+	}
+	text := "# Skill\n\nA trial that ends done is a result, not a\nfailure: read it.\n\ntwo  words and\ntwo\nwords and.\n"
+	if code, body := save(map[string]any{"text": text}); code != 200 {
+		t.Fatalf("first save: %d %s", code, body)
+	}
+	if code, body := save(map[string]any{"old": []string{"is a result, not a failure: "}, "new": []string{"is a result, not a\nfailure, so "}}); code != 200 {
+		t.Fatalf("an old part across a hard line break: %d %s", code, body)
+	}
+	var d documentV
+	e.must("deck.document_get", map[string]any{"project": "web", "name": "notes/skill.md"}, &d)
+	if want := strings.Replace(text, "not a\nfailure: read", "not a\nfailure, so read", 1); d.Text != want {
+		t.Fatalf("the found place takes the new text, the breaks around it stay:\n%q\nwant\n%q", d.Text, want)
+	}
+	for _, c := range []struct{ old, says string }{
+		{"two words and", "occurs 2 times with spaces and line breaks taken as one"},
+		{"is a result, not a fiasco: read it", `the closest is at line 3: "A trial that ends done is a result, not a failure, so`},
+	} {
+		if code, body := save(map[string]any{"old": []string{c.old}, "new": []string{"x"}}); code != 422 || !strings.Contains(body, c.says) {
+			t.Fatalf("%q: want %q, got %d %s", c.old, c.says, code, body)
+		}
+	}
+
+	e.createProject("notes", sourceManifest)
+	if code, body := e.call("deck.manifest_save", map[string]any{"project": "notes", "old": []string{"\"name\": \"private\",\n\"description\": \"Not shared.\""},
+		"new": []string{"\"name\": \"private\",\n      \"description\": \"Kept apart.\""}}); code != 200 {
+		t.Fatalf("lines of the manifest without their indentation: %d %s", code, body)
+	}
+	var m struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &m)
+	if !strings.Contains(m.Manifest, "\"name\": \"private\",\n      \"description\": \"Kept apart.\"") {
+		t.Fatalf("the manifest took the edit: %s", m.Manifest)
+	}
+}

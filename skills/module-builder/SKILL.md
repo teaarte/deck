@@ -325,8 +325,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   source, `"when": "param.n > 1"` a block. An input that gives nothing or fails is an error on its block, not a read
   without it, so give an optional param a default with `??`.
 - **Changing a manifest**: send `manifest_save` `old` (parts of the text `manifest_get` gives, each found exactly
-  once; take enough around a part to make it unique) and `new` (what replaces each). deck stores every manifest in
-  one form, indented by two spaces with each array item on its own line, so take `old` from the text it gives now.
+  once, a run of spaces and line breaks counted as one; take enough around a part to make it unique) and `new`
+  (what replaces each). deck stores every manifest in one form, indented by two spaces with each array item on its
+  own line, so take `old` from the text it gives now.
   A large manifest is read in parts: `fields` such as `manifest.writes`, `manifest.commands.<name>` or
   `manifest.screens.<name>` give only that part, as text in the same form, and `old` may come from it.
 - **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and

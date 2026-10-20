@@ -361,7 +361,12 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			if err := q.DeleteWorkspaceHealth(ctx, db.DeleteWorkspaceHealthParams{WorkspaceID: store.ID(act.Workspace), Subject: ModelSubject(in.Name)}); err != nil {
 				return err
 			}
-			if err := process.ProviderHealth(ctx, q, in.Name, health.Checking, "the self-check of the model in its agent is about to run"); err != nil {
+			if c.Api == APICLI {
+				err = q.DeleteHealth(ctx, db.DeleteHealthParams{Subject: process.HealthSubject(in.Name)})
+			} else {
+				err = process.ProviderHealth(ctx, q, in.Name, health.Checking, "the self-check of the model in its agent is about to run")
+			}
+			if err != nil {
 				return err
 			}
 		}
@@ -371,7 +376,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if err != nil {
 		return nil, err
 	}
-	if in.Agent != "" {
+	if in.Agent != "" && c.Api != APICLI {
 		s.startCheck(in.Name, true)
 	}
 	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, Options: optionsOf(out.Options), InputUSD: nullable(out.InputUsd),

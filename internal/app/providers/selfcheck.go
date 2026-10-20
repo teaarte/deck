@@ -46,7 +46,7 @@ func (s *Service) checksOf(name string) *checks {
 }
 
 // Checks finds the ACP agents and runs the self-check of each provider that has one at the first call, and again
-// while it is red; only the Loop calls it, so tests run self-checks on purpose.
+// while it is red; a model of a CLI spends turns of the subscription, so it is checked on a button and a broken turn.
 func (s *Service) Checks(ctx context.Context, now time.Time) {
 	s.mu.Lock()
 	found := s.found
@@ -60,6 +60,9 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 		})
 	}
 	for _, pv := range s.checked(ctx) {
+		if s.onCLI(ctx, pv.Name()) {
+			continue
+		}
 		s.mu.Lock()
 		c := s.checksOf(pv.Name())
 		due := !c.started || !c.retry.IsZero() && !now.Before(c.retry)
@@ -218,4 +221,15 @@ func errText(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+// onCLI reports whether a provider is a model of an agent CLI on the owner's subscription.
+func (s *Service) onCLI(ctx context.Context, name string) bool {
+	spaces, _ := s.St.Q.ListWorkspaces(ctx)
+	for _, ws := range spaces {
+		if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name}); err == nil {
+			return row.Connection.Api == APICLI
+		}
+	}
+	return false
 }

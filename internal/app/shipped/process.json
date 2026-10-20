@@ -24,8 +24,8 @@
     {"type": "log", "title": "Log", "source": {"from": "deck.process_chat", "input": {"process": "=id"}},
       "empty": "Nothing in the log: a script logs only what it writes to stderr, a tool or a model call nothing; its input and result are above"},
     {"type": "table", "title": "What it left", "source": {"from": "deck.process_left", "input": {"process": "=id"}},
-      "description": "The records, files of deck and changes of documents it and the processes it started made; what a script or an agent wrote into the data folder of the project is not listed and is not undone.",
-      "empty": "It left no records, files of deck or changes of documents",
+      "when": "(trial ?? false) && len(rows) > 0",
+      "description": "The records, files of deck and changes of documents the trial and the processes it started made; what a script or an agent wrote into the data folder of the project is not listed and is not undone.",
       "columns": [
         {"label": "Kind", "bind": "kind", "format": "tag"},
         {"label": "What", "bind": "text"}

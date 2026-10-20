@@ -33,8 +33,9 @@ type leftRow struct {
 	Undo bool
 }
 
-// leftBlock is the table of what a process left on its page: its rows and the buttons of each.
-func (e *Env) leftBlock(id int64) screenTable {
+// leftBlock is the table of what a process left on its page, its rows and the buttons of each; false when the page
+// leaves it out.
+func (e *Env) leftBlock(id int64) (screenTable, bool) {
 	e.T.Helper()
 	in := map[string]any{"record": id}
 	for _, m := range e.screenMessages("", "process", in) {
@@ -44,12 +45,11 @@ func (e *Env) leftBlock(id int64) screenTable {
 		}
 		for _, c := range uc.Components {
 			if c["title"] == "What it left" {
-				return blockData[screenTable](e.T, mustJSON(e.screenData("", "process", in)[c["id"].(string)]))
+				return blockData[screenTable](e.T, mustJSON(e.screenData("", "process", in)[c["id"].(string)])), true
 			}
 		}
 	}
-	e.T.Fatal("the page of a process has no block of what it left")
-	return screenTable{}
+	return screenTable{}, false
 }
 
 type screenTable struct {
@@ -86,8 +86,9 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 		t.Fatalf("it says what it does not list: %q", got.LeftNote)
 	}
 
-	rows := e.leftBlock(tried.Process).Rows
-	if len(rows) != 3 {
+	left, ok := e.leftBlock(tried.Process)
+	rows := left.Rows
+	if !ok || len(rows) != 3 {
 		t.Fatalf("the page of the trial lists what it left: %+v", rows)
 	}
 	for _, r := range rows {
@@ -112,12 +113,16 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 	if doc.Text != "the owner wrote this" || len(recs) != 0 {
 		t.Fatalf("the buttons undo the change and delete the record: %q %v", doc.Text, recs)
 	}
-	if rows := e.leftBlock(tried.Process).Rows; len(rows) != 0 {
-		t.Fatalf("nothing is left once undone: %+v", rows)
+	if left, ok := e.leftBlock(tried.Process); ok {
+		t.Fatalf("a trial that left nothing has no table of it: %+v", left.Rows)
 	}
 	var plain struct{ Left []leftRow }
-	e.must("deck.process_get", map[string]any{"process": e.waitScript(e.start("finds", "collect", nil), "done").ID}, &plain)
+	run := e.waitScript(e.start("finds", "collect", nil), "done").ID
+	e.must("deck.process_get", map[string]any{"process": run}, &plain)
 	if plain.Left != nil {
 		t.Fatalf("only a trial lists in process_get what it left: %+v", plain.Left)
+	}
+	if left, ok := e.leftBlock(run); ok {
+		t.Fatalf("only the page of a trial has the table of what it left: %+v", left.Rows)
 	}
 }

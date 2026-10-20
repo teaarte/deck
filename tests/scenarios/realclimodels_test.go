@@ -15,6 +15,7 @@ import (
 func realModelResume(t *testing.T, e *Env, connection, name, first, second string) (string, string) {
 	t.Helper()
 	e.must("deck.model_set", map[string]any{"connection": connection, "model": first, "name": name, "options": `{"effort": "low"}`}, nil)
+	e.must("deck.provider_check", map[string]any{"provider": name}, nil)
 	h := e.waitHealthLong("provider:"+name, 10*time.Minute)
 	t.Logf("%s on %s low: self-check %s %s", name, first, h.Status, h.Error)
 	if h.Status != "ok" {
@@ -27,6 +28,7 @@ func realModelResume(t *testing.T, e *Env, connection, name, first, second strin
 		t.Fatalf("the turn on %s is done: %+v", first, got)
 	}
 	e.must("deck.model_set", map[string]any{"connection": connection, "model": second, "name": name}, nil)
+	e.must("deck.provider_check", map[string]any{"provider": name}, nil)
 	if h := e.waitHealthLong("provider:"+name, 10*time.Minute); h.Status != "ok" {
 		t.Fatalf("the self-check of %s on %s is green: %+v", name, second, h)
 	}

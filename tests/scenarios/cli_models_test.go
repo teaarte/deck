@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // args reads the arguments of call n of the fake CLI, and the value of a flag in them.
@@ -16,7 +17,8 @@ func (c *fakeCLI) argOf(n int, name string) string {
 }
 
 // TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort: model_set checks a model of claude-code against what the CLI
-// lists and refuses one without auto mode; its self-check and turns run with --model and --effort, on the subscription.
+// lists and refuses one without auto mode; its self-check runs only on the button, and it and turns run with --model and
+// --effort, on the subscription.
 func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
@@ -57,11 +59,32 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	if m.Agent != "claude-code" || !m.Subscription {
 		t.Fatalf("a model of the CLI runs in it on the subscription: %+v", m)
 	}
-	if h := e.waitHealth("provider:sonnet-low", "ok"); h.Version != "2.1.281" {
-		t.Fatalf("its self-check runs the CLI on the model: %+v", h)
+	onModel := func() int {
+		for i := c.calls(); i >= 1; i-- {
+			if c.argOf(i, "--model") == "sonnet" {
+				return i
+			}
+		}
+		return -1
 	}
-	if c.argOf(1, "--model") != "sonnet" || c.argOf(1, "--effort") != "low" {
-		t.Fatalf("the self-check runs on the model and effort: %v", c.call(1).args)
+	unchecked := func(when string) {
+		t.Helper()
+		var n int
+		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'provider:sonnet-low'`).Scan(&n)
+		if i := onModel(); i >= 0 || n != 0 {
+			t.Fatalf("%s, a model of the CLI is not checked: it spends turns of the subscription (call %d, %d rows)", when, i, n)
+		}
+	}
+	unchecked("on model_set")
+	e.App.Providers.Checks(t.Context(), time.Now())
+	e.waitHealth("provider:claude-code", "ok")
+	unchecked("at start")
+	e.must("deck.provider_check", map[string]any{"provider": "sonnet-low"}, nil)
+	if h := e.waitHealth("provider:sonnet-low", "ok"); h.Version != "2.1.281" {
+		t.Fatalf("its self-check on the button runs the CLI on the model: %+v", h)
+	}
+	if i := onModel(); i < 0 || c.argOf(i, "--effort") != "low" {
+		t.Fatalf("the self-check runs on the model and effort: %d", i)
 	}
 	e.refused("deck.assignment_set", map[string]any{"role": "text", "models": []string{"sonnet-low"}}, 422, "runs agent turns in claude-code")
 
@@ -131,11 +154,8 @@ func TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne(t *testing.T) {
 	}
 	c.stream(0, "ok.jsonl")
 	e, _ := cliEnv(t, c)
-	// One self-check at a time: the fake keeps the word of a self-check in one file.
 	e.must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus", "name": "opus-high", "options": `{"effort": "high"}`}, nil)
-	e.waitHealth("provider:opus-high", "ok")
 	e.must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "sonnet-low", "options": `{"effort": "low"}`}, nil)
-	e.waitHealth("provider:sonnet-low", "ok")
 	p := e.createProject("plain", plainManifest)
 	e.useModels("plain.work", "opus-high", "sonnet-low")
 	before := c.calls()
@@ -172,6 +192,7 @@ func TestAModelOfCodexRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	if m.Agent != "codex" {
 		t.Fatalf("a model of the codex connection runs in codex: %+v", m)
 	}
+	e.must("deck.provider_check", map[string]any{"provider": "luna-low"}, nil)
 	e.waitHealth("provider:luna-low", "ok")
 	p := e.createProject("paint", colorManifest)
 	e.useModels("paint.work", "luna-low")

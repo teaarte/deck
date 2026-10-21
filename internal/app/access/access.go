@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"deck2/internal/docs"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -166,11 +167,33 @@ func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string)
 	}
 	trial = act.Trial && own.Status == store.ProjectDraft
 	for _, r := range m.Reads {
-		if r.Project == other {
+		if r.Project == other && (!r.Models || len(r.Collections)+len(r.Documents) > 0) {
 			return r.Collections, r.Documents, true, trial, nil
 		}
 	}
 	return nil, nil, false, false, nil
+}
+
+// ReadModels resolves a project whose models' work a call reads, the caller's own when the name is empty: a confined
+// actor reads another one only where reads of its manifest gives models of it or of every project.
+func ReadModels(ctx context.Context, q *db.Queries, act registry.Actor, name string) (db.Project, error) {
+	if name == "" || !act.Confined() {
+		return Project(ctx, q, act, name)
+	}
+	p, err := ByName(ctx, q, act, name)
+	if err != nil || act.Within(p.ID) {
+		return p, err
+	}
+	m, err := docs.For(ctx, q, act, act.ProjectID)
+	if err != nil {
+		return p, err
+	}
+	for _, r := range m.Reads {
+		if r.Models && (r.Project == p.Name || r.Project == manifest.AnyProject) {
+			return p, nil
+		}
+	}
+	return p, registry.Refuse("deck: this project does not read which models do the work of %s; a reads entry of its manifest with \"models\": true gives that", p.Name)
 }
 
 // Master is the built-in project master of a workspace.

@@ -70,7 +70,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   scripts), `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
   `settingDefs` gives the row, the names `settings_set` takes and the edit button), `secrets`, `tokens`,
   `providers` (connections, models with prices and options, assignments with fallbacks — kinds text, image, tts,
-  stt, music, video (deck polls the job, `video.go`), search (a SearXNG the agents in ACP agents search through, `web.go` with `web_search` and `web_fetch`) —, a module calls only models of deck's settings (`Route`) and proposes one by `model_set`, held for the
+  stt, music, video (deck polls the job, `video.go`), search (a SearXNG the agents in ACP agents search through, `web.go` with `web_search` and `web_fetch`) —, a module calls only models of deck's settings (`Route`) and proposes one by `model_set` or an assignment by `assignment_set`, held for the
   owner; a model that did not answer is red in health with the model that took its work; the providers of agent
   turns — built-in, a model of a CLI on its connection claude-code or codex (its effort in options, checked against
   the models the CLI lists, checked only by button and on a broken turn) or a model in an ACP agent, the agents found with their version, self-checks at start, by button

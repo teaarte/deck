@@ -254,7 +254,12 @@ type Read struct {
 	Project     string   `json:"project"`
 	Collections []string `json:"collections,omitempty"`
 	Documents   []string `json:"documents,omitempty"`
+	// Models reads which models do the work of the project, or of every one under AnyProject.
+	Models bool `json:"models,omitempty"`
 }
+
+// AnyProject in reads names every project; it reads only which models do their work.
+const AnyProject = "*"
 
 type Screen struct {
 	Name  string `json:"name"`

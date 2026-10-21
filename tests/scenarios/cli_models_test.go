@@ -16,9 +16,8 @@ func (c *fakeCLI) argOf(n int, name string) string {
 	return v
 }
 
-// TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort: model_set checks a model of claude-code against what the CLI
-// lists and refuses one without auto mode; its self-check runs only on the button, and it and turns run with --model and
-// --effort, on the subscription.
+// TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort: model_set checks a model of claude-code by its CLI's list and auto mode;
+// the self-check runs only on the button, and it and turns run with --model and --effort, on the subscription.
 func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)

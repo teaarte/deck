@@ -164,9 +164,16 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	if err != nil {
 		return out, err
 	}
+	var pid int64
 	own := ""
-	if p, err := s.St.Q.GetProject(ctx, act.ProjectID); err == nil && act.Confined() {
-		own = p.Name
+	if act.Confined() {
+		p, err := access.ReadModels(ctx, s.St.Q, act, in.Project)
+		if err != nil {
+			return out, err
+		}
+		pid, own = p.ID, p.Name
+	} else if pid, err = access.Filter(ctx, s.St.Q, act, in.Project); err != nil {
+		return out, err
 	}
 	for _, r := range rows {
 		if in.Project != "" && r.Project != in.Project {
@@ -185,7 +192,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		}
 		out.Assignments = append(out.Assignments, v)
 	}
-	used, err := s.uses(ctx, act, in, &out)
+	used, err := s.uses(ctx, act, pid, in.Lang, &out)
 	if err != nil {
 		return out, err
 	}
@@ -206,33 +213,30 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	return out, nil
 }
 
-// uses fills in the uses of the projects the caller reaches, and says which models some work goes to or is assigned to.
-func (s *Service) uses(ctx context.Context, act registry.Actor, in modelsListIn, out *modelsOut) (map[string]bool, error) {
+// uses fills in the uses of the projects the caller reaches, all of them or only pid, with the work of pid, and says
+// which models some work goes to or is assigned to.
+func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang string, out *modelsOut) (map[string]bool, error) {
 	used := map[string]bool{}
 	for _, a := range out.Assignments {
 		for _, name := range a.Models {
 			used[name] = true
 		}
 	}
-	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
-	if err != nil {
-		return nil, err
-	}
 	projects, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	ws := s.Words(in.Lang)
+	ws := s.Words(lang)
 	b := s.book(ctx, act.Workspace, func(p string) string { return manifest.Tr(ws, p) })
 	for _, p := range projects {
-		if pid != 0 && p.ID != pid || act.Confined() && p.ID != act.ProjectID {
+		if pid != 0 && p.ID != pid {
 			continue
 		}
 		roles := s.rolesWork(ctx, b, p.ID)
 		for _, w := range roles {
 			out.Uses = append(out.Uses, useView{Project: p.Name, Work: w})
 		}
-		if pid == 0 && !act.Confined() {
+		if pid == 0 {
 			continue
 		}
 		m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)

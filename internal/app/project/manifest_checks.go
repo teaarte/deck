@@ -21,14 +21,20 @@ const maxProblems = 20
 // checkReads verifies the projects and collections a manifest reads.
 func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string, m *manifest.Manifest) error {
 	for _, r := range m.Reads {
-		if r.Project == name {
+		onlyModels := r.Models && len(r.Collections)+len(r.Documents) == 0
+		switch {
+		case r.Project == name:
 			return registry.Invalid("deck: reads: a project does not need to read itself")
+		case r.Project == manifest.AnyProject && !onlyModels:
+			return registry.Invalid(`deck: reads: %s names every project only for which models do their work: {"project": "*", "models": true}`, manifest.AnyProject)
+		case r.Project == manifest.AnyProject:
+			continue
 		}
 		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: r.Project})
 		if err != nil {
 			return registry.Invalid("deck: reads: no project %q", r.Project)
 		}
-		if p.Builtin == 1 {
+		if p.Builtin == 1 && !onlyModels {
 			return registry.Invalid("deck: reads: project %s keeps the owner's memory and topics; no project reads it", p.Name)
 		}
 		for _, d := range r.Documents {

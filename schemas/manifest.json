@@ -223,9 +223,10 @@
       "additionalProperties": false,
       "required": ["project"],
       "properties": {
-        "project": {"type": "string"},
+        "project": {"type": "string", "description": "A project, or * for every project, whose only read is models."},
         "collections": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "documents": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        "documents": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "models": {"type": "boolean", "default": false, "description": "Read which models do the work of the project (deck.models_list with project): assignments, the work of its commands and scripts, choices and prices; never keys."}
       }
     },
     "screen": {

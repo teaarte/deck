@@ -73,9 +73,8 @@ func (e *Env) callAsk(command string) (int64, string) {
 	return 0, ""
 }
 
-// TestAModuleProposesAnAssignmentOfAnotherProject: a script of a module calls deck.assignment_set for another
-// project; the call waits for the owner, who sees what it was and what it becomes; yes applies exactly it, no
-// leaves it, and a yes after the assignment changed is refused. The owner's own call applies at once.
+// TestAModuleProposesAnAssignmentOfAnotherProject: a script's deck.assignment_set for another project waits for the
+// owner, who sees it before and after; yes applies it, no leaves it, a yes after a change is refused.
 func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -191,4 +190,75 @@ func TestNoCallerAppliesAnAssignmentPastTheOwner(t *testing.T) {
 	if got := e.assigned("shorts", "text"); got != nil {
 		t.Fatalf("nothing applied past the owner: %v", got)
 	}
+}
+
+// TestAModuleReadsTheModelsOfEveryProjectByARight: reads {"project": "*", "models": true}, granted by the owner, lets
+// scripts and agents read the models of another project, never a key; an assignment still waits for the owner.
+func TestAModuleReadsTheModelsOfEveryProjectByARight(t *testing.T) {
+	t.Parallel()
+	var heard string
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		heard, _ = c.Tool(ctx, "models_list", map[string]any{"project": "shorts"})
+		return provider.Result{Text: "read"}
+	})
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "sk-or-hidden"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.createProject("shorts", plainManifest)
+	e.must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}, nil)
+	module := scriptManifest("main", "", "")
+	watcher := e.createProject("watcher", module)
+	e.saveScript("watcher", "scripts/main.py", deckCallScript)
+
+	read := map[string]any{"project": "shorts"}
+	if c := e.scriptCall("watcher", "deck.models_list", read); c.Status != 403 || !strings.Contains(c.Body, "does not read which models do the work of shorts") {
+		t.Fatalf("without the right a module does not read the models of another project: %+v", c)
+	}
+
+	_, tok := e.token("terminal", "deck.*")
+	wider := strings.Replace(module, `"scripts":`, `"reads": [{"project": "*", "models": true}], "scripts":`, 1)
+	_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "watcher", "manifest": wider})
+	var saved struct {
+		Waiting int64
+		Widens  []string
+	}
+	_ = json.Unmarshal(out, &saved)
+	if saved.Waiting == 0 || !slices.Equal(saved.Widens, []string{"reads which models do the work of every project"}) {
+		t.Fatalf("the right waits for the owner's button, named plainly: %s", out)
+	}
+	if c := e.scriptCall("watcher", "deck.models_list", read); c.Status != 403 {
+		t.Fatalf("the right is not in force before the owner's yes: %+v", c)
+	}
+	e.answer(saved.Waiting, "allow")
+
+	c := e.scriptCall("watcher", "deck.models_list", read)
+	var m struct {
+		modelsOut
+		Work []struct {
+			Project string `json:"project"`
+			Command string `json:"command"`
+		} `json:"work"`
+	}
+	if err := json.Unmarshal([]byte(c.Body), &m); c.Status != 200 || err != nil {
+		t.Fatalf("with the right a script reads the models of another project: %+v", c)
+	}
+	if len(m.Assignments) != 1 || m.Assignments[0].Project != "shorts" || len(m.Work) == 0 || m.Work[0].Project != "shorts" || m.Work[0].Command != "work" {
+		t.Fatalf("it reads the assignments and the work of that project: %s", c.Body)
+	}
+	if strings.Contains(c.Body, "sk-or-hidden") || strings.Contains(c.Body, "key_secret") {
+		t.Fatalf("the right gives no key: %s", c.Body)
+	}
+
+	e.waitState(e.run(watcher, "publish"), "done")
+	if !strings.Contains(heard, `"project":"shorts"`) || !strings.Contains(heard, `"command":"work"`) {
+		t.Fatalf("an agent of the module reads it too: %s", heard)
+	}
+
+	if c := e.scriptCall("watcher", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{}}); c.Status != 202 {
+		t.Fatalf("the right reads only; an assignment still waits for the owner: %+v", c)
+	}
+	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+		t.Fatalf("nothing changes by the right: %v", got)
+	}
+	data := strings.Replace(module, `"scripts":`, `"reads": [{"project": "*", "collections": ["items"]}], "scripts":`, 1)
+	e.refused("deck.manifest_save", map[string]any{"project": "watcher", "manifest": data}, 422, "names every project only for which models do their work")
 }

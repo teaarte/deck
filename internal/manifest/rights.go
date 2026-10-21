@@ -122,8 +122,13 @@ func Widens(prev, next *Manifest) []string {
 				old = &prev.Reads[i]
 			}
 		}
+		if r.Models && (old == nil || !old.Models) {
+			add("reads which models do the work of %s", readsWhose(r.Project))
+		}
 		if old == nil {
-			add("reads project %s", r.Project)
+			if r.Project != AnyProject && (!r.Models || len(r.Collections)+len(r.Documents) > 0) {
+				add("reads project %s", r.Project)
+			}
 			continue
 		}
 		for _, c := range added(old.Collections, r.Collections) {
@@ -255,7 +260,7 @@ func Clip(granted, m *Manifest) *Manifest {
 			continue
 		}
 		g := granted.Reads[i]
-		r.Collections, r.Documents = kept(r.Collections, g.Collections), kept(r.Documents, g.Documents)
+		r.Collections, r.Documents, r.Models = kept(r.Collections, g.Collections), kept(r.Documents, g.Documents), r.Models && g.Models
 		c.Reads = append(c.Reads, r)
 	}
 	c.Writes = slices.DeleteFunc(slices.Clone(m.Writes), func(w string) bool { return !granted.MayWrite(w) })
@@ -487,4 +492,11 @@ func (m *Manifest) AskEachTime() []string {
 		external(c.Name, c.Class)
 	}
 	return out
+}
+
+func readsWhose(project string) string {
+	if project == AnyProject {
+		return "every project"
+	}
+	return "project " + project
 }

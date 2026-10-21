@@ -67,7 +67,7 @@ func (g *Gateway) Lost(ctx context.Context, id int64) {
 	}
 	var tool string
 	if proj, err := g.st.Q.GetProject(ctx, row.ProjectID.Int64); err == nil {
-		tool = g.fingerprint(ctx, proj.WorkspaceID, proj.ID, row.Tool)
+		tool = g.fingerprint(ctx, proj.WorkspaceID, proj.ID, row.Tool, json.RawMessage(row.Params))
 	}
 	g.LostAt(ctx, id, tool)
 }

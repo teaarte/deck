@@ -15,8 +15,9 @@ You talk to deck through its MCP server (`deck`). The tools are deck commands: `
 `command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `files_list`,
 `projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Ask a read for only
 the fields you need (`fields`; of `records_list` they are the fields of the data of each record). Some commands only the owner runs:
-`secret_set`, `oauth_start`, `browser_login`, `assignment_set`, `model_set`, `project_enable`; say which one and
-why when the module needs it. The owner does them in two places. The Settings of the project (Settings →
+`secret_set`, `oauth_start`, `browser_login`, `project_enable`; say which one and why when the module needs it.
+`model_set` and `assignment_set` a module or the master calls itself as a proposal: the call waits for the owner's
+button and applies exactly what it sent, refused if the assignment changed meanwhile. The owner does them in two places. The Settings of the project (Settings →
 Projects → "Settings" on its row): "Enable" with the rights enabling grants, pause, the models of
 each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
 Models (assignments, a model and its agent), Connections (where models are reached, and the other secrets: a

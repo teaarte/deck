@@ -173,7 +173,7 @@ func (b *Browser) build(list []*mcp.Tool) {
 		if act {
 			c.Class, c.Journals, c.Handler = registry.External, true, b.actor(t.Name)
 			c.Allowed = b.allowed
-			c.Fingerprint = func(ctx context.Context, project int64) string {
+			c.Fingerprint = func(ctx context.Context, _, project int64, _ json.RawMessage) string {
 				m, err := docs.For(ctx, b.Store.Q, registry.Actor{}, project)
 				if err != nil {
 					return ""

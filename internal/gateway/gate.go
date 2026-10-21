@@ -157,13 +157,13 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 	return false, nil
 }
 
-// fingerprint is what a tool does apart from its input; empty for commands and unknown names.
-func (g *Gateway) fingerprint(ctx context.Context, workspace, project int64, name string) string {
+// fingerprint is what a call acts on beside its input; empty for commands without one and unknown names.
+func (g *Gateway) fingerprint(ctx context.Context, workspace, project int64, name string, input json.RawMessage) string {
 	c, err := g.reg.Lookup(ctx, workspace, name)
 	if err != nil || c.Fingerprint == nil {
 		return ""
 	}
-	return c.Fingerprint(ctx, project)
+	return c.Fingerprint(ctx, workspace, project, input)
 }
 
 // ttl is how long a confirmation of the command stays open: its tool's own term, else the workspace's.
@@ -186,7 +186,7 @@ func (g *Gateway) confirmTTL(ctx context.Context, workspace int64) time.Duration
 func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (any, error) {
 	var print string
 	if c.Fingerprint != nil {
-		print = c.Fingerprint(ctx, project)
+		print = c.Fingerprint(ctx, act.Workspace, project, input)
 	}
 	target := ""
 	if c.Target != nil {
@@ -231,8 +231,8 @@ type Outcome struct {
 	Error  string          `json:"error,omitempty"`
 }
 
-// ErrChanged refuses an old yes to a tool whose request changed since the call was frozen.
-var ErrChanged = registry.Refuse("deck: the tool changed after this call was asked for; deny it, and the agent asks again")
+// ErrChanged refuses an old yes to a call whose tool or target changed since it was frozen.
+var ErrChanged = registry.Refuse("deck: what this call acts on changed after it was asked for: the tool, or what it would change; deny it, and the caller asks again")
 
 type retryingKey struct{}
 
@@ -251,7 +251,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	if err := json.Unmarshal([]byte(a.Payload), &f); err != nil {
 		return nil, err
 	}
-	if f.Tool != g.fingerprint(ctx, f.Caller.Workspace, f.Caller.Project, f.Call.Command) {
+	if f.Tool != g.fingerprint(ctx, f.Caller.Workspace, f.Caller.Project, f.Call.Command, f.Call.Input) {
 		return nil, ErrChanged
 	}
 	n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {

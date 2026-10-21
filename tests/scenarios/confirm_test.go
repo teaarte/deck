@@ -234,7 +234,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	var asks []askView
 	_ = json.Unmarshal(out, &asks)
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL+"/v2", "")}, nil)
-	if code, body := e.call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "allow"}); code == 200 || !strings.Contains(string(body), "tool changed") {
+	if code, body := e.call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "allow"}); code == 200 || !strings.Contains(string(body), "changed after it was asked for") {
 		t.Fatalf("a yes to a call of a tool that changed since is refused: %d %s", code, body)
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL, "")}, nil)

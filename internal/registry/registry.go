@@ -65,8 +65,9 @@ type Command struct {
 	Topics []string `json:"-"`
 	// Loose marks a tool whose input schema comes from elsewhere and is not held to App Intents types.
 	Loose bool `json:"-"`
-	// Fingerprint is what the tool would do apart from its input, so an old yes does not make a changed tool.
-	Fingerprint func(ctx context.Context, project int64) string `json:"-"`
+	// Fingerprint is what a call would act on beside its input, a tool's request or what it changes, as it is now, so
+	// an old yes does not make a changed call.
+	Fingerprint func(ctx context.Context, workspace, project int64, input json.RawMessage) string `json:"-"`
 	// Target says where a call goes, from its fingerprint, for the owner who decides on it.
 	Target func(print string, input json.RawMessage) string `json:"-"`
 	// ConfirmTTL is the tool's own term for its confirmations.

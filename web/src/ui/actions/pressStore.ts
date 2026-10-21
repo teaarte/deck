@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { call } from '../../lib/api';
 
 // PressAsk is a call a run started by a button waits to make, as deck.process_asks gives it.
-export interface PressAsk { id: number; what: string; where: string; who: string; command?: string }
+export interface PressAsk { id: number; what: string; where: string; who: string; command?: string; payload?: { call?: { input?: unknown } } }
 
 let asks: PressAsk[] = [];
 const subs = new Set<() => void>();

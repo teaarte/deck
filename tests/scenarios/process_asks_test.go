@@ -8,19 +8,22 @@ import (
 	"testing"
 )
 
-// pressScript makes the deck call of its input and prints deck's answer as its result; with n it only names ask n
-// as the one its work waits for.
+// pressScript makes the deck calls of its input, one or many, and prints deck's last answer as its result; with n it
+// only names ask n as the one its work waits for.
 const pressScript = `import json, os, sys, urllib.request, urllib.error
 inp = json.load(sys.stdin)
 if inp.get("n"):
     print(json.dumps({"waiting": inp["n"]}))
     sys.exit(0)
-req = urllib.request.Request(os.environ["DECK_URL"] + "/commands/" + inp["method"], data=inp["form"].encode(),
-    headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
-try:
-    body = urllib.request.urlopen(req, timeout=30).read().decode()
-except urllib.error.HTTPError as e:
-    body = e.read().decode()
+calls = json.loads(inp["form"]) if inp["method"] == "many" else [{"method": inp["method"], "form": json.loads(inp["form"])}]
+body = "{}"
+for c in calls:
+    req = urllib.request.Request(os.environ["DECK_URL"] + "/commands/" + c["method"], data=json.dumps(c["form"]).encode(),
+        headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
+    try:
+        body = urllib.request.urlopen(req, timeout=30).read().decode()
+    except urllib.error.HTTPError as e:
+        body = json.dumps({"status": e.code, "body": e.read().decode()})
 print(body if body.strip() else "{}")
 `
 
@@ -81,13 +84,28 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 		t.Fatalf("a run that waits for nothing gives the button nothing once it ends: %+v", got)
 	}
 	add := e.pressRun("picker", "deck.model_set", map[string]any{"connection": "openrouter", "model": "llama", "kind": "text"})
-	if got := e.pressAsks(add); len(got) != 1 || got[0].Where != "openrouter/llama: not in deck → text" {
-		t.Fatalf("a model to add says what it becomes: %+v", got)
+	if got := e.pressAsks(add); len(got) != 1 || got[0].Where != "openrouter/llama → kind text" {
+		t.Fatalf("a model to add says what it sets: %+v", got)
+	}
+	e.answer(e.pressAsks(add)[0].ID, "deny")
+	two := e.start("picker", "main", map[string]any{"method": "many", "form": string(mustJSON([]map[string]any{
+		{"method": "deck.model_set", "form": map[string]any{"connection": "openrouter", "model": "mistral", "kind": "text", "free": true}},
+		{"method": "deck.assignment_set", "form": map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}}}))})
+	twoAsks := e.pressAsks(two)
+	if len(twoAsks) != 2 || twoAsks[0].Where != "openrouter/mistral → free true, kind text" {
+		t.Fatalf("a run that waits for two calls gives the button both: %+v", twoAsks)
+	}
+
+	var try struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"command": "picker.main", "live": true, "input": string(mustJSON(map[string]any{
+		"method": "deck.model_set", "form": string(mustJSON(map[string]any{"connection": "openrouter", "model": "phi", "kind": "text"}))}))}, &try)
+	if p := e.waitScript(try.Process, "done", "error"); !strings.Contains(string(p.Result), "trial") || len(e.pressAsks(try.Process)) != 0 {
+		t.Fatalf("a trial does not propose a model: %s", p.Result)
 	}
 
 	e.createProject("other", scriptManifest("main", "", ""))
 	e.saveScript("other", "scripts/main.py", pressScript)
-	theirs := e.pressAsks(add)[0].ID
+	theirs := twoAsks[0].ID
 	if got := e.pressAsks(e.start("other", "main", map[string]any{"n": theirs})); len(got) != 0 {
 		t.Fatalf("a run names no ask of another project to the button: %+v", got)
 	}
@@ -126,7 +144,8 @@ func TestRealBrowserPressAnswersItsAsk(t *testing.T) {
 		b.open(e.URL + "/?size=" + size.name + "#/p/picker/main")
 		b.until("the Apply button", `[...document.querySelectorAll('button')].some((x) => x.innerText === 'Apply')`)
 		b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Apply').click(), '')`)
-		b.until("the call of the run over the screen", `document.querySelector('[data-press-where]')?.innerText.includes('text of shorts:') && document.querySelector('[data-press-where]').innerText.includes('→ openrouter/qwen')`)
+		b.until("the call of the run over the screen", `document.querySelector('[data-press-where]')?.innerText.includes('text of shorts:') && document.querySelector('[data-press-where]').innerText.includes('→ openrouter/qwen')
+			&& document.querySelector('[data-press-input]')?.innerText.includes('"role": "text"')`)
 		b.shot("press-ask-" + size.name)
 		b.eval(`(document.querySelector('[data-press-answer="allow"]').click(), '')`)
 		b.until("the window gone after yes", `!document.querySelector('[data-press-ask] [data-press-answer]')`)

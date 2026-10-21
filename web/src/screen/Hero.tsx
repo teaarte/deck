@@ -73,7 +73,7 @@ export function Hero({ dialogs }: { dialogs?: ReactNode }) {
             <Text className={s.title} data-hero-title>{pulse.title}</Text>
             <Text className={s.text}>{pulse.text}</Text>
             <Lines lines={lines} />
-            {(go || dialogs) && <Group gap={8} className={s.actions} data-hero-dialogs>{go}{dialogs}</Group>}
+            {(go || dialogs) && <Group gap={8} className={s.actions} data-hero-dialogs>{dialogs}{go}</Group>}
           </div>
           <div className={s.art}><Deki mood={mood} size={mood === 'chill' ? 150 : 180} /></div>
           <div className={s.fold}>{fold}</div>

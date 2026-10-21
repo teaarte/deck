@@ -6,6 +6,7 @@ import { call } from '../../lib/api';
 import { sharedSent } from '../../lib/share';
 import { errorText } from '../../lib/notify';
 import { Failed } from '../../ui/actions/Failed';
+import { watchRun } from '../../ui/actions/pressStore';
 import type { FormValue as Generated } from '../../lib/catalog.gen';
 import { useMountedRef } from '../../hooks/useMountedRef';
 import { Field } from './Field';
@@ -59,6 +60,7 @@ export function Form({ value }: { value: FormValue }) {
       if (Object.values(form.files).some((f) => f.length)) await sharedSent();
       const started = res && typeof res === 'object' && typeof (res as { process?: unknown }).process === 'number'
         && Object.keys(res).length === 1 ? (res as { process: number }).process : 0;
+      if (started) watchRun(started);
       if (!started) {
         if (alive.current) setOut({ state: 'done', result: res });
         close?.();

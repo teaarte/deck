@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -282,28 +283,25 @@ type modelSetIn struct {
 	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`
 }
 
-// modelSetCommand is model_set, whose call held for the owner says the model it adds or changes, its kind before and
-// after; a model changed since the ask is not set.
+// modelSetCommand is model_set, whose call held for the owner says the model it adds or changes and what it sets.
 func (s *Service) modelSetCommand() *registry.Command {
 	c := registry.Def("model_set", "Set model",
 		"Adds or changes a model of a connection with its kind and price; what is left out comes from the catalog of the connection. A module or the master proposes a model it needs this way, and the owner adds it with one button.",
 		registry.Everyone, s.modelSet).Enum("agent", s.agentNames()...).As(registry.External)
-	named := func(input json.RawMessage) (modelSetIn, string) {
-		var in modelSetIn
+	c.Target = func(_ string, input json.RawMessage) string {
+		var in map[string]any
 		_ = json.Unmarshal(input, &in)
-		return in, cmp.Or(in.Name, in.Connection+"/"+in.Model)
-	}
-	c.Fingerprint = func(ctx context.Context, workspace, _ int64, input json.RawMessage) string {
-		_, name := named(input)
-		row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
-		if err != nil {
-			return ""
+		name := fmt.Sprint(in["connection"], "/", in["model"])
+		if n, ok := in["name"].(string); ok && n != "" {
+			name = n
 		}
-		return row.Model.Kind
-	}
-	c.Target = func(print string, input json.RawMessage) string {
-		in, name := named(input)
-		return fmt.Sprintf("%s: %s → %s", name, cmp.Or(print, "not in deck"), cmp.Or(in.Kind, print, "the kind of the catalog"))
+		var sets []string
+		for _, k := range slices.Sorted(maps.Keys(in)) {
+			if k != "connection" && k != "model" && k != "name" {
+				sets = append(sets, fmt.Sprintf("%s %v", k, in[k]))
+			}
+		}
+		return name + " → " + cmp.Or(strings.Join(sets, ", "), "as the catalog of the connection has it")
 	}
 	return c
 }

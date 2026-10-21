@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"deck2/internal/provider"
@@ -83,6 +84,14 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 		}
 		b.shot("cockpit-history-" + size.name + "-running")
 		e.must("deck.process_stop", map[string]any{"process": id}, nil)
+		_, tok := e.token("ask-"+size.name, "deck.model_set")
+		if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "none", "model": size.name}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
+			t.Fatalf("a token's model waits for the owner: %d %s", code, out)
+		}
+		b.until("the decision on the cockpit", `document.querySelector('[data-triage-open]')`)
+		if after := b.eval(at); after != before {
+			t.Fatalf("History keeps its place on a %s when a decision comes in: %s, then %s", size.name, before, after)
+		}
 		b.eval(`(document.querySelector('[data-hero] [data-dialog-open="changes"]').click(), '')`)
 		b.until("the history open", `document.querySelector('[data-dialog="changes"]') && location.hash.includes('dialog=changes')`)
 	}

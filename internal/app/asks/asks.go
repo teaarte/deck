@@ -20,6 +20,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -103,11 +104,15 @@ type processAsksIn struct {
 	Process int64 `desc:"The process a button of the owner started"`
 }
 
-// processAsksWait is how long process_asks waits for its process to ask or end.
-const processAsksWait = 15 * time.Second
+// processAsksWait is how long process_asks waits for a script or tool to ask or end, processAsksQuiet how long
+// after its last ask for one more.
+const (
+	processAsksWait  = 15 * time.Second
+	processAsksQuiet = 2 * time.Second
+)
 
 // processAsks are the calls of its own project a process the owner started waits to make or names in its result as
-// {"waiting": <ask>}, once there are some or it ends, so the owner answers them at the button.
+// {"waiting": <ask>}, once it ends or asks no more, so the owner answers them at the button; an agent is not waited.
 func (s *Service) processAsks(ctx context.Context, act registry.Actor, in processAsksIn) (any, error) {
 	p, err := s.St.Q.GetProcess(ctx, in.Process)
 	if err == nil {
@@ -122,10 +127,17 @@ func (s *Service) processAsks(ctx context.Context, act registry.Actor, in proces
 	if err != nil {
 		return nil, err
 	}
-	until := time.After(processAsksWait)
+	if p.Kind == process.KindAgent {
+		out, _, err := s.asksOf(ctx, act, p.ID, p.ProjectID)
+		return out, err
+	}
+	until, quiet, seen := time.After(processAsksWait), time.Now(), 0
 	for {
 		out, ended, err := s.asksOf(ctx, act, p.ID, p.ProjectID)
-		if err != nil || len(out) > 0 || ended {
+		if len(out) != seen {
+			quiet, seen = time.Now(), len(out)
+		}
+		if err != nil || ended || seen > 0 && time.Since(quiet) > processAsksQuiet {
 			return out, err
 		}
 		select {

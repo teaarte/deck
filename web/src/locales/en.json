@@ -206,5 +206,6 @@
     "unsupported": "This browser takes no pushes; on an iPhone, add deck to the home screen first"
   },
   "hero": {"triage": "Go through one by one", "fold": "Fold", "unfold": "Unfold", "triage_short": "One by one"},
+  "press": {"title": "Your yes is needed", "yes": "Yes", "no": "No", "later": "Later, in the cockpit"},
   "triage": {"title": "Triage", "count": "{{n}} of {{of}}", "close": "Close", "skip": "Skip", "done": "All done", "done_text": "The answers are on their way. If something goes wrong, the master will write in the chat.", "back": "Back to the cockpit"}
 }

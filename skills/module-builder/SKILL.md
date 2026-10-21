@@ -437,7 +437,10 @@ so stdout never holds two JSON documents. A script runs in a sandbox:
   newest last, `process_get` `{"id", "command", "state", "result", "error", …}`, `documents_list`
   `[{"id", "name", "kind", "owner_kind", "owner_id"}]` (an artifact of a record has `owner_kind` `record`); a script may call commands and tools of its own project that
   allow `agent` callers; a call that waits for the owner answers HTTP 202 `{"waiting": <ask>}` — deck makes
-  it later, the script goes on;
+  it later, the script goes on. A script a button of the owner started gets that yes at the button: deck shows
+  the call, what it was and what it becomes, right after the press, and yes there makes it. So a module keeps no
+  status of its own for "asked" and no button "confirm in the cockpit": a record that already waits answers
+  `{"waiting": <ask>}` as the result of the next press, and the press shows that same ask again;
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
 - a script installs its own packages when it runs; there is no `packages` field. The registries go into
   `domains.read` (Python: `pypi.org`, `files.pythonhosted.org`; Node: `registry.npmjs.org`), the package

@@ -99,6 +99,78 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 	return out, nil
 }
 
+type processAsksIn struct {
+	Process int64 `desc:"The process a button of the owner started"`
+}
+
+// processAsksWait is how long process_asks waits for its process to ask or end.
+const processAsksWait = 15 * time.Second
+
+// processAsks are the calls of its own project a process the owner started waits to make or names in its result as
+// {"waiting": <ask>}, once there are some or it ends, so the owner answers them at the button.
+func (s *Service) processAsks(ctx context.Context, act registry.Actor, in processAsksIn) (any, error) {
+	p, err := s.St.Q.GetProcess(ctx, in.Process)
+	if err == nil {
+		var pr db.Project
+		if pr, err = s.St.Q.GetProject(ctx, p.ProjectID); err == nil && pr.WorkspaceID != act.Workspace {
+			err = sql.ErrNoRows
+		}
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, registry.NotFound("deck: no process %d", in.Process)
+	}
+	if err != nil {
+		return nil, err
+	}
+	until := time.After(processAsksWait)
+	for {
+		out, ended, err := s.asksOf(ctx, act, p.ID, p.ProjectID)
+		if err != nil || len(out) > 0 || ended {
+			return out, err
+		}
+		select {
+		case <-ctx.Done():
+			return out, ctx.Err()
+		case <-until:
+			return out, nil
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+// asksOf are the open calls of a process and of its result, and whether it ended.
+func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project int64) ([]askRow, bool, error) {
+	p, err := s.St.Q.GetProcess(ctx, id)
+	if err != nil {
+		return nil, false, err
+	}
+	var named []int64
+	var res struct {
+		Waiting json.RawMessage `json:"waiting"`
+	}
+	if json.Unmarshal([]byte(p.Result), &res) == nil && json.Unmarshal(res.Waiting, &named) != nil {
+		var one int64
+		if json.Unmarshal(res.Waiting, &one) == nil && one > 0 {
+			named = []int64{one}
+		}
+	}
+	open, err := s.St.Q.ListWorkspaceOpenAsks(ctx, act.Workspace)
+	if err != nil {
+		return nil, false, err
+	}
+	names, err := access.Names(ctx, s.St.Q, act.Workspace)
+	if err != nil {
+		return nil, false, err
+	}
+	out := []askRow{}
+	for _, q := range open {
+		if q.Kind == ask.KindCall && q.ProjectID.Int64 == project && (q.ProcessID.Int64 == id || slices.Contains(named, q.ID)) {
+			out = append(out, s.askRow(ctx, q, names))
+		}
+	}
+	return out, p.FinishedAt.Valid, nil
+}
+
 // Waiting are how many things wait for the owner, as asks_list gives them, by project, deck's own under "".
 func (s *Service) Waiting(ctx context.Context, act registry.Actor) (map[string]int64, error) {
 	rows, err := s.asksList(ctx, act, asksListIn{})
@@ -273,6 +345,9 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("asks_list", "Waiting for you",
 			"Lists what waits for the owner, oldest first: questions, confirmations, requests for rights and sign-ins, with who asks, what and where, and the link of the screen that answers them; a request for rights gives what it widens and why. Confirmations that expired stay until the owner clears them.",
 			registry.OwnerSide, s.asksList).On("asks"),
+		registry.Def("process_asks", "Asks of a run",
+			"Gives the calls a process the owner started by a button waits to make, and those its result names as {\"waiting\": <ask>}, once it asks or ends, so the owner answers them at the button; it waits a few seconds at most.",
+			registry.OwnerOnly, s.processAsks),
 		registry.Def("ask_answer", "Answer",
 			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done. Deny on an expired confirmation clears it.",
 			registry.OwnerOnly, s.askAnswer),

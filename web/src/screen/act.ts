@@ -2,9 +2,10 @@ import { call, fetchFile, saveBlob } from '../lib/api';
 import type { Action } from '../lib/catalog.gen';
 import { openTopic } from '../chat/chatStore';
 import { go } from '../app/router';
+import { watchRun } from '../ui/actions/pressStore';
 
 // act runs a button: a move to its screen, or its call; a chat button opens the topic it made, a download button
-// downloads the file it made. A failed call throws.
+// downloads the file it made, and the calls a run it started waits to make come to the owner. A failed call throws.
 export async function act(c: Action): Promise<boolean> {
   if (c.chat && !c.command && !c.screen) {
     openTopic('new');
@@ -16,6 +17,8 @@ export async function act(c: Action): Promise<boolean> {
     return true;
   }
   const out = await call(c.command!, c.params ?? {});
+  const run = (out as { process?: unknown } | null)?.process;
+  if (typeof run === 'number') watchRun(run);
   const topic = (out as { topic?: unknown } | null)?.topic;
   if (c.chat && typeof topic === 'number') openTopic(topic);
   const made = out as { file?: unknown; name?: unknown } | null;

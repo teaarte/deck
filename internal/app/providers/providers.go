@@ -101,7 +101,7 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	}
 	a, err := acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], Model: m.Model,
 		NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
-		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, m, c), Plain: s.plainOf(c.Url+" "+m.Model)})
+		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, m, c), Plain: s.plainOf(c.Url + " " + m.Model)})
 	if err != nil {
 		return nil, registry.Invalid("deck: %v", err)
 	}
@@ -382,9 +382,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.connectionSet),
 		registry.Def("connection_remove", "Remove connection", "Removes a connection that has no models left.",
 			registry.OwnerOnly, s.connectionRemove),
-		registry.Def("model_set", "Set model",
-			"Adds or changes a model of a connection with its kind and price; what is left out comes from the catalog of the connection. A module or the master proposes a model it needs this way, and the owner adds it with one button.",
-			registry.Everyone, s.modelSet).Enum("agent", s.agentNames()...).As(registry.External),
+		s.modelSetCommand(),
 		registry.Def("model_remove", "Remove model", "Removes a model; assignments that name it skip it.",
 			registry.OwnerOnly, s.modelRemove),
 		s.modelCallCommand(),

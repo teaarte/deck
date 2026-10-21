@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"slices"
@@ -34,18 +35,18 @@ const (
 )
 
 type modelView struct {
-	Name       string   `json:"name"`
-	Connection string   `json:"connection"`
-	Model      string   `json:"model"`
-	Kind       string   `json:"kind"`
-	Agent      string   `json:"agent,omitempty"`
+	Name       string `json:"name"`
+	Connection string `json:"connection"`
+	Model      string `json:"model"`
+	Kind       string `json:"kind"`
+	Agent      string `json:"agent,omitempty"`
 	// Options are the fields deck adds to every call of the model, as JSON.
-	Options string `json:"options,omitempty"`
-	InputUSD   *float64 `json:"input_usd,omitempty"`
-	OutputUSD  *float64 `json:"output_usd,omitempty"`
-	CallUSD    *float64 `json:"call_usd,omitempty"`
-	Unit       string   `json:"unit"`
-	Free       bool     `json:"free"`
+	Options   string   `json:"options,omitempty"`
+	InputUSD  *float64 `json:"input_usd,omitempty"`
+	OutputUSD *float64 `json:"output_usd,omitempty"`
+	CallUSD   *float64 `json:"call_usd,omitempty"`
+	Unit      string   `json:"unit"`
+	Free      bool     `json:"free"`
 	// Subscription is a model paid by the owner's subscription: what a call would cost is an estimate, out of the money spent.
 	Subscription bool `json:"subscription"`
 	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
@@ -279,6 +280,32 @@ type modelSetIn struct {
 	Agent        string  `opt:"" desc:"The agent that runs a text model for agent commands: claude-code or codex, the CLI on the owner's subscription, on the connection of the same name; or an ACP agent inside the sandbox of deck with a shell and files. The name is then the name of a provider. A model changed without it keeps its own"`
 	// CheckMinutes give a slow model more time for its self-check.
 	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`
+}
+
+// modelSetCommand is model_set, whose call held for the owner says the model it adds or changes, its kind before and
+// after; a model changed since the ask is not set.
+func (s *Service) modelSetCommand() *registry.Command {
+	c := registry.Def("model_set", "Set model",
+		"Adds or changes a model of a connection with its kind and price; what is left out comes from the catalog of the connection. A module or the master proposes a model it needs this way, and the owner adds it with one button.",
+		registry.Everyone, s.modelSet).Enum("agent", s.agentNames()...).As(registry.External)
+	named := func(input json.RawMessage) (modelSetIn, string) {
+		var in modelSetIn
+		_ = json.Unmarshal(input, &in)
+		return in, cmp.Or(in.Name, in.Connection+"/"+in.Model)
+	}
+	c.Fingerprint = func(ctx context.Context, workspace, _ int64, input json.RawMessage) string {
+		_, name := named(input)
+		row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
+		if err != nil {
+			return ""
+		}
+		return row.Model.Kind
+	}
+	c.Target = func(print string, input json.RawMessage) string {
+		in, name := named(input)
+		return fmt.Sprintf("%s: %s → %s", name, cmp.Or(print, "not in deck"), cmp.Or(in.Kind, print, "the kind of the catalog"))
+	}
+	return c
 }
 
 func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetIn) (any, error) {

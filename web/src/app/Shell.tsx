@@ -8,6 +8,7 @@ import { useLanguageSetting } from '../hooks/useLanguageSetting';
 import { entryOf, MenuContext, useMenu } from '../hooks/useMenu';
 import { usePhone } from '../hooks/usePhone';
 import { ScreenView } from '../screen/ScreenView';
+import { PressAsks } from '../ui/actions/PressAsks';
 import s from './shell.module.css';
 import { Backdrop } from './Backdrop';
 import { Bell } from './Bell';
@@ -100,6 +101,7 @@ export function Shell() {
           <Nav menu={menu} current={current} onPick={() => setPhoneNav(false)} />
         </nav>
       </Drawer>
+      <PressAsks />
     </MenuContext.Provider>
   );
 }

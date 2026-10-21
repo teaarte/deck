@@ -107,23 +107,29 @@ func TestRealBrowserMenuOrder(t *testing.T) {
 	b.shot("menu-order")
 	b.eval(`(document.querySelector('[data-nav] [data-order="alpha"] [data-move="down"]').click(), '')`)
 	b.until("alpha moved down", order("[data-nav]", "beta alpha gamma"))
-	b.open(e.URL + "/#/deck/cockpit")
+	b.open(e.URL + "/?reload=1#/deck/cockpit")
 	b.until("the order after a reload", order("[data-nav]", "beta alpha gamma"))
 	if names, _ := e.side(); !slices.Equal(names, []string{"beta", "alpha", "gamma"}) {
 		t.Fatalf("deck keeps the order of the browser: %v", names)
 	}
+	b.eval(`(document.querySelector('[data-nav] [data-nav-order]').click(), '')`)
+	for _, want := range []string{"beta gamma alpha", "gamma beta alpha"} {
+		b.until("the arrow of gamma ready", `document.querySelector('[data-nav] [data-order="gamma"] [data-move="up"]')?.disabled === false`)
+		b.eval(`(document.querySelector('[data-nav] [data-order="gamma"] [data-move="up"]').click(), '')`)
+		b.until("gamma up to "+want, order("[data-nav]", want))
+	}
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/#/deck/cockpit")
+	b.open(e.URL + "/?reload=2#/deck/cockpit")
 	b.until("the phone bar", `document.querySelector('[data-phone-bar]')`)
 	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
-	b.until("the order on a phone", `document.querySelector('[data-nav-phone] [data-nav-order]')?.offsetParent && `+order("[data-nav-phone]", "beta alpha gamma"))
+	b.until("the order on a phone", `document.querySelector('[data-nav-phone] [data-nav-order]')?.offsetParent && `+order("[data-nav-phone]", "gamma beta alpha"))
 	b.eval(`(document.querySelector('[data-nav-phone] [data-nav-order]').click(), '')`)
-	b.until("the arrows on a phone", `document.querySelector('[data-nav-phone] [data-order="gamma"] [data-move="up"]')`)
-	b.eval(`(document.querySelector('[data-nav-phone] [data-order="gamma"] [data-move="up"]').click(), '')`)
-	b.until("gamma moved up on a phone", order("[data-nav-phone]", "beta gamma alpha"))
+	b.until("the arrows on a phone", `document.querySelector('[data-nav-phone] [data-order="alpha"] [data-move="up"]')`)
+	b.eval(`(document.querySelector('[data-nav-phone] [data-order="alpha"] [data-move="up"]').click(), '')`)
+	b.until("alpha moved up on a phone", order("[data-nav-phone]", "gamma alpha beta"))
 	b.shot("menu-order-phone")
-	b.open(e.URL + "/#/deck/cockpit")
+	b.open(e.URL + "/?reload=3#/deck/cockpit")
 	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
-	b.until("the order of the phone after a reload", order("[data-nav-phone]", "beta gamma alpha"))
+	b.until("the order of the phone after a reload", order("[data-nav-phone]", "gamma alpha beta"))
 }

@@ -60,10 +60,15 @@ export const Nav = memo(function Nav({ menu, current, onPick }: { menu: MenuData
   const { t } = useTranslation();
   const [folded, setFolded] = useLocalStorage<string[]>({ key: 'deck-nav-folded', defaultValue: [] });
   const [ordering, setOrdering] = useState(false);
+  const shown = menu.projects.map((m) => m.project ?? '');
+  // sent is the order a move was pressed on; the arrows wait until deck gives the next one.
+  const [sent, setSent] = useState<string>();
+  const waiting = sent === shown.join(' ');
   const move = (i: number, by: number) => {
-    const names = menu.projects.map((m) => m.project ?? '');
+    const names = [...shown];
     [names[i], names[i + by]] = [names[i + by], names[i]];
-    call('deck.menu_order', { projects: names }).catch((e) => notifyError(e, t('nav.order')));
+    setSent(shown.join(' '));
+    call('deck.menu_order', { projects: names }).catch((e) => { setSent(undefined); notifyError(e, t('nav.order')); });
   };
   const here = menu.projects.find((m) => [...m.screens, ...(m.extra ?? [])].some((x) => href({ project: m.project, screen: x.name }) === current));
   const hereKey = here ? here.project ?? '' : undefined;
@@ -97,10 +102,10 @@ export const Nav = memo(function Nav({ menu, current, onPick }: { menu: MenuData
               )}
               {ordering && (
                 <span className={s.order} data-order={key}>
-                  <ActionIcon variant="default" size={26} radius="md" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t('nav.up')} data-move="up">
+                  <ActionIcon variant="default" size={26} radius="md" disabled={waiting || i === 0} onClick={() => move(i, -1)} aria-label={t('nav.up')} data-move="up">
                     <IconArrowUp size={14} />
                   </ActionIcon>
-                  <ActionIcon variant="default" size={26} radius="md" disabled={i === menu.projects.length - 1} onClick={() => move(i, 1)} aria-label={t('nav.down')} data-move="down">
+                  <ActionIcon variant="default" size={26} radius="md" disabled={waiting || i === menu.projects.length - 1} onClick={() => move(i, 1)} aria-label={t('nav.down')} data-move="down">
                     <IconArrowDown size={14} />
                   </ActionIcon>
                 </span>

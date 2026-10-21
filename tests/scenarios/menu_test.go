@@ -229,4 +229,24 @@ func TestTheOwnerOrdersTheMenu(t *testing.T) {
 	if names, _ := e.side(); !slices.Equal(names, []string{"delta", "alpha", "beta"}) {
 		t.Fatalf("a deleted project leaves the order: %v", names)
 	}
+	e.createProject("gamma", plainManifest)
+	if names, _ := e.side(); !slices.Equal(names, []string{"delta", "alpha", "beta", "gamma"}) {
+		t.Fatalf("a new project of the name of a deleted one goes last: %v", names)
+	}
+}
+
+// TestTheFirstOrderKeepsThePlaceOfAPausedProject: a project paused before the owner first orders the menu comes back
+// after the one it followed in the menu, not last.
+func TestTheFirstOrderKeepsThePlaceOfAPausedProject(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		e.createProject(name, plainManifest)
+	}
+	e.must("deck.project_pause", map[string]any{"project": "beta", "paused": true}, nil)
+	e.must("deck.menu_order", map[string]any{"projects": []string{"gamma", "alpha"}}, nil)
+	e.must("deck.project_pause", map[string]any{"project": "beta", "paused": false}, nil)
+	if names, _ := e.side(); !slices.Equal(names, []string{"gamma", "alpha", "beta"}) {
+		t.Fatalf("a resumed project comes back after the one it followed: %v", names)
+	}
 }

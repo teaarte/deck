@@ -1,8 +1,11 @@
 package scenarios
 
 import (
+	"context"
 	"os"
 	"testing"
+
+	"deck2/internal/provider"
 )
 
 // TestRealBrowserMenu: the arrow of Control stands in the middle of its button, its title whole, on a desktop and a phone:
@@ -35,4 +38,47 @@ func TestRealBrowserMenu(t *testing.T) {
 	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
 	b.until("the arrow of Control in the middle of its button on a phone", `document.querySelector('[data-nav-phone] [data-system]')?.offsetParent && `+centered("[data-nav-phone]"))
 	b.shot("menu-control-phone")
+}
+
+// TestRealBrowserCockpitHistory: History stands in the top of the cockpit and keeps its place when a list comes in:
+// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCockpitHistory -v.
+func TestRealBrowserCockpitHistory(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	hold := make(chan struct{})
+	t.Cleanup(func() { close(hold) })
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "score" {
+			select {
+			case <-hold:
+			case <-ctx.Done():
+			}
+		}
+		return webNotesAgent()(ctx, c)
+	})
+	e.createProject("web", webNotes)
+	b := newPlaywright(t)
+	at := `JSON.stringify(document.querySelector('[data-hero] [data-dialog-open="changes"]')?.getBoundingClientRect())`
+	for _, size := range []struct {
+		name          string
+		width, height int
+	}{{"desktop", 1400, 900}, {"phone", 390, 844}} {
+		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
+		b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+		b.until("History in the top of the cockpit", `document.querySelector('[data-hero] [data-dialog-open="changes"]') && !document.querySelector('[data-grid] [data-dialog-open]')`)
+		before := b.eval(at)
+		b.shot("cockpit-history-" + size.name)
+		id := e.start("web", "score", map[string]any{"title": "x"})
+		e.waitState(id, "running")
+		b.until("the running list on the cockpit", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Running now'))`)
+		if after := b.eval(at); after != before {
+			t.Fatalf("History keeps its place on a %s when a list comes in: %s, then %s", size.name, before, after)
+		}
+		b.shot("cockpit-history-" + size.name + "-running")
+		e.must("deck.process_stop", map[string]any{"process": id}, nil)
+		b.eval(`(document.querySelector('[data-hero] [data-dialog-open="changes"]').click(), '')`)
+		b.until("the history open", `document.querySelector('[data-dialog="changes"]') && location.hash.includes('dialog=changes')`)
+	}
 }

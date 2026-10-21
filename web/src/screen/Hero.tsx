@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ActionIcon, Button, Group, Text, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconArrowsDiagonal, IconArrowsDiagonalMinimize2, IconMessageCircle, IconPlayerPlayFilled } from '@tabler/icons-react';
@@ -32,9 +32,9 @@ function Lines({ lines }: { lines: HeroLine[] }) {
   );
 }
 
-// Hero is the top of the cockpit as deck writes it from what runs, failed and waits, Deki in the pose of it, the way
-// through the decisions one by one and to the master; folded, and always on a phone, it is a line over its counts.
-export function Hero() {
+// Hero is the top of the cockpit as deck writes it, Deki in the pose of it, the way through the decisions and to the
+// master, the dialogs of the cockpit in its corner; folded, and always on a phone, it is a line over its counts.
+export function Hero({ dialogs }: { dialogs?: ReactNode }) {
   const { t } = useTranslation();
   const { pulse } = useMenuData();
   const { slim: folded, sky } = useLook();
@@ -68,7 +68,7 @@ export function Hero() {
           <div className={s.slimHead}>
             {mascot && <span className={s.slimArt}><Deki mood={mood} size={44} still /></span>}
             <Text fw={700} fz={15} truncate data-hero-title>{pulse.title}</Text>
-            <Group gap={6} wrap="nowrap" ml="auto">{go}{!phone && fold}</Group>
+            <Group gap={6} wrap="nowrap" ml="auto" data-hero-dialogs>{go}{dialogs}{!phone && fold}</Group>
           </div>
           <Lines lines={lines} />
         </div>
@@ -86,7 +86,7 @@ export function Hero() {
             </Group>
           </div>
           <div className={s.art}><Deki mood={mood} size={mood === 'chill' ? 150 : 180} /></div>
-          <div className={s.fold}>{fold}</div>
+          <Group gap={6} wrap="nowrap" className={s.fold} data-hero-dialogs>{dialogs}{fold}</Group>
         </div>
       )}
       <Triage opened={triage} onClose={() => setTriage(false)} />

@@ -84,9 +84,9 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("the cockpit counts once, in its top, with no tiles that say it again: %s", got)
 	}
 	if got := b.eval(`(() => { const cells = [...document.querySelectorAll('[data-grid] > *')].map((x) => x.getBoundingClientRect()), grid = document.querySelector('[data-grid]').getBoundingClientRect();
-		const foot = document.querySelector('[data-screen-foot] [data-dialog-open="changes"]')?.getBoundingClientRect();
-		return [cells.length < 2 || new Set(cells.map((r) => Math.round(r.top))).size < cells.length, !!foot && foot.top >= grid.bottom].join(' ') })()`); got != "true true" {
-		t.Fatalf("the lists of the cockpit share rows and its history is under them: %s %s", got, b.eval(`JSON.stringify([...document.querySelectorAll('[data-grid] > *')].map((x) => { const r = x.getBoundingClientRect(); return [x.innerText.slice(0, 20), Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] }))`))
+		const history = document.querySelector('[data-hero] [data-hero-dialogs] [data-dialog-open="changes"]')?.getBoundingClientRect();
+		return [cells.length < 2 || new Set(cells.map((r) => Math.round(r.top))).size < cells.length, !!history && history.bottom <= grid.top].join(' ') })()`); got != "true true" {
+		t.Fatalf("the lists of the cockpit share rows and its history is in its top: %s %s", got, b.eval(`JSON.stringify([...document.querySelectorAll('[data-grid] > *')].map((x) => { const r = x.getBoundingClientRect(); return [x.innerText.slice(0, 20), Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] }))`))
 	}
 	if got := b.eval(`String([...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Nothing')))`); got != "false" {
 		t.Fatalf("the cockpit hides its empty lists: %s", got)

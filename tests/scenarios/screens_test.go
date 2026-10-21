@@ -1177,3 +1177,45 @@ func TestAButtonOfAModuleOpensAScreenOfDeckFilled(t *testing.T) {
 		e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": add(button)}, 422, want)
 	}
 }
+
+// TestTheHistoryOfTheCockpitIsADialogOfItsTop: History is a dialog of the cockpit, not one of its blocks, whatever
+// lists it shows, so the client draws its button in the top.
+func TestTheHistoryOfTheCockpitIsADialogOfItsTop(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", webNotes)
+	root := func() (children, dialogs []string, history map[string]any) {
+		comps := map[string]map[string]any{}
+		for _, m := range e.screenMessages("", "cockpit", nil) {
+			var u struct {
+				Components []map[string]any `json:"components"`
+			}
+			_ = json.Unmarshal(m["updateComponents"], &u)
+			for _, c := range u.Components {
+				comps[fmt.Sprint(c["id"])] = c
+			}
+		}
+		ids := func(v any) (out []string) {
+			list, _ := v.([]any)
+			for _, x := range list {
+				out = append(out, fmt.Sprint(x))
+			}
+			return out
+		}
+		children, dialogs = ids(comps["root"]["children"]), ids(comps["root"]["dialogs"])
+		for _, id := range dialogs {
+			if comps[id]["name"] == "changes" {
+				history = comps[id]
+			}
+		}
+		return children, dialogs, history
+	}
+	children, dialogs, history := root()
+	if len(dialogs) != 1 || history == nil || history["component"] != "dialog" || history["title"] != "History" || slices.Contains(children, dialogs[0]) {
+		t.Fatalf("the cockpit has History as its one dialog, apart from its blocks: %v %v %v", children, dialogs, history)
+	}
+	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "done")
+	if _, _, again := root(); again == nil || fmt.Sprint(again["id"]) != fmt.Sprint(history["id"]) {
+		t.Fatalf("History stays the dialog of the cockpit after a run: %v", again)
+	}
+}

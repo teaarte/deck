@@ -7,7 +7,7 @@ import { IconTitle } from '../ui/IconTitle';
 import { api, kids } from './blockImpl';
 
 // screen is the root of a screen: its title with the buttons of its dialogs, and a grid of its blocks; the cockpit has
-// its top in place of its title and the buttons of its dialogs under its blocks.
+// its top in place of its title, the buttons of its dialogs in it.
 export const screen = createComponentImplementation(api('screen'), ({ props, buildChild }) => {
   const p = props as { title?: string; icon?: string; children: unknown; dialogs?: unknown };
   const dialogs = Array.isArray(p.dialogs) && p.dialogs.length > 0;
@@ -21,9 +21,8 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
           {dialogs && <Group gap="xs">{kids(p.dialogs, buildChild)}</Group>}
         </Group>
       )}
-      {cockpit && <Hero />}
+      {cockpit && <Hero dialogs={dialogs && kids(p.dialogs, buildChild)} />}
       <div className={s.grid} data-grid>{kids(p.children, buildChild, s.cell)}</div>
-      {cockpit && dialogs && <Group gap="xs" data-screen-foot>{kids(p.dialogs, buildChild)}</Group>}
     </Stack>
   );
 });

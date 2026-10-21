@@ -1,9 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { ActionIcon, Button, Group, Text, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconArrowsDiagonal, IconArrowsDiagonalMinimize2, IconMessageCircle, IconPlayerPlayFilled } from '@tabler/icons-react';
+import { IconArrowsDiagonal, IconArrowsDiagonalMinimize2, IconPlayerPlayFilled } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { setChatOpen } from '../chat/chatStore';
 import { useMenuData, type HeroLine } from '../hooks/useMenu';
 import type { Action } from '../lib/catalog.gen';
 import { setLook, useLook } from '../theme/look';
@@ -32,8 +31,8 @@ function Lines({ lines }: { lines: HeroLine[] }) {
   );
 }
 
-// Hero is the top of the cockpit as deck writes it, Deki in the pose of it, the way through the decisions and to the
-// master, the dialogs of the cockpit in its corner; folded, and always on a phone, it is a line over its counts.
+// Hero is the top of the cockpit as deck writes it, Deki in the pose of it, the way through the decisions and the
+// dialogs of the cockpit under its words; folded, and always on a phone, it is a line over its counts.
 export function Hero({ dialogs }: { dialogs?: ReactNode }) {
   const { t } = useTranslation();
   const { pulse } = useMenuData();
@@ -45,10 +44,6 @@ export function Hero({ dialogs }: { dialogs?: ReactNode }) {
   const { asks, state } = pulse;
   const lines = pulse.lines ?? [];
   const mood: Mood = MOODS[state] ?? (sky ? 'chill' : 'sleepy');
-  const talk = () => {
-    setChatOpen(true);
-    setTimeout(() => document.querySelector<HTMLTextAreaElement>('[data-composer] textarea')?.focus(), 150);
-  };
   const go = asks > 0 && (
     <Button size={slim ? 'xs' : 'sm'} radius="md" leftSection={<IconPlayerPlayFilled size={14} />} onClick={() => setTriage(true)} data-triage-open>
       {phone ? t('hero.triage_short') : t('hero.triage')}
@@ -78,15 +73,10 @@ export function Hero({ dialogs }: { dialogs?: ReactNode }) {
             <Text className={s.title} data-hero-title>{pulse.title}</Text>
             <Text className={s.text}>{pulse.text}</Text>
             <Lines lines={lines} />
-            <Group gap={8} mt={6}>
-              {go}
-              <Button size="sm" radius="md" variant="white" color="dark" className={s.talk} leftSection={<IconMessageCircle size={15} />} onClick={talk} data-hero-talk>
-                {t(mascot ? 'hero.talk_deki' : 'hero.talk')}
-              </Button>
-            </Group>
+            {(go || dialogs) && <Group gap={8} className={s.actions} data-hero-dialogs>{go}{dialogs}</Group>}
           </div>
           <div className={s.art}><Deki mood={mood} size={mood === 'chill' ? 150 : 180} /></div>
-          <Group gap={6} wrap="nowrap" className={s.fold} data-hero-dialogs>{dialogs}{fold}</Group>
+          <div className={s.fold}>{fold}</div>
         </div>
       )}
       <Triage opened={triage} onClose={() => setTriage(false)} />

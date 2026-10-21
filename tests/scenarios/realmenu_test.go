@@ -41,7 +41,7 @@ func TestRealBrowserMenu(t *testing.T) {
 	b.shot("menu-control-phone")
 }
 
-// TestRealBrowserCockpitHistory: History stands in the top of the cockpit and keeps its place when a list comes in:
+// TestRealBrowserCockpitHistory: History stands in the top of the cockpit clear of Deki and keeps its place:
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCockpitHistory -v.
 func TestRealBrowserCockpitHistory(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
@@ -70,6 +70,10 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 		b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
 		b.until("History in the top of the cockpit", `document.querySelector('[data-hero] [data-dialog-open="changes"]') && !document.querySelector('[data-grid] [data-dialog-open]')`)
 		before := b.eval(at)
+		if got := b.eval(`(() => { const h = document.querySelector('[data-hero] [data-dialog-open="changes"]').getBoundingClientRect(), d = document.querySelector('[data-hero] [data-deki]')?.getBoundingClientRect();
+			return [!document.querySelector('[data-hero-talk]'), !d || h.right <= d.left || h.left >= d.right || h.bottom <= d.top || h.top >= d.bottom].join(' ') })()`); got != "true true" {
+			t.Fatalf("History stands where Tell Deki stood, clear of Deki, on a %s: %s", size.name, got)
+		}
 		b.shot("cockpit-history-" + size.name)
 		id := e.start("web", "score", map[string]any{"title": "x"})
 		e.waitState(id, "running")

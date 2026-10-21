@@ -205,6 +205,6 @@
     "off": "Stop pushes here",
     "unsupported": "This browser takes no pushes; on an iPhone, add deck to the home screen first"
   },
-  "hero": {"triage": "Go through one by one", "talk": "Tell the master", "talk_deki": "Tell Deki", "fold": "Fold", "unfold": "Unfold", "triage_short": "One by one"},
+  "hero": {"triage": "Go through one by one", "fold": "Fold", "unfold": "Unfold", "triage_short": "One by one"},
   "triage": {"title": "Triage", "count": "{{n}} of {{of}}", "close": "Close", "skip": "Skip", "done": "All done", "done_text": "The answers are on their way. If something goes wrong, the master will write in the chat.", "back": "Back to the cockpit"}
 }

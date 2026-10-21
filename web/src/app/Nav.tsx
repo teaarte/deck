@@ -26,10 +26,12 @@ function System({ menu, current, onPick }: { menu: MenuData; current: string; on
     <div className={s.system} data-system>
       <UnstyledButton className={s.systemHead} aria-expanded={open} data-active={here && !open ? true : undefined} data-system-head
         onClick={() => setOpen(!open)}>
-        <NamedIcon name={here?.icon ?? 'layout-grid'} fallback={here ? here.title : t('nav.control')} size={16} />
-        <span className={s.linkTitle}>{here ? here.title : t('nav.control')}</span>
-        {menu.master && <NavStatus m={{ ...menu.master, running: 0 }} />}
-        <IconChevronRight size={14} className={s.chevron} data-open={open || undefined} />
+        <span className={s.systemLabel}>
+          <NamedIcon name={here?.icon ?? 'layout-grid'} fallback={here ? here.title : t('nav.control')} size={16} />
+          <span className={s.linkTitle}>{here ? here.title : t('nav.control')}</span>
+        </span>
+        <IconChevronRight size={14} className={s.chevron} data-open={open || undefined} data-chevron />
+        {menu.master && <span className={s.systemStatus}><NavStatus m={{ ...menu.master, running: 0 }} /></span>}
       </UnstyledButton>
       <Collapse expanded={open}>
         {groups.map((g) => (

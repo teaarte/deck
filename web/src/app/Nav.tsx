@@ -1,9 +1,11 @@
-import { memo, useEffect } from 'react';
-import { Collapse, ScrollArea, Tooltip, UnstyledButton } from '@mantine/core';
+import { memo, useEffect, useState } from 'react';
+import { ActionIcon, Collapse, ScrollArea, Tooltip, UnstyledButton } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
-import { IconChevronRight } from '@tabler/icons-react';
+import { IconArrowDown, IconArrowsSort, IconArrowUp, IconCheck, IconChevronRight } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Menu as MenuData, MenuGroup } from '../hooks/useMenu';
+import { call } from '../lib/api';
+import { notifyError } from '../lib/notify';
 import { useMasterName } from '../ui/deki/Deki';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './nav.module.css';
@@ -52,10 +54,17 @@ function System({ menu, current, onPick }: { menu: MenuData; current: string; on
   );
 }
 
-// Nav lists the projects of the side, each a group that folds, or with one screen a header that opens it, and the
-// groups of deck and the master below them; a move to a screen unfolds its group.
+// Nav lists the projects of the side in deck's order, each a group that folds, or with one screen a header that opens
+// it, and the groups of deck and the master below them; a move to a screen unfolds its group.
 export const Nav = memo(function Nav({ menu, current, onPick }: { menu: MenuData; current: string; onPick?: () => void }) {
+  const { t } = useTranslation();
   const [folded, setFolded] = useLocalStorage<string[]>({ key: 'deck-nav-folded', defaultValue: [] });
+  const [ordering, setOrdering] = useState(false);
+  const move = (i: number, by: number) => {
+    const names = menu.projects.map((m) => m.project ?? '');
+    [names[i], names[i + by]] = [names[i + by], names[i]];
+    call('deck.menu_order', { projects: names }).catch((e) => notifyError(e, t('nav.order')));
+  };
   const here = menu.projects.find((m) => [...m.screens, ...(m.extra ?? [])].some((x) => href({ project: m.project, screen: x.name }) === current));
   const hereKey = here ? here.project ?? '' : undefined;
   useEffect(() => {
@@ -64,7 +73,7 @@ export const Nav = memo(function Nav({ menu, current, onPick }: { menu: MenuData
   return (
     <>
       <ScrollArea className={s.navList} scrollbarSize={6} type="hover">
-        {menu.projects.map((m) => {
+        {menu.projects.map((m, i) => {
           const key = m.project ?? '';
           const open = !folded.includes(key) || m.screens.length === 0;
           const head = (
@@ -86,7 +95,17 @@ export const Nav = memo(function Nav({ menu, current, onPick }: { menu: MenuData
                   {m.screens.length > 0 && <IconChevronRight size={14} className={s.chevron} data-open={open || undefined} />}
                 </UnstyledButton>
               )}
-              {!!m.extra?.length && (
+              {ordering && (
+                <span className={s.order} data-order={key}>
+                  <ActionIcon variant="default" size={26} radius="md" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t('nav.up')} data-move="up">
+                    <IconArrowUp size={14} />
+                  </ActionIcon>
+                  <ActionIcon variant="default" size={26} radius="md" disabled={i === menu.projects.length - 1} onClick={() => move(i, 1)} aria-label={t('nav.down')} data-move="down">
+                    <IconArrowDown size={14} />
+                  </ActionIcon>
+                </span>
+              )}
+              {!ordering && !!m.extra?.length && (
                 <span className={s.extras}>
                   {m.extra.map((x) => {
                     const at = href({ project: m.project, screen: x.name });
@@ -116,6 +135,12 @@ export const Nav = memo(function Nav({ menu, current, onPick }: { menu: MenuData
             </div>
           );
         })}
+        {menu.projects.length > 1 && (
+          <UnstyledButton className={s.orderToggle} aria-pressed={ordering} onClick={() => setOrdering(!ordering)} data-nav-order>
+            {ordering ? <IconCheck size={14} /> : <IconArrowsSort size={14} />}
+            <span>{t(ordering ? 'nav.order_done' : 'nav.order')}</span>
+          </UnstyledButton>
+        )}
       </ScrollArea>
       {menu.system.length > 0 && <div className={s.foot} data-nav-foot><System menu={menu} current={current} onPick={onPick} /></div>}
     </>

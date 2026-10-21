@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 
 	"deck2/internal/provider"
@@ -81,4 +82,48 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 		b.eval(`(document.querySelector('[data-hero] [data-dialog-open="changes"]').click(), '')`)
 		b.until("the history open", `document.querySelector('[data-dialog="changes"]') && location.hash.includes('dialog=changes')`)
 	}
+}
+
+// TestRealBrowserMenuOrder: the arrows of the order mode move a project in the side list on a desktop and a phone,
+// and the order stays after a reload: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserMenuOrder -v.
+func TestRealBrowserMenuOrder(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, ok)
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		e.createProject(name, plainManifest)
+	}
+	b := newPlaywright(t)
+	order := func(scope, want string) string {
+		return `[...document.querySelectorAll('` + scope + ` [data-group]:not([data-system] [data-group])')].map((x) => x.dataset.group).join(' ') === '` + want + `'`
+	}
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.until("the projects by name", order("[data-nav]", "alpha beta gamma"))
+	b.eval(`(document.querySelector('[data-nav] [data-nav-order]').click(), '')`)
+	b.until("the arrows of the order", `document.querySelector('[data-nav] [data-order="alpha"] [data-move="up"]')?.disabled`)
+	b.shot("menu-order")
+	b.eval(`(document.querySelector('[data-nav] [data-order="alpha"] [data-move="down"]').click(), '')`)
+	b.until("alpha moved down", order("[data-nav]", "beta alpha gamma"))
+	b.open(e.URL + "/#/deck/cockpit")
+	b.until("the order after a reload", order("[data-nav]", "beta alpha gamma"))
+	if names, _ := e.side(); !slices.Equal(names, []string{"beta", "alpha", "gamma"}) {
+		t.Fatalf("deck keeps the order of the browser: %v", names)
+	}
+
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.open(e.URL + "/#/deck/cockpit")
+	b.until("the phone bar", `document.querySelector('[data-phone-bar]')`)
+	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
+	b.until("the order on a phone", `document.querySelector('[data-nav-phone] [data-nav-order]')?.offsetParent && `+order("[data-nav-phone]", "beta alpha gamma"))
+	b.eval(`(document.querySelector('[data-nav-phone] [data-nav-order]').click(), '')`)
+	b.until("the arrows on a phone", `document.querySelector('[data-nav-phone] [data-order="gamma"] [data-move="up"]')`)
+	b.eval(`(document.querySelector('[data-nav-phone] [data-order="gamma"] [data-move="up"]').click(), '')`)
+	b.until("gamma moved up on a phone", order("[data-nav-phone]", "beta gamma alpha"))
+	b.shot("menu-order-phone")
+	b.open(e.URL + "/#/deck/cockpit")
+	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
+	b.until("the order of the phone after a reload", order("[data-nav-phone]", "beta gamma alpha"))
 }

@@ -158,6 +158,30 @@ a.groupHead {
   opacity: 1;
 }
 
+.order {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+}
+
+.orderToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: calc(var(--deck-island-radius) - 8px);
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+
+  &:hover {
+    color: var(--mantine-color-text);
+    background: var(--mantine-color-default-hover);
+  }
+}
+
 .extra {
   display: inline-flex;
   align-items: center;

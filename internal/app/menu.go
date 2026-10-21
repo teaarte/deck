@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	_ "embed"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -11,6 +14,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store/db"
 	"deck2/master"
 )
 
@@ -76,9 +80,9 @@ type menuOut struct {
 	Topics   []string    `json:"topics"`
 }
 
-// menuTopics are the topics of what the menu reads: the projects, their manifests and what it counts.
+// menuTopics are the topics of what the menu reads: the projects, their manifests, their order and what it counts.
 var menuTopics = sync.OnceValue(func() []string {
-	out := []string{"projects", "documents"}
+	out := []string{"projects", "documents", "settings"}
 	for _, name := range []string{"deck.asks_list", "deck.processes_list", "deck.health_list", "deck.feed_list"} {
 		c, _ := manifest.Reads(name)
 		for _, t := range c.Topics {
@@ -122,6 +126,11 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 		out.Pulse.State = "calm"
 	}
 	hero(&out.Pulse, phrases(in.Lang))
+	order, err := a.menuOrder(ctx, a.Store.Q, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(ps, func(x, y db.Project) int { return rank(order, x.Name) - rank(order, y.Name) })
 	ms, _ := docs.All(ctx, a.Store.Q, ps)
 	for _, p := range ps {
 		m := ms[p.ID]
@@ -150,6 +159,82 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 	}
 	out.System = a.foot(out, in.Lang)
 	return out, nil
+}
+
+// menuOrderKey is the setting of the order of the side list of the menu: a JSON list of names of projects.
+const menuOrderKey = "menu_order"
+
+type menuOrderIn struct {
+	Projects []string `desc:"Names of the projects of the side list in the order to show them; a project not named keeps its place after the one before it, a new one goes last"`
+}
+
+// menuOrder is the order of the side list the owner set, names of projects; none when not set.
+func (a *App) menuOrder(ctx context.Context, q *db.Queries, workspace int64) ([]string, error) {
+	v, err := q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: menuOrderKey})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var order []string
+	if err := json.Unmarshal([]byte(v), &order); err != nil {
+		slog.Error("menu: order", "err", err)
+		return nil, nil
+	}
+	return order, nil
+}
+
+// rank is the place of a project in the order; one not in it goes after all that are.
+func rank(order []string, name string) int {
+	if i := slices.Index(order, name); i >= 0 {
+		return i
+	}
+	return len(order)
+}
+
+// menuOrderSet keeps the order of the side list: the projects named, and each one it had but not named, such as a
+// paused one, after the one it followed; names of no project are dropped.
+func (a *App) menuOrderSet(ctx context.Context, act registry.Actor, in menuOrderIn) (any, error) {
+	var out []string
+	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		ps, err := q.ListWorkspaceProjects(ctx, act.Workspace)
+		if err != nil {
+			return err
+		}
+		known := func(name string) bool {
+			return slices.ContainsFunc(ps, func(p db.Project) bool { return p.Name == name && p.Builtin == 0 })
+		}
+		old, err := a.menuOrder(ctx, q, act.Workspace)
+		if err != nil {
+			return err
+		}
+		out = []string{}
+		for _, n := range in.Projects {
+			if known(n) && !slices.Contains(out, n) {
+				out = append(out, n)
+			}
+		}
+		for i, n := range old {
+			if !known(n) || slices.Contains(out, n) {
+				continue
+			}
+			at := 0
+			for j := i - 1; j >= 0; j-- {
+				if k := slices.Index(out, old[j]); k >= 0 {
+					at = k + 1
+					break
+				}
+			}
+			out = slices.Insert(out, at, n)
+		}
+		v, _ := json.Marshal(out)
+		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: menuOrderKey, Value: string(v)})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"projects": out}, nil
 }
 
 // foot are the groups at the foot of the menu: deck's work, the master's screens but its documents, which are a

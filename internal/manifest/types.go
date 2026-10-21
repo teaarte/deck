@@ -258,6 +258,9 @@ type Read struct {
 	Models bool `json:"models,omitempty"`
 }
 
+// Data says the entry reads data of its project, not only which models do its work.
+func (r Read) Data() bool { return !r.Models || len(r.Collections)+len(r.Documents) > 0 }
+
 // AnyProject in reads names every project; it reads only which models do their work.
 const AnyProject = "*"
 

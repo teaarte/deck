@@ -21,7 +21,7 @@ const maxProblems = 20
 // checkReads verifies the projects and collections a manifest reads.
 func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string, m *manifest.Manifest) error {
 	for _, r := range m.Reads {
-		onlyModels := r.Models && len(r.Collections)+len(r.Documents) == 0
+		onlyModels := !r.Data()
 		switch {
 		case r.Project == name:
 			return registry.Invalid("deck: reads: a project does not need to read itself")

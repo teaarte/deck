@@ -549,7 +549,6 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 		}
 	}
 	for name, want := range map[string]string{
-		"deck.assignment_set": "#/deck/settings?dialog=assign&tab=Commands command,models,project,role",
 		"deck.secret_set":     "#/deck/settings?dialog=secret&tab=Advanced name",
 		"deck.folder_add":     "#/p/<project>/settings?dialog=folder&tab=Access ",
 		"radio.tune":          "#/p/radio/main?dialog=tune level",
@@ -561,7 +560,10 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 	if _, ok := got["radio.play"]; ok || got["deck.health_list"] != "" {
 		t.Fatalf("what the master calls itself is no command of the owner: %v", got)
 	}
-	if _, err := e.App.Registry.Invoke(t.Context(), master, "deck.assignment_set", json.RawMessage(`{"role": "agent", "models": ["fake"]}`)); err == nil {
+	if got["deck.assignment_set"] != "" {
+		t.Fatalf("the master proposes an assignment itself, the owner applies it: %v", got)
+	}
+	if _, err := e.App.Registry.Invoke(t.Context(), master, "deck.secret_set", json.RawMessage(`{"name": "k", "value": "v"}`)); err == nil {
 		t.Fatal("the master still cannot call a command of the owner")
 	}
 	var owner []struct {

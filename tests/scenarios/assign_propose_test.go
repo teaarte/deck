@@ -190,6 +190,71 @@ func TestNoCallerAppliesAnAssignmentPastTheOwner(t *testing.T) {
 	if got := e.assigned("shorts", "text"); got != nil {
 		t.Fatalf("nothing applied past the owner: %v", got)
 	}
+	ask, who := e.callAsk("deck.assignment_set")
+	if !strings.HasPrefix(who, "token #") {
+		t.Fatalf("the owner sees who asks: %s", who)
+	}
+	e.answer(ask, "allow")
+	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+		t.Fatalf("the owner's yes applies the token's proposal: %v", got)
+	}
+}
+
+// TestAToolCommandOfAModuleDoesNotClearAnAssignment: a command of a module whose one call is deck.assignment_set,
+// allowed to run without asking, still leaves the assignment to the owner's button.
+func TestAToolCommandOfAModuleDoesNotClearAnAssignment(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.createProject("shorts", plainManifest)
+	e.createProject("picker", `{"version": 12,
+  "commands": [{"name": "propose", "title": "Propose", "description": "Proposes an assignment.", "class": "external",
+    "input": {"type": "object", "properties": {"role": {"type": "string"}, "project": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}}}, "required": ["role"]},
+    "executor": {"type": "tool", "tool": "deck.assignment_set"}}],
+  "allowed_external": ["propose"]}`)
+	_, tok := e.token("terminal", "picker.*")
+	var r struct{ Process int64 }
+	if code, out := e.callWith(tok, "picker.propose", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}); code != 200 || json.Unmarshal(out, &r) != nil {
+		t.Fatalf("the command runs: %d %s", code, out)
+	}
+	e.waitAsk()
+	ask, where := e.callAsk("deck.assignment_set")
+	if got := e.assigned("shorts", "text"); got != nil || !strings.Contains(where, "text of shorts: deck's default → openrouter/qwen") {
+		t.Fatalf("its call of deck.assignment_set waits for the owner: %v %s", got, where)
+	}
+	e.answer(ask, "allow")
+	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+		t.Fatalf("the owner's yes applies it: %v", got)
+	}
+}
+
+// TestAModelsReadOfAProjectOpensNoDataOfIt: reads {"project": "shorts", "models": true} reads the models of shorts and
+// not its records; dropping models for a read of the project asks the owner again.
+func TestAModelsReadOfAProjectOpensNoDataOfIt(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("shorts", scriptManifest("main", "", ""))
+	module := scriptManifest("main", "", "")
+	e.createProject("watcher", strings.Replace(module, `"scripts":`, `"reads": [{"project": "shorts", "models": true}], "scripts":`, 1))
+	e.saveScript("watcher", "scripts/main.py", deckCallScript)
+	if c := e.scriptCall("watcher", "deck.models_list", map[string]any{"project": "shorts"}); c.Status != 200 || !strings.Contains(c.Body, `"command":"publish"`) {
+		t.Fatalf("the module reads the models of shorts: %+v", c)
+	}
+	if c := e.scriptCall("watcher", "deck.records_list", map[string]any{"project": "shorts", "collection": "items"}); c.Status != 403 {
+		t.Fatalf("it reads no records of shorts: %+v", c)
+	}
+	_, tok := e.token("terminal", "deck.*")
+	_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "watcher",
+		"manifest": strings.Replace(module, `"scripts":`, `"reads": [{"project": "shorts"}], "scripts":`, 1)})
+	var saved struct {
+		Waiting int64
+		Widens  []string
+	}
+	_ = json.Unmarshal(out, &saved)
+	if saved.Waiting == 0 || !slices.Equal(saved.Widens, []string{"reads project shorts"}) {
+		t.Fatalf("a read of the project in place of its models waits for the owner: %s", out)
+	}
 }
 
 // TestAModuleReadsTheModelsOfEveryProjectByARight: reads {"project": "*", "models": true}, granted by the owner, lets

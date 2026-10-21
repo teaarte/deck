@@ -167,7 +167,7 @@ func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string)
 	}
 	trial = act.Trial && own.Status == store.ProjectDraft
 	for _, r := range m.Reads {
-		if r.Project == other && (!r.Models || len(r.Collections)+len(r.Documents) > 0) {
+		if r.Project == other && r.Data() {
 			return r.Collections, r.Documents, true, trial, nil
 		}
 	}

@@ -66,7 +66,7 @@ type menuLink struct {
 }
 
 // menuOut is the navigation of the client: the pulse of the workspace, deck's screens, the projects of the side
-// list, the master, the groups at the foot, and the event topics after which it is read again.
+// list but those paused, the master, the groups at the foot, and the event topics after which it is read again.
 type menuOut struct {
 	Pulse    pulse       `json:"pulse"`
 	Deck     menuEntry   `json:"deck"`
@@ -138,6 +138,9 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 		}
 		if p.Builtin == 1 {
 			out.Master = &e
+			continue
+		}
+		if p.Paused != 0 {
 			continue
 		}
 		if len(e.Screens) == 1 {

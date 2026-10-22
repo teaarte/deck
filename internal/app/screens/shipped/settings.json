@@ -60,9 +60,11 @@
             {"label": "Command", "bind": "title"},
             {"label": "Model", "bind": "model ?? ''", "pick": "model"},
             {"label": "When", "bind": "cron ?? ''", "format": "cron"},
-            {"label": "Price", "bind": "price ?? ''"}
+            {"label": "Price", "bind": "price ?? ''"},
+            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"}
           ],
           "actions": [
+            {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=trimPrefix(name, project + '.')"},
               "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
             {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Commands", "dialog": "assign", "role": "=role", "project": "=project", "command": "=trimPrefix(name, project + '.')", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"}
@@ -74,9 +76,11 @@
             {"label": "Module", "bind": "project", "format": "tag"},
             {"label": "Kind of work", "bind": "role", "format": "tag"},
             {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-            {"label": "Price", "bind": "price ?? ''"}
+            {"label": "Price", "bind": "price ?? ''"},
+            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"}
           ],
           "actions": [
+            {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"}
           ]},
         {"type": "table", "title": "Everywhere else", "source": {"from": "deck.models_list", "rows": "assignments", "where": "(project ?? '') == ''"},
@@ -87,9 +91,11 @@
             {"label": "Model", "bind": "len(models) > 0 ? models[0] : ''", "pick": "model"},
             {"label": "Now", "bind": "using ?? 'none is up'", "format": "tag", "tone": "using == nil ? 'error' : using != models[0] ? 'warn' : 'ok'"},
             {"label": "Then", "bind": "join(models[1:], ' → ')"},
-            {"label": "Price", "bind": "price"}
+            {"label": "Price", "bind": "price"},
+            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"}
           ],
           "actions": [
+            {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role"}, "input": "model", "options": "=choices ?? []", "when": "len(choices ?? []) > 0"},
             {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Commands", "dialog": "assign", "role": "=role", "project": "", "command": "", "models": "=join(models, ',')"}},
             {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}}

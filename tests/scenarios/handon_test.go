@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -222,6 +223,14 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 		t.Fatalf("the next model does the work: %+v", got)
 	}
 	e.waitNote("goes on with it on backup")
+	var cmds []struct {
+		Name, Model, Why string
+	}
+	e.must("deck.commands_list", nil, &cmds)
+	if i := slices.IndexFunc(cmds, func(c struct{ Name, Model, Why string }) bool { return c.Name == "plain.work" }); i < 0 ||
+		cmds[i].Model != "backup" || !strings.HasPrefix(cmds[i].Why, "fake: usage limit reached") {
+		t.Fatalf("the command says why its first model does not do its work: %+v", cmds)
+	}
 
 	e.useModels("plain.work", "fake")
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {

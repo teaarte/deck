@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // For picks the provider a command starts on: the first of its assignment that fits and is up, else the suggestion of
@@ -145,6 +147,20 @@ func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
 	h, err := s.healthOf(ctx, workspace, name)
 	return err != nil || h.Status != health.Checking && h.Status != health.Paused && h.Status != health.Error &&
 		h.Status != health.NeedsLogin
+}
+
+// why is one line of why the work goes to using and not to the first of models: the health of the first one before
+// it that is down; empty when the first does the work.
+func (s *Service) why(ctx context.Context, workspace int64, models []string, using string) string {
+	for _, name := range models {
+		if name == using {
+			return ""
+		}
+		if h, err := s.healthOf(ctx, workspace, name); err == nil && !s.Up(ctx, workspace, name) {
+			return name + ": " + untrusted.Flat(cmp.Or(h.Error, h.Status), 200)
+		}
+	}
+	return ""
 }
 
 // Goes reports whether a turn already started may run on a provider: not in a self-check, a broken adapter or a

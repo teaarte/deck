@@ -127,6 +127,7 @@ func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, com
 		if pv, err := s.For(ctx, projectID, cmd); err == nil {
 			w.Model = pv.Name()
 		}
+		w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model)
 		w.Price = b.Price(w.Model)
 		return w
 	case "model":
@@ -199,6 +200,7 @@ func (s *Service) roleWork(ctx context.Context, b *Book, p db.Project, command, 
 	if w.Model == "" && len(w.Models) > 0 {
 		w.Model = w.Models[0]
 	}
+	w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model)
 	w.Price = b.Price(w.Model)
 	return w
 }

@@ -176,6 +176,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 				break
 			}
 		}
+		v.Why = s.why(ctx, act.Workspace, v.Models, v.Using)
 		out.Assignments = append(out.Assignments, v)
 	}
 	used, err := s.uses(ctx, act, pid, in.Lang, &out)

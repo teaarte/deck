@@ -180,7 +180,7 @@ func TestTheModelColumnFollowsAssignmentSet(t *testing.T) {
 	e.useModels("plain.work", "api")
 	waitTopic(t, phone, "assignments")
 	drawn, _ := json.Marshal(e.screenMessages("plain", "settings", map[string]any{"topic": "assignments", "changed": "plain"}))
-	if !strings.Contains(string(drawn), `"cells":["Work","api","here",""]`) {
+	if !strings.Contains(string(drawn), `"cells":["Work","api","here","",""]`) {
 		t.Fatalf("the commands of the project are read again with the provider picked: %s", drawn)
 	}
 }

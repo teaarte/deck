@@ -37,13 +37,16 @@ type modelsOut struct {
 		CallUSD    *float64 `json:"call_usd"`
 		Free       bool     `json:"free"`
 	} `json:"models"`
-	Assignments []struct {
-		Project string   `json:"project"`
-		Command string   `json:"command"`
-		Role    string   `json:"role"`
-		Models  []string `json:"models"`
-		Using   string   `json:"using"`
-	} `json:"assignments"`
+	Assignments []assignmentOut `json:"assignments"`
+}
+
+type assignmentOut struct {
+	Project string   `json:"project"`
+	Command string   `json:"command"`
+	Role    string   `json:"role"`
+	Models  []string `json:"models"`
+	Using   string   `json:"using"`
+	Why     string   `json:"why"`
 }
 
 type modelsOutConnection struct {

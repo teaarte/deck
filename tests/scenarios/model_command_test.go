@@ -818,6 +818,12 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 	if h := e.health("model:groq/gpt-oss"); h == nil || h["status"] != "error" {
 		t.Fatalf("the model past its limit is red in health: %v", h)
 	}
+	var m modelsOut
+	e.must("deck.models_list", nil, &m)
+	if i := slices.IndexFunc(m.Assignments, func(a assignmentOut) bool { return a.Role == "text" }); i < 0 || m.Assignments[i].Using != "groq/fact-model" ||
+		!strings.HasPrefix(m.Assignments[i].Why, "groq/gpt-oss: answered HTTP 429") {
+		t.Fatalf("the assignment says in one line of health why the first model does not take the work: %+v", m.Assignments)
+	}
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss"}}, nil)
 	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.limit" || got.Whose != "model" {
 		t.Fatalf("the last model past its limit per minute is the model's limit: %+v", got)

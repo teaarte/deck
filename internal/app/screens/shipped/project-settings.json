@@ -38,9 +38,11 @@
               {"label": "What", "bind": "command != nil ? title : role"},
               {"label": "Model", "bind": "model ?? ''", "pick": "model"},
               {"label": "Chosen", "bind": "own ? 'here' : 'default'", "format": "tag", "tone": "own ? 'ok' : 'muted'"},
-              {"label": "Price", "bind": "price ?? ''"}
+              {"label": "Price", "bind": "price ?? ''"},
+              {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"}
             ],
             "actions": [
+              {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
               {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command ?? ''"},
                 "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"}
             ]}

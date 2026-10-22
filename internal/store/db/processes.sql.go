@@ -783,9 +783,8 @@ type ListFailedProcessesParams struct {
 	Lim         int64
 }
 
-// Failed processes of the last week the owner has not closed and no later run made good, newest first: a later run
-// for the same record, or of a command without one with the same input, or one that follows it and has not failed;
-// trials and failures for want of deck's tools, which a row of health shows, are none of them.
+// Failed processes of the week the owner has not closed and no later run made good (of its record or input, or one
+// that follows it), newest first; not trials nor failures for want of deck's tools, which a row of health shows.
 func (q *Queries) ListFailedProcesses(ctx context.Context, arg ListFailedProcessesParams) ([]Process, error) {
 	rows, err := q.db.QueryContext(ctx, listFailedProcesses,
 		arg.WorkspaceID,

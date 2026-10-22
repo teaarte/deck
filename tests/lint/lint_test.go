@@ -36,12 +36,15 @@ func TestChecksCatchViolations(t *testing.T) {
 		"web/index.html:3: comment block of 3 lines",
 		`web/index.html:4: vertical name "vacanc"`,
 		"internal/store/db/q.sql.go:6: a parameter of sqlc without a type",
+		"sql/q.sql:3: comment block of 3 lines",
+		"script.py:8: comment block of 3 lines",
+		`schemas/manifest.json:1: vertical name "forecast"`,
 	} {
 		if !strings.Contains(all, want) {
 			t.Errorf("missing violation %q in:\n%s", want, all)
 		}
 	}
-	if len(vs) != 8 {
-		t.Errorf("want exactly 8 violations, got %d:\n%s", len(vs), all)
+	if len(vs) != 11 {
+		t.Errorf("want exactly 11 violations, got %d:\n%s", len(vs), all)
 	}
 }

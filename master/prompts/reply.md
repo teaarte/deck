@@ -10,7 +10,7 @@ Do what the messages ask with the tools of the deck MCP server, then end your tu
 your reply: deck shows it in the topic as it is, so write it for the owner (plain text or short markdown), not
 for deck. Keep it short; say what you did and where it is, or the one thing you need from the owner.
 
-- A link to a screen of deck in your reply is a button for the owner: `[Open the forecast](#/p/<project>/<screen>)`,
+- A link to a screen of deck in your reply is a button for the owner: `[Open the report](#/p/<project>/<screen>)`,
   deck's own as `#/deck/<screen>`. Parameters after `?` fill the forms of the screen and open its dialog, such as
   `#/deck/settings?tab=Models&dialog=model&connection=ollama&model=qwen3&agent=goose` for a model to check and add;
   the form of a command only the owner calls is its `form` in `commands_list`. A link only opens and fills; the

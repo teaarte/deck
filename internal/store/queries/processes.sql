@@ -325,9 +325,8 @@ WHERE p.parent_id = sqlc.arg(parent_id) ORDER BY p.id;
 
 
 -- name: ListFailedProcesses :many
--- Failed processes of the last week the owner has not closed and no later run made good, newest first: a later run
--- for the same record, or of a command without one with the same input, or one that follows it and has not failed;
--- trials and failures for want of deck's tools, which a row of health shows, are none of them.
+-- Failed processes of the week the owner has not closed and no later run made good (of its record or input, or one
+-- that follows it), newest first; not trials nor failures for want of deck's tools, which a row of health shows.
 SELECT p.* FROM process p
 WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR p.project_id = CAST(sqlc.arg(project_id) AS INTEGER))

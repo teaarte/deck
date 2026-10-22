@@ -11,7 +11,15 @@ import (
 )
 
 var (
-	codeExt      = []string{".go", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".css", ".html"}
+	codeExt = []string{".go", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".css", ".html", ".sql", ".py"}
+	// lineMarks are the line comments of languages without //, and the lines with them that are no comment.
+	lineMarks = map[string]struct {
+		mark string
+		not  *regexp.Regexp
+	}{".sql": {"--", regexp.MustCompile(`^--\s*(\+goose|name:)`)}, ".py": {"#", regexp.MustCompile(`^#(!|\s*///|\s*(requires-python|dependencies)|\s*"|\s*\])`)}}
+	// textDirs are where texts other than code are checked for vertical names: the schemas and the master.
+	textDirs     = []string{"schemas/", "master/"}
+	textExt      = []string{".json", ".md"}
 	skipDirs     = []string{".git", "node_modules", "dist", "testdata"}
 	requirement  = regexp.MustCompile(`\b(FR|NFR)-\d+|\bR\d{1,3}\b`)
 	reasoning    = regexp.MustCompile(`(?i)\b(we|let's|i think|note that|basically|actually|obviously|for now|hack|in order to|probably|seems|i guess|turns out)\b`)
@@ -42,15 +50,20 @@ func Check(root string) ([]Violation, error) {
 			}
 			return nil
 		}
-		if !slices.Contains(codeExt, filepath.Ext(path)) {
+		rel, _ := filepath.Rel(root, path)
+		rel = filepath.ToSlash(rel)
+		text := slices.Contains(textExt, filepath.Ext(path)) && slices.ContainsFunc(textDirs, func(p string) bool { return strings.HasPrefix(rel, p) })
+		if !slices.Contains(codeExt, filepath.Ext(path)) && !text {
 			return nil
 		}
 		src, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(root, path)
-		rel = filepath.ToSlash(rel)
+		if text {
+			out = append(out, verticalNames(rel, string(src))...)
+			return nil
+		}
 		if isGenerated(string(src)) {
 			if strings.Contains(rel, "store/db/") {
 				for i, line := range strings.Split(string(src), "\n") {
@@ -63,15 +76,21 @@ func Check(root string) ([]Violation, error) {
 		}
 		out = append(out, checkComments(rel, string(src))...)
 		if !strings.HasSuffix(rel, "_test.go") && !slices.ContainsFunc(verticalFree, func(p string) bool { return strings.HasPrefix(rel, p) }) {
-			for i, line := range strings.Split(string(src), "\n") {
-				if m := verticals.FindString(line); m != "" {
-					out = append(out, Violation{rel, i + 1, fmt.Sprintf("vertical name %q in core code", m)})
-				}
-			}
+			out = append(out, verticalNames(rel, string(src))...)
 		}
 		return nil
 	})
 	return out, err
+}
+
+func verticalNames(file, src string) []Violation {
+	var out []Violation
+	for i, line := range strings.Split(src, "\n") {
+		if m := verticals.FindString(line); m != "" {
+			out = append(out, Violation{file, i + 1, fmt.Sprintf("vertical name %q in core code", m)})
+		}
+	}
+	return out
 }
 
 func isGenerated(src string) bool {
@@ -86,7 +105,11 @@ type comment struct {
 
 func checkComments(file, src string) []Violation {
 	var out []Violation
-	for _, c := range blocks(src) {
+	found := blocks(src)
+	if m, ok := lineMarks[filepath.Ext(file)]; ok {
+		found = lineBlocks(src, m.mark, m.not)
+	}
+	for _, c := range found {
 		if c.lines > 2 {
 			out = append(out, Violation{file, c.line, fmt.Sprintf("comment block of %d lines; keep it to 2", c.lines)})
 		}
@@ -96,6 +119,27 @@ func checkComments(file, src string) []Violation {
 		if m := reasoning.FindString(c.text); m != "" {
 			out = append(out, Violation{file, c.line, fmt.Sprintf("reasoning word %q in a comment", m)})
 		}
+	}
+	return out
+}
+
+// lineBlocks returns runs of whole-line comments of a language whose comments start with mark; a line that not
+// matches is no comment.
+func lineBlocks(src, mark string, not *regexp.Regexp) []comment {
+	var out []comment
+	last := -10
+	for i, line := range strings.Split(src, "\n") {
+		t := strings.TrimSpace(line)
+		if !strings.HasPrefix(t, mark) || not.MatchString(t) {
+			continue
+		}
+		if last == i-1 && len(out) > 0 {
+			out[len(out)-1].lines++
+			out[len(out)-1].text += "\n" + t
+		} else {
+			out = append(out, comment{line: i + 1, lines: 1, text: t})
+		}
+		last = i
 	}
 	return out
 }

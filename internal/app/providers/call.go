@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"deck2/internal/fault"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
@@ -57,7 +58,7 @@ func parseCall(input json.RawMessage) (call, error) {
 }
 
 // answer reads what a model API answered: a binary body is kept as a file in the results folder of the calling
-// process, the rest comes back as its bytes; an answer past 400 is an error.
+// process, the rest comes back as its bytes; an answer past 400 is an error, of the model's status when it refused.
 func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h gateway.ModelHop) (any, []byte, error) {
 	defer resp.Body.Close()
 	ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
@@ -71,7 +72,11 @@ func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h
 		return nil, nil, err
 	}
 	if resp.StatusCode >= 400 {
-		return nil, nil, registry.Invalid("deck: %s answered HTTP %d: %s", h.Connection, resp.StatusCode, untrusted.Cut(string(raw), 2000))
+		err := registry.Invalid("deck: %s answered HTTP %d: %s", h.Connection, resp.StatusCode, untrusted.Cut(string(raw), 2000))
+		if st := fault.ModelStatus(resp.StatusCode); fault.Whose(fault.OfStatus(st, true)) == fault.OfModel {
+			err.(*registry.Error).Status = st
+		}
+		return nil, nil, err
 	}
 	return nil, raw, nil
 }

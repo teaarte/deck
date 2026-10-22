@@ -756,3 +756,39 @@ func TestSpeechTakesItsVoiceFromTheOptionsOfItsModel(t *testing.T) {
 		t.Fatalf("speech goes with the voice of the options as mp3: %+v %+v", out, last)
 	}
 }
+
+// TestTheLastModelAtItsLimitIsTheModelsFailure: a model command whose last model answers 429 fails as the model's
+// limit, red in the health of that model, and does not go to the master; a refused key is the model's login.
+func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
+	t.Parallel()
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(_ int, body map[string]any) (int, string, string) {
+			if body["model"] == "keyless" {
+				return 403, "application/json", `{"error": {"message": "the key is refused"}}`
+			}
+			return 429, "application/json", `{"error": {"message": "rate limited"}}`
+		},
+	})
+	e := newClockEnv(t, masterScript)
+	e.masterAwake()
+	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "keyless", "kind": "text"}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
+	e.createProject("shorts", modelManifest)
+	got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error").ID)
+	if got.ErrorType != "model.limit" || got.Whose != "model" {
+		t.Fatalf("the last model at its limit is the model's failure: %+v", got)
+	}
+	if h := e.health("model:groq/fact-model"); h == nil || h["status"] != "error" {
+		t.Fatalf("the model at its limit is red in health: %v", h)
+	}
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/keyless"}}, nil)
+	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.login" {
+		t.Fatalf("a refused key is the model's login: %+v", got)
+	}
+	e.App.Runner.Wait()
+	if n := len(e.runsOf("master", "on_error")); n != 0 {
+		t.Fatalf("a failure of a model does not go to the master: %d", n)
+	}
+}

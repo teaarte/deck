@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/fault"
 	"encoding/json"
 	"net/http"
 	"slices"
@@ -163,27 +164,25 @@ func (r Request) Emit(e Event) {
 	}
 }
 
-// Refused marks a result by the HTTP status of a model API: a usage limit (429) pauses until Retry-After, a
-// refused key needs a login, a 5xx is a model that did not answer; false for any other status.
+// Refused marks a result by the status deck's proxy answered a call of a model with: a usage limit pauses until
+// Retry-After, a refused key needs a login, a fault is a model that did not answer; false for any other status.
 func Refused(res *Result, status int, retryAfter string, now time.Time) bool {
-	switch status {
-	case http.StatusTooManyRequests:
+	switch fault.OfStatus(status, true) {
+	case fault.ModelLimit:
 		res.RateLimited = true
 		if s, err := strconv.Atoi(retryAfter); err == nil && s > 0 {
 			res.ResetsAt = now.Add(time.Duration(s) * time.Second).Unix()
 		} else if t, err := http.ParseTime(retryAfter); err == nil {
 			res.ResetsAt = t.Unix()
 		}
-		return true
-	case http.StatusUnauthorized, http.StatusForbidden:
+	case fault.ModelLogin:
 		res.NeedsLogin = true
-		return true
-	}
-	if status >= 500 {
+	case fault.ModelUnavailable:
 		res.Unavailable = true
-		return true
+	default:
+		return false
 	}
-	return false
+	return true
 }
 
 // StructuredOutput is output by schema; a provider without it hands the result in with result_submit.

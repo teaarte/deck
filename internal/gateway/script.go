@@ -76,11 +76,11 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 			return
 		}
 		call := strings.TrimPrefix(r.URL.Path, "/commands/")
-		model, proxy := call == ModelCommand, false
+		model := call == ModelCommand
 		if rest, ok := strings.CutPrefix(r.URL.Path, "/models/"); ok {
-			call, model, proxy = "the model proxy "+strings.SplitN(rest, "/", 2)[0], true, true
+			call, model = "the model proxy "+strings.SplitN(rest, "/", 2)[0], true
 		}
-		e.refused = append(e.refused, Refusal{Call: call, Status: rw.status, Model: model, Proxy: proxy, Text: strings.TrimSpace(rw.text.String())})
+		e.refused = append(e.refused, Refusal{Call: call, Status: rw.status, Model: model, Text: strings.TrimSpace(rw.text.String())})
 		if len(e.refused) > 5 {
 			e.refused = e.refused[1:]
 		}
@@ -88,12 +88,11 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 }
 
 // Refusal is a call of a script deck answered with an error: the command, or the model proxy and its connection,
-// the status and the start of the answer. Model says the call was of a model; Proxy that the status is the model's own.
+// the status and the start of the answer. Model says the call was of a model.
 type Refusal struct {
 	Call   string
 	Status int
 	Model  bool
-	Proxy  bool
 	Text   string
 }
 

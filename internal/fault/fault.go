@@ -4,6 +4,7 @@ package fault
 
 import (
 	"errors"
+	"net/http"
 	"slices"
 	"strings"
 )
@@ -96,6 +97,38 @@ func Wrap(prefix string, err error) *F {
 	f := *Of(err)
 	f.Text = prefix + ": " + f.Text
 	return &f
+}
+
+// ModelStatus is the status deck answers a call with for what a model API answered: 401 for a refused key, 502 for
+// a fault of the service, any other as it is.
+func ModelStatus(status int) int {
+	switch {
+	case status == http.StatusForbidden:
+		return http.StatusUnauthorized
+	case status >= 500:
+		return http.StatusBadGateway
+	}
+	return status
+}
+
+// OfStatus is the type of a failure of a call by the status deck answered it with; only a call of a model meets a
+// model's limit, refused key or fault, any other one the network's; a 500 is deck's own.
+func OfStatus(status int, model bool) string {
+	switch {
+	case !model && (status == http.StatusTooManyRequests || status > 500):
+		return Network
+	case status == http.StatusTooManyRequests:
+		return ModelLimit
+	case status > 500:
+		return ModelUnavailable
+	case model && status == http.StatusUnauthorized:
+		return ModelLogin
+	case status == http.StatusForbidden:
+		return RightsDenied
+	case status == http.StatusBadRequest || status == http.StatusUnprocessableEntity || status == http.StatusNotFound:
+		return InputInvalid
+	}
+	return DeckInternal
 }
 
 // Known reports whether t is a type of the set.

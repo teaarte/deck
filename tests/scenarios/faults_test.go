@@ -233,7 +233,7 @@ func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 		{"commands/deck.record_get", `{"record": 987654}`, "network", "", "network", "deck.record_get: 404"},
 		{"commands/deck.record_get", `{"record": 987654}`, "", "handled", "script.failed", "deck.record_get: 404"},
 		{"models/cloud/chat/completions", `{"model": "m1", "messages": [{"role": "user", "content": "hi"}]}`, "", "", "model.limit", "the model proxy cloud: 429"},
-		{"models/cloud/chat/completions", `{"model": "m2", "messages": [{"role": "user", "content": "hi"}]}`, "", "", "model.unavailable", "the model proxy cloud: 500"},
+		{"models/cloud/chat/completions", `{"model": "m2", "messages": [{"role": "user", "content": "hi"}]}`, "", "", "model.unavailable", "the model proxy cloud: 502"},
 	} {
 		got := e.waitScript(e.start("calls", "call", map[string]any{"key": c.key, "other": c.body, "type": c.named, "use": c.use}), "done", "error")
 		f := e.fault(got.ID)

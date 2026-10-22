@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -141,10 +140,7 @@ func refused(calls []gateway.Refusal, last bool, f *fault.F) *fault.F {
 	}
 	out := *f
 	c := calls[len(calls)-1]
-	t := statusType(c.Status, c.Model)
-	if c.Proxy && c.Status == http.StatusInternalServerError {
-		t = fault.ModelUnavailable // the proxy passes the model's status as it is
-	}
+	t := fault.OfStatus(c.Status, c.Model)
 	if last && out.Type == fault.ScriptFailed && fault.FromScript(t) == t {
 		out.Type = t
 	}

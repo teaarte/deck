@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
@@ -221,7 +222,10 @@ func Unsent(err error) bool {
 
 // Fallible reports whether a hop's answer is an explicit refusal a fallback may take over: a limit or a fault of
 // the service, not an answer about the request.
-func Fallible(status int) bool { return status == http.StatusTooManyRequests || status >= 500 }
+func Fallible(status int) bool {
+	t := fault.OfStatus(fault.ModelStatus(status), true)
+	return t == fault.ModelLimit || t == fault.ModelUnavailable
+}
 
 // ServeHops serves one call of a model through the hops and passes the answer on as it comes; replace puts the
 // model of each hop in the body.
@@ -243,7 +247,7 @@ func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte,
 			w.Header()[k] = vs
 		}
 	}
-	w.WriteHeader(resp.StatusCode)
+	w.WriteHeader(fault.ModelStatus(resp.StatusCode))
 	flush(w, resp.Body)
 }
 

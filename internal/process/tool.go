@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -197,23 +196,5 @@ func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) 
 
 // callFault is the failure of a gateway call by the status it answered; a tool's upstream is the network, not a model.
 func callFault(err error, tool bool) *fault.F {
-	return fault.New(statusType(registry.Status(err), !tool), err.Error())
-}
-
-// statusType is the type of a failure of a call of deck by the status deck answered; only a call of a model meets a
-// model's limit or fault, any other one the network's; a 500 is deck's own.
-func statusType(st int, model bool) string {
-	switch {
-	case !model && (st == http.StatusTooManyRequests || st > 500):
-		return fault.Network
-	case st == http.StatusTooManyRequests:
-		return fault.ModelLimit
-	case st > 500:
-		return fault.ModelUnavailable
-	case st == http.StatusForbidden:
-		return fault.RightsDenied
-	case st == http.StatusBadRequest || st == http.StatusUnprocessableEntity || st == http.StatusNotFound:
-		return fault.InputInvalid
-	}
-	return fault.DeckInternal
+	return fault.New(fault.OfStatus(registry.Status(err), !tool), err.Error())
 }

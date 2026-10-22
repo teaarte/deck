@@ -19,7 +19,6 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
-	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -37,8 +36,8 @@ type Service struct {
 	Deliver  func(ctx context.Context, process int64) error
 	// The answers of grants of rights are theirs.
 	AnswerGrant func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error)
-	// SaveManifest saves a manifest through its checks; a change that widens rights waits for the owner.
-	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error)
+	// AddToList adds a value to a list of the manifest of a project at the path of keys, as the actor's change.
+	AddToList func(ctx context.Context, act registry.Actor, p db.Project, value string, path ...string) error
 }
 
 type asksListIn struct {
@@ -419,7 +418,7 @@ func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask)
 		if err != nil || u.Host == "" {
 			return registry.Invalid("deck: deck could not tell the page of this browser action; allow it once or add the site to domains.act")
 		}
-		return s.addToList(ctx, act, p, u.Host, "domains", "act")
+		return s.AddToList(ctx, act, p, u.Host, "domains", "act")
 	}
 	if !ok {
 		return registry.Invalid("deck: only a tool or command of the project can be allowed always")
@@ -442,43 +441,7 @@ func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask)
 	if slices.Contains(m.AllowedExternal, local) {
 		return nil
 	}
-	return s.addToList(ctx, act, p, local, "allowed_external")
-}
-
-// addToList adds a value to a list of the project's manifest at the path of keys, as a new revision.
-func (s *Service) addToList(ctx context.Context, act registry.Actor, p db.Project, value string, path ...string) error {
-	m, err := docs.Manifest(ctx, s.St.Q, p)
-	if err != nil {
-		return err
-	}
-	raw, err := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
-	if err != nil {
-		return err
-	}
-	var doc map[string]any
-	d := json.NewDecoder(strings.NewReader(raw))
-	d.UseNumber()
-	if err := d.Decode(&doc); err != nil {
-		return err
-	}
-	at := doc
-	for _, k := range path[:len(path)-1] {
-		next, _ := at[k].(map[string]any)
-		if next == nil {
-			next = map[string]any{}
-			at[k] = next
-		}
-		at = next
-	}
-	last := path[len(path)-1]
-	list, _ := at[last].([]any)
-	if slices.Contains(list, any(value)) {
-		return nil
-	}
-	at[last] = append(list, value)
-	b := manifest.JSON(doc, "  ")
-	_, err = s.SaveManifest(ctx, act, p, b, "allow "+value+" always", 0, m.Revision)
-	return err
+	return s.AddToList(ctx, act, p, local, "allowed_external")
 }
 
 // LateAnswer delivers an answer nobody was waiting for live; an answer to a process that has finished goes to the

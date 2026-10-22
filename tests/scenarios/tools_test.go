@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -79,6 +80,8 @@ func TestAllowAlwaysAddsTheToolToTheProjectList(t *testing.T) {
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, fmt.Sprintf(`{"id": "n%d"}`, n)) })
 	e := newEnv(t, nil)
 	e.createProject("pics", toolManifest(svc.URL, ""))
+	var was struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "pics"}, &was)
 	id := e.start("pics", "send", map[string]any{"text": "one"})
 	e.waitState(id, "waiting_answer")
 	e.answer(e.waitAsk().ID, "allow_always")
@@ -87,6 +90,10 @@ func TestAllowAlwaysAddsTheToolToTheProjectList(t *testing.T) {
 	e.must("deck.manifest_get", map[string]any{"project": "pics"}, &m)
 	if !strings.Contains(m.Manifest, `"allowed_external"`) || !strings.Contains(m.Manifest, `"note"`) {
 		t.Fatalf("allow always puts the tool into the allowed external list: %s", m.Manifest)
+	}
+	before, after := orderOfKeys(was.Manifest), orderOfKeys(m.Manifest)
+	if !slices.Equal(slices.DeleteFunc(slices.Clone(after), func(k string) bool { return k == "allowed_external" }), before) {
+		t.Fatalf("allow always keeps the order of the keys of the manifest:\n%v\n%v", before, after)
 	}
 	if got := e.waitState(e.start("pics", "send", map[string]any{"text": "two"}), "done", "waiting_answer"); got.State != "done" || len(svc.requests()) != 2 {
 		t.Fatalf("an allowed tool runs at once: %+v", got)
@@ -352,4 +359,37 @@ func outsideBlocks(prompt string) []string {
 		}
 	}
 	return out
+}
+
+// orderOfKeys are the keys of every object of a JSON text in the order they are written.
+func orderOfKeys(text string) []string {
+	var keys []string
+	dec := json.NewDecoder(strings.NewReader(text))
+	var inObject []bool
+	expectKey := false
+	for {
+		t, err := dec.Token()
+		if err != nil {
+			return keys
+		}
+		switch t {
+		case json.Delim('{'):
+			inObject = append(inObject, true)
+			expectKey = true
+			continue
+		case json.Delim('['):
+			inObject = append(inObject, false)
+			expectKey = false
+			continue
+		case json.Delim('}'), json.Delim(']'):
+			inObject = inObject[:len(inObject)-1]
+		default:
+			if k, ok := t.(string); ok && expectKey {
+				keys = append(keys, k)
+				expectKey = false
+				continue
+			}
+		}
+		expectKey = len(inObject) > 0 && inObject[len(inObject)-1]
+	}
 }

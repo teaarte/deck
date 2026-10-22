@@ -301,15 +301,15 @@ func Upgrade(raw []byte) (out []byte, changed bool, err error) {
 	}
 	m["version"] = FormatVersion
 	var buf bytes.Buffer
-	if err := json.Indent(&buf, ordered(m, raw), "", "  "); err != nil {
+	if err := json.Indent(&buf, Ordered(m, raw), "", "  "); err != nil {
 		return nil, false, err
 	}
 	return buf.Bytes(), true, nil
 }
 
-// ordered is v as JSON with the keys of each object in the order the same object has in was, new keys after them
+// Ordered is v as JSON with the keys of each object in the order the same object has in was, new keys after them
 // sorted, so a raised manifest keeps the order of its fields and of the properties of its schemas.
-func ordered(v any, was []byte) []byte {
+func Ordered(v any, was []byte) []byte {
 	switch v := v.(type) {
 	case map[string]any:
 		var old map[string]json.RawMessage
@@ -329,7 +329,7 @@ func ordered(v any, was []byte) []byte {
 			if len(out) > 1 {
 				out = append(out, ',')
 			}
-			out = append(append(append(out, JSON(k, "")...), ':'), ordered(x, old[k])...)
+			out = append(append(append(out, JSON(k, "")...), ':'), Ordered(x, old[k])...)
 		}
 		return append(out, '}')
 	case []any:
@@ -344,7 +344,7 @@ func ordered(v any, was []byte) []byte {
 			if i < len(old) {
 				w = old[i]
 			}
-			out = append(out, ordered(x, w)...)
+			out = append(out, Ordered(x, w)...)
 		}
 		return append(out, ']')
 	}

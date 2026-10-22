@@ -53,7 +53,7 @@ func (s *Service) realFolder(path string) (string, error) {
 		return "", registry.Invalid("deck: %s is not a folder", dir)
 	}
 	for _, home := range paths.Names(string(s.Home)) {
-		if real == home || strings.HasPrefix(real, home+"/") || strings.HasPrefix(home, strings.TrimSuffix(real, "/")+"/") {
+		if paths.Overlap(home, real) {
 			return "", registry.Invalid("deck: folder %s holds or is inside deck's own folder %s", dir, s.Home)
 		}
 	}

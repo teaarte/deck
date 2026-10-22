@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"deck2/internal/paths"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ func WriteFile(path string, data []byte) error {
 func WriteTree(dir string, files map[string]string, write func(path, text string) error) error {
 	for path, text := range files {
 		f := filepath.Join(dir, path)
-		if !strings.HasPrefix(f, dir+string(filepath.Separator)) {
+		if !paths.Inside(dir, f) {
 			return fmt.Errorf("file %q is outside %s", path, dir)
 		}
 		if err := os.MkdirAll(filepath.Dir(f), 0o700); err != nil {

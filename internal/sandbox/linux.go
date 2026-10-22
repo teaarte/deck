@@ -4,6 +4,7 @@ package sandbox
 
 import (
 	"context"
+	"deck2/internal/paths"
 	"errors"
 	"fmt"
 	"io"
@@ -96,7 +97,7 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 	}
 	var private []string
 	for _, h := range p.Private {
-		if slices.ContainsFunc(p.Read, func(r string) bool { return strings.HasPrefix(real(h), real(r)+"/") }) {
+		if slices.ContainsFunc(p.Read, func(r string) bool { return paths.Inside(real(r), real(h)) }) {
 			private = append(private, h)
 		}
 	}
@@ -137,7 +138,7 @@ func links(path string, hide []string, made map[string]bool) []string {
 		if err != nil {
 			break
 		}
-		inside := slices.ContainsFunc(hide, func(h string) bool { return strings.HasPrefix(p, real(h)+"/") || strings.HasPrefix(p, h+"/") })
+		inside := slices.ContainsFunc(hide, func(h string) bool { return paths.Inside(real(h), p) || paths.Inside(h, p) })
 		if fi.Mode()&os.ModeSymlink != 0 && inside && !made[p] {
 			if to, err := os.Readlink(p); err == nil {
 				made[p] = true

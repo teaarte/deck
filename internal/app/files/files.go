@@ -29,6 +29,7 @@ import (
 	"deck2/internal/app/access"
 	"deck2/internal/health"
 	"deck2/internal/home"
+	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -337,23 +338,18 @@ func fileType(name string) string {
 	return "application/octet-stream"
 }
 
-// dataFile opens a regular file inside the data folder of a project; the root keeps every link inside it, and a
-// pipe opens without waiting for a writer.
+// dataFile opens a regular file inside the data folder of a project.
 func (s *Service) dataFile(project int64, path string) (*os.File, error) {
 	root, err := os.OpenRoot(s.Home.Data(project))
 	if err != nil {
 		return nil, err
 	}
 	defer root.Close()
-	f, err := root.OpenFile(strings.TrimPrefix(filepath.Clean("/"+path), "/"), os.O_RDONLY|syscall.O_NONBLOCK, 0)
-	if err != nil {
-		return nil, err
-	}
-	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
-		_ = f.Close()
+	f, err := paths.OpenRegular(root, strings.TrimPrefix(filepath.Clean("/"+path), "/"))
+	if errors.Is(err, paths.ErrNotRegular) {
 		return nil, os.ErrNotExist
 	}
-	return f, nil
+	return f, err
 }
 
 // OpenDataFile opens a file of the data folder of a project the actor sees, for a media block.

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"syscall"
 
 	"deck2/internal/docs"
 	"deck2/internal/files"
@@ -121,16 +120,13 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 	return b2, dest, err
 }
 
-// copyOut copies a regular file of root, not following a link, to dst.
+// copyOut copies a regular file of root to dst.
 func copyOut(root *os.Root, rel, dst string) (string, error) {
-	in, err := root.OpenFile(rel, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	in, err := paths.OpenRegular(root, rel)
 	if err != nil {
 		return "", err
 	}
 	defer in.Close()
-	if fi, err := in.Stat(); err != nil || !fi.Mode().IsRegular() {
-		return "", fmt.Errorf("not a regular file")
-	}
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", err

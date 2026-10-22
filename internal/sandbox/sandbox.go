@@ -4,6 +4,7 @@ package sandbox
 import (
 	"context"
 	"deck2/internal/home"
+	"deck2/internal/paths"
 	"net"
 	"os"
 	"os/exec"
@@ -92,7 +93,7 @@ func Close(layout home.Layout, path string) Closure {
 		return Closure{Hide: []string{deck, "/Users", "/home"}}
 	}
 	read := slices.DeleteFunc(Runtimes(home, path), func(r string) bool {
-		return strings.HasPrefix(real(deck)+"/", r+"/") || strings.HasPrefix(r+"/", real(deck)+"/")
+		return paths.Overlap(real(deck), r)
 	})
 	return Closure{Hide: []string{deck, home}, Read: read, Private: Private()}
 }
@@ -113,7 +114,7 @@ func Runtimes(home, path string) []string {
 	var folder func(dir string, links int)
 	folder = func(dir string, links int) {
 		r := real(dir)
-		if !strings.HasPrefix(r, home+"/") || slices.Contains(out, r) {
+		if !paths.Inside(home, r) || slices.Contains(out, r) {
 			return
 		}
 		if c := filepath.Clean(dir); c != r {
@@ -129,7 +130,7 @@ func Runtimes(home, path string) []string {
 		entries, _ := os.ReadDir(r)
 		for _, e := range entries {
 			to, err := filepath.EvalSymlinks(filepath.Join(r, e.Name()))
-			if e.Type()&os.ModeSymlink == 0 || err != nil || !strings.HasPrefix(to, home+"/") {
+			if e.Type()&os.ModeSymlink == 0 || err != nil || !paths.Inside(home, to) {
 				continue
 			}
 			if up := filepath.Dir(filepath.Dir(to)); filepath.Base(filepath.Dir(to)) == "bin" || installation(up) {

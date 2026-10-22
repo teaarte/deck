@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"deck2/internal/home"
 	"deck2/internal/nonce"
+	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -43,7 +43,7 @@ func (r Ref) Open() (*os.File, int64, error) {
 			return nil, 0, err
 		}
 		defer root.Close()
-		f, err = root.OpenFile(r.rel, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		f, err = paths.OpenRegular(root, r.rel)
 	} else {
 		f, err = os.Open(r.Path)
 	}
@@ -103,7 +103,7 @@ func Inside(root, name string) (string, error) {
 		return "", err
 	}
 	base, err := filepath.EvalSymlinks(root)
-	if err != nil || !strings.HasPrefix(real, base+string(filepath.Separator)) {
+	if err != nil || !paths.Inside(base, real) {
 		return "", errors.New("outside the folder")
 	}
 	return real, nil

@@ -17,12 +17,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
 
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -367,9 +367,6 @@ func (dv *Service) pushText(ctx context.Context, private func() bool, projectID 
 	return pushMessage{Title: untrusted.Cut(title, 60), Body: untrusted.Cut(oneLine(text), pushLength), URL: url}
 }
 
-var pushClient = &http.Client{Timeout: 15 * time.Second,
-	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-
 // What a push to a device came to: taken or refused for good, to be sent again, or the device is gone.
 const (
 	pushDone = iota
@@ -382,7 +379,7 @@ const (
 func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.PushSubscription, m pushMessage) (int, string) {
 	payload, _ := json.Marshal(m)
 	resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: s.Endpoint,
-		Keys: webpush.Keys{P256dh: s.P256dh, Auth: s.Auth}}, &webpush.Options{HTTPClient: pushClient, Subscriber: "deck@example.com",
+		Keys: webpush.Keys{P256dh: s.P256dh, Auth: s.Auth}}, &webpush.Options{HTTPClient: gateway.Push, Subscriber: "deck@example.com",
 		VAPIDPublicKey: k.Public, VAPIDPrivateKey: k.Private, TTL: 3600, Urgency: webpush.UrgencyHigh})
 	if err != nil {
 		slog.Error("push", "device", s.Device, "err", err)

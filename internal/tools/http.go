@@ -43,14 +43,7 @@ type HTTP struct {
 }
 
 func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), h home.Layout) *HTTP {
-	c := &http.Client{Timeout: 5 * time.Minute, Transport: gateway.Outbound,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 5 || req.URL.Host != via[0].URL.Host || req.URL.Scheme != via[0].URL.Scheme {
-				return http.ErrUseLastResponse
-			}
-			return nil
-		}}
-	return &HTTP{GW: gw, Secrets: secrets, Home: h, Client: c}
+	return &HTTP{GW: gw, Secrets: secrets, Home: h, Client: gateway.Pinned}
 }
 
 // Command is the registry command of an HTTP tool of project p; it reaches its own host and the domains of p, a

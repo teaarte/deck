@@ -62,12 +62,6 @@ func RouteOf(ctx context.Context) ([]ModelHop, bool) {
 	return hops, ok
 }
 
-var modelClient = &http.Client{
-	Transport: &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
-		ResponseHeaderTimeout: 5 * time.Minute, ForceAttemptHTTP2: true},
-	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-}
-
 // dropped are headers of the caller deck does not pass on: its own keys, cookies and how the body is packed.
 var dropped = []string{DeckModel, "Authorization", "X-Api-Key", "X-Goog-Api-Key", "Cookie", "Proxy-Authorization", "Accept-Encoding",
 	"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Host"}

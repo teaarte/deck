@@ -16,27 +16,7 @@ import (
 	"time"
 )
 
-// Outbound dials only the addresses Pin gave a request, on a connection of its own, since a kept one would serve the
-// next request whatever it was pinned to.
-var Outbound = &http.Transport{Proxy: nil, DialContext: dialPinned, DisableKeepAlives: true, ResponseHeaderTimeout: 5 * time.Minute}
-
 type pinnedKey struct{}
-
-// dialPinned dials the addresses a request was pinned to, in turn, or the address it names.
-func dialPinned(ctx context.Context, network, addr string) (net.Conn, error) {
-	addrs, _ := ctx.Value(pinnedKey{}).([]string)
-	if len(addrs) == 0 {
-		addrs = []string{addr}
-	}
-	var err error
-	for _, a := range addrs {
-		var c net.Conn
-		if c, err = (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, a); err == nil {
-			return c, nil
-		}
-	}
-	return nil, err
-}
 
 // Reachable reports whether a page at host:port is in the domains (host with subdomains, host:port, IP, network,
 // "*"); a name reaches only public addresses, and a listed name that does not resolve passes: nothing loads.
@@ -154,10 +134,6 @@ func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains
 	forward.ServeHTTP(w, r)
 	return nil
 }
-
-// pageClient gets one page at the addresses its request was pinned to; Fetch checks each redirect itself.
-var pageClient = &http.Client{Transport: Outbound, Timeout: time.Minute,
-	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 // Pin is req bound to the addresses its host resolved to once, when the domains let it go there; Outbound dials only
 // them, a redirect of the same host too. A name that does not resolve is 502, a place the domains refuse 403.

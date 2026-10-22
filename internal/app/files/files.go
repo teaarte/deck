@@ -423,7 +423,7 @@ func (s *Service) Drain(ctx context.Context) {
 		_, err := health.Set(ctx, q, health.Of{}, health.Outbox, health.Error, strings.Join(stuck, "; ")+"; deck tries again on each round")
 		return err
 	})
-	if err != nil {
+	if err != nil && ctx.Err() == nil {
 		slog.Error("health of the outbox", "err", err)
 	}
 }

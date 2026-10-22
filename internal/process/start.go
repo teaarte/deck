@@ -103,8 +103,30 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	if cmd == nil {
 		return 0, fmt.Errorf("project %q has no command %q", proj.Name, command)
 	}
-	kind, providerName, session, folder := cmd.Executor.Type, "", uuid.NewString(), ""
-	switch kind {
+	at, err := r.placement(ctx, projectID, m, cmd, o)
+	if err != nil {
+		return 0, err
+	}
+	if input == nil {
+		input = map[string]any{}
+	}
+	in, _ := json.Marshal(input)
+	a := &admitted{in: in, input: input}
+	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return r.admitIn(ctx, q, proj, m, cmd, command, at, a, o)
+	}); err != nil {
+		return 0, err
+	}
+	return r.launch(ctx, projectID, m, cmd, at, a, o)
+}
+
+// placed is where a command runs: its kind, the provider of an agent, its session and folder.
+type placed struct{ kind, provider, session, folder string }
+
+// placement finds where a command of a project runs and checks what it needs is there.
+func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Manifest, cmd *manifest.Command, o Origin) (placed, error) {
+	at := placed{kind: cmd.Executor.Type, session: uuid.NewString()}
+	switch at.kind {
 	case KindAgent:
 		pv, err := r.deps.For(ctx, projectID, cmd)
 		if o.Provider != "" {
@@ -115,215 +137,227 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			}
 		}
 		if err != nil {
-			return 0, err
+			return at, err
 		}
-		providerName = pv.Name()
+		at.provider = pv.Name()
 		if _, err := r.commandBody(ctx, projectID, cmd); err != nil {
-			return 0, err
+			return at, err
 		}
 		if _, err := r.deps.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
-			return 0, err
+			return at, err
 		}
 		if o.Session != "" {
-			session = o.Session
+			at.session = o.Session
 		}
 		if !cmd.Executor.Folder.IsZero() {
-			if folder, err = r.deps.Folder(ctx, projectID, cmd.Executor.Folder); err != nil {
-				return 0, err
+			if at.folder, err = r.deps.Folder(ctx, projectID, cmd.Executor.Folder); err != nil {
+				return at, err
 			}
 		}
 	case KindScript:
 		if _, err := r.scriptSource(ctx, projectID, m, cmd); err != nil {
-			return 0, err
+			return at, err
 		}
-		session = ""
+		at.session = ""
 	case KindTool:
-		session = ""
+		at.session = ""
 	case KindModel:
 		if _, err := r.commandBody(ctx, projectID, cmd); err != nil {
-			return 0, err
+			return at, err
 		}
-		session = ""
+		at.session = ""
 	default:
-		return 0, registry.Invalid("deck: %s executors are not available yet", kind)
+		return at, registry.Invalid("deck: %s executors are not available yet", at.kind)
 	}
-	if input == nil {
-		input = map[string]any{}
-	}
-	in, _ := json.Marshal(input)
-	var p db.Process
-	var refused error
-	reused, joined, remark := false, "", int64(0)
-	trial := o.Trial
-	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		pr, err := q.GetProject(ctx, projectID)
-		if err != nil {
-			return err
-		}
-		trial = trial || pr.Status == store.ProjectDraft
-		var parent db.Process
-		if o.Parent != 0 {
-			if parent, err = q.GetProcess(ctx, o.Parent); err != nil {
-				return err
-			}
-			trial = trial || parent.Trial == 1
-		}
-		if o.Trigger != 0 && !o.Confirmed {
-			t, err := q.GetTrigger(ctx, o.Trigger)
-			if err != nil {
-				return err
-			}
-			if t.Paused == 1 || pr.Paused == 1 {
-				return registry.Invalid("deck: %s was not started: its trigger or project is paused", command)
-			}
-			if t.Kind == trigger.KindCron && t.NextRunAt.String > store.Time(r.now()) {
-				return registry.Invalid("deck: %s was not started: its trigger moved to %s since it was due", command, t.NextRunAt.String)
-			}
-			if pr.Status == store.ProjectDraft && parent.Trial != 1 {
-				return registry.Invalid("deck: %s was not started: project %s is a draft; only a trial run starts its triggers", command, pr.Name)
-			}
-		}
-		// A finish heard again after a crash starts each of its after triggers once.
-		if o.Parent != 0 && o.Trigger != 0 {
-			old, err := q.FindTriggeredChild(ctx, db.FindTriggeredChildParams{ParentID: store.ID(o.Parent), TriggerID: store.ID(o.Trigger)})
-			if err == nil {
-				p, reused = old, true
-				return nil
-			}
-			if !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-		}
-		if o.Key != "" {
-			old, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: projectID, Command: command, RetryKey: o.Key, Trial: store.Bool(trial)})
-			if err == nil && old.ID != o.Follows {
-				p, reused = old, true
-				return nil
-			}
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-		}
-		if o.again {
-			// The run after takes the last call that came for its record, even one that came as it closed.
-			prev, err := q.GetProcess(ctx, o.Follows)
-			if err != nil {
-				return err
-			}
-			if fs, err := q.ListFollowers(ctx, store.ID(prev.ID)); err != nil || len(fs) > 0 || prev.Again == "" {
-				if err == nil && len(fs) > 0 {
-					p.ID = fs[0].ID
-				}
-				reused = true
-				return err
-			}
-			in = []byte(prev.Again)
-			input = map[string]any{}
-			if err := json.Unmarshal(in, &input); err != nil {
-				return err
-			}
-		}
-		// A call for a record whose process of the command is still going joins it instead of racing it.
-		if record := RecordOf(string(in)); record != 0 && o.Follows == 0 {
-			old, err := q.FindRecordProcess(ctx, db.FindRecordProcessParams{ProjectID: projectID, Command: command, Trial: store.Bool(trial), Record: record})
-			mine := false
-			if err == nil {
-				mine, err = ancestor(ctx, q, o.Parent, old.ID)
-			}
-			if err == nil && !mine {
-				p, reused = old, true
-				if err := bindInput(ctx, q, cmd, projectID, old.ID, input); err != nil {
-					return err
-				}
-				if err := q.SetAgain(ctx, db.SetAgainParams{Again: string(in), ID: old.ID}); err != nil || kind != KindAgent {
-					return err
-				}
-				joined = joinText(cmd, in, o)
-				remark, err = q.CreateDeckRemark(ctx, db.CreateDeckRemarkParams{ProcessID: old.ID, Text: joined, CreatedAt: r.stamp().String})
-				if old.FinishedAt.Valid {
-					remark = 0
-				}
-				return err
-			}
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-		}
-		depth := int64(1)
-		switch {
-		case o.Owners:
-			depth = 0
-		case o.Parent != 0 && o.Trigger == 0 && kind != KindAgent && parent.Kind == KindAgent && parent.ProjectID == projectID:
-			depth = max(parent.Depth, 1)
-		case o.Parent != 0:
-			if depth = parent.Depth + 1; depth > MaxDepth {
-				chain, err := chainOf(ctx, q, parent)
-				if err != nil {
-					return err
-				}
-				text := fmt.Sprintf("deck stopped a chain of %d steps: %s.%s was not started after %s (process %d).",
-					MaxDepth, proj.Name, command, chain, parent.ID)
-				refused = registry.Refuse("deck: %s was not started: a chain may be at most %d steps long: %s", command, MaxDepth, chain)
-				return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(r.now()), ProjectID: proj.ID, Text: text})
-			}
-		}
-		// A call the owner allowed later may come from a trigger its manifest dropped by then.
-		t, err := q.GetTrigger(ctx, o.Trigger)
-		if errors.Is(err, sql.ErrNoRows) {
-			t = db.Trigger{}
-		}
-		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: store.Bool(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
-			Provider: providerName, Input: string(in), SessionID: session, ParentID: store.ID(o.Parent), Depth: depth,
-			TriggerID: store.ID(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
-			StartNote: o.Note, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now()), FollowsID: store.ID(o.Follows)})
-		if err != nil {
-			return err
-		}
-		if t.ID != 0 {
-			if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: p.ID, Valid: true}, ID: t.ID}); err != nil {
-				return err
-			}
-		}
-		// A cron slot moves with its run, so a crash between them cannot start it twice.
-		if t.Kind == trigger.KindCron && !o.Confirmed {
-			next, err := trigger.Next(t.Spec, r.now())
-			if err != nil {
-				return err
-			}
-			if err := q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: sql.NullString{String: next, Valid: true}, ID: t.ID}); err != nil {
-				return err
-			}
-		}
-		return bindInput(ctx, q, cmd, projectID, p.ID, input)
-	})
+	return at, nil
+}
+
+// admitted is what the start of a process came to in its transaction: the process, a refusal with its note written,
+// a process of the same call already going, and the remark a joined agent hears.
+type admitted struct {
+	p       db.Process
+	refused error
+	reused  bool
+	joined  string
+	remark  int64
+	in      []byte
+	input   map[string]any
+}
+
+// admitIn writes the start of a process in a transaction, unless a process of the same call goes already, the call
+// joins one for its record, or the chain it would lengthen is too long.
+func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m *manifest.Manifest, cmd *manifest.Command, command string, at placed,
+	a *admitted, o Origin) error {
+	projectID, trial := proj.ID, o.Trial
+	pr, err := q.GetProject(ctx, projectID)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	if refused != nil {
-		return 0, refused
+	trial = trial || pr.Status == store.ProjectDraft
+	var parent db.Process
+	if o.Parent != 0 {
+		if parent, err = q.GetProcess(ctx, o.Parent); err != nil {
+			return err
+		}
+		trial = trial || parent.Trial == 1
 	}
-	if remark != 0 {
-		r.join(ctx, p.ID, remark, joined, cmd, input)
+	if o.Trigger != 0 && !o.Confirmed {
+		t, err := q.GetTrigger(ctx, o.Trigger)
+		if err != nil {
+			return err
+		}
+		if t.Paused == 1 || pr.Paused == 1 {
+			return registry.Invalid("deck: %s was not started: its trigger or project is paused", command)
+		}
+		if t.Kind == trigger.KindCron && t.NextRunAt.String > store.Time(r.now()) {
+			return registry.Invalid("deck: %s was not started: its trigger moved to %s since it was due", command, t.NextRunAt.String)
+		}
+		if pr.Status == store.ProjectDraft && parent.Trial != 1 {
+			return registry.Invalid("deck: %s was not started: project %s is a draft; only a trial run starts its triggers", command, pr.Name)
+		}
 	}
-	if reused {
-		return p.ID, nil
+	// A finish heard again after a crash starts each of its after triggers once.
+	if o.Parent != 0 && o.Trigger != 0 {
+		old, err := q.FindTriggeredChild(ctx, db.FindTriggeredChildParams{ParentID: store.ID(o.Parent), TriggerID: store.ID(o.Trigger)})
+		if err == nil {
+			a.p, a.reused = old, true
+			return nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
+	if o.Key != "" {
+		old, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: projectID, Command: command, RetryKey: o.Key, Trial: store.Bool(trial)})
+		if err == nil && old.ID != o.Follows {
+			a.p, a.reused = old, true
+			return nil
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
+	if o.again {
+		// The run after takes the last call that came for its record, even one that came as it closed.
+		prev, err := q.GetProcess(ctx, o.Follows)
+		if err != nil {
+			return err
+		}
+		if fs, err := q.ListFollowers(ctx, store.ID(prev.ID)); err != nil || len(fs) > 0 || prev.Again == "" {
+			if err == nil && len(fs) > 0 {
+				a.p.ID = fs[0].ID
+			}
+			a.reused = true
+			return err
+		}
+		a.in = []byte(prev.Again)
+		a.input = map[string]any{}
+		if err := json.Unmarshal(a.in, &a.input); err != nil {
+			return err
+		}
+	}
+	// A call for a record whose process of the command is still going joins it instead of racing it.
+	if record := RecordOf(string(a.in)); record != 0 && o.Follows == 0 {
+		old, err := q.FindRecordProcess(ctx, db.FindRecordProcessParams{ProjectID: projectID, Command: command, Trial: store.Bool(trial), Record: record})
+		mine := false
+		if err == nil {
+			mine, err = ancestor(ctx, q, o.Parent, old.ID)
+		}
+		if err == nil && !mine {
+			a.p, a.reused = old, true
+			if err := bindInput(ctx, q, cmd, projectID, old.ID, a.input); err != nil {
+				return err
+			}
+			if err := q.SetAgain(ctx, db.SetAgainParams{Again: string(a.in), ID: old.ID}); err != nil || at.kind != KindAgent {
+				return err
+			}
+			a.joined = joinText(cmd, a.in, o)
+			a.remark, err = q.CreateDeckRemark(ctx, db.CreateDeckRemarkParams{ProcessID: old.ID, Text: a.joined, CreatedAt: r.stamp().String})
+			if old.FinishedAt.Valid {
+				a.remark = 0
+			}
+			return err
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
+	depth := int64(1)
+	switch {
+	case o.Owners:
+		depth = 0
+	case o.Parent != 0 && o.Trigger == 0 && at.kind != KindAgent && parent.Kind == KindAgent && parent.ProjectID == projectID:
+		depth = max(parent.Depth, 1)
+	case o.Parent != 0:
+		if depth = parent.Depth + 1; depth > MaxDepth {
+			chain, err := chainOf(ctx, q, parent)
+			if err != nil {
+				return err
+			}
+			text := fmt.Sprintf("deck stopped a chain of %d steps: %s.%s was not started after %s (process %d).",
+				MaxDepth, proj.Name, command, chain, parent.ID)
+			a.refused = registry.Refuse("deck: %s was not started: a chain may be at most %d steps long: %s", command, MaxDepth, chain)
+			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(r.now()), ProjectID: proj.ID, Text: text})
+		}
+	}
+	// A call the owner allowed later may come from a trigger its manifest dropped by then.
+	t, err := q.GetTrigger(ctx, o.Trigger)
+	if errors.Is(err, sql.ErrNoRows) {
+		t = db.Trigger{}
+	}
+	a.p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: store.Bool(trial), ProjectID: projectID, Command: command, Kind: at.kind, State: StateRunning,
+		Provider: at.provider, Input: string(a.in), SessionID: at.session, ParentID: store.ID(o.Parent), Depth: depth,
+		TriggerID: store.ID(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: at.folder,
+		StartNote: o.Note, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now()), FollowsID: store.ID(o.Follows)})
+	if err != nil {
+		return err
+	}
+	if t.ID != 0 {
+		if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: a.p.ID, Valid: true}, ID: t.ID}); err != nil {
+			return err
+		}
+	}
+	// A cron slot moves with its run, so a crash between them cannot start it twice.
+	if t.Kind == trigger.KindCron && !o.Confirmed {
+		next, err := trigger.Next(t.Spec, r.now())
+		if err != nil {
+			return err
+		}
+		if err := q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: sql.NullString{String: next, Valid: true}, ID: t.ID}); err != nil {
+			return err
+		}
+	}
+	return bindInput(ctx, q, cmd, projectID, a.p.ID, a.input)
+}
+
+// launch hands the process admitted to its turn, after a joined agent hears its remark and the files of the call
+// are given; a process already going is returned as it is.
+func (r *Runner) launch(ctx context.Context, projectID int64, m *manifest.Manifest, cmd *manifest.Command, at placed, a *admitted, o Origin) (int64, error) {
+	if a.refused != nil {
+		return 0, a.refused
+	}
+	if a.remark != 0 {
+		r.join(ctx, a.p.ID, a.remark, a.joined, cmd, a.input)
+	}
+	if a.reused {
+		return a.p.ID, nil
 	}
 	if len(o.Files) > 0 {
-		line, err := r.Give(ctx, p.ID, o.Files)
+		line, err := r.Give(ctx, a.p.ID, o.Files)
 		if err == nil {
 			o.Message = strings.TrimSpace(o.Message + "\n\n" + line)
 			err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-				return q.SetStartNote(ctx, db.SetStartNoteParams{StartNote: strings.TrimSpace(o.Note + "\n\n" + line), ID: p.ID})
+				return q.SetStartNote(ctx, db.SetStartNoteParams{StartNote: strings.TrimSpace(o.Note + "\n\n" + line), ID: a.p.ID})
 			})
 		}
 		if err != nil {
-			r.finish(ctx, p.ID, StateError, "", false, fault.Wrap("give files", err))
-			return p.ID, err
+			r.finish(ctx, a.p.ID, StateError, "", false, fault.Wrap("give files", err))
+			return a.p.ID, err
 		}
 	}
-	resume := o.Resume && kind == KindAgent && o.Session != ""
-	r.spawn(turn{process: p.ID, project: projectID, m: m, cmd: cmd, input: string(in), session: session, resume: resume, message: o.Message})
-	return p.ID, nil
+	resume := o.Resume && at.kind == KindAgent && o.Session != ""
+	r.spawn(turn{process: a.p.ID, project: projectID, m: m, cmd: cmd, input: string(a.in), session: at.session, resume: resume, message: o.Message})
+	return a.p.ID, nil
 }
 
 // ancestor reports whether process id is of or one of the processes that started it, so a helper's call does not

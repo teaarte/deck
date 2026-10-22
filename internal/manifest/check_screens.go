@@ -218,18 +218,13 @@ func (c *screenCheck) block(where string, b Block) {
 			c.format(fmt.Sprintf("%s column %q", where, col.Label), col.Format, col.Currency)
 			c.tone(fmt.Sprintf("%s column %q", where, col.Label), col.Tone, fields)
 			if col.Details != "" {
-				if b.Type != "table" {
-					c.fail("%s column %q: details is a property of a table column", where, col.Label)
-				} else if _, err := compileField(col.Details, fields); err != nil {
+				if _, err := compileField(col.Details, fields); err != nil {
 					c.fail("%s column %q details: %v", where, col.Label, err)
 				}
 			}
 			if col.Pick != "" {
 				i := slices.IndexFunc(b.Actions, func(a Action) bool { return a.Verb == col.Pick || a.Label == col.Pick })
-				switch {
-				case b.Type != "table":
-					c.fail("%s column %q: pick is a property of a table column", where, col.Label)
-				case i < 0 || b.Actions[i].Input == "" || b.Actions[i].Options == "":
+				if i < 0 || b.Actions[i].Input == "" || b.Actions[i].Options == "" {
 					c.fail("%s column %q: pick %q needs a button of the row with that verb or label, an input and options", where, col.Label, col.Pick)
 				}
 			}
@@ -268,7 +263,7 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 		}
 	}
-	if b.Cards && (b.Type != "list" || b.Board != "") {
+	if b.Cards && b.Board != "" {
 		c.fail("%s cards: lays out the items of a list that is no board", where)
 	}
 	if b.Board != "" {

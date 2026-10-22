@@ -86,6 +86,11 @@ func (r *Runner) sign(processID int64, e provider.Event) {
 		}
 		delete(w.open, e.ID)
 		done := call + "\x00" + e.Status + "\x00" + e.Text
+		if strings.TrimSpace(e.Text) == "" {
+			// An empty answer, such as that of an edit, tells nothing of what the agent got back.
+			w.last, w.same = "", 0
+			return
+		}
 		if done != w.last {
 			w.last, w.title, w.same = done, strings.SplitN(call, "\x00", 2)[0], 0
 		}
@@ -110,13 +115,13 @@ func (r *Runner) answered(processID int64) {
 func (r *Runner) watchTurns(ctx context.Context, now time.Time) {
 	type watched struct {
 		lt *liveTurn
-		w  watch
+		w  *watch
 	}
 	var all []watched
 	r.mu.Lock()
 	for _, lt := range r.live {
 		if lt.watch != nil {
-			all = append(all, watched{lt, *lt.watch})
+			all = append(all, watched{lt, lt.watch})
 		}
 	}
 	r.mu.Unlock()
@@ -126,17 +131,25 @@ func (r *Runner) watchTurns(ctx context.Context, now time.Time) {
 		if slices.Contains(x.w.pv.Caps(), provider.NoCloud) {
 			quiet = quietLocal
 		}
+		var l *leaving
 		if status, text := r.deps.Down(ctx, x.w.workspace, name); status != "" {
 			t := fault.ModelUnavailable
 			if status == health.Paused {
 				t = fault.ModelLimit
 			}
-			x.lt.cancel(&leaving{f: fault.With(t, fmt.Sprintf("%s went %s during the turn: %s", name, status, untrusted.Line(text, 200)), text), down: status})
-			continue
+			l = &leaving{f: fault.With(t, fmt.Sprintf("%s went %s during the turn: %s", name, status, untrusted.Line(text, 200)), text), down: status}
 		}
-		if !x.w.heard && now.Sub(x.w.since) >= quiet {
-			x.lt.cancel(&leaving{f: fault.New(fault.ModelUnavailable, fmt.Sprintf("%s gave no sign for %d minutes", name, int(quiet.Minutes())))})
+		r.mu.Lock()
+		// Only the call still under way is cut: a call that ended meanwhile keeps its outcome.
+		if x.lt.watch == x.w {
+			if l == nil && !x.w.heard && now.Sub(x.w.since) >= quiet {
+				l = &leaving{f: fault.New(fault.ModelUnavailable, fmt.Sprintf("%s gave no sign for %d minutes", name, int(quiet.Minutes())))}
+			}
+			if l != nil {
+				x.lt.cancel(l)
+			}
 		}
+		r.mu.Unlock()
 	}
 }
 
@@ -168,7 +181,7 @@ func (r *Runner) leaveModel(ctx context.Context, t *turn, l *leaving) {
 	}
 	if l.down != "" {
 		held := *t
-		held.resume, held.message, held.asks = true, "deck: your model was held up and is back. Continue where you stopped.", told{}
+		held.resume, held.message = true, "deck: your model was held up and is back. Continue where you stopped."
 		r.warn(ctx, t.process, fmt.Sprintf("Process #%d of %s waits for %s: %s", t.process, t.cmd.Name, pv.Name(), l.f.Text))
 		r.hold(ctx, held, StateWaitingProvider)
 		return

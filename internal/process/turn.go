@@ -243,6 +243,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		a.listen(false)
 		r.setGroup(bg, processID, 0)
 		if l := leftModel(ctx); l != nil {
+			t.asks = asks
 			r.leaveModel(bg, t, l)
 			return
 		}

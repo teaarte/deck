@@ -149,15 +149,15 @@ func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
 		h.Status != health.NeedsLogin
 }
 
-// why is one line of why the work goes to using and not to the first of models: the health of the first one before
-// it that is down; empty when the first does the work.
+// why is one line of why the work does not go to the first of models: the health of the first one down up to using;
+// empty when the first does the work.
 func (s *Service) why(ctx context.Context, workspace int64, models []string, using string) string {
 	for _, name := range models {
-		if name == using {
-			return ""
-		}
 		if h, err := s.healthOf(ctx, workspace, name); err == nil && !s.Up(ctx, workspace, name) {
 			return name + ": " + untrusted.Flat(cmp.Or(h.Error, h.Status), 200)
+		}
+		if name == using {
+			return ""
 		}
 	}
 	return ""

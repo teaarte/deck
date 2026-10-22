@@ -79,7 +79,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   a document and Settings of the project in tabs Project (its commands with their schedule and a picker of their model, the models
   of its scripts, its model calls), Access (folders, secrets, tools, tokens), Health, Files) deck adds
   to every project
-- `internal/manifest` — project manifest (format 12: `upgrade.go` raises older ones): `types.go`, `parse.go`,
+- `internal/manifest` — project manifest (format 13: `upgrade.go` raises older ones): `types.go`, `parse.go`,
   `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`

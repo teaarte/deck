@@ -105,6 +105,22 @@ func ModelStatus(status int) int {
 	return status
 }
 
+// limitWords are words of an answer that names a limit per time rather than the size of what a model takes.
+var limitWords = []string{"rate limit", "rate_limit", "per minute", "tokens per minute", "tpm"}
+
+// ModelAnswer is the status of what a model API answered as deck reads it: a 413 whose words name a limit per
+// minute is 429, a request past a rate and not past the model.
+func ModelAnswer(status int, body []byte) int {
+	if status != http.StatusRequestEntityTooLarge {
+		return status
+	}
+	text := strings.ToLower(string(body))
+	if slices.ContainsFunc(limitWords, func(w string) bool { return strings.Contains(text, w) }) {
+		return http.StatusTooManyRequests
+	}
+	return status
+}
+
 // OfStatus is the type of a failure of a call by the status deck answered it with; only a call of a model meets a
 // model's limit, refused key or fault, any other one the network's; a 500 is deck's own.
 func OfStatus(status int, model bool) string {
@@ -119,7 +135,8 @@ func OfStatus(status int, model bool) string {
 		return ModelLogin
 	case status == http.StatusForbidden:
 		return RightsDenied
-	case status == http.StatusBadRequest || status == http.StatusUnprocessableEntity || status == http.StatusNotFound:
+	case status == http.StatusBadRequest || status == http.StatusUnprocessableEntity || status == http.StatusNotFound ||
+		status == http.StatusRequestEntityTooLarge:
 		return InputInvalid
 	}
 	return DeckInternal

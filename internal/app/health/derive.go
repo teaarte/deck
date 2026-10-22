@@ -60,18 +60,11 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 	if text := s.NoSearch(ctx, ws); text != "" {
 		want[health.Search] = derived{health.Of{Workspace: ws}, health.Warning, text}
 	}
-	// commands are the commands of each project whose rows are derived: those of agents and models; unread are the
-	// projects whose manifest does not read, whose commands deck does not know.
-	commands, unread := map[string]bool{}, map[string]bool{}
 	for _, p := range ps {
 		m, err := docs.Manifest(ctx, s.St.Q, p)
 		if err != nil {
 			want[health.Manifest(p.Name)] = derived{health.Project(p), health.Error, "manifest: " + err.Error()}
-			unread[p.Name] = true
 			continue
-		}
-		for _, c := range m.Commands {
-			commands[health.Command(p.Name, c.Name)] = c.Executor.Type != "script"
 		}
 		for name, text := range s.Unassigned(ctx, ws, p.ID, m) {
 			status := health.Warning
@@ -95,14 +88,27 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 		return err
 	}
 	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		// The commands of scripts are read again here, as the rows of those are of their programs and a save may have
+		// made one a script since the reads above.
+		scripts := map[string]bool{}
+		for _, p := range ps {
+			if m, err := docs.Manifest(ctx, q, p); err == nil {
+				for _, c := range m.Commands {
+					scripts[health.Command(p.Name, c.Name)] = c.Executor.Type == "script"
+				}
+			}
+		}
 		for subject, d := range want {
+			if scripts[subject] {
+				continue
+			}
 			if _, err := health.Set(ctx, q, d.of, subject, d.status, d.text); err != nil {
 				return err
 			}
 		}
 		for _, r := range rows {
 			h := r.Health
-			if _, ok := want[h.Subject]; ok || h.WorkspaceID.Int64 != ws || !ownDerived(h, commands, unread[r.Project]) {
+			if _, ok := want[h.Subject]; ok || h.WorkspaceID.Int64 != ws || !ownDerived(h, scripts) {
 				continue
 			}
 			if err := health.Clear(ctx, q, health.Of{Workspace: ws}, h.Subject); err != nil {
@@ -113,16 +119,15 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 	})
 }
 
-// ownDerived reports whether Derive writes a row: of a manifest, a secret, search, or of a command of an agent or a
-// model or of none in a manifest that reads, as the rows of script commands are of their programs.
-func ownDerived(h db.Health, commands map[string]bool, unread bool) bool {
+// ownDerived reports whether Derive writes a row: of a manifest, a secret, search, or of a command that is not of a
+// script, whose row is of its programs; a manifest that does not read takes the rows of its commands along.
+func ownDerived(h db.Health, scripts map[string]bool) bool {
 	kind, _, _ := strings.Cut(h.Subject, ":")
 	switch kind {
 	case "project", "secret", health.Search:
 		return true
 	case "command":
-		derived, ok := commands[h.Subject]
-		return derived || !ok && !unread
+		return !scripts[h.Subject]
 	}
 	return false
 }

@@ -65,6 +65,9 @@ func (pj *Service) seedMaster(ctx context.Context, workspace int64, m *manifest.
 				"a project of the owner is named master, so the built-in master is missing: export that project, delete it and import it under another name")
 			return err
 		}
+		if err := health.Clear(ctx, q, health.Of{Workspace: workspace}, health.Master); err != nil {
+			return err
+		}
 		changed := false
 		for path, text := range files {
 			ref := docs.Ref{Scope: docs.ProjectScope(p), Name: path}

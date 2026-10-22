@@ -129,8 +129,8 @@ func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		for _, h := range []db.SetHealthParams{{WorkspaceID: store.ID(1), ProjectID: store.ID(mine), Subject: "command:x.run", Status: "error"},
-			{WorkspaceID: store.ID(2), ProjectID: store.ID(theirs.ID), Subject: "command:x.run", Status: "error"}} {
+		for _, h := range []db.SetHealthParams{{WorkspaceID: store.ID(1), ProjectID: store.ID(mine), Subject: "tool:x.get", Status: "error"},
+			{WorkspaceID: store.ID(2), ProjectID: store.ID(theirs.ID), Subject: "tool:x.get", Status: "error"}} {
 			if _, err := q.SetHealth(ctx, h); err != nil {
 				return err
 			}
@@ -142,7 +142,7 @@ func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 	}
 	e.must("deck.project_delete", map[string]any{"project": "x"}, nil)
 	var n int
-	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM health WHERE subject = 'command:x.run' AND workspace_id = 2`).Scan(&n)
+	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM health WHERE subject = 'tool:x.get' AND workspace_id = 2`).Scan(&n)
 	if n != 1 {
 		t.Fatalf("the namesake in the other workspace keeps its health: %d", n)
 	}

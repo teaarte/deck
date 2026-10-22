@@ -91,3 +91,48 @@ func TestMarkReadOfACheckOfTheMachine(t *testing.T) {
 		t.Fatal("the check of the machine is read")
 	}
 }
+
+// TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands: once deck cannot read a manifest, the rows of its commands
+// go and the one of the manifest tells why.
+func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	pid := e.createProject("shorts", modelManifest)
+	if h := e.health("command:shorts.factcheck"); h == nil {
+		t.Fatal("a model command no model takes is a row of health")
+	}
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 12, "nonsense": true}'
+		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	if h := e.health("command:shorts.factcheck"); h != nil || e.health("project:shorts") == nil {
+		t.Fatalf("the manifest that does not read is the row, not its commands: %v", h)
+	}
+}
+
+// TestTheBuiltInMasterOnceFreeIsWell: a project of the owner named master keeps the built-in one out and is red in
+// health; once it is named otherwise, deck seeds the master and the row goes.
+func TestTheBuiltInMasterOnceFreeIsWell(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	if _, err := e.App.Store.DB.Exec(`UPDATE project SET builtin = 0 WHERE name = 'master'`); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	if h := e.health("master"); h == nil || h["status"] != "error" {
+		t.Fatalf("a project of the owner named master is red in health: %v", h)
+	}
+	if _, err := e.App.Store.DB.Exec(`UPDATE project SET name = 'mine' WHERE name = 'master'`); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	if h := e.health("master"); h != nil {
+		t.Fatalf("once the name is free the row goes: %v", h)
+	}
+}

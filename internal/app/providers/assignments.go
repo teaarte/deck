@@ -258,13 +258,15 @@ func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *m
 	for _, c := range m.Commands {
 		if c.Executor.Type == "agent" {
 			var refused *registry.Error
-			if _, _, _, err := s.fitting(ctx, project, &c); errors.As(err, &refused) {
+			_, fits, _, err := s.fitting(ctx, project, &c)
+			if errors.As(err, &refused) {
 				out[c.Name] = refused.Text
-			} else if !m.NoNetwork && slices.Contains(c.Requires, provider.Web) {
+			} else if err == nil && !m.NoNetwork && slices.Contains(c.Requires, provider.Web) {
+				// The first model that fits, as health tells of the assignment and not of who is up now.
 				search, _ := Assigned(ctx, s.St.Q, workspace, project, c.Name, RoleSearch)
-				pv, err := s.For(ctx, project, &c)
+				pv := fits[0]
 				switch {
-				case err != nil || !s.inAgent(ctx, workspace, pv.Name()):
+				case !s.inAgent(ctx, workspace, pv.Name()):
 				case c.Executor.Calls != nil && !registry.Permits(c.Executor.Calls, registry.Builtin+".web_search") &&
 					!registry.Permits(c.Executor.Calls, registry.Builtin+".web_fetch"):
 					out[c.Name] = "it needs the web and runs on " + pv.Name() + ", whose web is deck's, but its calls list neither deck.web_search nor deck.web_fetch"

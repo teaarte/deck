@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -100,28 +99,17 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, fmt.Errorf("start %s: %w", a.Binary, err)
 	}
 	defer child.Close()
-	exited := make(chan error, 1)
 	c := newConn(in, out)
 	t := &turn{a: a, req: req, c: c, thread: thread}
 	res, runErr := t.run(ctx, skills)
 	c.closeInput()
+	read := make(chan struct{})
 	go func() {
 		for range c.incoming {
 		}
+		close(read)
 	}()
-	go func() { exited <- cmd.Wait() }()
-	var waitErr error
-	select {
-	case waitErr = <-exited:
-	case <-time.After(a.Linger):
-		child.Signal(syscall.SIGTERM)
-		select {
-		case waitErr = <-exited:
-		case <-time.After(5 * time.Second):
-			child.Signal(syscall.SIGKILL)
-			waitErr = <-exited
-		}
-	}
+	waitErr := child.End(read, a.Linger)
 	if err := ctx.Err(); err != nil {
 		return res, err
 	}

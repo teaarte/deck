@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
@@ -48,6 +49,22 @@ func (c *Child) Signal(sig syscall.Signal) { _ = sandbox.Kill(c.Cmd, sig) }
 func (c *Child) Stderr() string {
 	b, _ := os.ReadFile(c.stderr.Name())
 	return untrusted.Tail(strings.TrimSpace(string(b)), 2000)
+}
+
+// End waits for the program once its protocol is over: until read, the end of its output, then up to linger a TERM,
+// 5 seconds and a KILL; the error is that of its exit.
+func (c *Child) End(read <-chan struct{}, linger time.Duration) error {
+	select {
+	case <-read:
+	case <-time.After(linger):
+		c.Signal(syscall.SIGTERM)
+		select {
+		case <-read:
+		case <-time.After(5 * time.Second):
+			c.Signal(syscall.SIGKILL)
+		}
+	}
+	return c.Cmd.Wait()
 }
 
 // Close kills what is left of the group and removes the stderr file.

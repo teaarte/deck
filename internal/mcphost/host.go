@@ -19,6 +19,7 @@ import (
 
 	"deck2/internal/home"
 	"deck2/internal/sandbox"
+	"deck2/internal/untrusted"
 )
 
 // Spec is how to reach a server: a program on stdio, or a URL.
@@ -76,7 +77,7 @@ type server struct {
 	sess    *mcp.ClientSession
 	cmd     *exec.Cmd
 	door    *sandbox.Door
-	stderr  *tail
+	stderr  *untrusted.TailWriter
 	secrets []string
 	started time.Time
 	// crashes counts exits soon after a start; paused holds starts back after too many.

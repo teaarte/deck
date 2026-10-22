@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -29,6 +30,33 @@ func Tail(s string, n int) string {
 		i++
 	}
 	return "…" + s[i:]
+}
+
+// TailWriter keeps the end of what is written to it, such as the stderr of a program, where its error is.
+type TailWriter struct {
+	mu  sync.Mutex
+	n   int
+	buf []byte
+}
+
+// NewTail keeps the last n bytes.
+func NewTail(n int) *TailWriter { return &TailWriter{n: n} }
+
+func (t *TailWriter) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.buf = append(t.buf, p...)
+	if over := len(t.buf) - t.n - utf8.UTFMax; over > 0 {
+		t.buf = t.buf[over:]
+	}
+	return len(p), nil
+}
+
+// String is the end kept, cut at a whole character.
+func (t *TailWriter) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return Tail(string(t.buf), t.n)
 }
 
 // Flat is s on one line of at most n bytes, unquoted.

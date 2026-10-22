@@ -17,7 +17,6 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	sdk "github.com/coder/acp-go-sdk"
@@ -185,16 +184,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	res, runErr := t.run(ctx)
 	_ = in.Close()
 	// Wait closes stdout, so it runs only once the connection has read all of it.
-	select {
-	case <-conn.Done():
-	case <-time.After(a.Linger):
-		child.Signal(syscall.SIGKILL)
-		select {
-		case <-conn.Done():
-		case <-time.After(5 * time.Second):
-		}
-	}
-	waitErr := cmd.Wait()
+	waitErr := child.End(conn.Done(), a.Linger)
 	if err := ctx.Err(); err != nil {
 		return res, err
 	}

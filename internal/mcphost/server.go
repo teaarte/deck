@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -73,7 +72,7 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 		if err != nil {
 			return fmt.Errorf("MCP server %s did not start: %v", key, err)
 		}
-		s.stderr, s.secrets = &tail{}, spec.Secrets
+		s.stderr, s.secrets = untrusted.NewTail(2048), spec.Secrets
 		cmd.Stderr = s.stderr
 		s.cmd = cmd
 		transport = &mcp.CommandTransport{Command: cmd, TerminateDuration: 2 * time.Second}
@@ -166,26 +165,4 @@ func (s *server) close() {
 		s.door.Close()
 	}
 	s.door = nil
-}
-
-// tail keeps the last 2 KB a server wrote to stderr.
-type tail struct {
-	mu  sync.Mutex
-	buf []byte
-}
-
-func (t *tail) Write(p []byte) (int, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.buf = append(t.buf, p...)
-	if len(t.buf) > 2048 {
-		t.buf = t.buf[len(t.buf)-2048:]
-	}
-	return len(p), nil
-}
-
-func (t *tail) String() string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return string(t.buf)
 }

@@ -26,24 +26,9 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `cmd/deck` — entry point
 - `internal/store` — SQLite: a committed write publishes the topic of its table in the project of the row
   (`changes.go`, the SQLite pre-update hook; the scope of a table is a closed set, a table no screen reads is in
-  `silent`, and a table in neither keeps deck from starting; an update that changes no value publishes nothing); the base schema `migrations/00001_base.sql` and goose migrations after it
-  (`00002_granted`, `00003_llm_call`, `00004_ask_workspace`: a table rebuilt with foreign keys off is a NO TRANSACTION
-  migration; `00005_marks` — `project.imported_from` and the notes for the master as feed rows, `00006_feed_read` —
-  warnings as notes of the feed, `00007_sandbox_health`, `00008_alone` — a trial of one command, `00009_models` — connections, models and
-  assignments from the providers of settings, `00010_spend` — the connection of a model call,
-  `00011_whisper` — the whisper.cpp of the machine as the model of speech to text, `00012_no_project_limit`,
-  `00013_google_openai` — a Google connection on its OpenAI-compatible address, `00014_pause` — a pause without an end
-  of its own, `00015_no_opencode`, `00016_orphan_health`, `00017_no_run_later`, `00018_no_suggest`,
-  `00019_no_board` — cards, lane triggers and the card column of documents and topics go, `00020_no_limit` — no daily
-  limit of a connection, `00021_draft_triggers` — why a schedule of a draft did not start goes once it is enabled, `00022_health_seen` — a
-  failing check the owner read stops counting until it changes, `00023_unit` — what a price of a model counts, `00024_outbox` —
-  what deck does after a commit: SQL triggers on a deleted file and a closed process write it, the files service and
-  the runner drain it after the commit, on every tick and at start, `00025_document_lookup`, `00026_record_mark` — a
-  count of the writes of the records of a project, by SQL triggers, `00027_workspace_health` — the health of a model of
-  a connection (`model:`) and of pushes is of its workspace, `00033_reopened` — when a process was last sent back to
-  work, the base of its duration and of its week in the cockpit, `00034_folder_outbox` — the folder of a deleted record
-  and, by an SQL trigger, of a deleted project go through the outbox, `00035_chat_file_ids` — the files of a
-  chat message are stored file ids, `00036_retention_subject` — the health of retention is `retention:<project>`, `00037_file_process` — the process that made a file, `00038_no_dsh`, `00039_topic_model` — the model a chat topic answers on, `00040_fault` — the type and details of a failure of a process, the failed process one follows, the same unread note of deck counted), `00041_again` — the input of one more run of a script, tool or model command a call for its record left while it ran, deck's messages to a process, the stops deck makes `deck.stopped`, `00042_cli` — the connections claude-code and codex of the CLIs on the subscription, which deck keeps itself, sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  `silent`, and a table in neither keeps deck from starting; an update that changes no value publishes nothing); the base schema `migrations/00042_base.sql` (the schema of migrations 1–42; a base older than 42 does not
+  start) and goose migrations after it — SQL files and Go migrations (`raise.go`: stored manifests in the current
+  format); sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
   refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
   writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;

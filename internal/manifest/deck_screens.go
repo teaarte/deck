@@ -2,7 +2,6 @@ package manifest
 
 import (
 	"bytes"
-	"deck2/internal/registry"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"slices"
 	"sync/atomic"
 
+	"deck2/internal/registry"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 

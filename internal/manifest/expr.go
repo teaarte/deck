@@ -1,11 +1,8 @@
 package manifest
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"slices"
 	"strings"
 
@@ -16,7 +13,6 @@ import (
 	"github.com/expr-lang/expr/parser"
 	"github.com/expr-lang/expr/vm"
 	"github.com/expr-lang/expr/vm/runtime"
-	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 // compileExpr compiles an expression; with fields set, names outside them are errors.
@@ -190,175 +186,4 @@ func Eval(src string, env map[string]any) (any, error) {
 		return nil, fmt.Errorf("%s: %s", src, fe.Message)
 	}
 	return out, err
-}
-
-func compileSchema(name string, raw json.RawMessage) (*jsonschema.Schema, error) {
-	if len(raw) == 0 {
-		return nil, errors.New("schema is required")
-	}
-	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
-	if err != nil {
-		return nil, err
-	}
-	c := jsonschema.NewCompiler()
-	url := "mem://" + name + ".json"
-	if err := c.AddResource(url, doc); err != nil {
-		return nil, err
-	}
-	return c.Compile(url)
-}
-
-// schemaFields lists top-level properties of an object schema; nil when it declares none.
-func schemaFields(raw json.RawMessage) []string {
-	var s struct {
-		Properties map[string]json.RawMessage `json:"properties"`
-	}
-	if json.Unmarshal(raw, &s) != nil || len(s.Properties) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(s.Properties))
-	for k := range s.Properties {
-		out = append(out, k)
-	}
-	return out
-}
-
-// Lanes are the values of an enum field of a schema in order, none when the field is not an enum.
-func Lanes(raw json.RawMessage, field string) []string {
-	var s struct {
-		Properties map[string]struct {
-			Enum []any `json:"enum"`
-		} `json:"properties"`
-	}
-	if json.Unmarshal(raw, &s) != nil {
-		return nil
-	}
-	var out []string
-	for _, v := range s.Properties[field].Enum {
-		out = append(out, fmt.Sprint(v))
-	}
-	return out
-}
-
-// Enum are the values of an enum field of a schema, or of the items of a list field, in order.
-func Enum(raw json.RawMessage, field string) []string {
-	if out := Lanes(raw, field); len(out) > 0 {
-		return out
-	}
-	var s struct {
-		Properties map[string]struct {
-			Items struct {
-				Enum []any `json:"enum"`
-			} `json:"items"`
-		} `json:"properties"`
-	}
-	if json.Unmarshal(raw, &s) != nil {
-		return nil
-	}
-	var out []string
-	for _, v := range s.Properties[field].Items.Enum {
-		out = append(out, fmt.Sprint(v))
-	}
-	return out
-}
-
-// DecodeObject parses one JSON object, keeping integers exact as int64.
-func DecodeObject(b []byte) (map[string]any, error) {
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.UseNumber()
-	var m map[string]any
-	if err := dec.Decode(&m); err != nil {
-		return nil, err
-	}
-	if m == nil {
-		return nil, errors.New("not a JSON object")
-	}
-	if dec.More() {
-		return nil, errors.New("extra data after the JSON object")
-	}
-	out, err := exactNumbers(m)
-	if err != nil {
-		return nil, err
-	}
-	return out.(map[string]any), nil
-}
-
-// exactNumbers turns integers into int64 and refuses integer literals that do not fit instead of rounding them.
-func exactNumbers(v any) (any, error) {
-	switch x := v.(type) {
-	case json.Number:
-		if i, err := x.Int64(); err == nil {
-			return i, nil
-		}
-		if r, ok := new(big.Rat).SetString(x.String()); ok && r.IsInt() && r.Num().IsInt64() {
-			return r.Num().Int64(), nil
-		}
-		if r, ok := new(big.Rat).SetString(x.String()); ok && r.IsInt() {
-			return nil, fmt.Errorf("whole number %s does not fit in 64 bits", x)
-		}
-		f, _ := x.Float64()
-		return f, nil
-	case map[string]any:
-		for k, e := range x {
-			n, err := exactNumbers(e)
-			if err != nil {
-				return nil, err
-			}
-			x[k] = n
-		}
-	case []any:
-		for i, e := range x {
-			n, err := exactNumbers(e)
-			if err != nil {
-				return nil, err
-			}
-			x[i] = n
-		}
-	}
-	return v, nil
-}
-
-// normalize round-trips a value through JSON so numbers and maps have the types the validator expects.
-func normalize(v any) any {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return v
-	}
-	out, err := jsonschema.UnmarshalJSON(bytes.NewReader(b))
-	if err != nil {
-		return v
-	}
-	return out
-}
-
-// DecodeValue parses one JSON value, keeping numbers as they were written.
-func DecodeValue(b []byte) (any, error) {
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.UseNumber()
-	var v any
-	if err := dec.Decode(&v); err != nil {
-		return nil, err
-	}
-	if dec.More() {
-		return nil, errors.New("extra data after the JSON value")
-	}
-	return v, nil
-}
-
-// DecodeExact parses one JSON value with integers as int64, like a record.
-func DecodeExact(b []byte) (any, error) {
-	v, err := DecodeValue(b)
-	if err != nil {
-		return nil, err
-	}
-	return exactNumbers(v)
-}
-
-// CheckValue validates a value against a JSON Schema.
-func CheckValue(schema json.RawMessage, v any) error {
-	s, err := compileSchema("value", schema)
-	if err != nil {
-		return err
-	}
-	return s.Validate(normalize(v))
 }

@@ -12,9 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/santhosh-tekuri/jsonschema/v6"
-
 	"deck2/schemas"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 // Who may call a command: any caller, which is what a project command declares by default; the owner, the

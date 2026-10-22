@@ -1,8 +1,9 @@
 package manifest
 
 import (
-	"deck2/internal/registry"
 	"encoding/json"
+
+	"deck2/internal/registry"
 )
 
 // EventCommand is the command a trigger of the manifest runs on an event, or empty.

@@ -253,3 +253,24 @@ func TestAChangeOfAnotherWorkspaceStaysThere(t *testing.T) {
 		}
 	}
 }
+
+// TestSavingTheSameManifestTellsNoOne: a save that leaves the manifest as it was publishes nothing, so no screen and
+// no session of an agent reads its project again.
+func TestSavingTheSameManifestTellsNoOne(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("work", plainManifest)
+	var m struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "work"}, &m)
+	live := e.live(t.Context())
+	e.must("deck.manifest_save", map[string]any{"project": "work", "manifest": m.Manifest}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	for ev := range live {
+		switch ev.Topic {
+		case "settings":
+			return
+		case "projects", "documents":
+			t.Fatalf("a save that changes nothing tells: %+v", ev)
+		}
+	}
+}

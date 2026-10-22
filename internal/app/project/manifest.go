@@ -263,6 +263,7 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 		return Saved{}, err
 	}
 	var saved Saved
+	changed := false
 	var outdated []db.Ask
 	err = sv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := checkKeys(ctx, q, p.WorkspaceID, pm.m); err != nil {
@@ -298,7 +299,6 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 			return err
 		}
 		var n int64
-		var changed bool
 		if _, n, changed, err = docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), reason); err != nil {
 			return err
 		}
@@ -330,8 +330,10 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 	for _, a := range outdated {
 		sv.Gateway.Record(ctx, a, "expired", "the manifest changed after this request")
 	}
-	sv.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
-	sv.PrepareLater(p.ID)
+	if changed {
+		sv.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
+		sv.PrepareLater(p.ID)
+	}
 	saved.Screens = sv.CheckScreens(ctx, act, p, pm.m)
 	saved.Unused = pm.m.UnusedWords()
 	saved.Warnings = sv.unassigned(ctx, p, pm.m)

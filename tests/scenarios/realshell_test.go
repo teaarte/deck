@@ -100,7 +100,6 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the notification in the list of the bell", `document.querySelector('[data-bell-list] [data-note]')?.innerText.includes('alpha scored high')`)
 	b.until("an Open button on a note with a screen", `document.querySelector('[data-bell-list] [data-note] [data-note-open]')`)
 	b.shot("shell-bell")
-	b.until("the bell has nothing new once seen", `!document.querySelector('[data-bell-count]')`)
 	b.until("a button of a notification with its icon", `document.querySelector('[data-bell-list] [data-note] [data-icon="hand-finger"]')`)
 	b.eval(`([...document.querySelectorAll('[data-bell-list] button')].find((x) => x.innerText.includes('Touch it')).click(), '')`)
 	b.until("the button asks first, as a button of a screen does", `document.querySelector('[data-confirm-yes]')`)
@@ -119,6 +118,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("a note to mark read", `document.querySelector('[data-bell-list] [data-note-read]')`)
 	b.eval(`(document.querySelector('[data-bell-list] [data-note-read]').click(), '')`)
 	b.until("the note marked read", `document.querySelector('[data-bell-list] [data-note][data-read]') && !document.querySelector('[data-bell-list] [data-note-read]')`)
+	b.until("the bell counts nothing once the note is read", `!document.querySelector('[data-bell-count]')`)
 	if b.eval(`String(!!document.querySelector('[data-bell-list]'))`) == "true" {
 		b.eval(`(document.querySelector('[data-bell]').click(), '')`)
 	}

@@ -42,9 +42,8 @@ type menuLink struct {
 	manifest.ScreenLink
 }
 
-// menuOut is the navigation of the client: the pulse of the workspace, deck's screens, the projects of the side
-// list but those paused, the master, the groups at the foot, the language of the interface the workspace picked, and
-// the event topics after which it is read again.
+// menuOut is the navigation of the client: the pulse, deck's screens, the projects of the side list but those paused,
+// the master, the foot, the language the workspace picked, and the topics after which it is read again.
 type menuOut struct {
 	Pulse    pulse       `json:"pulse"`
 	Language string      `json:"language"`

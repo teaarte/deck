@@ -10,14 +10,16 @@ export interface ProcessState {
   error?: string;
 }
 
-// useProcessWatch follows a started process until it ends, read live; it stops early once the form is gone.
+// useProcessWatch follows a started process until it ends, read live; it stops within 10 s once the form is gone.
 export function useProcessWatch(alive: RefObject<boolean>) {
   return (process: number, onState: (p: ProcessState) => void) => new Promise<void>((finished, failed) => {
     let over = false;
     let stop = () => undefined as void;
+    const gone = setInterval(() => { if (!alive.current) end(); }, 10000);
     const end = (e?: unknown) => {
       if (over) return;
       over = true;
+      clearInterval(gone);
       stop();
       if (e) failed(e); else finished();
     };

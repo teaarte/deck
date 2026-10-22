@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActionIcon, Button, Group, Indicator, Popover, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Button, Group, Indicator, Loader, Popover, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconArrowUpRight, IconBell, IconBellOff } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useMenuData } from '../hooks/useMenu';
@@ -29,7 +29,7 @@ export function Bell() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const fresh = useMenuData().pulse.notes ?? 0;
-  const notes = useLiveRead<Note[]>('deck.feed_list', { kind: 'note', limit: 30 }, ['feed'], [], !open);
+  const notes = useLiveRead<Note[] | undefined>('deck.feed_list', { kind: 'note', limit: 30 }, ['feed'], undefined, !open);
   useEffect(() => titleCount(fresh), [fresh]);
   const openNote = (n: Note) => { setOpen(false); if (n.open) void act(n.open); };
   const markRead = (n: Note) => { if (n.mark_read) act(n.mark_read).catch(() => undefined); };
@@ -45,7 +45,9 @@ export function Bell() {
       </Popover.Target>
       <Popover.Dropdown p={0} data-bell-list>
         <Text fw={700} px="md" pt="sm" pb={6}>{t('bell.title')}</Text>
-        {!notes.length ? (
+        {!notes ? (
+          <Group px="md" pb="md"><Loader size="xs" /></Group>
+        ) : !notes.length ? (
           <Group gap={8} c="dimmed" px="md" pb="md"><IconBellOff size={16} /><Text size="sm" c="dimmed">{t('bell.empty')}</Text></Group>
         ) : (
           <ScrollArea.Autosize mah={420} type="hover">

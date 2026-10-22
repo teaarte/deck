@@ -3,9 +3,9 @@ import { createStore, useStore } from './store';
 type Node = [string, Record<string, string>];
 export type Nodes = Record<string, Node[]>;
 
-// The whole outline set of Tabler Icons loads once, when the backdrop draws or a manifest names an icon;
-// the package exports only its SVG files, so the set is read by its path.
-const nodes = createStore<Nodes | null | undefined>(undefined); // null while the last load failed
+// The outline set of Tabler Icons loads once, when the backdrop draws or a manifest names an icon, by its path.
+// nodes is null while the last load failed.
+const nodes = createStore<Nodes | null | undefined>(undefined);
 let loading: Promise<Nodes> | undefined;
 export function loadIcons(): Promise<Nodes> {
   loading ??= import('../../node_modules/@tabler/icons/tabler-nodes-outline.json').then((m) => {

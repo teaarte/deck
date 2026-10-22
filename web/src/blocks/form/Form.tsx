@@ -2,6 +2,7 @@ import { useContext, useRef, useState } from 'react';
 import { Alert, Button, Group, Loader, Select, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { DialogClose } from '../../screen/dialogContext';
+import { outcome } from '../../screen/act';
 import { call } from '../../lib/api';
 import { sharedSent } from '../../lib/share';
 import { errorText } from '../../lib/notify';
@@ -58,8 +59,7 @@ export function Form({ value }: { value: FormValue }) {
       const hidden = Object.keys(props).filter((k) => props[k].writeOnly);
       if (hidden.length && alive.current) form.forget(hidden);
       if (Object.values(form.files).some((f) => f.length)) await sharedSent();
-      const started = res && typeof res === 'object' && typeof (res as { process?: unknown }).process === 'number'
-        && Object.keys(res).length === 1 ? (res as { process: number }).process : 0;
+      const started = outcome(res).started;
       if (started) watchRun(started);
       if (!started) {
         if (alive.current) setOut({ state: 'done', result: res });

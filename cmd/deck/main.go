@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -23,6 +22,7 @@ import (
 	"deck2/internal/nonce"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
+	"deck2/internal/sandbox"
 	"deck2/internal/tsnet"
 	"deck2/web"
 )
@@ -132,12 +132,8 @@ func run() error {
 // cleanEnv restarts deck with only the variables it needs: on macOS a confined program reads the
 // environment of every process of the owner.
 func cleanEnv() error {
-	env := os.Environ()
-	clean := slices.DeleteFunc(slices.Clone(env), func(kv string) bool {
-		name, _, _ := strings.Cut(kv, "=")
-		return !slices.Contains(keptEnv, name) && !strings.HasPrefix(name, "LC_") && !strings.HasPrefix(name, "XDG_")
-	})
-	if len(clean) == len(env) {
+	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_HOME")
+	if len(clean) == len(os.Environ()) {
 		return nil
 	}
 	exe, err := os.Executable()
@@ -146,8 +142,6 @@ func cleanEnv() error {
 	}
 	return syscall.Exec(exe, os.Args, clean)
 }
-
-var keptEnv = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR", "CODEX_HOME", "DECK_HOME"}
 
 func loadToken(path string) (string, error) {
 	b, err := os.ReadFile(path)

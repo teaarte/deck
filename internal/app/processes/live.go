@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"deck2/internal/process"
@@ -34,7 +33,7 @@ func (s *Service) terminal(ctx context.Context, p db.Process) string {
 	}
 	dir := p.Folder
 	if dir == "" {
-		dir = filepath.Join(filepath.Dir(s.Runner.LogPath(p.ID)), "work")
+		dir = s.Home.RunWork(p.ID)
 	}
 	if _, err := os.Stat(dir); err != nil {
 		return cmd

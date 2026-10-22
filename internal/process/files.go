@@ -94,7 +94,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		return "", err
 	}
 	for i, row := range rows {
-		if err := move(srcs[i], filepath.Join(r.cfg.Home.Files(), fmt.Sprint(row.ID))); err != nil {
+		if err := move(srcs[i], r.cfg.Home.File(row.ID)); err != nil {
 			r.dropFiles(ctx, rows)
 			return "", err
 		}

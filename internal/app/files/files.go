@@ -240,7 +240,7 @@ func (s *Service) OpenFile(ctx context.Context, act registry.Actor, id int64) (V
 	if err := access.Files(act, p.Name, false); err != nil {
 		return View{}, nil, err
 	}
-	file, err := os.Open(filepath.Join(s.Home.Files(), strconv.FormatInt(f.ID, 10)))
+	file, err := os.Open(s.Home.File(f.ID))
 	if err != nil {
 		return View{}, nil, missing
 	}
@@ -440,7 +440,7 @@ func stuckText(r db.Outbox, err error) string {
 func (s *Service) remove(ctx context.Context, r db.Outbox) error {
 	switch r.Kind {
 	case "file":
-		if err := os.Remove(filepath.Join(s.Home.Files(), fmt.Sprint(r.Ref))); !errors.Is(err, os.ErrNotExist) {
+		if err := os.Remove(s.Home.File(r.Ref)); !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	case "project":

@@ -8,6 +8,7 @@ import (
 	"deck2/internal/app/access"
 	"deck2/internal/ask"
 	"deck2/internal/fault"
+	"deck2/internal/home"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -26,6 +27,7 @@ import (
 // Service keeps the commands of processes.
 type Service struct {
 	St     *store.Store
+	Home   home.Layout
 	Runner *process.Runner
 	// Named is the provider a process started on.
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)

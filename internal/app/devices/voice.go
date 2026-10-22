@@ -5,7 +5,6 @@ import (
 	"deck2/internal/app/access"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -39,7 +38,7 @@ func (dv *Service) transcribe(ctx context.Context, act registry.Actor, in transc
 	defer func() {
 		_ = dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, f.ID) })
 	}()
-	info, err := os.Stat(filepath.Join(dv.Home.Files(), strconv.FormatInt(f.ID, 10)))
+	info, err := os.Stat(dv.Home.File(f.ID))
 	if err != nil {
 		return nil, err
 	}

@@ -126,7 +126,7 @@ func (r *Runner) place(f db.File, dir string, copies bool) (string, error) {
 		return c
 	}, f.Name)
 	dst := filepath.Join(dir, fmt.Sprintf("%d-%s", f.ID, name))
-	src := filepath.Join(r.cfg.Home.Files(), strconv.FormatInt(f.ID, 10))
+	src := r.cfg.Home.File(f.ID)
 	if _, err := os.Lstat(dst); err == nil {
 		return dst, nil
 	}

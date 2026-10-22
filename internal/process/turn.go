@@ -128,7 +128,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		r.mu.Unlock()
 	}
 	a := &agentTurn{proj: proj, dir: r.runDir(t.process), data: r.scripts.DataDir(t.project)}
-	work, repo := filepath.Join(a.dir, "work"), false
+	work, repo := r.cfg.Home.RunWork(t.process), false
 	if t.folder != "" {
 		work = t.folder
 		_, err := os.Stat(filepath.Join(work, ".git"))
@@ -137,7 +137,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		fail(fault.Of(err))
 		return nil, false
 	}
-	if err := errors.Join(os.MkdirAll(filepath.Join(a.dir, "results"), 0o700), os.MkdirAll(a.data, 0o700)); err != nil {
+	if err := errors.Join(os.MkdirAll(r.cfg.Home.Results(t.process), 0o700), os.MkdirAll(a.data, 0o700)); err != nil {
 		fail(fault.Of(err))
 		return nil, false
 	}
@@ -152,7 +152,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		return nil, false
 	}
 	a.tools = r.gw.Tools(tok)
-	stream, err := os.OpenFile(filepath.Join(a.dir, "stream"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	stream, err := os.OpenFile(r.cfg.Home.Stream(t.process), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		r.gw.Unregister(tok)
 		fail(fault.Of(err))
@@ -183,7 +183,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	a.req = provider.Request{
 		Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, Data: a.data, Read: read, NoNetwork: noNetwork, Hosts: hosts,
+		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(), Dirs: []string{a.data, r.cfg.Home.Results(processID)}, Data: a.data, Read: read, NoNetwork: noNetwork, Hosts: hosts,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(ctx, proj.WorkspaceID, processID, pv, u) },
@@ -317,7 +317,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			r.park(bg, processID)
 		case verr == nil:
 			r.turnText(bg, processID, res.Text)
-			result, results := res.Text, filepath.Join(a.dir, "results")
+			result, results := res.Text, r.cfg.Home.Results(processID)
 			if len(t.cmd.Result) > 0 {
 				kept, err := r.keepFiles(bg, t.project, processID, results, string(res.Structured))
 				if err != nil {
@@ -433,7 +433,7 @@ func (r *Runner) Tail(processID int64, n int, kinds ...string) ([]json.RawMessag
 
 // LogPath is the file with the log of a process.
 func (r *Runner) LogPath(processID int64) string {
-	return filepath.Join(r.runDir(processID), "stream")
+	return r.cfg.Home.Stream(processID)
 }
 
 // deckData is how every agent of deck reaches deck's data.

@@ -50,7 +50,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		fail(err)
 		return
 	}
-	stream, err := os.OpenFile(filepath.Join(dir, "stream"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	stream, err := os.OpenFile(r.cfg.Home.Stream(id), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		fail(err)
 		return

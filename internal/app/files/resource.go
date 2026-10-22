@@ -64,7 +64,7 @@ func (s *Service) fileRead(ctx context.Context, act registry.Actor, in fileReadI
 		if err != nil || row.ProjectID != p.ID {
 			return resource{}, registry.NotFound("deck: no file %d in %s", id, p.Name)
 		}
-		if f, err = os.Open(filepath.Join(s.Home.Files(), strconv.FormatInt(row.ID, 10))); err != nil {
+		if f, err = os.Open(s.Home.File(row.ID)); err != nil {
 			return resource{}, registry.NotFound("deck: no file %d in %s", id, p.Name)
 		}
 		out.Name, out.Type = row.Name, row.Type

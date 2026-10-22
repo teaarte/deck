@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -64,7 +63,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	if s.URL != "" {
 		return mcphost.Spec{URL: s.URL}, nil
 	}
-	dir := filepath.Join(x.Home.Project(p.ID), "mcp", name)
+	dir := x.Home.MCP(p.ID, name)
 	env := sandbox.Env(dir, dir)
 	var secrets []string
 	for _, k := range slices.Sorted(maps.Keys(s.Env)) {

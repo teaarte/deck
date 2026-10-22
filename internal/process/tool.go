@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"deck2/internal/ask"
@@ -97,7 +96,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call fun
 		fail(err)
 		return
 	}
-	if err := os.MkdirAll(filepath.Join(dir, "results"), 0o700); err != nil {
+	if err := os.MkdirAll(r.cfg.Home.Results(id), 0o700); err != nil {
 		fail(err)
 		return
 	}
@@ -152,7 +151,7 @@ func (r *Runner) toolResult(ctx context.Context, projectID int64, cmd *manifest.
 		r.warn(ctx, id, fmt.Sprintf("The result of tool command %s does not match its schema, so nothing acts on it: %v", cmd.Name, verr))
 		return
 	}
-	kept, err := r.keepFiles(ctx, projectID, id, filepath.Join(dir, "results"), string(res))
+	kept, err := r.keepFiles(ctx, projectID, id, r.cfg.Home.Results(id), string(res))
 	if err != nil {
 		r.finish(ctx, id, StateError, "", false, fault.Of(err))
 		return

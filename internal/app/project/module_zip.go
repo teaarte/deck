@@ -42,7 +42,7 @@ func (pj *Service) readUpload(ctx context.Context, act registry.Actor, ref strin
 	if f.Size > maxFolder {
 		return nil, nil, "", registry.Invalid("deck: %s is larger than 32 MB", f.Name)
 	}
-	file, err := os.Open(filepath.Join(pj.Home.Files(), strconv.FormatInt(f.ID, 10)))
+	file, err := os.Open(pj.Home.File(f.ID))
 	if err != nil {
 		return nil, nil, "", missing
 	}

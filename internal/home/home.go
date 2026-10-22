@@ -28,6 +28,9 @@ func (l Layout) Work() string { return l.work() }
 func (l Layout) DB() string      { return l.state("deck.db") }
 func (l Layout) Token() string   { return l.state("token") }
 func (l Layout) Files() string   { return l.state("files") }
+
+// File is a stored file by its id.
+func (l Layout) File(id int64) string { return l.state("files", fmt.Sprint(id)) }
 func (l Layout) Backups() string { return l.state("backups") }
 
 // SnapshotLayout is the time in the name of a snapshot in backups/, <kind>-<time>.tar.gz: SnapshotDaily for the
@@ -65,11 +68,20 @@ func (l Layout) Old() []string {
 	return out
 }
 
-// Runs holds a folder per run of an agent or a script.
-func (l Layout) Runs() string             { return l.work("runs") }
-func (l Layout) Run(process int64) string { return l.work("runs", fmt.Sprint(process)) }
+// Runs holds a folder per run of an agent or a script: the files it hands back in results, its work and its log in
+// stream.
+func (l Layout) Runs() string                 { return l.work("runs") }
+func (l Layout) Run(process int64) string     { return l.work("runs", fmt.Sprint(process)) }
+func (l Layout) Results(process int64) string { return l.work("runs", fmt.Sprint(process), "results") }
+func (l Layout) RunWork(process int64) string { return l.work("runs", fmt.Sprint(process), "work") }
+func (l Layout) Stream(process int64) string  { return l.work("runs", fmt.Sprint(process), "stream") }
 
 // Projects holds a folder per project: its data, which its scripts and agents keep, and the folders of its MCP servers.
 func (l Layout) Projects() string             { return l.work("projects") }
 func (l Layout) Project(project int64) string { return l.work("projects", fmt.Sprint(project)) }
 func (l Layout) Data(project int64) string    { return l.work("projects", fmt.Sprint(project), "data") }
+
+// MCP is the folder of an MCP server of a project, its home.
+func (l Layout) MCP(project int64, server string) string {
+	return l.work("projects", fmt.Sprint(project), "mcp", server)
+}

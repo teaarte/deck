@@ -43,7 +43,7 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 	fail.Store(true)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if fail.Load() {
-			return provider.Result{IsError: true, Text: "the voice server is down"}
+			return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 		}
 		return provider.Result{Text: "voiced"}
 	})
@@ -137,7 +137,7 @@ func TestARunSentBackCountsFromThenAndFailsAnew(t *testing.T) {
 		if c.N > 1 {
 			<-release
 		}
-		return provider.Result{IsError: true, Text: "the voice server is down"}
+		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	}}, withClock(clock))
 	e.createProject("shorts", jobsModule)
 	id := e.start("shorts", "voice", nil)
@@ -169,7 +169,7 @@ func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 	clock := &Clock{now: t0}
 	e := newEnvWith(t, t.TempDir(), &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		if c.N > usualRunsForTest {
-			return provider.Result{RateLimited: true, ResetsAt: t0.Add(time.Hour).Unix()}
+			return provider.Result{Outcome: provider.Limited, ResetsAt: t0.Add(time.Hour).Unix()}
 		}
 		clock.Add(time.Second)
 		return provider.Result{Text: "voiced"}
@@ -206,7 +206,7 @@ func TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks(t *testing.T) {
 	fail.Store(true)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if fail.Load() {
-			return provider.Result{IsError: true, Text: "the cutter is down"}
+			return provider.Result{Outcome: provider.Failed, Text: "the cutter is down"}
 		}
 		return provider.Result{Text: "cut"}
 	})
@@ -274,7 +274,7 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{IsError: true, Text: fmt.Sprintf("down %d", c.N)}
+		return provider.Result{Outcome: provider.Failed, Text: fmt.Sprintf("down %d", c.N)}
 	})
 	e.createProject("clips", cutModule)
 	for i := range 22 {
@@ -295,7 +295,7 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 	t.Cleanup(func() { close(release) })
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
-			return provider.Result{IsError: true, Text: "down"}
+			return provider.Result{Outcome: provider.Failed, Text: "down"}
 		}
 		select {
 		case <-release:
@@ -324,7 +324,7 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{IsError: true, Text: "down"}
+		return provider.Result{Outcome: provider.Failed, Text: "down"}
 	})
 	e.createProject("clips", cutModule)
 	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "error")
@@ -340,7 +340,7 @@ func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 func TestFailedRunsAreAListOfTheirOwnInTheSchedule(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{IsError: true, Text: "the voice server is down"}
+		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	})
 	e.createProject("shorts", jobsModule)
 	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
@@ -376,7 +376,7 @@ func (e *Env) hero(lang string) heroPulse {
 func TestTheHeroTellsWhatFailedWaitsAndRuns(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{IsError: true, Text: "the voice server is down"}
+		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	})
 	if h := e.hero(""); h.State != "calm" || h.Title != "All is calm" || len(h.Lines) != 0 {
 		t.Fatalf("a quiet deck says it is calm and counts nothing: %+v", h)
@@ -407,7 +407,7 @@ func TestTheHeroTellsWhatFailedWaitsAndRuns(t *testing.T) {
 func TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{IsError: true, Text: "the voice server is down"}
+		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	})
 	e.createProject("shorts", jobsModule)
 	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
@@ -456,7 +456,7 @@ func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 	var calls atomic.Int64
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if n := calls.Add(1); c.command() != "voice" || n <= 3 {
-			return provider.Result{IsError: true, Text: fmt.Sprintf("the voice server is down (%d)", n)}
+			return provider.Result{Outcome: provider.Failed, Text: fmt.Sprintf("the voice server is down (%d)", n)}
 		}
 		return provider.Result{Text: "voiced"}
 	})

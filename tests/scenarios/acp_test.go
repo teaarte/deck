@@ -460,8 +460,13 @@ func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
 			}
 			return chatReply{status: tc.status, header: http.Header{"Retry-After": {"120"}}, body: `{"error": {"message": "no"}}`}
 		})
+		// A result handed in wins over a later refusal, so a refused key or a limit comes before any.
+		submit := `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`
+		if tc.status != 200 {
+			submit = acpModel
+		}
 		f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
-			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, tc.end))
+			submit, tc.end))
 		e := acpEnv(t, f, "goose", llm)
 		id := e.run(e.acpProject("paint", colorManifest), "work")
 		got := e.waitState(id, "done", "error", "needs_login", "rate_limited")

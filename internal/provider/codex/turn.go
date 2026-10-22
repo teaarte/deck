@@ -55,7 +55,7 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 		return t.res, err
 	}
 	if len(acct.Account) == 0 || string(acct.Account) == "null" {
-		return provider.Result{IsError: true, NeedsLogin: true, Text: "codex: not logged in; run codex login"}, nil
+		return provider.Result{Outcome: provider.Login, Text: "codex: not logged in; run codex login"}, nil
 	}
 	if skills != "" {
 		if err := t.call(ctx, "skills/extraRoots/set", SkillsExtraRootsSetParams{ExtraRoots: []AbsolutePathBuf{AbsolutePathBuf(skills)}}, nil); err != nil {
@@ -108,7 +108,7 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 		var r ThreadResumeResponse
 		err := t.call(ctx, "thread/resume", ThreadResumeParams{ThreadID: t.thread, Cwd: t.req.Cwd, ApprovalPolicy: policy, Config: config, Model: t.a.model}, &r)
 		if err != nil && strings.Contains(err.Error(), "no rollout found") {
-			return provider.Result{SessionMissing: true}, nil
+			return provider.Result{Outcome: provider.SessionMissing}, nil
 		}
 		if err != nil {
 			return t.res, err

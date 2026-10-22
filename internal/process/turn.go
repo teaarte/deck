@@ -243,7 +243,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		if r.cut(bg, ctx, processID) {
 			return
 		}
-		if err == nil && res.SessionMissing {
+		if err == nil && res.Outcome == provider.SessionMissing {
 			// The owner's messages go with the fresh session; the asks stay undelivered, so it parks for them.
 			asks = told{Remarks: asks.Remarks}
 			req.Resume = false
@@ -254,7 +254,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			req.Prompt += r.remarksText(bg, processID, asks.Remarks)
 			continue
 		}
-		if err != nil && res.NoTools {
+		if err != nil && res.Outcome == provider.NoTools {
 			t.asks, t.resume = asks, req.Resume
 			if req.Resume {
 				t.message = req.Prompt
@@ -263,14 +263,14 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			return
 		}
 		r.toolsFound(processID)
-		if a.sub != nil && err == nil && !res.IsError && submitted(a.sub) {
+		if a.sub != nil && err == nil && res.Outcome != provider.Failed && submitted(a.sub) {
 			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
-			res.RateLimited, res.NeedsLogin, res.Unavailable = false, false, false
+			res.Outcome = provider.Done
 		}
 		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q) })
 		asks = told{}
 		r.providerHealth(bg, pv, res, err)
-		settled := err == nil && !res.NeedsLogin && !res.RateLimited && !res.IsError && !res.Unavailable
+		settled := err == nil && res.Outcome == provider.Done
 		if a.sub != nil && settled {
 			var spent bool
 			res.Structured, spent = a.sub.Result()
@@ -282,26 +282,26 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			verr = validate(t.cmd, res.Structured)
 		}
 		switch {
-		case (err != nil || res.IsError) && r.questioned(bg, processID):
+		case (err != nil || res.Outcome != provider.Done) && r.questioned(bg, processID):
 			r.park(bg, processID)
 		case err != nil:
 			fail(fault.Of(err))
 			r.deps.Broke(bg, pv.Name())
-		case res.Unavailable:
+		case res.Outcome == provider.Unavailable:
 			f := fault.With(fault.ModelUnavailable, pv.Name()+" did not answer: "+untrusted.Flat(res.Text, 200), res.Text)
 			if !r.handOn(bg, *t, pv, f) {
 				r.finish(bg, processID, StateError, res.Text, false, f)
 			}
 			r.deps.Broke(bg, pv.Name())
-		case res.RateLimited:
+		case res.Outcome == provider.Limited:
 			if r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, pv.Name()+" reached its usage limit", res.Text)) {
 				r.limited(bg, pv, res.ResetsAt, res.Text)
 			} else {
 				r.pause(bg, pv, processID, res.ResetsAt, res.Text)
 			}
-		case res.NeedsLogin:
+		case res.Outcome == provider.Login:
 			r.needLogin(bg, pv, processID, res.Text)
-		case res.IsError:
+		case res.Outcome == provider.Failed:
 			r.finish(bg, processID, StateError, res.Text, false, fault.With(fault.TaskFailed, "the agent reported an error: "+untrusted.Flat(res.Text, 200), res.Text))
 			r.deps.Broke(bg, pv.Name())
 		case !blocked && verr != nil && res.Refusal != "":

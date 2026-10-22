@@ -84,26 +84,44 @@ func ToolStatus(ok bool) string {
 	return "failed"
 }
 
+// Outcome is how a turn ended, of a closed set; Done is a turn that ended well.
+type Outcome string
+
+const (
+	Done Outcome = ""
+	// Failed is a turn the agent or its CLI ended with an error.
+	Failed Outcome = "failed"
+	// Login is a turn that failed because the provider's login is missing, expired or refused.
+	Login Outcome = "login"
+	// Limited is a refusal on a usage limit; Result.ResetsAt is when it ends.
+	Limited Outcome = "limited"
+	// Unavailable is a model or its API that did not answer: the network, a 5xx, an overloaded model.
+	Unavailable Outcome = "unavailable"
+	// SessionMissing is a resume that found no stored session, so the session starts over.
+	SessionMissing Outcome = "session_missing"
+	// NoTools is an agent that stopped before its first model call because deck's MCP tools did not reach it.
+	NoTools Outcome = "no_tools"
+)
+
 type Result struct {
 	// Structured is the result by the schema; JSON null means there was nothing to do.
 	Structured json.RawMessage
 	Text       string
-	IsError    bool
-	// NeedsLogin is set when the turn failed because the provider's login is missing, expired or refused.
-	NeedsLogin bool
-	// SessionMissing is set when a resume found no stored session, so the session has to start over.
-	SessionMissing bool
-	// RateLimited is set when the provider refused on a subscription limit; ResetsAt is unix seconds.
-	RateLimited bool
-	ResetsAt    int64
-	// Unavailable is set when the model or its API did not answer: the network, a 5xx, an overloaded model.
-	Unavailable bool
-	// NoTools is set when the agent stopped before its first model call because deck's MCP tools did not reach it.
-	NoTools bool
+	Outcome    Outcome
+	// ResetsAt is when a usage limit ends, in unix seconds.
+	ResetsAt int64
 	// Denied are the tools the provider refused by its own rules or auto mode, one entry per refused call.
 	Denied []string
 	// Refusal is the status and words of the model API when it refused the last call of the turn as a bad request.
 	Refusal string
+}
+
+// Held is what of the outcome holds the provider and not only the turn: a usage limit or a lost login, else Done.
+func (r Result) Held() Outcome {
+	if r.Outcome == Limited || r.Outcome == Login {
+		return r.Outcome
+	}
+	return Done
 }
 
 // Usage is one model call; the counts come from the final event of a turn or call, not from summed messages.
@@ -160,16 +178,16 @@ func (r Request) Emit(e Event) {
 func Refused(res *Result, status int, retryAfter string, now time.Time) bool {
 	switch fault.OfStatus(status, true) {
 	case fault.ModelLimit:
-		res.RateLimited = true
+		res.Outcome = Limited
 		if s, err := strconv.Atoi(retryAfter); err == nil && s > 0 {
 			res.ResetsAt = now.Add(time.Duration(s) * time.Second).Unix()
 		} else if t, err := http.ParseTime(retryAfter); err == nil {
 			res.ResetsAt = t.Unix()
 		}
 	case fault.ModelLogin:
-		res.NeedsLogin = true
+		res.Outcome = Login
 	case fault.ModelUnavailable:
-		res.Unavailable = true
+		res.Outcome = Unavailable
 	default:
 		return false
 	}
@@ -203,10 +221,10 @@ type Provider interface {
 
 // Check is what a self-check of a provider found; Err is nil when the adapter works.
 type Check struct {
-	Version     string
-	Err         error
-	RateLimited bool
-	NeedsLogin  bool
+	Version string
+	Err     error
+	// Outcome is Limited or Login when the check hit a usage limit or found no valid login.
+	Outcome Outcome
 	// ModelFailed is set when Err is the model not doing the steps of the check, not a fault of the adapter.
 	ModelFailed bool
 	// Slow is set when the model ran out of time rather than failed a step.

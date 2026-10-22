@@ -67,7 +67,7 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		results := c.Req.Dirs[len(c.Req.Dirs)-1]
 		if err := os.WriteFile(filepath.Join(results, "voice-1.wav"), []byte("RIFF"), 0o600); err != nil {
-			return provider.Result{IsError: true, Text: err.Error()}
+			return provider.Result{Outcome: provider.Failed, Text: err.Error()}
 		}
 		return provider.Result{Text: fmt.Sprintf("Here it is, and [the old one](#/file/%d).", linked)}
 	})

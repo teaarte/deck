@@ -25,7 +25,7 @@ func TestRateLimitWarningDoesNotPause(t *testing.T) {
 		t.Fatalf("a warning about the limit must not stop the turn, got %+v", got)
 	}
 	res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
-	if err != nil || res.RateLimited || res.IsError {
+	if err != nil || res.Outcome != provider.Done {
 		t.Fatalf("allowed_warning and a rejected overage are not a limit: %+v %v", res, err)
 	}
 }
@@ -41,11 +41,11 @@ func TestRateLimitIsOnlyAnExplicitRefusal(t *testing.T) {
 	c.streamText(2, strings.Join([]string{ls[0], ls[1], ok[1], ok[3]}, "\n")+"\n")
 	a := c.adapter(t.TempDir())
 	res, err := a.Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
-	if err != nil || !res.RateLimited || res.ResetsAt != 1790379000 {
+	if err != nil || res.Outcome != provider.Limited || res.ResetsAt != 1790379000 {
 		t.Fatalf("a rejected rate limit event is a limit: %+v %v", res, err)
 	}
 	res, err = a.Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
-	if err != nil || res.RateLimited {
+	if err != nil || res.Outcome == provider.Limited {
 		t.Fatalf("a later model answer lifts the refusal: %+v %v", res, err)
 	}
 }
@@ -163,7 +163,7 @@ func TestTheAnswerOfAClaudeCodeTurnIsTheLastResultOfItsSession(t *testing.T) {
 		c := newCLI(t)
 		c.stream(0, fixture)
 		res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
-		if err != nil || res.IsError || res.Text != want {
+		if err != nil || res.Outcome != provider.Done || res.Text != want {
 			t.Fatalf("%s: background agents wake the session for more results, and the last one is the answer: %+v %v", fixture, res, err)
 		}
 	}

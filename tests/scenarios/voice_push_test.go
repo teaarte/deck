@@ -193,7 +193,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 			return provider.Result{Text: "Put it into groceries, as card 1."}
 		}
 		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "Which site?\nThe first one is down."}}})
-		return provider.Result{IsError: true, Text: "the site is down"}
+		return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
 	})
 	var key struct{ Key string }
 	e.must("deck.push_key", nil, &key)

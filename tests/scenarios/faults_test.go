@@ -160,7 +160,7 @@ func TestTheMasterGetsTheTypeOfAFailure(t *testing.T) {
 	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "work" {
-			return provider.Result{Unavailable: true, IsError: true, Text: "API Error: 529 overloaded"}
+			return provider.Result{Outcome: provider.Unavailable, Text: "API Error: 529 overloaded"}
 		}
 		return masterScript(ctx, c)
 	})

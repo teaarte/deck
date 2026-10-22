@@ -143,9 +143,9 @@ func (s *Service) startCheck(name string, force bool) bool {
 			status, text = health.Checking, "deck stopped during the self-check"
 		case unreached != nil:
 			status, text, verdict = health.Error, "agents do not reach deck's MCP server, so they would start without deck's tools: "+unreached.Error(), "adapter"
-		case res.RateLimited:
+		case res.Outcome == provider.Limited:
 			status, text = health.Paused, "the self-check hit the usage limit; "+errText(res.Err)
-		case res.NeedsLogin:
+		case res.Outcome == provider.Login:
 			status, text = health.NeedsLogin, "the self-check found no valid login; "+errText(res.Err)
 		case res.Err != nil && res.Slow:
 			status, text, verdict = health.Warning, fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", of, ceiling, res.Err), "model"

@@ -94,9 +94,9 @@ func TestAModelThatDoesNotAnswerHandsOnButAFailedTaskDoesNot(t *testing.T) {
 	t.Parallel()
 	e, backup, _ := twoModels(t, func(ctx context.Context, c *Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, `"n": 2`) || strings.Contains(c.Req.Prompt, `"n":2`) {
-			return provider.Result{IsError: true, Text: "the file to edit is not there"}
+			return provider.Result{Outcome: provider.Failed, Text: "the file to edit is not there"}
 		}
-		return provider.Result{IsError: true, Unavailable: true, Text: "API Error: Can't reach the API server (ENOTFOUND)"}
+		return provider.Result{Outcome: provider.Unavailable, Text: "API Error: Can't reach the API server (ENOTFOUND)"}
 	}, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})

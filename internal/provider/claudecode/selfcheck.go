@@ -113,16 +113,16 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		tokens = 0
 		mu.Unlock()
 		res, err = a.Run(ctx, req)
-		c.RateLimited, c.NeedsLogin = res.RateLimited, res.NeedsLogin
+		c.Outcome = res.Held()
 		var out struct{ Word, Answer string }
 		_ = json.Unmarshal(res.Structured, &out)
 		switch {
-		case ctx.Err() != nil && !res.RateLimited && !res.NeedsLogin:
+		case ctx.Err() != nil && res.Held() == provider.Done:
 			c.Slow = true
 			c.Err = fmt.Errorf("%s: no answer within the ceiling: the machine may be slow or without network", what)
 		case err != nil:
 			c.Err = fmt.Errorf("%s: %w", what, err)
-		case res.RateLimited || res.NeedsLogin || res.IsError:
+		case res.Outcome != provider.Done:
 			c.Err = fmt.Errorf("%s: %s", what, res.Text)
 		case strings.Contains(string(res.Structured)+res.Text, secret):
 			c.Err = fmt.Errorf("%s: the agent read a file deck hides", what)
@@ -171,13 +171,13 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	var out struct{ Word string }
 	_ = json.Unmarshal(res.Structured, &out)
 	switch {
-	case ctx.Err() != nil && !res.RateLimited && !res.NeedsLogin:
+	case ctx.Err() != nil && res.Held() == provider.Done:
 		c.Slow = true
 		c.Err = errors.New("turn without network: no answer within the ceiling: the machine may be slow or without network")
 	case err != nil:
 		c.Err = fmt.Errorf("turn without network: %w", err)
-	case res.RateLimited || res.NeedsLogin || res.IsError:
-		c.RateLimited, c.NeedsLogin = res.RateLimited, res.NeedsLogin
+	case res.Outcome != provider.Done:
+		c.Outcome = res.Held()
 		c.Err = fmt.Errorf("turn without network: %s", res.Text)
 	case strings.TrimSpace(out.Word) != "000":
 		c.Err = fmt.Errorf("turn without network: curl in the sandbox of the CLI printed %q, want 000", out.Word)

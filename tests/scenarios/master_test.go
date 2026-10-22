@@ -24,7 +24,7 @@ func masterScript(ctx context.Context, c *Call) provider.Result {
 	case "on_error":
 		return provider.Result{Text: "looked"}
 	case "work":
-		return provider.Result{IsError: true, Text: "the site is down"}
+		return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
 	}
 	return provider.Result{Text: "ok"}
 }
@@ -103,7 +103,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{IsError: true, Text: "the model is overloaded"}
+		return provider.Result{Outcome: provider.Failed, Text: "the model is overloaded"}
 	})
 	e.masterAwake()
 	var r struct{ Process int64 }

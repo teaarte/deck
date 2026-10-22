@@ -193,7 +193,7 @@ func TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks(t *testing.T) {
 			defer cancel()
 			c.Tool(dropped, "approve", map[string]any{"tool_name": "AskUserQuestion", "tool_use_id": "t1", "input": map[string]any{"questions": []map[string]any{
 				{"question": "Which topic?", "options": []map[string]any{{"label": "go"}, {"label": "rust"}}}}}})
-			return provider.Result{IsError: true, Text: `MCP server "deck" transport dropped mid-call`}
+			return provider.Result{Outcome: provider.Failed, Text: `MCP server "deck" transport dropped mid-call`}
 		}
 		writeIdeas(ctx, c, map[bool]string{true: "rust", false: "?"}[strings.Contains(c.Req.Prompt, "rust")])
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}

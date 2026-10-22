@@ -471,7 +471,7 @@ type lossyFake struct {
 
 func (l *lossyFake) Run(ctx context.Context, req provider.Request) (provider.Result, error) {
 	if l.lose.Add(-1) >= 0 {
-		return provider.Result{NoTools: true}, errors.New("the MCP tool of deck was not found")
+		return provider.Result{Outcome: provider.NoTools}, errors.New("the MCP tool of deck was not found")
 	}
 	l.lose.Store(0)
 	return l.checkedFake.Run(ctx, req)
@@ -530,7 +530,7 @@ func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
 	g := &gatedFake{lossyFake: &lossyFake{checkedFake: &checkedFake{Fake: &Fake{}}}, entered: make(chan struct{}), gate: make(chan struct{})}
 	g.script = func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
-			return provider.Result{IsError: true, Text: "boom"}
+			return provider.Result{Outcome: provider.Failed, Text: "boom"}
 		}
 		return provider.Result{Text: "ok"}
 	}
@@ -576,8 +576,8 @@ func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T)
 		res    provider.Result
 		after  time.Duration
 	}{
-		{"paused", provider.Result{RateLimited: true, ResetsAt: t0.Add(2 * time.Hour).Unix(), Text: "limit"}, 2*time.Hour + time.Minute},
-		{"needs_login", provider.Result{NeedsLogin: true, IsError: true, Text: "Not logged in"}, 0},
+		{"paused", provider.Result{Outcome: provider.Limited, ResetsAt: t0.Add(2 * time.Hour).Unix(), Text: "limit"}, 2*time.Hour + time.Minute},
+		{"needs_login", provider.Result{Outcome: provider.Login, Text: "Not logged in"}, 0},
 	} {
 		t.Run(c.status, func(t *testing.T) {
 			cf := &checkedFake{Fake: &Fake{}}
@@ -607,7 +607,7 @@ func TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext(t *testing.
 	var limited atomic.Bool
 	main := &checkedFake{Fake: &Fake{script: func(context.Context, *Call) provider.Result {
 		if limited.Load() {
-			return provider.Result{RateLimited: true, ResetsAt: t0.Add(2 * time.Hour).Unix(), Text: "limit"}
+			return provider.Result{Outcome: provider.Limited, ResetsAt: t0.Add(2 * time.Hour).Unix(), Text: "limit"}
 		}
 		return provider.Result{Text: "ok"}
 	}}}

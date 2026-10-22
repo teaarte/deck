@@ -102,7 +102,7 @@ func TestRealClaudeCodeKeepsSubscription(t *testing.T) {
 	res, err := claudecode.New(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(),
 		Prompt: "Reply with just: ok", SessionID: sid, MCPURL: "http://127.0.0.1:1/mcp/none"})
 	t.Logf("result: %+v", res)
-	if err != nil || res.IsError || !strings.Contains(strings.ToLower(res.Text), "ok") {
+	if err != nil || res.Outcome != provider.Done || !strings.Contains(strings.ToLower(res.Text), "ok") {
 		t.Fatalf("want a successful turn of session %s on the subscription: %+v %v", sid, res, err)
 	}
 }
@@ -186,7 +186,7 @@ func TestRealClaudeCodeSeesSkills(t *testing.T) {
 	run := func(skills map[string]string) provider.Result {
 		res, err := claudecode.New(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: prompt,
 			SessionID: uuid.NewString(), MCPURL: "http://127.0.0.1:1/mcp/none", Skills: skills, AllowedTools: []string{"Skill"}})
-		if err != nil || res.IsError {
+		if err != nil || res.Outcome != provider.Done {
 			t.Fatalf("turn: %+v %v", res, err)
 		}
 		return res

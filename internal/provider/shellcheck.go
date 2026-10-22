@@ -112,7 +112,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		tokens = 0
 		mu.Unlock()
 		res, err := s.Run(ctx, r)
-		c.RateLimited, c.NeedsLogin = res.RateLimited, res.NeedsLogin
+		c.Outcome = res.Held()
 		raw, approved, asked := cs.Take()
 		var o out
 		_ = json.Unmarshal(raw, &o)
@@ -120,9 +120,9 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		counted := tokens
 		mu.Unlock()
 		switch {
-		case ctx.Err() != nil && res.NeedsLogin:
+		case ctx.Err() != nil && res.Outcome == Login:
 			c.Err = fmt.Errorf("%s: the model API refused the key (401 or 403); check the key secret and the url", what)
-		case ctx.Err() != nil && res.RateLimited:
+		case ctx.Err() != nil && res.Outcome == Limited:
 			c.Err = fmt.Errorf("%s: the model API answered with a usage limit (429) until the ceiling", what)
 		case ctx.Err() != nil && counted == 0:
 			c.Slow = true
@@ -140,7 +140,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			c.Err = fmt.Errorf("%s: the model API refused a call with tools (%s): it may not take tool calls for this model; pick a model or a connection that does", what, res.Refusal)
 		case res.Refusal != "" && raw == nil:
 			c.Err = fmt.Errorf("%s: the model API refused what %s sent (%s): %s and this connection do not fit; pick another agent or connection for the model", what, s.Agent, res.Refusal, s.Agent)
-		case res.RateLimited || res.NeedsLogin || res.IsError:
+		case res.Outcome != Done:
 			c.Err = fmt.Errorf("%s: %s", what, res.Text)
 		case raw == nil && asked == 0 && !wrote(work, word):
 			model(fmt.Errorf("%s: the model made no tool call and answered in words: the API may not pass tools to it, or it does not use them (%s)", what, said(res.Text)))

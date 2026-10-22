@@ -61,6 +61,8 @@ type turn struct {
 	authFailed bool
 	// serverError is an answer of the API that failed on its side.
 	serverError bool
+	// limited is a usage limit the CLI was refused on; failed a result that is an error.
+	limited, failed bool
 	model       string
 	// tasks are the tasks of the session that started and have not reported yet.
 	tasks map[string]bool
@@ -107,7 +109,7 @@ func (t *turn) line(raw []byte) {
 			t.serverError = true
 		}
 		if l.Error == "" {
-			t.res.RateLimited = false
+			t.limited = false
 		}
 		if l.Message == nil {
 			return
@@ -136,7 +138,7 @@ func (t *turn) line(raw []byte) {
 			return
 		}
 		if l.RateLimitInfo.Status == "rejected" {
-			t.res.RateLimited = true
+			t.limited = true
 			t.res.ResetsAt = l.RateLimitInfo.ResetsAt
 		}
 		emit(provider.Event{Kind: provider.EventRateLimit, Text: l.RateLimitInfo.Status})
@@ -151,7 +153,7 @@ func (t *turn) line(raw []byte) {
 		if t.res.Text == "" {
 			t.res.Text = strings.Join(l.Errors, "; ")
 		}
-		t.res.IsError = l.IsError || l.Subtype != "success"
+		t.failed = l.IsError || l.Subtype != "success"
 		for _, d := range l.Denials {
 			t.res.Denied = append(t.res.Denied, d.ToolName)
 		}
@@ -164,7 +166,7 @@ func (t *turn) line(raw []byte) {
 		}
 		for _, e := range l.Errors {
 			if t.req.Resume && l.Subtype == "error_during_execution" && strings.Contains(e, "No conversation found") {
-				t.res.SessionMissing = true
+				t.res.Outcome = provider.SessionMissing
 			}
 		}
 	}
@@ -206,18 +208,28 @@ func (t *turn) usage(l line) {
 func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.Result, error) {
 	res := t.res
 	switch {
-	case res.SessionMissing:
+	case res.Outcome == provider.SessionMissing:
 		return res, nil
 	case t.results == 0:
-		res.NoTools = !t.started && strings.Contains(stderr, "(passed via --permission-prompt-tool) not found")
+		if !t.started && strings.Contains(stderr, "(passed via --permission-prompt-tool) not found") {
+			res.Outcome = provider.NoTools
+		}
 		return res, fmt.Errorf("claude exited without a result: %v: %s", waitErr, stderr)
 	case t.foreign != "":
 		return res, fmt.Errorf("claude ran session %s instead of %s assigned by deck", t.foreign, t.req.SessionID)
 	case promptErr != nil:
 		return res, fmt.Errorf("the prompt did not reach claude in full: %v", promptErr)
 	}
-	res.NeedsLogin = res.IsError && t.authFailed
-	res.Unavailable = res.IsError && !res.NeedsLogin && (t.serverError || apiDown.MatchString(res.Text))
+	switch {
+	case t.failed && !t.authFailed && (t.serverError || apiDown.MatchString(res.Text)):
+		res.Outcome = provider.Unavailable
+	case t.limited:
+		res.Outcome = provider.Limited
+	case t.failed && t.authFailed:
+		res.Outcome = provider.Login
+	case t.failed:
+		res.Outcome = provider.Failed
+	}
 	return res, nil
 }
 

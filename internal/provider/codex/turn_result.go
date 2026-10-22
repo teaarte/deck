@@ -16,17 +16,17 @@ func (t *turn) finish() (provider.Result, error) {
 	}
 	res.Text = t.final
 	if t.limitHit != "" && t.last.Status != "completed" {
-		res.RateLimited, res.ResetsAt, res.Text = true, t.resetsAt(), "codex: usage limit reached: "+t.limitHit
+		res.Outcome, res.ResetsAt, res.Text = provider.Limited, t.resetsAt(), "codex: usage limit reached: "+t.limitHit
 		return res, nil
 	}
 	switch t.last.Status {
 	case "completed":
 		return res, nil
 	case "interrupted":
-		res.IsError, res.Text = true, "codex: the turn was interrupted"
+		res.Outcome, res.Text = provider.Failed, "codex: the turn was interrupted"
 		return res, nil
 	}
-	res.IsError = true
+	res.Outcome = provider.Failed
 	e := t.failure
 	if t.last.Error != nil {
 		e = t.last.Error
@@ -40,11 +40,11 @@ func (t *turn) finish() (provider.Result, error) {
 	_ = json.Unmarshal(e.CodexErrorInfo, &info)
 	switch {
 	case info == "usageLimitExceeded":
-		res.RateLimited, res.ResetsAt = true, t.resetsAt()
+		res.Outcome, res.ResetsAt = provider.Limited, t.resetsAt()
 	case info == "unauthorized" || strings.Contains(string(e.CodexErrorInfo), `"httpStatusCode":401`) || strings.Contains(e.Message, "401 Unauthorized"):
-		res.NeedsLogin = true
+		res.Outcome = provider.Login
 	case unavailable(info, e.CodexErrorInfo):
-		res.Unavailable = true
+		res.Outcome = provider.Unavailable
 	}
 	return res, nil
 }

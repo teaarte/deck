@@ -92,7 +92,7 @@ func TestProviderErrorMarksProcessError(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	e.Fake.script = func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{IsError: true, Text: "boom"}
+		return provider.Result{Outcome: provider.Failed, Text: "boom"}
 	}
 	p := e.createProject("ideas", ideasManifest)
 	got := e.waitState(e.run(p, "collect"), "error", "done")

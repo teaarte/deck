@@ -101,7 +101,7 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 			if write {
 				if out, bad := c.Tool(ctx, "document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%d/summary.md", id),
 					"kind": "doc", "text": "Goal: groceries. SUMMARY-MARK"}); bad {
-					return provider.Result{IsError: true, Text: out}
+					return provider.Result{Outcome: provider.Failed, Text: out}
 				}
 			}
 			return provider.Result{Text: fmt.Sprintf("%s says %d", name, c.N)}
@@ -166,7 +166,7 @@ func TestALostSessionStartsAgainWithTheRetelling(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 2 {
-			return provider.Result{SessionMissing: true}
+			return provider.Result{Outcome: provider.SessionMissing}
 		}
 		return provider.Result{Text: fmt.Sprintf("reply %d", c.N)}
 	})
@@ -331,7 +331,7 @@ func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
 			}
 			return provider.Result{Text: "Sending it needs your yes."}
 		case 2:
-			return provider.Result{SessionMissing: true}
+			return provider.Result{Outcome: provider.SessionMissing}
 		}
 		return provider.Result{Text: "Put it on the market list."}
 	})
@@ -364,7 +364,7 @@ func TestMessagesOfAFailedReplyReachTheNextTurn(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 2 {
-			return provider.Result{IsError: true, Text: "the model is overloaded"}
+			return provider.Result{Outcome: provider.Failed, Text: "the model is overloaded"}
 		}
 		return provider.Result{Text: fmt.Sprintf("reply %d", c.N)}
 	})
@@ -579,7 +579,7 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 	main := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		if turns.Add(1) == 1 {
 			c.Tool(ctx, "records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "half a ta", "score": 1}`})
-			return provider.Result{IsError: true, Text: "the turn was stopped mid-way"}
+			return provider.Result{Outcome: provider.Failed, Text: "the turn was stopped mid-way"}
 		}
 		return provider.Result{Text: "main again"}
 	}}
@@ -636,7 +636,7 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "job" {
 			if jobs.Add(1) == 2 {
-				return provider.Result{IsError: true, Text: "the job broke"}
+				return provider.Result{Outcome: provider.Failed, Text: "the job broke"}
 			}
 			return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 		}

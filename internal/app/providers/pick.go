@@ -151,7 +151,20 @@ func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
 // limit; a lost login or a weak model holds no turn.
 func (s *Service) Goes(ctx context.Context, workspace int64, name string) bool {
 	h, err := s.healthOf(ctx, workspace, name)
-	return err != nil || h.Status != health.Checking && h.Status != health.Paused && (h.Status != health.Error || h.Verdict != "adapter")
+	return err != nil || h.Status != health.Checking && !down(h)
+}
+
+// Down is the status and text of the health of a provider that is paused or red by its adapter, so no turn goes on
+// on it; empty when it is up.
+func (s *Service) Down(ctx context.Context, workspace int64, name string) (string, string) {
+	if h, err := s.healthOf(ctx, workspace, name); err == nil && down(h) {
+		return h.Status, h.Error
+	}
+	return "", ""
+}
+
+func down(h db.Health) bool {
+	return h.Status == health.Paused || h.Status == health.Error && h.Verdict == "adapter"
 }
 
 // healthOf is the health row of a model by name: of its self-check when it is built in or runs in an agent, else of

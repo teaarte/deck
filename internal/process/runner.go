@@ -137,6 +137,8 @@ type liveTurn struct {
 	input chan provider.Message
 	// slot is the agent slot the turn holds, under r.mu.
 	slot *slot
+	// watch is the provider call under way, under r.mu.
+	watch *watch
 }
 
 // Deps are what the runner takes from the rest of deck.
@@ -149,6 +151,9 @@ type Deps struct {
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
 	// Goes reports whether a turn of the workspace may run on the provider now; the runner never picks.
 	Goes func(ctx context.Context, workspace int64, name string) bool
+	// Down is the status and text of the health of a provider that went on a pause or red, so no turn goes on
+	// on it; empty when it is up.
+	Down func(ctx context.Context, workspace int64, name string) (status, text string)
 	// Broke hears that a turn on the provider failed or lost its login.
 	Broke func(ctx context.Context, name string)
 	// Recheck runs the self-check of the provider at the time a limit it met resets.

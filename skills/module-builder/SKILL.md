@@ -380,8 +380,8 @@ tell the owner: `script.failed` (the default: a bug of the script), `input.inval
 is not what the script takes), `program.missing`, `network` (a site is down or answers wrong), `rights.denied`
 (a folder or a domain the project has no right to), `model.limit` and `model.unavailable` (a model deck called
 refused). Any other type is `script.failed`. A failure with no type or `script.failed` right after deck answered the
-last call of the script with an error takes the type of that answer — 400, 404 or 422 `input.invalid`, 403
-`rights.denied`, 429 of a model `model.limit`, 5xx of a model `model.unavailable`, 429 or a 5xx past 500 of another
+last call of the script with an error takes the type of that answer — 400, 404, 413 or 422 `input.invalid`, 403
+`rights.denied`, 429 of a model (or its 413 past a limit per minute) `model.limit`, 5xx of a model `model.unavailable`, 429 or a 5xx past 500 of another
 command `network` — and deck adds its error answers to the failure, so a script need not catch them only to type them.
 Without a non-zero exit stdout stays the result, so a result schema
 may have a field `error` of its own; nothing to do (nothing new, a record already done) is a result, not a

@@ -237,9 +237,15 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 	asks := t.asks
 	for retried := false; ; {
 		a.listen(true)
+		stop := r.watchCall(processID, a.proj.WorkspaceID, pv)
 		res, err := pv.Run(ctx, req)
+		stop()
 		a.listen(false)
 		r.setGroup(bg, processID, 0)
+		if l := leftModel(ctx); l != nil {
+			r.leaveModel(bg, t, l)
+			return
+		}
 		if r.cut(bg, ctx, processID) {
 			return
 		}

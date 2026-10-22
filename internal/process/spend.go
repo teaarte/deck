@@ -48,6 +48,7 @@ func LogModelCall(ctx context.Context, q *db.Queries, c ModelCall, now string) e
 
 // usage writes one model call of an agent turn; a model of deck's settings tells whether it is on a subscription.
 func (r *Runner) usage(ctx context.Context, workspace, processID int64, pv provider.Provider, u provider.Usage) {
+	r.answered(processID)
 	_, subscribed := pv.(provider.Subscribed)
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if m, err := q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: u.Connection, Model: u.RequestModel}); u.Connection != 0 && err == nil {

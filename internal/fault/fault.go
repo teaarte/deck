@@ -14,9 +14,11 @@ const (
 	ModelLimit       = "model.limit"
 	ModelUnavailable = "model.unavailable"
 	ModelLogin       = "model.login"
-	DeckTools        = "deck.tools"
-	DeckRestart      = "deck.restart"
-	DeckInternal     = "deck.internal"
+	// AgentLoop is an agent that made the same call of a tool with the same answer again and again.
+	AgentLoop    = "agent.loop"
+	DeckTools    = "deck.tools"
+	DeckRestart  = "deck.restart"
+	DeckInternal = "deck.internal"
 	// DeckStopped is a process deck stopped itself: what it worked for is gone or another took its work.
 	DeckStopped    = "deck.stopped"
 	Timeout        = "timeout"
@@ -40,7 +42,7 @@ const (
 )
 
 var whose = map[string]string{
-	ModelLimit: OfModel, ModelUnavailable: OfModel, ModelLogin: OfModel,
+	ModelLimit: OfModel, ModelUnavailable: OfModel, ModelLogin: OfModel, AgentLoop: OfModel,
 	DeckTools: OfDeck, DeckRestart: OfDeck, DeckInternal: OfDeck, DeckStopped: OfDeck,
 	Timeout: OfModule, ScriptFailed: OfModule, ResultInvalid: OfModule, TaskFailed: OfModule, InputInvalid: OfModule,
 	ProgramMissing: OfEnvironment, Network: OfEnvironment,

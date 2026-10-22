@@ -106,7 +106,8 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   one gateway call (`tool.go`); what a process and its tree left — records, files of deck, changes of documents — for a
   broken reply of the master and a trial (`left.go`); what it takes from deck is
   `Deps` (functions), the deadlines of processes are `Due` (ceilings, pauses, silent, empty results); a turn its model refused (a limit, no answer) goes on as a
-  new process on the next model of the assignment, told what the first did (`handon.go`), else a limit pauses
+  new process on the next model of the assignment, told what the first did (`handon.go`), else a limit pauses; so does
+  a turn whose model gave no sign, went on a pause or red, or called a tool in a loop (`watch.go`)
 - `internal/home` — the layout of `DECK_HOME`: `state/` only deck reads (deck's key of pushes in `state/push`, apart
   from the secrets), `work/` the folders of runs and projects
 - `internal/sandbox` — sandbox of scripts, MCP servers and ACP agents behind one interface: `sandbox-exec` on macOS,

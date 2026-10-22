@@ -76,7 +76,7 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 // Broke checks a provider whose turn failed or lost its login, unless it was checked within selfCheckRetry; a red
 // one or one without a login is then checked once that time is over.
 func (s *Service) Broke(ctx context.Context, name string) {
-	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(name))
+	h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
 	red := err == nil && (h.Status == health.Error || h.Status == health.NeedsLogin)
 	s.mu.Lock()
 	c := s.checksOf(name)
@@ -119,9 +119,9 @@ func (s *Service) startCheck(name string, force bool) bool {
 	c.running, c.started, c.last, c.retry, c.broke = true, true, s.Now(), time.Time{}, false
 	s.mu.Unlock()
 	ctx := s.Ctx
-	subject := process.HealthSubject(name)
+	subject := health.Provider(name)
 	started := s.Go(func() {
-		h, _ := s.St.Q.GetHealth(ctx, subject)
+		h, _ := health.Get(ctx, s.St.Q, health.Of{}, subject)
 		if force || h.Status == health.Error || h.Status == health.Checking {
 			s.writeCheck(ctx, name, health.Checking, "the self-check is running", "", "", 0)
 		}
@@ -195,7 +195,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 }
 
 func (s *Service) writeCheck(ctx context.Context, name, status, text, version, verdict string, speed float64) {
-	subject := process.HealthSubject(name)
+	subject := health.Provider(name)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := process.ProviderHealth(ctx, q, name, status, text); err != nil {
 			return err

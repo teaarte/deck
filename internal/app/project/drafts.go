@@ -3,6 +3,7 @@ package project
 import (
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/health"
 	"encoding/json"
 	"strings"
 
@@ -11,7 +12,6 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/trigger"
 )
 
 type projectEnableIn struct {
@@ -52,7 +52,7 @@ func (pj *Service) projectEnable(ctx context.Context, act registry.Actor, in pro
 			if err := pj.Scheduler.Rewind(ctx, q, t); err != nil {
 				return err
 			}
-			if err := q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: trigger.HealthSubject(p.Name, t.Command)}); err != nil {
+			if err := health.Clear(ctx, q, health.Project(p), health.Trigger(p.Name, t.Command)); err != nil {
 				return err
 			}
 		}

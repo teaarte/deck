@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/health"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -149,7 +150,7 @@ func acpAdded(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(
 	var h db.Health
 	e.waitFor("the self-check of the ACP provider", func() bool {
 		var err error
-		h, err = e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
+		h, err = health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 		return err == nil && h.Status != "checking"
 	})
 	return e, h
@@ -201,7 +202,7 @@ func (e *Env) addACP(f *fakeACP, from int, name, agent string, llm *fakeLLM, noC
 	e.mustAgentModel(map[string]any{"name": name, "url": llm.URL, "model": name, "agent": agent,
 		"key_secret": name + "-key", "no_cloud": noCloud})
 	e.waitFor("the self-check of "+name, func() bool {
-		h, err := e.App.Store.Q.GetHealth(e.T.Context(), "provider:"+name)
+		h, err := health.Get(e.T.Context(), e.App.Store.Q, health.Of{}, "provider:"+name)
 		return err == nil && h.Status == "ok"
 	})
 }

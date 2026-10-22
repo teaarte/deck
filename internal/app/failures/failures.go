@@ -3,6 +3,8 @@ package failures
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -89,11 +91,16 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 	for _, e := range errs {
 		block, _, _ := strings.Cut(e, ": ")
 		key := fmt.Sprintf("%d.screen:%s:%s@%d", p.ID, name, block, revision)
-		subject := "screen:" + p.Name + "." + name
-		if n, err := s.St.Q.HasProjectHealth(ctx, db.HasProjectHealthParams{ProjectID: store.ID(p.ID), Subject: subject}); err == nil && n == 0 {
-			if err := health.Write(ctx, s.St, health.Project(p), subject, health.Error, e); err != nil {
-				slog.Error("write health", "err", err)
+		subject := health.Screen(p.Name, name)
+		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			if _, err := health.Get(ctx, q, health.Project(p), subject); !errors.Is(err, sql.ErrNoRows) {
+				return err
 			}
+			_, err := health.Set(ctx, q, health.Project(p), subject, health.Error, e)
+			return err
+		})
+		if err != nil {
+			slog.Error("write health", "err", err)
 		}
 		if !s.firstTime(ctx, p, screenErrorPrefix+key) {
 			continue
@@ -104,12 +111,12 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 
 // ScreenDrawn clears the health of a screen of a project that drew without errors.
 func (s *Service) ScreenDrawn(ctx context.Context, p db.Project, name string) {
-	subject := "screen:" + p.Name + "." + name
-	if n, err := s.St.Q.HasProjectHealth(ctx, db.HasProjectHealthParams{ProjectID: store.ID(p.ID), Subject: subject}); err != nil || n == 0 {
+	subject := health.Screen(p.Name, name)
+	if _, err := health.Get(ctx, s.St.Q, health.Project(p), subject); err != nil {
 		return
 	}
 	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: subject})
+		return health.Clear(ctx, q, health.Project(p), subject)
 	})
 }
 

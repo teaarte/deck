@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/health"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -307,7 +308,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 		t.Fatalf("the form of a model takes its values from the address: %+v", fv.Values)
 	}
 	e.waitFor("the self-check", func() bool {
-		h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:ollama-small")
+		h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:ollama-small")
 		return err == nil && h.Status != "checking"
 	})
 	e.must(remove["command"].(string), remove["params"], nil)
@@ -317,7 +318,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 			t.Fatalf("the removed model is gone: %+v", r)
 		}
 	}
-	if _, err := e.App.Store.Q.GetHealth(t.Context(), "provider:ollama-small"); err == nil {
+	if _, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:ollama-small"); err == nil {
 		t.Fatal("the health of a removed model goes with it")
 	}
 }
@@ -331,7 +332,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	ctx := t.Context()
 	for _, h := range []db.SetHealthParams{{Subject: "mcp:web.search", Status: "ok"}, {Subject: "tool:web.fetch", Status: "error", Error: "the server exited: 1"},
 		{Subject: "provider:elsewhere", Status: "error", Error: "a provider of another workspace"}} {
-		if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.SetHealth(ctx, h) }); err != nil {
+		if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { _, err := q.SetHealth(ctx, h); return err }); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -350,7 +351,8 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	}
 	web := store.ID(e.projectID("web"))
 	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3"})
+		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3"})
+		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +401,8 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 		t.Fatal("only a failing check is marked read")
 	}
 	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3.12"})
+		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3.12"})
+		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -619,7 +622,8 @@ func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 	e := newEnv(t, ok)
 	e.createProject("daily", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
 	if err := e.App.Store.Tx(t.Context(), func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: store.ID(e.projectID("daily")), Subject: "trigger:daily.work", Status: "error", Error: "did not start"})
+		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: store.ID(e.projectID("daily")), Subject: "trigger:daily.work", Status: "error", Error: "did not start"})
+		return err
 	}); err != nil {
 		t.Fatal(err)
 	}

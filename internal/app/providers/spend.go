@@ -63,14 +63,15 @@ func (s *Service) answered(ctx context.Context, m db.Model, next string, status 
 	default:
 		text += "; no model of its assignment is after it"
 	}
-	subject, of := ModelSubject(m.Name), health.Of{Workspace: m.WorkspaceID}
+	subject, of := health.Model(m.Name), health.Of{Workspace: m.WorkspaceID}
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		h, err := q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(m.WorkspaceID), Subject: subject})
-		switch {
-		case failed && (err != nil || h.Status != health.Error || h.Error != text):
-			return health.Set(ctx, q, of, subject, health.Error, text)
-		case !failed && (errors.Is(err, sql.ErrNoRows) || err == nil && h.Status == health.Error):
-			return health.Set(ctx, q, of, subject, health.OK, "")
+		if failed {
+			_, err := health.Set(ctx, q, of, subject, health.Error, text)
+			return err
+		}
+		if h, err := health.Get(ctx, q, of, subject); errors.Is(err, sql.ErrNoRows) || err == nil && h.Status == health.Error {
+			_, err = health.Set(ctx, q, of, subject, health.OK, "")
+			return err
 		}
 		return nil
 	})

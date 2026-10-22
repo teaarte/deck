@@ -313,11 +313,17 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 		if len(failed) > 0 {
 			status = "error"
 		}
-		prev, err := dv.St.Q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: "push"})
-		if err := health.Write(ctx, dv.St, health.Of{Workspace: workspace}, "push", status, text); err != nil {
-			slog.Error("write health", "err", err)
+		stopped := false
+		err := dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+			prev, err := health.Get(ctx, q, health.Of{Workspace: workspace}, health.Push)
+			stopped = lasting && (err != nil || prev.Status != health.Error)
+			_, err = health.Set(ctx, q, health.Of{Workspace: workspace}, health.Push, status, text)
+			return err
+		})
+		if err != nil {
+			slog.Error("health of pushes", "err", err)
 		}
-		if !lasting || err == nil && prev.Status == "error" {
+		if !stopped {
 			return
 		}
 		err = dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {

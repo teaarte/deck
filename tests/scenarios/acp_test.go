@@ -3,6 +3,7 @@ package scenarios
 import (
 	"bytes"
 	"compress/gzip"
+	"deck2/internal/health"
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"errors"
@@ -668,7 +669,7 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 	e.waitFor("the first check", func() bool { return f.calls() >= 1 })
 	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m2", "agent": "goose"})
 	e.waitWithin("the second check", 40*time.Second, func() bool {
-		h, _ := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
+		h, _ := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 		return f.calls() >= 6 && h.Status == "ok"
 	})
 	if m := f.call(f.calls()).env["GOOSE_MODEL"]; m != "m2" {
@@ -734,7 +735,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 	e.useModels("paint.work", "acp")
 	id := e.run(p, "work")
 	e.waitFor("the self-check", func() bool {
-		h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
+		h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 		return err == nil && h.Status == "ok"
 	})
 	got := e.waitState(id, "done", "error")
@@ -756,7 +757,7 @@ func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
 	})
 	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose", "check_minutes": 1})
 	time.Sleep(2500 * time.Millisecond)
-	h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
+	h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 	if err != nil || h.Status != "checking" {
 		t.Fatalf("the self-check of a provider with a minute still runs past deck's second: %+v %v", h, err)
 	}

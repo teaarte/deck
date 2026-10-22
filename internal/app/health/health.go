@@ -12,7 +12,6 @@ import (
 	"deck2/internal/events"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
-	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -112,15 +111,15 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 	}
 	mine, checked := map[string]bool{}, map[string]bool{}
 	for _, pv := range pvs {
-		_, checked[process.HealthSubject(pv.Name())] = pv.(provider.SelfChecker)
-		mine[process.HealthSubject(pv.Name())] = true
+		_, checked[health.Provider(pv.Name())] = pv.(provider.SelfChecker)
+		mine[health.Provider(pv.Name())] = true
 	}
 	models, err := s.St.Q.ListModels(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
 	for _, m := range models {
-		mine[process.HealthSubject(m.Model.Name)] = true
+		mine[health.Provider(m.Model.Name)] = true
 	}
 	out := make([]healthRow, 0, len(hs)+len(ps))
 	shown := func(project string) bool {

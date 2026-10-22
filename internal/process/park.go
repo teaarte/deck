@@ -73,7 +73,7 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 		if err := ProviderHealth(ctx, q, pv.Name(), health.Error, untrusted.Cut(text, 1000)); err != nil {
 			return err
 		}
-		if err := q.SetHealthCheck(ctx, db.SetHealthCheckParams{Verdict: "adapter", Subject: HealthSubject(pv.Name())}); err != nil {
+		if err := q.SetHealthCheck(ctx, db.SetHealthCheckParams{Verdict: "adapter", Subject: health.Provider(pv.Name())}); err != nil {
 			return err
 		}
 		_, err := r.holdIn(ctx, q, t, StateWaitingProvider)
@@ -95,25 +95,23 @@ func (r *Runner) toolsFound(processID int64) {
 
 // unpause clears the pause of a provider once the reset a paused turn waited for has come; the turn tells again.
 func unpause(ctx context.Context, q *db.Queries, name string) error {
-	if h, err := q.GetHealth(ctx, HealthSubject(name)); err != nil || h.Status != health.Paused {
+	if h, err := health.Get(ctx, q, health.Of{}, health.Provider(name)); err != nil || h.Status != health.Paused {
 		return nil
 	}
 	return ProviderHealth(ctx, q, name, health.OK, "")
 }
 
-// HealthSubject is the health row of a provider.
-func HealthSubject(name string) string { return "provider:" + name }
-
 // ProviderHealth writes the health row of a provider, a row of the machine; the one writer of such rows.
 func ProviderHealth(ctx context.Context, q *db.Queries, name, status, text string) error {
-	return health.Set(ctx, q, health.Of{}, HealthSubject(name), status, text)
+	_, err := health.Set(ctx, q, health.Of{}, health.Provider(name), status, text)
+	return err
 }
 
 // providerHealth records what a turn showed about its provider. The health of a provider with a self-check is
 // the self-check's: a turn only lifts a lost login or a limit there.
 func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res provider.Result, err error) {
 	_, checked := pv.(provider.SelfChecker)
-	subject := HealthSubject(pv.Name())
+	subject := health.Provider(pv.Name())
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		switch {
 		case err != nil && !checked:
@@ -130,9 +128,9 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 // setHealth records what a turn found about its provider, unless its self-check is running or red: then the
 // health is the self-check's.
 func setHealth(ctx context.Context, q *db.Queries, pv provider.Provider, status, text string) error {
-	subject := HealthSubject(pv.Name())
+	subject := health.Provider(pv.Name())
 	if _, checked := pv.(provider.SelfChecker); checked {
-		if h, err := q.GetHealth(ctx, subject); err == nil && (h.Status == health.Checking || h.Status == health.Error) {
+		if h, err := health.Get(ctx, q, health.Of{}, subject); err == nil && (h.Status == health.Checking || h.Status == health.Error) {
 			return nil
 		}
 	}

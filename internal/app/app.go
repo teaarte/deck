@@ -190,7 +190,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Saver.CheckManifests(a.ctx)
 	status, text := script.Runtimes().Health()
-	if err := health.Write(a.ctx, a.Store, health.Of{}, "scripts", status, text); err != nil {
+	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Scripts, status, text); err != nil {
 		return nil, err
 	}
 	return a, nil
@@ -307,9 +307,11 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 	}
 }
 
-// TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one.
-func (a *App) TailnetHealth(status, text string) {
-	if err := health.Write(context.Background(), a.Store, health.Of{}, "tailscale", status, text); err != nil {
+// TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one, its https
+// address once it is on it.
+func (a *App) TailnetHealth(status, text, address string) {
+	a.Devices.Tailnet.Store(&address)
+	if err := health.Write(context.Background(), a.Store, health.Of{}, health.Tailscale, status, text); err != nil {
 		slog.Error("write health", "err", err)
 	}
 }

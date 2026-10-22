@@ -43,8 +43,6 @@ func siteOf(page string) (string, error) {
 	return u.Hostname(), nil
 }
 
-func siteHealth(site string) string { return "site:" + site }
-
 type browserLoginIn struct {
 	URL string `desc:"Page to open, such as the site's sign-in page"`
 }
@@ -72,7 +70,7 @@ func (c *Service) browserLoginDone(ctx context.Context, act registry.Actor, in b
 		return nil, err
 	}
 	c.Browser.LoginDone()
-	if err := health.Write(ctx, c.St, health.Of{}, siteHealth(site), health.OK, ""); err != nil {
+	if err := health.Write(ctx, c.St, health.Of{}, health.Site(site), health.OK, ""); err != nil {
 		return nil, err
 	}
 	n, err := c.signedIn(ctx, act.Workspace, "site", site)
@@ -93,7 +91,7 @@ func (c *Service) browserNeedsLogin(ctx context.Context, act registry.Actor, in 
 	if act.ProcessID == 0 {
 		return nil, registry.Invalid("deck: only a process waits for a sign-in")
 	}
-	if err := health.Write(ctx, c.St, health.Of{}, siteHealth(site), health.NeedsLogin, untrusted.Cut(in.Why, 300)); err != nil {
+	if err := health.Write(ctx, c.St, health.Of{}, health.Site(site), health.NeedsLogin, untrusted.Cut(in.Why, 300)); err != nil {
 		return nil, err
 	}
 	payload, _ := json.Marshal(map[string]string{"site": site})
@@ -167,7 +165,7 @@ func (c *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 		return err
 	})
 	if err != nil {
-		if err := health.Write(ctx, c.St, health.Project(p), "tool:"+tool, health.NeedsLogin, text+"; deck could not ask: "+err.Error()); err != nil {
+		if err := health.Write(ctx, c.St, health.Project(p), health.Tool(tool), health.NeedsLogin, text+"; deck could not ask: "+err.Error()); err != nil {
 			slog.Error("write health", "err", err)
 		}
 	}
@@ -261,7 +259,7 @@ func (c *Service) ServerStatus(key string, list []*mcp.Tool, err error) {
 		if perr != nil {
 			return
 		}
-		subject, of = "mcp:"+p.Name+"."+server, health.Project(p)
+		subject, of = health.MCP(p.Name, server), health.Project(p)
 		if err == nil {
 			if kerr := c.MCP.Keep(ctx, project, server, list); kerr != nil {
 				err = fmt.Errorf("keep its tools: %w", kerr)
@@ -281,7 +279,7 @@ func (c *Service) ServerStatus(key string, list []*mcp.Tool, err error) {
 
 // ToolHealth is the health of a tool of a project.
 func (c *Service) ToolHealth(ctx context.Context, p db.Project, tool, status, text string) {
-	if err := health.Write(ctx, c.St, health.Project(p), "tool:"+tool, status, text); err != nil {
+	if err := health.Write(ctx, c.St, health.Project(p), health.Tool(tool), status, text); err != nil {
 		slog.Error("write health", "err", err)
 	}
 }

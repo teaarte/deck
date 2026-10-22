@@ -31,10 +31,6 @@ func (dc *Service) docChanged(ctx context.Context, q *db.Queries, act registry.A
 	return dc.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed %s %s", act.Author(), what, d.Name), reason)
 }
 
-const sandboxHealth = "sandbox"
-
-func commandHealth(project, command string) string { return "command:" + project + "." + command }
-
 // PrepareLater records the health of the script commands of a project in the background.
 func (dc *Service) PrepareLater(projectID int64) {
 	dc.Go(func() {
@@ -80,7 +76,7 @@ func (dc *Service) Programs(ctx context.Context, projectID int64) error {
 		if sbErr != nil {
 			status, text = "error", dc.Sandbox.Name()+": "+sbErr.Error()
 		}
-		if err := health.Set(ctx, q, health.Of{}, sandboxHealth, status, text); err != nil {
+		if _, err := health.Set(ctx, q, health.Of{}, health.Sandbox, status, text); err != nil {
 			return err
 		}
 		keep := map[string]bool{}
@@ -88,16 +84,16 @@ func (dc *Service) Programs(ctx context.Context, projectID int64) error {
 			if c.Executor.Type != "script" {
 				continue
 			}
-			subject := commandHealth(p.Name, c.Name)
+			subject := health.Command(p.Name, c.Name)
 			keep[subject] = true
 			status, text := scriptHealth(&c, problems, sbErr)
-			if err := health.Set(ctx, q, health.Project(p), subject, status, text); err != nil {
+			if _, err := health.Set(ctx, q, health.Project(p), subject, status, text); err != nil {
 				return err
 			}
 		}
 		for _, row := range known {
-			if h := row.Health; h.ProjectID.Int64 == p.ID && strings.HasPrefix(h.Subject, commandHealth(p.Name, "")) && !keep[h.Subject] {
-				if err := q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: h.Subject}); err != nil {
+			if h := row.Health; h.ProjectID.Int64 == p.ID && strings.HasPrefix(h.Subject, health.Command(p.Name, "")) && !keep[h.Subject] {
+				if err := health.Clear(ctx, q, health.Project(p), h.Subject); err != nil {
 					return err
 				}
 			}

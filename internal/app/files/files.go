@@ -403,12 +403,12 @@ func (s *Service) Drain(ctx context.Context) {
 				})
 			case kind == "file" && tries >= 3:
 				stuck = true
-				if err := health.Write(ctx, s.St, health.Of{}, "outbox", health.Error, fmt.Sprintf("deck could not remove stored file %d: %v", r.Ref, err)); err != nil {
+				if err := health.Write(ctx, s.St, health.Of{}, health.Outbox, health.Error, fmt.Sprintf("deck could not remove stored file %d: %v", r.Ref, err)); err != nil {
 					slog.Error("write health", "err", err)
 				}
 			case kind == "project" && tries >= 3:
 				stuck = true
-				if err := health.Write(ctx, s.St, health.Of{}, "outbox", health.Error, fmt.Sprintf("deck could not remove the folder of deleted project %d: %v", r.Ref, err)); err != nil {
+				if err := health.Write(ctx, s.St, health.Of{}, health.Outbox, health.Error, fmt.Sprintf("deck could not remove the folder of deleted project %d: %v", r.Ref, err)); err != nil {
 					slog.Error("write health", "err", err)
 				}
 			}
@@ -416,7 +416,7 @@ func (s *Service) Drain(ctx context.Context) {
 	}
 	if was && !stuck {
 		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.DeleteHealth(ctx, db.DeleteHealthParams{Subject: "outbox"})
+			return health.Clear(ctx, q, health.Of{}, health.Outbox)
 		})
 	}
 }

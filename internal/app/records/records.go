@@ -390,7 +390,7 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 				}
 			}
 			if len(expired) == 0 {
-				return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: retentionSubject(p.Name)})
+				return health.Clear(ctx, q, health.Project(p), health.Retention(p.Name))
 			}
 			pl, err := s.plan(ctx, q, p, m, expired...)
 			if err != nil {
@@ -400,10 +400,10 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 			if err := remove(ctx, q, p, pl); err != nil {
 				return err
 			}
-			return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: retentionSubject(p.Name)})
+			return health.Clear(ctx, q, health.Project(p), health.Retention(p.Name))
 		})
 		if err != nil {
-			if err := health.Write(ctx, s.St, health.Project(p), retentionSubject(p.Name), health.Error, fmt.Sprintf("deck could not delete the records of %s past their retention: %v", p.Name, err)); err != nil {
+			if err := health.Write(ctx, s.St, health.Project(p), health.Retention(p.Name), health.Error, fmt.Sprintf("deck could not delete the records of %s past their retention: %v", p.Name, err)); err != nil {
 				slog.Error("write health", "err", err)
 			}
 		}
@@ -411,8 +411,6 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 	s.settle(ctx, open, 0, false)
 }
 
-// retentionSubject is the health of the retention of a project.
-func retentionSubject(project string) string { return "retention:" + project }
 
 // Held reports whether a record of a project gives a folder, or one inside or around it, as the outbox removes it;
 // a folder deck cannot check is held.

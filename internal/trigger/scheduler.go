@@ -41,9 +41,6 @@ func New(st *store.Store, fire Fire, now func() time.Time) *Scheduler {
 	return &Scheduler{st: st, start: fire, Now: now}
 }
 
-// HealthSubject is the health row of the triggers of a command.
-func HealthSubject(project, command string) string { return "trigger:" + project + "." + command }
-
 // Identity is what a manifest trigger is known by across manifest revisions.
 func Identity(t manifest.Trigger) (kind, spec string) {
 	switch {
@@ -207,7 +204,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 		return
 	}
 	p, perr := s.st.Q.GetProject(ctx, t.ProjectID)
-	subject := HealthSubject(p.Name, t.Command)
+	subject := health.Trigger(p.Name, t.Command)
 	if err == nil && id != 0 && s.goesOn(ctx, t, id) {
 		s.after(ctx, t, now)
 		if perr == nil {
@@ -221,7 +218,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	if err == nil {
 		if perr == nil {
 			s.tx(ctx, func(ctx context.Context, q *db.Queries) error {
-				return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: subject})
+				return health.Clear(ctx, q, health.Project(p), subject)
 			})
 		}
 		// The run moved its slot with it; a call held for the owner started none.

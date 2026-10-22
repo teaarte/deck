@@ -27,8 +27,8 @@ type Config struct {
 	ControlURL string
 	// Plain serves HTTP on 80 and 8080 instead of HTTPS on 443 and 8443, for a control server without certificates.
 	Plain bool
-	// Health reports the node: needs_login with the sign-in link, ok, or error.
-	Health func(status, text string)
+	// Health reports the node: needs_login with the sign-in link, ok with its https address, or error.
+	Health func(status, text, address string)
 }
 
 // Node is deck on the tailnet.
@@ -64,7 +64,7 @@ func (n *Node) serveAll(ctx context.Context, srv *api.Server, main, second int) 
 	for port, h := range map[int]http.Handler{main: srv.Handler(), second: srv.Sandbox()} {
 		ln, err := n.listen(port)
 		if err != nil {
-			n.health("error", err.Error())
+			n.health("error", err.Error(), "")
 			return
 		}
 		go serve(ctx, ln, h)
@@ -72,7 +72,7 @@ func (n *Node) serveAll(ctx context.Context, srv *api.Server, main, second int) 
 	if !n.cfg.Plain {
 		ln, err := n.ts.Listen("tcp", ":80")
 		if err != nil {
-			n.health("error", err.Error())
+			n.health("error", err.Error(), "")
 			return
 		}
 		go serve(ctx, ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +104,7 @@ func serve(ctx context.Context, ln net.Listener, h http.Handler) {
 func (n *Node) watch(ctx context.Context) {
 	lc, err := n.ts.LocalClient()
 	if err != nil {
-		n.health("error", err.Error())
+		n.health("error", err.Error(), "")
 		return
 	}
 	last := ""
@@ -114,15 +114,15 @@ func (n *Node) watch(ctx context.Context) {
 		case ctx.Err() != nil:
 			return
 		case err != nil:
-			n.report(&last, "error", err.Error())
+			n.report(&last, "error", err.Error(), "")
 		case st.BackendState == ipn.Running.String():
 			name := ""
 			if st.Self != nil {
 				name = st.Self.DNSName
 			}
-			n.report(&last, "ok", "https://"+trimDot(name))
+			n.report(&last, "ok", "https://"+trimDot(name), "https://"+trimDot(name))
 		case st.AuthURL != "":
-			n.report(&last, "needs_login", "sign in to Tailscale: "+st.AuthURL)
+			n.report(&last, "needs_login", "sign in to Tailscale: "+st.AuthURL, "")
 		}
 		select {
 		case <-ctx.Done():
@@ -132,7 +132,7 @@ func (n *Node) watch(ctx context.Context) {
 	}
 }
 
-func (n *Node) report(last *string, status, text string) {
+func (n *Node) report(last *string, status, text, address string) {
 	if *last == status+text {
 		return
 	}
@@ -140,12 +140,12 @@ func (n *Node) report(last *string, status, text string) {
 	if status == "needs_login" {
 		slog.Info("tailscale", "login", text)
 	}
-	n.health(status, text)
+	n.health(status, text, address)
 }
 
-func (n *Node) health(status, text string) {
+func (n *Node) health(status, text, address string) {
 	if n.cfg.Health != nil {
-		n.cfg.Health(status, text)
+		n.cfg.Health(status, text, address)
 	}
 }
 

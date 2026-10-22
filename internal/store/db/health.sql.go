@@ -10,17 +10,17 @@ import (
 	"database/sql"
 )
 
-const deleteHealth = `-- name: DeleteHealth :exec
-DELETE FROM health WHERE project_id IS ? AND subject = ?
+const clearHealth = `-- name: ClearHealth :exec
+DELETE FROM health WHERE coalesce(workspace_id, 0) = CAST(?1 AS INTEGER) AND subject = ?2
 `
 
-type DeleteHealthParams struct {
-	ProjectID sql.NullInt64
+type ClearHealthParams struct {
+	Workspace int64
 	Subject   string
 }
 
-func (q *Queries) DeleteHealth(ctx context.Context, arg DeleteHealthParams) error {
-	_, err := q.db.ExecContext(ctx, deleteHealth, arg.ProjectID, arg.Subject)
+func (q *Queries) ClearHealth(ctx context.Context, arg ClearHealthParams) error {
+	_, err := q.db.ExecContext(ctx, clearHealth, arg.Workspace, arg.Subject)
 	return err
 }
 
@@ -49,83 +49,31 @@ func (q *Queries) DeleteScreenHealth(ctx context.Context, projectID sql.NullInt6
 	return err
 }
 
-const deleteWorkspaceHealth = `-- name: DeleteWorkspaceHealth :exec
-DELETE FROM health WHERE workspace_id = ?1 AND subject = ?2
+const getHealthAt = `-- name: GetHealthAt :one
+SELECT subject, workspace_id, project_id, status, error, version, verdict, speed, updated_at, seen_at FROM health WHERE coalesce(workspace_id, 0) = CAST(?1 AS INTEGER) AND subject = ?2
 `
 
-type DeleteWorkspaceHealthParams struct {
-	WorkspaceID sql.NullInt64
-	Subject     string
-}
-
-func (q *Queries) DeleteWorkspaceHealth(ctx context.Context, arg DeleteWorkspaceHealthParams) error {
-	_, err := q.db.ExecContext(ctx, deleteWorkspaceHealth, arg.WorkspaceID, arg.Subject)
-	return err
-}
-
-const getHealth = `-- name: GetHealth :one
-SELECT subject, workspace_id, project_id, status, error, version, verdict, speed, updated_at, seen_at FROM health WHERE workspace_id IS NULL AND subject = ?1
-`
-
-func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error) {
-	row := q.db.QueryRowContext(ctx, getHealth, subject)
-	var i Health
-	err := row.Scan(
-		&i.Subject,
-		&i.WorkspaceID,
-		&i.ProjectID,
-		&i.Status,
-		&i.Error,
-		&i.Version,
-		&i.Verdict,
-		&i.Speed,
-		&i.UpdatedAt,
-		&i.SeenAt,
-	)
-	return i, err
-}
-
-const getWorkspaceHealth = `-- name: GetWorkspaceHealth :one
-SELECT subject, workspace_id, project_id, status, error, version, verdict, speed, updated_at, seen_at FROM health WHERE workspace_id = ?1 AND subject = ?2
-`
-
-type GetWorkspaceHealthParams struct {
-	WorkspaceID sql.NullInt64
-	Subject     string
-}
-
-func (q *Queries) GetWorkspaceHealth(ctx context.Context, arg GetWorkspaceHealthParams) (Health, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceHealth, arg.WorkspaceID, arg.Subject)
-	var i Health
-	err := row.Scan(
-		&i.Subject,
-		&i.WorkspaceID,
-		&i.ProjectID,
-		&i.Status,
-		&i.Error,
-		&i.Version,
-		&i.Verdict,
-		&i.Speed,
-		&i.UpdatedAt,
-		&i.SeenAt,
-	)
-	return i, err
-}
-
-const hasProjectHealth = `-- name: HasProjectHealth :one
-SELECT count(*) FROM health WHERE project_id = ? AND subject = ?
-`
-
-type HasProjectHealthParams struct {
-	ProjectID sql.NullInt64
+type GetHealthAtParams struct {
+	Workspace int64
 	Subject   string
 }
 
-func (q *Queries) HasProjectHealth(ctx context.Context, arg HasProjectHealthParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, hasProjectHealth, arg.ProjectID, arg.Subject)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+func (q *Queries) GetHealthAt(ctx context.Context, arg GetHealthAtParams) (Health, error) {
+	row := q.db.QueryRowContext(ctx, getHealthAt, arg.Workspace, arg.Subject)
+	var i Health
+	err := row.Scan(
+		&i.Subject,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.Status,
+		&i.Error,
+		&i.Version,
+		&i.Verdict,
+		&i.Speed,
+		&i.UpdatedAt,
+		&i.SeenAt,
+	)
+	return i, err
 }
 
 const listHealth = `-- name: ListHealth :many
@@ -205,7 +153,7 @@ func (q *Queries) SeeHealth(ctx context.Context, arg SeeHealthParams) (int64, er
 	return result.RowsAffected()
 }
 
-const setHealth = `-- name: SetHealth :exec
+const setHealth = `-- name: SetHealth :execrows
 INSERT INTO health (workspace_id, project_id, subject, status, error)
 VALUES (?1, ?2, ?3, ?4, ?5)
 ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = excluded.status, error = excluded.error,
@@ -221,15 +169,18 @@ type SetHealthParams struct {
 	Error       string
 }
 
-func (q *Queries) SetHealth(ctx context.Context, arg SetHealthParams) error {
-	_, err := q.db.ExecContext(ctx, setHealth,
+func (q *Queries) SetHealth(ctx context.Context, arg SetHealthParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setHealth,
 		arg.WorkspaceID,
 		arg.ProjectID,
 		arg.Subject,
 		arg.Status,
 		arg.Error,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setHealthCheck = `-- name: SetHealthCheck :exec

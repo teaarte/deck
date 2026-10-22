@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/internal/health"
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
@@ -83,10 +84,10 @@ func TestRealACPAgents(t *testing.T) {
 					e.must("deck.provider_check", map[string]any{"provider": "acp"}, nil)
 					time.Sleep(time.Second)
 				}
-				h, _ = e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
+				h, _ = health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 				for deadline := time.Now().Add(21 * time.Minute); h.Status == "checking" && time.Now().Before(deadline); {
 					time.Sleep(time.Second)
-					h, _ = e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
+					h, _ = health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 				}
 				t.Logf("%s %s: self-check %d %s in %s: %s", h.Version, model, try, h.Status, time.Since(start).Round(time.Second), h.Error)
 				if h.Status == "ok" {

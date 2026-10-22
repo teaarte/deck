@@ -58,7 +58,8 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 		t.Fatalf("commands of another workspace must look missing, got %d", code)
 	}
 	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), Subject: "command:theirs.collect", Status: "error", Error: "their secret path"})
+		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), Subject: "command:theirs.collect", Status: "error", Error: "their secret path"})
+		return err
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +111,7 @@ func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
 			t.Fatalf("a write through Store.Q panics: %v", p)
 		}
 	}()
-	_ = e.App.Store.Q.SetHealth(context.Background(), db.SetHealthParams{Subject: "x", Status: "ok"})
+	_, _ = e.App.Store.Q.SetHealth(context.Background(), db.SetHealthParams{Subject: "x", Status: "ok"})
 }
 
 // TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere: health rows are keyed by workspace and project, so a
@@ -130,7 +131,7 @@ func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 		}
 		for _, h := range []db.SetHealthParams{{WorkspaceID: store.ID(1), ProjectID: store.ID(mine), Subject: "command:x.run", Status: "error"},
 			{WorkspaceID: store.ID(2), ProjectID: store.ID(theirs.ID), Subject: "command:x.run", Status: "error"}} {
-			if err := q.SetHealth(ctx, h); err != nil {
+			if _, err := q.SetHealth(ctx, h); err != nil {
 				return err
 			}
 		}

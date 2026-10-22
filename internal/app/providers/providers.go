@@ -314,9 +314,9 @@ func (s *Service) Up(ctx context.Context, workspace int64, name string, pick boo
 // its last call in the workspace.
 func (s *Service) healthOf(ctx context.Context, workspace int64, name string) (db.Health, error) {
 	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name}); err == nil && row.Model.Agent == "" {
-		return s.St.Q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: ModelSubject(name)})
+		return health.Get(ctx, s.St.Q, health.Of{Workspace: workspace}, health.Model(name))
 	}
-	return s.St.Q.GetHealth(ctx, process.HealthSubject(name))
+	return health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
 }
 
 func (s *Service) builtinNamed(name string) provider.Provider {

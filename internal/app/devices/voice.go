@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -68,14 +67,12 @@ type secureAddress struct {
 	HTTPS string `json:"https,omitempty"`
 }
 
-// secureAddress is the https address of deck on the owner's tailnet, which the state of the tailnet holds once
-// deck is on it.
+// secureAddress is the https address of deck on the owner's tailnet once deck is on it.
 func (dv *Service) secureAddress(ctx context.Context, act registry.Actor, _ struct{}) (secureAddress, error) {
-	h, err := dv.St.Q.GetHealth(ctx, "tailscale")
-	if err != nil || h.Status != health.OK || !strings.HasPrefix(h.Error, "https://") {
-		return secureAddress{}, nil
+	if a := dv.Tailnet.Load(); a != nil {
+		return secureAddress{HTTPS: *a}, nil
 	}
-	return secureAddress{HTTPS: h.Error}, nil
+	return secureAddress{}, nil
 }
 
 // VoiceCommands are the commands of speech to text.

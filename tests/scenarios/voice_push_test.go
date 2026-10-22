@@ -565,12 +565,12 @@ func TestAPageWithoutAMicrophoneLearnsWhereToRecord(t *testing.T) {
 	if at.HTTPS != "" {
 		t.Fatalf("off the tailnet there is no secure address: %+v", at)
 	}
-	e.App.TailnetHealth("warning", "sign in at https://login.tailscale.com/a/1")
+	e.App.TailnetHealth("needs_login", "sign in at https://login.tailscale.com/a/1", "")
 	e.must("deck.secure_address", nil, &at)
 	if at.HTTPS != "" {
 		t.Fatalf("a sign-in link is no address of deck: %+v", at)
 	}
-	e.App.TailnetHealth("ok", "https://deck.tail1234.ts.net")
+	e.App.TailnetHealth("ok", "https://deck.tail1234.ts.net", "https://deck.tail1234.ts.net")
 	e.must("deck.secure_address", nil, &at)
 	if at.HTTPS != "https://deck.tail1234.ts.net" {
 		t.Fatalf("on the tailnet the page is sent to its https address: %+v", at)

@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/health"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -110,7 +111,7 @@ func TestProviderWithoutAKeySendsNone(t *testing.T) {
 	llm := acpLLM(t)
 	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose", "no_cloud": true})
 	e.waitFor("the self-check", func() bool {
-		h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
+		h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 		return err == nil && h.Status == "ok"
 	})
 	e.waitState(e.run(e.acpProject("plain", plainManifest), "work"), "done")

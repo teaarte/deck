@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/internal/health"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -43,7 +44,7 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	}
 	gone := newEnv(t, nil, func(c *app.Config) { c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "no-goose")} })
 	gone.App.Providers.Checks(t.Context(), time.Now())
-	if _, err := gone.App.Store.Q.GetHealth(t.Context(), "agent:goose"); err == nil {
+	if _, err := health.Get(t.Context(), gone.App.Store.Q, health.Of{}, "agent:goose"); err == nil {
 		t.Fatal("an agent that is not installed has no health row")
 	}
 	if got := found(gone); got != "|missing" {
@@ -161,16 +162,16 @@ func TestAModelOfOpenCodeSaysToSetItAgain(t *testing.T) {
 	}
 	_ = e.App.Close()
 	e = newEnvWith(t, home, &Fake{})
-	if _, err := e.App.Store.Q.GetHealth(t.Context(), "agent:opencode"); err == nil {
+	if _, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "agent:opencode"); err == nil {
 		t.Fatal("the health row of OpenCode is gone with it")
 	}
-	if _, err := e.App.Store.Q.GetHealth(t.Context(), "provider:removed-long-ago"); err == nil {
+	if _, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:removed-long-ago"); err == nil {
 		t.Fatal("the health of a model removed before goes")
 	}
-	if _, err := e.App.Store.Q.GetHealth(t.Context(), "provider:codex"); err != nil {
+	if _, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:codex"); err != nil {
 		t.Fatal("the health of a built-in provider stays")
 	}
-	if h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:free"); err != nil || h.Status != "error" || !strings.Contains(h.Error, "goose") {
+	if h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:free"); err != nil || h.Status != "error" || !strings.Contains(h.Error, "goose") {
 		t.Fatalf("a model of OpenCode is red with what to do: %+v %v", h, err)
 	}
 	e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
@@ -206,10 +207,10 @@ func TestAModelOfDshSaysToSetItAgain(t *testing.T) {
 	}
 	_ = e.App.Close()
 	e = newEnvWith(t, home, &Fake{})
-	if _, err := e.App.Store.Q.GetHealth(t.Context(), "agent:dsh"); err == nil {
+	if _, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "agent:dsh"); err == nil {
 		t.Fatal("the health row of dsh is gone with it")
 	}
-	if h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:free"); err != nil || h.Status != "error" || !strings.Contains(h.Error, "agent goose") {
+	if h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:free"); err != nil || h.Status != "error" || !strings.Contains(h.Error, "agent goose") {
 		t.Fatalf("a model of dsh is red with what to do: %+v %v", h, err)
 	}
 	var tool string

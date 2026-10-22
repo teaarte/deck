@@ -77,9 +77,6 @@ func optionsOf(o string) string {
 	return o
 }
 
-// ModelSubject is the health row of a model of a connection, in its workspace.
-func ModelSubject(name string) string { return "model:" + name }
-
 type modelsOut struct {
 	Agents      []agentView      `json:"agents"`
 	Connections []connectionView `json:"connections"`
@@ -387,11 +384,11 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			}
 		}
 		if in.Agent != "" {
-			if err := q.DeleteWorkspaceHealth(ctx, db.DeleteWorkspaceHealthParams{WorkspaceID: store.ID(act.Workspace), Subject: ModelSubject(in.Name)}); err != nil {
+			if err := health.Clear(ctx, q, health.Of{Workspace: act.Workspace}, health.Model(in.Name)); err != nil {
 				return err
 			}
 			if c.Api == APICLI {
-				err = q.DeleteHealth(ctx, db.DeleteHealthParams{Subject: process.HealthSubject(in.Name)})
+				err = health.Clear(ctx, q, health.Of{}, health.Provider(in.Name))
 			} else {
 				err = process.ProviderHealth(ctx, q, in.Name, health.Checking, "the self-check of the model in its agent is about to run")
 			}

@@ -16,7 +16,7 @@ var (
 	lineMarks = map[string]struct {
 		mark string
 		not  *regexp.Regexp
-	}{".sql": {"--", regexp.MustCompile(`^--\s*(\+goose|name:)`)}, ".py": {"#", regexp.MustCompile(`^#(!|\s*///|\s*(requires-python|dependencies)|\s*"|\s*\])`)}}
+	}{".sql": {"--", regexp.MustCompile(`^--\s*(\+goose|name:)`)}, ".py": {"#", regexp.MustCompile(`^#(!|\s*///|\s*(requires-python|dependencies)\b|\s*"|\s*\])`)}}
 	// textDirs are where texts other than code are checked for vertical names: the schemas and the master.
 	textDirs     = []string{"schemas/", "master/"}
 	textExt      = []string{".json", ".md"}

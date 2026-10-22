@@ -179,8 +179,7 @@ func (dv *Service) Unread(ctx context.Context, act registry.Actor) (int64, error
 	return dv.St.Q.CountUnreadNotes(ctx, act.Workspace)
 }
 
-// FeedCommands are the commands of the feed.
-func (dv *Service) FeedCommands() []*registry.Command {
+func (dv *Service) feedCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("feed_list", "Feed",
 			"Lists the owner's feed, newest first: notes written with notify, with the screen each opens and its buttons, and changes made without the owner, with whether they can be undone.",

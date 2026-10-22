@@ -101,8 +101,7 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 	return map[string]any{"notification": n.ID}, nil
 }
 
-// NotifyCommands are the commands of the feed lines of notify.
-func (dv *Service) NotifyCommands() []*registry.Command {
+func (dv *Service) notifyCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("notify", "Notify the owner",
 			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",

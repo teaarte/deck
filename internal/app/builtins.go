@@ -24,11 +24,11 @@ func (a *App) addBuiltins() {
 func (a *App) builtins() []*registry.Command {
 	var out []*registry.Command
 	for _, cs := range [][]*registry.Command{a.Answers.Commands(), a.Health.Commands(), a.Signins.Commands(), a.Chats.Commands(),
-		a.Documents.Commands(), a.Devices.FeedCommands(), a.Folders.Commands(), a.Projects.Commands(),
-		a.Journal.Commands(), a.Devices.NotifyCommands(),
-		a.Processes.Commands(), a.Providers.Commands(), a.Devices.PushCommands(), a.Records.Commands(),
+		a.Documents.Commands(), a.Devices.Commands(), a.Folders.Commands(), a.Projects.Commands(),
+		a.Journal.Commands(),
+		a.Processes.Commands(), a.Providers.Commands(), a.Records.Commands(),
 		a.Screens.Commands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(),
-		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Devices.VoiceCommands(), a.Cfg.Commands} {
+		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Cfg.Commands} {
 		out = append(out, cs...)
 	}
 	return append(out, registry.Def("manifest_format", "Manifest format", "Returns the JSON Schema of project manifests.", registry.Everyone,

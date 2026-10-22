@@ -425,8 +425,7 @@ func otherKey(body string) bool {
 	return strings.Contains(body, "VapidPkHashMismatch") || strings.Contains(body, "different sender")
 }
 
-// PushCommands are the commands of pushes.
-func (dv *Service) PushCommands() []*registry.Command {
+func (dv *Service) pushCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("push_key", "Push key",
 			"Returns the public key a device subscribes to the pushes of deck with.",

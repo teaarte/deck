@@ -73,8 +73,7 @@ func (dv *Service) secureAddress(ctx context.Context, act registry.Actor, _ stru
 	return secureAddress{}, nil
 }
 
-// VoiceCommands are the commands of speech to text.
-func (dv *Service) VoiceCommands() []*registry.Command {
+func (dv *Service) voiceCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("transcribe", "Speech to text",
 			"Turns a recording the owner uploaded into text with the model assigned to speech to text; the recording is not kept.",

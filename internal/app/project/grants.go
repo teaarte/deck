@@ -71,7 +71,7 @@ func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string,
 	if err != nil {
 		return "", 0, err
 	}
-	text := manifest.Canonical(in.Manifest)
+	text := raised(in.Manifest)
 	if d.Current != in.Base {
 		base, err := docs.Revision(ctx, q, d, in.Base)
 		if err != nil {

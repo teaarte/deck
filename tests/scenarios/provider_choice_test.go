@@ -45,6 +45,8 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 	if list[0].Name != "notes.collect" || list[0].Model != "local" || !slices.Equal(list[0].Choices, []string{"local"}) {
 		t.Fatalf("only the provider on own hardware fits: %+v", list)
 	}
+	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "notes", "models": []string{"cloud"}}, nil)
+	e.refused("notes.collect", map[string]any{}, 422, "in the settings of the module: local")
 	e.useModels("notes.collect", "local")
 	local.streamText(4, acpTurn(`{"written": 0}`))
 	if got := e.waitState(e.run(p, "collect"), "done", "error"); got.State != "done" || local.calls() != 4 {

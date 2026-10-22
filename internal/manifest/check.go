@@ -10,8 +10,9 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/schemas"
 	"golang.org/x/net/publicsuffix"
+
+	"deck2/schemas"
 )
 
 func (m *Manifest) compile() error {

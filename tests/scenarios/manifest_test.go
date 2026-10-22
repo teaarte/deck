@@ -231,11 +231,17 @@ func TestSchemaChangesAreCheckedAgainstRecords(t *testing.T) {
 	if code, out := e.call("deck.manifest_save", map[string]any{"project": "links", "manifest": removed}); code != 422 || !strings.Contains(string(out), "has 25 records") {
 		t.Fatalf("removing a collection with records must be refused, got %d %s", code, out)
 	}
-	var del struct{ Deleted int }
-	e.must("deck.collection_delete", map[string]any{"project": "links", "collection": "links"}, &del)
-	if del.Deleted != 25 {
-		t.Fatalf("collection_delete: %+v", del)
+	_, tok := e.token("terminal", "deck.*")
+	if code, out := e.callWith(tok, "deck.collection_delete", map[string]any{"project": "links", "collection": "links"}); code != 200 ||
+		!strings.Contains(string(out), `"waiting"`) {
+		t.Fatalf("the master side the refusal tells to delete the records asks the owner to: %d %s", code, out)
 	}
+	e.answer(e.waitAsk().ID, "allow")
+	e.waitFor("the records deleted", func() bool {
+		var recs []any
+		e.must("deck.records_list", map[string]any{"project": "links", "collection": "links"}, &recs)
+		return len(recs) == 0
+	})
 	e.must("deck.manifest_save", map[string]any{"project": "links", "manifest": removed}, nil)
 }
 

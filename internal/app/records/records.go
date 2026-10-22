@@ -506,6 +506,6 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerSide, s.recordParts).On("collection", "files", "processes"),
 		registry.Def("collection_delete", "Delete collection records",
 			"Deletes every record of a collection with what belongs to each, as record_parts lists, so the collection can be removed from the manifest.",
-			registry.OwnerOnly, s.collectionDelete).As(registry.External),
+			registry.OwnerSide, s.collectionDelete).As(registry.External),
 	}
 }

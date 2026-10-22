@@ -39,7 +39,7 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		in["body"] = string(body)
 	}
 	input, _ := json.Marshal(in)
-	now, err := g.gate(WithRoute(r.Context(), hops), act, c, act.ProjectID, input)
+	now, err := g.gate(WithRoute(r.Context(), ask, hops), act, c, act.ProjectID, input)
 	if err == nil && !now {
 		err = registry.Refuse("deck: a draft or a trial calls through $DECK_MODELS only the free models and those of the owner's machine its manifest names in models; this call was not made: the owner enables the project, or an agent asks with deck.model_call, which waits for the owner's yes")
 	}

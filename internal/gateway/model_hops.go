@@ -51,15 +51,22 @@ type ModelRoute func(ctx context.Context, act registry.Actor, ask ModelAsk) ([]M
 
 type routeKey struct{}
 
-// WithRoute is ctx with the hops a call of a model goes through, so the rules of its command route it no second time.
-func WithRoute(ctx context.Context, hops []ModelHop) context.Context {
-	return context.WithValue(ctx, routeKey{}, hops)
+// route is what the proxy read of a call of a model and the hops it goes through.
+type route struct {
+	ask  ModelAsk
+	hops []ModelHop
 }
 
-// RouteOf is the hops WithRoute gave ctx.
-func RouteOf(ctx context.Context) ([]ModelHop, bool) {
-	hops, ok := ctx.Value(routeKey{}).([]ModelHop)
-	return hops, ok
+// WithRoute is ctx with what a call of a model asks and the hops it goes through, so the rules of its command read
+// and route it no second time.
+func WithRoute(ctx context.Context, ask ModelAsk, hops []ModelHop) context.Context {
+	return context.WithValue(ctx, routeKey{}, route{ask, hops})
+}
+
+// RouteOf is what WithRoute gave ctx.
+func RouteOf(ctx context.Context) (ModelAsk, []ModelHop, bool) {
+	r, ok := ctx.Value(routeKey{}).(route)
+	return r.ask, r.hops, ok
 }
 
 // dropped are headers of the caller deck does not pass on: its own keys, cookies and how the body is packed.

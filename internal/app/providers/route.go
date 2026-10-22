@@ -147,7 +147,7 @@ func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.Ra
 
 // route is where a call of a model goes: the hops the proxy found already, else those of what it asks.
 func (s *Service) route(ctx context.Context, act registry.Actor, input json.RawMessage) ([]gateway.ModelHop, error) {
-	if hops, ok := gateway.RouteOf(ctx); ok {
+	if _, hops, ok := gateway.RouteOf(ctx); ok {
 		return hops, nil
 	}
 	in, err := parseCall(input)
@@ -161,8 +161,9 @@ func (s *Service) route(ctx context.Context, act registry.Actor, input json.RawM
 	return s.Route(ctx, act, ask)
 }
 
-// use is what a call of a model goes through, as a manifest names it: an @role, a model by name, or a connection.
-func (s *Service) use(input json.RawMessage) (string, string) {
+// use is what a call of a model goes through, as a manifest names it: an @role, a model by name, or a connection; a
+// call through the proxy is read as the proxy read it.
+func (s *Service) use(ctx context.Context, input json.RawMessage) (string, string) {
 	in, _ := parseCall(input)
 	switch {
 	case in.Kind != "" && in.Model == "":
@@ -170,7 +171,11 @@ func (s *Service) use(input json.RawMessage) (string, string) {
 	case in.Kind != "":
 		return in.Model, ""
 	}
-	if ask, _ := proxied(in); strings.HasPrefix(ask.Model, "@") {
+	ask, _, ok := gateway.RouteOf(ctx)
+	if !ok {
+		ask, _ = proxied(in)
+	}
+	if strings.HasPrefix(ask.Model, "@") {
 		return ask.Model, ""
 	}
 	return in.Connection, in.Connection
@@ -186,7 +191,7 @@ func (s *Service) manifestNames(ctx context.Context, act registry.Actor, input j
 	if err != nil {
 		return err
 	}
-	use, connection := s.use(input)
+	use, connection := s.use(ctx, input)
 	uses := m.Uses()
 	if slices.Contains(uses, use) {
 		return nil

@@ -131,32 +131,30 @@ func TestRevertBringsBackRecordsAMigrationDropped(t *testing.T) {
 	}
 }
 
-// TestAManifestOfFormat8LoadsWithoutItsBoard: deck keeps no boards; a manifest of format 8 with a board loads
-// without its lane triggers and board blocks, and a board in a current format is refused.
-func TestAManifestOfFormat8LoadsWithoutItsBoard(t *testing.T) {
+// TestDeckKeepsNoBoards: deck has no commands of boards or cards, and a manifest with a board, a board block or a
+// lane trigger is refused.
+func TestDeckKeepsNoBoards(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	for _, name := range []string{"deck.cards_list", "deck.card_create", "deck.card_move", "deck.card_transfer", "deck.chat_interview"} {
 		e.refused(name, map[string]any{"project": "work", "card": 1, "title": "x"}, 404, "unknown command")
 	}
-	eight := `{"version": 8, "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
-    "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}}, "executor": {"type": "agent", "prompt": "Work."}}],
-  "triggers": [{"command": "work", "lane": "doing"}, {"command": "work", "cron": "0 9 * * *"}],
-  "board": {"lanes": [{"name": "doing", "title": "Doing", "role": "inbox"}]},
-  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "board", "title": "Work"},
-    {"type": "columns", "blocks": [{"type": "board"}]},
-    {"type": "tabs", "tabs": [{"title": "Board", "blocks": [{"type": "board"}]}, {"title": "Notes", "blocks": [{"type": "columns", "blocks": [{"type": "board"}]}]}]},
-    {"type": "dialog", "title": "More", "name": "more", "blocks": [{"type": "board"}]}]}], "menu": ["main"]}`
-	e.createProject("old", eight)
-	if ts := e.triggers(); !slices.ContainsFunc(ts, func(tr triggerV) bool { return tr.Project == "old" && tr.Kind == "cron" }) ||
-		slices.ContainsFunc(ts, func(tr triggerV) bool { return tr.Kind == "lane" }) {
-		t.Fatalf("a manifest of format 8 loads without its lane triggers: %+v", ts)
+	plain := `{"version": 13, "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+    "executor": {"type": "agent", "prompt": "Work."}}],
+  "triggers": [{"command": "work", "cron": "0 9 * * *"}],
+  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Work", "actions": [{"label": "Work", "command": "work"}]}]}], "menu": ["main"]}`
+	e.createProject("work", plain)
+	for _, c := range []struct{ old, new, says string }{
+		{`"triggers": [`, `"board": {"lanes": [{"name": "doing", "title": "Doing", "role": "inbox"}]}, "triggers": [`, "board"},
+		{`{"type": "actions", "title": "Work", "actions": [{"label": "Work", "command": "work"}]}`, `{"type": "board", "title": "Work"}`, "/screens/0/blocks/0/type"},
+		{`{"command": "work", "cron": "0 9 * * *"}`, `{"command": "work", "lane": "doing"}`, "lane"},
+	} {
+		m := strings.Replace(plain, c.old, c.new, 1)
+		if m == plain {
+			t.Fatalf("fixture replacement did not apply: %s", c.old)
+		}
+		e.refused("deck.manifest_save", map[string]any{"project": "work", "manifest": m}, 422, c.says)
 	}
-	if code, out := e.call("deck.screen", map[string]any{"project": "old", "screen": "main"}); code != 200 || strings.Contains(string(out), "board") {
-		t.Fatalf("its screen shows without the board: %d %s", code, out)
-	}
-	nine := strings.NewReplacer(`"version": 8`, `"version": 13`, `{"command": "work", "lane": "doing"}, `, "", `, "format": "card"`, "").Replace(eight)
-	e.refused("deck.manifest_save", map[string]any{"project": "old", "manifest": nine}, 422, "board")
 }
 
 // TestADeckThatRefusesASavedManifestSaysSoOnce: a manifest saved by an older deck that the checks of this one refuse

@@ -118,14 +118,14 @@ func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
 	}
 }
 
-// TestAModuleSavedBeforeANewCheckStillLoads: a check newer than a stored manifest (a block property the catalog
-// lacks, param.<name> in a text) only warns on read, so the module stays in the menu; a save refuses both.
+// TestAModuleSavedBeforeANewCheckStillLoads: a check newer than a stored manifest (param.<name> in a text) only
+// warns on read, so the module stays in the menu; a save refuses it.
 func TestAModuleSavedBeforeANewCheckStillLoads(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("ideas", ideasManifest)
 	old := strings.Replace(ideasManifest, `{"type": "table", "title": "Best ideas",`,
-		`{"type": "table", "title": "Best ideas", "colour": "teal", "description": "Open with param.day to see a day.",`, 1)
+		`{"type": "table", "title": "Best ideas", "description": "Open with param.day to see a day.",`, 1)
 	if old == ideasManifest {
 		t.Fatal("fixture replacement did not apply")
 	}
@@ -144,8 +144,8 @@ func TestAModuleSavedBeforeANewCheckStillLoads(t *testing.T) {
 	}
 	var got struct{ Warnings []string }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &got)
-	if w := strings.Join(got.Warnings, "|"); !strings.Contains(w, "colour") || !strings.Contains(w, `param "day"`) {
-		t.Fatalf("manifest_get warns of both: %+v", got)
+	if w := strings.Join(got.Warnings, "|"); !strings.Contains(w, `param "day"`) {
+		t.Fatalf("manifest_get warns of it: %+v", got)
 	}
-	e.refused("deck.manifest_save", map[string]any{"project": "ideas", "manifest": old}, 422, "colour")
+	e.refused("deck.manifest_save", map[string]any{"project": "ideas", "manifest": old}, 422, `param "day"`)
 }

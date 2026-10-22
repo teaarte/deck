@@ -34,9 +34,8 @@ var Blocks = func() []string {
 	return out
 }()
 
-// Format is the manifest schema with the blocks of the catalog and the sources deck knows; loose is the same
-// with blocks open to properties the catalog lacks, for manifests stored before it dropped one.
-var Format, loose = format(true), format(false)
+// Format is the manifest schema with the blocks of the catalog and the sources deck knows.
+var Format = format()
 
 // Taught is Format as a model reads it to write a module: without the blocks and fields only deck's screens use.
 var Taught = taught(Format)
@@ -72,7 +71,7 @@ func taught(format []byte) []byte {
 	return out
 }
 
-func format(strict bool) []byte {
+func format() []byte {
 	var m map[string]any
 	if err := json.Unmarshal(schemas.Manifest, &m); err != nil {
 		panic(err)
@@ -89,7 +88,7 @@ func format(strict bool) []byte {
 		props["description"] = map[string]any{"type": "string", "description": "A line under the title that says what the block is for and how to use it."}
 		props["span"] = map[string]any{"enum": []any{1, 2, "full"}, "description": "Cells of the grid of the screen the block takes; tables, lists, forms, documents, logs, chats, custom blocks, tabs and columns take the full width by default, charts two cells, the rest one."}
 		rules, _ := form["description"].(string)
-		form["properties"], form["type"], form["additionalProperties"] = props, "object", !strict
+		form["properties"], form["type"], form["additionalProperties"] = props, "object", false
 		form["description"] = strings.TrimSpace(c.Description + " " + rules)
 		branches = append(branches, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": name}}}, "then": form})
 	}

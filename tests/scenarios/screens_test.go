@@ -354,12 +354,12 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 	}
 }
 
-// TestAValueIsFixedTextOrAnExpression: a module of format 7 reads as format 8, where $record.<field> is the
-// expression =<field> and $record.id =_id with the same values; a manifest of format 8 with $record is refused.
+// TestAValueIsFixedTextOrAnExpression: a value from the item is the expression =<field>, =_id the id of the record;
+// a value written as $record.<field> is refused with the expression to write.
 func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	old := `{"version": 7,
+	m := `{"version": 13,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "id": {"type": "string"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
@@ -367,38 +367,33 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
     "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Notes", "blocks": [{"type": "table", "title": "Notes", "source": {"collection": "notes"},
     "columns": [{"label": "Title", "bind": "title"}],
-    "actions": [{"label": "Touch", "command": "touch", "params": {"note": "$record.id", "score": "$record.title"}}, {"label": "Open", "screen": "note"}]}]},
+    "actions": [{"label": "Touch", "command": "touch", "params": {"note": "%[1]s", "score": "%[2]s"}}, {"label": "Open", "screen": "note"}]}]},
     {"name": "note", "title": "Note", "record": "notes", "blocks": [{"type": "form", "title": "Again", "command": "touch",
-      "values": {"note": "$record.id", "score": "$record.title"}}]}]}`
-	e.createProject("notes", old)
+      "values": {"note": "%[1]s", "score": "%[2]s"}}]}]}`
+	e.createProject("notes", fmt.Sprintf(m, "=_id", "=title"))
 	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
 	rows := blockData[[]screenRow](t, e.screenData("notes", "main", nil)["b0"]["rows"])
 	params, _ := rows[0].Actions[0]["params"].(map[string]any)
 	if len(rows) != 1 || params["note"] != rows[0].ID || params["score"] != "a" {
-		t.Fatalf("a button of format 7 takes the id of the record and its field: %+v", rows)
+		t.Fatalf("a button takes the id of the record and its field: %+v", rows)
 	}
 	var form struct{ Values map[string]any }
 	_ = json.Unmarshal(e.screenData("notes", "note", map[string]any{"record": rows[0].ID})["b0"]["value"], &form)
 	if form.Values["note"] != rows[0].ID || form.Values["score"] != "a" {
-		t.Fatalf("a form of format 7 takes the record of the page: %+v", form)
+		t.Fatalf("a form takes the record of the page: %+v", form)
 	}
-	var cur struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &cur)
-	if !strings.Contains(cur.Manifest, `"note": "=_id"`) || strings.Index(cur.Manifest, `"score": {`) > strings.Index(cur.Manifest, `"note": {`) {
-		t.Fatalf("the raised manifest keeps the order it was written in: %s", cur.Manifest)
-	}
-	code, out := e.call("deck.project_create", map[string]any{"name": "new", "manifest": strings.Replace(old, `"version": 7`, `"version": 13`, 1)})
+	code, out := e.call("deck.project_create", map[string]any{"name": "new", "manifest": fmt.Sprintf(m, "$record.id", "$record.title")})
 	if code != 422 || !strings.Contains(string(out), "=_id") {
-		t.Fatalf("format 8 writes a value from the item as =<expression>: %d %s", code, out)
+		t.Fatalf("a value from the item is written as =<expression>: %d %s", code, out)
 	}
 }
 
-// TestAModuleOfFormatSevenOnAReadOfDeckStillLoads: $record.id on a block that reads a deck command, and a field
-// whose name is no name of an expression, rise to expressions that load and give the same values.
-func TestAModuleOfFormatSevenOnAReadOfDeckStillLoads(t *testing.T) {
+// TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn: =_id on a block that reads a deck command and
+// =$env["<field>"] for a field whose name is no name of an expression give their values.
+func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	pid := e.createProject("notes", `{"version": 7,
+	pid := e.createProject("notes", `{"version": 13,
   "collections": [{"name": "notes", "description": "Notes", "key": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "first-name": {"type": "string"}, "in": {"type": "string"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal", "result": {"type": "object"},
@@ -406,9 +401,9 @@ func TestAModuleOfFormatSevenOnAReadOfDeckStillLoads(t *testing.T) {
     "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Main", "blocks": [
     {"type": "table", "title": "Runs", "source": {"from": "deck.processes_list"}, "columns": [{"label": "Command", "bind": "command"}],
-      "actions": [{"label": "Touch", "command": "touch", "params": {"process": "$record.id"}}]},
+      "actions": [{"label": "Touch", "command": "touch", "params": {"process": "=_id"}}]},
     {"type": "table", "title": "Notes", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
-      "actions": [{"label": "Who", "command": "touch", "params": {"who": "$record.first-name"}}, {"label": "Where", "command": "touch", "params": {"who": "$record.in"}}]}]}]}`)
+      "actions": [{"label": "Who", "command": "touch", "params": {"who": "=$env[\"first-name\"]"}}, {"label": "Where", "command": "touch", "params": {"who": "=$env[\"in\"]"}}]}]}]}`)
 	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "first-name": "Ann", "in": "Oslo"})}, nil)
 	e.run(pid, "touch")
 	data := e.screenData("notes", "main", nil)
@@ -418,7 +413,7 @@ func TestAModuleOfFormatSevenOnAReadOfDeckStillLoads(t *testing.T) {
 	n, _ := notes[0].Actions[0]["params"].(map[string]any)
 	w, _ := notes[0].Actions[1]["params"].(map[string]any)
 	if len(runs) != 1 || p["process"] != runs[0].ID || n["who"] != "Ann" || w["who"] != "Oslo" {
-		t.Fatalf("the raised buttons give the id of the run and the field: %+v / %+v", runs, notes)
+		t.Fatalf("the buttons give the id of the run and the field: %+v / %+v", runs, notes)
 	}
 }
 

@@ -1,5 +1,5 @@
 -- +goose Up
--- The schema of migrations 1 to 42; a base of before 42 does not take it.
+-- The schema of migrations 1 to 43; a base of before 43 does not take it.
 
 CREATE TABLE workspace (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

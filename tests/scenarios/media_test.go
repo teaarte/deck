@@ -23,7 +23,7 @@ const videosManifest = `{"version": 13,
     {"type": "actions", "actions": [{"label": "Again", "screen": "watch"}]}]}],
   "menu": ["watch"]}`
 
-// unused are the parts of format 11 no module used, each as a change of videosManifest; format 12 has none of them.
+// unused are parts deck dropped since no module used them, each as a change of videosManifest; a manifest has none.
 var unused = [][2]string{
 	{`{"version": 13,`, `{"version": 13, "master_errors": false,`},
 	{`"display": "slug",`, `"display": "slug", "file_retention_days": 10,`},
@@ -38,9 +38,9 @@ var unused = [][2]string{
       "columns": [{"label": "N", "bind": "n"}]}]}, {"type": "actions",`},
 }
 
-// TestAStoredManifestOfFormat11IsReadWithoutWhatNoModuleUsed: a stored manifest of format 11 with each of unused is
-// read raised without them and its screen shows; format 12 refuses each.
-func TestAStoredManifestOfFormat11IsReadWithoutWhatNoModuleUsed(t *testing.T) {
+// TestAManifestRefusesWhatNoModuleUsed: a video of a module plays from its address without marks, and a manifest
+// with any of unused is refused.
+func TestAManifestRefusesWhatNoModuleUsed(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
@@ -48,30 +48,9 @@ func TestAStoredManifestOfFormat11IsReadWithoutWhatNoModuleUsed(t *testing.T) {
 	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "eu-solar.webm"), []byte("webm"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
-	old := strings.Replace(videosManifest, `{"version": 13,`, `{"version": 11,`, 1)
-	for _, u := range unused {
-		old = strings.Replace(old, u[0], u[1], 1)
-	}
-	old = strings.Replace(old, `"title": "Watch", "blocks"`, `"title": "Watch", "params": {"t": "number"}, "blocks"`, 1)
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = ?
-		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = ?)`, old, p); err != nil {
-		t.Fatal(err)
-	}
-	var got struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "shorts"}, &got)
-	for _, gone := range []string{"marks", `"mark"`, "timecode", "master_errors", "file_retention_days", `"image"`, `"markdown"`, `"area"`, `"file": "=slug"`, `"type": "columns"`, `"other", "collection"`} {
-		if strings.Contains(got.Manifest, gone) {
-			t.Fatalf("format 11 comes up to 12 without %s:\n%s", gone, got.Manifest)
-		}
-	}
-	for _, kept := range []string{`"version": 13`, `"format": "duration"`, `"kind": "line"`, `"label": "Again"`, `"reads"`} {
-		if !strings.Contains(got.Manifest, kept) {
-			t.Fatalf("format 11 comes up to 12 with %s:\n%s", kept, got.Manifest)
-		}
-	}
 	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
 		map[string]any{"slug": "eu-solar", "file": "eu-solar.webm", "length": 75})}, nil)
-	check.messages(t, e.screenMessages("shorts", "watch", map[string]any{"params": `{"t": "12"}`}))
+	check.messages(t, e.screenMessages("shorts", "watch", nil))
 	var files []map[string]any
 	_ = json.Unmarshal(e.screenData("shorts", "watch", nil)["b0"]["files"], &files)
 	if len(files) != 1 || files[0]["type"] != "video/webm" || files[0]["url"] == "" || files[0]["marks"] != nil || files[0]["mark"] != nil {
@@ -82,7 +61,7 @@ func TestAStoredManifestOfFormat11IsReadWithoutWhatNoModuleUsed(t *testing.T) {
 			continue
 		}
 		if code, out := e.call("deck.manifest_save", map[string]any{"project": "shorts", "manifest": strings.Replace(videosManifest, u[0], u[1], 1)}); code != 422 {
-			t.Fatalf("format 12 has no %s: %d %s", u[1], code, out)
+			t.Fatalf("a manifest has no %s: %d %s", u[1], code, out)
 		}
 	}
 }

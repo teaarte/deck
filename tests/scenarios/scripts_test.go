@@ -235,16 +235,6 @@ import json, deckfixture
 print(json.dumps({"value": deckfixture.VALUE}))
 `
 
-func TestManifestWithScriptPackagesIsRefusedWithAHint(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, nil)
-	m := strings.Replace(scriptManifest("use", "", ""), `"runtime": "python"`, `"runtime": "python", "packages": ["requests"]`, 1)
-	code, out := e.call("deck.project_create", map[string]any{"name": "old", "manifest": m})
-	if code != 422 || !strings.Contains(string(out), "PEP 723") || !strings.Contains(string(out), "domains.read") {
-		t.Fatalf("a manifest with packages is refused with the way scripts install them: %d %s", code, out)
-	}
-}
-
 func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 	t.Parallel()
 	e := newClockEnv(t, nil)

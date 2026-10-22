@@ -138,26 +138,16 @@ func TestAnEditThatWidensNothingKeepsTheRequestForRights(t *testing.T) {
 	e.waitNote("has this change already")
 }
 
-// TestAOneLineManifestTakesANeutralEditWhileARequestWaits: a manifest an older deck stored in one line merges with
-// a request as well as an indented one, since deck brings every text to one form; manifest_save stores it indented.
+// TestAOneLineManifestTakesANeutralEditWhileARequestWaits: a manifest written in one line is stored indented, so
+// old and new parts and a waiting request apply to it as to an indented one.
 func TestAOneLineManifestTakesANeutralEditWhileARequestWaits(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
-	p, err := e.App.Store.Q.GetProject(context.Background(), e.createProject("notes", grantManifest))
-	if err != nil {
-		t.Fatal(err)
-	}
 	var line bytes.Buffer
 	if err := json.Compact(&line, []byte(grantManifest)); err != nil {
 		t.Fatal(err)
 	}
-	ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		_, _, _, err := docs.Save(ctx, q, ref, docs.KindManifest, line.String(), "owner", "stored by an older deck")
-		return err
-	}); err != nil {
-		t.Fatal(err)
-	}
+	e.createProject("notes", line.String())
 	_, tok := e.token("terminal", "deck.*")
 	var w struct{ Waiting int64 }
 	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"writes": []`},
@@ -172,7 +162,7 @@ func TestAOneLineManifestTakesANeutralEditWhileARequestWaits(t *testing.T) {
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &cur)
 	if !strings.Contains(cur.Manifest, "\n  \"writes\": [],\n") {
-		t.Fatalf("manifest_save stores the manifest indented: %s", cur.Manifest)
+		t.Fatalf("deck stores the manifest indented: %s", cur.Manifest)
 	}
 	e.answer(w.Waiting, "allow")
 	m := e.inForce("notes")

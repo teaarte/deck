@@ -10,7 +10,6 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/master"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -44,31 +43,12 @@ func (pj *Service) manifestGet(ctx context.Context, act registry.Actor, in manif
 	if err != nil {
 		return manifestView{}, err
 	}
-	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: raised(r.Text)}
-	if format(r.Text) != manifest.FormatVersion {
-		v.Warnings = append(v.Warnings, fmt.Sprintf("stored in format %d; this is it raised to format %d, which its next save stores",
-			format(r.Text), manifest.FormatVersion))
-	}
+	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}
 	v.Warnings = append(v.Warnings, pj.problems(ctx, p)...)
 	if m, err := docs.ManifestAt(ctx, pj.St.Q, p.ID, d.Current); err == nil {
 		v.Warnings = append(v.Warnings, pj.unassigned(ctx, p, m)...)
 	}
 	return v, nil
-}
-
-// raised is a stored manifest in the current format and the one stored form; as it is when it cannot be raised.
-func raised(text string) string {
-	if up, changed, err := manifest.Upgrade([]byte(text)); err == nil && changed {
-		text = string(up)
-	}
-	return manifest.Canonical(text)
-}
-
-// format is the version a manifest is written in.
-func format(text string) int {
-	var v struct{ Version int }
-	_ = json.Unmarshal([]byte(text), &v)
-	return v.Version
 }
 
 type manifestSaveIn struct {
@@ -100,7 +80,7 @@ func (pj *Service) manifestSave(ctx context.Context, act registry.Actor, in mani
 		if err != nil {
 			return nil, err
 		}
-		if in.Manifest, err = docs.Edit(raised(r.Text), in.Old, in.New, true); err != nil {
+		if in.Manifest, err = docs.Edit(r.Text, in.Old, in.New, true); err != nil {
 			return nil, err
 		}
 		in.IfRevision = d.Current

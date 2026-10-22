@@ -598,8 +598,8 @@ func TestCeilingWaitsForAConfirmationToo(t *testing.T) {
 	e.waitFor("the ceiling to run again", func() bool { return e.full(id).Deadline != "" })
 }
 
-// TestNullIsAResultOnlyWhereTheSchemaAllowsIt: in format 7 an agent's null is nothing to do only when the result
-// schema takes null; a module of format 6 is raised so that it still does.
+// TestNullIsAResultOnlyWhereTheSchemaAllowsIt: an agent's null is nothing to do only when the result schema takes
+// null; against a schema of an object it is a result not by the schema.
 func TestNullIsAResultOnlyWhereTheSchemaAllowsIt(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -609,31 +609,14 @@ func TestNullIsAResultOnlyWhereTheSchemaAllowsIt(t *testing.T) {
 	if got := e.full(e.waitState(e.run(p, "check"), "done", "error").ID); !got.NotBySchema || got.Empty {
 		t.Fatalf("null against a schema of an object is not by the schema: %+v", got)
 	}
-	old := e.createProject("old", strings.Replace(testManifest([]string{agentCommand("check", "")}, nil), `"version": 13`, `"version": 6`, 1))
-	if got := e.full(e.waitState(e.run(old, "check"), "done", "error").ID); got.NotBySchema || !got.Empty {
-		t.Fatalf("a module of format 6 still takes null as nothing to do: %+v", got)
+	m := testManifest([]string{agentCommand("check", "")}, nil)
+	nullable := strings.Replace(m, `"result": {"type": "object",`, `"result": {"type": ["object", "null"],`, 1)
+	if nullable == m {
+		t.Fatal("fixture replacement did not apply")
 	}
-	var m struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "old"}, &m)
-	if !strings.Contains(m.Manifest, `"version": 13`) || !strings.Contains(m.Manifest, `"null"`) {
-		t.Fatalf("format 6 is raised to 7 with null in its result schemas:\n%s", m.Manifest)
-	}
-}
-
-// TestAResultSchemaOfFormatSixWithoutATypeStillLoads: a result schema of format 6 with no type of its own, such as
-// one of enum or properties only, is raised to take null too and the module still loads.
-func TestAResultSchemaOfFormatSixWithoutATypeStillLoads(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{Structured: json.RawMessage(`null`)}
-	})
-	for i, result := range []string{`{"enum": [1, 2]}`, `{"properties": {"n": {"type": "integer"}}}`} {
-		m := strings.Replace(testManifest([]string{agentCommand("check", "")}, nil), `"version": 13`, `"version": 6`, 1)
-		m = strings.Replace(m, `"result": {"type": "object", "properties": {"n": {"type": "integer"}}}`, `"result": `+result, 1)
-		p := e.createProject(fmt.Sprintf("old%d", i), m)
-		if got := e.full(e.waitState(e.run(p, "check"), "done", "error").ID); got.NotBySchema || !got.Empty {
-			t.Fatalf("%s: a module of format 6 takes null as nothing to do: %+v", result, got)
-		}
+	open := e.createProject("open", nullable)
+	if got := e.full(e.waitState(e.run(open, "check"), "done", "error").ID); got.NotBySchema || !got.Empty {
+		t.Fatalf("null against a schema that takes null is nothing to do: %+v", got)
 	}
 }
 

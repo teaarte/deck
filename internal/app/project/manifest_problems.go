@@ -21,7 +21,7 @@ func (pj *Service) problems(ctx context.Context, p db.Project) []string {
 	if err != nil {
 		return []string{fmt.Sprintf("the manifest does not load: %v", err)}
 	}
-	pm, err := parseManifest([]byte(raised(text)), p.Builtin == 1)
+	pm, err := parseManifest([]byte(text), p.Builtin == 1)
 	if err != nil {
 		return refusals(err)
 	}

@@ -301,19 +301,15 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	}
 }
 
-// TestAManifestOlderThanFormat4IsRefused: format 4 is still raised to the current one; older ones are refused.
-func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
+// TestAManifestOfAnyFormatButThirteenIsRefused: deck reads only the current format and says which version it got.
+func TestAManifestOfAnyFormatButThirteenIsRefused(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	v4 := strings.Replace(ideasManifest, `"version": 13,`, `"version": 4,`, 1)
-	e.createProject("ideas", v4)
-	var cur struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if !strings.Contains(cur.Manifest, `"version": 13`) {
-		t.Fatalf("a format 4 manifest is stored in the current format:\n%s", cur.Manifest)
+	for _, v := range []string{"12", "4", "3"} {
+		m := strings.Replace(ideasManifest, `"version": 13,`, `"version": `+v+`,`, 1)
+		e.refused("deck.project_create", map[string]any{"name": "old" + v, "manifest": m}, 422, "manifest: version must be the number 13, got "+v)
 	}
-	v3 := strings.Replace(ideasManifest, `"version": 13,`, `"version": 3,`, 1)
-	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be the number 13")
+	e.createProject("ideas", ideasManifest)
 }
 
 // TestOnlyTheBuiltInProjectAnswersEventsOfDeck: a trigger on a message or a failure belongs to project master.
@@ -326,27 +322,15 @@ func TestOnlyTheBuiltInProjectAnswersEventsOfDeck(t *testing.T) {
 	e.refused("deck.project_create", map[string]any{"name": "spy", "manifest": m}, 422, "belongs to the built-in project master")
 }
 
-func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
+// TestAManifestWithMasterEventsIsRefused: deck has no master_events; a manifest naming it does not match the format.
+func TestAManifestWithMasterEventsIsRefused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{Structured: json.RawMessage(`{}`)}
-	})
-	old := `{"version": 4, "master_events": true, "allowed_external": ["deck.browser_click"], "domains": {"read": ["a.example"]},
-  "commands": [{"name": "rate", "title": "Rate", "description": "Rates.", "class": "internal", "result": {"type": "object"},
-    "requires": ["live_input", "structured_output", "no_cloud"], "executor": {"type": "agent", "prompt": "Rate."}},
-   {"name": "sum", "title": "Sum", "description": "Sums.", "class": "internal", "result": {"type": "object"},
-    "requires": ["structured_output"], "executor": {"type": "agent", "prompt": "Sum."}}]}`
-	e.createProject("old", old)
-	var got struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "old"}, &got)
-	if !strings.Contains(got.Manifest, `"version": 13`) || strings.Contains(got.Manifest, "master_events") ||
-		strings.Contains(got.Manifest, "live_input") || strings.Contains(got.Manifest, "browser_click") || strings.Contains(got.Manifest, "structured_output") || !strings.Contains(got.Manifest, `"no_cloud"`) {
-		t.Fatalf("format 4 comes up to 5 without the fields nothing reads:\n%s", got.Manifest)
+	e := newEnv(t, nil)
+	m := strings.Replace(plainManifest, `"version": 13,`, `"version": 13, "master_events": true,`, 1)
+	if m == plainManifest {
+		t.Fatal("fixture replacement did not apply")
 	}
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(old, `"version": 4`, `"version": 13`, 1)})
-	if code == 200 || !strings.Contains(string(out), "master_events") {
-		t.Fatalf("format 5 has no master_events: %d %s", code, out)
-	}
+	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": m}, 422, "master_events")
 }
 
 func TestProjectPromptReachesTheAgent(t *testing.T) {
@@ -380,24 +364,24 @@ func TestVariablesNeedKnownFields(t *testing.T) {
 	e.refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, "need a schema that lists its properties")
 }
 
-// TestAFormatFiveManifestKeepsItsParamsAndMenus: a manifest of format 5 still loads; its $param values are read
-// as declared params, and the menu of a group of buttons is dropped.
-func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
+// TestADeclaredParamFillsAFormAndActionsHaveNoMenu: =param.<name> of a declared param fills the values of a form;
+// a group of buttons with a menu is refused.
+func TestADeclaredParamFillsAFormAndActionsHaveNoMenu(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	old := strings.Replace(strings.Replace(webNotes, `"version": 13,`, `"version": 5,`, 1), `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
-      {"type": "form", "title": "Again", "command": "score", "values": {"title": "$param.title"}},
-      {"type": "actions", "title": "More", "menu": true, "actions": [{"label": "Tell", "command": "tell"}]},`, 1)
-	e.createProject("web", old)
-	var cur struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &cur)
-	if !strings.Contains(cur.Manifest, `"=param.title"`) || !strings.Contains(cur.Manifest, `"title": "string"`) || strings.Contains(cur.Manifest, `"menu": true`) {
-		t.Fatalf("format 5 is raised to the current one:\n%s", cur.Manifest)
+	form := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"title": "string"}, "blocks": [
+      {"type": "form", "title": "Again", "command": "score", "values": {"title": "=param.title"}},`, 1)
+	if form == webNotes {
+		t.Fatal("fixture replacement did not apply")
 	}
+	e.createProject("web", form)
 	data := e.screenData("web", "main", map[string]any{"params": `{"title": "alpha"}`})
 	if !strings.Contains(string(data["b0"]["value"]), `"values":{"title":"alpha"}`) {
 		t.Fatalf("the declared param fills the form: %s", data["b0"]["value"])
 	}
+	menu := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "actions", "title": "More", "menu": true, "actions": [{"label": "Tell", "command": "tell"}]},`, 1)
+	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": menu}, 422, "menu")
 }
 
 // TestAVersionThatIsNoNumberSaysSo: a version written as text or a fraction is refused with what it is.
@@ -452,37 +436,15 @@ func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 	}
 }
 
-// TestFormatTenDropsTheSaveOfAForm: a form no longer keeps its result in a collection; a command does. A manifest of
-// format 9 comes up to 10 without save, and a save in format 10 is refused.
-func TestFormatTenDropsTheSaveOfAForm(t *testing.T) {
+// TestAFormHasNoSave: a form does not keep its result in a collection, a command does; a form with save is refused.
+func TestAFormHasNoSave(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	old := strings.Replace(webNotes, `{"version": 13,`, `{"version": 9,`, 1)
-	old = strings.Replace(old, `"command": "score"}`, `"command": "score", "save": "notes"}`, 1)
-	e.createProject("web", old)
-	var got struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &got)
-	if !strings.Contains(got.Manifest, `"version": 13`) || strings.Contains(got.Manifest, `"save"`) {
-		t.Fatalf("format 9 comes up to 10 without save:\n%s", got.Manifest)
+	m := strings.Replace(webNotes, `"command": "score"}`, `"command": "score", "save": "notes"}`, 1)
+	if m == webNotes {
+		t.Fatal("fixture replacement did not apply")
 	}
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(old, `"version": 9`, `"version": 13`, 1)})
-	if code == 200 || !strings.Contains(string(out), "save") {
-		t.Fatalf("format 10 has no save: %d %s", code, out)
-	}
-}
-
-// TestFormatElevenWidensNothing: a manifest of format 10 with a local MCP server comes up to 11 with its domains as
-// they were, so no script or agent of the module reaches more.
-func TestFormatElevenWidensNothing(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, nil)
-	old := strings.Replace(mcpManifest(`, "domains": {"read": ["a.example"]}`), `{"version": 13,`, `{"version": 10,`, 1)
-	e.createProject("srv", old)
-	var got struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "srv"}, &got)
-	if !strings.Contains(got.Manifest, `"version": 13`) || strings.Contains(got.Manifest, `"*"`) {
-		t.Fatalf("format 10 comes up to 11 with its domains as they were:\n%s", got.Manifest)
-	}
+	e.refused("deck.project_create", map[string]any{"name": "web", "manifest": m}, 422, "save")
 }
 
 // TestASliceOfTextCutsCharacters: a slice of a text in an expression counts characters, as len does, so a title in
@@ -496,38 +458,5 @@ func TestASliceOfTextCutsCharacters(t *testing.T) {
 	e.must("deck.records_list", map[string]any{"project": "ru", "collection": "notes"}, &recs)
 	if len(recs) != 1 || recs[0].Title != "При| 😀|12" {
 		t.Fatalf("a slice of a text is of its characters: %+v", recs)
-	}
-}
-
-// TestAManifestOfAnOlderFormatIsReadRaised: manifest_get gives a manifest stored in an older format raised to the
-// current one, says so, and old and new parts of what it gave apply to that text.
-func TestAManifestOfAnOlderFormatIsReadRaised(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
-	old := strings.NewReplacer(`{"version": 13,`, `{"version": 7,`, `"menu": ["main"]}`,
-		`"menu": ["main"], "triggers": [{"command": "tell", "lane": "done"}, {"command": "tell", "cron": "0 8 * * *"}]}`).Replace(webNotes)
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = ?
-		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = (SELECT id FROM project WHERE name = 'web'))`, old); err != nil {
-		t.Fatal(err)
-	}
-	var got struct {
-		Manifest string
-		Warnings []string
-	}
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &got)
-	if !strings.Contains(got.Manifest, `"version": 13`) || strings.Contains(got.Manifest, `"lane"`) ||
-		!strings.Contains(strings.Join(got.Warnings, "\n"), "format 7") {
-		t.Fatalf("a manifest of format 7 is read raised to the current format, with a word on it: %v\n%s", got.Warnings, got.Manifest)
-	}
-	e.must("deck.manifest_save", map[string]any{"project": "web",
-		"old": []string{`"version": 13`, `"cron": "0 8 * * *"`}, "new": []string{`"version": 13`, `"cron": "0 9 * * *"`}}, nil)
-	var now struct {
-		Manifest string
-		Warnings []string
-	}
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &now)
-	if !strings.Contains(now.Manifest, `"0 9 * * *"`) || len(now.Warnings) != 0 {
-		t.Fatalf("old and new parts apply to the raised text they were written on: %v\n%s", now.Warnings, now.Manifest)
 	}
 }

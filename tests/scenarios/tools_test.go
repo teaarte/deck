@@ -100,9 +100,9 @@ func TestAllowAlwaysAddsTheToolToTheProjectList(t *testing.T) {
 	}
 }
 
-// TestAReversibleCommandRunsAtOnceAndFormatNineHasNoAutonomy: a reversible command runs at once in an enabled
-// project; format 8 with autonomy or the cell format label still loads, and format 9 has neither.
-func TestAReversibleCommandRunsAtOnceAndFormatNineHasNoAutonomy(t *testing.T) {
+// TestAReversibleCommandRunsAtOnceAndAManifestHasNoAutonomy: a reversible command runs at once in an enabled
+// project; a manifest has neither autonomy nor the cell format label.
+func TestAReversibleCommandRunsAtOnceAndAManifestHasNoAutonomy(t *testing.T) {
 	t.Parallel()
 	var out string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -111,26 +111,22 @@ func TestAReversibleCommandRunsAtOnceAndFormatNineHasNoAutonomy(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	screen := `, "collections": [{"name": "items", "description": "Items.", "key": "kind", "schema": {"type": "object", "properties": {"kind": {"type": "string"}}}}],
-  "screens": [{"name": "items", "title": "Items", "blocks": [{"type": "table", "source": {"collection": "items"},
-    "columns": [{"label": "Kind", "bind": "kind", "format": "label"}]}]}]`
-	eight := strings.Replace(toolManifest("http://127.0.0.1:1", `, "autonomy": "suggest"`+screen), `"version": 13,`, `"version": 8,`, 1)
-	p := e.createProject("notes", eight)
+	m := toolManifest("http://127.0.0.1:1", "")
+	p := e.createProject("notes", m)
 	e.waitState(e.run(p, "work"), "done", "waiting_answer")
 	if !strings.Contains(out, `"process"`) {
 		t.Fatalf("a reversible command runs at once: %s", out)
 	}
-	if code, body := e.call("deck.screen", map[string]any{"project": "notes", "screen": "items"}); code != 200 || strings.Contains(string(body), `"label"},`) {
-		t.Fatalf("the screen of format 8 shows without the cell format label: %d %s", code, body)
-	}
-	nine := strings.Replace(toolManifest("http://127.0.0.1:1", ""), `"version": 13,`, `"version": 13,`, 1)
 	for _, extra := range []string{`"autonomy": "auto", `, `"autonomy": "suggest", `} {
-		if code, body := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(nine, `"version": 13,`, `"version": 13, `+extra, 1)}); code != 422 || !strings.Contains(string(body), "autonomy") {
-			t.Fatalf("format 9 has no autonomy: %d %s", code, body)
+		if code, body := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(m, `"version": 13,`, `"version": 13, `+extra, 1)}); code != 422 || !strings.Contains(string(body), "autonomy") {
+			t.Fatalf("a manifest has no autonomy: %d %s", code, body)
 		}
 	}
-	if code, body := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.TrimSuffix(nine, "}") + strings.Replace(screen, `"version"`, "", 1) + "}"}); code != 422 || !strings.Contains(string(body), "columns/0/format") {
-		t.Fatalf("format 9 has no cell format label: %d %s", code, body)
+	screen := `, "collections": [{"name": "items", "description": "Items.", "key": "kind", "schema": {"type": "object", "properties": {"kind": {"type": "string"}}}}],
+  "screens": [{"name": "items", "title": "Items", "blocks": [{"type": "table", "source": {"collection": "items"},
+    "columns": [{"label": "Kind", "bind": "kind", "format": "label"}]}]}]`
+	if code, body := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.TrimSuffix(m, "}") + screen + "}"}); code != 422 || !strings.Contains(string(body), "columns/0/format") {
+		t.Fatalf("a manifest has no cell format label: %d %s", code, body)
 	}
 	e.refused("deck.project_autonomy", map[string]any{"project": "notes", "autonomy": "auto"}, 404, "unknown command")
 }

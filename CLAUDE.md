@@ -2,7 +2,6 @@
 
 Personal control panel for AI agents: one Go binary, SQLite, web client. Spec: `docs/spec.md` (Russian).
 Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server — `docs/spikes/codex.md`.
-Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, cleanup, models and connections).
 
 ## Commands
 
@@ -42,13 +41,12 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   current manifests of projects), `For` (the one current manifest in force for whoever reads rights: what the owner
   granted, `project.granted_revision`; a trial of a draft also its reads and models, `manifest.Trial`), `InForce` (a
   given revision with only the granted rights), `Editable`, `Edit` (old parts of a text replaced with new ones)
-- `internal/app` — wiring and the screens: `New` allocates every service first and builds each whole with the
+- `internal/app` — the wiring: `New` allocates every service first and builds each whole with the
   functions of the others (a test checks none is left unset), registers their commands and runs `Loop`/`Sweep`;
   background work goes through `background.Go`, which refuses once `Stop` began. Each
   domain is a package `app/<area>` with a `Service` (narrow dependencies as fields, functions of other services as
-  fields) and `Commands()`; no domain package imports `internal/app`: `project` (`Service` the lifecycle — create,
-  enable, trials, import, delete; `Saver` the manifests — save with checks, migrations and grants, the commands a
-  manifest gives the registry), `asks` (what waits for the owner and its answers; `Unheard` hands the master an answer
+  fields) and `Commands()`; no domain package imports `internal/app`: `project` (create, enable, trials, import,
+  delete, the manifests — save with checks, migrations and grants, the commands a manifest gives the registry), `asks` (what waits for the owner and its answers; `Unheard` hands the master an answer
   its process did not act on), `processes` (the commands of processes), `failures` (failed processes and screens to
   the master), `health` (the list of health), `signins`
   (sign-ins of the browser and oauth2 tools, MCP servers), `documents` (documents, shipped skills, health of
@@ -64,11 +62,12 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `deck.model_call`), `chat`, `records`
   (records with `where` expressions), `triggers` (also the firing of triggers and `After`), `screens`; who may touch
   what is `app/access`;
-  a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
-  `app/screen_get.go` (`deck.screen`; the menu `menu.go`, `commands_list.go`, translations `i18n.go`), a collection
-  through `deck.records_list`, of another project with the rights of the project of the screen (`Scope.By`);
-  `app/screens` — the sources of screens: forms, documents; files of a domain are named by what they hold;
-  deck's screens are data, a file each in `app/shipped/` (`project-<name>.json` for those of every project, `menu.json`,
+  a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer by
+  `app/screens` (`deck.screen` in `screen.go`; the menu `menu.go`, the top of the cockpit `pulse.go`,
+  `commands_list.go`, deck's screens and words `shipped.go`; the sources of screens: forms, documents), a collection through
+  `deck.records_list`, of another project with the rights of the project of the screen (`Scope.By`); files of a
+  domain are named by what they hold; in `package app` only the wiring;
+  deck's screens are data, a file each in `app/screens/shipped/` (`project-<name>.json` for those of every project, `menu.json`,
   `ru.json` the words of deck's screens and of what its commands say): Cockpit (the link at the head of the menu), and in the menu Schedule
   (tabs Schedule — what runs by itself with a picker of its model —, Runs), Spend (today, 7 and 30 days by project and
   model, a subscription apart from the money), Files (tabs Files, Data folders, Documents of the master — tiles of one file manager, the media block — and Snapshots), Settings (tabs
@@ -94,8 +93,10 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
   `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs the ACP agent Goose
   on an OpenAI-compatible model inside deck's sandbox, the model through deck's proxy — deck has no tool loop of its own;
-  `Stateful` keeps clients of deck's MCP servers on the handshake (no `server/discover`, go-sdk #1111); `Within`/`Under`
-  — the one check that a path is inside a folder
+  `Stateful` keeps clients of deck's MCP servers on the handshake (no `server/discover`, go-sdk #1111); `Outcome` — how
+  a turn ended, of a closed set
+- `internal/paths` — the one check that a path is inside a folder (`Within`, `Under`, `Inside`, `Overlap`) and
+  `OpenRegular`
 - `internal/fault` — the one form of a failure of a process: a type of a closed set (`model.limit`, `script.failed`,
   …), whose it is (model, deck, module, environment, owner), the text for the owner and the details apart; a script
   reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit
@@ -119,16 +120,16 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy);
   `environ` is `sandbox.Env` with the folders of a script and its door, `Check` the programs its manifest names
 - `internal/trigger` — cron scheduler with catch-up after sleep
-- `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published, the statuses and
+- `internal/health` — health rows: the constructors of subjects, `Get` and `Clear` by the key of a row, `Set` inside a transaction (says whether it changed), `Write` on its own and published, the statuses and
   their order (`Worse`); a row is of the machine (`provider:`, written through `process.ProviderHealth` and lifted by `MarkHealthy`), of a
   workspace (`model:`, `push`) or of a project; health is the state of what deck runs or reaches, events go to the feed
 - `internal/screen` — stored screens resolved into A2UI messages without a store of its own (`render.go`, `blocks.go`,
   `data.go`, `items.go` with the reads of a screen kept by source, `actions.go`, `forms.go`, the topics a block follows
   `topics.go`, components and spans from the catalog `catalog.go`, `i18n.go`); a document block reads
   `deck.document_get` with its history as the viewer, once
-- `internal/events` — the bus: an event is a topic and the project it changed in (`Emit`; folders, assignments and
-  MCP tools have topics of their own); a subscriber keeps the events
-  waiting for it merged, so none is dropped
+- `internal/events` — the bus: an event is a topic and the project and workspace it changed in; the topics are those
+  of the tables and the few deck publishes apart (`store.Topics`); a subscriber keeps the events waiting for it
+  merged, so none is dropped
 - `internal/api` — HTTP API (`POST /api/commands/{name}`, files) and SSE; screens are the
   `deck.screen` command; `Sandbox` is the second origin of `custom` blocks (proxy page with a CSP without network;
   the block runs in its frame of an opaque origin with the guard of `sandbox.html` as its first script — no WebRTC,
@@ -164,6 +165,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `Block`); `internal/nonce` — random tokens
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names, untyped sqlc
   parameters)
+- `skills` — the skills deck ships to agents (`module-builder` — how to write a module, `memory`, `code-project`),
+  embedded by `embed.go`
 - `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by
   the server and the client), App Intents parameter rules
 - `tests/scenarios` — scenario tests through the real gateway with a fake provider; helpers in `*_harness_test.go`,

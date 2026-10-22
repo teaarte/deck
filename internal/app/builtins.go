@@ -11,7 +11,7 @@ import (
 )
 
 // init declares deck's reads before anything parses a manifest: they are the same commands in every deck.
-func init() { registry.Declare(allocated().builtins(), store.Topics()) }
+func init() { registry.Declare((&App{}).builtins(), store.Topics()) }
 
 func (a *App) addBuiltins() {
 	for _, c := range a.builtins() {

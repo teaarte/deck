@@ -22,10 +22,10 @@ func TestNewLeavesNoServiceHalfBuilt(t *testing.T) {
 			missing = append(missing, name)
 			continue
 		}
-		if f.Kind() != reflect.Pointer || f.Elem().Kind() != reflect.Struct || !strings.HasPrefix(f.Elem().Type().PkgPath(), "deck2/internal/app/") {
+		if f.Kind() != reflect.Struct || !strings.HasPrefix(f.Type().PkgPath(), "deck2/internal/app/") {
 			continue
 		}
-		s := f.Elem()
+		s := f
 		for j := range s.NumField() {
 			sf := s.Type().Field(j)
 			if !sf.IsExported() {

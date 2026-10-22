@@ -102,15 +102,7 @@ func run() error {
 		_ = srv.Shutdown(sctx)
 	}()
 
-	if err := a.Projects.Reconcile(ctx); err != nil {
-		slog.Error("reconcile triggers", "err", err)
-	}
-	a.Providers.Checks(ctx, a.Cfg.Now())
-	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
-		slog.Error("resume interrupted", "err", err)
-	}
-	a.Chats.PumpChats(ctx)
-	a.Start(30 * time.Second)
+	a.Run(ctx, 30*time.Second)
 	started.Store(true)
 
 	if *tailnet != "" {

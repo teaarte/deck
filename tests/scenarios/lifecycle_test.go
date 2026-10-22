@@ -344,7 +344,7 @@ func TestAStopEndsTheTurnsBeforeTheServerGoes(t *testing.T) {
 	p := e.createProject("long", testManifest([]string{agentCommand("work", "")}, nil))
 	id := e.run(p, "work")
 	<-started
-	e.App.Start(time.Hour)
+	e.App.Run(t.Context(), time.Hour)
 	e.App.Stop()
 	select {
 	case <-ended:

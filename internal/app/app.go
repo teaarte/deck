@@ -55,27 +55,27 @@ type App struct {
 	Gateway   *gateway.Gateway
 	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
-	Providers *providers.Service
-	Devices   *devices.Service
-	Chats     *chat.Service
-	Tokens    *tokens.Service
-	Secrets   *secrets.Service
-	Settings  *settings.Service
-	Folders   *folders.Service
-	Files     *appfiles.Service
-	Journal   *journal.Service
-	Snapshots *snapshots.Service
-	Triggers  *triggers.Service
-	Documents *documents.Service
+	Providers providers.Service
+	Devices   devices.Service
+	Chats     chat.Service
+	Tokens    tokens.Service
+	Secrets   secrets.Service
+	Settings  settings.Service
+	Folders   folders.Service
+	Files     appfiles.Service
+	Journal   journal.Service
+	Snapshots snapshots.Service
+	Triggers  triggers.Service
+	Documents documents.Service
 	// Answers are what waits for the owner and their answers; Asks is the broker processes wait on.
-	Answers   *asks.Service
-	Signins   *signins.Service
-	Projects  *project.Service
-	Records   *records.Service
-	Health    *apphealth.Service
-	Processes *processes.Service
-	Failures  *failures.Service
-	Screens   *screens.Service
+	Answers   asks.Service
+	Signins   signins.Service
+	Projects  project.Service
+	Records   records.Service
+	Health    apphealth.Service
+	Processes processes.Service
+	Failures  failures.Service
+	Screens   screens.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -101,8 +101,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	if err != nil {
 		return nil, err
 	}
-	// Every service is allocated first, so each is then built whole with the functions of the others.
-	a := allocated()
+	// Every service is a field of a, so each is built whole with the functions of the others.
+	a := &App{}
 	a.Cfg, a.Home, a.Store, a.Bus, a.Scripts = cfg, h, st, events.NewBus(), script.New(cfg.Sandbox, h)
 	registry.Declare(cfg.Commands, store.Topics())
 	a.ctx, a.cancel = context.WithCancel(context.Background())
@@ -135,43 +135,43 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		process.Deps{For: a.Providers.For, Next: a.Providers.Next, Named: a.Providers.Named, Up: a.Providers.Up, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
-	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
+	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: &a.Failures}, triggers.After{S: &a.Triggers}, asks.Unheard{S: &a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
-	*a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
-	*a.Folders = folders.Service{St: st, Home: h}
-	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx}
-	*a.Journal = journal.Service{St: st, Now: cfg.Now, Open: a.Processes.OpenFailures}
-	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
-	*a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Works: a.Providers.Works, Words: screens.Phrases}
-	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
+	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
+	a.Folders = folders.Service{St: st, Home: h}
+	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx}
+	a.Journal = journal.Service{St: st, Now: cfg.Now, Open: a.Processes.OpenFailures}
+	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
+	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Works: a.Providers.Works, Words: screens.Phrases}
+	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Changed: a.Devices.Changed}
-	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
+	a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		Expire: a.Records.Expire}
-	*a.Providers = providers.Service{St: st, Words: screens.Phrases, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+	a.Providers = providers.Service{St: st, Words: screens.Phrases, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
 		VideoCeiling: cfg.VideoCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
-	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
+	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		AnswerGrant: a.Projects.AnswerGrant, AddToList: a.Projects.AddToList}
-	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
-	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
+	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
+	a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
 		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Go: a.bg.Go, Words: screens.Phrases}
-	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now,
+	a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now,
 		Home: h, Invoke: a.Registry.Invoke, DeckScreen: screens.DeckScreen, Waiting: a.Answers.Waiting}
-	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
-	*a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
+	a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
+	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
 		Words: screens.Phrases}
-	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch,
+	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch,
 		Works: a.Providers.Works, Places: a.Providers.Places}
-	*a.Screens = screens.Service{St: st, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
+	a.Screens = screens.Service{St: st, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Devices.Unread, Works: a.Providers.Works,
 		ScreenFailed: a.Failures.Screen, ScreenDrawn: a.Failures.ScreenDrawn, File: a.Files.File}
-	*a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
-	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
-	*a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
+	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
+	a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
+	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.Screens.CheckScreens,
@@ -194,15 +194,6 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	return a, nil
-}
-
-// allocated is an App with every service allocated and none built.
-func allocated() *App {
-	return &App{Projects: &project.Service{}, Secrets: &secrets.Service{}, Folders: &folders.Service{},
-		Files: &appfiles.Service{}, Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{},
-		Snapshots: &snapshots.Service{}, Settings: &settings.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
-		Signins: &signins.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{}, Tokens: &tokens.Service{},
-		Records: &records.Service{}, Health: &apphealth.Service{}, Screens: &screens.Service{}, Processes: &processes.Service{}, Failures: &failures.Service{}}
 }
 
 // Close interrupts running providers; their processes stay running and resume on the next start.
@@ -247,8 +238,17 @@ func (b *background) stop() {
 	b.wg.Wait()
 }
 
-// Start runs the loop of deck every interval until Stop.
-func (a *App) Start(every time.Duration) {
+// Run starts deck's work: the schedule of the saved triggers, the self-checks, the turns a stop left and the replies
+// to messages left unanswered, then the loop every interval until Stop.
+func (a *App) Run(ctx context.Context, every time.Duration) {
+	if err := a.Projects.Reconcile(ctx); err != nil {
+		slog.Error("reconcile triggers", "err", err)
+	}
+	a.Providers.Checks(ctx, a.Cfg.Now())
+	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
+		slog.Error("resume interrupted", "err", err)
+	}
+	a.Chats.PumpChats(ctx)
 	a.bg.Go(func() { a.Loop(a.ctx, every) })
 }
 

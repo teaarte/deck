@@ -69,7 +69,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   through `deck.records_list`, of another project with the rights of the project of the screen (`Scope.By`);
   `app/screens` — the sources of screens: forms, documents; files of a domain are named by what they hold;
   deck's screens are data, a file each in `app/shipped/` (`project-<name>.json` for those of every project, `menu.json`,
-  `i18n.ru.json`, the phrases of read commands `words.ru.json`): Cockpit (the link at the head of the menu), and in the menu Schedule
+  `ru.json` the words of deck's screens and of what its commands say): Cockpit (the link at the head of the menu), and in the menu Schedule
   (tabs Schedule — what runs by itself with a picker of its model —, Runs), Spend (today, 7 and 30 days by project and
   model, a subscription apart from the money), Files (tabs Files, Data folders, Documents of the master — tiles of one file manager, the media block — and Snapshots), Settings (tabs
   Projects as cards, Models — of every command, of scripts, everywhere else, the models —, Connections with secrets and

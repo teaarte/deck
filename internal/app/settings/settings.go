@@ -3,6 +3,7 @@
 package settings
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"strconv"
@@ -20,31 +21,29 @@ type Service struct {
 	St         *store.Store
 	DefaultTTL time.Duration
 	Wake       func(ctx context.Context)
+	Words      func(lang string) map[string]string
 }
 
 // agentLimit is how many agent turns a workspace runs at once unless the owner set it.
 const agentLimit = 3
 
 // settingDef is a setting the owner changes in Settings; every other value of Config stays in code. A number lies from
-// min to max, steps the values offered to pick; a text is one of options; ru is the title in Russian.
+// min to max, steps the values offered to pick; a text is one of options.
 type settingDef struct {
-	name, title, ru string
-	min, max        int64
-	steps, options  []string
-	def             func(s *Service) any
+	name, title    string
+	min, max       int64
+	steps, options []string
+	def            func(s *Service) any
 }
 
 var settingDefs = []settingDef{
 	{name: "confirm_hours", title: "How long a confirmation waits for the owner, hours", min: 1, max: 720,
 		steps: []string{"1", "2", "6", "12", "24", "48", "72", "168", "336", "720"},
-		ru:    "Сколько подтверждение ждёт владельца, часов",
 		def:   func(s *Service) any { return int64(s.DefaultTTL / time.Hour) }},
 	{name: "agent_limit", title: "Agent processes that run at once; scripts and tools do not count", min: 1, max: 20,
 		steps: []string{"1", "2", "3", "4", "5", "6", "8", "10", "15", "20"},
-		ru:    "Сколько агентских процессов идёт одновременно; скрипты и инструменты не считаются",
 		def:   func(*Service) any { return int64(agentLimit) }},
 	{name: "language", title: "Language of the interface; auto follows the device", options: []string{"auto", "en", "ru"},
-		ru:  "Язык интерфейса; auto — как на устройстве",
 		def: func(*Service) any { return "auto" }},
 }
 
@@ -119,7 +118,7 @@ func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settin
 	if in.Name == "agent_limit" {
 		s.Wake(ctx)
 	}
-	return s.settingsList(ctx, act, struct{}{})
+	return s.settingsList(ctx, act, settingsListIn{})
 }
 
 // settingRow is a setting of the workspace with its value and its default.
@@ -132,15 +131,15 @@ type settingRow struct {
 	Options []string `json:"options,omitempty"`
 }
 
-func (s *Service) settingsList(ctx context.Context, act registry.Actor, _ struct{}) ([]settingRow, error) {
+type settingsListIn struct {
+	Lang string `opt:"" desc:"Language of the titles, such as ru; English without one"`
+}
+
+func (s *Service) settingsList(ctx context.Context, act registry.Actor, in settingsListIn) ([]settingRow, error) {
 	out := make([]settingRow, 0, len(settingDefs))
-	ru := s.setting(ctx, act.Workspace, "language") == "ru"
+	ws := s.Words(in.Lang)
 	for _, d := range settingDefs {
-		title := d.title
-		if ru {
-			title = d.ru
-		}
-		out = append(out, settingRow{Name: d.name, Title: title, Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: append(d.options, d.steps...)})
+		out = append(out, settingRow{Name: d.name, Title: cmp.Or(ws[d.title], d.title), Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: append(d.options, d.steps...)})
 	}
 	return out, nil
 }

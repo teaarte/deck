@@ -570,27 +570,30 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	e.refused("deck.settings_set", map[string]any{"name": "nothing", "value": "1"}, 422, "")
 }
 
-// TestTheNamesOfSettingsFollowTheLanguageOfTheWorkspace: the General tab names each setting in the language the
-// owner picked for the interface; auto keeps them in English.
-func TestTheNamesOfSettingsFollowTheLanguageOfTheWorkspace(t *testing.T) {
+// TestTheNamesOfSettingsFollowTheLanguageOfTheScreen: the names of settings come in the language the screen asks for,
+// the device's own under auto, whatever the language setting says.
+func TestTheNamesOfSettingsFollowTheLanguageOfTheScreen(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	title := func() string {
+	title := func(in map[string]any) string {
 		var rows []struct{ Name, Title string }
-		e.must("deck.settings_list", nil, &rows)
+		e.must("deck.settings_list", in, &rows)
 		for _, r := range rows {
-			if r.Name == "language" {
+			if r.Name == "agent_limit" {
 				return r.Title
 			}
 		}
 		return ""
 	}
-	if got := title(); !strings.HasPrefix(got, "Language of the interface") {
-		t.Fatalf("auto keeps the names in English: %q", got)
+	if got := title(nil); !strings.HasPrefix(got, "Agent processes") {
+		t.Fatalf("without a language the names are in English: %q", got)
 	}
-	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	if got := title(); !strings.HasPrefix(got, "Язык интерфейса") {
-		t.Fatalf("the names follow the language the owner picked: %q", got)
+	if got := title(map[string]any{"lang": "ru"}); !strings.HasPrefix(got, "Сколько агентских процессов") {
+		t.Fatalf("the names follow the language asked for: %q", got)
+	}
+	drawn, _ := json.Marshal(e.screenMessages("", "settings", map[string]any{"lang": "ru"}))
+	if !strings.Contains(string(drawn), "Сколько агентских процессов") {
+		t.Fatalf("the settings screen in Russian shows the names in Russian: %s", drawn)
 	}
 }
 

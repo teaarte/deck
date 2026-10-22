@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -32,9 +33,9 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 		t.Fatalf("a project's screens take its translations, deck's screens of a project deck's: %s", raw)
 	}
 	drawn, _ := json.Marshal(e.screenMessages("web", "main", map[string]any{"lang": "ru"}))
-	for _, want := range []string{`"title":"Веб"`, `"title":"Заметки"`, `"label":"Заголовок"`, `"title":"Work"`} {
+	for _, want := range []string{`"title":"Веб"`, `"title":"Заметки"`, `"label":"Заголовок"`, `"title":"Работа"`} {
 		if !strings.Contains(string(drawn), want) {
-			t.Fatalf("the screen is translated where the manifest says, as written elsewhere: no %s in %s", want, drawn)
+			t.Fatalf("the screen is translated where the manifest says, else by deck's words: no %s in %s", want, drawn)
 		}
 	}
 	plain, _ := json.Marshal(e.screenMessages("web", "main", nil))
@@ -71,7 +72,7 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 }
 
 // TestEveryTextOfDeckScreensHasItsTranslation: each text of deck's screens is translated, and each translation
-// is of a text there is, or of the title of a command of deck a form shows.
+// is of a text there is, of the title of a command of deck a form shows, or of a text of deck's code.
 func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -94,11 +95,11 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 			t.Fatal(err)
 		}
 		switch filepath.Base(f) {
-		case "i18n.ru.json":
+		case "ru.json":
 			if err := json.Unmarshal(raw, &ru); err != nil {
 				t.Fatal(err)
 			}
-		case "menu.json", "words.ru.json":
+		case "menu.json":
 		default:
 			maps.Copy(texts, manifest.Texts(raw))
 		}
@@ -108,8 +109,16 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 			t.Errorf("no ru for %q", text)
 		}
 	}
+	var code strings.Builder
+	_ = filepath.WalkDir("../../internal", func(p string, d os.DirEntry, err error) error {
+		if err == nil && strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, "_test.go") {
+			b, _ := os.ReadFile(p)
+			code.Write(b)
+		}
+		return nil
+	})
 	for k := range ru {
-		if !texts[k] && !titles[k] {
+		if !texts[k] && !titles[k] && !strings.Contains(code.String(), strconv.Quote(k)) {
 			t.Errorf("ru translates %q, which is no text", k)
 		}
 	}

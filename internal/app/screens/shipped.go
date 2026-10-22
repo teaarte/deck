@@ -12,14 +12,13 @@ import (
 	"sync"
 )
 
-// shippedFiles are deck's screens (project-<name> for every project), the menu and words.<lang> and i18n.<lang>.
+// shippedFiles are deck's screens (project-<name> for every project), the menu and the words of each language (ru).
 //
 //go:embed shipped/*.json
 var shippedFiles embed.FS
 
 type shippedScreens struct {
-	// I18n translates deck's own screens, by language and then by text; Words the Phrases of its read commands.
-	I18n    map[string]map[string]string
+	// Words translate deck's screens and what its commands say, by language and then by text.
 	Words   map[string]map[string]string
 	Menu    []string
 	Screens []manifest.Screen
@@ -35,7 +34,7 @@ var shipped = sync.OnceValue(func() (d shippedScreens) {
 		Screens []json.RawMessage `json:"screens"`
 		Project []json.RawMessage `json:"project"`
 	}
-	d.I18n, d.Words = map[string]map[string]string{}, map[string]map[string]string{}
+	d.Words = map[string]map[string]string{}
 	files, err := fs.Glob(shippedFiles, "shipped/*.json")
 	if err != nil {
 		panic(err)
@@ -46,21 +45,15 @@ var shipped = sync.OnceValue(func() (d shippedScreens) {
 			panic(err)
 		}
 		name := strings.TrimSuffix(path.Base(f), ".json")
-		lang, isScreens := strings.CutPrefix(name, "i18n.")
-		said, isPhrases := strings.CutPrefix(name, "words.")
 		switch {
 		case name == "menu":
 			all.Menu = raw
-		case isScreens || isPhrases:
+		case len(name) == 2:
 			var words map[string]string
 			if err := json.Unmarshal(raw, &words); err != nil {
 				panic(fmt.Sprintf("%s: %v", f, err))
 			}
-			if isScreens {
-				d.I18n[lang] = words
-			} else {
-				d.Words[said] = words
-			}
+			d.Words[name] = words
 		default:
 			var sc struct{ Name string }
 			if json.Unmarshal(raw, &sc) != nil || sc.Name != strings.TrimPrefix(name, "project-") {
@@ -88,7 +81,7 @@ func words(lang string, m *manifest.Manifest) map[string]string {
 	if lang == "" {
 		return nil
 	}
-	out := maps.Clone(shipped().I18n[lang])
+	out := maps.Clone(shipped().Words[lang])
 	if m != nil {
 		if out == nil {
 			out = map[string]string{}

@@ -88,7 +88,7 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 			_ = json.Unmarshal(raw, &data)
 		}
 	}
-	if data.Board.Field != "status" || fmt.Sprint(data.Board.Lanes) != "[{todo todo} {doing в работе} {done done}]" {
+	if data.Board.Field != "status" || fmt.Sprint(data.Board.Lanes) != "[{todo todo} {doing в работе} {done готово}]" {
 		t.Fatalf("the lanes are the enum in order and in the owner's language: %+v", data.Board)
 	}
 	lanes := map[string]string{}
@@ -287,7 +287,7 @@ func TestACellPicksTheInputOfAButtonOfItsRow(t *testing.T) {
 		t.Fatalf("the button of the row is the one the cell picks with: %+v", rows)
 	}
 	rows = blockData[[]screenRow](t, e.screenBlock("work", "board", "Tasks", map[string]any{"lang": "ru"})["rows"])
-	if fmt.Sprint(rows[0].Cells...) != "atodoв работе" || fmt.Sprint(rows[0].Actions[0]["labels"]) != "[todo в работе done]" {
+	if fmt.Sprint(rows[0].Cells...) != "atodoв работе" || fmt.Sprint(rows[0].Actions[0]["labels"]) != "[todo в работе готово]" {
 		t.Fatalf("a picked cell keeps the value, its options say each in the owner's language, and an expression of one field is translated: %+v", rows)
 	}
 }

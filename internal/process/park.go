@@ -80,7 +80,7 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 		return err
 	})
 	if txErr != nil {
-		r.finish(ctx, t.process, StateError, "", false, fault.Of(err))
+		r.finish(ctx, t.process, StateError, "", false, fault.Of(txErr))
 		return
 	}
 	r.deps.Broke(ctx, pv.Name())

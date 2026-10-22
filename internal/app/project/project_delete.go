@@ -64,7 +64,6 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 		return nil, err
 	}
 	// The outbox takes deck's folder of the project; the folders of its runs go here, else in the daily cleanup.
-	pj.DrainFiles(ctx)
 	for _, id := range runs {
 		_ = os.RemoveAll(filepath.Dir(pj.Runner.LogPath(id)))
 	}

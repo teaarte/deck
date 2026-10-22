@@ -114,6 +114,10 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	registry.Declare(cfg.Commands, store.Topics())
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	st.Changed = func(c store.Change) {
+		if c.Topic == store.Outbox {
+			a.Files.Kick()
+			return
+		}
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
 	a.Asks = ask.NewBroker(st, cfg.Now, a.bg.Go)
@@ -137,20 +141,20 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 			Hidden: func() []string { return sandbox.Agent(h) }, AgentSlots: a.Settings.AgentSlots},
 		process.Deps{For: a.Providers.For, Next: a.Providers.Next, Named: a.Providers.Named, Up: a.Providers.Up, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Saver.Prompt,
 			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
-			Memory: a.Chats.Memory, Programs: a.Documents.Programs, DrainFiles: a.Files.Drain})
+			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
 	*a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
 	*a.Folders = folders.Service{St: st, Home: h}
-	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held}
+	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Open: a.Processes.OpenFailures}
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
 	*a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Works: a.Providers.Works, Words: phrases}
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
 		SaveManifest: a.Saver.Save, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
-		DrainFiles: a.Files.Drain, Expire: a.Records.Expire}
+		Expire: a.Records.Expire}
 	*a.Providers = providers.Service{St: st, Words: phrases, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
 		VideoCeiling: cfg.VideoCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
@@ -161,15 +165,15 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		AnswerGrant: a.Saver.AnswerGrant, AddToList: a.Saver.AddToList}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
-		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, DrainFiles: a.Files.Drain, Go: a.bg.Go, Words: phrases}
-	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, DrainFiles: a.Files.Drain,
+		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Go: a.bg.Go, Words: phrases}
+	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now,
 		Home: h, Invoke: a.Registry.Invoke, DeckScreen: deckScreen, Waiting: a.Answers.Waiting}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
 		Words: phrases}
 	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch,
 		Works: a.Providers.Works, Places: a.Providers.Places}
-	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain, Stop: a.Runner.Cancel}
+	*a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
@@ -177,7 +181,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Unassigned: a.Providers.Unassigned}
 	*a.Projects = project.Service{St: st, Home: h, Registry: a.Registry, Gateway: a.Gateway,
 		Runner: a.Runner, Scheduler: a.Scheduler, Host: a.Host, Save: a.Saver, Folders: a.Folders.List,
-		Snapshot: a.Snapshots.BeforeDelete, DrainFiles: a.Files.Drain, Keep: a.Files.Keep}
+		Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)

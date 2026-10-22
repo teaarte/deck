@@ -36,9 +36,8 @@ type Service struct {
 	Host      *mcphost.Host
 	Save      *Saver
 	Folders   func(ctx context.Context, projectID int64) ([]folders.Row, error)
-	// Snapshot writes a snapshot before a delete; DrainFiles removes the files whose rows are gone.
-	Snapshot   func(ctx context.Context, project int64) (string, error)
-	DrainFiles func(ctx context.Context)
+	// Snapshot writes a snapshot before a delete.
+	Snapshot func(ctx context.Context, project int64) (string, error)
 	// Keep stores a file a command made for the owner to download.
 	Keep func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
 }

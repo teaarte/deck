@@ -34,7 +34,7 @@ import (
 )
 
 // Service takes the snapshots and runs the cleanup; LockFiles and UnlockFiles hold the stored files while a
-// snapshot copies them, DrainFiles removes the files whose rows are gone.
+// snapshot copies them.
 type Service struct {
 	St          *store.Store
 	Bus         *events.Bus
@@ -42,7 +42,6 @@ type Service struct {
 	Now         func() time.Time
 	LockFiles   func()
 	UnlockFiles func()
-	DrainFiles  func(ctx context.Context)
 	// Expire deletes the records past their retention with what belongs to them.
 	Expire func(ctx context.Context, now time.Time)
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk, when the
@@ -395,7 +394,6 @@ func (s *Service) cleanup(ctx context.Context, now time.Time) {
 	if err != nil {
 		slog.Error("purge files", "err", err)
 	}
-	s.DrainFiles(ctx)
 	left, _ := filepath.Glob(filepath.Join(s.Home.Files(), ".upload-*"))
 	for _, f := range left {
 		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {

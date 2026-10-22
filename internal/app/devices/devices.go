@@ -20,7 +20,6 @@ type Service struct {
 	St         *store.Store
 	Bus        *events.Bus
 	Now        func() time.Time
-	DrainFiles func(ctx context.Context)
 	Home       home.Layout
 	// Invoke calls a command, as the undo of a change does.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)

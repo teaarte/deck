@@ -114,6 +114,7 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 	}
 	e.must("deck.record_delete", map[string]any{"record": ids["d"]}, nil)
 	e.must("deck.record_delete", map[string]any{"record": ids["inner"]}, nil)
+	e.drained()
 	if exists(filepath.Join(data, "videos", "shared")) || exists(filepath.Join(data, "videos", "nest", "inner")) || !exists(filepath.Join(data, "videos", "keep")) {
 		t.Fatal("a folder no other record holds goes with its record")
 	}
@@ -409,17 +410,20 @@ func TestRetentionAndCollectionDeleteTakeWhatBelongsToARecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.sweep()
+	e.drained()
 	if count("videos") != 1 || count("scenes") != 1 || exists(filepath.Join(data, "videos", "old")) || !exists(filepath.Join(data, "videos", "new")) {
 		t.Fatalf("an expired record goes with its scene and folder: %d videos, %d scenes", count("videos"), count("scenes"))
 	}
 	e.must("deck.collection_delete", map[string]any{"project": "shorts", "collection": "videos"}, nil)
+	e.drained()
 	if count("videos") != 0 || count("scenes") != 0 || exists(filepath.Join(data, "videos", "new")) {
 		t.Fatalf("a deleted collection takes the scenes and folders of its records: %d videos, %d scenes", count("videos"), count("scenes"))
 	}
 }
 
-// TestAFolderThatWillNotGoIsANoteOfTheFeed: a folder of a deleted record deck could not remove is told in the feed.
-func TestAFolderThatWillNotGoIsANoteOfTheFeed(t *testing.T) {
+// TestAFolderThatWillNotGoIsTheHealthOfTheOutbox: a folder of a deleted record deck could not remove in three tries is
+// red in the health of the outbox, which turns green once it goes.
+func TestAFolderThatWillNotGoIsTheHealthOfTheOutbox(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	pid := e.createProject("shorts", cascadeModule)
@@ -433,7 +437,17 @@ func TestAFolderThatWillNotGoIsANoteOfTheFeed(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(filepath.Join(data, "videos", "knights"), 0o700) })
 	ids := e.videos(map[string]any{"slug": "knights", "dir": "knights"})
 	e.must("deck.record_delete", map[string]any{"record": ids["knights"]}, nil)
-	e.waitNote("videos/knights")
+	e.drained()
+	e.App.Sweep(context.Background(), time.Now())
+	e.App.Sweep(context.Background(), time.Now())
+	if h := e.health("outbox"); h == nil || h["status"] != "error" || !strings.Contains(fmt.Sprint(h["error"]), "videos/knights") {
+		t.Fatalf("the folder that will not go is red in the health of the outbox: %v", h)
+	}
+	_ = os.Chmod(filepath.Join(data, "videos", "knights"), 0o700)
+	e.App.Sweep(context.Background(), time.Now())
+	if h := e.health("outbox"); h != nil {
+		t.Fatalf("once it goes the outbox is well: %v", h)
+	}
 }
 
 // TestTheFolderOfADeletedProjectGoesEvenAfterACrash: a project whose row went while deck did not remove its folder

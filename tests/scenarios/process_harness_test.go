@@ -102,6 +102,16 @@ func (e *Env) waitFor(what string, ok func() bool) {
 	e.waitWithin(what, 10*time.Second, ok)
 }
 
+// drained waits until deck tried every row of its outbox once, as it does beside the write that put it there.
+func (e *Env) drained() {
+	e.T.Helper()
+	e.waitFor("the outbox drained", func() bool {
+		var n int
+		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM outbox WHERE tries = 0`).Scan(&n)
+		return n == 0
+	})
+}
+
 // waitWithin waits for ok as long as d, for what runs several sandboxed programs one after another.
 func (e *Env) waitWithin(what string, d time.Duration, ok func() bool) {
 	e.T.Helper()

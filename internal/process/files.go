@@ -232,7 +232,6 @@ func (r *Runner) dropFiles(ctx context.Context, rows []db.File) {
 		}
 		return nil
 	})
-	r.deps.DrainFiles(ctx)
 }
 
 func fileOwner(ctx context.Context, q *db.Queries, projectID, processID int64, f FileRef) (string, int64, error) {

@@ -166,8 +166,6 @@ type Deps struct {
 	Memory func(ctx context.Context, p db.Process) (string, error)
 	// Programs looks for the programs of the scripts of a project again and writes the health of its commands.
 	Programs func(ctx context.Context, projectID int64) error
-	// DrainFiles removes the stored files whose rows are gone.
-	DrainFiles func(ctx context.Context)
 }
 
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, scripts *script.Exec, cfg Config, deps Deps) *Runner {

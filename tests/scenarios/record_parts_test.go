@@ -75,6 +75,7 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 		t.Fatalf("the owner sees all a deletion takes: %v", names)
 	}
 	e.must("deck.record_delete", map[string]any{"record": video}, nil)
+	e.drained()
 	count := func(q string, args ...any) int {
 		var n int
 		_ = e.App.Store.DB.QueryRow(q, args...).Scan(&n)

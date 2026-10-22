@@ -161,8 +161,6 @@ func ViewOf(r db.Record, c *manifest.Collection) View {
 type Service struct {
 	St  *store.Store
 	Now func() time.Time
-	// DrainFiles removes the files and folders whose rows are gone.
-	DrainFiles func(ctx context.Context)
 	// Stop ends an open process of a deleted record as stopped by deck; one the owner stops drops its frozen calls.
 	Stop func(ctx context.Context, processID int64, reason string, owner bool) error
 }

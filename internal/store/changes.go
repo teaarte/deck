@@ -40,6 +40,8 @@ const (
 	ofProcess
 	ofDocument
 	ofTopic
+	// ofDeck is a row of deck itself, of no workspace.
+	ofDeck
 )
 
 func (s scope) column() string {
@@ -56,6 +58,8 @@ func (s scope) column() string {
 		return "document_id"
 	case ofTopic:
 		return "topic_id"
+	case ofDeck:
+		return ""
 	}
 	panic(fmt.Sprintf("store: no column of scope %d", s))
 }
@@ -84,7 +88,11 @@ var tables = map[string]table{
 	"automation_token":  {"tokens", ofWorkspace, nil},
 	"chat_topic":        {"chat", ofWorkspace, nil},
 	"chat_message":      {"chat", ofTopic, nil},
+	"outbox":            {Outbox, ofDeck, []string{"tries", "error"}},
 }
+
+// Outbox is the topic of a row put in the outbox: deck's own, never published to a client.
+const Outbox = "outbox"
 
 // apart are the topics deck publishes by hand: of what it keeps in files or streams, not in tables.
 var apart = []string{"log", "secrets", "snapshots"}
@@ -93,7 +101,7 @@ var apart = []string{"log", "secrets", "snapshots"}
 func Topics() []string {
 	out := slices.Clone(apart)
 	for _, t := range tables {
-		if !slices.Contains(out, t.topic) {
+		if t.topic != Outbox && !slices.Contains(out, t.topic) {
 			out = append(out, t.topic)
 		}
 	}
@@ -102,7 +110,7 @@ func Topics() []string {
 }
 
 // silent are the tables no screen shows, so their writes publish nothing; every other table is in tables.
-var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot", "outbox", "record_mark"}
+var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot", "record_mark"}
 
 // rowWrite is a row a transaction changed: the table and the scope ids of the old and the new row.
 type rowWrite struct {
@@ -289,6 +297,7 @@ func (s *Store) resolve(ctx context.Context, ws []rowWrite) []Change {
 				c.Workspace = id
 			case ofTopic:
 				c.Workspace = s.one(ctx, `SELECT workspace_id FROM chat_topic WHERE id = ?`, id)
+			case ofDeck:
 			case ofProject, ofSelf:
 				project = id
 			case ofProcess:

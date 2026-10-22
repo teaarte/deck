@@ -50,8 +50,6 @@ type Service struct {
 	Fits  func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
 	// Able are the providers that have what a command requires, the models a topic may keep.
 	Able func(ctx context.Context, workspace int64, cmd *manifest.Command) []string
-	// DrainFiles removes the files whose rows are gone.
-	DrainFiles func(ctx context.Context)
 	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next start.
 	Go func(func()) bool
 	// Words are deck's phrases in a language.
@@ -317,7 +315,6 @@ func (ch *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in
 	if err != nil {
 		return nil, err
 	}
-	ch.DrainFiles(ctx)
 	return map[string]any{"ok": true}, nil
 }
 

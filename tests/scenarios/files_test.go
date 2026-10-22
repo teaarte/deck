@@ -194,6 +194,7 @@ print(json.dumps({"files": [{"path": "a.txt"}]}))
 		t.Fatalf("a file still moving belongs to no one: %+v", shown)
 	}
 	e.App.Sweep(context.Background(), e.Clock.Add(25*time.Hour))
+	e.drained()
 	var n int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE id = ?`, left).Scan(&n)
 	if _, err := os.Stat(path); n != 0 || err == nil {

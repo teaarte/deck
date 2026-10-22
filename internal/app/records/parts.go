@@ -259,7 +259,6 @@ func (s *Service) settle(ctx context.Context, open []db.Process, caller int64, o
 			slog.Error("stop a process of a deleted record", "process", pr.ID, "err", err)
 		}
 	}
-	s.DrainFiles(ctx)
 }
 
 // deleteRecord deletes a record with what belongs to it for good; outside a draft the master deletes only what it made

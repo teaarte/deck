@@ -138,13 +138,15 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `src/`: `app/` the frame of islands (menu `Nav.tsx`, screen, chat panel `ChatPanel.tsx`, `Toolbar.tsx`, `PhoneBar.tsx`,
   the notifications `Bell.tsx`, the icon pattern `Backdrop.tsx`, the address and back button `router.ts`: tab and
   dialog only the client reads); `screen/`
-  a screen (`ScreenView.tsx`, `useScreen.ts`, buttons through the `ScreenActions` context, the catalog `catalog.ts`; the
-  top of the cockpit `Hero.tsx` and its one-by-one `Triage.tsx` over the first list of decisions, `decisions.ts`);
+  a screen (`ScreenView.tsx`, `useScreen.ts`, buttons through the `ScreenActions` context, the catalog `catalog.ts`, the
+  answer of a call read by `outcome` in `act.ts`); `cockpit/` the top of the cockpit `Hero.tsx` and its one-by-one
+  `Triage.tsx` over the first list of decisions, `decisions.ts`;
   `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `form/`, `media/` (pictures, PDF, audio and video in the browser's player, the lightbox), `chart/`,
   `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` the mascot `deki/Deki.tsx` (poses in `public/deki`, a switch of Interface), buttons in `actions/` (a failed press shows its error
   at the button, `Failed.tsx`; the undo toast `undo.tsx`; confirmation), icons by
-  name, markdown (`@a2ui/markdown-it`), values; `hooks/`; `lib/` the API and live events (`events.ts`, `useLive`, one
-  `onResume`), `notify.ts`, `format.ts`, `i18n.ts`, the catalog schema; `settings/` look and pushes; `theme/` the look of
+  name, markdown (`@a2ui/markdown-it`), values; `hooks/` (`useLiveRead` — a command read again on its topics, `useClock`
+  — one shared clock per period); `lib/` the API (`authed` every request) and live events (`events.ts`, `useLive`, one
+  `onResume`; `live.ts`), `store.ts` (`createStore`, `useStore`), `notify.ts`, `format.ts`, `i18n.ts`, the catalog schema; `settings/` look and pushes; `theme/` the look of
   the device (`look.ts`: scheme, accent, density, font, corners — passed to `custom` blocks as host context), accents
   `palette.ts`, themes and surfaces `themes.css`; `locales/`; PWA and Share Target — `public/manifest.webmanifest`,
   `public/sw.js`; `web/dist` is the embedded build — rebuild and commit it with the sources

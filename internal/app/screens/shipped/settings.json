@@ -41,6 +41,7 @@
           "actions": [
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != ''"},
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "tts", "model": "=name", "text": "This is a short check of the voice."}, "when": "kind == 'tts'"},
+            {"verb": "check", "command": "deck.model_call", "params": {"kind": "text", "model": "=name", "prompt": "This is a short check of the model: reply with the one word ok."}, "when": "kind == 'text' && (agent ?? '') == ''"},
             {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
               "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''"}, "when": "!builtin"},
             {"verb": "remove", "confirm": true, "command": "deck.model_remove", "params": {"name": "=name"}, "when": "!builtin"}

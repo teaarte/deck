@@ -760,3 +760,31 @@ func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 		}
 	}
 }
+
+// TestATextModelOfAnAPIHasACheckThatCallsIt: a text model outside an agent has a check in Settings → Models, one
+// short call that shows in the status of its row.
+func TestATextModelOfAnAPIHasACheckThatCallsIt(t *testing.T) {
+	t.Parallel()
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1beta/openai/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", chatText("ok")
+		},
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "google", "api": "openai", "url": api.URL + "/v1beta/openai", "key": "AIza-1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "google", "model": "gemini-3.8-flash", "name": "gem", "kind": "text"}, nil)
+	check := e.rowAction("", "settings", "deck.model_call", map[string]any{"kind": "text", "model": "gem"})
+	if check == nil || check["verb"] != "check" {
+		t.Fatalf("the row of a text model has a check: %v", check)
+	}
+	if code, out := e.press(check); code != 200 || len(api.made()) != 1 {
+		t.Fatalf("the check is one call of the model: %d %s %+v", code, out, api.made())
+	}
+	var models struct {
+		Models []struct{ Name, Status string }
+	}
+	e.must("deck.models_list", map[string]any{}, &models)
+	if !slices.ContainsFunc(models.Models, func(m struct{ Name, Status string }) bool { return m.Name == "gem" && m.Status == "ok" }) {
+		t.Fatalf("the model that answered is ok in its row: %+v", models)
+	}
+}

@@ -208,14 +208,17 @@ func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Querie
 		_ = tx.Rollback()
 		return err
 	}
+	ws, places := s.changes.open()
+	cs := resolve(ctx, tx.QueryRowContext, ws, places)
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	var cs []Change
-	if ws := s.changes.take(); len(ws) > 0 && s.Changed != nil {
-		cs = s.resolve(ctx, ws)
-	}
+	// Writes of no transaction of deck's, such as a statement run on the base by hand, are found after their commit.
+	cs = append(cs, resolve(ctx, s.reads.QueryRowContext, s.changes.take(), nil)...)
 	conn.Close()
+	if s.Changed == nil {
+		return nil
+	}
 	for _, c := range cs {
 		s.Changed(c)
 	}

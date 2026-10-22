@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"deck2/internal/events"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 )
 
 // TestASlowDeviceHearsEveryChange: a device that reads its live channel slower than deck publishes still hears
@@ -204,4 +206,50 @@ func TestTheLiveChannelSaysItIsThere(t *testing.T) {
 		}
 	}
 	t.Fatal("no ping within 25 s")
+}
+
+// TestAChangeOfAnotherWorkspaceStaysThere: a row of a workspace without a project, and the rows a project of another
+// workspace takes along when it goes, tell only the readers of that workspace.
+func TestAChangeOfAnotherWorkspaceStaysThere(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	ctx := t.Context()
+	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
+		t.Fatal(err)
+	}
+	var theirs db.Project
+	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		if theirs, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: "theirs", Status: "enabled"}); err != nil {
+			return err
+		}
+		_, err = q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), ProjectID: store.ID(theirs.ID), Subject: "tool:theirs.get", Status: "error"})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := e.live(ctx)
+	err = e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), Subject: "push", Status: "error", Error: "their pushes"})
+		return err
+	})
+	if err == nil {
+		err = e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			_, err := q.DeleteProject(ctx, theirs.ID)
+			return err
+		})
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	for ev := range live {
+		switch ev.Topic {
+		case "settings":
+			return
+		case "health", "projects":
+			t.Fatalf("a change of another workspace reaches this one: %+v", ev)
+		}
+	}
 }

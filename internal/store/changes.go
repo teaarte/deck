@@ -112,18 +112,35 @@ func Topics() []string {
 // silent are the tables no screen shows, so their writes publish nothing; every other table is in tables.
 var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot", "record_mark"}
 
-// rowWrite is a row a transaction changed: the table and the scope ids of the old and the new row.
+// rowWrite is a row a transaction changed: the table and where the old and the new row are.
 type rowWrite struct {
-	table string
-	ids   []int64
+	table  string
+	scopes []scoped
 }
 
-// changes keeps the writes of the open transaction, each once, until it commits, then until they are published.
+// scoped is where a row is: the id its scope column gives and the workspace the row keeps, when it keeps one.
+type scoped struct{ id, workspace int64 }
+
+// place is where a row of a table others lead through is: its project, by name for a project row, and workspace.
+type place struct {
+	project, workspace int64
+	name               string
+}
+
+// placed are the tables a row of another leads through to its project or workspace.
+var placed = map[string]struct{ project, workspace string }{
+	"project": {"id", "workspace_id"}, "process": {"project_id", ""}, "document": {"project_id", "workspace_id"},
+	"chat_topic": {"", "workspace_id"},
+}
+
+// changes keeps the writes of the open transaction, each once, with where the rows others lead through were, until
+// it commits, then until they are published.
 type changes struct {
 	mu        sync.Mutex
 	columns   map[string][]string
 	pending   []rowWrite
 	seen      map[string]bool
+	places    map[string]map[int64]place
 	committed []rowWrite
 }
 
@@ -135,7 +152,7 @@ func (c *changes) preUpdate(d sqlite.SQLitePreUpdateData) {
 	c.mu.Lock()
 	cols := c.columns[d.TableName]
 	c.mu.Unlock()
-	at := slices.Index(cols, t.scope.column())
+	at, wsAt := slices.Index(cols, t.scope.column()), slices.Index(cols, "workspace_id")
 	var old, new []any
 	if d.Op != sqlite3.SQLITE_INSERT {
 		old = make([]any, len(cols))
@@ -154,15 +171,24 @@ func (c *changes) preUpdate(d sqlite.SQLitePreUpdateData) {
 	}
 	w := rowWrite{table: d.TableName}
 	for _, row := range [][]any{old, new} {
-		if id, ok := scopeID(row, at); ok && !slices.Contains(w.ids, id) {
-			w.ids = append(w.ids, id)
+		if row == nil {
+			continue
+		}
+		id, _ := scopeID(row, at)
+		ws, _ := scopeID(row, wsAt)
+		if sc := (scoped{id, ws}); !slices.Contains(w.scopes, sc) {
+			w.scopes = append(w.scopes, sc)
 		}
 	}
-	if len(w.ids) == 0 {
-		w.ids = []int64{0}
+	if len(w.scopes) == 0 {
+		w.scopes = []scoped{{}}
 	}
-	key := fmt.Sprint(w.table, w.ids)
+	key := fmt.Sprint(w.table, w.scopes)
 	c.mu.Lock()
+	defer c.mu.Unlock()
+	if pl, ok := placed[d.TableName]; ok {
+		c.place(d.TableName, cols, pl.project, pl.workspace, old, new)
+	}
 	if !c.seen[key] {
 		if c.seen == nil {
 			c.seen = map[string]bool{}
@@ -170,7 +196,29 @@ func (c *changes) preUpdate(d sqlite.SQLitePreUpdateData) {
 		c.seen[key] = true
 		c.pending = append(c.pending, w)
 	}
-	c.mu.Unlock()
+}
+
+// place keeps where a row others lead through was when the transaction first wrote it.
+func (c *changes) place(table string, cols []string, project, workspace string, rows ...[]any) {
+	for _, row := range rows {
+		id, ok := scopeID(row, slices.Index(cols, "id"))
+		if !ok || c.places[table][id] != (place{}) {
+			continue
+		}
+		p := place{}
+		p.project, _ = scopeID(row, slices.Index(cols, project))
+		p.workspace, _ = scopeID(row, slices.Index(cols, workspace))
+		if i := slices.Index(cols, "name"); table == "project" && i >= 0 {
+			p.name, _ = row[i].(string)
+		}
+		if c.places == nil {
+			c.places = map[string]map[int64]place{}
+		}
+		if c.places[table] == nil {
+			c.places[table] = map[int64]place{}
+		}
+		c.places[table][id] = p
+	}
 }
 
 // quiet reports whether an update changed only columns no reader shows, or nothing.
@@ -202,15 +250,24 @@ func scopeID(row []any, at int) (int64, bool) {
 
 func (c *changes) commit() int32 {
 	c.mu.Lock()
-	c.committed, c.pending, c.seen = append(c.committed, c.pending...), nil, nil
+	c.committed, c.pending, c.seen, c.places = append(c.committed, c.pending...), nil, nil, nil
 	c.mu.Unlock()
 	return 0
 }
 
 func (c *changes) rollback() {
 	c.mu.Lock()
-	c.pending, c.seen = nil, nil
+	c.pending, c.seen, c.places = nil, nil, nil
 	c.mu.Unlock()
+}
+
+// open takes the writes of the transaction about to commit, with where the rows others lead through were.
+func (c *changes) open() ([]rowWrite, map[string]map[int64]place) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ws, places := c.pending, c.places
+	c.pending, c.seen, c.places = nil, nil, nil
+	return ws, places
 }
 
 func (c *changes) take() []rowWrite {
@@ -278,50 +335,58 @@ func (c *changes) readColumns(conn *sql.DB) error {
 	return nil
 }
 
-// resolve turns committed writes into changes: a row's project by name, or its workspace; a row whose project is
-// gone changes every project of the topic.
-func (s *Store) resolve(ctx context.Context, ws []rowWrite) []Change {
+// query reads one row, inside the transaction before its commit or after it.
+type query func(ctx context.Context, q string, args ...any) *sql.Row
+
+// resolve turns writes into changes: a row's project by name with its workspace, or the workspace the row keeps; a row
+// whose project deck cannot find changes every project of the topic in its workspace.
+func resolve(ctx context.Context, one query, ws []rowWrite, places map[string]map[int64]place) []Change {
 	var out []Change
 	add := func(c Change) {
 		if !slices.Contains(out, c) {
 			out = append(out, c)
 		}
 	}
+	at := func(table string, id int64, q string) place {
+		if p, ok := places[table][id]; ok {
+			return p
+		}
+		var p place
+		if table == "project" {
+			_ = one(ctx, q, id).Scan(&p.name, &p.workspace)
+		} else {
+			_ = one(ctx, q, id).Scan(&p.project, &p.workspace)
+		}
+		return p
+	}
 	for _, w := range ws {
 		t := tables[w.table]
-		for _, id := range w.ids {
-			c := Change{Topic: t.topic}
+		for _, sc := range w.scopes {
+			c := Change{Topic: t.topic, Workspace: sc.workspace}
 			project := int64(0)
 			switch t.scope {
-			case ofWorkspace:
-				c.Workspace = id
-			case ofTopic:
-				c.Workspace = s.one(ctx, `SELECT workspace_id FROM chat_topic WHERE id = ?`, id)
 			case ofDeck:
+			case ofWorkspace:
+				c.Workspace = sc.id
+			case ofTopic:
+				c.Workspace = at("chat_topic", sc.id, `SELECT 0, workspace_id FROM chat_topic WHERE id = ?`).workspace
 			case ofProject, ofSelf:
-				project = id
+				project = sc.id
 			case ofProcess:
-				project = s.one(ctx, `SELECT project_id FROM process WHERE id = ?`, id)
+				project = at("process", sc.id, `SELECT project_id, 0 FROM process WHERE id = ?`).project
 			case ofDocument:
-				project = s.one(ctx, `SELECT COALESCE(project_id, 0) FROM document WHERE id = ?`, id)
+				d := at("document", sc.id, `SELECT COALESCE(project_id, 0), workspace_id FROM document WHERE id = ?`)
+				project, c.Workspace = d.project, d.workspace
 			default:
 				panic(fmt.Sprintf("store: no scope %d", t.scope))
 			}
 			if project != 0 {
-				var name string
-				var ws int64
-				if s.reads.QueryRowContext(ctx, `SELECT name, workspace_id FROM project WHERE id = ?`, project).Scan(&name, &ws) == nil {
-					c.Project, c.Workspace = name, ws
+				if p := at("project", project, `SELECT name, workspace_id FROM project WHERE id = ?`); p.name != "" {
+					c.Project, c.Workspace = p.name, p.workspace
 				}
 			}
 			add(c)
 		}
 	}
 	return out
-}
-
-func (s *Store) one(ctx context.Context, q string, id int64) int64 {
-	var v int64
-	_ = s.reads.QueryRowContext(ctx, q, id).Scan(&v)
-	return v
 }

@@ -11,19 +11,25 @@ export const setToken = (t: string) => localStorage.setItem('deck-token', t);
 
 export class CommandError extends Error {}
 
-// call invokes a registry command and returns its JSON result; a refusal throws the server's text.
-export async function call<T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<T> {
-  const r = await fetch('/api/commands/' + encodeURIComponent(command), {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token(), 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  });
-  const text = await r.text();
-  // Only deck's own refusal of the token challenges; a model's refused key is a 401 of the command.
+// authed is every request of the page to deck, with the owner's token; deck's own refusal of the token signs the page
+// out, while a model's refused key is a 401 without the challenge.
+export async function authed(url: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', 'Bearer ' + token());
+  const r = await fetch(url, { ...init, headers });
   if (r.status === 401 && r.headers.has('WWW-Authenticate')) {
     localStorage.removeItem('deck-token');
     location.reload();
   }
+  return r;
+}
+
+// call invokes a registry command and returns its JSON result; a refusal throws the server's text.
+export async function call<T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<T> {
+  const r = await authed('/api/commands/' + encodeURIComponent(command), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+  const text = await r.text();
   if (!r.ok) throw new CommandError(text.trim() || r.statusText);
   return (text ? JSON.parse(text) : null) as T;
 }
@@ -37,9 +43,7 @@ export interface Uploaded {
 export async function upload(project: string, files: File[]): Promise<Uploaded[]> {
   const body = new FormData();
   files.forEach((f) => body.append('file', f, f.name));
-  const r = await fetch('/api/files?project=' + encodeURIComponent(project), {
-    method: 'POST', headers: { Authorization: 'Bearer ' + token() }, body,
-  });
+  const r = await authed('/api/files?project=' + encodeURIComponent(project), { method: 'POST', body });
   const text = await r.text();
   if (!r.ok) throw new CommandError(text.trim() || r.statusText);
   return JSON.parse(text) as Uploaded[];
@@ -56,7 +60,7 @@ export function saveBlob(blob: Blob, name: string) {
 
 // fetchFile reads a file deck gives at its address, with the type it is stored with.
 export async function fetchFile(url: string): Promise<Blob> {
-  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } });
+  const r = await authed(url);
   if (!r.ok) throw new CommandError((await r.text()).trim() || r.statusText);
   return new Blob([await r.arrayBuffer()], { type: r.headers.get('Content-Type') ?? 'application/octet-stream' });
 }

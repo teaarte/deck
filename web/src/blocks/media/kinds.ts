@@ -1,4 +1,4 @@
-import { token } from '../../lib/api';
+import { authed, token } from '../../lib/api';
 import type { Data } from '../../lib/catalog.gen';
 
 export type Item = NonNullable<Data['files']>[number];
@@ -34,7 +34,7 @@ export const streamed = (url = '') => url + (url.includes('?') ? '&' : '?') + 't
 
 // fetchText reads the start of a file as text, at most TEXT bytes, and says whether it goes on.
 export async function fetchText(url: string): Promise<{ text: string; cut: boolean }> {
-  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token(), Range: `bytes=0-${TEXT - 1}` } });
+  const r = await authed(url, { headers: { Range: `bytes=0-${TEXT - 1}` } });
   if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
   const b = new Uint8Array(await r.arrayBuffer());
   const total = Number(/\/(\d+)$/.exec(r.headers.get('Content-Range') ?? '')?.[1] ?? b.length);

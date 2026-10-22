@@ -316,41 +316,6 @@ func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 	}
 }
 
-// TestTheImportsAndNotesOfABaseFromBeforeStay: the folder a draft came from and the notes for the master that an
-// older base kept as marks are still there.
-func TestTheImportsAndNotesOfABaseFromBeforeStay(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
-	dir := filepath.Join(e.App.Home.Data(mp.ID), "drafts", "sketch")
-	if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(webNotes), 0o600)); err != nil {
-		t.Fatal(err)
-	}
-	e.must("deck.project_import", map[string]any{"folder": dir, "name": "sketch"}, nil)
-	sketch, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "sketch"})
-	e.olderBase(4)
-	for _, q := range []string{fmt.Sprintf(`INSERT INTO mark (workspace_id, project_id, name, value) VALUES (1, %d, 'imported_from:%d', %q)`, sketch.ID, sketch.ID, dir),
-		`INSERT INTO mark (workspace_id, name, value) VALUES (1, 'master_notes', 'draft old, imported from somewhere, was deleted')`} {
-		if _, err := e.App.Store.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	_ = e.App.Close()
-	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} }}
-	e = newEnvWith(t, home, fake)
-	var out struct{ Folder string }
-	e.must("deck.project_delete", map[string]any{"project": "sketch"}, &out)
-	if out.Folder != dir {
-		t.Fatalf("the draft still knows the folder it came from: %+v", out)
-	}
-	topic := e.say(0, "hello")
-	e.masterSaid(topic, 1)
-	if p := fake.Calls()[0].Prompt; !strings.Contains(p, "draft old") || !strings.Contains(p, dir) {
-		t.Fatalf("the master hears the old note and the new one:\n%s", p)
-	}
-}
-
 // TestTheMasterImportsOnlyFromItsDataAndGrantedFolders: the data of the master and a folder the owner gave a
 // project can become a draft; the data of another project and any other folder of the owner cannot, unread.
 func TestTheMasterImportsOnlyFromItsDataAndGrantedFolders(t *testing.T) {

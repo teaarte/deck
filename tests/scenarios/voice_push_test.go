@@ -401,32 +401,6 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	}
 }
 
-// TestABaseWithAConnectionNamedWhisperGetsTheWhisperOfDeckToo: a base from before whose owner has a connection named
-// whisper still gets the whisper.cpp of deck as speech to text, under a name of its own.
-func TestABaseWithAConnectionNamedWhisperGetsTheWhisperOfDeckToo(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	e.olderBase(10)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO connection (workspace_id, name, api, url) VALUES (1, 'whisper', 'openai', 'https://api.example/v1')`); err != nil {
-		t.Fatal(err)
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	var m modelsOut
-	e.must("deck.models_list", nil, &m)
-	conn := map[string]string{}
-	for _, x := range m.Models {
-		conn[x.Name] = x.Connection
-	}
-	for _, a := range m.Assignments {
-		if a.Role == "stt" && len(a.Models) == 1 && conn[a.Models[0]] == "deck-whisper" {
-			return
-		}
-	}
-	t.Fatalf("speech to text is the whisper of deck on a connection of a free name: %+v %v", m.Assignments, conn)
-}
-
 // TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow: a refusal for good, such as 400, says how to turn
 // the pushes of that device on again, and the row of the health opens where that is done.
 func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.T) {

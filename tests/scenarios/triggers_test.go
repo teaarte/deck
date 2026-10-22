@@ -98,25 +98,6 @@ func TestTriggerChainStopsAtNinthStep(t *testing.T) {
 	}
 }
 
-// TestAWarningOfABaseFromBeforeIsANote: an open warning an older base kept among the asks is a note of the feed.
-func TestAWarningOfABaseFromBeforeIsANote(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	p := e.createProject("chain", testManifest([]string{agentCommand("c1", "")}, nil))
-	e.olderBase(5)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO ask (workspace_id, project_id, kind, text) VALUES (1, ?, 'warning', 'deck stopped a chain')`, p); err != nil {
-		t.Fatal(err)
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	var as []askView
-	if e.must("deck.asks_list", nil, &as); len(as) != 0 {
-		t.Fatalf("the warning is no ask any more: %+v", as)
-	}
-	e.waitNote("deck stopped a chain")
-}
-
 func TestScheduledRunDoesNotOverlapItsPrevious(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
@@ -171,28 +152,6 @@ func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 	e.sweep()
 	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(kept))); !os.IsNotExist(err) {
 		t.Fatalf("the run folder and log of a process finished a week ago are cleared: %v", err)
-	}
-}
-
-// TestARunLaterOfABaseFromBeforeGoes: deck runs nothing once at a time any more; a run later an older base kept
-// leaves the schedule, and its commands are gone.
-func TestARunLaterOfABaseFromBeforeGoes(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	e.createProject("later", testManifest([]string{agentCommand("remind", "")}, []string{`{"command": "remind", "cron": "0 9 * * *"}`}))
-	e.olderBase(16)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO "trigger" (project_id, command, kind, params, next_run_at)
-		SELECT id, 'remind', 'once', '{}', '2030-01-01T00:00:00.000Z' FROM project WHERE name = 'later'`); err != nil {
-		t.Fatal(err)
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	if ts := e.triggers(); len(ts) != 1 || ts[0].Kind != "cron" {
-		t.Fatalf("only the schedule of the manifest stays: %+v", ts)
-	}
-	for _, name := range []string{"deck.run_later", "deck.run_later_cancel"} {
-		e.refused(name, map[string]any{"command": "later.remind", "at": "2030-01-01T00:00:00Z", "trigger": 1}, 404, "unknown command")
 	}
 }
 

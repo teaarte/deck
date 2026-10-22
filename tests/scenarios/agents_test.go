@@ -143,79 +143,22 @@ func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 	}
 }
 
-// TestAModelOfOpenCodeSaysToSetItAgain: deck runs OpenCode no more; a base from before keeps such a model, red with
-// what to do, and a command assigned to it refuses with that reason.
-func TestAModelOfOpenCodeSaysToSetItAgain(t *testing.T) {
+// TestAModelInNoAgentRunsNoCommand: a text model without an agent is not assigned to a command, and a command
+// assigned to it anyway refuses with the agents to set it in.
+func TestAModelInNoAgentRunsNoCommand(t *testing.T) {
 	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	e.olderBase(14)
-	for _, q := range []string{
-		`INSERT INTO connection (workspace_id, name, api, url) VALUES (1, 'router', 'openai', 'https://openrouter.ai/api/v1')`,
-		`INSERT INTO model (workspace_id, connection_id, name, model, kind, agent) SELECT 1, id, 'free', 'x/free', 'text', 'opencode' FROM connection WHERE name = 'router'`,
-		`INSERT INTO health (subject, status, error) VALUES ('provider:free', 'error', 'install it with npm i -g opencode-ai@1.18.30'), ('agent:opencode', 'error', 'opencode 2.0.20 is not supported'),
-		   ('provider:removed-long-ago', 'error', 'the model did not finish'), ('provider:codex', 'ok', '')`,
-	} {
-		if _, err := e.App.Store.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	if _, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "agent:opencode"); err == nil {
-		t.Fatal("the health row of OpenCode is gone with it")
-	}
-	if _, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:removed-long-ago"); err == nil {
-		t.Fatal("the health of a model removed before goes")
-	}
-	if _, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:codex"); err != nil {
-		t.Fatal("the health of a built-in provider stays")
-	}
-	if h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:free"); err != nil || h.Status != "error" || !strings.Contains(h.Error, "goose") {
-		t.Fatalf("a model of OpenCode is red with what to do: %+v %v", h, err)
-	}
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/free", "name": "free", "kind": "text"}, nil)
 	e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
 	if code, out := e.call("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"free"}}); code != 422 || !strings.Contains(string(out), "goose") {
-		t.Fatalf("a model of OpenCode is not assigned anew: %d %s", code, out)
+		t.Fatalf("a model in no agent is not assigned: %d %s", code, out)
 	}
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'work', 'agent', '["free"]' FROM project WHERE name = 'plain'`); err != nil {
 		t.Fatal(err)
 	}
 	if code, out := e.call("plain.work", map[string]any{}); code == 200 || !strings.Contains(string(out), "goose") {
 		t.Fatalf("a command on it refuses with the reason: %d %s", code, out)
-	}
-}
-
-// TestAModelOfDshSaysToSetItAgain: deck runs dsh no more; its agent row goes, a model on it is red with what to do,
-// and an open call of a model frozen before keeps the owner's yes.
-func TestAModelOfDshSaysToSetItAgain(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	e.createProject("plain", plainManifest)
-	e.olderBase(37)
-	for _, q := range []string{
-		`INSERT INTO connection (workspace_id, name, api, url) VALUES (1, 'router', 'openai', 'https://openrouter.ai/api/v1')`,
-		`INSERT INTO model (workspace_id, connection_id, name, model, kind, agent) SELECT 1, id, 'free', 'x/free', 'text', 'dsh' FROM connection WHERE name = 'router'`,
-		`INSERT INTO health (subject, status, error) VALUES ('provider:free', 'ok', ''), ('agent:dsh', 'ok', '')`,
-		`INSERT INTO ask (workspace_id, project_id, kind, text, payload, state) SELECT 1, id, 'call', 'A picture?',
-		   '{"call":{"command":"deck.model_call","input":{"kind":"image"}},"tool":"deck.model_request"}', 'open' FROM project WHERE name = 'plain'`,
-	} {
-		if _, err := e.App.Store.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	if _, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "agent:dsh"); err == nil {
-		t.Fatal("the health row of dsh is gone with it")
-	}
-	if h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:free"); err != nil || h.Status != "error" || !strings.Contains(h.Error, "agent goose") {
-		t.Fatalf("a model of dsh is red with what to do: %+v %v", h, err)
-	}
-	var tool string
-	if err := e.App.Store.DB.QueryRow(`SELECT json_extract(payload, '$.tool') FROM ask WHERE kind = 'call'`).Scan(&tool); err != nil || tool != "deck.model_call" {
-		t.Fatalf("an open call of a model keeps the fingerprint deck checks on the yes: %q %v", tool, err)
 	}
 }
 

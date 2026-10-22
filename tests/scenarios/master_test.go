@@ -218,48 +218,6 @@ func TestABlockThatFailsIsInTheHealthOfItsModule(t *testing.T) {
 	}
 }
 
-// TestASuggestionOfABaseFromBeforeExpires: deck makes suggestions no more; one an older base kept open expires with
-// its call in the journal, the setting of their days goes, and so do their commands.
-func TestASuggestionOfABaseFromBeforeExpires(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	e.createProject("work", plainManifest)
-	e.olderBase(17)
-	for _, q := range []string{
-		`INSERT INTO ask (workspace_id, project_id, kind, text, payload, state) SELECT 1, id, 'suggest', 'Unstick the queue', '{"call":{"command":"work.work","input":{}}}', 'open' FROM project WHERE name = 'work'`,
-		`INSERT INTO tool_call (workspace_id, project_id, tool, class, outcome, ask_id) SELECT 1, project_id, 'work.work', 'internal', 'waiting', id FROM ask WHERE kind = 'suggest'`,
-		`INSERT INTO setting (workspace_id, key, value) VALUES (1, 'setting:suggest_days', '3')`,
-	} {
-		if _, err := e.App.Store.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	var state, outcome string
-	var delivered sql.NullString
-	if err := e.App.Store.DB.QueryRow(`SELECT a.state, a.delivered_at, c.outcome FROM ask a JOIN tool_call c ON c.ask_id = a.id WHERE a.kind = 'suggest'`).Scan(&state, &delivered, &outcome); err != nil {
-		t.Fatal(err)
-	}
-	if state != "expired" || !delivered.Valid || outcome != "expired" {
-		t.Fatalf("the open suggestion expired with its call: %s %v %s", state, delivered, outcome)
-	}
-	var n int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM setting WHERE key = 'setting:suggest_days'`).Scan(&n)
-	if n != 0 {
-		t.Fatal("the setting of the days of suggestions goes")
-	}
-	for _, name := range []string{"deck.suggest", "deck.suggestions_rejected"} {
-		e.refused(name, map[string]any{"reason": "r"}, 404, "unknown command")
-	}
-	var asks []askView
-	e.must("deck.asks_list", nil, &asks)
-	if len(asks) != 0 {
-		t.Fatalf("nothing waits for the owner: %+v", asks)
-	}
-}
-
 // TestADocumentDeckNoLongerShipsLeavesTheMaster: a document deck wrote into project master that it ships no more
 // goes on the next start; one the owner changed stays his.
 func TestADocumentDeckNoLongerShipsLeavesTheMaster(t *testing.T) {

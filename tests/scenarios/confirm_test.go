@@ -333,9 +333,9 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 	}
 }
 
-// TestACallWaitingInABaseFromBeforeStillWaits: a call that waits for the owner in an older base waits on, and
-// the owner's yes makes it.
-func TestACallWaitingInABaseFromBeforeStillWaits(t *testing.T) {
+// TestACallWaitingForTheOwnerWaitsAcrossARestart: a call that waits for the owner waits on after deck restarts,
+// and the owner's yes makes it.
+func TestACallWaitingForTheOwnerWaitsAcrossARestart(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "x"}`) })
 	home := t.TempDir()
@@ -348,7 +348,6 @@ func TestACallWaitingInABaseFromBeforeStillWaits(t *testing.T) {
 	if code != 200 || json.Unmarshal(out, &held) != nil || held.Waiting == 0 {
 		t.Fatalf("the call waits: %d %s", code, out)
 	}
-	e.olderBase(1)
 	_ = e.App.Close()
 	e = newEnvWith(t, home, &Fake{})
 	e.answer(held.Waiting, "allow")

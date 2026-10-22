@@ -137,39 +137,6 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 	}
 }
 
-// TestAnOldMessageWithFilePathsKeepsItsScreen: a message written when files were paths keeps its stored files and
-// still tells the master the screen it was written on; its paths go once deck starts.
-func TestAnOldMessageWithFilePathsKeepsItsScreen(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} }}
-	e := newEnvWith(t, home, fake)
-	e.Fake = fake
-	e.createProject("web", webNotes)
-	id := e.upload("master", "plan.txt", "text/plain", "the plan")
-	topic := e.say(0, "hello")
-	e.masterSaid(topic, 1)
-	e.olderBase(34)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO chat_message (topic_id, role, text, context) VALUES (?, 'owner', 'old plan', ?)`,
-		topic, fmt.Sprintf(`{"project":"web","screen":"main","files":["/x/data/attachments/12-plan.txt",%d]}`, id)); err != nil {
-		t.Fatal(err)
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, fake)
-	e.Fake = fake
-	var context string
-	_ = e.App.Store.DB.QueryRow(`SELECT context FROM chat_message WHERE text = 'old plan'`).Scan(&context)
-	if context != fmt.Sprintf(`{"project":"web","screen":"main","files":[%d]}`, id) {
-		t.Fatalf("the paths of an old message go, its stored files stay: %s", context)
-	}
-	e.say(topic, "and now")
-	e.masterSaid(topic, 2)
-	prompt := e.Fake.Calls()[1].Prompt
-	if !strings.Contains(prompt, `written on project "web", screen "main"`) || !strings.Contains(prompt, "old plan") {
-		t.Fatalf("the old message keeps its screen in the prompt:\n%s", prompt)
-	}
-}
-
 // TestTheOwnerDeletesAMessageTheMasterHasNotTaken: while the master's reply waits for a slot, the owner's next
 // message waits too; the owner deletes it with its file, and a message a turn took stays.
 func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {

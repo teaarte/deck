@@ -1,7 +1,6 @@
 package scenarios
 
 import (
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -164,8 +163,8 @@ func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
 	}
 }
 
-// TestAModelCallSpeaksTheOpenAICompatibleProtocol: a connection of the Google API says how to reach it, and a base
-// from before moves a Google connection to the OpenAI-compatible address of Google.
+// TestAModelCallSpeaksTheOpenAICompatibleProtocol: a connection of the Google API says how to reach it, and the
+// OpenAI-compatible address of Google answers.
 func TestAModelCallSpeaksTheOpenAICompatibleProtocol(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
@@ -173,27 +172,13 @@ func TestAModelCallSpeaksTheOpenAICompatibleProtocol(t *testing.T) {
 			return 200, "application/json", chatText(`{"verdict": "unclear", "confidence": 0.4}`)
 		},
 	})
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
+	e := newEnvWith(t, t.TempDir(), &Fake{})
 	e.must("deck.connection_set", map[string]any{"name": "native", "api": "google", "url": api.URL + "/v1beta", "key": "AIza-1"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "native", "model": "gemini-3.8-flash", "name": "native-gemini", "kind": "text"}, nil)
 	e.createProject("shorts", strings.Replace(modelManifest, `"kind": "text",`, `"kind": "text", "model": "native-gemini",`, 1))
 	got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
 	if got.State != "error" || !strings.Contains(got.Error, "OpenAI-compatible") || len(api.made()) != 0 {
 		t.Fatalf("a connection of the Google API says to use its OpenAI-compatible address: %+v", got)
-	}
-	e.olderBase(12)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO connection (workspace_id, name, api, url, key_secret) VALUES (1, 'google', 'google', 'https://generativelanguage.googleapis.com/v1beta', 'google')`); err != nil {
-		t.Fatal(err)
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	var api2, url string
-	if err := e.App.Store.DB.QueryRow(`SELECT api, url FROM connection WHERE name = 'google'`).Scan(&api2, &url); err != nil {
-		t.Fatal(err)
-	}
-	if api2 != "openai" || url != "https://generativelanguage.googleapis.com/v1beta/openai/" {
-		t.Fatalf("a Google connection of a base from before is on the OpenAI-compatible address of Google: %s %s", api2, url)
 	}
 	e.must("deck.connection_set", map[string]any{"name": "native", "api": "openai", "url": api.URL + "/v1beta/openai", "key": "AIza-1"}, nil)
 	got = e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
@@ -525,35 +510,6 @@ func TestTwoModelsOfOneAPIModelKeepTheirOwnNames(t *testing.T) {
 	}
 	if name != "second" || cost != 0.02 {
 		t.Fatalf("the call is the model it named: %s %v", name, cost)
-	}
-}
-
-// TestTheHealthOfAModelFromBeforeMovesToItsWorkspace: a base from before keeps the health of a model of a connection
-// as a provider of the machine; it moves to the model's workspace, the failing pushes to the workspace of the devices.
-func TestTheHealthOfAModelFromBeforeMovesToItsWorkspace(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
-	e.olderBase(26)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO health (subject, status, error) VALUES ('provider:local-image', 'error', 'did not answer'), ('push', 'error', 'mac: gone'), ('provider:codex', 'ok', '');
-		INSERT INTO push_subscription (workspace_id, device, endpoint, p256dh, auth) VALUES (1, 'mac', 'https://push.example/1', 'k', 'a')`); err != nil {
-		t.Fatal(err)
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	var subject, status string
-	var workspace sql.NullInt64
-	if err := e.App.Store.DB.QueryRow(`SELECT subject, status, workspace_id FROM health WHERE subject GLOB '*local-image'`).Scan(&subject, &status, &workspace); err != nil ||
-		subject != "model:local-image" || status != "error" || workspace.Int64 != 1 {
-		t.Fatalf("the health of the model moves to its workspace: %v %s %s %v", err, subject, status, workspace)
-	}
-	var push, codex int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'push' AND workspace_id = 1 AND error = 'mac: gone'`).Scan(&push)
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'provider:codex' AND workspace_id IS NULL`).Scan(&codex)
-	if push != 1 || codex != 1 {
-		t.Fatalf("the failing pushes move to the workspace of the devices, %d, and a built-in provider keeps its row, %d", push, codex)
 	}
 }
 

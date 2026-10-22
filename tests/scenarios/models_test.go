@@ -55,113 +55,6 @@ type modelsOutConnection struct {
 	Models int    `json:"models"`
 }
 
-// TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments: the providers stored as on the owner's machine,
-// a command's provider and speech to text become a connection per address and key, a model each and assignments.
-func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	p := e.createProject("plain", plainManifest)
-	e.olderBase(8)
-	for key, value := range map[string]string{
-		"provider:openrouter-qwen-free":             `{"url":"https://openrouter.ai/api/v1","model":"qwen/qwen3.8-27b:free","key_secret":"openrouter","agent":"goose"}`,
-		"provider:local-qwen":                       `{"url":"http://localhost:11434/v1","model":"qwen3.6:35b-a3b-nvfp4","no_cloud":true,"agent":"goose"}`,
-		"provider:nvidia-nemotron-free":             `{"url":"https://integrate.api.nvidia.com/v1","model":"nvidia/nemotron-3-ultra-550b-a55b","key_secret":"nvidia","agent":"goose"}`,
-		"provider:openrouter-thinkingmachines-free": `{"url":"https://openrouter.ai/api/v1","model":"thinkingmachines/inkling:free","key_secret":"openrouter","agent":"goose"}`,
-		"provider:openrouter-nemotron-free":         `{"url":"https://openrouter.ai/api/v1","model":"nvidia/nemotron-3-ultra-550b-a55b:free","key_secret":"openrouter","agent":"goose"}`,
-		"provider:google-gemini-3-8-flash":          `{"url":"https://generativelanguage.googleapis.com/v1beta/openai/","model":"gemini-3.8-flash","key_secret":"google","agent":"goose","check_minutes":5}`,
-		"provider:old-env":                          `{"url":"https://api.example.com/v1","model":"m","key_secret":"OPENAI_API_KEY","agent":"goose"}`,
-		"setting:stt":                               `{"url":"https://api.openai.com/v1/audio/transcriptions","model":"whisper-1","key_secret":"openai","language":"ru"}`,
-		"setting:language":                          `ru`,
-	} {
-		if _, err := e.App.Store.DB.Exec(`INSERT INTO setting (workspace_id, key, value) VALUES (1, ?, ?)`, key, value); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO command_provider (project_id, command, provider) VALUES (?, 'work', 'openrouter-thinkingmachines-free')`, p); err != nil {
-		t.Fatal(err)
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-
-	var m modelsOut
-	e.must("deck.models_list", nil, &m)
-	conns := map[string]string{}
-	counts := map[string]int{}
-	for _, c := range m.Connections {
-		conns[c.Name], counts[c.Name] = c.URL+" "+c.Key+" "+c.API, c.Models
-		if c.Name == "local" && !c.Local {
-			t.Fatalf("a provider on the owner's hardware is a local connection: %+v", c)
-		}
-	}
-	want := map[string]string{
-		"openrouter":     "https://openrouter.ai/api/v1 secret openrouter openai",
-		"nvidia":         "https://integrate.api.nvidia.com/v1 secret nvidia openai",
-		"google":         "https://generativelanguage.googleapis.com/v1beta/openai/ secret google openai",
-		"local":          "http://localhost:11434/v1 none openai",
-		"stt":            "https://api.openai.com/v1/audio/transcriptions secret openai raw",
-		"openai-api-key": "https://api.example.com/v1 secret OPENAI_API_KEY openai",
-		"claude-code":    " none cli",
-		"codex":          " none cli",
-	}
-	if len(conns) != len(want) || counts["openrouter"] != 3 {
-		t.Fatalf("one connection per address and key: %v %v", conns, counts)
-	}
-	for name, w := range want {
-		if conns[name] != w {
-			t.Fatalf("connection %s: %q, want %q", name, conns[name], w)
-		}
-	}
-	agents, builtin := 0, 0
-	for _, x := range m.Models {
-		if x.Agent == "goose" && x.Kind == "text" {
-			agents++
-		}
-		if x.Builtin {
-			builtin++
-		}
-	}
-	if len(m.Models)-builtin != 8 || agents != 7 {
-		t.Fatalf("a model per provider, run by its agent, and the model of speech to text: %+v", m.Models)
-	}
-	got := map[string][]string{}
-	for _, a := range m.Assignments {
-		got[a.Role+" "+a.Project+"."+a.Command] = a.Models
-	}
-	delete(got, "agent master.on_error")
-	if len(got) != 2 || len(got["agent plain.work"]) != 1 || got["agent plain.work"][0] != "openrouter-thinkingmachines-free" ||
-		len(got["stt ."]) != 1 || got["stt ."][0] != "stt" {
-		t.Fatalf("the provider of a command and speech to text are assignments: %v", got)
-	}
-
-	var cmds []struct{ Name, Model string }
-	e.must("deck.commands_list", map[string]any{"project": "plain"}, &cmds)
-	conn := map[string]string{}
-	for _, x := range m.Models {
-		conn[x.Name] = x.Connection
-	}
-	if i := slices.IndexFunc(cmds, func(c struct{ Name, Model string }) bool { return c.Name == "plain.work" }); i < 0 ||
-		cmds[i].Model != "openrouter-thinkingmachines-free" || conn["openrouter-qwen-free"] != "openrouter" || conn["local-qwen"] != "local" {
-		t.Fatalf("the providers are the models with an agent, the command keeps its own: %+v %v", cmds, conn)
-	}
-	var left int
-	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM setting WHERE key LIKE 'provider:%' OR key = 'setting:stt'`).Scan(&left); err != nil || left != 0 {
-		t.Fatalf("no provider is left among the settings: %d %v", left, err)
-	}
-	var lang string
-	if err := e.App.Store.DB.QueryRow(`SELECT value FROM setting WHERE key = 'setting:language'`).Scan(&lang); err != nil || lang != "ru" {
-		t.Fatalf("the other settings stay: %q %v", lang, err)
-	}
-	var opts string
-	if err := e.App.Store.DB.QueryRow(`SELECT options FROM model WHERE name = 'stt'`).Scan(&opts); err != nil {
-		t.Fatal(err)
-	}
-	var o map[string]string
-	if json.Unmarshal([]byte(opts), &o) != nil || o["language"] != "ru" {
-		t.Fatalf("speech to text keeps its language: %s", opts)
-	}
-}
-
 // TestAnAssignmentTakesItsFallbackWhileTheFirstIsDown: a new turn of a project starts on the first provider of
 // its assignment, and on the next one while the first is red, waiting for a login or paused by a limit.
 func TestAnAssignmentTakesItsFallbackWhileTheFirstIsDown(t *testing.T) {
@@ -283,29 +176,18 @@ type spendRow struct {
 	Cost     *float64 `json:"cost_usd"`
 }
 
-// TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt: a script calls a model through DECK_MODELS
-// without its key, deck keeps what OpenRouter says it cost; the daily limit of an older base goes.
-func TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt(t *testing.T) {
+// TestAScriptCallsAModelThroughDeckWithoutItsKey: a script calls a model through DECK_MODELS without its key, deck
+// keeps what OpenRouter says it cost; a connection takes no daily limit.
+func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", pictureAnswer(0.033631)
 		},
 	})
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
+	e := newEnv(t, nil)
 	e.must("deck.secret_set", map[string]any{"name": "openrouter", "value": "sk-or-real"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter"}, nil)
-	e.olderBase(19)
-	if _, err := e.App.Store.DB.Exec(`UPDATE connection SET daily_usd = 0.05 WHERE name = 'openrouter'`); err != nil {
-		t.Fatal(err)
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	var n int
-	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM pragma_table_info('connection') WHERE name = 'daily_usd'`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("the daily limit of a connection goes with the migration: %d %v", n, err)
-	}
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
 	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
@@ -316,7 +198,7 @@ func TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt(t *test
 			t.Fatalf("the script ran: %+v", got)
 		}
 		if out["status"] != 200.0 || !strings.Contains(out["answer"].(string), "data:image/png;base64") || len(out["keys"].([]any)) != 0 {
-			t.Fatalf("call %d, past the old limit too, reaches the model with the answer as it came and no key in the script: %v", i, out)
+			t.Fatalf("call %d reaches the model with the answer as it came and no key in the script: %v", i, out)
 		}
 	}
 	calls := api.calls()

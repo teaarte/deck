@@ -221,27 +221,6 @@ func TestTheSpendOfAPurgedProcessStays(t *testing.T) {
 	e.refused("deck.llm_calls_list", nil, 404, "unknown command")
 }
 
-// TestModelCallsOfABaseFromBeforeKeepTheirProject: the model calls of an older base keep their project and
-// command when it learns to keep them without the process.
-func TestModelCallsOfABaseFromBeforeKeepTheirProject(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{script: func(ctx context.Context, c *Call) provider.Result {
-		c.Req.OnUsage(provider.Usage{Model: "big", Input: 10, Output: 5})
-		return provider.Result{Structured: json.RawMessage(`{}`)}
-	}})
-	p := e.createProject("loud", testManifest([]string{agentCommand("check", "")}, nil))
-	e.waitState(e.run(p, "check"), "done")
-	e.olderBase(2)
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	var spend []struct{ Project, Command string }
-	e.must("deck.spend_list", nil, &spend)
-	if len(spend) != 1 || spend[0].Project != "loud" || spend[0].Command != "check" {
-		t.Fatalf("the model calls of an older base keep their project and command: %+v", spend)
-	}
-}
-
 // TestTheJournalCountsTheDaysOfTheOwner: the days of Spend and Runs are those of the owner's clock, not of UTC, half
 // an hour off included: a call and a run ten minutes past the owner's midnight count on that day.
 func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {

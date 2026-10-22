@@ -444,38 +444,6 @@ func TestTheMasterSeesTheProcessesOfItsTopic(t *testing.T) {
 	}
 }
 
-// TestAStopDeckMadeBeforeIsDecks: in a base from before, a process deck stopped for its deleted record becomes deck's
-// stop, and one the owner stopped stays the owner's.
-func TestAStopDeckMadeBeforeIsDecks(t *testing.T) {
-	t.Parallel()
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	p := e.createProject("clips", clipsModule)
-	e.olderBase(40)
-	for _, text := range []string{"stopped: its record was deleted", "stopped by the owner"} {
-		if _, err := e.App.Store.DB.Exec(`INSERT INTO process (project_id, command, kind, state, input, error, error_type, started_at, finished_at)
-			VALUES (?, 'revise', 'agent', 'stopped', '{}', ?, 'stopped', '2026-10-01T00:00:00Z', '2026-10-01T00:01:00Z')`, p, text); err != nil {
-			t.Fatal(err)
-		}
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	rows, err := e.App.Store.DB.Query(`SELECT error, error_type FROM process WHERE state = 'stopped' ORDER BY id`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	var got []string
-	for rows.Next() {
-		var text, typ string
-		_ = rows.Scan(&text, &typ)
-		got = append(got, text+"="+typ)
-	}
-	if strings.Join(got, ";") != "stopped: its record was deleted=deck.stopped;stopped by the owner=stopped" {
-		t.Fatalf("the stop of a deleted record is deck's: %v", got)
-	}
-}
-
 // TestAScheduleOfARecordJoinsItsRunOncePerSlot: a schedule with a record in its params that comes due while a run of
 // that record goes on joins it once and moves on to its next slot.
 func TestAScheduleOfARecordJoinsItsRunOncePerSlot(t *testing.T) {

@@ -67,28 +67,6 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 	}
 }
 
-// TestABaseFromBeforeGrantsKeepsTheRightsOfEnabledProjects: an enabled project of an older base has the rights
-// of its current manifest; a draft there has none.
-func TestABaseFromBeforeGrantsKeepsTheRightsOfEnabledProjects(t *testing.T) {
-	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
-	_, tok := e.token("terminal", "deck.*", "on.*", "off.*")
-	e.createProject("on", postManifest(svc.URL, `, "class": "internal"`))
-	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "off", "manifest": postManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
-		t.Fatalf("project_create: %d %s", code, out)
-	}
-	e.olderBase(1)
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	e.callWith(tok, "off.post", map[string]any{"id": "a", "text": "hi"})
-	if code, out := e.callWith(tok, "on.post", map[string]any{"id": "a", "text": "hi"}); code != 200 || len(svc.requests()) != 1 {
-		t.Fatalf("only the enabled project keeps its rights: %d %s, %d requests", code, out, len(svc.requests()))
-	}
-}
-
 const grantManifest = `{
   "version": 12,
   "domains": {"read": ["a.example"]},

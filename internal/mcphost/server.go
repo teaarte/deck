@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -30,9 +28,6 @@ func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		return cmd, nil
 	}
-	if err := h.Sandbox.Check(); err != nil {
-		return nil, fmt.Errorf("sandbox %s: %w", h.Sandbox.Name(), err)
-	}
 	path, err := exec.LookPath(spec.Command)
 	if err != nil {
 		return nil, err
@@ -42,10 +37,8 @@ func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
 		return nil, err
 	}
 	s.door = door
-	c := sandbox.Close(h.Home, env(spec.Env, "PATH")+string(os.PathListSeparator)+filepath.Dir(path))
-	cmd, err := h.Sandbox.Command(context.Background(), sandbox.Policy{Argv: append([]string{path}, spec.Args...), Dir: spec.Dir,
-		Env: append(slices.Clone(spec.Env), door.Env()...), Write: []string{spec.Dir},
-		Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Door: door})
+	cmd, err := sandbox.Confine(context.Background(), h.Sandbox, h.Home, env(spec.Env, "PATH"), path, sandbox.Policy{
+		Argv: append([]string{path}, spec.Args...), Dir: spec.Dir, Env: spec.Env, Write: []string{spec.Dir}, Read: spec.Read, Door: door})
 	if err != nil {
 		s.close()
 		return nil, err

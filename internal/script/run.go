@@ -58,9 +58,6 @@ func (j Job) Results() string { return filepath.Join(j.Dir, "results") }
 
 // Run runs the script confined and returns its stdout; a non-zero exit is an error with the end of stderr.
 func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
-	if err := x.Sandbox.Check(); err != nil {
-		return nil, fmt.Errorf("sandbox %s: %w", x.Sandbox.Name(), err)
-	}
 	if err := check(*j.Script); err != nil {
 		return nil, err
 	}
@@ -80,10 +77,8 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := sandbox.Close(x.Home, os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(argv[0]))
-	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: environ(j, data, tmp),
-		Write: []string{j.Work(), j.Results(), data}, Read: append(append([]string{src}, j.Read...), c.Read...),
-		Hide: c.Hide, Private: c.Private, Door: j.Door})
+	cmd, err := sandbox.Confine(ctx, x.Sandbox, x.Home, os.Getenv("PATH"), argv[0], sandbox.Policy{Argv: argv, Dir: j.Work(),
+		Env: environ(j, data, tmp), Write: []string{j.Work(), j.Results(), data}, Read: append([]string{src}, j.Read...), Door: j.Door})
 	if err != nil {
 		return nil, err
 	}
@@ -137,8 +132,8 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// environ is the whole environment of a script: the confined one, its folders, caches in the data of its project,
-// and deck with its door last.
+// environ is the environment of a script: the confined one, its folders, caches in the data of its project, and
+// deck; the sandbox puts its door last.
 func environ(j Job, data, tmp string) []string {
 	env := append(pathFirst(sandbox.Env(j.Work(), tmp)), "TERM=dumb",
 		"DECK_RESULTS="+j.Results(), "DECK_DATA="+data, "XDG_CACHE_HOME="+filepath.Join(data, ".cache"),
@@ -147,7 +142,7 @@ func environ(j Job, data, tmp string) []string {
 		return env
 	}
 	url := j.Door.URL()
-	return append(append(env, "DECK_URL="+url, "DECK_TOKEN="+j.Token, "DECK_MODELS="+url+"/models"), j.Door.Env()...)
+	return append(env, "DECK_URL="+url, "DECK_TOKEN="+j.Token, "DECK_MODELS="+url+"/models")
 }
 
 func argvOf(s *manifest.Script, file string) ([]string, error) {

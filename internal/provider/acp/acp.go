@@ -158,10 +158,10 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
 	}
 	argv, env := a.agent.Start(Launch{Binary: bin, ModelURL: door.URL() + e.modelAt, Model: a.cfg.Model, Key: "deck"})
-	env = append(append(sandbox.Env(home, filepath.Join(home, "tmp")), env...), door.Env()...)
-	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{
-		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),
-		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Door: door}, bin))
+	cmd, err := sandbox.Confine(life, a.cfg.Sandbox, a.cfg.Home, os.Getenv("PATH"), bin, sandbox.Policy{
+		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...), Dir: req.Cwd,
+		Env: append(sandbox.Env(home, filepath.Join(home, "tmp")), env...), Write: append([]string{req.Cwd, home}, req.Dirs...),
+		Read: req.Read, Door: door})
 	if err != nil {
 		return provider.Result{}, err
 	}
@@ -204,14 +204,6 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		}
 	}
 	return res, runErr
-}
-
-// closed confines p, which runs the agent's program bin, as deck confines every program: its folder and the owner's
-// home closed but for the runtimes on PATH and the folder of bin.
-func (a *Adapter) closed(p sandbox.Policy, bin string) sandbox.Policy {
-	c := sandbox.Close(a.cfg.Home, os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(bin))
-	p.Hide, p.Read, p.Private = c.Hide, append(p.Read, c.Read...), c.Private
-	return p
 }
 
 func (a *Adapter) now() time.Time {

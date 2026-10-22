@@ -5,6 +5,7 @@ import (
 	"context"
 	"deck2/internal/home"
 	"deck2/internal/paths"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -83,6 +84,20 @@ func real(path string) string {
 // Closure is what deck keeps from a confined program: Hide closes deck's folder and the owner's home, Read opens
 // the runtimes on PATH inside them again, Private keeps the credential stores closed inside Read.
 type Closure struct{ Hide, Read, Private []string }
+
+// Confine builds the command of a program in the sandbox as deck confines every one: the sandbox checked, deck's
+// folder and the owner's home closed but for the runtimes on path and the folder of bin, the door's environment last.
+func Confine(ctx context.Context, sb Sandbox, layout home.Layout, path, bin string, p Policy) (*exec.Cmd, error) {
+	if err := sb.Check(); err != nil {
+		return nil, fmt.Errorf("sandbox %s: %w", sb.Name(), err)
+	}
+	c := Close(layout, path+string(os.PathListSeparator)+filepath.Dir(bin))
+	p.Hide, p.Read, p.Private = c.Hide, append(slices.Clone(p.Read), c.Read...), c.Private
+	if p.Door != nil {
+		p.Env = append(slices.Clone(p.Env), p.Door.Env()...)
+	}
+	return sb.Command(ctx, p)
+}
 
 // Close is the closure of a program with path as its PATH under deck's folder deck; a home it cannot tell closes the
 // folders of all homes.

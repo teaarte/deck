@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/paths"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 )
@@ -55,12 +56,12 @@ const profile = "deck"
 func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	fs := map[string]string{":root": "read", ":tmpdir": "write", ":slash_tmp": "write"}
 	for _, d := range slices.Concat(sandbox.Shut(a.Home), []string{codexHome()}, sandbox.Private()) {
-		for _, p := range provider.Paths(d) {
+		for _, p := range paths.Names(d) {
 			fs[p] = "deny"
 		}
 	}
 	for _, h := range req.Hidden {
-		if !provider.Under(h, string(a.Home)) {
+		if !paths.Under(h, string(a.Home)) {
 			return nil, fmt.Errorf("codex: hidden path %s is outside deck's folder, which is all the profile hides", h)
 		}
 	}
@@ -69,12 +70,12 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 		writes = append(writes, gitDirs(req.Cwd)...)
 	}
 	for _, d := range writes {
-		for _, p := range provider.Paths(d) {
+		for _, p := range paths.Names(d) {
 			fs[p] = "write"
 		}
 	}
 	if skills != "" {
-		for _, p := range provider.Paths(skills) {
+		for _, p := range paths.Names(skills) {
 			fs[p] = "read"
 		}
 	}

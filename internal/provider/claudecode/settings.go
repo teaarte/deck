@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/paths"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 )
@@ -74,7 +75,7 @@ func settings(req provider.Request) map[string]any {
 	if !req.Repo {
 		return s
 	}
-	for _, root := range provider.Paths(req.Cwd) {
+	for _, root := range paths.Names(req.Cwd) {
 		for _, f := range []string{"settings.json", "settings.local.json"} {
 			var repo struct {
 				Env map[string]any `json:"env"`
@@ -101,7 +102,7 @@ func settings(req provider.Request) map[string]any {
 func autoMode(req provider.Request) map[string]any {
 	var folders []string
 	for _, d := range append([]string{req.Cwd}, req.Dirs...) {
-		for _, p := range provider.Paths(d) {
+		for _, p := range paths.Names(d) {
 			if !slices.Contains(folders, p) {
 				folders = append(folders, p)
 			}
@@ -137,7 +138,7 @@ func (a *Adapter) writeFile(pattern string, data []byte) (string, error) {
 func excludes(repo string) []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, root := range provider.Paths(repo) {
+	for _, root := range paths.Names(repo) {
 		for d := filepath.Dir(root); ; d = filepath.Dir(d) {
 			for _, f := range []string{"CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", ".claude/rules/**"} {
 				if p := filepath.Join(d, f); !seen[p] {

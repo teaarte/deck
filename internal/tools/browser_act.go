@@ -12,7 +12,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/files"
-	"deck2/internal/provider"
+	"deck2/internal/paths"
 	"deck2/internal/untrusted"
 
 	"deck2/internal/gateway"
@@ -93,8 +93,8 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 	out := make([]any, 0, len(list))
 	for _, p := range list {
 		s, _ := p.(string)
-		for _, dir := range provider.Paths(runs) {
-			if filepath.IsAbs(s) && provider.Within(dir, s) {
+		for _, dir := range paths.Names(runs) {
+			if filepath.IsAbs(s) && paths.Within(dir, s) {
 				s, _ = filepath.Rel(dir, s)
 			}
 		}

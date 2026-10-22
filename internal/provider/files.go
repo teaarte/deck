@@ -4,32 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 )
-
-// Paths gives a folder by its absolute and its real path.
-func Paths(dir string) []string {
-	var out []string
-	if abs, err := filepath.Abs(dir); err == nil {
-		out = append(out, abs)
-	}
-	if real, err := filepath.EvalSymlinks(dir); err == nil && !slices.Contains(out, real) {
-		out = append(out, real)
-	}
-	return out
-}
-
-// Under says a path lies inside a folder, by its absolute or its real path; an empty folder holds nothing.
-func Under(path, dir string) bool {
-	return dir != "" && slices.ContainsFunc(Paths(dir), func(d string) bool { return path != d && Within(d, path) })
-}
-
-// Within says path is dir or lies inside it, as the two are written.
-func Within(dir, path string) bool {
-	rel, err := filepath.Rel(dir, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
 
 // WriteFile writes a file atomically with mode 600, making its folder.
 func WriteFile(path string, data []byte) error {

@@ -5,13 +5,13 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"deck2/internal/home"
+	"deck2/internal/paths"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"deck2/internal/manifest"
-	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -52,7 +52,7 @@ func (s *Service) realFolder(path string) (string, error) {
 	if st, err := os.Stat(real); err != nil || !st.IsDir() {
 		return "", registry.Invalid("deck: %s is not a folder", dir)
 	}
-	for _, home := range provider.Paths(string(s.Home)) {
+	for _, home := range paths.Names(string(s.Home)) {
 		if real == home || strings.HasPrefix(real, home+"/") || strings.HasPrefix(home, strings.TrimSuffix(real, "/")+"/") {
 			return "", registry.Invalid("deck: folder %s holds or is inside deck's own folder %s", dir, s.Home)
 		}

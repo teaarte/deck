@@ -3,7 +3,7 @@ package project
 import (
 	"context"
 	"deck2/internal/app/access"
-	"deck2/internal/provider"
+	"deck2/internal/paths"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -92,7 +92,7 @@ func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry
 	if err != nil {
 		return "", err
 	}
-	if !provider.Within(pj.Home.Data(mp.ID), dir) {
+	if !paths.Within(pj.Home.Data(mp.ID), dir) {
 		return "", nil
 	}
 	if act.Kind == registry.Master {

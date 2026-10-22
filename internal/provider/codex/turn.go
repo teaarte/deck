@@ -11,6 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/paths"
 	"deck2/internal/provider"
 )
 
@@ -84,7 +85,7 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 	var skillsOff []string
 	for _, e := range list.Data {
 		for _, s := range e.Skills {
-			if s.Enabled && !provider.Under(string(s.Path), skills) {
+			if s.Enabled && !paths.Under(string(s.Path), skills) {
 				skillsOff = append(skillsOff, string(s.Path))
 			}
 		}

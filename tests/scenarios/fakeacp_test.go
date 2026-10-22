@@ -16,9 +16,8 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// serveACP is the fake ACP agent: it refuses what the ACP schema lacks, records what deck sent and replays
-// stream.<n>: replies, the end or failure of a prompt, notifications, requests to deck, mcp, shell, model, stderr,
-// exit and hang.
+// serveACP is the fake ACP agent: it refuses what the ACP schema lacks, records what deck sent and replays stream.<n>:
+// replies, the end or failure of a prompt, notifications, calls of deck, mcp, shell, model, stderr, exit and hang.
 func serveACP(dir string) {
 	args := os.Args[1:]
 	if len(args) == 1 && args[0] == "--version" {

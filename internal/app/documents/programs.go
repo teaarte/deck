@@ -92,7 +92,8 @@ func (dc *Service) Programs(ctx context.Context, projectID int64) error {
 			}
 		}
 		for _, row := range known {
-			if h := row.Health; h.ProjectID.Int64 == p.ID && strings.HasPrefix(h.Subject, health.Command(p.Name, "")) && !keep[h.Subject] {
+			name, own := strings.CutPrefix(row.Health.Subject, health.Command(p.Name, ""))
+			if h := row.Health; h.ProjectID.Int64 == p.ID && own && !keep[h.Subject] && m.Command(name) == nil {
 				if err := health.Clear(ctx, q, health.Project(p), h.Subject); err != nil {
 					return err
 				}

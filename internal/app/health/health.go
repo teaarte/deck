@@ -3,13 +3,11 @@ package health
 
 import (
 	"context"
-	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 
 	"deck2/internal/app/access"
-	"deck2/internal/docs"
-	"deck2/internal/events"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -101,10 +99,6 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 	if err != nil {
 		return nil, err
 	}
-	ps, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
-	if err != nil {
-		return nil, err
-	}
 	pvs, err := s.Providers(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -121,43 +115,9 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 	for _, m := range models {
 		mine[health.Provider(m.Model.Name)] = true
 	}
-	out := make([]healthRow, 0, len(hs)+len(ps))
+	out := make([]healthRow, 0, len(hs))
 	shown := func(project string) bool {
 		return (in.Project == "" || project == in.Project) && (!in.Machine || project == "")
-	}
-	if text := s.NoSearch(ctx, act.Workspace); text != "" && shown("") {
-		out = append(out, healthRow{Subject: "search", Status: health.Warning, Error: text})
-	}
-	for _, p := range ps {
-		if !shown(p.Name) {
-			continue
-		}
-		m, err := docs.Manifest(ctx, s.St.Q, p)
-		if err != nil {
-			row := healthRow{Subject: "project:" + p.Name, Project: p.Name, Status: health.Error, Error: "manifest: " + err.Error()}
-			row.Seen = s.read(ctx, act.Workspace, row)
-			out = append(out, row)
-			continue
-		}
-		for name, text := range s.Unassigned(ctx, p.WorkspaceID, p.ID, m) {
-			row := healthRow{Subject: "command:" + name, Project: p.Name, Status: health.Warning, Error: text}
-			if c := m.Command(name); c != nil && c.Executor.Type == "agent" && p.Status == store.ProjectEnabled {
-				row.Status, row.Seen = health.Error, s.read(ctx, act.Workspace, row)
-			}
-			out = append(out, row)
-		}
-		if p.Status != store.ProjectEnabled {
-			continue
-		}
-		for _, name := range m.Keys() {
-			if s.Secret(p.WorkspaceID, name) {
-				continue
-			}
-			row := healthRow{Subject: "secret:" + name, Project: p.Name, Status: health.Error,
-				Error: "not set, so the tools that send it fail; set it in Settings → Advanced → Secrets"}
-			row.Seen = s.read(ctx, act.Workspace, row)
-			out = append(out, row)
-		}
 	}
 	for _, hr := range hs {
 		h := hr.Health
@@ -214,7 +174,9 @@ type Service struct {
 	// Works looks up the model that does the work of a command; Places the work each model does.
 	Works  func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	Places func(ctx context.Context, workspace int64) map[string][]string
-	Bus    *events.Bus
+
+	// deriving keeps one Derive at a time.
+	deriving sync.Mutex
 }
 
 // Commands are the commands of health.
@@ -234,8 +196,7 @@ type seenIn struct {
 	Project string `type:"project" opt:"" desc:"Project of the row; none for the machine and the workspace"`
 }
 
-// seen marks a failing check read: a stored row by its time, one deck works out on each read, such as a secret not
-// set, by a mark of its text until it fails no more.
+// seen marks a failing check read until its status or error changes.
 func (s *Service) seen(ctx context.Context, act registry.Actor, in seenIn) (any, error) {
 	var project int64
 	if in.Project != "" {
@@ -251,67 +212,8 @@ func (s *Service) seen(ctx context.Context, act registry.Actor, in seenIn) (any,
 	if err != nil {
 		return nil, err
 	}
-	if n > 0 {
-		return map[string]any{"ok": true}, nil
-	}
-	rows, err := s.list(ctx, act, healthListIn{})
-	if err != nil {
-		return nil, err
-	}
-	i := slices.IndexFunc(rows, func(r healthRow) bool {
-		return r.Subject == in.Subject && r.Project == in.Project && r.Status == health.Error && r.UpdatedAt == ""
-	})
-	if i < 0 {
+	if n == 0 {
 		return nil, registry.NotFound("deck: no failing check %s", in.Subject)
 	}
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: act.Workspace, Name: markOf(rows[i]), Value: rows[i].Error})
-	})
-	if err != nil {
-		return nil, err
-	}
-	s.Bus.Emit(events.Event{Workspace: act.Workspace, Topic: "health"})
 	return map[string]any{"ok": true}, nil
-}
-
-// Forget drops the read marks of the checks deck works out that fail no more, so one that fails again counts anew.
-func (s *Service) Forget(ctx context.Context) {
-	spaces, err := s.St.Q.ListWorkspaces(ctx)
-	if err != nil {
-		return
-	}
-	for _, ws := range spaces {
-		rows, err := s.list(ctx, registry.Actor{Kind: registry.Owner, Workspace: ws}, healthListIn{})
-		marks, merr := s.St.Q.ListMarksWithPrefix(ctx, db.ListMarksWithPrefixParams{WorkspaceID: ws, Prefix: seenMark})
-		if err != nil || merr != nil {
-			continue
-		}
-		failing := map[string]bool{}
-		for _, r := range rows {
-			failing[markOf(r)] = failing[markOf(r)] || r.Status == health.Error && r.UpdatedAt == ""
-		}
-		for _, m := range marks {
-			if failing[m] {
-				continue
-			}
-			err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-				return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: ws, Name: m})
-			})
-			if err != nil {
-				slog.Error("health: forget a read check", "mark", m, "err", err)
-			}
-		}
-	}
-}
-
-// seenMark starts the name of the mark of a worked-out check the owner read; its value is the text read.
-const seenMark = "health-seen:"
-
-// markOf is the name of the read mark of a worked-out check, by its project and subject.
-func markOf(row healthRow) string { return seenMark + row.Project + "/" + row.Subject }
-
-// read reports whether the owner read a worked-out check as it is now.
-func (s *Service) read(ctx context.Context, workspace int64, row healthRow) bool {
-	v, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: markOf(row)})
-	return err == nil && v == row.Error
 }

@@ -572,7 +572,7 @@ func TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce(t *testing.T) {
 		!strings.Contains(imported.Warnings[0], "Settings → Commands") {
 		t.Fatalf("the import names each model command no model takes: %v", imported.Warnings)
 	}
-	if h := e.waitHealth("command:factcheck", "warning"); !strings.Contains(h.Error, "pick one in Settings → Commands") {
+	if h := e.waitHealth("command:shorts.factcheck", "warning"); !strings.Contains(h.Error, "pick one in Settings → Commands") {
 		t.Fatalf("the draft's health shows it in yellow: %+v", h)
 	}
 	var m struct {

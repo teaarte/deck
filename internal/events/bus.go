@@ -15,7 +15,7 @@ type Bus struct {
 	mu   sync.Mutex
 	subs map[*Sub]struct{}
 	// watchers are deck's own listeners; they are not clients.
-	watchers []func(topic string)
+	watchers []func(Event)
 }
 
 func NewBus() *Bus { return &Bus{subs: map[*Sub]struct{}{}} }
@@ -65,12 +65,12 @@ func (b *Bus) Emit(e Event) {
 	watchers := b.watchers
 	b.mu.Unlock()
 	for _, w := range watchers {
-		w(e.Topic)
+		w(e)
 	}
 }
 
-// Watch calls f on every topic; f must not block.
-func (b *Bus) Watch(f func(topic string)) {
+// Watch calls f on every event, after the commit that brought it.
+func (b *Bus) Watch(f func(Event)) {
 	b.mu.Lock()
 	b.watchers = append(b.watchers, f)
 	b.mu.Unlock()

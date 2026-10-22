@@ -133,7 +133,7 @@ func TestAModelInAnAgentTakesWorkThatNeedsTheWeb(t *testing.T) {
 		var rows []struct{ Subject, Error string }
 		e.must("deck.health_list", map[string]any{"project": "scout"}, &rows)
 		for _, r := range rows {
-			if r.Subject == "command:scout" {
+			if r.Subject == "command:scout.scout" {
 				return r.Error
 			}
 		}

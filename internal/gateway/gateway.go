@@ -112,8 +112,8 @@ func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *re
 	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, reg: reg, clear: reg.Clearance(), sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
 	g.handler = provider.Stateful(mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
 	if bus != nil {
-		bus.Watch(func(topic string) {
-			if topic == "projects" || topic == "tools" {
+		bus.Watch(func(e events.Event) {
+			if e.Topic == "projects" || e.Topic == "tools" {
 				g.cfg.Go(func() { g.renew(context.Background()) })
 			}
 		})

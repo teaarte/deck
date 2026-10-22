@@ -41,32 +41,35 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 		e.createProject(name, fmt.Sprintf(`{"version": 12, "tools": {"http": [
     {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL))
 	}
-	e.must("deck.health_seen", map[string]any{"subject": "secret:pexels", "project": "photos"}, nil)
-	if seen, failing := e.healthSeen("photos", "secret:pexels"); !seen || !failing {
+	e.must("deck.health_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
+	if seen, failing := e.healthSeen("photos", "secret:photos.pexels"); !seen || !failing {
 		t.Fatal("the owner reads the check of one project")
 	}
-	if seen, failing := e.healthSeen("stock", "secret:pexels"); seen || !failing {
+	if seen, failing := e.healthSeen("stock", "secret:stock.pexels"); seen || !failing {
 		t.Fatal("the same check of another project stays unread")
 	}
 
 }
 
-// TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck: the worked-out row of a manifest that does not load counts in
-// the pulse until the owner reads it.
+// TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck: a stored manifest that deck no longer reads, as after an
+// upgrade of deck, is a failing check of the pulse from the start until the owner reads it.
 func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
 	pid := e.createProject("broken", `{"version": 12}`)
-	before := e.pulseErrors()
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 12, "nonsense": true}'
 		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
 		t.Fatal(err)
 	}
-	if seen, failing := e.healthSeen("broken", "project:broken"); seen || !failing || e.pulseErrors() != before+1 {
-		t.Fatalf("a manifest that does not load is a failing check of the pulse: %d", e.pulseErrors())
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	before := e.pulseErrors()
+	if seen, failing := e.healthSeen("broken", "project:broken"); seen || !failing {
+		t.Fatalf("a manifest that does not load is a failing check of the pulse: %d", before)
 	}
 	e.must("deck.health_seen", map[string]any{"subject": "project:broken", "project": "broken"}, nil)
-	if seen, _ := e.healthSeen("broken", "project:broken"); !seen || e.pulseErrors() != before {
+	if seen, _ := e.healthSeen("broken", "project:broken"); !seen || e.pulseErrors() != before-1 {
 		t.Fatalf("once read it counts no more: %d", e.pulseErrors())
 	}
 }

@@ -69,6 +69,8 @@ const (
 	Outbox    = "outbox"
 	Push      = "push"
 	Search    = "search"
+	// Master is the row of a workspace whose built-in master a project of the owner keeps out.
+	Master = "master"
 )
 
 // Provider is the subject of a provider of agent turns, of the machine.

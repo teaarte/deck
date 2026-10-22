@@ -168,7 +168,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
 		Words: phrases}
 	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch,
-		Works: a.Providers.Works, Places: a.Providers.Places, Bus: a.Bus}
+		Works: a.Providers.Works, Places: a.Providers.Places}
 	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain, Stop: a.Runner.Cancel}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
@@ -189,6 +189,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	a.Saver.CheckManifests(a.ctx)
+	a.Health.Watch(a.Bus)
+	a.Health.Derive(a.ctx, 0)
 	status, text := script.Runtimes().Health()
 	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Scripts, status, text); err != nil {
 		return nil, err
@@ -267,8 +269,8 @@ func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Snapshots.CheckDisk(ctx, now)
 }
 
-// slow is the work of the loop that waits on the network or the disk: pushes, within pushTimeout, the read marks of
-// checks that stopped failing, and the daily cleanup and snapshot.
+// slow is the work of the loop that waits on the network or the disk: pushes, within pushTimeout, and the daily
+// cleanup and snapshot.
 func (a *App) slow(ctx context.Context, now time.Time) {
 	pctx, cancel := context.WithTimeout(ctx, pushTimeout)
 	if spaces, err := a.Store.Q.ListWorkspaces(pctx); err == nil {
@@ -277,7 +279,6 @@ func (a *App) slow(ctx context.Context, now time.Time) {
 		}
 	}
 	cancel()
-	a.Health.Forget(ctx)
 	a.Snapshots.Daily(ctx, now)
 }
 

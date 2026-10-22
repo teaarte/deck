@@ -839,7 +839,7 @@ func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
 		var rows []struct{ Subject, Status, Error string }
 		e.must("deck.health_list", map[string]any{"project": "music"}, &rows)
 		for _, r := range rows {
-			if r.Subject == "command:files" {
+			if r.Subject == "command:music.files" {
 				return &r
 			}
 		}

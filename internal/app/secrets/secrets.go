@@ -56,8 +56,6 @@ func (s *Service) secretSet(ctx context.Context, act registry.Actor, in secretSe
 	if !access.ValidSecret(in.Name) {
 		return nil, registry.Invalid("deck: a secret name is letters, digits, '.', '_' and '-'")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.Write(act.Workspace, in.Name, in.Value); err != nil {
 		return nil, err
 	}
@@ -101,11 +99,17 @@ func (s *Service) Swap(workspace int64, name, old, value string) (bool, error) {
 	if strings.TrimRight(string(b), "\r\n") != strings.TrimRight(old, "\r\n") {
 		return false, nil
 	}
-	return true, s.Write(workspace, name, value)
+	return true, s.write(workspace, name, value)
 }
 
-// Write stores a secret as a file only deck reads, in one rename.
+// Write stores a secret as a file only deck reads, in one rename, apart from a Swap of it.
 func (s *Service) Write(workspace int64, name, value string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.write(workspace, name, value)
+}
+
+func (s *Service) write(workspace int64, name, value string) error {
 	if !access.ValidSecret(name) {
 		return registry.Invalid("deck: bad secret name %q", name)
 	}

@@ -7,6 +7,7 @@ import (
 	"deck2/internal/app/access"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
@@ -21,6 +22,7 @@ import (
 // Service keeps the triggers; the scheduler fires them, the gateway runs a trigger now.
 type Service struct {
 	St        *store.Store
+	Now       func() time.Time
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
 	Registry  *registry.Registry

@@ -476,6 +476,21 @@ func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
 	}
 }
 
+// TestAFailedTurnTellsTheEndOfWhatTheAgentWroteToStderr: the error of an agent is at the end of its stderr, so a
+// failed turn keeps that end.
+func TestAFailedTurnTellsTheEndOfWhatTheAgentWroteToStderr(t *testing.T) {
+	t.Parallel()
+	f := newACP(t)
+	noise, _ := json.Marshal(strings.Repeat("loading a plugin\n", 300) + "Error: the config is broken")
+	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"stderr": `+string(noise)+`}`, `{"exit": 3}`))
+	e := acpEnv(t, f, "goose", newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") }))
+	got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error")
+	if got.State != "error" || !strings.Contains(got.Error, "the config is broken") {
+		t.Fatalf("the failed turn tells the end of stderr: %+v", got)
+	}
+}
+
 // TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal: Goose ends its turn as end_turn with the error of the model
 // API in its text, so the last answer of the API still tells a usage limit and a refused key.
 func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {

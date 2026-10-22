@@ -44,10 +44,10 @@ func Start(cmd *exec.Cmd, dir string, onStart func(pid int)) (*Child, error) {
 // Signal sends sig to the whole group of the program.
 func (c *Child) Signal(sig syscall.Signal) { _ = sandbox.Kill(c.Cmd, sig) }
 
-// Stderr is what the program wrote to stderr, cut short.
+// Stderr is the end of what the program wrote to stderr, where its error is.
 func (c *Child) Stderr() string {
 	b, _ := os.ReadFile(c.stderr.Name())
-	return untrusted.Cut(strings.TrimSpace(string(b)), 2000)
+	return untrusted.Tail(strings.TrimSpace(string(b)), 2000)
 }
 
 // Close kills what is left of the group and removes the stderr file.

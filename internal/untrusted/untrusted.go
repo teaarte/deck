@@ -19,6 +19,18 @@ func Cut(s string, n int) string {
 	return s[:n] + "…"
 }
 
+// Tail is the end of s of at most n bytes without splitting a character.
+func Tail(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	i := len(s) - n
+	for i < len(s) && !utf8.RuneStart(s[i]) {
+		i++
+	}
+	return "…" + s[i:]
+}
+
 // Flat is s on one line of at most n bytes, unquoted.
 func Flat(s string, n int) string { return Cut(strings.Join(strings.Fields(s), " "), n) }
 

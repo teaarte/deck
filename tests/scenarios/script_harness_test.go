@@ -90,6 +90,7 @@ func (e *Env) warnings(contains string) int {
 type feedNote struct {
 	ID           int64
 	Author, Text string
+	CreatedAt    string `json:"created_at"`
 	Read         bool
 	CanRead      bool `json:"can_read"`
 }

@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/app"
 	"deck2/internal/provider"
+	"deck2/internal/store"
 )
 
 // clipsModule keeps clips: new makes one, check follows it, tally follows check with no record, revise edits a clip,
@@ -44,9 +46,9 @@ print(json.dumps({"n": inp.get("n", 0), "record": inp.get("record")}))
 `
 
 // clipsEnv is deck with the clips module and the fake agent script.
-func clipsEnv(t *testing.T, script Script) *Env {
+func clipsEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
 	t.Helper()
-	e := newEnv(t, script)
+	e := newEnv(t, script, cfg...)
 	e.createProject("clips", clipsModule)
 	e.saveScript("clips", "scripts/render.py", clipsRender)
 	return e
@@ -603,12 +605,13 @@ func TestACallAFailedAgentDidNotHearRunsOnceAfter(t *testing.T) {
 }
 
 // TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen: a step whose record field is not an integer gets no record,
-// and a step that does not start is a note of deck in the feed.
+// and a step that does not start is a note of deck in the feed at the time of deck's clock.
 func TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen(t *testing.T) {
 	t.Parallel()
+	clock := &Clock{now: t0}
 	e := clipsEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
-	})
+	}, withClock(clock))
 	m := strings.Replace(clipsModule, `"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}}`,
 		`"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}, "record": {"type": "string"}}},
@@ -627,7 +630,9 @@ func TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen(t *testing.T) {
 	if in := processInput(t, e, tally[0].ID); in["record"] != nil {
 		t.Fatalf("a record field that is not an integer is not filled: %v", in)
 	}
-	e.waitNote(fmt.Sprintf("deck did not start label after process #%d of check", check))
+	if n := e.waitNote(fmt.Sprintf("deck did not start label after process #%d of check", check)); n.CreatedAt != store.Time(t0) {
+		t.Fatalf("the note is at the time of deck's clock: %s", n.CreatedAt)
+	}
 }
 
 // TestAHelperCallingBackForTheRecordDoesNotJoinItsCaller: a revise that started a helper waits for it, so the helper's

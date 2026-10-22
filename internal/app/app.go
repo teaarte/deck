@@ -146,7 +146,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Open: a.Processes.OpenFailures}
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
-	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Works: a.Providers.Works, Words: phrases}
+	*a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Works: a.Providers.Works, Words: phrases}
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
 		SaveManifest: a.Saver.Save, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,

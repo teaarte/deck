@@ -17,7 +17,8 @@ import (
 )
 
 // serveACP is the fake ACP agent: it refuses what the ACP schema lacks, records what deck sent and replays
-// stream.<n>: replies, the end or failure of a prompt, notifications, requests to deck, mcp, shell, model and hang.
+// stream.<n>: replies, the end or failure of a prompt, notifications, requests to deck, mcp, shell, model, stderr,
+// exit and hang.
 func serveACP(dir string) {
 	args := os.Args[1:]
 	if len(args) == 1 && args[0] == "--version" {
@@ -209,6 +210,13 @@ func (f *fakeACPRun) run(lines []string) {
 			f.getModelAPI(path)
 		case l["discover"] != nil:
 			f.discover()
+		case l["stderr"] != nil:
+			var text string
+			_ = json.Unmarshal(l["stderr"], &text)
+			fmt.Fprint(os.Stderr, text)
+		case l["exit"] != nil:
+			code, _ := strconv.Atoi(string(l["exit"]))
+			os.Exit(code)
 		case l["hang"] != nil:
 			for m := range f.in {
 				if string(m["method"]) == `"session/cancel"` {

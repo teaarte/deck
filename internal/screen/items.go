@@ -25,11 +25,11 @@ func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[s
 			if r.record != nil {
 				env = withRecord(it, r.record)
 			}
-			ok, err := r.eval(src.Where, env)
+			ok, err := manifest.Where(src.Where, r.withParam(env))
 			if err != nil {
 				return nil, fmt.Errorf("where: %w", err)
 			}
-			if ok == true {
+			if ok {
 				kept = append(kept, it)
 			}
 		}

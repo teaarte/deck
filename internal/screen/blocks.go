@@ -40,14 +40,8 @@ func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
 		}
 		env["rows"] = items
 	}
-	v, err := r.eval(b.When, env)
-	if err != nil {
-		return true, err
-	}
-	if ok, err := manifest.Holds(v); err != nil || ok {
-		return true, err
-	}
-	return false, nil
+	ok, err := manifest.Where(b.When, r.withParam(env))
+	return ok || err != nil, err
 }
 
 // rows are the items of a block's source with the filters the owner picked, read once per screen without picks,

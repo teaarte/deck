@@ -50,12 +50,9 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) (
 // action is one button for an item, nil when its when does not hold.
 func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[string]any, error) {
 	if a.When != "" {
-		v, err := manifest.Eval(a.When, env)
-		if err == nil {
-			var ok bool
-			if ok, err = manifest.Holds(v); err == nil && !ok {
-				return nil, nil
-			}
+		ok, err := manifest.Where(a.When, env)
+		if err == nil && !ok {
+			return nil, nil
 		}
 		if err != nil {
 			return nil, fmt.Errorf("when: %w", err)

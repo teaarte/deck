@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
@@ -156,28 +157,42 @@ func (v *names) Visit(n *ast.Node) {
 	}
 }
 
-// Filter compiles a where: an expression that is true for what it keeps.
-func Filter(src string) (func(env map[string]any) (bool, error), error) {
+// programs are the expressions Eval has compiled, by their text.
+var programs sync.Map
+
+// program is src compiled once.
+func program(src string) (*vm.Program, error) {
+	if p, ok := programs.Load(src); ok {
+		return p.(*vm.Program), nil
+	}
 	p, err := compileExpr(src, nil)
 	if err != nil {
 		return nil, err
 	}
-	return func(env map[string]any) (bool, error) {
-		v, err := expr.Run(p, env)
-		if err != nil {
-			return false, err
-		}
-		ok, isBool := v.(bool)
-		if !isBool {
-			return false, fmt.Errorf("gives %T, not true or false", v)
-		}
-		return ok, nil
-	}, nil
+	programs.Store(src, p)
+	return p, nil
+}
+
+// Filter compiles a where: an expression that holds for what it keeps, as Where tells.
+func Filter(src string) (func(env map[string]any) (bool, error), error) {
+	if _, err := program(src); err != nil {
+		return nil, err
+	}
+	return func(env map[string]any) (bool, error) { return Where(src, env) }, nil
+}
+
+// Where is whether an expression holds over env: nil holds not, and a value that is no boolean is an error.
+func Where(src string, env map[string]any) (bool, error) {
+	v, err := Eval(src, env)
+	if err != nil {
+		return false, err
+	}
+	return Holds(v)
 }
 
 // Eval runs an expression over env; a failure names the expression and what went wrong, without the caret drawing.
 func Eval(src string, env map[string]any) (any, error) {
-	p, err := compileExpr(src, nil)
+	p, err := program(src)
 	if err != nil {
 		return nil, err
 	}

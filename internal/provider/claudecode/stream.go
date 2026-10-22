@@ -63,7 +63,7 @@ type turn struct {
 	serverError bool
 	// limited is a usage limit the CLI was refused on; failed a result that is an error.
 	limited, failed bool
-	model       string
+	model           string
 	// tasks are the tasks of the session that started and have not reported yet.
 	tasks map[string]bool
 	// idle is set from a result until the session wakes again.

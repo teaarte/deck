@@ -206,7 +206,9 @@ var commandRights = []commandRight{
 				add("command %s: no longer requires %s", c.Name, r)
 			}
 		}
-	}, func(old, c *Command) { c.Requires = append(slices.Clone(c.Requires), added(c.Requires, old.Requires)...) }},
+	}, func(old, c *Command) {
+		c.Requires = append(slices.Clone(c.Requires), added(c.Requires, old.Requires)...)
+	}},
 	{false, func(old, c *Command, _ bool, add say) {
 		if registry.ClassRank(c.Class) < registry.ClassRank(old.Class) {
 			add("command %s: class %s instead of %s", c.Name, c.Class, old.Class)

@@ -81,6 +81,8 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		if s.token == "" || subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) != 1 {
 			var err error
 			if act, err = s.app.Tokens.Automation(r.Context(), strings.TrimPrefix(got, "Bearer ")); err != nil {
+				// The challenge tells a refused token of deck from a model's refused key a command answers with.
+				w.Header().Set("WWW-Authenticate", "Bearer")
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}

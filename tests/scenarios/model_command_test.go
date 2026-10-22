@@ -791,4 +791,16 @@ func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
 		t.Fatalf("a failure of a model does not go to the master: %d", n)
 	}
+	for tok, challenged := range map[string]bool{token: false, "deck_nope": true} {
+		req, _ := http.NewRequest("POST", e.URL+"/api/commands/deck.model_call", strings.NewReader(`{"model": "groq/keyless", "kind": "text", "prompt": "hi"}`))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != 401 || (resp.Header.Get("WWW-Authenticate") != "") != challenged {
+			t.Fatalf("only deck's refusal of its token challenges the client, not a model's refused key: %s %d %v", tok, resp.StatusCode, resp.Header)
+		}
+	}
 }

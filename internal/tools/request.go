@@ -32,7 +32,7 @@ type outgoing struct {
 	secrets []string
 }
 
-func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t manifest.HTTPTool, in map[string]any) (*outgoing, error) {
+func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t manifest.HTTPTool, domains []string, in map[string]any) (*outgoing, error) {
 	var missing []string
 	u := fillURL(t.URL, in, &missing)
 	out := &outgoing{}
@@ -55,8 +55,8 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	if err != nil {
 		return nil, registry.Invalid("deck: %s: %v", t.Name, err)
 	}
-	if req, err = gateway.Pin(req, []string{req.URL.Host}); err != nil {
-		return nil, registry.Refuse("deck: %s: %v", t.Name, err)
+	if req, err = gateway.Pin(req, append([]string{req.URL.Host}, domains...)); err != nil {
+		return nil, &registry.Error{Status: registry.Status(err), Text: fmt.Sprintf("deck: %s: %v", t.Name, err)}
 	}
 	var serr error
 	header := func(s string) string {

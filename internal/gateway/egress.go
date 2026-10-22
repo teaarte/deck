@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"deck2/internal/registry"
 	"errors"
 	"fmt"
 	"io"
@@ -159,15 +160,18 @@ var pageClient = &http.Client{Transport: Outbound, Timeout: time.Minute,
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 // Pin is req bound to the addresses its host resolved to once, when the domains let it go there; Outbound dials only
-// them, a redirect of the same host too.
+// them, a redirect of the same host too. A name that does not resolve is 502, a place the domains refuse 403.
 func Pin(req *http.Request, domains []string) (*http.Request, error) {
 	port := req.URL.Port()
 	if port == "" {
 		port = map[string]string{"http": "80", "https": "443"}[req.URL.Scheme]
 	}
 	pinned, err := destination(req.Context(), domains, net.JoinHostPort(req.URL.Hostname(), port))
+	if errors.Is(err, errUnresolved) {
+		return nil, &registry.Error{Status: http.StatusBadGateway, Text: err.Error() + "; the network or DNS of the machine may be down"}
+	}
 	if err != nil {
-		return nil, err
+		return nil, &registry.Error{Status: http.StatusForbidden, Text: err.Error()}
 	}
 	return req.WithContext(context.WithValue(req.Context(), pinnedKey{}, pinned)), nil
 }

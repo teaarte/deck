@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"testing"
 )
@@ -63,7 +64,7 @@ with urllib.request.urlopen(req, timeout=60) as r:
 }
 
 // TestAToolGoesOnlyToTheHostItsManifestWrites: a field in the host of a tool's URL is refused on save; a call goes
-// to the addresses its host resolves to once, and a name of the owner's machine reaches nothing.
+// to the addresses its host resolves to once, a name of the owner's machine only when the domains name its addresses.
 func TestAToolGoesOnlyToTheHostItsManifestWrites(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
@@ -80,6 +81,15 @@ func TestAToolGoesOnlyToTheHostItsManifestWrites(t *testing.T) {
 	}
 	if n := len(api.calls()); n != 0 {
 		t.Fatalf("the refused call reached nothing: %d", n)
+	}
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(api.URL, "http://"))
+	// The addresses of the owner's machine are reached by name only once the domains name them.
+	listed := strings.Replace(jsonToolManifest("http://localhost:"+port), `"tools": {`, `"domains": {"read": ["127.0.0.1", "::1"]}, "tools": {`, 1)
+	e.createProject("listed", listed)
+	e.must("listed.plain", map[string]any{}, nil)
+	e.createProject("nowhere", jsonToolManifest("http://nowhere.invalid"))
+	if code, out := e.call("nowhere.plain", map[string]any{}); code != 502 || !strings.Contains(string(out), "does not resolve") {
+		t.Fatalf("a name that does not resolve is the network's: %d %s", code, out)
 	}
 	e.createProject("web", jsonToolManifest(api.URL))
 	e.must("web.plain", map[string]any{}, nil)

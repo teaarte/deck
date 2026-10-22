@@ -19,7 +19,8 @@ export async function call<T = unknown>(command: string, input: Record<string, u
     body: JSON.stringify(input),
   });
   const text = await r.text();
-  if (r.status === 401) {
+  // Only deck's own refusal of the token challenges; a model's refused key is a 401 of the command.
+  if (r.status === 401 && r.headers.has('WWW-Authenticate')) {
     localStorage.removeItem('deck-token');
     location.reload();
   }

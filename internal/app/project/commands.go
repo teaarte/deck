@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"slices"
 
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
@@ -85,8 +86,9 @@ func (sv *Saver) prepared(ctx context.Context, p db.Project, m, granted *manifes
 		}
 		cmds = append(cmds, cmd)
 	}
+	domains := append(slices.Clone(granted.Domains.Read), granted.Domains.Act...)
 	for _, t := range granted.Tools.HTTP {
-		cmd := sv.Tools.Command(p, t)
+		cmd := sv.Tools.Command(p, t, domains)
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project tool", "tool", cmd.Name, "err", err)
 			continue

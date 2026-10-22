@@ -12,7 +12,7 @@ import { QuestionPicker } from '../ui/QuestionPicker';
 import { opener, rowOpen } from '../ui/rowOpen';
 import type { Data } from '../lib/catalog.gen';
 import { useScreenActions } from '../screen/ScreenActions';
-import { dropList, keepList } from '../screen/decisions';
+import { dropList, keepList } from '../cockpit/decisions';
 import { blockImpl } from './blockImpl';
 
 export type Item = NonNullable<Data['items']>[number];

@@ -1,7 +1,7 @@
 import { createComponentImplementation } from '@a2ui/react/v0_9';
 import { Group, Stack } from '@mantine/core';
 import s from './blocks.module.css';
-import { Hero } from '../screen/Hero';
+import { Hero } from '../cockpit/Hero';
 import { useScreenRoute } from '../screen/ScreenActions';
 import { IconTitle } from '../ui/IconTitle';
 import { api, kids } from './blockImpl';

@@ -211,6 +211,7 @@ func TestQuestionWaitEndsByTheClock(t *testing.T) {
 	live := e.run(p, "job")
 	a := e.waitAsk()
 	e.Clock.Add(20 * time.Minute)
+	// The wait of the question does not end at 20 minutes.
 	time.Sleep(100 * time.Millisecond)
 	e.answer(a.ID, "yes")
 	if got := e.waitState(live, "done"); string(got.Result) != `{"n":1}` {

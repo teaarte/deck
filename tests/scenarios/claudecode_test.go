@@ -134,13 +134,7 @@ func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			deadline := time.Now().Add(3 * time.Second)
-			for syscall.Kill(pid, 0) == nil {
-				if time.Now().After(deadline) {
-					t.Fatalf("child %d of the CLI is still alive", pid)
-				}
-				time.Sleep(20 * time.Millisecond)
-			}
+			e.waitWithin(fmt.Sprintf("child %d of the CLI to exit", pid), 3*time.Second, func() bool { return syscall.Kill(pid, 0) != nil })
 		})
 	}
 }

@@ -64,7 +64,9 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 	b.type_(`document.querySelector('[data-chat-input]')`, "remember this line")
 	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
 	b.until("the input empty after sending", `document.querySelector('[data-chat-input]').value === ''`)
-	key := func(k string) { b.eval(`(document.querySelector('[data-chat-input]').dispatchEvent(new KeyboardEvent('keydown', { key: '` + k + `', bubbles: true })), '')`) }
+	key := func(k string) {
+		b.eval(`(document.querySelector('[data-chat-input]').dispatchEvent(new KeyboardEvent('keydown', { key: '` + k + `', bubbles: true })), '')`)
+	}
 	key("ArrowUp")
 	b.until("arrow up brings back the message sent", `document.querySelector('[data-chat-input]').value === 'remember this line'`)
 	key("ArrowDown")

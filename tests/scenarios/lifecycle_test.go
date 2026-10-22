@@ -38,6 +38,7 @@ func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
 	a := e.waitAsk()
+	// Past the question's wait of 100 ms, while the turn still runs.
 	time.Sleep(200 * time.Millisecond)
 	e.answer(a.ID, "go")
 	close(answered)
@@ -119,10 +120,7 @@ func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 	e.waitState(id, "waiting_answer")
 	a := e.waitAsk()
 	e.answer(a.ID, "allow")
-	deadline := time.Now().Add(5 * time.Second)
-	for len(e.Fake.Calls()) < 2 && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
-	}
+	e.waitWithin("the resume", 5*time.Second, func() bool { return len(e.Fake.Calls()) >= 2 })
 	e.waitState(id, "waiting_answer")
 	e.App.Runner.Wait()
 	if second["behavior"] != "allow" {

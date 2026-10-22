@@ -40,14 +40,15 @@ func TestANewModuleWithoutCode(t *testing.T) {
 	p := e.createProject("ideas", m)
 	e.Clock.Add(time.Hour)
 	e.tick()
-	e.waitFor("the digest after the scheduled collection", func() bool { return e.countOf("digest") == 1 })
-	e.settle()
 	var digest procFull
-	for _, pr := range e.processes() {
-		if pr.Command == "digest" {
-			digest = pr
+	e.waitFor("the digest after the scheduled collection to end", func() bool {
+		for _, pr := range e.processes() {
+			if pr.Command == "digest" {
+				digest = pr
+			}
 		}
-	}
+		return e.countOf("digest") == 1 && (digest.State == "done" || digest.State == "error")
+	})
 	collect := e.full(digest.Parent)
 	if digest.State != "done" || string(digest.Result) != `{"seen":3}` || collect.Command != "collect" || collect.Trigger == 0 || digest.Depth != 2 {
 		t.Fatalf("the finish of collect must start digest with the finished process: %+v %+v", digest, collect)

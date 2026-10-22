@@ -549,9 +549,9 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 		}
 	}
 	for name, want := range map[string]string{
-		"deck.secret_set":     "#/deck/settings?dialog=secret&tab=Advanced name",
-		"deck.folder_add":     "#/p/<project>/settings?dialog=folder&tab=Access ",
-		"radio.tune":          "#/p/radio/main?dialog=tune level",
+		"deck.secret_set": "#/deck/settings?dialog=secret&tab=Advanced name",
+		"deck.folder_add": "#/p/<project>/settings?dialog=folder&tab=Access ",
+		"radio.tune":      "#/p/radio/main?dialog=tune level",
 	} {
 		if got[name] != want {
 			t.Fatalf("%s is the owner's with its form %q: %q", name, want, got[name])

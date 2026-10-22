@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"deck2/internal/health"
 	deckhome "deck2/internal/home"
@@ -325,6 +326,7 @@ func TestACPRecordedTurnOfGoose(t *testing.T) {
 // TestACPSelfCheckPastItsCeilingSaysWhy: a self-check that runs out of time tells a key the model API refused
 // from a model that never finished a call and from one that answered but is slow.
 func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
+	t.Parallel()
 	start := []string{acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`}
 	for _, tc := range []struct {
 		name          string
@@ -337,6 +339,7 @@ func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
 		{"slow model", 200, []string{acpModel}, "warning", "the model answered (150 tokens) but did not finish the steps"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			f := newACP(t)
 			f.streamText(1, acpStream(append(append(slices.Clone(start), tc.steps...), `{"hang": true}`)...))
 			llm := newLLM(t, func(int, chatRequest) chatReply {
@@ -382,38 +385,41 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 		{[]string{first, second, strings.Replace(third, `{"shell": "sh net.sh"}`, `{"shell": "echo 200 > net.out"}`, 1)}, "turn without network", adapter},
 		{[]string{first, second, strings.Replace(third, `{"shell": "sh net.sh"}`+"\n", "", 1)}, "turn without network", model},
 	} {
-		f := newACP(t)
-		for i, s := range tc.streams {
-			f.streamText(i+1, s)
-		}
-		e, h := acpAdded(t, f, "goose", acpLLM(t))
-		if h.Status != "error" || !strings.Contains(h.Error, tc.want) || !strings.HasPrefix(h.Error, tc.verdict) {
-			t.Fatalf("the self-check is red with %q, told as %q: %+v", tc.want, tc.verdict, h)
-		}
-		var pl struct {
-			Models []struct{ Agent, Verdict string }
-		}
-		e.must("deck.models_list", nil, &pl)
-		verdict := map[string]string{adapter: "adapter", model: "model"}[tc.verdict]
-		if i := slices.IndexFunc(pl.Models, func(p struct{ Agent, Verdict string }) bool { return p.Agent == "goose" }); i < 0 || pl.Models[i].Verdict != verdict {
-			t.Fatalf("the models list shows the agent and the verdict %q: %+v", verdict, pl.Models)
-		}
-		for _, r := range blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"]) {
-			if r.Cells[0] == "acp" && !hasVerb(r.Actions, "check") {
-				t.Fatalf("a provider with a self-check can run it again: %+v", r.Actions)
+		t.Run(tc.verdict+": "+tc.want, func(t *testing.T) {
+			t.Parallel()
+			f := newACP(t)
+			for i, s := range tc.streams {
+				f.streamText(i+1, s)
 			}
-		}
-		f.streamText(0, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
-			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-		id := e.run(e.acpProject("paint", colorManifest), "work")
-		if verdict == "model" {
-			e.waitState(id, "done")
-			continue
-		}
-		e.waitState(id, "waiting_provider")
-		if n := f.calls(); n > len(tc.streams)+1 {
-			t.Fatalf("a process on a provider whose adapter is broken waits; one whose model fails runs: %d calls", n)
-		}
+			e, h := acpAdded(t, f, "goose", acpLLM(t))
+			if h.Status != "error" || !strings.Contains(h.Error, tc.want) || !strings.HasPrefix(h.Error, tc.verdict) {
+				t.Fatalf("the self-check is red with %q, told as %q: %+v", tc.want, tc.verdict, h)
+			}
+			var pl struct {
+				Models []struct{ Agent, Verdict string }
+			}
+			e.must("deck.models_list", nil, &pl)
+			verdict := map[string]string{adapter: "adapter", model: "model"}[tc.verdict]
+			if i := slices.IndexFunc(pl.Models, func(p struct{ Agent, Verdict string }) bool { return p.Agent == "goose" }); i < 0 || pl.Models[i].Verdict != verdict {
+				t.Fatalf("the models list shows the agent and the verdict %q: %+v", verdict, pl.Models)
+			}
+			for _, r := range blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"]) {
+				if r.Cells[0] == "acp" && !hasVerb(r.Actions, "check") {
+					t.Fatalf("a provider with a self-check can run it again: %+v", r.Actions)
+				}
+			}
+			f.streamText(0, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+				`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
+			id := e.run(e.acpProject("paint", colorManifest), "work")
+			if verdict == "model" {
+				e.waitState(id, "done")
+				return
+			}
+			e.waitState(id, "waiting_provider")
+			if n := f.calls(); n > len(tc.streams)+1 {
+				t.Fatalf("a process on a provider whose adapter is broken waits; one whose model fails runs: %d calls", n)
+			}
+		})
 	}
 }
 
@@ -453,32 +459,35 @@ func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
 		{failed, 401, "needs_login", ""},
 		{failed, 429, "rate_limited", ""},
 	} {
-		f := newACP(t)
-		llm := newLLM(t, func(n int, _ chatRequest) chatReply {
-			if n <= 3 || tc.status == 200 {
-				return textReply("ok")
+		t.Run(cmp.Or(tc.want, tc.state), func(t *testing.T) {
+			t.Parallel()
+			f := newACP(t)
+			llm := newLLM(t, func(n int, _ chatRequest) chatReply {
+				if n <= 3 || tc.status == 200 {
+					return textReply("ok")
+				}
+				return chatReply{status: tc.status, header: http.Header{"Retry-After": {"120"}}, body: `{"error": {"message": "no"}}`}
+			})
+			// A result handed in wins over a later refusal, so a refused key or a limit comes before any.
+			submit := `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`
+			if tc.status != 200 {
+				submit = acpModel
 			}
-			return chatReply{status: tc.status, header: http.Header{"Retry-After": {"120"}}, body: `{"error": {"message": "no"}}`}
+			f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
+				submit, tc.end))
+			e := acpEnv(t, f, "goose", llm)
+			id := e.run(e.acpProject("paint", colorManifest), "work")
+			got := e.waitState(id, "done", "error", "needs_login", "rate_limited")
+			if got.State != tc.state || !strings.Contains(got.Error, tc.want) {
+				t.Fatalf("%s %d: want %s with %q, got %+v", tc.end, tc.status, tc.state, tc.want, got)
+			}
+			if tc.status == 429 {
+				pp, _ := e.App.Store.Q.GetProcess(t.Context(), id)
+				if left := time.Until(time.UnixMilli(pp.PauseUntilMs.Int64)); left < 100*time.Second || left > 121*time.Second {
+					t.Fatalf("the pause lasts until Retry-After: %s", left)
+				}
+			}
 		})
-		// A result handed in wins over a later refusal, so a refused key or a limit comes before any.
-		submit := `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`
-		if tc.status != 200 {
-			submit = acpModel
-		}
-		f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
-			submit, tc.end))
-		e := acpEnv(t, f, "goose", llm)
-		id := e.run(e.acpProject("paint", colorManifest), "work")
-		got := e.waitState(id, "done", "error", "needs_login", "rate_limited")
-		if got.State != tc.state || !strings.Contains(got.Error, tc.want) {
-			t.Fatalf("%s %d: want %s with %q, got %+v", tc.end, tc.status, tc.state, tc.want, got)
-		}
-		if tc.status == 429 {
-			pp, _ := e.App.Store.Q.GetProcess(t.Context(), id)
-			if left := time.Until(time.UnixMilli(pp.PauseUntilMs.Int64)); left < 100*time.Second || left > 121*time.Second {
-				t.Fatalf("the pause lasts until Retry-After: %s", left)
-			}
-		}
 	}
 }
 
@@ -505,26 +514,29 @@ func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
 		status int
 		state  string
 	}{{429, "rate_limited"}, {401, "needs_login"}} {
-		f := newACP(t)
-		llm := newLLM(t, func(n int, _ chatRequest) chatReply {
-			if n <= 3 {
-				return textReply("ok")
+		t.Run(tc.state, func(t *testing.T) {
+			t.Parallel()
+			f := newACP(t)
+			llm := newLLM(t, func(n int, _ chatRequest) chatReply {
+				if n <= 3 {
+					return textReply("ok")
+				}
+				return chatReply{status: tc.status, header: http.Header{"Retry-After": {"120"}}, body: `{"error": {"message": "no"}}`}
+			})
+			f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
+				`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: Rate limit exceeded."}}}`,
+				`{"end": "end_turn"}`))
+			e := acpEnv(t, f, "goose", llm)
+			if got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != tc.state {
+				t.Fatalf("%d: want %s, got %+v", tc.status, tc.state, got)
 			}
-			return chatReply{status: tc.status, header: http.Header{"Retry-After": {"120"}}, body: `{"error": {"message": "no"}}`}
+			if tc.state != "needs_login" {
+				return
+			}
+			if a := e.waitAsk(); !strings.Contains(a.Text, "key of its connection") || strings.Contains(a.Text, "terminal") {
+				t.Fatalf("a refused key of a model is about the key of its connection, not a login in a terminal: %+v", a)
+			}
 		})
-		f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
-			`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: Rate limit exceeded."}}}`,
-			`{"end": "end_turn"}`))
-		e := acpEnv(t, f, "goose", llm)
-		if got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != tc.state {
-			t.Fatalf("%d: want %s, got %+v", tc.status, tc.state, got)
-		}
-		if tc.state != "needs_login" {
-			continue
-		}
-		if a := e.waitAsk(); !strings.Contains(a.Text, "key of its connection") || strings.Contains(a.Text, "terminal") {
-			t.Fatalf("a refused key of a model is about the key of its connection, not a login in a terminal: %+v", a)
-		}
 	}
 }
 
@@ -751,6 +763,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 
 // TestAProviderTakesItsOwnSelfCheckCeiling: a slow model gets more time for its self-check than deck's default.
 func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.streamText(1, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel, `{"hang": true}`))
 	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
@@ -761,6 +774,7 @@ func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
 		c.SelfCheckCeiling = time.Second
 	})
 	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose", "check_minutes": 1})
+	// Past deck's ceiling of a second the check must still run.
 	time.Sleep(2500 * time.Millisecond)
 	h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 	if err != nil || h.Status != "checking" {

@@ -20,10 +20,7 @@ func TestResumeAfterEarlyCrashStartsTheSessionAgain(t *testing.T) {
 	p := e1.createProject("plain", plainManifest)
 	id := e1.run(p, "work")
 	sid := e1.session(id)
-	deadline := time.Now().Add(5 * time.Second)
-	for c.calls() == 0 && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
-	}
+	e1.waitWithin("the CLI started", 5*time.Second, func() bool { return c.calls() > 0 })
 	_ = e1.App.Close()
 
 	e2 := newEnvWith(t, home, c.adapter(home))
@@ -170,6 +167,7 @@ func TestResultSeenWhileDeckStopsIsNotTheOutcome(t *testing.T) {
 	p := e1.createProject("plain", plainManifest)
 	id := e1.run(p, "work")
 	waitCalls(t, c, 1)
+	// Deck reads the result line before it stops; no read shows that.
 	time.Sleep(200 * time.Millisecond)
 	_ = e1.App.Close()
 

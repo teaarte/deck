@@ -125,6 +125,7 @@ func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 // TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp: an ACP agent has the web through deck; until a search is
 // set up the health of a command that calls deck.web_search there says the agent only reads pages.
 func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
+	t.Parallel()
 	e := acpEnv(t, newACP(t), "goose", acpLLM(t))
 	scout := strings.Replace(agentCommand("scout", ""), `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.web_search"]`, 1)
 	e.createProject("scout", `{"version": 13, "commands": [`+scout+`]}`)

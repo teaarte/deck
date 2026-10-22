@@ -203,6 +203,7 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 		}
 		return false
 	})
+	// No third reply comes.
 	time.Sleep(300 * time.Millisecond)
 	var n int
 	_ = e.App.Store.DB.QueryRow(`SELECT COUNT(*) FROM process WHERE input LIKE '%"topic"%'`).Scan(&n)

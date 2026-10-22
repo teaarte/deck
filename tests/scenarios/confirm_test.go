@@ -310,16 +310,11 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 	id := e.run(p, "collect")
 	e.waitState(id, "waiting_answer")
 	e.answer(e.waitAsk().ID, "allow")
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	e.waitFor("the four calls answered", func() bool {
 		mu.Lock()
-		n := len(behaviors)
-		mu.Unlock()
-		if n == 4 {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+		defer mu.Unlock()
+		return len(behaviors) == 4
+	})
 	mu.Lock()
 	defer mu.Unlock()
 	allowed := 0

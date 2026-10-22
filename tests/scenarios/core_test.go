@@ -79,9 +79,7 @@ func TestCommandWritesRecordsAndScreenShowsThem(t *testing.T) {
 	if len(rows) != 2 || rows[0].Cells[0] != "gamma" || rows[1].Cells[0] != "alpha" {
 		t.Fatalf("want gamma, alpha filtered and sorted, got %v", rows)
 	}
-	e.run(p, "collect")
-	time.Sleep(200 * time.Millisecond)
-	e.App.Runner.Wait()
+	e.waitState(e.run(p, "collect"), "done")
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
 	if len(recs) != 3 {
 		t.Fatalf("upsert by key must not duplicate, got %d records", len(recs))

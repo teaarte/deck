@@ -97,6 +97,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	late := filepath.Join(owner, ".aws", "credentials")
 	id := e.start("tools", "collect", map[string]any{"n": 7, "project": "tools", "allowed": allowed.URL, "other": other.URL,
 		"outside": outside, "secret": secret, "key": key, "late": late, "socket": sock.Addr().String()})
+	// The sandbox is up before the late file appears; no read shows that.
 	time.Sleep(500 * time.Millisecond)
 	_ = os.MkdirAll(filepath.Dir(late), 0o700)
 	_ = os.WriteFile(late, []byte("aws-secret"), 0o600)
@@ -638,6 +639,7 @@ func TestAProjectChangedWhileAScriptRunsLeavesDeckUp(t *testing.T) {
 	e.createProject("tools", scriptManifest("slow", "", ""))
 	e.saveScript("tools", "scripts/main.py", "import json, time\ntime.sleep(2)\nprint(json.dumps({}))\n")
 	id := e.start("tools", "slow", nil)
+	// The script program is up; its process is running from the start, so the state does not show it.
 	time.Sleep(500 * time.Millisecond)
 	e.createProject("other", plainManifest)
 	if p := e.waitScript(id, "done", "error"); p.State != "done" {

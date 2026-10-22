@@ -117,6 +117,7 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ fixture, status string }{{"ratelimit_rejected.jsonl", "paused"}, {"nologin.jsonl", "needs_login"}} {
 		t.Run(c.status, func(t *testing.T) {
+			t.Parallel()
 			cli := newCLI(t)
 			cli.stream(1, c.fixture)
 			cli.stream(0, "ok.jsonl")
@@ -276,6 +277,7 @@ func TestAHungSelfCheckDoesNotStopTheSchedule(t *testing.T) {
 	e.Clock = clock
 	e.createProject("plain", strings.Replace(plainManifest, `"triggers": []`, `"triggers": [{"command": "work", "cron": "30 * * * *"}]`, 1))
 	e.App.Run(t.Context(), 20*time.Millisecond)
+	// The loop starts the self-check that hangs; its health need not show it.
 	time.Sleep(200 * time.Millisecond)
 	clock.Add(time.Hour)
 	e.waitFor("the run that came due", func() bool { return len(e.runsOf("plain", "work")) == 1 })
@@ -340,6 +342,7 @@ func TestACommandDuringTheStopStartsNoBackgroundWork(t *testing.T) {
 	e := newEnvWith(t, t.TempDir(), cf)
 	e.App.Stop()
 	code, out := e.call("deck.provider_check", map[string]any{"provider": "fake"})
+	// No check starts.
 	time.Sleep(300 * time.Millisecond)
 	cf.mu.Lock()
 	n := cf.checks

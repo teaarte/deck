@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+// settle gives deck a moment to start whatever it would, for a check that nothing more happens.
 func (e *Env) settle() {
 	time.Sleep(100 * time.Millisecond)
 	e.App.Runner.Wait()

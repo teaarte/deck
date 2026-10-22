@@ -144,6 +144,7 @@ func TestClaudeCodeTakesTheOwnersMessageIntoItsTurn(t *testing.T) {
 	e.waitFor("the CLI to report its session", func() bool {
 		return c.files(1)("ready") != "" || fileExists(filepath.Join(c.dir, "calls", "1", "ready"))
 	})
+	// Deck reads the session line of the CLI; no read shows that.
 	time.Sleep(200 * time.Millisecond)
 	var out struct{ Delivered string }
 	e.must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, &out)

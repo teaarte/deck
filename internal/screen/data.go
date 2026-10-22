@@ -119,7 +119,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if err != nil {
 				return nil, fmt.Errorf("field %q: %w", f.Label, err)
 			}
-			v = r.word(r.req.Screen.Record, f.Bind, v)
+			v = r.word(r.fieldEnum(r.req.Screen.Record, f.Bind), v)
 			if v == nil || v == "" {
 				continue
 			}
@@ -195,7 +195,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					return nil, fmt.Errorf("column %q: %w", c.Label, err)
 				}
 				if c.Pick == "" {
-					v = r.word(b.Source.Collection, c.Bind, v)
+					v = r.word(r.fieldEnum(b.Source.Collection, c.Bind), v)
 				}
 				cells = append(cells, v)
 				cell := map[string]any{}
@@ -253,7 +253,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				case key == "details", key == "questions":
 					line[key] = v
 				default:
-					line[key] = fmt.Sprint(r.word(b.Source.Collection, e, v))
+					line[key] = fmt.Sprint(r.word(r.fieldEnum(b.Source.Collection, e), v))
 				}
 			}
 			if _, ok := line["title"]; !ok {
@@ -291,20 +291,23 @@ func (r *renderer) lanes(b manifest.Block) []string {
 // bare is an expression that is a field alone.
 var bare = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// word is v in the owner's language when expr is a field of an enum of the module's collection, else v as it is.
-func (r *renderer) word(collection, expr string, v any) any {
+// fieldEnum are the values of the enum field an expression of the module's collection reads; none for another.
+func (r *renderer) fieldEnum(collection, expr string) []string {
 	field := expr
 	if !bare.MatchString(expr) {
 		field = manifest.OneField(expr)
 	}
 	if r.req.Manifest == nil || field == "" {
-		return v
+		return nil
 	}
-	col := r.req.Manifest.Collection(collection)
-	if col == nil {
-		return v
+	if col := r.req.Manifest.Collection(collection); col != nil {
+		return manifest.Enum(col.Schema, field)
 	}
-	values := manifest.Enum(col.Schema, field)
+	return nil
+}
+
+// word is v, or each value of a list v, in the owner's language where it is one of values; else as it is.
+func (r *renderer) word(values []string, v any) any {
 	one := func(x any) any {
 		if s, ok := x.(string); ok && slices.Contains(values, s) {
 			return r.tr(s)

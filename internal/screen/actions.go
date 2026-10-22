@@ -21,7 +21,7 @@ func (r *renderer) rowActions(b manifest.Block, it map[string]any) []map[string]
 			for _, c := range b.Columns {
 				if c.Pick != "" && (c.Pick == a.Verb || c.Pick == a.Label) && act["input"] != nil && act["options"] != nil {
 					act["pick"] = c.Pick
-					labeled(act, func(o string) string { return fmt.Sprint(r.word(b.Source.Collection, c.Bind, o)) })
+					labeled(act, func(o string) string { return fmt.Sprint(r.word(r.fieldEnum(b.Source.Collection, c.Bind), o)) })
 				}
 			}
 			out = append(out, act)
@@ -110,12 +110,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 				name = r.req.Project.Name + "." + a.Command
 			}
 			values := r.inputEnum(name, a.Input)
-			labeled(act, func(o string) string {
-				if slices.Contains(values, o) {
-					return r.tr(o)
-				}
-				return o
-			})
+			labeled(act, func(o string) string { return fmt.Sprint(r.word(values, o)) })
 		}
 	}
 	if v := value(a.Until); v != nil && v != "" {

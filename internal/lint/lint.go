@@ -16,11 +16,11 @@ var (
 	lineMarks = map[string]struct {
 		mark string
 		not  *regexp.Regexp
-	}{".sql": {"--", regexp.MustCompile(`^--\s*(\+goose|name:)`)}, ".py": {"#", regexp.MustCompile(`^#(!|\s*///|\s*(requires-python|dependencies)\b|\s*"|\s*\])`)}}
+	}{".sql": {"--", regexp.MustCompile(`^--\s*(\+goose|name:)`)}, ".py": {"#", regexp.MustCompile(`^#!`)}}
 	// textDirs are where texts other than code are checked for vertical names: the schemas and the master.
 	textDirs     = []string{"schemas/", "master/"}
 	textExt      = []string{".json", ".md"}
-	skipDirs     = []string{".git", "node_modules", "dist", "testdata"}
+	skipDirs     = []string{".git", ".claude", "node_modules", "dist", "testdata"}
 	requirement  = regexp.MustCompile(`\b(FR|NFR)-\d+|\bR\d{1,3}\b`)
 	reasoning    = regexp.MustCompile(`(?i)\b(we|let's|i think|note that|basically|actually|obviously|for now|hack|in order to|probably|seems|i guess|turns out)\b`)
 	verticals    = regexp.MustCompile(`(?i)vacanc|forecast|mailbox|brier|recruit|\bshorts\b|\bbtc\b`)
@@ -127,10 +127,15 @@ func checkComments(file, src string) []Violation {
 // matches is no comment.
 func lineBlocks(src, mark string, not *regexp.Regexp) []comment {
 	var out []comment
-	last := -10
+	last, header := -10, false
 	for i, line := range strings.Split(src, "\n") {
 		t := strings.TrimSpace(line)
-		if !strings.HasPrefix(t, mark) || not.MatchString(t) {
+		// The metadata of a Python script (PEP 723) is no comment.
+		if t == "# /// script" || header && t == "# ///" {
+			header = !header
+			continue
+		}
+		if header || !strings.HasPrefix(t, mark) || not.MatchString(t) {
 			continue
 		}
 		if last == i-1 && len(out) > 0 {

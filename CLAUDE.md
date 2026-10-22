@@ -64,7 +64,7 @@ Protocol facts: Claude Code â€” `docs/spikes/claude-code.md`, Codex app-server â
   what is `app/access`;
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer by
   `app/screens` (`deck.screen` in `screen.go`; the menu `menu.go`, the top of the cockpit `pulse.go`,
-  `commands_list.go`, deck's screens and words `shipped.go`; the sources of screens: forms, documents), a collection through
+  `commands_list.go`, deck's screens and words `shipped.go`, the forms of commands `sources.go`), a collection through
   `deck.records_list`, of another project with the rights of the project of the screen (`Scope.By`); files of a
   domain are named by what they hold; in `package app` only the wiring;
   deck's screens are data, a file each in `app/screens/shipped/` (`project-<name>.json` for those of every project, `menu.json`,

@@ -126,8 +126,10 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 		code, out, err := d.call("late.slow", map[string]any{})
 		got <- answer{code, out, err}
 	}()
-	for len(slow.requests()) == 0 {
-		time.Sleep(20 * time.Millisecond)
+	for deadline := time.Now().Add(10 * time.Second); len(slow.requests()) == 0; time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the call did not reach the tool")
+		}
 	}
 	_ = d.cmd.Process.Signal(syscall.SIGTERM)
 	a := <-got

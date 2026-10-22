@@ -85,14 +85,7 @@ func loopback(host string) bool {
 // FitsTool checks that a tool command's input goes to its tool as it is: every command field is a tool
 // field, and every field the tool requires the command requires too.
 func FitsTool(c Command, name string, input json.RawMessage) error {
-	var cmd, tool struct {
-		Properties map[string]json.RawMessage `json:"properties"`
-		Required   []string                   `json:"required"`
-	}
-	_ = json.Unmarshal(c.InputSchema(), &cmd)
-	if len(input) > 0 {
-		_ = json.Unmarshal(input, &tool)
-	}
+	cmd, tool := Props(c.InputSchema()), Props(input)
 	var errs []error
 	for _, f := range slices.Sorted(maps.Keys(cmd.Properties)) {
 		if _, ok := tool.Properties[f]; !ok {
@@ -109,17 +102,9 @@ func FitsTool(c Command, name string, input json.RawMessage) error {
 
 // FileFields are the input fields of a schema whose values point to files, one or a list, sorted.
 func FileFields(input json.RawMessage) []string {
-	var s struct {
-		Properties map[string]struct {
-			Items struct {
-				Format string `json:"format"`
-			} `json:"items"`
-		} `json:"properties"`
-	}
-	_ = json.Unmarshal(input, &s)
 	out := FieldsOf(input, "file")
-	for name, p := range s.Properties {
-		if p.Items.Format == "file" && !slices.Contains(out, name) {
+	for name, p := range Props(input).Properties {
+		if p.Items != nil && p.Items.Format == "file" && !slices.Contains(out, name) {
 			out = append(out, name)
 		}
 	}
@@ -129,15 +114,10 @@ func FileFields(input json.RawMessage) []string {
 
 // FieldsOf are the input fields of a format, such as json: text with JSON a tool sends on as the value itself.
 func FieldsOf(input json.RawMessage, format string) []string {
-	var s struct {
-		Properties map[string]struct {
-			Format string `json:"format"`
-		} `json:"properties"`
-	}
-	_ = json.Unmarshal(input, &s)
+	props := Props(input).Properties
 	var out []string
-	for _, name := range slices.Sorted(maps.Keys(s.Properties)) {
-		if s.Properties[name].Format == format {
+	for _, name := range slices.Sorted(maps.Keys(props)) {
+		if props[name].Format == format {
 			out = append(out, name)
 		}
 	}

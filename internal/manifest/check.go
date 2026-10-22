@@ -239,11 +239,7 @@ func (m *Manifest) checkAction(a Action) error {
 	if !slices.Contains(c.Callable(), "owner") {
 		return fmt.Errorf("command %q cannot be called by the owner", a.Command)
 	}
-	var in struct {
-		Properties map[string]json.RawMessage `json:"properties"`
-		Required   []string                   `json:"required"`
-	}
-	_ = json.Unmarshal(c.InputSchema(), &in)
+	in := Props(c.InputSchema())
 	for _, r := range in.Required {
 		if _, ok := a.Params[r]; !ok && r != a.Input && !slices.Contains(a.FromBlock, r) {
 			return fmt.Errorf("command %q needs param %q", a.Command, r)
@@ -301,14 +297,7 @@ func PropertyOrder(schema json.RawMessage) []string {
 // saved module keeps loading.
 func checkModel(c *Command, fail, warn func(string, ...any)) {
 	e := c.Executor
-	var in struct {
-		Properties map[string]struct {
-			Type   string `json:"type"`
-			Format string `json:"format"`
-		} `json:"properties"`
-		Required []string `json:"required"`
-	}
-	_ = json.Unmarshal(c.Input, &in)
+	in := Props(c.Input)
 	if role, ok := strings.CutPrefix(e.Model, "@"); ok && role != e.Kind {
 		fail("command %q: a model of kind %s is @%s or a model by name, not %s", c.Name, e.Kind, e.Kind, e.Model)
 	}
@@ -332,7 +321,7 @@ func checkModel(c *Command, fail, warn func(string, ...any)) {
 			warn("command %q: an image model edits one picture, the one input field of format file; it has %d", c.Name, len(files))
 		}
 	case "tts":
-		if in.Properties["text"].Type != "string" || !slices.Contains(in.Required, "text") {
+		if in.Properties["text"].Kind() != "string" || !slices.Contains(in.Required, "text") {
 			fail("command %q: a tts model speaks the input field text, a required string", c.Name)
 		}
 	case "stt":

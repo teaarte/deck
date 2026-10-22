@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -56,16 +57,9 @@ func Holds(v any) (bool, error) {
 
 // FieldTypes are the JSON types of the fields of an object schema, "any" for a field without one.
 func FieldTypes(schema json.RawMessage) map[string]string {
-	var in struct {
-		Properties map[string]struct{ Type any } `json:"properties"`
-	}
-	_ = json.Unmarshal(schema, &in)
 	out := map[string]string{}
-	for k, p := range in.Properties {
-		out[k], _ = p.Type.(string)
-		if out[k] == "" {
-			out[k] = "any"
-		}
+	for k, p := range Props(schema).Properties {
+		out[k] = cmp.Or(p.Kind(), "any")
 	}
 	return out
 }

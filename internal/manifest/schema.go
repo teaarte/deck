@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -25,65 +28,76 @@ func compileSchema(name string, raw json.RawMessage) (*jsonschema.Schema, error)
 	return c.Compile(url)
 }
 
+// Object is an object schema as deck reads it: its properties and those it requires.
+type Object struct {
+	Properties map[string]Prop `json:"properties"`
+	Required   []string        `json:"required"`
+}
+
+// Prop is a property of an object schema; Type is a name or a list of names.
+type Prop struct {
+	Type   any    `json:"type"`
+	Format string `json:"format"`
+	Enum   []any  `json:"enum"`
+	Items  *Prop  `json:"items"`
+}
+
+// Kind is the one type a property names, empty for none or a list.
+func (p Prop) Kind() string {
+	s, _ := p.Type.(string)
+	return s
+}
+
+// Props reads an object schema; a schema that does not read has no properties.
+func Props(raw json.RawMessage) Object {
+	var o Object
+	_ = json.Unmarshal(raw, &o)
+	return o
+}
+
 // schemaFields lists top-level properties of an object schema; nil when it declares none.
 func schemaFields(raw json.RawMessage) []string {
-	var s struct {
-		Properties map[string]json.RawMessage `json:"properties"`
-	}
-	if json.Unmarshal(raw, &s) != nil || len(s.Properties) == 0 {
+	props := Props(raw).Properties
+	if len(props) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(s.Properties))
-	for k := range s.Properties {
-		out = append(out, k)
-	}
-	return out
+	return slices.Collect(maps.Keys(props))
 }
 
 // Lanes are the values of an enum field of a schema in order, none when the field is not an enum.
 func Lanes(raw json.RawMessage, field string) []string {
-	var s struct {
-		Properties map[string]struct {
-			Enum []any `json:"enum"`
-		} `json:"properties"`
-	}
-	if json.Unmarshal(raw, &s) != nil {
-		return nil
-	}
-	var out []string
-	for _, v := range s.Properties[field].Enum {
-		out = append(out, fmt.Sprint(v))
-	}
-	return out
+	return texts(Props(raw).Properties[field].Enum)
 }
 
 // Enum are the values of an enum field of a schema, or of the items of a list field, in order.
 func Enum(raw json.RawMessage, field string) []string {
-	if out := Lanes(raw, field); len(out) > 0 {
-		return out
+	p := Props(raw).Properties[field]
+	if len(p.Enum) == 0 && p.Items != nil {
+		return texts(p.Items.Enum)
 	}
-	var s struct {
-		Properties map[string]struct {
-			Items struct {
-				Enum []any `json:"enum"`
-			} `json:"items"`
-		} `json:"properties"`
-	}
-	if json.Unmarshal(raw, &s) != nil {
-		return nil
-	}
+	return texts(p.Enum)
+}
+
+func texts(vs []any) []string {
 	var out []string
-	for _, v := range s.Properties[field].Items.Enum {
+	for _, v := range vs {
 		out = append(out, fmt.Sprint(v))
 	}
 	return out
 }
 
-// CheckValue validates a value against a JSON Schema.
+// checked are the compiled schemas CheckValue has seen, by their text.
+var checked sync.Map
+
+// CheckValue validates a value against a JSON Schema, compiled once per schema.
 func CheckValue(schema json.RawMessage, v any) error {
-	s, err := compileSchema("value", schema)
-	if err != nil {
-		return err
+	s, ok := checked.Load(string(schema))
+	if !ok {
+		c, err := compileSchema("value", schema)
+		if err != nil {
+			return err
+		}
+		s, _ = checked.LoadOrStore(string(schema), c)
 	}
-	return s.Validate(normalize(v))
+	return s.(*jsonschema.Schema).Validate(normalize(v))
 }

@@ -45,7 +45,8 @@ func Check(root string) ([]Violation, error) {
 			return err
 		}
 		if d.IsDir() {
-			if path != root && slices.Contains(skipDirs, d.Name()) {
+			// docs/ holds texts for people, not code.
+			if path != root && (slices.Contains(skipDirs, d.Name()) || filepath.ToSlash(path) == filepath.ToSlash(filepath.Join(root, "docs"))) {
 				return filepath.SkipDir
 			}
 			return nil

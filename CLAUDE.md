@@ -25,9 +25,8 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
 - `cmd/deck` — entry point
 - `internal/store` — SQLite: a committed write publishes the topic of its table in the project of the row
   (`changes.go`, the SQLite pre-update hook; the scope of a table is a closed set, a table no screen reads is in
-  `silent`, and a table in neither keeps deck from starting; an update that changes no value publishes nothing); the base schema `migrations/00042_base.sql` (the schema of migrations 1–42; a base older than 42 does not
-  start) and goose migrations after it — SQL files and Go migrations (`raise.go`: stored manifests in the current
-  format); sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  `silent`, and a table in neither keeps deck from starting; an update that changes no value publishes nothing); the base schema `migrations/00043_base.sql` (the schema of migrations 1–43; a base older than 43 does not
+  start) and goose migrations after it; sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
   refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
   writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
@@ -78,7 +77,7 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   a document and Settings of the project in tabs Project (its commands with their schedule and a picker of their model, the models
   of its scripts, its model calls), Access (folders, secrets, tools, tokens), Health, Files) deck adds
   to every project
-- `internal/manifest` — project manifest (format 13: `upgrade.go` raises older ones): `types.go`, `parse.go`,
+- `internal/manifest` — project manifest (format 13, the only one: `version.go` refuses another): `types.go`, `parse.go`,
   `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`grants.go`: one table of rights, each with what widens it and how `Clip` cuts it — what is in force widens nothing beyond the grant —; `rights.go` the hosts of agent shells), schemas read through `Props` (`schema.go`), a `where` through `Where`, checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
@@ -185,8 +184,9 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   waiting transaction freezes all of deck. Write the intent, commit, act, then record the outcome in a new one.
   Helpers that may run inside a transaction take `*db.Queries`. Nothing is hardcoded to workspace 1:
   scope comes from the project or the actor.
-- A new restriction of the manifest comes with a format bump (a step in `manifest.Upgrade`), or is a warning on
-  read and an error only on save: `manifest.Parse` runs on every read, so a plain new check turns off saved modules.
+- A new restriction of the manifest is a warning on read and an error only on save: `manifest.Parse` runs on every
+  read, so a plain new check turns off saved modules. A new format comes with a migration that rewrites every stored
+  manifest to it; deck reads only the current one.
 - New behaviour is a registry command (`deck.<name>` builtin or `<project>.<name>` from a manifest), not a
   new HTTP endpoint.
 - Web client (stage 1+): React + Vite + Mantine v9. Mantine v9 is new — check https://mantine.dev before

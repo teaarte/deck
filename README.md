@@ -23,8 +23,8 @@ You only step in when something needs your **yes**.
 Chat assistants wait for you to type. **deck makes agents work for you.**
 
 Every routine you have (the inbox, a market you follow, pull requests, research, videos for your channel) becomes
-a **module**: a small app with its own data, buttons, schedule and screens. Agents such as Claude Code and Codex
-do the work in their own sandbox, and deck shows you the result.
+a **module**: a small app with its own data, buttons, schedule and screens. Agents (Claude Code, Codex, or any
+open model in the Goose agent) do the work in their own sandbox, and deck shows you the result.
 
 You open the **cockpit** in the morning and see what was done, what is running, and the one or two things that
 wait for your decision. One tap, and the agents carry on.
@@ -85,7 +85,9 @@ go build -o deck ./cmd/deck
 ```
 
 You need macOS or Linux, Go 1.27, and an agent CLI on the machine (`claude` or `codex`); add any other model
-in Settings → Models. Updating is just replacing the binary: your data and modules carry over.
+in Settings → Models. Updating is just replacing the binary: your data and modules carry over. A deck from before
+23 October 2026 moves its modules by export and import instead; Deki brings an older manifest to the current
+format.
 
 ## Under the hood
 

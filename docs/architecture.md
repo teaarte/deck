@@ -74,7 +74,7 @@ cd web && npm ci && npm run build   # rebuilds the embedded client (web/dist)
 
 A build for another Mac with Apple silicon: `GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o deck ./cmd/deck`
 (SQLite is pure Go). Updating is replacing the binary: the base and the manifests of modules are raised to the new
-format on start. A base older than 2026-10-22 (before its migration 42) first starts once on a deck of that time.
+format on start. A deck from before 23 October 2026 moves its modules by export and import instead.
 
 ## Tests
 

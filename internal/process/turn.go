@@ -102,7 +102,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		fail(fault.Of(err))
 		return nil, false
 	}
-	if !r.deps.Up(ctx, proj.WorkspaceID, pv.Name(), false) {
+	if !r.deps.Goes(ctx, proj.WorkspaceID, pv.Name()) {
 		r.hold(ctx, *t, StateWaitingProvider)
 		return nil, false
 	}

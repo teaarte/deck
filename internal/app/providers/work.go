@@ -191,7 +191,7 @@ func (s *Service) roleWork(ctx context.Context, b *Book, p db.Project, command, 
 	w := provider.Work{Role: role, Choices: append([]string{}, b.Of(role)...)}
 	w.Models, _ = Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, command, role)
 	for _, name := range w.Models {
-		if s.Up(ctx, p.WorkspaceID, name, true) {
+		if s.Up(ctx, p.WorkspaceID, name) {
 			w.Model = name
 			break
 		}

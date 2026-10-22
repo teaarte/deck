@@ -21,7 +21,7 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 		return nil, err
 	}
 	for _, pv := range fits {
-		if !assigned || s.Up(ctx, ws, pv.Name(), true) {
+		if !assigned || s.Up(ctx, ws, pv.Name()) {
 			return pv, nil
 		}
 	}
@@ -39,7 +39,7 @@ func (s *Service) Next(ctx context.Context, projectID int64, cmd *manifest.Comma
 		fits = fits[i+1:]
 	}
 	for _, pv := range fits {
-		if pv.Name() != after && s.Up(ctx, ws, pv.Name(), true) {
+		if pv.Name() != after && s.Up(ctx, ws, pv.Name()) {
 			return pv.Name()
 		}
 	}
@@ -66,7 +66,7 @@ func (s *Service) Fits(ctx context.Context, projectID int64, cmd *manifest.Comma
 	}
 	var out []string
 	for _, pv := range fits {
-		if s.Up(ctx, ws, pv.Name(), true) {
+		if s.Up(ctx, ws, pv.Name()) {
 			out = append(out, pv.Name())
 		}
 	}
@@ -140,23 +140,20 @@ func (s *Service) change(ctx context.Context, workspace int64, requires []string
 	return "pick one that has it in the row of the command in the settings of the module: " + strings.Join(names, ", ")
 }
 
-// Up reports whether a turn may start on a provider: not in a self-check, a broken adapter or a limit; a lost login or a
-// weak model holds no turn, but a new start, to pick, takes the next model that is up.
-func (s *Service) Up(ctx context.Context, workspace int64, name string, pick bool) bool {
+// Up reports whether a new start may pick a provider: not in a self-check, a limit, a lost login or an error.
+func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
 	h, err := s.healthOf(ctx, workspace, name)
-	if err != nil {
-		return true
-	}
-	switch h.Status {
-	case health.Checking, health.Paused:
-		return false
-	case health.Error:
-		return !pick && h.Verdict != "adapter"
-	case health.NeedsLogin:
-		return !pick
-	}
-	return true
+	return err != nil || h.Status != health.Checking && h.Status != health.Paused && h.Status != health.Error &&
+		h.Status != health.NeedsLogin
 }
+
+// Goes reports whether a turn already started may run on a provider: not in a self-check, a broken adapter or a
+// limit; a lost login or a weak model holds no turn.
+func (s *Service) Goes(ctx context.Context, workspace int64, name string) bool {
+	h, err := s.healthOf(ctx, workspace, name)
+	return err != nil || h.Status != health.Checking && h.Status != health.Paused && (h.Status != health.Error || h.Verdict != "adapter")
+}
+
 
 // healthOf is the health row of a model by name: of its self-check when it is built in or runs in an agent, else of
 // its last call in the workspace.

@@ -147,8 +147,8 @@ type Deps struct {
 	Next func(ctx context.Context, projectID int64, cmd *manifest.Command, after string) string
 	// Named is the provider a process started on; its session belongs to it.
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
-	// Up reports whether a turn of the workspace may start on the provider now; the runner never picks.
-	Up func(ctx context.Context, workspace int64, name string, pick bool) bool
+	// Goes reports whether a turn of the workspace may run on the provider now; the runner never picks.
+	Goes func(ctx context.Context, workspace int64, name string) bool
 	// Broke hears that a turn on the provider failed or lost its login.
 	Broke func(ctx context.Context, name string)
 	// Recheck runs the self-check of the provider at the time a limit it met resets.

@@ -98,6 +98,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	if _, err := os.Stat(out.Snapshot); out.Deleted != "gone" || err != nil {
 		t.Fatalf("the snapshot is taken before the delete: %+v %v", out, err)
 	}
+	e.drained()
 	for table := range tables {
 		if n := count(table); n != 0 {
 			t.Fatalf("nothing of the project stays in %s: %d", table, n)

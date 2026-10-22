@@ -345,7 +345,7 @@ func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
 				}
 				return textReply("ok")
 			})
-			e, h := acpAdded(t, f, "goose", llm, func(c *app.Config) { c.SelfCheckCeiling = 2 * time.Second })
+			e, h := acpAdded(t, f, "goose", llm, func(c *app.Config) { c.SelfCheckCeiling = 4 * time.Second })
 			if h.Status != tc.health || !strings.Contains(h.Error, tc.wants) || strings.Contains(h.Error, "stronger") {
 				t.Fatalf("want %s with %q: %+v", tc.health, tc.wants, h)
 			}

@@ -409,7 +409,6 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 	s.settle(ctx, open, 0, false)
 }
 
-
 // Held reports whether a record of a project gives a folder, or one inside or around it, as the outbox removes it;
 // a folder deck cannot check is held.
 func (s *Service) Held(ctx context.Context, projectID int64, folder string) bool {

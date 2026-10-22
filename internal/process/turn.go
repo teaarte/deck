@@ -1,7 +1,6 @@
 package process
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,7 +17,6 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
@@ -349,149 +347,6 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		}
 		return
 	}
-}
-
-func (r *Runner) turnText(ctx context.Context, processID int64, text string) {
-	_ = r.hear(ctx, processID, func(h Hook, p db.Process) { h.Turn(ctx, p, text) })
-}
-
-// logLine is a line of the process log: an event in the words of ACP session/update.
-type logLine struct {
-	At     string `json:"at"`
-	Kind   string `json:"kind"`
-	ID     string `json:"id,omitempty"`
-	Title  string `json:"title,omitempty"`
-	Status string `json:"status,omitempty"`
-	Text   string `json:"text,omitempty"`
-}
-
-// event appends a top-level provider event to the process log and moves its last output time, at most once a second;
-// a thought or message without text, such as a thinking block a model keeps to itself, is no line.
-func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e provider.Event) {
-	if (e.Kind == provider.EventThought || e.Kind == provider.EventMessage) && strings.TrimSpace(e.Text) == "" {
-		return
-	}
-	now := r.now()
-	b, _ := json.Marshal(logLine{At: store.Time(now), Kind: e.Kind, ID: e.ID, Title: e.Title, Status: e.Status, Text: untrusted.Cut(e.Text, 4000)})
-	_, _ = stream.Write(append(b, '\n'))
-	r.logged(ctx, processID)
-	r.mu.Lock()
-	last, seen := r.marked[processID]
-	due := !seen || now.Sub(last) >= time.Second
-	if due {
-		r.marked[processID] = now
-	}
-	r.mu.Unlock()
-	if !due {
-		return
-	}
-	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetProcessOutput(ctx, db.SetProcessOutputParams{OutputMs: now.UnixMilli(), ID: processID})
-	})
-}
-
-// runDir is the folder of an open process: its work, results and log.
-func (r *Runner) runDir(processID int64) string {
-	return r.cfg.Home.Run(processID)
-}
-
-// clearRun removes what a script or tool left in its run folder but its log.
-func (r *Runner) clearRun(dir string) {
-	entries, _ := os.ReadDir(dir)
-	for _, e := range entries {
-		if e.Name() != "stream" {
-			_ = os.RemoveAll(filepath.Join(dir, e.Name()))
-		}
-	}
-}
-
-// Tail is the last n lines of the log of a process, only those of the kinds given when any are; a process
-// without a log has none.
-func (r *Runner) Tail(processID int64, n int, kinds ...string) ([]json.RawMessage, error) {
-	out := []json.RawMessage{}
-	f, err := os.Open(r.LogPath(processID))
-	if errors.Is(err, os.ErrNotExist) {
-		return out, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
-	for sc.Scan() {
-		var line struct{ Kind string }
-		if json.Unmarshal(sc.Bytes(), &line) != nil || len(kinds) > 0 && !slices.Contains(kinds, line.Kind) {
-			continue
-		}
-		if out = append(out, append(json.RawMessage{}, sc.Bytes()...)); len(out) > n {
-			out = out[1:]
-		}
-	}
-	return out, sc.Err()
-}
-
-// LogPath is the file with the log of a process.
-func (r *Runner) LogPath(processID int64) string {
-	return r.cfg.Home.Stream(processID)
-}
-
-// deckData is how every agent of deck reaches deck's data.
-const deckData = "Reach deck's data only through the tools of the deck MCP server and the commands of deck projects. Do not " +
-	"look for tokens, keys or secrets in the environment, in files or in logs, and do not call deck's HTTP API around the " +
-	"tools, even where the tools are slower. When a tool is missing, such as a change of many records at once, change a " +
-	"script or command of the project or ask the owner.\n"
-
-// writable tells an agent of a module which documents of its project it may save, so it stops before the work when
-// its task needs another.
-func writable(m *manifest.Manifest) string {
-	what := "artifacts and the memory of this project (memory/)"
-	if len(m.Writes) > 0 {
-		what += ", and these documents of the project: " + strings.Join(m.Writes, ", ")
-	}
-	return "\nWith document_save you may write " + what + ". If the task needs to change any other document of the " +
-		"project, do not start the work: end at once with an error that names the document; the owner adds it to " +
-		"writes in the manifest.\n"
-}
-
-func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools []string, data string) (string, error) {
-	body, err := r.commandBody(ctx, t.project, t.cmd)
-	if err != nil {
-		return "", err
-	}
-	instructions, err := r.deps.Prompt(ctx, t.project)
-	if err != nil {
-		return "", err
-	}
-	proc, err := r.st.Q.GetProcess(ctx, t.process)
-	if err != nil {
-		return "", err
-	}
-	p := buildPrompt(t.process, proj.Name, instructions, body, t.m, t.cmd, t.input, tools, t.pv.QuestionTool())
-	p += "\n" + deckData
-	if proj.Builtin == 0 && slices.Contains(tools, "document_save") {
-		p += writable(t.m)
-	}
-	if slices.Contains(t.pv.Caps(), provider.Sandbox) {
-		p += "\nThe data folder of this project keeps indexes, caches and state between runs: " + data + "\n"
-	}
-	if t.folder != "" {
-		p += "\nYou work in the project folder " + t.folder + ": the owner's own folder, not a scratch copy. No other agent of deck works in it while you do.\n"
-	}
-	mem, err := r.deps.Memory(ctx, proc)
-	if err != nil {
-		return "", err
-	}
-	if mem != "" {
-		p += "\n" + mem + "\n"
-	}
-	if th := r.thread(ctx, proc); th != "" {
-		p += "\n" + th + "\n"
-	}
-	if proc.StartNote != "" {
-		p += "\n" + proc.StartNote + "\n"
-	}
-	return p, nil
 }
 
 // validate checks structured output against the result schema; null, nothing to do, only where the schema takes it.

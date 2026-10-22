@@ -4,9 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -15,7 +13,6 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/health"
 	"deck2/internal/provider"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
@@ -91,84 +88,6 @@ func (r *Runner) toolsFound(processID int64) {
 	r.mu.Lock()
 	delete(r.lost, processID)
 	r.mu.Unlock()
-}
-
-// unpause clears the pause of a provider once the reset a paused turn waited for has come; the turn tells again.
-func unpause(ctx context.Context, q *db.Queries, name string) error {
-	if h, err := health.Get(ctx, q, health.Of{}, health.Provider(name)); err != nil || h.Status != health.Paused {
-		return nil
-	}
-	return ProviderHealth(ctx, q, name, health.OK, "")
-}
-
-// ProviderHealth writes the health row of a provider, a row of the machine; the one writer of such rows.
-func ProviderHealth(ctx context.Context, q *db.Queries, name, status, text string) error {
-	_, err := health.Set(ctx, q, health.Of{}, health.Provider(name), status, text)
-	return err
-}
-
-// providerHealth records what a turn showed about its provider. The health of a provider with a self-check is
-// the self-check's: a turn only lifts a lost login or a limit there.
-func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res provider.Result, err error) {
-	_, checked := pv.(provider.SelfChecker)
-	subject := health.Provider(pv.Name())
-	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		switch {
-		case err != nil && !checked:
-			return ProviderHealth(ctx, q, pv.Name(), health.Error, err.Error())
-		case err != nil || res.NeedsLogin || res.RateLimited:
-			return nil
-		case checked:
-			return q.MarkHealthy(ctx, subject)
-		}
-		return ProviderHealth(ctx, q, pv.Name(), health.OK, "")
-	})
-}
-
-// setHealth records what a turn found about its provider, unless its self-check is running or red: then the
-// health is the self-check's.
-func setHealth(ctx context.Context, q *db.Queries, pv provider.Provider, status, text string) error {
-	subject := health.Provider(pv.Name())
-	if _, checked := pv.(provider.SelfChecker); checked {
-		if h, err := health.Get(ctx, q, health.Of{}, subject); err == nil && (h.Status == health.Checking || h.Status == health.Error) {
-			return nil
-		}
-	}
-	return ProviderHealth(ctx, q, pv.Name(), status, text)
-}
-
-// usage writes one model call of a process to the journal of model calls; a turn whose provider counts only the
-// session costs what the session grew by since its last call, or all of it when the count started over.
-func (r *Runner) usage(ctx context.Context, workspace, processID int64, pv provider.Provider, u provider.Usage) {
-	_, subscribed := pv.(provider.Subscribed)
-	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if m, err := q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: u.Connection, Model: u.RequestModel}); u.Connection != 0 && err == nil {
-			subscribed = m.Model.Subscription != 0
-		}
-		if u.CostUSD == nil && u.SessionCostUSD != nil {
-			p, err := q.GetProcess(ctx, processID)
-			if err != nil {
-				return err
-			}
-			last, err := q.LastSessionCost(ctx, p.SessionID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-			cost := *u.SessionCostUSD - last
-			if cost < 0 {
-				cost = *u.SessionCostUSD
-			}
-			u.CostUSD = &cost
-		}
-		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: workspace, ProcessID: store.ID(processID), ConnectionID: store.ID(u.Connection), Provider: pv.Name(),
-			RequestModel: u.RequestModel, ResponseModel: u.Model,
-			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
-			DurationMs: u.Duration.Milliseconds(), CostUsd: store.Cost(u.CostUSD), CreatedAt: store.Time(r.now()),
-			SessionCostUsd: store.Cost(u.SessionCostUSD), Subscription: store.Bool(subscribed)})
-	})
-	if err != nil {
-		slog.Error("model call journal", "process", processID, "err", err)
-	}
 }
 
 // blocked reports whether the owner still owes the agent an answer; a result produced meanwhile is

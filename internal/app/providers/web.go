@@ -12,13 +12,12 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"golang.org/x/net/html"
-
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
+	"golang.org/x/net/html"
 )
 
 // SearXNGInstall is how the owner runs SearXNG on this machine with its JSON answers on and English results, for the

@@ -63,7 +63,8 @@ type Service struct {
 	// reply goes with after one broke off.
 	unstarted map[int64]string
 	again     map[int64]again
-	// start keeps a reply starting apart from a topic being deleted.
+	// start keeps a reply starting apart from a topic or message being deleted, and the notes of deck a reply is told
+	// from the reply of another topic.
 	start sync.Mutex
 }
 

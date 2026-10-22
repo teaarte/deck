@@ -23,45 +23,36 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// chatQueue runs the replies of topics one at a time per topic; a pump that is asked while it runs, even from
-// a hook it set off, leaves the topic for the running loop.
+// chatQueue runs the replies of a topic one at a time; a pump of a topic whose reply runs, even from a hook that
+// reply set off, leaves the topic for the running loop.
 type chatQueue struct {
-	busy bool
-	due  map[int64]bool
+	busy, due map[int64]bool
 }
 
 // pump starts the reply to the owner's messages of a topic that no reply took yet.
 func (ch *Service) pump(ctx context.Context, topic int64) {
 	ch.mu.Lock()
 	if ch.queue.due == nil {
-		ch.queue.due = map[int64]bool{}
+		ch.queue.busy, ch.queue.due = map[int64]bool{}, map[int64]bool{}
 	}
 	ch.queue.due[topic] = true
-	if ch.queue.busy {
+	if ch.queue.busy[topic] {
 		ch.mu.Unlock()
 		return
 	}
-	ch.queue.busy = true
-	for {
-		next := int64(0)
-		for t := range ch.queue.due {
-			next = t
-			break
-		}
-		if next == 0 {
-			ch.queue.busy = false
-			ch.mu.Unlock()
-			return
-		}
-		delete(ch.queue.due, next)
+	ch.queue.busy[topic] = true
+	for ch.queue.due[topic] {
+		delete(ch.queue.due, topic)
 		ch.mu.Unlock()
-		err := ch.reply(ctx, next)
+		err := ch.reply(ctx, topic)
 		if err != nil && ctx.Err() == nil {
-			slog.Error("chat reply", "topic", next, "err", err)
+			slog.Error("chat reply", "topic", topic, "err", err)
 		}
-		ch.unstart(next, err, ctx.Err() == nil)
+		ch.unstart(topic, err, ctx.Err() == nil)
 		ch.mu.Lock()
 	}
+	delete(ch.queue.busy, topic)
+	ch.mu.Unlock()
 }
 
 // unstart keeps why the reply of a topic did not start, so its messages show it, and forgets it once one does.

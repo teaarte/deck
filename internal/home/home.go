@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Layout is deck's folder.
@@ -25,13 +26,13 @@ func (l Layout) State() string { return l.state() }
 // Work holds the folders of runs and the folders of projects.
 func (l Layout) Work() string { return l.work() }
 
-func (l Layout) DB() string      { return l.state("deck.db") }
-func (l Layout) Token() string   { return l.state("token") }
-func (l Layout) Files() string   { return l.state("files") }
+func (l Layout) DB() string    { return l.state("deck.db") }
+func (l Layout) Token() string { return l.state("token") }
+func (l Layout) Files() string { return l.state("files") }
 
 // File is a stored file by its id.
 func (l Layout) File(id int64) string { return l.state("files", fmt.Sprint(id)) }
-func (l Layout) Backups() string { return l.state("backups") }
+func (l Layout) Backups() string      { return l.state("backups") }
 
 // SnapshotLayout is the time in the name of a snapshot in backups/, <kind>-<time>.tar.gz: SnapshotDaily for the
 // daily and hand ones, SnapshotDelete for those before a project is deleted.
@@ -56,6 +57,26 @@ func (l Layout) PushKey(workspace int64) string {
 
 // Secrets holds the secrets of a workspace, a file each.
 func (l Layout) Secrets(workspace int64) string { return l.state("secrets", fmt.Sprint(workspace)) }
+
+// Open makes deck's folder ready: its own and only deck's, of the current layout, with state/ and the folder of runs.
+func Open(dir string) (Layout, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return "", err
+	}
+	l := Layout(dir)
+	if old := l.Old(); len(old) > 0 {
+		return "", fmt.Errorf("deck: %s holds a deck of an older layout (%s); move it away and start again, deck makes state/ and work/", dir, strings.Join(old, ", "))
+	}
+	for _, d := range []string{l.State(), l.Runs()} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			return "", err
+		}
+	}
+	return l, nil
+}
 
 // Old lists what deck kept in its folder before state/ and work/; deck does not start on such a folder.
 func (l Layout) Old() []string {

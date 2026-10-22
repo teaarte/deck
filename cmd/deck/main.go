@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
 	"errors"
 	"flag"
 	"fmt"
@@ -52,20 +51,6 @@ func run() error {
 		}
 		home = filepath.Join(h, ".deck2")
 	}
-	if err := os.MkdirAll(home, 0o700); err != nil {
-		return err
-	}
-	if err := os.Chmod(home, 0o700); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(deckhome.Layout(home).State(), 0o700); err != nil {
-		return err
-	}
-	token, err := loadToken(deckhome.Layout(home).Token())
-	if err != nil {
-		return err
-	}
-
 	ln, sideLn, err := listenPair(*addr)
 	if err != nil {
 		return err
@@ -79,6 +64,10 @@ func run() error {
 		return err
 	}
 	defer a.Close()
+	token, err := loadToken(a.Home.Token())
+	if err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -125,7 +114,7 @@ func run() error {
 	started.Store(true)
 
 	if *tailnet != "" {
-		node, err := tsnet.Start(ctx, tsnet.Config{Hostname: *tailnet, Dir: deckhome.Layout(home).Tailscale(), Health: a.TailnetHealth}, server)
+		node, err := tsnet.Start(ctx, tsnet.Config{Hostname: *tailnet, Dir: a.Home.Tailscale(), Health: a.TailnetHealth}, server)
 		if err != nil {
 			return fmt.Errorf("tailscale: %w", err)
 		}

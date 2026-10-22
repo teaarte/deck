@@ -5,10 +5,7 @@ import (
 	"deck2/internal/app/failures"
 	apphealth "deck2/internal/app/health"
 	"deck2/internal/app/processes"
-	"fmt"
 	"log/slog"
-	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -95,14 +92,9 @@ type App struct {
 // New starts deck with its main provider p and further built-in ones.
 func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, error) {
 	cfg.defaults()
-	h := home.Layout(cfg.Home)
-	if old := h.Old(); len(old) > 0 {
-		return nil, fmt.Errorf("deck: %s holds a deck of an older layout (%s); move it away and start again, deck makes state/ and work/", cfg.Home, strings.Join(old, ", "))
-	}
-	for _, dir := range []string{h.State(), h.Runs()} {
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return nil, err
-		}
+	h, err := home.Open(cfg.Home)
+	if err != nil {
+		return nil, err
 	}
 	st, err := store.Open(h.DB())
 	if err != nil {

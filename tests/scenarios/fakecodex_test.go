@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -187,6 +189,10 @@ func (f *fakeCodexRun) run(lines []string) {
 		case l["hang"] != nil:
 			for range f.in {
 			}
+			select {}
+		case l["deaf"] != nil:
+			signal.Ignore(syscall.SIGTERM)
+			_ = os.Stdout.Close()
 			select {}
 		case l["id"] != nil:
 			f.write(f.subst(raw))

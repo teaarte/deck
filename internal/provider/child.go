@@ -51,20 +51,29 @@ func (c *Child) Stderr() string {
 	return untrusted.Tail(strings.TrimSpace(string(b)), 2000)
 }
 
-// End waits for the program once its protocol is over: until read, the end of its output, then up to linger a TERM,
-// 5 seconds and a KILL; the error is that of its exit.
+// End waits for the program to exit once its protocol is over, its output read to the end first: up to linger, then a
+// TERM, 5 seconds and a KILL of its group; the error is that of its exit.
 func (c *Child) End(read <-chan struct{}, linger time.Duration) error {
-	select {
-	case <-read:
-	case <-time.After(linger):
-		c.Signal(syscall.SIGTERM)
+	exited := make(chan error, 1)
+	go func() {
+		<-read
+		exited <- c.Cmd.Wait()
+	}()
+	for _, step := range []struct {
+		wait time.Duration
+		sig  syscall.Signal
+	}{{linger, syscall.SIGTERM}, {5 * time.Second, syscall.SIGKILL}, {5 * time.Second, 0}} {
 		select {
-		case <-read:
-		case <-time.After(5 * time.Second):
-			c.Signal(syscall.SIGKILL)
+		case err := <-exited:
+			return err
+		case <-time.After(step.wait):
 		}
+		if step.sig == 0 {
+			return errors.New("the program did not end after its group was killed")
+		}
+		c.Signal(step.sig)
 	}
-	return c.Cmd.Wait()
+	return nil
 }
 
 // Close kills what is left of the group and removes the stderr file.

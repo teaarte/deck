@@ -312,6 +312,25 @@ func TestCodexThatDoesNotExitAfterItsTurnIsKilled(t *testing.T) {
 	}
 }
 
+// TestCodexThatClosesItsOutputButStaysIsKilled: an app-server that ends its output, stays and does not take a TERM is
+// killed with its group, and the turn counts.
+func TestCodexThatClosesItsOutputButStaysIsKilled(t *testing.T) {
+	t.Parallel()
+	c := newCodex(t)
+	raw, err := os.ReadFile("testdata/codex/hang.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.streamText(1, strings.Replace(string(raw), `{"hang": true}`, `{"deaf": true}`, 1))
+	e, _ := codexEnv(t, c)
+	p := e.createProject("paint", colorManifest)
+	start := time.Now()
+	id := e.run(p, "work")
+	if got := e.pollState(id, 20*time.Second, 50*time.Millisecond, "done", "error"); got.State != "done" || time.Since(start) > 15*time.Second {
+		t.Fatalf("the app-server is killed and the turn counts: %+v in %s", got, time.Since(start))
+	}
+}
+
 // TestCodexLimitReachedAfterItsTurnLeavesTheResult: a limit the last call of a completed turn reached does not undo
 // the turn's result.
 func TestCodexLimitReachedAfterItsTurnLeavesTheResult(t *testing.T) {

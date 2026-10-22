@@ -12,6 +12,20 @@ import (
 	"deck2/internal/nonce"
 )
 
+type answeredKey struct{}
+
+// WithAnswered is ctx of a self-check that tells f the first answer of its model, from which its ceiling counts.
+func WithAnswered(ctx context.Context, f func()) context.Context {
+	return context.WithValue(ctx, answeredKey{}, f)
+}
+
+// Answered tells the self-check of ctx that its model answered.
+func Answered(ctx context.Context) {
+	if f, ok := ctx.Value(answeredKey{}).(func()); ok {
+		f()
+	}
+}
+
 // CheckWord is a random word a self-check looks for in what the agent did.
 func CheckWord() string {
 	return "deck-check-" + nonce.Hex(4)

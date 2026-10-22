@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"deck2/internal/health"
@@ -129,12 +130,18 @@ func (s *Service) startCheck(name string, force bool) bool {
 		if c, ok := sc.(interface{ CheckCeiling() time.Duration }); ok && c.CheckCeiling() > 0 {
 			ceiling = c.CheckCeiling()
 		}
-		cctx, cancel := context.WithTimeout(ctx, ceiling)
+		// The ceiling bounds the wait for the first answer of the model and counts again from it, so a slow start
+		// of the agent does not eat the time of its steps.
+		cctx, cancel := context.WithCancel(ctx)
+		timer := time.AfterFunc(ceiling, cancel)
+		var once sync.Once
+		cctx = provider.WithAnswered(cctx, func() { once.Do(func() { timer.Reset(ceiling) }) })
 		var res provider.Check
 		unreached := s.Reach(cctx)
 		if unreached == nil {
 			res = sc.SelfCheck(cctx)
 		}
+		timer.Stop()
 		cancel()
 		of := cmp.Or(res.Version, "an unknown version")
 		status, text, verdict := health.OK, "", ""

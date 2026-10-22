@@ -92,7 +92,13 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		}()
 	}
 	req := Request{Cwd: work, SessionID: sessions[0], MCPURL: url, PermissionMCP: s.PermissionMCP,
+		OnEvent: func(e Event) {
+			if e.Kind != EventStderr && e.Kind != EventRateLimit {
+				Answered(ctx)
+			}
+		},
 		OnUsage: func(u Usage) {
+			Answered(ctx)
 			mu.Lock()
 			tokens += u.Input + u.Output + u.CacheRead
 			output += u.Output

@@ -33,9 +33,7 @@ func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fa
 	if err != nil {
 		return false
 	}
-	note := fmt.Sprintf("This continues process #%d of the same command with the same input; it ran on %s, which stopped: %s.\n"+
-		"What it did stays: files it changed, records it wrote, the processes it started. Check what is already done, "+
-		"do not redo it, and go on from where it stopped.\n\n%s", p.ID, pv.Name(), f.Text, r.told(ctx, p))
+	note := r.HandOnNote(ctx, p, pv.Name(), f.Text)
 	if p.FinishedAt.Valid {
 		return false
 	}
@@ -56,6 +54,14 @@ func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fa
 	r.warn(ctx, p.ID, fmt.Sprintf("%s stopped process #%d of %s: %s. Process #%d goes on with it on %s.",
 		pv.Name(), p.ID, t.cmd.Name, f.Text, id, next))
 	return true
+}
+
+// HandOnNote tells the process that goes on with the work of p what p did; was is the model p ran on and why
+// what stopped it.
+func (r *Runner) HandOnNote(ctx context.Context, p db.Process, was, why string) string {
+	return fmt.Sprintf("This continues process #%d of the same command with the same input; it ran on %s, which stopped: %s.\n"+
+		"What it did stays: files it changed, records it wrote, the processes it started. Check what is already done, "+
+		"do not redo it, and go on from where it stopped.\n\n%s", p.ID, was, why, r.told(ctx, p))
 }
 
 // passOn gives the process that continues from a closed one the messages the closed one did not take: those its

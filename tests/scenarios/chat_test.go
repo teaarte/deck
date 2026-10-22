@@ -614,7 +614,7 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 		t.Fatalf("the other provider answers the messages again: %+v", said)
 	}
 	mu.Lock()
-	if !strings.Contains(told, "broke off") || !strings.Contains(told, "records_upsert") || !strings.Contains(told, "write half a task") {
+	if !strings.Contains(told, "This continues process") || !strings.Contains(told, "records_upsert") || !strings.Contains(told, "write half a task") {
 		t.Fatalf("the other provider is told what the broken reply did: %s", told)
 	}
 	mu.Unlock()

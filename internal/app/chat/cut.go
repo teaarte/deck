@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -14,10 +13,8 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
-	"deck2/master"
 )
 
 // cutView is what a reply that broke off left: the calls it made, what of them the owner can undo, and the
@@ -39,28 +36,12 @@ func broke(p db.Process) bool {
 	return p.State == process.StateError || p.State == process.StateInterrupted
 }
 
-// did are the calls a process made that change something, in order, as short lines.
-func (ch *Service) did(ctx context.Context, processID int64) []string {
-	calls, err := ch.St.Q.ListToolCalls(ctx, store.ID(processID))
-	if err != nil {
-		return nil
-	}
-	out := []string{}
-	for _, c := range calls {
-		if registry.Reads(c.Tool) != nil || c.Outcome == "rejected" {
-			continue
-		}
-		out = append(out, fmt.Sprintf("%s %s %s", c.Tool, c.Outcome, untrusted.Line(c.Params, 160)))
-	}
-	return out
-}
-
 // cut is what a broken reply left and how it can go again; nil for one that did not break.
 func (ch *Service) cut(ctx context.Context, p db.Process, message int64) *cutView {
 	if !broke(p) {
 		return nil
 	}
-	v := &cutView{Did: ch.did(ctx, p.ID), Undo: []undoView{}, Retry: []action{}}
+	v := &cutView{Did: process.Did(ctx, ch.St.Q, p.ID), Undo: []undoView{}, Retry: []action{}}
 	left, err := process.LeftBy(ctx, ch.St.Q, p.ID)
 	if err != nil {
 		slog.Error("what a broken reply left", "process", p.ID, "err", err)
@@ -114,9 +95,10 @@ func (ch *Service) replyCommand(ctx context.Context, masterID int64) (*manifest.
 	return nil, registry.Invalid("deck: project master has no trigger on %s", manifest.OnMessage)
 }
 
-// again is a reply that goes once more on another provider, with what the broken one did.
+// again is a reply that goes once more on another provider, told what the broken one it follows did.
 type again struct {
 	provider, note string
+	follows        int64
 }
 
 type chatRetryIn struct {
@@ -147,10 +129,7 @@ func (ch *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRet
 	if !slices.Contains(ch.others(ctx, p), in.Provider) {
 		return nil, registry.Invalid("deck: %s is not another provider the master may answer on now", in.Provider)
 	}
-	note := master.Text("broken", struct {
-		Was, Error string
-		Did        []string
-	}{p.Provider, untrusted.Line(p.Error, 300), ch.did(ctx, p.ID)})
+	note := ch.Runner.HandOnNote(ctx, p, p.Provider, untrusted.Line(p.Error, 300))
 	ch.start.Lock()
 	err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		n, err := q.ReleaseMessages(ctx, db.ReleaseMessagesParams{TopicID: t.ID, ProcessID: p.ID})
@@ -164,7 +143,7 @@ func (ch *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRet
 		if ch.again == nil {
 			ch.again = map[int64]again{}
 		}
-		ch.again[t.ID] = again{provider: in.Provider, note: strings.TrimSpace(note)}
+		ch.again[t.ID] = again{provider: in.Provider, note: strings.TrimSpace(note), follows: p.ID}
 		ch.mu.Unlock()
 	}
 	ch.start.Unlock()

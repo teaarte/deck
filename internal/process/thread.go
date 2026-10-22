@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -26,11 +27,30 @@ func (r *Runner) told(ctx context.Context, p db.Process) string {
 	if note := strings.TrimSpace(p.StartNote); note != "" {
 		parts = append(parts, untrusted.Block("What deck told it when it started", untrusted.Cut(note, retellCap)))
 	}
+	if did := Did(ctx, r.st.Q, p.ID); len(did) > 0 {
+		parts = append(parts, untrusted.Block("The calls of deck it made that change something", untrusted.Cut(strings.Join(did, "\n"), retellCap)))
+	}
 	if heard := r.heard(ctx, p.ID, 600); len(heard) > 0 {
 		parts = append(parts, untrusted.Block("What it asked the owner, the answers, and the messages it got while it worked",
 			untrusted.Cut(strings.Join(heard, "\n"), retellCap)))
 	}
 	return strings.Join(append(parts, r.retelling(p.ID)), "\n\n")
+}
+
+// Did are the calls of deck a process made that change something, in order, as short lines.
+func Did(ctx context.Context, q *db.Queries, processID int64) []string {
+	calls, err := q.ListToolCalls(ctx, store.ID(processID))
+	if err != nil {
+		return nil
+	}
+	out := []string{}
+	for _, c := range calls {
+		if registry.Reads(c.Tool) != nil || c.Outcome == "rejected" {
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s %s %s", c.Tool, c.Outcome, untrusted.Line(c.Params, 160)))
+	}
+	return out
 }
 
 // heard is what a process asked the owner with the answers and the messages it got, delivered or still waiting, each

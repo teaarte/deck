@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"deck2/internal/events"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -19,7 +18,6 @@ import (
 // where recordings come in.
 type Service struct {
 	St   *store.Store
-	Bus  *events.Bus
 	Now  func() time.Time
 	Home home.Layout
 	// Invoke calls a command, as the undo of a change does.

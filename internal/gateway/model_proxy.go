@@ -13,10 +13,6 @@ const ModelCommand = registry.Builtin + ".model_call"
 // proxyModel serves a script's call of a model: the rules of deck.model_call decide whether it goes; one that would
 // wait for the owner is refused, one that goes is streamed through the hops.
 func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registry.Actor, connection, path string, body []byte) {
-	if g.cfg.Models == nil {
-		http.Error(w, "deck: no models", http.StatusNotFound)
-		return
-	}
 	ask, err := AskModel(connection, r.Method, path, r.Header, body)
 	if err != nil {
 		http.Error(w, err.Error(), registry.Status(err))

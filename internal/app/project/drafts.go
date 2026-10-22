@@ -122,13 +122,6 @@ func (pj *Service) liveTrial(ctx context.Context, c *registry.Command, live bool
 	return nil
 }
 
-func orText(s, fallback string) string {
-	if s == "" {
-		return fallback
-	}
-	return s
-}
-
 func (pj *Service) draftsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_enable", "Enable project",

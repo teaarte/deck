@@ -267,16 +267,8 @@ func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
 		Tokens int64
 	}
 	e.must("deck.spend_daily", map[string]any{"days": 3}, &spend)
-	var runs []struct {
-		Day  string
-		Runs int64
-	}
-	e.must("deck.runs_daily", map[string]any{"days": 3}, &runs)
 	if len(spend) != 3 || spend[0].Day != "2026-10-05" || spend[0].Tokens != 10 || spend[1].Day != "2026-10-06" || spend[2].Day != "2026-10-07" || spend[1].Tokens != 20 {
 		t.Fatalf("a call just past the owner's midnight counts on that day: %+v", spend)
-	}
-	if len(runs) != 3 || runs[0].Runs != 1 || runs[1].Runs != 1 {
-		t.Fatalf("a run just past the owner's midnight counts on that day: %+v", runs)
 	}
 }
 

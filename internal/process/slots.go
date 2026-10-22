@@ -6,9 +6,6 @@ import (
 )
 
 func (r *Runner) slotsOf(ctx context.Context, workspace int64) int {
-	if r.cfg.AgentSlots == nil {
-		return 0
-	}
 	return r.cfg.AgentSlots(ctx, workspace)
 }
 

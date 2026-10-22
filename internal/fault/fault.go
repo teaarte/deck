@@ -47,12 +47,6 @@ var whose = map[string]string{
 	RightsDenied: OfOwner, Stopped: OfOwner,
 }
 
-// Types lists the set in a fixed order.
-func Types() []string {
-	return []string{ModelLimit, ModelUnavailable, ModelLogin, DeckTools, DeckRestart, DeckInternal, DeckStopped, Timeout, ScriptFailed,
-		ResultInvalid, TaskFailed, InputInvalid, ProgramMissing, RightsDenied, Network, Stopped}
-}
-
 // Whose is whose a failure of type t is; empty for no failure.
 func Whose(t string) string { return whose[t] }
 
@@ -130,9 +124,6 @@ func OfStatus(status int, model bool) string {
 	}
 	return DeckInternal
 }
-
-// Known reports whether t is a type of the set.
-func Known(t string) bool { return whose[t] != "" }
 
 // FromScript is the type a script gave, kept only when a script may give it.
 func FromScript(t string) string {

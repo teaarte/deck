@@ -449,9 +449,9 @@ func TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory(t *testing.T) {
 	e.refused("deck.process_dismiss", map[string]any{"all": true, "process": 1}, 422, "give one process, or all")
 }
 
-// TestRunsByDaySetTheOpenFailuresApart: runs_daily counts every failed run as the Failed tab of the Schedule lists
-// them and, apart, those still open as processes_list with failed gives them: not closed, not made good.
-func TestRunsByDaySetTheOpenFailuresApart(t *testing.T) {
+// TestTheOpenFailuresAreThoseNotClosedNorMadeGood: the Failed tab of the Schedule lists every failed run, and
+// processes_list with failed only those still open: not closed, not made good.
+func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 	t.Parallel()
 	var calls atomic.Int64
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -474,12 +474,10 @@ func TestRunsByDaySetTheOpenFailuresApart(t *testing.T) {
 	e.must("deck.process_dismiss", map[string]any{"process": ids[1]}, nil)
 	e.waitState(e.start("shorts", "voice", map[string]any{"record": recs[2].ID}), "done")
 
-	var days []struct{ Runs, Failed, Open int64 }
-	e.must("deck.runs_daily", map[string]any{"days": 1}, &days)
 	var open []struct{ ID int64 }
 	e.must("deck.processes_list", map[string]any{"failed": true}, &open)
 	failed := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-1-0"]["rows"])
-	if len(days) != 1 || days[0].Runs != 4 || days[0].Failed != 3 || days[0].Open != 1 || len(open) != 1 || open[0].ID != ids[0] || len(failed) != 3 {
-		t.Fatalf("3 failed as the Failed tab lists them, 1 open as processes_list gives it: %+v, %+v, %d rows", days, open, len(failed))
+	if len(open) != 1 || open[0].ID != ids[0] || len(failed) != 3 {
+		t.Fatalf("3 failed as the Failed tab lists them, 1 open as processes_list gives it: %+v, %d rows", open, len(failed))
 	}
 }

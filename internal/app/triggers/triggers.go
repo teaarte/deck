@@ -25,7 +25,6 @@ type Service struct {
 	Now       func() time.Time
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
-	Registry  *registry.Registry
 	// Works looks up the model that does the work of a command, on the models of a workspace, prices in a language.
 	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	// Words are deck's phrases in a language.

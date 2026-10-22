@@ -21,7 +21,7 @@ SELECT * FROM ask WHERE state = 'open' AND workspace_id = ? ORDER BY id;
 
 
 -- name: AnswerAsk :execrows
-UPDATE ask SET answer = ?, state = 'answered', answered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+UPDATE ask SET answer = ?, state = 'answered'
 WHERE id = ? AND state = 'open';
 
 
@@ -75,12 +75,12 @@ ORDER BY id LIMIT 1;
 
 
 -- name: ClaimDecision :execrows
-UPDATE ask SET state = 'answered', answer = sqlc.arg(answer), answered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+UPDATE ask SET state = 'answered', answer = sqlc.arg(answer)
 WHERE id = sqlc.arg(id) AND state = 'open' AND (expires_at IS NULL OR expires_at > CAST(sqlc.arg(now) AS TEXT));
 
 
 -- name: ReopenDecision :exec
-UPDATE ask SET state = 'open', answer = '', answered_at = NULL WHERE id = ? AND state = 'answered';
+UPDATE ask SET state = 'open', answer = '' WHERE id = ? AND state = 'answered';
 
 
 -- name: ListWorkspaceExpiredConfirms :many

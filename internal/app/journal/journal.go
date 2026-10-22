@@ -18,8 +18,6 @@ import (
 type Service struct {
 	St  *store.Store
 	Now func() time.Time
-	// Open are the failed processes still open, as processes_list with failed gives them before it merges the same.
-	Open func(ctx context.Context, act registry.Actor) ([]db.Process, error)
 }
 
 type callsListIn struct {
@@ -240,52 +238,6 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 	return out, nil
 }
 
-type runsDailyIn struct {
-	Days int64 `opt:"" desc:"Days back from today, 1 to 366; 14 by default"`
-}
-
-// runsDailyRow is the processes that started on a day: all, failed, the failed still open and started by a schedule.
-type runsDailyRow struct {
-	Day       string `json:"day"`
-	Age       int64  `json:"age"`
-	Runs      int64  `json:"runs"`
-	Failed    int64  `json:"failed"`
-	Open      int64  `json:"open"`
-	Scheduled int64  `json:"scheduled"`
-}
-
-// runsDaily is the processes of the last days by day, the empty days too.
-func (s *Service) runsDaily(ctx context.Context, act registry.Actor, in runsDailyIn) ([]runsDailyRow, error) {
-	if in.Days == 0 {
-		in.Days = 14
-	}
-	since, days := s.window(in.Days)
-	rows, err := s.St.Q.RunsSince(ctx, db.RunsSinceParams{WorkspaceID: act.Workspace, Since: since})
-	if err != nil {
-		return nil, err
-	}
-	got := map[string]db.RunsSinceRow{}
-	for _, r := range rows {
-		g := got[day(r.Minute)]
-		g.Runs, g.Failed, g.Scheduled = g.Runs+r.Runs, g.Failed+r.Failed, g.Scheduled+r.Scheduled
-		got[day(r.Minute)] = g
-	}
-	open, err := s.Open(ctx, act)
-	if err != nil {
-		return nil, err
-	}
-	still := map[string]int64{}
-	for _, p := range open {
-		still[day(p.StartedAt[:min(16, len(p.StartedAt))])]++
-	}
-	out := make([]runsDailyRow, 0, len(days))
-	for i, d := range days {
-		r := got[d]
-		out = append(out, runsDailyRow{Day: d, Age: int64(len(days) - 1 - i), Runs: r.Runs, Failed: r.Failed, Open: still[d], Scheduled: r.Scheduled})
-	}
-	return out, nil
-}
-
 // Commands are the commands of the journal.
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
@@ -298,8 +250,5 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("spend_daily", "Spend by day",
 			"Gives the tokens, calls and cost of model calls of the last days: a row for every day, or the totals of each provider or project with their share; by provider also the runs each model did.",
 			registry.OwnerOnly, s.spendDaily).On("usage", "processes"),
-		registry.Read("runs_daily", "Runs by day",
-			"Gives the processes started on each of the last days: all; started by a schedule; failed — every run that failed or was cut, not trials, as Schedule → Failed lists them, closed ones too; open — those of the failed still open, each process counted, of the last week, not closed by the owner, not made good by a later run, not for want of deck's tools (health shows those); processes_list with failed gives them, the same failure of a command one row with its repeats.",
-			registry.OwnerSide, s.runsDaily).On("processes"),
 	}
 }

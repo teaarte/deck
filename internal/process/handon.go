@@ -16,7 +16,7 @@ import (
 // handOn closes a process its model refused and goes on with its work, told what it did, on the next model of the
 // assignment; false when there is none. A trial and a reply of the chat, which picks its own model, stay.
 func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fault.F) bool {
-	if r.deps.Next == nil || t.cmd.Name == t.m.EventCommand(manifest.OnMessage) {
+	if t.cmd.Name == t.m.EventCommand(manifest.OnMessage) {
 		return false
 	}
 	p, err := r.st.Q.GetProcess(ctx, t.process)

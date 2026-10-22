@@ -150,7 +150,7 @@ type processesListIn struct {
 	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input field record is the id of this record: how its pipeline goes"`
 	Topic   int64  `opt:"" desc:"Only the replies of the master in this chat topic and the processes they started, as master.work"`
 	Lang    string `opt:"" desc:"Language of the words of the states, such as ru; English without one"`
-	Failed  bool   `opt:"" desc:"Only the open failures, the open of runs_daily: the processes of the last week that failed or were cut by a restart, not trials, that the owner has not closed and no later run made good (one for the same record, or with the same input for a command without one); the same failure of a command one row with its repeats; newest first, each with retry when the owner may run its command again. Schedule → Failed lists every failed run, closed ones too"`
+	Failed  bool   `opt:"" desc:"Only the open failures: the processes of the last week that failed or were cut by a restart, not trials, that the owner has not closed and no later run made good (one for the same record, or with the same input for a command without one); the same failure of a command one row with its repeats; newest first, each with retry when the owner may run its command again. Schedule → Failed lists every failed run, closed ones too"`
 }
 
 func (s *Service) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {
@@ -249,9 +249,9 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	}
 	for lent := false; time.Now().Before(until); {
 		// A wait goes on through the process another model took the work over to.
-		if next, soon := s.handedOn(ctx, p); in.Wait > 0 && next != 0 {
+		if next := s.handedOn(ctx, p); in.Wait > 0 && next != 0 {
 			in.Process = next
-		} else if !soon && (p.FinishedAt.Valid || p.State == process.StateWaitingAnswer || p.State == process.StateNeedsLogin) {
+		} else if p.FinishedAt.Valid || p.State == process.StateWaitingAnswer || p.State == process.StateNeedsLogin {
 			break
 		}
 		if !lent && act.ProcessID != 0 && act.ProcessID != p.ID {
@@ -480,20 +480,16 @@ func holds(a db.Ask) bool {
 	return a.State == ask.StateOpen && (a.Kind == ask.KindQuestion || a.Kind == ask.KindConfirm)
 }
 
-// handedOn is the process that took over the work of p after its model refused it; soon while it is about to start.
-func (s *Service) handedOn(ctx context.Context, p db.Process) (int64, bool) {
+// handedOn is the process that took over the work of p after its model refused it, started before p closed.
+func (s *Service) handedOn(ctx context.Context, p db.Process) int64 {
 	if !p.FinishedAt.Valid || fault.Whose(p.ErrorType) != fault.OfModel {
-		return 0, false
+		return 0
 	}
 	if fs, err := s.St.Q.ListFollowers(ctx, store.ID(p.ID)); err == nil && len(fs) > 0 {
-		return fs[len(fs)-1].ID, false
+		return fs[len(fs)-1].ID
 	}
-	at, err := time.Parse(store.TimeLayout, p.FinishedAt.String)
-	return 0, err == nil && s.Now().Sub(at) < handOnGrace
+	return 0
 }
-
-// handOnGrace is how long after a model refused a process a wait looks for the process that goes on with it.
-const handOnGrace = 3 * time.Second
 
 // sameFailures keeps the newest of the failures of one command with the same type and text, at most n of them, with
 // how many each stands for.

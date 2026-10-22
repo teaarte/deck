@@ -166,19 +166,3 @@ func (e *Env) menuList(in map[string]any, master bool, out any) {
 		e.T.Fatal(err)
 	}
 }
-
-func (e *Env) dropMaster(command, field string, out any) {
-	e.T.Helper()
-	var all []map[string]json.RawMessage
-	e.must(command, nil, &all)
-	var kept []map[string]json.RawMessage
-	for _, x := range all {
-		if string(x[field]) != `"master"` {
-			kept = append(kept, x)
-		}
-	}
-	b, _ := json.Marshal(kept)
-	if err := json.Unmarshal(b, out); err != nil {
-		e.T.Fatal(err)
-	}
-}

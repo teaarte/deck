@@ -81,7 +81,6 @@ type Gateway struct {
 	cfg  Config
 	st   *store.Store
 	asks *ask.Broker
-	bus  *events.Bus
 	reg  *registry.Registry
 	// clear is the one clearance of the registry: only the gateway lets a call that is not internal through.
 	clear registry.Clearance
@@ -109,15 +108,13 @@ type entry struct {
 }
 
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
-	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, reg: reg, clear: reg.Clearance(), sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
+	g := &Gateway{cfg: cfg, st: st, asks: asks, reg: reg, clear: reg.Clearance(), sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
 	g.handler = provider.Stateful(mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
-	if bus != nil {
-		bus.Watch(func(e events.Event) {
-			if e.Topic == "projects" || e.Topic == "tools" {
-				g.cfg.Go(func() { g.renew(context.Background()) })
-			}
-		})
-	}
+	bus.Watch(func(e events.Event) {
+		if e.Topic == "projects" || e.Topic == "tools" {
+			g.cfg.Go(func() { g.renew(context.Background()) })
+		}
+	})
 	return g
 }
 

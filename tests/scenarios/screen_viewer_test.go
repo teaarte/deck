@@ -62,13 +62,13 @@ func TestTheMasterReadsAScreenWithoutTheBodiesOfDocuments(t *testing.T) {
 	}
 }
 
-// TestTheMasterReadsTheRunsOfTheCockpit: the runs by day the cockpit counts are read by the master as by the owner.
-func TestTheMasterReadsTheRunsOfTheCockpit(t *testing.T) {
+// TestTheMasterReadsTheCockpit: every read of the cockpit is the master's as the owner's.
+func TestTheMasterReadsTheCockpit(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, idle)
 	data := e.screenAs(registry.Actor{Kind: registry.Master, Workspace: 1}, map[string]any{"screen": "cockpit"})
 	raw, _ := json.Marshal(data)
-	if strings.Contains(string(raw), "runs_daily cannot be called") {
-		t.Fatalf("the master reads the runs of the cockpit: %s", raw)
+	if strings.Contains(string(raw), "cannot be called") {
+		t.Fatalf("the master reads the cockpit: %s", raw)
 	}
 }

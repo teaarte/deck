@@ -125,7 +125,7 @@ func TestADeckReadWithoutAProjectFollowsEveryProject(t *testing.T) {
 	e := newEnv(t, webNotesAgent())
 	e.createProject("a", webNotes)
 	e.createProject("c", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
-      {"type": "table", "title": "Runs", "source": {"from": "deck.runs_daily"}, "columns": [{"label": "Day", "bind": "day"}]},`, 1))
+      {"type": "table", "title": "Runs", "source": {"from": "deck.spend_daily"}, "columns": [{"label": "Day", "bind": "day"}]},`, 1))
 	var paths []string
 	for _, m := range e.screenMessages("c", "main", map[string]any{"topic": "processes", "changed": "a"}) {
 		var dm struct{ Path string }

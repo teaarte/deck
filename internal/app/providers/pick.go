@@ -154,7 +154,6 @@ func (s *Service) Goes(ctx context.Context, workspace int64, name string) bool {
 	return err != nil || h.Status != health.Checking && h.Status != health.Paused && (h.Status != health.Error || h.Verdict != "adapter")
 }
 
-
 // healthOf is the health row of a model by name: of its self-check when it is built in or runs in an agent, else of
 // its last call in the workspace.
 func (s *Service) healthOf(ctx context.Context, workspace int64, name string) (db.Health, error) {

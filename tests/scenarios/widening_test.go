@@ -213,6 +213,7 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 	if code != 200 || json.Unmarshal(raw, &held) != nil || held.Waiting == 0 || len(e.processes()) != before {
 		t.Fatalf("until the owner grants it the command keeps its class and waits: %d %s", code, raw)
 	}
+	e.refused("deck.ask_answer", map[string]any{"ask": w.Waiting, "answer": "retry"}, 422, "answer a grant with allow, deny")
 	e.answer(w.Waiting, "allow")
 	e.answer(held.Waiting, "deny")
 	if code, raw = e.callWith(tok, "pub.publish", map[string]any{}); code != 200 || strings.Contains(string(raw), "waiting") {

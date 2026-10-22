@@ -60,6 +60,7 @@ var answers = map[string]struct {
 	KindLogin:   {LoginAnswers, "answer a login ask with retry or new_session"},
 	KindUnknown: {UnknownAnswers, "answer an unknown outcome with retry or done"},
 	KindCall:    {[]string{"allow", "allow_always", "deny", "deny:"}, "answer a confirmation with allow, allow_always, deny or deny:<reason>"},
+	KindGrant:   {[]string{"allow", "deny", "deny:"}, "answer a grant with allow, deny or deny:<reason>"},
 }
 
 // Check refuses an answer the kind does not take.

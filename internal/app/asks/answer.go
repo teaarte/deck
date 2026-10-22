@@ -72,9 +72,8 @@ func (s *Service) dismissExpired(ctx context.Context, q db.Ask, answer string) (
 	return map[string]any{"ok": true}, nil
 }
 
-// decide answers a frozen call, a grant or an unknown outcome: allowing or retrying makes the call now and delivers
-// what it gave to the process that asked; refusing or counting it done only tells the process. An allowed grant
-// makes its change merged into the current manifest.
+// decide answers a frozen call, a grant (merged into the current manifest) or an unknown outcome: allowing or
+// retrying makes the call now and delivers what it gave; refusing or counting it done only tells the process.
 func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
 	if err := ask.Check(q.Kind, answer); err != nil {
 		return nil, err
@@ -106,8 +105,8 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 			return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
 		}
 		s.LateAnswer(ctx, q)
-		if err != nil {
-			return nil, err
+		if err != nil || q.Kind == ask.KindGrant {
+			return out, err
 		}
 		return map[string]any{"ok": true, "result": out}, nil
 	default:

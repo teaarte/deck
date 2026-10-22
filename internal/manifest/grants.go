@@ -198,6 +198,15 @@ var commandRights = []commandRight{
 			c.Executor.Folder = old.Executor.Folder
 		}
 	}},
+	{false, func(old, c *Command, _ bool, add say) {
+		if registry.ClassRank(c.Class) < registry.ClassRank(old.Class) {
+			add("command %s: class %s instead of %s", c.Name, c.Class, old.Class)
+		}
+	}, func(old, c *Command) {
+		if registry.ClassRank(c.Class) < registry.ClassRank(old.Class) {
+			c.Class = old.Class
+		}
+	}},
 	{true, func(old, c *Command, isNew bool, add say) {
 		for _, r := range added(c.Requires, old.Requires) {
 			if isNew {
@@ -208,15 +217,6 @@ var commandRights = []commandRight{
 		}
 	}, func(old, c *Command) {
 		c.Requires = append(slices.Clone(c.Requires), added(c.Requires, old.Requires)...)
-	}},
-	{false, func(old, c *Command, _ bool, add say) {
-		if registry.ClassRank(c.Class) < registry.ClassRank(old.Class) {
-			add("command %s: class %s instead of %s", c.Name, c.Class, old.Class)
-		}
-	}, func(old, c *Command) {
-		if registry.ClassRank(c.Class) < registry.ClassRank(old.Class) {
-			c.Class = old.Class
-		}
 	}},
 	{false, func(old, c *Command, _ bool, add say) {
 		if c.Provider != old.Provider {

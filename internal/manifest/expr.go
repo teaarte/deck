@@ -157,7 +157,7 @@ func (v *names) Visit(n *ast.Node) {
 	}
 }
 
-// programs are the expressions Eval has compiled, by their text.
+// programs are the expressions of manifests Eval has compiled, by their text.
 var programs sync.Map
 
 // program is src compiled once.
@@ -173,15 +173,23 @@ func program(src string) (*vm.Program, error) {
 	return p, nil
 }
 
-// Filter compiles a where: an expression that holds for what it keeps, as Where tells.
+// Filter compiles a where a caller gives, not kept past the call: it holds for what it keeps, as Where tells.
 func Filter(src string) (func(env map[string]any) (bool, error), error) {
-	if _, err := program(src); err != nil {
+	p, err := compileExpr(src, nil)
+	if err != nil {
 		return nil, err
 	}
-	return func(env map[string]any) (bool, error) { return Where(src, env) }, nil
+	return func(env map[string]any) (bool, error) {
+		v, err := run(p, src, env)
+		if err != nil {
+			return false, err
+		}
+		return Holds(v)
+	}, nil
 }
 
-// Where is whether an expression holds over env: nil holds not, and a value that is no boolean is an error.
+// Where is whether an expression of a manifest holds over env: nil holds not, and a value that is no boolean is an
+// error.
 func Where(src string, env map[string]any) (bool, error) {
 	v, err := Eval(src, env)
 	if err != nil {
@@ -190,12 +198,17 @@ func Where(src string, env map[string]any) (bool, error) {
 	return Holds(v)
 }
 
-// Eval runs an expression over env; a failure names the expression and what went wrong, without the caret drawing.
+// Eval runs an expression of a manifest over env.
 func Eval(src string, env map[string]any) (any, error) {
 	p, err := program(src)
 	if err != nil {
 		return nil, err
 	}
+	return run(p, src, env)
+}
+
+// run runs a compiled expression; a failure names the expression and what went wrong, without the caret drawing.
+func run(p *vm.Program, src string, env map[string]any) (any, error) {
 	out, err := expr.Run(p, env)
 	if fe := (*file.Error)(nil); errors.As(err, &fe) {
 		return nil, fmt.Errorf("%s: %s", src, fe.Message)

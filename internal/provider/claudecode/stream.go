@@ -221,10 +221,10 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 		return res, fmt.Errorf("the prompt did not reach claude in full: %v", promptErr)
 	}
 	switch {
-	case t.failed && !t.authFailed && (t.serverError || apiDown.MatchString(res.Text)):
-		res.Outcome = provider.Unavailable
 	case t.limited:
 		res.Outcome = provider.Limited
+	case t.failed && !t.authFailed && (t.serverError || apiDown.MatchString(res.Text)):
+		res.Outcome = provider.Unavailable
 	case t.failed && t.authFailed:
 		res.Outcome = provider.Login
 	case t.failed:

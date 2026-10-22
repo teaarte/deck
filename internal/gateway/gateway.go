@@ -73,6 +73,8 @@ type Config struct {
 	Models ModelRoute
 	// Progress is how often a long call of a tool tells a client that asked for it that it still runs.
 	Progress time.Duration
+	// Go runs work beside the calls unless deck stops.
+	Go func(func()) bool
 }
 
 type Gateway struct {
@@ -112,7 +114,7 @@ func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *re
 	if bus != nil {
 		bus.Watch(func(topic string) {
 			if topic == "projects" || topic == "tools" {
-				go g.renew(context.Background())
+				g.cfg.Go(func() { g.renew(context.Background()) })
 			}
 		})
 	}

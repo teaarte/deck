@@ -100,13 +100,17 @@ type Broker struct {
 	mu      sync.Mutex
 	waiters map[int64]chan string
 	late    func(ctx context.Context, a db.Ask)
+	// run runs work beside the calls unless deck stops.
+	run func(func()) bool
 }
 
-func NewBroker(st *store.Store, now func() time.Time) *Broker {
-	return &Broker{st: st, now: now, Poll: time.Second, waiters: map[int64]chan string{}}
+// NewBroker is the broker of a store; run runs work beside the calls unless deck stops.
+func NewBroker(st *store.Store, now func() time.Time, run func(func()) bool) *Broker {
+	return &Broker{st: st, now: now, run: run, Poll: time.Second, waiters: map[int64]chan string{}}
 }
 
-// OnLateAnswer is called when an answer arrives and nobody is waiting live (the process has already stopped).
+// OnLateAnswer is called beside the call when an answer arrives and nobody is waiting live (the process has already
+// stopped).
 func (b *Broker) OnLateAnswer(f func(ctx context.Context, a db.Ask)) { b.late = f }
 
 // Create stores an ask; a zero expires means it never expires by itself.
@@ -205,7 +209,7 @@ func (b *Broker) Answer(ctx context.Context, id int64, answer string) error {
 		if err != nil {
 			return err
 		}
-		go b.late(context.WithoutCancel(ctx), a)
+		b.run(func() { b.late(context.WithoutCancel(ctx), a) })
 	}
 	return nil
 }

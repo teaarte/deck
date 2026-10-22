@@ -116,10 +116,10 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	st.Changed = func(c store.Change) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
-	a.Asks = ask.NewBroker(st, cfg.Now)
+	a.Asks = ask.NewBroker(st, cfg.Now, a.bg.Go)
 	a.Registry = registry.New(a.Saver.ProjectCommands)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
-		Models: a.Providers.Route, Progress: cfg.Progress}, st, a.Asks, a.Bus, a.Registry)
+		Models: a.Providers.Route, Progress: cfg.Progress, Go: a.bg.Go}, st, a.Asks, a.Bus, a.Registry)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Read, h)

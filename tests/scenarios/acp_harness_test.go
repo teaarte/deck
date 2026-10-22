@@ -148,7 +148,7 @@ func acpAdded(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(
 	e.must("deck.secret_set", map[string]any{"name": "model_key", "value": "sk-real-model-key"}, nil)
 	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": agent})
 	var h db.Health
-	e.waitFor("the self-check of the ACP provider", func() bool {
+	e.waitWithin("the self-check of the ACP provider", time.Minute, func() bool {
 		var err error
 		h, err = health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 		return err == nil && h.Status != "checking"
@@ -201,7 +201,7 @@ func (e *Env) addACP(f *fakeACP, from int, name, agent string, llm *fakeLLM, noC
 	e.must("deck.secret_set", map[string]any{"name": name + "-key", "value": "sk-" + name}, nil)
 	e.mustAgentModel(map[string]any{"name": name, "url": llm.URL, "model": name, "agent": agent,
 		"key_secret": name + "-key", "no_cloud": noCloud})
-	e.waitFor("the self-check of "+name, func() bool {
+	e.waitWithin("the self-check of "+name, time.Minute, func() bool {
 		h, err := health.Get(e.T.Context(), e.App.Store.Q, health.Of{}, "provider:"+name)
 		return err == nil && h.Status == "ok"
 	})

@@ -112,6 +112,7 @@ func TestReworkContinuesTheSessionAndRevisesTheArtifact(t *testing.T) {
 func TestCeilingStopsTheAgentAndManifestOverridesIt(t *testing.T) {
 	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		c.Req.Emit(provider.Event{Kind: provider.EventThought, Text: "working"})
 		<-ctx.Done()
 		return provider.Result{}
 	})

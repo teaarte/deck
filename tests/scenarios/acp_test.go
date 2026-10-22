@@ -751,7 +751,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 	})
 	e.useModels("paint.work", "acp")
 	id := e.run(p, "work")
-	e.waitFor("the self-check", func() bool {
+	e.waitWithin("the self-check", time.Minute, func() bool {
 		h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 		return err == nil && h.Status == "ok"
 	})

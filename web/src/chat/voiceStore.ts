@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from 'react';
 import { call, upload } from '../lib/api';
+import { createStore, useStore } from '../lib/store';
 import { errorText } from '../lib/notify';
 import { fromFile, record, type Recording } from './voice';
 
@@ -10,7 +10,7 @@ export interface VoiceState { seconds: number; hearing: boolean; failed?: string
 // A piece of a recording is kept until it is text; the text of a recording goes to a composer once every piece is.
 interface Piece { wav: Blob; take: number; text?: string; error?: string }
 
-let state: VoiceState = { seconds: 0, hearing: false };
+const state = createStore<VoiceState>({ seconds: 0, hearing: false });
 let rec: Recording | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
 let pieces: Piece[] = [];
@@ -19,15 +19,11 @@ let takes = 0;
 let current = 0;
 let waiting = '';
 const hearers: ((text: string) => void)[] = [];
-const subscribers = new Set<() => void>();
 
-const set = (s: Partial<VoiceState>) => {
-  state = { ...state, ...s };
-  subscribers.forEach((f) => f());
-};
+const set = (s: Partial<VoiceState>) => state.set({ ...state.get(), ...s });
 
 // useVoiceState follows the voice of the owner.
-export const useVoiceState = () => useSyncExternalStore((f) => { subscribers.add(f); return () => subscribers.delete(f); }, () => state);
+export const useVoiceState = () => useStore(state);
 
 // hearBy hands the text of the voice to the composer that came last, the text none took first; once the last
 // composer goes the recording stops, and its text waits for the next.
@@ -57,7 +53,7 @@ export async function listen() {
   }
   set({ seconds: 1 });
   clearInterval(timer);
-  timer = setInterval(() => set({ seconds: state.seconds + 1 }), 1000);
+  timer = setInterval(() => set({ seconds: state.get().seconds + 1 }), 1000);
   if (!hearers.length) {
     try { stop(); } catch { /* nothing was recorded */ }
   }

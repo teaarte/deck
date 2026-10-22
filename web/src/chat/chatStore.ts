@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { createStore, useStore } from '../lib/store';
 
 export interface ChatScreen {
   project?: string;
@@ -47,20 +47,15 @@ const read = () => {
     return false;
   }
 };
-let open = read();
-const subs = new Set<() => void>();
-const publish = () => subs.forEach((f) => f());
+const open = createStore(read());
 window.addEventListener('storage', (e) => {
-  if (e.key !== OPEN) return;
-  open = read();
-  publish();
+  if (e.key === OPEN) open.set(read());
 });
 
 // setChatOpen opens or closes the chat panel; the device keeps it.
 export function setChatOpen(v: boolean) {
-  open = v;
   localStorage.setItem(OPEN, JSON.stringify(v));
-  publish();
+  open.set(v);
 }
 
 // openTopic shows a topic in the chat panel and opens the panel; a new one waits for the owner's voice.
@@ -74,6 +69,6 @@ export function openTopic(topic: number | 'new') {
 
 // useChatPanel is whether the chat panel is open, and its switch.
 export function useChatPanel() {
-  const isOpen = useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), () => open);
+  const isOpen = useStore(open);
   return { open: isOpen, setOpen: setChatOpen };
 }

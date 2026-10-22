@@ -1,7 +1,7 @@
-import { useSyncExternalStore } from 'react';
 import { createTheme, DEFAULT_THEME, type MantineThemeOverride } from '@mantine/core';
 import { glass } from './glass';
 import { palette } from './palette';
+import { createStore, useStore } from '../lib/store';
 
 // Look is how deck looks on this device; the color scheme itself is kept by Mantine.
 export interface Look {
@@ -60,28 +60,27 @@ function read(): Look {
 }
 
 // The theme marks the root element: the glass styles and their backdrop hang on it.
-const mark = () => {
-  document.documentElement.dataset.deckTheme = look.theme;
-  document.documentElement.dataset.deckSurface = look.surface;
-  document.documentElement.dataset.deckMotion = look.motion ? 'on' : 'off';
-  document.documentElement.style.setProperty('--glass-tint-user', String(look.tint));
+const mark = (l: Look) => {
+  document.documentElement.dataset.deckTheme = l.theme;
+  document.documentElement.dataset.deckSurface = l.surface;
+  document.documentElement.dataset.deckMotion = l.motion ? 'on' : 'off';
+  document.documentElement.style.setProperty('--glass-tint-user', String(l.tint));
 };
-let look = read();
-mark();
-const subs = new Set<() => void>();
+const look = createStore(read());
+mark(look.get());
+const show = (l: Look) => {
+  mark(l);
+  look.set(l);
+};
 export function setLook(change: Partial<Look>) {
-  look = { ...look, ...change };
-  localStorage.setItem(KEY, JSON.stringify(look));
-  mark();
-  subs.forEach((f) => f());
+  const l = { ...look.get(), ...change };
+  localStorage.setItem(KEY, JSON.stringify(l));
+  show(l);
 }
 window.addEventListener('storage', (e) => {
-  if (e.key !== KEY) return;
-  look = read();
-  mark();
-  subs.forEach((f) => f());
+  if (e.key === KEY) show(read());
 });
-export const useLook = () => useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), () => look);
+export const useLook = () => useStore(look);
 
 const scaled = (sizes: Record<string, string>, by: number) =>
   Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, by === 1 ? v : `calc(${v} * ${by})`]));

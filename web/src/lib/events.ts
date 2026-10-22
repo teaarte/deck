@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from 'react';
 import { token } from './api';
+import { createStore, useStore } from './store';
 
 // LiveEvent says a topic changed, in a project when it names one.
 export interface LiveEvent { topic: string; project?: string }
@@ -9,10 +9,9 @@ const listeners = new Set<Listener>();
 let source: EventSource | undefined;
 let retry: ReturnType<typeof setTimeout> | undefined;
 // lost is set while a live channel that was open is down; screens drawn meanwhile may be old.
-let lost = false;
-const lostSubs = new Set<() => void>();
-const setLost = (v: boolean) => { lost = v; lostSubs.forEach((f) => f()); };
-export const useLive = () => !useSyncExternalStore((f) => (lostSubs.add(f), () => lostSubs.delete(f)), () => lost);
+const lost = createStore(false);
+const setLost = lost.set;
+export const useLive = () => !useStore(lost);
 
 // resume tells the listeners once that the page may have missed events: it was hidden, or the channel was down.
 let resuming: ReturnType<typeof setTimeout> | undefined;
@@ -48,7 +47,7 @@ function openSource() {
   es.onopen = () => {
     if (es !== source) return;
     heard();
-    if (lost) resume();
+    if (lost.get()) resume();
     setLost(false);
   };
   es.addEventListener('ping', () => { if (es === source) heard(); });

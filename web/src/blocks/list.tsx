@@ -3,7 +3,7 @@ import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Group, Stack, Text } from '@mantine/core';
 import s from './list.module.css';
 import { relative, show, when } from '../lib/format';
-import { useTicking } from '../hooks/useTicking';
+import { useClock } from '../hooks/useClock';
 import { Actions } from '../ui/actions/Actions';
 import { Deadline } from '../ui/Deadline';
 import { Details } from '../ui/Details';
@@ -114,7 +114,7 @@ export function Line({ it, big }: { it: Item; big?: boolean }) {
 
 // Since is how long ago the time a line counts from was, kept fresh.
 function Since({ at }: { at: string }) {
-  const now = useTicking(true);
+  const now = useClock(1000);
   const d = when(at);
   return d ? <Text size="xs" c="dimmed" className={s.meta} data-since>{relative(d, now)}</Text> : null;
 }

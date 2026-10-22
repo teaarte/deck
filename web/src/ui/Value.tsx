@@ -3,7 +3,7 @@ import { ActionIcon, Anchor, Badge, CopyButton, Text, Tooltip } from '@mantine/c
 import { IconCheck, IconCopy } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { formatted, show, tagColor, toneColor, type Shown } from '../lib/format';
-import { useMinute } from '../hooks/useMinute';
+import { useClock } from '../hooks/useClock';
 import s_ from './value.module.css';
 
 // Copied is a text with a button that copies it, shown on hover or a tap.
@@ -27,7 +27,7 @@ function Copied({ text }: { text: string }) {
 // Value shows a value by its format: a link opens, a tag is a badge by its tone or text with its hint on hover or a
 // tap, a relative time ages by the minute, a copy has a button that copies it.
 export function Value({ v, s, tone, hint }: { v: unknown; s: Shown; tone?: string | null; hint?: string | null }): ReactNode {
-  useMinute(s.format === 'relative');
+  useClock(60000, s.format === 'relative');
   const color = toneColor(tone);
   if (s.format === 'link' && typeof v === 'string' && /^https?:\/\//.test(v)) {
     return <Anchor href={v} target="_blank" rel="noopener noreferrer" size="sm" c={color}>{v}</Anchor>;

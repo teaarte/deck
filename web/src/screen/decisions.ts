@@ -1,18 +1,14 @@
-import { useSyncExternalStore } from 'react';
 import type { Item } from '../blocks/list';
+import { createStore, useStore } from '../lib/store';
 
 export interface Decisions { id: string; items: Item[] }
 
 // The lists of the screen with buttons that call commands, top first: the first is what the owner goes through one by
 // one.
 const lists = new Map<string, { items: Item[]; at: Element }>();
-let ordered: Decisions[] = [];
-const subs = new Set<() => void>();
-const publish = () => {
-  ordered = [...lists.entries()].sort(([, a], [, b]) => (a.at.compareDocumentPosition(b.at) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
-    .map(([id, l]) => ({ id, items: l.items }));
-  subs.forEach((f) => f());
-};
+const ordered = createStore<Decisions[]>([]);
+const publish = () => ordered.set([...lists.entries()].sort(([, a], [, b]) => (a.at.compareDocumentPosition(b.at) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
+  .map(([id, l]) => ({ id, items: l.items })));
 
 const decides = (items: Item[]) => items.some((it) => it.actions?.some((a) => a.command));
 
@@ -28,4 +24,4 @@ export function dropList(id: string) {
 }
 
 // useDecisionLists are the lists to go through, top first.
-export const useDecisionLists = () => useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), () => ordered);
+export const useDecisionLists = () => useStore(ordered);

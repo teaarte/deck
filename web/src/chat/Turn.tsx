@@ -3,7 +3,7 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconArrowUpRight, IconChevronDown, IconChevronUp, IconPlayerStopFilled } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
-import { useTicking } from '../hooks/useTicking';
+import { useClock } from '../hooks/useClock';
 import { formatted, toneColor } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import a from '../ui/aura.module.css';
@@ -54,7 +54,7 @@ export function Turn({ turn }: { turn: TurnValue }) {
   const running = turn.state === 'running';
   const mascot = useMascot();
   const lines = logLines(turn.lines);
-  const now = useTicking(running);
+  const now = useClock(1000, running);
   const started = turn.started_at ? Date.parse(turn.started_at) : NaN;
   const steps = turn.lines.filter((l) => l.kind === 'tool').length;
   const buttons = (

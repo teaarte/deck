@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { createStore, useStore } from '../lib/store';
 
 // Route is a screen and its parameters: #/p/<project>/<screen>[/<record>][?name=value&…], deck's own without p/.
 export interface Route {
@@ -39,20 +39,16 @@ export const screenKey = (r: Route) => href({ ...r, params: serverParams(r) });
 
 // The trail holds the addresses visited in this tab, so the back button shows only where there is a way back.
 let trail: string[] = [location.hash || '#/'];
-const subs = new Set<() => void>();
-let route = parse(location.hash);
+const route = createStore(parse(location.hash));
 window.addEventListener('hashchange', () => {
   const now = location.hash || '#/';
   if (trail.length > 1 && trail[trail.length - 2] === now) trail = trail.slice(0, -1);
   else if (trail[trail.length - 1] !== now) trail = [...trail, now];
-  route = parse(now);
-  subs.forEach((f) => f());
+  route.set(parse(now));
 });
-const subscribe = (f: () => void) => (subs.add(f), () => subs.delete(f));
 
-export const useRoute = () => useSyncExternalStore(subscribe, () => route);
-const depth = () => trail.length;
-export const useCanGoBack = () => useSyncExternalStore(subscribe, depth) > 1;
+export const useRoute = () => useStore(route);
+export const useCanGoBack = () => useStore(route, () => trail.length) > 1;
 
 // movers hear the owner pick a screen by a button or a link, the screen shown too, so what covers it steps aside.
 const movers = new Set<() => void>();
@@ -70,10 +66,11 @@ export function back() {
 }
 
 const withParam = (name: string, value: string | null): Route => {
-  const params = { ...(route.params ?? {}) };
+  const r = route.get();
+  const params = { ...(r.params ?? {}) };
   if (value === null || value === '') delete params[name];
   else params[name] = value;
-  return { ...route, params: Object.keys(params).length ? params : undefined };
+  return { ...r, params: Object.keys(params).length ? params : undefined };
 };
 
 // setParam changes one parameter of the current address in a new step of the history; null removes it.

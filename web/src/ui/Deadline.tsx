@@ -1,12 +1,12 @@
 import { IconClock } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { useNow } from '../hooks/useNow';
+import { useClock } from '../hooks/useClock';
 import s from './chip.module.css';
 
 // Deadline is the time left before until: red under half an hour, amber under an hour.
 export function Deadline({ until }: { until: string }) {
   const { t } = useTranslation();
-  const now = useNow();
+  const now = useClock(15000);
   const left = Math.max(0, Math.round((Date.parse(until) - now) / 60000));
   if (Number.isNaN(left)) return null;
   const tone = left < 30 ? 'error' : left < 60 ? 'warn' : undefined;

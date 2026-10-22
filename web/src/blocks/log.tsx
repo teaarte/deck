@@ -4,7 +4,7 @@ import { IconSend } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Action, Data } from '../lib/catalog.gen';
 import { formatted } from '../lib/format';
-import { useTicking } from '../hooks/useTicking';
+import { useClock } from '../hooks/useClock';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { Failed } from '../ui/actions/Failed';
 import { useActionRun } from '../ui/actions/useActionRun';
@@ -52,7 +52,7 @@ function At({ at }: { at: string }) {
 // Live is the head of a log still going: dots, how long it runs and how many steps it made.
 function Live({ since, steps }: { since: string; steps: number }) {
   const { t } = useTranslation();
-  const now = useTicking(true);
+  const now = useClock(1000);
   return (
     <Group gap="xs" className={s.live} data-log-live>
       <Dots />

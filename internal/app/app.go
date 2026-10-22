@@ -5,6 +5,7 @@ import (
 	"deck2/internal/app/failures"
 	apphealth "deck2/internal/app/health"
 	"deck2/internal/app/processes"
+	"deck2/internal/app/screens"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -75,6 +76,7 @@ type App struct {
 	Health    *apphealth.Service
 	Processes *processes.Service
 	Failures  *failures.Service
+	Screens   *screens.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -142,12 +144,12 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Open: a.Processes.OpenFailures}
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
-	*a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Works: a.Providers.Works, Words: phrases}
+	*a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Works: a.Providers.Works, Words: screens.Phrases}
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
 		SaveManifest: a.Saver.Save, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		Expire: a.Records.Expire}
-	*a.Providers = providers.Service{St: st, Words: phrases, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+	*a.Providers = providers.Service{St: st, Words: screens.Phrases, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
 		VideoCeiling: cfg.VideoCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
@@ -157,19 +159,22 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		AnswerGrant: a.Saver.AnswerGrant, AddToList: a.Saver.AddToList}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
-		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Go: a.bg.Go, Words: phrases}
+		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Go: a.bg.Go, Words: screens.Phrases}
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now,
-		Home: h, Invoke: a.Registry.Invoke, DeckScreen: deckScreen, Waiting: a.Answers.Waiting}
+		Home: h, Invoke: a.Registry.Invoke, DeckScreen: screens.DeckScreen, Waiting: a.Answers.Waiting}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
-		Words: phrases}
+		Words: screens.Phrases}
 	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch,
 		Works: a.Providers.Works, Places: a.Providers.Places}
+	*a.Screens = screens.Service{St: st, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
+		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Devices.Unread, Works: a.Providers.Works,
+		ScreenFailed: a.Failures.Screen, ScreenDrawn: a.Failures.ScreenDrawn, File: a.Files.File}
 	*a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
-		MCP: a.MCP, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.checkScreens,
+		MCP: a.MCP, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.Screens.CheckScreens,
 		Unassigned: a.Providers.Unassigned}
 	*a.Projects = project.Service{St: st, Home: h, Registry: a.Registry, Gateway: a.Gateway,
 		Runner: a.Runner, Scheduler: a.Scheduler, Host: a.Host, Save: a.Saver, Folders: a.Folders.List,
@@ -200,7 +205,7 @@ func allocated() *App {
 		Files: &appfiles.Service{}, Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{},
 		Snapshots: &snapshots.Service{}, Settings: &settings.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
 		Signins: &signins.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{}, Tokens: &tokens.Service{},
-		Records: &records.Service{}, Health: &apphealth.Service{}, Processes: &processes.Service{}, Failures: &failures.Service{}}
+		Records: &records.Service{}, Health: &apphealth.Service{}, Screens: &screens.Service{}, Processes: &processes.Service{}, Failures: &failures.Service{}}
 }
 
 // Close interrupts running providers; their processes stay running and resume on the next start.

@@ -1,20 +1,18 @@
-package app
+package screens
 
 import (
 	"cmp"
 	"context"
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
-	_ "embed"
-	"encoding/json"
-	"net/url"
-	"slices"
-	"strings"
-
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"encoding/json"
+	"net/url"
+	"slices"
+	"strings"
 )
 
 // commandRow is a command the caller may call, with its project, its file fields and what runs it: an executor
@@ -55,8 +53,8 @@ type commandSpec struct {
 }
 
 // commandDescribe tells what a command takes whoever may call it, so the master can say what to fill in.
-func (a *App) commandDescribe(ctx context.Context, act registry.Actor, in commandDescribeIn) (commandSpec, error) {
-	c, err := a.Registry.Lookup(ctx, act.Workspace, in.Command)
+func (ss *Service) commandDescribe(ctx context.Context, act registry.Actor, in commandDescribeIn) (commandSpec, error) {
+	c, err := ss.Registry.Lookup(ctx, act.Workspace, in.Command)
 	if err != nil {
 		return commandSpec{}, err
 	}
@@ -70,19 +68,19 @@ type commandsListIn struct {
 }
 
 // commandsList is what the caller may call: deck's commands and those of the projects it reaches.
-func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsListIn) ([]commandRow, error) {
-	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
+func (ss *Service) commandsList(ctx context.Context, act registry.Actor, in commandsListIn) ([]commandRow, error) {
+	pid, err := access.Filter(ctx, ss.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	cmds, err := a.Registry.List(ctx, act)
+	cmds, err := ss.Registry.List(ctx, act)
 	if err != nil {
 		return nil, err
 	}
 	master := act.Kind == registry.Master
 	var ownerOnly map[string]bool
 	if master {
-		owner, err := a.Registry.List(ctx, registry.Actor{Kind: registry.Owner, Workspace: act.Workspace})
+		owner, err := ss.Registry.List(ctx, registry.Actor{Kind: registry.Owner, Workspace: act.Workspace})
 		if err != nil {
 			return nil, err
 		}
@@ -95,15 +93,15 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 		}
 		slices.SortFunc(cmds, func(x, y *registry.Command) int { return strings.Compare(x.Name, y.Name) })
 	}
-	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, ss.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	ts, err := a.Store.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace, ProjectID: pid})
+	ts, err := ss.St.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace, ProjectID: pid})
 	if err != nil {
 		return nil, err
 	}
-	work := a.Providers.Works(ctx, act.Workspace, in.Lang)
+	work := ss.Works(ctx, act.Workspace, in.Lang)
 	manifests := map[int64]*manifest.Manifest{}
 	out := []commandRow{}
 	for _, c := range cmds {
@@ -118,8 +116,8 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 		if c.ProjectID != 0 {
 			var ok bool
 			if m, ok = manifests[c.ProjectID]; !ok {
-				if p, err := a.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
-					m, _ = docs.Manifest(ctx, a.Store.Q, p)
+				if p, err := ss.St.Q.GetProject(ctx, c.ProjectID); err == nil {
+					m, _ = docs.Manifest(ctx, ss.St.Q, p)
 				}
 				manifests[c.ProjectID] = m
 			}

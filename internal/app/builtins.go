@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"deck2/internal/app/screens"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -16,7 +17,7 @@ func (a *App) addBuiltins() {
 	for _, c := range a.builtins() {
 		a.Registry.Add(c)
 	}
-	shipped()
+	screens.Load()
 }
 
 // builtins are deck's own commands.
@@ -26,7 +27,7 @@ func (a *App) builtins() []*registry.Command {
 		a.Documents.Commands(), a.Devices.FeedCommands(), a.Folders.Commands(), a.Projects.Commands(), a.Saver.Commands(),
 		a.Journal.Commands(), a.Devices.NotifyCommands(),
 		a.Processes.Commands(), a.Providers.Commands(), a.Devices.PushCommands(), a.Records.Commands(),
-		a.screensCommands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(),
+		a.Screens.Commands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(),
 		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Devices.VoiceCommands(), a.Cfg.Commands} {
 		out = append(out, cs...)
 	}

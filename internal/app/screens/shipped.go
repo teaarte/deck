@@ -1,16 +1,15 @@
-package app
+package screens
 
 import (
+	"deck2/internal/manifest"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"strings"
 	"sync"
-
-	"deck2/internal/manifest"
-	"deck2/internal/registry"
 )
 
 // shippedFiles are deck's screens (project-<name> for every project), the menu and words.<lang> and i18n.<lang>.
@@ -19,7 +18,7 @@ import (
 var shippedFiles embed.FS
 
 type shippedScreens struct {
-	// I18n translates deck's own screens, by language and then by text; Words the phrases of its read commands.
+	// I18n translates deck's own screens, by language and then by text; Words the Phrases of its read commands.
 	I18n    map[string]map[string]string
 	Words   map[string]map[string]string
 	Menu    []string
@@ -84,22 +83,42 @@ var shipped = sync.OnceValue(func() (d shippedScreens) {
 	return d
 })
 
-func (a *App) screensCommands() []*registry.Command {
-	return []*registry.Command{
-		registry.Def("menu", "Menu",
-			"Lists the screens to navigate: deck's own, then each project's menu.",
-			registry.OwnerSide, a.menu),
-		registry.Def("menu_order", "Order the menu",
-			"Sets the order of the projects of the side list of the menu, the same on every device.",
-			registry.OwnerSide, a.menuOrderSet),
-		registry.Def("screen", "Screen",
-			"Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes.",
-			registry.OwnerSide, a.screenGet),
-		registry.Read("commands_list", "Commands",
-			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. command_describe gives a description.",
-			registry.OwnerSide, a.commandsList).On("projects", "tools", "assignments", "models", "triggers", "health", "documents"),
-		registry.Read("command_describe", "Describe command",
-			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers.",
-			registry.OwnerSide, a.commandDescribe).On(registry.Static),
+// words are the translations into a language of deck's screens and then of the manifest, which wins.
+func words(lang string, m *manifest.Manifest) map[string]string {
+	if lang == "" {
+		return nil
 	}
+	out := maps.Clone(shipped().I18n[lang])
+	if m != nil {
+		if out == nil {
+			out = map[string]string{}
+		}
+		maps.Copy(out, m.I18n[lang])
+	}
+	return out
+}
+
+// Load reads deck's screens and checks them against the reads they make, which are known by now.
+func Load() { shipped() }
+
+// Phrases are deck's own words in a language, for what read commands say.
+func Phrases(lang string) map[string]string { return shipped().Words[lang] }
+
+func DeckScreen(name string) *manifest.Screen {
+	for i := range shipped().Screens {
+		if shipped().Screens[i].Name == name {
+			return &shipped().Screens[i]
+		}
+	}
+	return nil
+}
+
+// projectScreen is a screen deck adds to every project whose manifest has none of that name.
+func projectScreen(name string) *manifest.Screen {
+	for i := range shipped().Project {
+		if shipped().Project[i].Name == name {
+			return &shipped().Project[i]
+		}
+	}
+	return nil
 }

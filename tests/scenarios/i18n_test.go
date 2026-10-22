@@ -83,7 +83,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 			titles[c.Title] = true
 		}
 	}
-	files, err := filepath.Glob("../../internal/app/shipped/*.json")
+	files, err := filepath.Glob("../../internal/app/screens/shipped/*.json")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no screens of deck: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 // passes it hands the screen nothing.
 func TestEveryParamADeckScreenReadsIsDeclared(t *testing.T) {
 	t.Parallel()
-	files, _ := filepath.Glob("../../internal/app/shipped/*.json")
+	files, _ := filepath.Glob("../../internal/app/screens/shipped/*.json")
 	used := regexp.MustCompile(`param\.([a-z_]+)`)
 	for _, f := range files {
 		raw, err := os.ReadFile(f)

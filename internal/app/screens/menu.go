@@ -1,21 +1,17 @@
-package app
+package screens
 
 import (
 	"context"
 	"database/sql"
-	_ "embed"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log/slog"
-	"slices"
-	"sync"
-
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
-	"deck2/master"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"slices"
+	"sync"
 )
 
 type menuEntry struct {
@@ -32,29 +28,6 @@ type menuEntry struct {
 	Running int64 `json:"running,omitempty"`
 	Asks    int64 `json:"asks,omitempty"`
 	Errors  int64 `json:"errors,omitempty"`
-}
-
-// pulse is what waits for the owner, runs and fails in the workspace, State which the cockpit says first (asks, errors,
-// talking, running or calm), and the top of the cockpit in the owner's language.
-type pulse struct {
-	Asks    int64      `json:"asks"`
-	Running int64      `json:"running"`
-	Errors  int64      `json:"errors"`
-	Failed  int64      `json:"failed"`
-	Notes   int64      `json:"notes"`
-	State   string     `json:"state"`
-	Title   string     `json:"title"`
-	Text    string     `json:"text"`
-	Lines   []heroLine `json:"lines"`
-}
-
-// heroLine is one count of the top of the cockpit: its words, tone, the screen it opens and the button that clears
-// it at once.
-type heroLine struct {
-	Text   string         `json:"text"`
-	Tone   string         `json:"tone,omitempty"`
-	Link   string         `json:"link,omitempty"`
-	Action map[string]any `json:"action,omitempty"`
 }
 
 // menuGroup is a group of links at the foot of the menu: work (deck's screens), master (the master's) and settings.
@@ -98,40 +71,25 @@ type menuIn struct {
 	Lang string `opt:"" desc:"Language of the titles, such as ru; as written without one"`
 }
 
-func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, error) {
+func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any, error) {
 	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{}, Topics: menuTopics()}
 	deckWords := words(in.Lang, nil)
 	for _, name := range shipped().Menu {
-		s := deckScreen(name)
+		s := DeckScreen(name)
 		out.Deck.Screens = append(out.Deck.Screens, manifest.ScreenLink{Name: name, Title: manifest.Tr(deckWords, s.Title), Icon: s.Icon})
 	}
-	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, act.Workspace)
+	ps, err := ss.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	asks, running, failing := a.count(ctx, "asks", act, a.Answers.Waiting), a.count(ctx, "running", act, a.Processes.Open),
-		a.count(ctx, "failing", act, a.Health.Failing)
-	out.Pulse = pulse{Asks: total(asks), Running: total(running), Errors: total(failing),
-		Failed: a.number(ctx, "failed", act, a.Processes.Failed), Notes: a.number(ctx, "notes", act, a.Devices.Unread)}
-	switch {
-	case out.Pulse.Asks > 0:
-		out.Pulse.State = "asks"
-	case out.Pulse.Errors > 0 || out.Pulse.Failed > 0:
-		out.Pulse.State = "errors"
-	case out.Pulse.Running > 0 && running[master.Name] == out.Pulse.Running:
-		out.Pulse.State = "talking"
-	case out.Pulse.Running > 0:
-		out.Pulse.State = "running"
-	default:
-		out.Pulse.State = "calm"
-	}
-	hero(&out.Pulse, phrases(in.Lang))
-	order, err := a.menuOrder(ctx, a.Store.Q, act.Workspace)
+	var asks, running, failing map[string]int64
+	out.Pulse, asks, running, failing = ss.pulse(ctx, act, in.Lang)
+	order, err := ss.menuOrder(ctx, ss.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
 	slices.SortStableFunc(ps, func(x, y db.Project) int { return rank(order, x.ID) - rank(order, y.ID) })
-	ms, _ := docs.All(ctx, a.Store.Q, ps)
+	ms, _ := docs.All(ctx, ss.St.Q, ps)
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {
@@ -157,7 +115,7 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 		}
 		out.Projects = append(out.Projects, e)
 	}
-	out.System = a.foot(out, in.Lang)
+	out.System = ss.foot(out, in.Lang)
 	return out, nil
 }
 
@@ -170,7 +128,7 @@ type menuOrderIn struct {
 }
 
 // menuOrder is the order of the side list the owner set, ids of projects; none when not set.
-func (a *App) menuOrder(ctx context.Context, q *db.Queries, workspace int64) ([]int64, error) {
+func (ss *Service) menuOrder(ctx context.Context, q *db.Queries, workspace int64) ([]int64, error) {
 	v, err := q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: menuOrderKey})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -196,15 +154,15 @@ func rank(order []int64, id int64) int {
 
 // menuOrderSet keeps the order of the side list: the projects named, and each one the menu had but not named, such
 // as a paused one, after the one it followed; names of no project are dropped.
-func (a *App) menuOrderSet(ctx context.Context, act registry.Actor, in menuOrderIn) (any, error) {
+func (ss *Service) menuOrderSet(ctx context.Context, act registry.Actor, in menuOrderIn) (any, error) {
 	out := []string{}
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := ss.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ps, err := q.ListWorkspaceProjects(ctx, act.Workspace)
 		if err != nil {
 			return err
 		}
 		ps = slices.DeleteFunc(ps, func(p db.Project) bool { return p.Builtin != 0 })
-		saved, err := a.menuOrder(ctx, q, act.Workspace)
+		saved, err := ss.menuOrder(ctx, q, act.Workspace)
 		if err != nil {
 			return err
 		}
@@ -243,8 +201,8 @@ func (a *App) menuOrderSet(ctx context.Context, act registry.Actor, in menuOrder
 
 // foot are the groups at the foot of the menu: deck's work, the master's screens but its documents, which are a
 // tab of Files, and deck's settings; an empty group is left out.
-func (a *App) foot(m menuOut, lang string) []menuGroup {
-	work := menuGroup{Key: "work", Title: manifest.Tr(phrases(lang), "Work")}
+func (ss *Service) foot(m menuOut, lang string) []menuGroup {
+	work := menuGroup{Key: "work", Title: manifest.Tr(Phrases(lang), "Work")}
 	settings := menuGroup{Key: "settings"}
 	for _, s := range m.Deck.Screens {
 		if s.Name == "settings" {
@@ -270,61 +228,4 @@ func (a *App) foot(m menuOut, lang string) []menuGroup {
 		}
 	}
 	return out
-}
-
-// count is one count of the menu by project; one that fails is none, so the menu still shows the way.
-func (a *App) count(ctx context.Context, what string, act registry.Actor, f func(context.Context, registry.Actor) (map[string]int64, error)) map[string]int64 {
-	by, err := f(ctx, act)
-	if err != nil {
-		slog.Error("menu: count", "what", what, "err", err)
-		return map[string]int64{}
-	}
-	return by
-}
-
-// number is a count of the workspace; nothing when it cannot be read, which the log keeps.
-func (a *App) number(ctx context.Context, what string, act registry.Actor, f func(context.Context, registry.Actor) (int64, error)) int64 {
-	n, err := f(ctx, act)
-	if err != nil {
-		slog.Error("menu: count", "what", what, "err", err)
-	}
-	return n
-}
-
-// heroWords are the title and text of the top of the cockpit for each state of the pulse.
-var heroWords = map[string][2]string{
-	"asks":    {"Your answer is needed", "The rest is done without you; much of it can be undone."},
-	"errors":  {"Something did not work", "Open it to see why; close what you will not repeat."},
-	"talking": {"Working on it", "Nothing waits for you; the answer comes in the chat."},
-	"running": {"At work", "Nothing waits for you."},
-	"calm":    {"All is calm", "Nothing waits for you."},
-}
-
-// hero writes the top of the cockpit from the pulse: what waits, what failed, what runs and the notes not read,
-// each with the screen that shows it; failed runs and notes have a button that clears them, kept in the history.
-func hero(p *pulse, ws map[string]string) {
-	tr := func(s string) string { return manifest.Tr(ws, s) }
-	w := heroWords[p.State]
-	p.Title, p.Text, p.Lines = tr(w[0]), tr(w[1]), []heroLine{}
-	line := func(n int64, format, tone, link string, action map[string]any) {
-		if n > 0 {
-			p.Lines = append(p.Lines, heroLine{Text: fmt.Sprintf(tr(format), n), Tone: tone, Link: link, Action: action})
-		}
-	}
-	line(p.Asks, "Waiting for you: %d", "warn", "", nil)
-	line(p.Failed, "Did not work: %d", "error", "#/deck/schedule?tab=Failed",
-		map[string]any{"verb": "close_all", "label": tr("Close all"), "command": registry.Builtin + ".process_dismiss", "params": map[string]any{"all": true}, "confirm": true})
-	line(p.Errors, "Failing checks: %d", "error", "#/deck/settings?tab=Health", nil)
-	line(p.Running, "Running: %d", "ok", "#/deck/schedule?tab=Runs", nil)
-	line(p.Notes, "Unread notes: %d", "", "",
-		map[string]any{"verb": "read_all", "label": tr("Read all"), "command": registry.Builtin + ".feed_read", "params": map[string]any{"all": true}, "confirm": true})
-}
-
-// total is the sum of counts by project.
-func total(by map[string]int64) int64 {
-	var n int64
-	for _, v := range by {
-		n += v
-	}
-	return n
 }

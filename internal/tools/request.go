@@ -55,6 +55,9 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	if err != nil {
 		return nil, registry.Invalid("deck: %s: %v", t.Name, err)
 	}
+	if req, err = gateway.Pin(req, []string{req.URL.Host}); err != nil {
+		return nil, registry.Refuse("deck: %s: %v", t.Name, err)
+	}
 	var serr error
 	header := func(s string) string {
 		return headerRef.ReplaceAllStringFunc(s, func(m string) string {
@@ -112,7 +115,7 @@ func (h *HTTP) send(ctx context.Context, p db.Project, o *outgoing) (*http.Respo
 				return nil, false, err
 			}
 		}
-		r, err := o.body.attach(o.req.Clone(ctx))
+		r, err := o.body.attach(o.req.Clone(o.req.Context()))
 		if err != nil {
 			return nil, false, err
 		}

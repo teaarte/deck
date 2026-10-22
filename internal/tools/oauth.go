@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"deck2/internal/gateway"
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
 )
@@ -99,7 +100,7 @@ func (o *OAuth) Access(ctx context.Context, workspace int64, a Auth, force bool)
 	}
 	old := tok
 	old.Expiry = time.Now().Add(-time.Hour)
-	next, err := conf.TokenSource(ctx, &old).Token()
+	next, err := conf.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, gateway.Short), &old).Token()
 	if err != nil {
 		var re *oauth2.RetrieveError
 		if errors.As(err, &re) && re.Response != nil && re.Response.StatusCode < 500 {
@@ -177,7 +178,7 @@ func (o *OAuth) exchange(ctx context.Context, workspace int64, a Auth, conf *oau
 	if refused != "" || code == "" {
 		return fmt.Errorf("deck: the service did not grant access: %s", refused)
 	}
-	tok, err := conf.Exchange(ctx, code, oauth2.VerifierOption(verifier))
+	tok, err := conf.Exchange(context.WithValue(ctx, oauth2.HTTPClient, gateway.Short), code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return fmt.Errorf("deck: getting the token: %v", err)
 	}

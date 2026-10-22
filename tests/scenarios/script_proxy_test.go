@@ -89,8 +89,7 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 func TestTheProxyOfAScriptDropsHeadersThatAreOnlyForTheHop(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
-		w.Header().Set("Connection", "X-Down")
-		w.Header().Set("X-Down", "hop")
+		w.Header().Set("Keep-Alive", "timeout=5")
 		_, _ = w.Write([]byte("ok"))
 	})
 	host := strings.TrimPrefix(svc.URL, "http://")
@@ -108,12 +107,12 @@ while True:
     if not b:
         break
     got += b
-print(json.dumps({"down": "x-down" in got.decode().lower(), "ok": got.endswith(b"ok")}))
+print(json.dumps({"down": "keep-alive: timeout" in got.decode().lower(), "ok": got.endswith(b"ok")}))
 `)
 	p := e.waitScript(e.start("hops", "go", nil), "done", "error")
 	seen := svc.requests()
 	if p.State != "done" || string(p.Result) != `{"down":false,"ok":true}` || len(seen) != 1 || seen[0].Header.Get("X-Up") != "" {
-		t.Fatalf("headers named in Connection go no further than the proxy, either way: %+v %+v", p, seen)
+		t.Fatalf("headers of the hop go no further than the proxy, either way: %+v %+v", p, seen)
 	}
 }
 

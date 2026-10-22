@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -44,8 +43,7 @@ type HTTP struct {
 }
 
 func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), h home.Layout) *HTTP {
-	c := &http.Client{Timeout: 5 * time.Minute, Transport: &http.Transport{Proxy: nil,
-		DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext, ResponseHeaderTimeout: 5 * time.Minute},
+	c := &http.Client{Timeout: 5 * time.Minute, Transport: gateway.Outbound,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 5 || req.URL.Host != via[0].URL.Host || req.URL.Scheme != via[0].URL.Scheme {
 				return http.ErrUseLastResponse

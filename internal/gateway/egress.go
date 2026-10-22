@@ -15,7 +15,9 @@ import (
 	"time"
 )
 
-var outbound = &http.Transport{Proxy: nil, DialContext: dialPinned, ResponseHeaderTimeout: 5 * time.Minute}
+// Outbound dials only the addresses Pin gave a request, on a connection of its own, since a kept one would serve the
+// next request whatever it was pinned to.
+var Outbound = &http.Transport{Proxy: nil, DialContext: dialPinned, DisableKeepAlives: true, ResponseHeaderTimeout: 5 * time.Minute}
 
 type pinnedKey struct{}
 
@@ -152,10 +154,23 @@ func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains
 	return nil
 }
 
-// pageClient gets one page at the addresses its request was pinned to, on a connection of its own, since a kept one
-// would serve the next request whatever it was pinned to; Fetch checks each redirect itself.
-var pageClient = &http.Client{Transport: &http.Transport{Proxy: nil, DialContext: dialPinned, DisableKeepAlives: true}, Timeout: time.Minute,
+// pageClient gets one page at the addresses its request was pinned to; Fetch checks each redirect itself.
+var pageClient = &http.Client{Transport: Outbound, Timeout: time.Minute,
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+// Pin is req bound to the addresses its host resolved to once, when the domains let it go there; Outbound dials only
+// them, a redirect of the same host too.
+func Pin(req *http.Request, domains []string) (*http.Request, error) {
+	port := req.URL.Port()
+	if port == "" {
+		port = map[string]string{"http": "80", "https": "443"}[req.URL.Scheme]
+	}
+	pinned, err := destination(req.Context(), domains, net.JoinHostPort(req.URL.Hostname(), port))
+	if err != nil {
+		return nil, err
+	}
+	return req.WithContext(context.WithValue(req.Context(), pinnedKey{}, pinned)), nil
+}
 
 // Fetch gets a page in the domains the way Egress carries one, at the addresses its name resolved to once; the
 // place a redirect names is checked the same way.
@@ -165,16 +180,11 @@ func Fetch(ctx context.Context, domains []string, page string) (*http.Response, 
 		if err != nil || u.Scheme != "http" && u.Scheme != "https" || u.Hostname() == "" {
 			return nil, fmt.Errorf("%q is not an http or https address", page)
 		}
-		port := u.Port()
-		if port == "" {
-			port = map[string]string{"http": "80", "https": "443"}[u.Scheme]
-		}
-		pinned, err := destination(ctx, domains, net.JoinHostPort(u.Hostname(), port))
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		if err != nil {
 			return nil, err
 		}
-		req, err := http.NewRequestWithContext(context.WithValue(ctx, pinnedKey{}, pinned), http.MethodGet, u.String(), nil)
-		if err != nil {
+		if req, err = Pin(req, domains); err != nil {
 			return nil, err
 		}
 		req.Header.Set("Accept", "text/html,text/plain,application/json;q=0.9,*/*;q=0.5")
@@ -193,7 +203,7 @@ func Fetch(ctx context.Context, domains []string, page string) (*http.Response, 
 }
 
 // forward carries a plain HTTP proxy request as it is, without hop-by-hop headers either way.
-var forward = &httputil.ReverseProxy{Transport: outbound, Rewrite: func(*httputil.ProxyRequest) {},
+var forward = &httputil.ReverseProxy{Transport: Outbound, Rewrite: func(*httputil.ProxyRequest) {},
 	ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
 		http.Error(w, "deck: "+err.Error(), http.StatusBadGateway)
 	}}

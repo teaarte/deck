@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"deck2/internal/gateway"
 	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -68,7 +69,7 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 	var transport mcp.Transport
 	s.cmd = nil
 	if spec.URL != "" {
-		transport = &mcp.StreamableClientTransport{Endpoint: spec.URL}
+		transport = &mcp.StreamableClientTransport{Endpoint: spec.URL, HTTPClient: gateway.Streams}
 	} else {
 		if spec.Dir != "" {
 			if err := os.MkdirAll(spec.Dir, 0o700); err != nil {

@@ -61,3 +61,26 @@ with urllib.request.urlopen(req, timeout=60) as r:
 		t.Fatalf("text that is not JSON is refused for its field: %d %s", code, out)
 	}
 }
+
+// TestAToolGoesOnlyToTheHostItsManifestWrites: a field in the host of a tool's URL is refused on save; a call goes
+// to the addresses its host resolves to once, and a name of the owner's machine reaches nothing.
+func TestAToolGoesOnlyToTheHostItsManifestWrites(t *testing.T) {
+	t.Parallel()
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/plain": func(int, map[string]any) (int, string, string) { return 200, "application/json", `{"ok": true}` },
+	})
+	e := newEnv(t, nil)
+	code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": jsonToolManifest("http://{host}")})
+	if code != 422 || !strings.Contains(string(out), "cannot fill the host") {
+		t.Fatalf("a field in the host is refused on save: %d %s", code, out)
+	}
+	e.createProject("named", jsonToolManifest(strings.Replace(api.URL, "127.0.0.1", "localhost", 1)))
+	if code, out := e.call("named.plain", map[string]any{}); code != 403 || !strings.Contains(string(out), "not a public address") {
+		t.Fatalf("a name of the owner's machine is refused: %d %s", code, out)
+	}
+	if n := len(api.calls()); n != 0 {
+		t.Fatalf("the refused call reached nothing: %d", n)
+	}
+	e.createProject("web", jsonToolManifest(api.URL))
+	e.must("web.plain", map[string]any{}, nil)
+}

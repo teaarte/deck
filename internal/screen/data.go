@@ -1,95 +1,13 @@
 package screen
 
 import (
-	"cmp"
 	"encoding/json"
 	"fmt"
-	"maps"
-	"math"
-	"net/http"
 	"regexp"
 	"slices"
 
-	"deck2/internal/docs"
 	"deck2/internal/manifest"
-	"deck2/internal/registry"
 )
-
-// file is a line of a media block: the file it names, or why there is none.
-func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
-	line := map[string]any{"id": it["_id"]}
-	if b.Item.Title != "" {
-		if v, err := r.eval(b.Item.Title, it); err == nil && v != nil {
-			line["title"] = fmt.Sprint(v)
-		}
-	}
-	var ref any
-	if b.Item.File != "" {
-		v, err := r.eval(b.Item.File, it)
-		if err != nil {
-			line["error"] = "the file of this line: " + err.Error()
-			return line
-		}
-		ref = v
-	}
-	if ref == nil || ref == "" {
-		icon, err := r.eval(b.Item.Icon, it)
-		if b.Item.Icon == "" || err != nil || icon == nil || icon == "" {
-			line["error"] = "this line names no file and no icon"
-			return line
-		}
-		line["icon"] = fmt.Sprint(icon)
-	} else {
-		f, err := r.src.File(r.ctx, r.req.Project, ref)
-		if err != nil {
-			line["error"] = err.Error()
-			return line
-		}
-		maps.Copy(line, f)
-	}
-	if len(b.Actions) > 0 {
-		id, _ := it["_id"].(int64)
-		if acts, err := r.actions(b.Actions, id, it); err == nil {
-			line["actions"] = acts
-		}
-	}
-	return line
-}
-
-// ChartPoints is the most points a chart draws: the last ones of its source.
-const ChartPoints = 500
-
-// chart is the data of a chart: the x of each item and, by series, its value; a value that is not a number is a gap.
-func (r *renderer) chart(b manifest.Block, items []map[string]any) (map[string]any, error) {
-	if len(items) > ChartPoints {
-		items = items[len(items)-ChartPoints:]
-	}
-	xs := make([]any, 0, len(items))
-	for _, it := range items {
-		x, err := r.eval(b.X, it)
-		if err != nil {
-			return nil, fmt.Errorf("x: %w", err)
-		}
-		xs = append(xs, x)
-	}
-	series := make([]map[string]any, 0, len(b.Series))
-	for _, s := range b.Series {
-		values := make([]any, 0, len(items))
-		for _, it := range items {
-			y, err := r.eval(s.Y, it)
-			if err != nil {
-				return nil, fmt.Errorf("series %q: %w", s.Label, err)
-			}
-			if f, ok := number(y); ok && !math.IsNaN(f) && !math.IsInf(f, 0) {
-				values = append(values, f)
-			} else {
-				values = append(values, nil)
-			}
-		}
-		series = append(series, map[string]any{"label": s.Label, "values": values})
-	}
-	return map[string]any{"x": xs, "series": series}, nil
-}
 
 // empty is the data of a block without items, with the text it shows then.
 func empty(out map[string]any, b manifest.Block) map[string]any {
@@ -346,50 +264,6 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		out["items"] = lines
 	}
 	return out, nil
-}
-
-// document is what a document block shows, read as the viewer: the document id, or the one named, of the record
-// when record is set, with its revisions; a document not written yet comes back empty.
-func (r *renderer) document(record, id int64, name string) (map[string]any, error) {
-	p := r.req.Project
-	in := map[string]any{"document": id, "history": true}
-	if id == 0 {
-		in = map[string]any{"project": p.Name, "name": name, "history": true}
-		if record != 0 {
-			in["record"] = record
-		}
-	}
-	got, err := r.src.Read(r.ctx, documentRead, in, r.scope)
-	d, _ := got.(map[string]any)
-	switch {
-	case id == 0 && registry.Status(err) == http.StatusNotFound:
-		v := map[string]any{"id": 0, "project": p.Name, "name": name, "kind": docs.KindDoc, "text": "", "revision": 0,
-			"editable": docs.Editable(docs.KindDoc, name), "revisions": []map[string]any{}}
-		if record != 0 {
-			v["record"] = record
-		}
-		return v, nil
-	case err != nil:
-		return nil, err
-	case d == nil || d["project"] != p.Name:
-		return nil, fmt.Errorf("no document %d in %s", id, p.Name)
-	}
-	all, _ := d["revisions"].([]any)
-	revs := make([]map[string]any, 0, len(all))
-	for _, rv := range all {
-		if m, ok := rv.(map[string]any); ok {
-			revs = append(revs, map[string]any{"revision": m["revision"], "author": m["author"], "reason": m["reason"], "created_at": m["created_at"]})
-		}
-	}
-	v := map[string]any{"id": d["id"], "project": p.Name, "name": d["name"], "kind": d["kind"], "text": cmp.Or(d["text"], any("")), "revision": d["revision"],
-		"editable": d["editable"], "revisions": revs}
-	if owner, _ := d["owner_kind"].(string); owner != "" {
-		v[owner] = d["owner_id"]
-	}
-	if text, _ := v["text"].(string); r.req.Brief {
-		v["text"], v["size"] = "", len(text)
-	}
-	return v, nil
 }
 
 // lanes are the values a board offers: the options of its move button when it names them, else the enum of its field.

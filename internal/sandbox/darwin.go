@@ -4,13 +4,14 @@ package sandbox
 
 import (
 	"context"
-	"deck2/internal/paths"
 	"fmt"
 	"net"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"deck2/internal/paths"
 )
 
 type seatbelt struct{}

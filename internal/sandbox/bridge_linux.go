@@ -4,7 +4,6 @@ package sandbox
 
 import (
 	"context"
-	"deck2/internal/paths"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	"deck2/internal/paths"
 )
 
 // bridgeArg makes the deck binary, started inside the sandbox, carry a local port to deck's socket.

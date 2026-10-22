@@ -80,7 +80,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   of its scripts, its model calls), Access (folders, secrets, tools, tokens), Health, Files) deck adds
   to every project
 - `internal/manifest` — project manifest (format 13: `upgrade.go` raises older ones): `types.go`, `parse.go`,
-  `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by
+  `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`grants.go`: one table of rights, each with what widens it and how `Clip` cuts it — what is in force widens nothing beyond the grant —; `rights.go` the hosts of agent shells), schemas read through `Props` (`schema.go`), a `where` through `Where`, checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry

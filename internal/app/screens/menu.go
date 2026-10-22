@@ -43,9 +43,11 @@ type menuLink struct {
 }
 
 // menuOut is the navigation of the client: the pulse of the workspace, deck's screens, the projects of the side
-// list but those paused, the master, the groups at the foot, and the event topics after which it is read again.
+// list but those paused, the master, the groups at the foot, the language of the interface the workspace picked, and
+// the event topics after which it is read again.
 type menuOut struct {
 	Pulse    pulse       `json:"pulse"`
+	Language string      `json:"language"`
 	Deck     menuEntry   `json:"deck"`
 	Projects []menuEntry `json:"projects"`
 	Master   *menuEntry  `json:"master,omitempty"`
@@ -72,7 +74,8 @@ type menuIn struct {
 }
 
 func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any, error) {
-	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{}, Topics: menuTopics()}
+	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{}, Topics: menuTopics(),
+		Language: ss.Language(ctx, act.Workspace)}
 	deckWords := words(in.Lang, nil)
 	for _, name := range shipped().Menu {
 		s := DeckScreen(name)

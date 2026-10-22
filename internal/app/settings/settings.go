@@ -5,6 +5,7 @@ package settings
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -61,6 +62,11 @@ func (s *Service) setting(ctx context.Context, workspace int64, name string) any
 		return n
 	}
 	return d.def(s)
+}
+
+// Language is the language of the interface the workspace picked: auto, en or ru.
+func (s *Service) Language(ctx context.Context, workspace int64) string {
+	return fmt.Sprint(s.setting(ctx, workspace, "language"))
 }
 
 // AgentSlots is how many agent turns the workspace runs at once.

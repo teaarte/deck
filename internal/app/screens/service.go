@@ -26,6 +26,8 @@ type Service struct {
 	ScreenFailed func(ctx context.Context, p db.Project, revision int64, name string, errs []string)
 	ScreenDrawn  func(ctx context.Context, p db.Project, name string)
 	File         func(ctx context.Context, p db.Project, ref any) (map[string]any, error)
+	// Language is the language of the interface the workspace picked.
+	Language func(ctx context.Context, workspace int64) string
 }
 
 // Commands are the commands of screens and the menu.

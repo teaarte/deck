@@ -38,7 +38,7 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	e := newEnv(t, nil)
 	for _, name := range []string{"stock", "photos"} {
-		e.createProject(name, fmt.Sprintf(`{"version": 12, "tools": {"http": [
+		e.createProject(name, fmt.Sprintf(`{"version": 13, "tools": {"http": [
     {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL))
 	}
 	e.must("deck.health_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
@@ -57,8 +57,8 @@ func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
-	pid := e.createProject("broken", `{"version": 12}`)
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 12, "nonsense": true}'
+	pid := e.createProject("broken", `{"version": 13}`)
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 13, "nonsense": true}'
 		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 	if h := e.health("command:shorts.factcheck"); h == nil {
 		t.Fatal("a model command no model takes is a row of health")
 	}
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 12, "nonsense": true}'
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 13, "nonsense": true}'
 		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
 		t.Fatal(err)
 	}

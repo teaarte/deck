@@ -19,7 +19,7 @@ import (
 )
 
 func browserManifest(domains string) string {
-	return `{"version": 12,
+	return `{"version": 13,
   "commands": [{"name": "browse", "title": "Browse", "description": "Browses.", "class": "internal",
     "input": {"type": "object", "properties": {"steps": {"type": "string"}}},
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Browse."}}],

@@ -17,7 +17,7 @@ import (
 
 // cascadeModule keeps videos, each with a folder of the data folder its field dir names, the scenes of each video,
 // a script that renders by a record and an agent that watches one.
-const cascadeModule = `{"version": 12,
+const cascadeModule = `{"version": 13,
   "collections": [
     {"name": "videos", "description": "A video.", "key": "slug", "display": "title", "folder": "'videos/' + dir",
       "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}, "dir": {"type": "string"}}, "required": ["slug"]}},

@@ -14,7 +14,7 @@ import (
 )
 
 // shortsModule keeps videos, each with a folder of its own in the data folder, and the scenes of each video.
-const shortsModule = `{"version": 12,
+const shortsModule = `{"version": 13,
   "collections": [
     {"name": "videos", "description": "A video.", "key": "slug", "display": "title", "folder": "'videos/' + slug",
       "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug"]}},

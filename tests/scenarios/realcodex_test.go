@@ -42,7 +42,7 @@ func TestRealCodexQuestion(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
 	e := newEnvWith(t, home, codex.New(home), realWaits)
-	p := e.createProject("ask", `{"version": 12,
+	p := e.createProject("ask", `{"version": 13,
   "commands": [{"name": "work", "title": "Work", "description": "Asks the owner", "class": "internal",
     "result": {"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Ask the owner which color the report should use, with the options red and blue. The result is the color the owner picked."}}]}`)
@@ -104,7 +104,7 @@ func TestRealCodexCommitsInTheFolder(t *testing.T) {
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": "Create the file hello.txt with the text hi in the current folder " +
 			"and commit it with git with the message 'add hello'. The result: markers are the marker words (ALL CAPS words ending in MARK) " +
 			"that appear in your instructions, separated by spaces; commit is the full sha of your commit."}})
-	p := e.createProject("code", `{"version": 12, "commands": [`+string(cmd)+`]}`)
+	p := e.createProject("code", `{"version": 13, "commands": [`+string(cmd)+`]}`)
 	e.must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
 	id := e.run(p, "work")
 	got := e.pollState(id, 6*time.Minute, time.Second, "done", "error")
@@ -138,7 +138,7 @@ func TestRealCodexResolvesItsRunAndKeepsCaches(t *testing.T) {
 	if err := os.WriteFile(secret, []byte("closed"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	p := e.createProject("probe", `{"version": 12,
+	p := e.createProject("probe", `{"version": 13,
   "commands": [{"name": "work", "title": "Work", "description": "Probes the shell", "class": "internal",
     "result": {"type": "object", "required": ["real", "cache", "state"], "properties": {"real": {"type": "string"}, "cache": {"type": "string"}, "state": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Run these shell commands once each, without asking for more rights, and report what each printed. 1. python3 -c \"import os; print(os.path.realpath('.'))\" as real. 2. mkdir -p \"$XDG_CACHE_HOME/probe\" 2>&1 && echo ok > \"$XDG_CACHE_HOME/probe/x\" 2>&1 && cat \"$XDG_CACHE_HOME/probe/x\" as cache, with all it printed. 3. cat `+secret+` as state (empty when it failed)."}}]}`)

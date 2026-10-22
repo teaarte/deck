@@ -20,7 +20,7 @@ import (
 
 // modelManifest is a project with commands of type model: a fact check by a schema, a picture, speech and the
 // words of a recording.
-const modelManifest = `{"version": 12,
+const modelManifest = `{"version": 13,
   "commands": [
     {"name": "factcheck", "title": "Fact check", "description": "Checks a claim.", "class": "internal",
      "input": {"type": "object", "properties": {"claim": {"type": "string"}}, "required": ["claim"]},
@@ -640,7 +640,7 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "chat", "api": "openai", "url": srv.URL + "/chat/v1"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "media", "model": "flux-edit", "kind": "image"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "chat", "model": "gemini-image", "kind": "image"}, nil)
-	e.createProject("shorts", `{"version": 12, "commands": [
+	e.createProject("shorts", `{"version": 13, "commands": [
 	  {"name": "redraw", "title": "Redraw", "description": "Edits a picture.", "class": "internal",
 	   "input": {"type": "object", "properties": {"picture": {"type": "string", "format": "file"}}, "required": ["picture"]},
 	   "executor": {"type": "model", "kind": "image", "prompt": "Make the cube blue.", "options": {"steps": 4}}}]}`)

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"deck2/internal/manifest"
-	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -121,7 +120,7 @@ func (s *Service) planned(ctx context.Context, workspace int64, in assignmentSet
 			if cmd == nil {
 				continue
 			}
-			if missing := pv.Caps().Missing(cmd.Needs()); len(missing) > 0 {
+			if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
 				return 0, nil, registry.Invalid("deck: provider %s does not fit %s.%s: it lacks %s", name, in.Project, in.Command, strings.Join(missing, ", "))
 			}
 			continue
@@ -247,12 +246,12 @@ func (s *Service) before(ctx context.Context, workspace, project int64, command,
 	}
 	return slices.DeleteFunc(names, func(name string) bool {
 		pv, err := s.Provider(ctx, workspace, name)
-		return err != nil || len(pv.Caps().Missing(cmd.Needs())) > 0
+		return err != nil || len(pv.Caps().Missing(cmd.Requires)) > 0
 	}), nil
 }
 
 // Unassigned are the commands of a manifest that miss a model, by name, with what the owner does: an agent command no
-// provider fits or that lacks deck's web on an ACP agent, or a model command whose role has nothing assigned.
+// provider fits or that calls deck.web_search on an ACP agent without a search, a model command with nothing assigned.
 func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string {
 	out := map[string]string{}
 	for _, c := range m.Commands {
@@ -261,17 +260,11 @@ func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *m
 			_, fits, _, err := s.fitting(ctx, project, &c)
 			if errors.As(err, &refused) {
 				out[c.Name] = refused.Text
-			} else if err == nil && !m.NoNetwork && slices.Contains(c.Requires, provider.Web) {
+			} else if err == nil && !m.NoNetwork && c.Executor.Calls != nil && registry.Permits(c.Executor.Calls, registry.Builtin+".web_search") {
 				// The first model that fits, as health tells of the assignment and not of who is up now.
 				search, _ := Assigned(ctx, s.St.Q, workspace, project, c.Name, RoleSearch)
-				pv := fits[0]
-				switch {
-				case !s.inAgent(ctx, workspace, pv.Name()):
-				case c.Executor.Calls != nil && !registry.Permits(c.Executor.Calls, registry.Builtin+".web_search") &&
-					!registry.Permits(c.Executor.Calls, registry.Builtin+".web_fetch"):
-					out[c.Name] = "it needs the web and runs on " + pv.Name() + ", whose web is deck's, but its calls list neither deck.web_search nor deck.web_fetch"
-				case len(search) == 0:
-					out[c.Name] = "it needs the web and runs on " + pv.Name() + ", whose web is deck's: " + noSearch
+				if pv := fits[0]; len(search) == 0 && s.inAgent(ctx, workspace, pv.Name()) {
+					out[c.Name] = "it calls deck.web_search and runs on " + pv.Name() + ", whose web is deck's: " + noSearch
 				}
 			}
 			continue

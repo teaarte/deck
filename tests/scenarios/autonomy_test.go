@@ -111,7 +111,7 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	}
 }
 
-const noNetworkManifest = `{"version": 12, "no_network": true,
+const noNetworkManifest = `{"version": 13, "no_network": true,
   "commands": [{"name": "work", "title": "Work", "description": "Does work", "class": "internal",
     "executor": {"type": "agent", "prompt": "Do the work."}}]}`
 
@@ -153,37 +153,9 @@ func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
 	if rev := e.manifestRevision("health"); rev != 1 {
 		t.Fatalf("the project stays without network until the owner allows: revision %d", rev)
 	}
-	web := strings.Replace(noNetworkManifest, `"class": "internal",`, `"class": "internal", "requires": ["web"],`, 1)
-	if code, out := e.call("deck.manifest_save", map[string]any{"project": "health", "manifest": web}); code != 422 || !strings.Contains(string(out), "requires web") {
-		t.Fatalf("a command of a project without network cannot require web: %d %s", code, out)
-	}
 	e.must("deck.manifest_save", map[string]any{"project": "health", "manifest": open}, nil)
 	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "health", "manifest": noNetworkManifest}); code != 200 || strings.Contains(string(out), "waiting") {
 		t.Fatalf("setting no_network narrows rights and applies at once: %d %s", code, out)
-	}
-}
-
-func TestShellAndWebCommandsTakeOnlyAProviderInAutoModeWithItsWeb(t *testing.T) {
-	t.Parallel()
-	c := newCLI(t)
-	e, _ := cliEnv(t, c)
-	for _, req := range []string{`["sandbox"]`, `["web"]`} {
-		m := strings.Replace(plainManifest, `"class": "internal",`, `"class": "internal", "requires": `+req+`,`, 1)
-		e.createProject("p"+fmt.Sprint(len(req)), m)
-		var list []struct {
-			Name    string
-			Choices []string
-		}
-		e.must("deck.commands_list", map[string]any{"project": "p" + fmt.Sprint(len(req))}, &list)
-		i := slices.IndexFunc(list, func(c struct {
-			Name    string
-			Choices []string
-		}) bool {
-			return strings.HasSuffix(c.Name, ".work")
-		})
-		if i < 0 || !slices.Contains(list[i].Choices, "claude-code") {
-			t.Fatalf("requires %s: only a provider with a shell in auto mode and its own web fits: %+v", req, list)
-		}
 	}
 }
 

@@ -96,9 +96,7 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	if proj.Builtin == 0 && slices.Contains(tools, "document_save") {
 		p += writable(t.m)
 	}
-	if slices.Contains(t.pv.Caps(), provider.Sandbox) {
-		p += "\nThe data folder of this project keeps indexes, caches and state between runs: " + data + "\n"
-	}
+	p += "\nThe data folder of this project keeps indexes, caches and state between runs: " + data + "\n"
 	if t.folder != "" {
 		p += "\nYou work in the project folder " + t.folder + ": the owner's own folder, not a scratch copy. No other agent of deck works in it while you do.\n"
 	}

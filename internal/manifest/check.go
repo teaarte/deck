@@ -134,9 +134,6 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 			fail("command %q: duplicate", c.Name)
 		}
 		m.commands[c.Name] = c
-		if m.NoNetwork && slices.Contains(c.Requires, "web") {
-			fail("command %q requires web, but agents of a no_network project have none", c.Name)
-		}
 		if m.NoNetwork && slices.Contains(c.Requires, "local_browser") {
 			fail("command %q requires local_browser, but the shells of a no_network project are confined", c.Name)
 		}

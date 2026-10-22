@@ -149,7 +149,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		t.Fatalf("removed trigger must be dropped, got %+v", ts)
 	}
 
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": `{"version": 12, "commands": [{"name": "x"}]}`})
+	code, out := e.call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": `{"version": 13, "commands": [{"name": "x"}]}`})
 	if code != 422 || !strings.Contains(string(out), "title") || !strings.Contains(string(out), "executor") {
 		t.Fatalf("invalid manifest: want 422 with reason, got %d %s", code, out)
 	}
@@ -523,7 +523,7 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
 	cmd := strings.Replace(agentCommand("tune", `{"type": "object", "properties": {"level": {"type": "string"}}}`), `"executor":`, `"callers": ["owner"], "executor":`, 1)
-	e.createProject("radio", fmt.Sprintf(`{"version": 12, "commands": [%s, %s],
+	e.createProject("radio", fmt.Sprintf(`{"version": 13, "commands": [%s, %s],
   "screens": [{"name": "main", "title": "Main", "params": {"level": "string"}, "blocks": [
     {"type": "dialog", "name": "tune", "title": "Tune", "blocks": [{"type": "form", "command": "tune", "values": {"level": "=param.level"}}]}]}]}`,
 		cmd, agentCommand("play", "")))

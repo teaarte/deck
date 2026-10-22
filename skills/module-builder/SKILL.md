@@ -541,21 +541,20 @@ skills it needs in `executor.skills`; a skill may not grant tools (`allowed-tool
 from deck.
 
 The owner picks the models of each agent command in settings (`assignment_set`); the manifest only says
-what the command needs and suggests one. `requires` lists capabilities, and usually only two matter:
-`no_cloud` for personal data (finance, health) that must stay on the owner's hardware, and `sandbox` when the
-agent must run shell commands or write files. `local_browser` is for a shell that starts a local browser or
-listens on a port (a Remotion still or render, a headless Chrome): only Claude Code in a project with network has
-it, so Codex and ACP agents are not offered for such a command; the sandbox of Codex refuses to start a browser (a provider in auto mode, or a model the owner runs in an ACP agent
-inside deck's sandbox). The two go together:
-a local model in an ACP agent has a shell and stays on the owner's hardware. `web` decides only which provider may run the command: an agent on Claude Code or Codex
-searches with its own web whether or not it is required; a model in an ACP agent (a free or local one) has deck's
+what the command needs and suggests one. Every provider has deck's tools, a shell and file writes in its auto
+mode, the web and a project folder; `requires` lists only what some lack: `no_cloud` for personal data (finance,
+health) that must stay on the owner's hardware, `images` for a model that reads pictures, and `local_browser` for a
+shell that starts a local browser or listens on a port (a Remotion still or render, a headless Chrome): only Claude
+Code in a project with network has it, so Codex and ACP agents are not offered for such a command; the sandbox of
+Codex refuses to start a browser. A local model in an ACP agent has a shell and stays on the owner's hardware. An
+agent on Claude Code or Codex searches with its own web; a model in an ACP agent (a free or local one) has deck's
 `web_search` (the search service of deck's settings, SearXNG) and `web_fetch` (pages of `domains.read` as text, any
-with `"*"`). Require it when the agent's result is wrong without its own research (reading
-changelogs or news it cannot know in advance); the prompt of such a command names `web_search` and `web_fetch`, so
-a model in an ACP agent knows to use them. Leave it out when a script brings the pages the agent judges, which is
-cheaper. Fetching known pages belongs in a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
-runs the same way every time and works with any provider. Do not require `tools` or `structured_output`: every provider has deck's tools and hands in the result, and a
-requirement a local model lacks keeps routine work off it. `commands_list` gives each agent command the
+with `"*"`). When the agent's result is wrong without its own research (changelogs or news it cannot know in
+advance), the prompt of the command names `web_search` and `web_fetch`, so a model in an ACP agent knows to use them,
+and `calls` lists them if the command lists its calls. Leave the web out when a script brings the pages the agent
+judges, which is cheaper. Fetching known pages belongs in a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
+runs the same way every time and works with any provider. A requirement a local model lacks keeps routine work off
+it. `commands_list` gives each agent command the
 providers that fit it. `provider` suggests a provider by
 name — routine judgement suits a local model in an ACP agent (the name the owner gave it, from
 `models_list`), heavy reasoning Claude Code or Codex. Write the

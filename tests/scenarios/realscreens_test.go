@@ -819,7 +819,7 @@ try { const f = frame("root", document.createElement(F)); document.removeChild(d
 }
 
 const readableManifest = `{
-  "version": 12,
+  "version": 13,
   "collections": [{"name": "jobs", "description": "Jobs", "key": "name", "display": "name", "schema": {"type": "object", "required": ["name"],
     "properties": {"name": {"type": "string"}, "status": {"type": "string"}, "why": {"type": "string"}, "note": {"type": "string"},
       "owner": {"type": "string"}, "host": {"type": "string"}, "region": {"type": "string"}, "started": {"type": "string"}}}}],

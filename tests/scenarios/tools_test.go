@@ -15,7 +15,7 @@ import (
 )
 
 func toolManifest(url, extra string) string {
-	return fmt.Sprintf(`{"version": 12,
+	return fmt.Sprintf(`{"version": 13,
   "commands": [
     {"name": "fetch", "title": "Fetch", "description": "Fetches a picture.", "class": "internal",
      "input": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "string"}}},
@@ -114,7 +114,7 @@ func TestAReversibleCommandRunsAtOnceAndFormatNineHasNoAutonomy(t *testing.T) {
 	screen := `, "collections": [{"name": "items", "description": "Items.", "key": "kind", "schema": {"type": "object", "properties": {"kind": {"type": "string"}}}}],
   "screens": [{"name": "items", "title": "Items", "blocks": [{"type": "table", "source": {"collection": "items"},
     "columns": [{"label": "Kind", "bind": "kind", "format": "label"}]}]}]`
-	eight := strings.Replace(toolManifest("http://127.0.0.1:1", `, "autonomy": "suggest"`+screen), `"version": 12,`, `"version": 8,`, 1)
+	eight := strings.Replace(toolManifest("http://127.0.0.1:1", `, "autonomy": "suggest"`+screen), `"version": 13,`, `"version": 8,`, 1)
 	p := e.createProject("notes", eight)
 	e.waitState(e.run(p, "work"), "done", "waiting_answer")
 	if !strings.Contains(out, `"process"`) {
@@ -123,9 +123,9 @@ func TestAReversibleCommandRunsAtOnceAndFormatNineHasNoAutonomy(t *testing.T) {
 	if code, body := e.call("deck.screen", map[string]any{"project": "notes", "screen": "items"}); code != 200 || strings.Contains(string(body), `"label"},`) {
 		t.Fatalf("the screen of format 8 shows without the cell format label: %d %s", code, body)
 	}
-	nine := strings.Replace(toolManifest("http://127.0.0.1:1", ""), `"version": 12,`, `"version": 12,`, 1)
+	nine := strings.Replace(toolManifest("http://127.0.0.1:1", ""), `"version": 13,`, `"version": 13,`, 1)
 	for _, extra := range []string{`"autonomy": "auto", `, `"autonomy": "suggest", `} {
-		if code, body := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(nine, `"version": 12,`, `"version": 12, `+extra, 1)}); code != 422 || !strings.Contains(string(body), "autonomy") {
+		if code, body := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(nine, `"version": 13,`, `"version": 13, `+extra, 1)}); code != 422 || !strings.Contains(string(body), "autonomy") {
 			t.Fatalf("format 9 has no autonomy: %d %s", code, body)
 		}
 	}
@@ -144,12 +144,12 @@ func TestHTTPToolTemplatesStayOnTheirHost(t *testing.T) {
 		{`{"name": "t", "description": "d", "method": "GET", "url": "https://a.com/{id}"}`, "{id} is not an input field"},
 		{`{"name": "t", "description": "d", "method": "GET", "url": "ftp://a.com/x"}`, "absolute http"},
 	} {
-		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": `{"version": 12, "tools": {"http": [` + c.tool + `]}}`})
+		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": `{"version": 13, "tools": {"http": [` + c.tool + `]}}`})
 		if code != 422 || !strings.Contains(string(out), c.want) {
 			t.Fatalf("%s: want 422 with %q, got %d %s", c.tool, c.want, code, out)
 		}
 	}
-	unfit := `{"version": 12, "commands": [{"name": "c", "title": "C", "description": "d", "class": "external",
+	unfit := `{"version": 13, "commands": [{"name": "c", "title": "C", "description": "d", "class": "external",
     "input": {"type": "object", "properties": {"other": {"type": "string"}}}, "executor": {"type": "tool", "tool": "t"}}],
   "tools": {"http": [{"name": "t", "description": "d", "method": "POST", "url": "https://a.com/x",
     "input": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}}]}}`
@@ -177,7 +177,7 @@ func TestHTTPToolKeepsSecretsInItsOwnHeaders(t *testing.T) {
 	e := newEnv(t, nil)
 	e.must("deck.secret_set", map[string]any{"name": "k", "value": "the-key"}, nil)
 	e.must("deck.secret_set", map[string]any{"name": "other", "value": "other-key"}, nil)
-	e.createProject("svc", fmt.Sprintf(`{"version": 12, "tools": {"http": [
+	e.createProject("svc", fmt.Sprintf(`{"version": 13, "tools": {"http": [
     {"name": "echo", "description": "d", "method": "GET", "url": "%[1]s/echo", "class": "internal",
      "headers": {"X-Key": "$secret.k", "X-Title": "{title}"}, "input": {"type": "object", "properties": {"title": {"type": "string"}}}},
     {"name": "moved", "description": "d", "method": "GET", "url": "%[1]s/moved", "class": "internal", "headers": {"X-Key": "$secret.k"}},
@@ -209,7 +209,7 @@ func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 	e := newEnv(t, nil)
 	e.must("deck.secret_set", map[string]any{"name": "cid", "value": "c"}, nil)
 	e.must("deck.secret_set", map[string]any{"name": "csec", "value": "s"}, nil)
-	e.createProject("stock", fmt.Sprintf(`{"version": 12, "tools": {"http": [
+	e.createProject("stock", fmt.Sprintf(`{"version": 13, "tools": {"http": [
     {"name": "photos", "description": "d", "method": "GET", "url": "%[1]s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}},
     {"name": "signed", "description": "d", "method": "GET", "url": "%[1]s/s", "class": "internal", "auth": {"type": "oauth2",
      "auth_url": "https://auth.example/a", "token_url": "https://auth.example/t", "client_id": "cid", "client_secret": "csec", "token": "tok"}}]}}`, svc.URL))
@@ -328,7 +328,7 @@ func TestSecretEchoedByAServiceNeverReachesTheAgent(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	})
 	e.must("deck.secret_set", map[string]any{"name": "svc", "value": key}, nil)
-	m := strings.Replace(postManifest(svc.URL, ""), `{"version": 12,`, `{"version": 12, "allowed_external": ["post"],`, 1)
+	m := strings.Replace(postManifest(svc.URL, ""), `{"version": 13,`, `{"version": 13, "allowed_external": ["post"],`, 1)
 	id := e.run(e.createProject("notes", m), "work")
 	e.waitState(id, "done")
 	mu.Lock()

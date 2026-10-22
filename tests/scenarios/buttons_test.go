@@ -48,7 +48,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	e.createProject("notes", `{"version": 12,
+	e.createProject("notes", `{"version": 13,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
@@ -108,7 +108,7 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 	}
 }
 
-const fixedClips = `{"version": 12,
+const fixedClips = `{"version": 13,
   "collections": [{"name": "clips", "description": "Clips", "key": "slug", "display": "title",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug"]}}],
   "commands": [{"name": "retitle", "title": "Retitle", "description": "Retitles a clip.", "class": "internal", "result": {"type": "object"},

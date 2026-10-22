@@ -30,11 +30,10 @@ func goose(l Launch) ([]string, []string) {
 	return []string{l.Binary, "acp"}, env
 }
 
-// caps are what every ACP agent does inside the sandbox of deck; its web is deck's web_search and web_fetch.
+// caps are what an ACP agent has beyond every provider: a model on the owner's hardware.
 func caps(noCloud bool) provider.Caps {
-	c := provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Folder, provider.Web}
 	if noCloud {
-		c = append(c, provider.NoCloud)
+		return provider.Caps{provider.NoCloud}
 	}
-	return c
+	return nil
 }

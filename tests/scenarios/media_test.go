@@ -11,7 +11,7 @@ import (
 )
 
 // videosManifest is a module of short videos: a media block plays each video in the browser's own player.
-const videosManifest = `{"version": 12,
+const videosManifest = `{"version": 13,
   "collections": [{"name": "videos", "description": "Videos", "key": "slug", "display": "slug",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "file": {"type": "string"}, "length": {"type": "number"}}, "required": ["slug"]}}],
   "screens": [{"name": "watch", "title": "Watch", "blocks": [
@@ -25,7 +25,7 @@ const videosManifest = `{"version": 12,
 
 // unused are the parts of format 11 no module used, each as a change of videosManifest; format 12 has none of them.
 var unused = [][2]string{
-	{`{"version": 12,`, `{"version": 12, "master_errors": false,`},
+	{`{"version": 13,`, `{"version": 13, "master_errors": false,`},
 	{`"display": "slug",`, `"display": "slug", "file_retention_days": 10,`},
 	{`"item": {"file": "file", "title": "slug"}}`, `"item": {"file": "file", "title": "slug", "marks": "marks"},
       "mark": {"verb": "mark", "command": "note", "params": {"video": "=slug"}, "input": "note"}}`},
@@ -48,7 +48,7 @@ func TestAStoredManifestOfFormat11IsReadWithoutWhatNoModuleUsed(t *testing.T) {
 	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "eu-solar.webm"), []byte("webm"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
-	old := strings.Replace(videosManifest, `{"version": 12,`, `{"version": 11,`, 1)
+	old := strings.Replace(videosManifest, `{"version": 13,`, `{"version": 11,`, 1)
 	for _, u := range unused {
 		old = strings.Replace(old, u[0], u[1], 1)
 	}
@@ -64,7 +64,7 @@ func TestAStoredManifestOfFormat11IsReadWithoutWhatNoModuleUsed(t *testing.T) {
 			t.Fatalf("format 11 comes up to 12 without %s:\n%s", gone, got.Manifest)
 		}
 	}
-	for _, kept := range []string{`"version": 12`, `"format": "duration"`, `"kind": "line"`, `"label": "Again"`, `"reads"`} {
+	for _, kept := range []string{`"version": 13`, `"format": "duration"`, `"kind": "line"`, `"label": "Again"`, `"reads"`} {
 		if !strings.Contains(got.Manifest, kept) {
 			t.Fatalf("format 11 comes up to 12 with %s:\n%s", kept, got.Manifest)
 		}

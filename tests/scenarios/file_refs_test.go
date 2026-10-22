@@ -13,7 +13,7 @@ import (
 )
 
 // pictureModule is a module whose model command draws a picture, and a collection of pictures a media block shows.
-const pictureModule = `{"version": 12,
+const pictureModule = `{"version": 13,
   "collections": [{"name": "pics", "description": "Pictures", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "file": {}}, "required": ["title"]}}],
   "commands": [

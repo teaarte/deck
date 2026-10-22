@@ -68,7 +68,7 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 }
 
 const grantManifest = `{
-  "version": 12,
+  "version": 13,
   "domains": {"read": ["a.example"]},
   "writes": [],
   "commands": [{

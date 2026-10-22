@@ -208,7 +208,7 @@ func TestAToolCommandOfAModuleDoesNotClearAnAssignment(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	e.createProject("shorts", plainManifest)
-	e.createProject("picker", `{"version": 12,
+	e.createProject("picker", `{"version": 13,
   "commands": [{"name": "propose", "title": "Propose", "description": "Proposes an assignment.", "class": "external",
     "input": {"type": "object", "properties": {"role": {"type": "string"}, "project": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}}}, "required": ["role"]},
     "executor": {"type": "tool", "tool": "deck.assignment_set"}}],

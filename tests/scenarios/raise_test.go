@@ -42,7 +42,7 @@ func TestDeckStoresTheManifestsOfAnOlderFormatRaisedOnce(t *testing.T) {
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	p := e.createProject("ideas", ideasManifest)
-	older := []byte(strings.Replace(ideasManifest, `"version": 12,`, `"version": 4,`, 1))
+	older := []byte(strings.Replace(ideasManifest, `"version": 13,`, `"version": 4,`, 1))
 	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		_, _, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.Scope{Workspace: 1, Project: p}, Name: docs.ManifestName}, docs.KindManifest, string(older), "deck", "an older deck")
 		return err
@@ -85,7 +85,7 @@ func TestAModuleOfAnOlderFormatImportsInTheCurrentOne(t *testing.T) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	w, _ := zw.Create("ideas/manifest.json")
-	_, _ = w.Write([]byte(strings.Replace(ideasManifest, `"version": 12,`, `"version": 4,`, 1)))
+	_, _ = w.Write([]byte(strings.Replace(ideasManifest, `"version": 13,`, `"version": 4,`, 1)))
 	if err := zw.Close(); err != nil {
 		t.Fatal(err)
 	}

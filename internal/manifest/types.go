@@ -9,7 +9,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const FormatVersion = 12
+const FormatVersion = 13
 
 type Manifest struct {
 	Version         int          `json:"version"`
@@ -116,15 +116,6 @@ type Command struct {
 
 	input  *jsonschema.Schema
 	result *jsonschema.Schema
-}
-
-// Needs are the capabilities a provider must have to run the command: what it requires, and folder for one that
-// works in a project folder.
-func (c *Command) Needs() []string {
-	if c.Executor.Folder.IsZero() || slices.Contains(c.Requires, "folder") {
-		return c.Requires
-	}
-	return append(slices.Clone(c.Requires), "folder")
 }
 
 type Executor struct {

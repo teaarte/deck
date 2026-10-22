@@ -57,8 +57,7 @@ func (a *Adapter) Terminal(session string) (string, error) {
 }
 
 func (a *Adapter) Caps() provider.Caps {
-	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput,
-		provider.Web, provider.Folder, provider.LiveInput, provider.LocalBrowser}
+	return provider.Caps{provider.Images, provider.StructuredOutput, provider.LiveInput, provider.LocalBrowser}
 }
 
 func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []string {

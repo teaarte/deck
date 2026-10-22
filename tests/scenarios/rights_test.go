@@ -12,7 +12,7 @@ import (
 )
 
 // studioModule has one agent command that edits the code of the module.
-const studioModule = `{"version": 12,
+const studioModule = `{"version": 13,
   "writes": ["code/"],
   "commands": [
     {"name": "build", "title": "Build", "description": "Edits the code.", "class": "internal",
@@ -136,7 +136,7 @@ func TestAnAgentDeletesTheRecordsOfItsOwnProject(t *testing.T) {
 	}
 }
 
-const probeModule = `{"version": 12,
+const probeModule = `{"version": 13,
   "commands": [{"name": "probe", "title": "Probe", "description": "Reads settings.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "script", "script": "probe"}}],
   "scripts": [{"name": "probe", "file": "scripts/probe.py", "runtime": "python"}]}`

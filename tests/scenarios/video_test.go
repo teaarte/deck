@@ -16,7 +16,7 @@ import (
 	"deck2/internal/provider"
 )
 
-const videoManifest = `{"version": 12,
+const videoManifest = `{"version": 13,
   "commands": [
     {"name": "clip", "title": "Clip", "description": "Brings a scene to life.", "class": "internal",
      "input": {"type": "object", "properties": {"scene": {"type": "string"}, "first_frame": {"type": "string", "format": "file"},
@@ -189,7 +189,7 @@ func TestALongCallOfAnAgentTellsItThatItStillRuns(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan", "kind": "video", "call_usd": 0.1}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "video", "models": []string{"wan"}}, nil)
-	e.createProject("studio", `{"version": 12, "models": ["@video"], "commands": [{"name": "animate", "title": "Animate",
+	e.createProject("studio", `{"version": 13, "models": ["@video"], "commands": [{"name": "animate", "title": "Animate",
 	  "description": "Brings a scene to life.", "class": "internal", "executor": {"type": "agent", "prompt": "Make the clip."}}]}`)
 	if got := e.waitState(e.start("studio", "animate", map[string]any{}), "done", "error"); got.State != "done" || bad || !strings.Contains(out, `"type":"video/mp4"`) {
 		t.Fatalf("the agent gets the clip: %+v %s", got, out)

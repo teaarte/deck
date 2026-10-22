@@ -18,7 +18,7 @@ import (
 )
 
 const draftManifest = `{
-  "version": 12,
+  "version": 13,
   "commands": [
     {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {}},
      "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object"}},
@@ -338,9 +338,9 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 func TestTheProjectShowsAgentsReachTheWholeNetwork(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	e.createProject("open", `{"version": 12, "domains": {"read": ["example.com"]}, "commands": [`+agentCommand("work", "")+`]}`)
-	e.createProject("closed", `{"version": 12, "no_network": true, "commands": [`+agentCommand("work", "")+`]}`)
-	e.createProject("empty", `{"version": 12}`)
+	e.createProject("open", `{"version": 13, "domains": {"read": ["example.com"]}, "commands": [`+agentCommand("work", "")+`]}`)
+	e.createProject("closed", `{"version": 13, "no_network": true, "commands": [`+agentCommand("work", "")+`]}`)
+	e.createProject("empty", `{"version": 13}`)
 	var ps []struct{ Name, Network string }
 	e.must("deck.projects_list", map[string]any{}, &ps)
 	for _, p := range ps {

@@ -124,10 +124,10 @@ func TestAZipThatLeavesItsFolderIsRefused(t *testing.T) {
 		return buf.String()
 	}
 	for _, evil := range []string{"../evil.md", "a/../../evil.md", "/etc/evil.md"} {
-		id := e.upload("", "evil.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 12}`, evil: "x"}))
+		id := e.upload("", "evil.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, evil: "x"}))
 		e.refused("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, 422, "leaves the module folder")
 	}
-	id := e.upload("", "plain.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 12}`, ".hidden/x.md": "x", "__MACOSX/._manifest.json": "x"}))
+	id := e.upload("", "plain.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, ".hidden/x.md": "x", "__MACOSX/._manifest.json": "x"}))
 	var im struct{ Name string }
 	e.must("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, &im)
 	if im.Name != "plain" {

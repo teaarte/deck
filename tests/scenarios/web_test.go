@@ -69,9 +69,9 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 	})
 	e.useSearch("searxng", search.URL)
 	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
-	open := `{"version": 12, "domains": {"read": ["127.0.0.1"]}, "commands": [` + agentCommand("look", "") + `]}`
+	open := `{"version": 13, "domains": {"read": ["127.0.0.1"]}, "commands": [` + agentCommand("look", "") + `]}`
 	e.waitState(e.run(e.createProject("open", open), "look"), "done")
-	closed := `{"version": 12, "no_network": true, "commands": [` + agentCommand("hide", "") + `]}`
+	closed := `{"version": 13, "no_network": true, "commands": [` + agentCommand("hide", "") + `]}`
 	e.waitState(e.run(e.createProject("closed", closed), "hide"), "done")
 
 	mu.Lock()
@@ -122,12 +122,12 @@ func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 	}
 }
 
-// TestAModelInAnAgentTakesWorkThatNeedsTheWeb: an ACP agent has the web through deck, so a command that requires it
-// may run there; until a search is set up its health says the agent only reads pages.
-func TestAModelInAnAgentTakesWorkThatNeedsTheWeb(t *testing.T) {
+// TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp: an ACP agent has the web through deck; until a search is
+// set up the health of a command that calls deck.web_search there says the agent only reads pages.
+func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
 	e := acpEnv(t, newACP(t), "goose", acpLLM(t))
-	scout := strings.Replace(agentCommand("scout", ""), `"class": "internal"`, `"class": "internal", "requires": ["web"]`, 1)
-	e.createProject("scout", `{"version": 12, "commands": [`+scout+`]}`)
+	scout := strings.Replace(agentCommand("scout", ""), `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.web_search"]`, 1)
+	e.createProject("scout", `{"version": 13, "commands": [`+scout+`]}`)
 	e.useModels("scout.scout", "acp")
 	warned := func() string {
 		var rows []struct{ Subject, Error string }
@@ -148,11 +148,6 @@ func TestAModelInAnAgentTakesWorkThatNeedsTheWeb(t *testing.T) {
 	if w := warned(); w != "" {
 		t.Fatalf("with a search the command is healthy: %q", w)
 	}
-	listed := strings.Replace(scout, `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.records_list"]`, 1)
-	e.must("deck.manifest_save", map[string]any{"project": "scout", "manifest": `{"version": 12, "commands": [` + listed + `]}`}, nil)
-	if w := warned(); !strings.Contains(w, "neither deck.web_search nor deck.web_fetch") {
-		t.Fatalf("a command whose calls leave the web of deck out says so: %q", w)
-	}
 }
 
 // TestATrialSearchesOnlyThroughALocalOrFreeService: a trial does not spend on a paid search, and @search is no model
@@ -169,7 +164,7 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "paid", "api": "raw", "url": search.URL}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "paid", "model": "paid", "name": "paid", "kind": "search", "call_usd": 0.01}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"paid"}}, nil)
-	e.createProject("sketch", `{"version": 12, "commands": [`+agentCommand("look", "")+`]}`)
+	e.createProject("sketch", `{"version": 13, "commands": [`+agentCommand("look", "")+`]}`)
 	var try struct{ Process int64 }
 	e.must("deck.command_try", map[string]any{"live": true, "command": "sketch.look"}, &try)
 	e.waitState(try.Process, "done")

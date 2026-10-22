@@ -45,7 +45,7 @@ func TestTheOwnerDeletesARecordFromAButtonOfItsModule(t *testing.T) {
 }
 
 // boardManifest is a module whose tasks move across the lanes of their status.
-const boardManifest = `{"version": 12, "i18n": {"ru": {"doing": "в работе"}},
+const boardManifest = `{"version": 13, "i18n": {"ru": {"doing": "в работе"}},
   "collections": [{"name": "tasks", "description": "Tasks.", "key": "title", "schema": {"type": "object",
     "properties": {"title": {"type": "string"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}],
   "commands": [{"name": "move", "title": "Move", "description": "Moves a task.", "class": "internal",

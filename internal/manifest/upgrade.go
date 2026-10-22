@@ -59,6 +59,13 @@ var upgrades = map[int]func(m map[string]any){
 		}
 		dropUnused(m["screens"])
 	},
+	12: func(m map[string]any) {
+		for _, c := range items(m["commands"]) {
+			reqs, _ := c["requires"].([]any)
+			c["requires"] = slices.DeleteFunc(reqs, func(r any) bool { return !slices.Contains([]any{"images", "no_cloud", "local_browser"}, r) })
+			dropEmpty(c, "requires")
+		}
+	},
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
 			r, ok := c["result"].(map[string]any)

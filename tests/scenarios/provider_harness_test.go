@@ -72,8 +72,6 @@ type Fake struct {
 	noQuestions bool
 	// question is the name of the question tool of the provider; AskUserQuestion when empty.
 	question string
-	// noFolder is a provider that cannot work in a folder of the owner.
-	noFolder bool
 	// name is the provider name; "fake" when empty.
 	name string
 	// live is a provider that takes the owner's messages into a running turn on Req.Live.
@@ -101,10 +99,7 @@ func (f *Fake) Name() string {
 }
 
 func (f *Fake) Caps() provider.Caps {
-	c := provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput}
-	if !f.noFolder {
-		c = append(c, provider.Folder)
-	}
+	c := provider.Caps{provider.Images, provider.StructuredOutput}
 	if f.live {
 		c = append(c, provider.LiveInput)
 	}

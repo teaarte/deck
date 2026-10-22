@@ -257,7 +257,7 @@ func TestTheHelpersOfTheSkillRunAsScripts(t *testing.T) {
 			e.must("deck.document_get", map[string]any{"name": "skills/module-builder/helpers/" + c.file}, &doc)
 			name := "h" + c.runtime
 			script := "scripts/main" + filepath.Ext(c.file)
-			e.createProject(name, fmt.Sprintf(`{"version": 12,
+			e.createProject(name, fmt.Sprintf(`{"version": 13,
   "commands": [{"name": "step", "title": "Step", "description": "Adds a value.", "class": "internal",
     "input": {"type": "object", "properties": {"record": {"type": "integer"}, "value": {"type": "string"}}},
     "result": {"type": "object"}, "executor": {"type": "script", "script": "main"}}],

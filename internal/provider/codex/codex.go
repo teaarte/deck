@@ -54,7 +54,7 @@ func (a *Adapter) QuestionTool() string { return provider.AskTool }
 func (a *Adapter) OnSubscription() {}
 
 func (a *Adapter) Caps() provider.Caps {
-	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Web, provider.Folder, provider.LiveInput}
+	return provider.Caps{provider.LiveInput}
 }
 
 func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Result, error) {

@@ -51,7 +51,7 @@ func (s *Service) Able(ctx context.Context, workspace int64, cmd *manifest.Comma
 	all, _ := s.All(ctx, workspace)
 	out := []string{}
 	for _, pv := range all {
-		if len(pv.Caps().Missing(cmd.Needs())) == 0 {
+		if len(pv.Caps().Missing(cmd.Requires)) == 0 {
 			out = append(out, pv.Name())
 		}
 	}
@@ -80,7 +80,7 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 	if err != nil {
 		return 0, nil, false, err
 	}
-	place, requires := p.Name+"."+cmd.Name, cmd.Needs()
+	place, requires := p.Name+"."+cmd.Name, cmd.Requires
 	names, err := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, cmd.Name, RoleAgent)
 	if err != nil {
 		return 0, nil, false, err

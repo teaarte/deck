@@ -129,17 +129,8 @@ type Usage struct {
 
 // Capabilities a manifest command may require of its provider.
 const (
-	Tools = "tools"
-	// Sandbox is a shell and file writes in the provider's auto mode: it passes what is safe and asks about the rest.
-	Sandbox   = "sandbox"
-	Resume    = "resume"
-	Intercept = "intercept"
-	Images    = "images"
-	NoCloud   = "no_cloud"
-	// Web is web search and fetch: the provider's own, or deck's for an ACP agent.
-	Web = "web"
-	// Folder is working in a folder of the owner, a repo with its own instructions, rather than a folder of deck.
-	Folder = "folder"
+	Images  = "images"
+	NoCloud = "no_cloud"
 	// LiveInput takes the owner's messages into a running turn.
 	LiveInput = "live"
 	// LocalBrowser is a shell that starts a local browser and listens on local ports.

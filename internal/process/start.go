@@ -131,7 +131,7 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 		pv, err := r.deps.For(ctx, projectID, cmd)
 		if o.Provider != "" {
 			if pv, err = r.deps.Named(ctx, projectID, o.Provider); err == nil {
-				if missing := pv.Caps().Missing(cmd.Needs()); len(missing) > 0 {
+				if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
 					err = registry.Invalid("deck: provider %s lacks %s for %s", o.Provider, strings.Join(missing, ", "), cmd.Name)
 				}
 			}

@@ -92,7 +92,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		fail(fault.Of(err))
 		return nil, false
 	}
-	if missing := pv.Caps().Missing(t.cmd.Needs()); len(missing) > 0 {
+	if missing := pv.Caps().Missing(t.cmd.Requires); len(missing) > 0 {
 		fail(fault.New(fault.DeckInternal, fmt.Sprintf("deck: provider %s no longer fits %s: it lacks %s", pv.Name(), t.cmd.Name, strings.Join(missing, ", "))))
 		return nil, false
 	}

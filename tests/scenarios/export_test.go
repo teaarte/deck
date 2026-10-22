@@ -83,11 +83,11 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	}
 
 	bad := t.TempDir()
-	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(`{"version": 12, "commands": [{"name": "x"}]}`), 0o644)
+	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(`{"version": 13, "commands": [{"name": "x"}]}`), 0o644)
 	if code, out := e.call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "manifest") {
 		t.Fatalf("an invalid manifest is refused with the reason: %d %s", code, out)
 	}
-	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(`{"version": 12}`), 0o644)
+	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(`{"version": 13}`), 0o644)
 	_ = os.WriteFile(filepath.Join(bad, "logo.png"), []byte{0x89, 'P', 'N', 'G', 0xff, 0xfe}, 0o644)
 	if code, out := e.call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "logo.png: not text") {
 		t.Fatalf("a folder with a file deck cannot take is refused: %d %s", code, out)
@@ -147,7 +147,7 @@ func TestImportTakesNoLinks(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
 	dir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, deckdocs.ManifestName), []byte(`{"version": 12}`), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, deckdocs.ManifestName), []byte(`{"version": 13}`), 0o644)
 	secret := filepath.Join(t.TempDir(), "secret.txt")
 	_ = os.WriteFile(secret, []byte("owner's secret"), 0o600)
 	_ = os.Symlink(secret, filepath.Join(dir, "notes.md"))

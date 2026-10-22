@@ -1,5 +1,5 @@
 {
-  "version": 12,
+  "version": 13,
   "icon": "sparkles",
   "commands": [
     {
@@ -9,9 +9,6 @@
       "class": "internal",
       "callers": [
         "trigger"
-      ],
-      "requires": [
-        "tools"
       ],
       "provider": "claude-code",
       "input": {
@@ -45,9 +42,6 @@
       "class": "internal",
       "callers": [
         "master"
-      ],
-      "requires": [
-        "tools"
       ],
       "provider": "claude-code",
       "timeout_minutes": 240,
@@ -86,9 +80,6 @@
         "owner",
         "trigger"
       ],
-      "requires": [
-        "tools"
-      ],
       "provider": "claude-code",
       "executor": {
         "type": "agent",
@@ -113,9 +104,6 @@
       "callers": [
         "owner",
         "trigger"
-      ],
-      "requires": [
-        "tools"
       ],
       "provider": "claude-code",
       "executor": {
@@ -145,9 +133,6 @@
       "callers": [
         "owner",
         "trigger"
-      ],
-      "requires": [
-        "tools"
       ],
       "provider": "claude-code",
       "input": {

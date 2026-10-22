@@ -1,5 +1,5 @@
 {
-  "version": 12,
+  "version": 13,
   "collections": [
     {
       "name": "tasks",
@@ -49,9 +49,6 @@
       "callers": [
         "owner",
         "master"
-      ],
-      "requires": [
-        "sandbox"
       ],
       "provider": "claude-code",
       "timeout_minutes": 240,

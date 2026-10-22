@@ -16,7 +16,7 @@ import (
 
 // clipsModule keeps clips: new makes one, check follows it, tally follows check with no record, revise edits a clip,
 // render (a script) follows revise.
-const clipsModule = `{"version": 12,
+const clipsModule = `{"version": 13,
   "collections": [{"name": "clips", "description": "A clip.", "key": "slug",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}}, "required": ["slug"]}}],
   "commands": [

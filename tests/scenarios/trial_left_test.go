@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const leftManifest = `{"version": 12,
+const leftManifest = `{"version": 13,
   "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
   "commands": [{"name": "collect", "title": "Collect", "description": "Collects an item.", "class": "internal",

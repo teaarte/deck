@@ -9,6 +9,7 @@ import (
 
 	"deck2/internal/gateway"
 	"deck2/internal/health"
+	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -89,12 +90,10 @@ func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c 
 	if u.CostUSD == nil {
 		u.CostUSD = price(m, *u)
 	}
-	cost := u.CostUSD
+	u.Connection, u.RequestModel = c.ID, m.Model
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: act.Workspace, ProjectID: store.ID(act.ProjectID), ProcessID: store.ID(act.ProcessID),
-			ConnectionID: store.ID(c.ID), Provider: m.Name, RequestModel: m.Model, ResponseModel: u.Model,
-			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
-			DurationMs: u.Duration.Milliseconds(), CostUsd: store.Cost(cost), CreatedAt: store.Time(s.Now()), Subscription: m.Subscription})
+		return process.LogModelCall(ctx, q, process.ModelCall{Workspace: act.Workspace, Project: act.ProjectID, Process: act.ProcessID,
+			Provider: m.Name, Usage: *u, Subscription: m.Subscription != 0}, store.Time(s.Now()))
 	})
 	if err != nil {
 		slog.Error("model call journal", "connection", c.Name, "err", err)

@@ -107,8 +107,8 @@ func TestAParamReachesEveryExpressionOfAScreen(t *testing.T) {
 	}
 }
 
-// TestAScreenNamesTheTopicsItFollows: a whole screen names the topics after which its client reads it again, and
-// no other.
+// TestAScreenNamesTheTopicsItFollows: a whole screen names the topics of the reads of its blocks, after which its
+// client reads it again, and no other.
 func TestAScreenNamesTheTopicsItFollows(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, webNotesAgent())
@@ -132,5 +132,8 @@ func TestAScreenNamesTheTopicsItFollows(t *testing.T) {
 	}
 	if got := topics("web", "main"); !slices.Contains(got, "collection") || !slices.Contains(got, "projects") || slices.Contains(got, "asks") {
 		t.Fatalf("a project screen follows its collections and its project: %v", got)
+	}
+	if got := topics("web", "main"); !slices.Contains(got, "documents") {
+		t.Fatalf("a custom block follows the document of its HTML: %v", got)
 	}
 }

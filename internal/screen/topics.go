@@ -36,42 +36,72 @@ func readsProject(b manifest.Block, deck bool, own, project string) bool {
 	return project == own
 }
 
-// topicsOf are the event topics after which the block is read again.
+// topicsOf are the event topics after which the block is read again: those of the reads it makes.
 func topicsOf(b manifest.Block, deck bool) []string {
 	switch {
 	case b.Type == "appearance", b.Type == "actions" && deck:
 		return nil
 	case b.Type == "document":
-		return []string{"documents"}
-	case b.Type == "form" && b.Source == nil:
-		return []string{"collection"}
+		return readTopics(documentRead)
+	case b.Type == "custom" && b.Source != nil:
+		return union(readTopics(documentRead), sourceTopics(*b.Source))
+	case b.Type == "custom":
+		return readTopics(documentRead)
+	case b.Source == nil:
+		return readTopics(pageRead(deck && b.Type != "form", ""))
 	}
-	if b.Source == nil {
-		if deck {
-			return []string{"processes"}
-		}
-		return []string{"collection"}
+	return sourceTopics(*b.Source)
+}
+
+// sourceTopics are the topics of the read of a source; a collection is read by records_list.
+func sourceTopics(src manifest.Source) []string {
+	if src.From == "" || src.From == "collection" {
+		return readTopics(recordsRead)
 	}
-	if b.Source.From == "" || b.Source.From == "collection" {
-		return []string{"collection"}
+	return readTopics(src.From)
+}
+
+// The reads of a screen deck makes itself: the record of a page, a document and the records of a collection.
+const (
+	processRead  = "deck.process_get"
+	documentRead = "deck.document_get"
+	recordRead   = "deck.record_get"
+	recordsRead  = "deck.records_list"
+)
+
+// pageRead is the read of the record of a page: a process on a screen of deck, a document, else a record.
+func pageRead(deck bool, record string) string {
+	switch {
+	case deck:
+		return processRead
+	case record == manifest.DocumentRecord:
+		return documentRead
 	}
-	rc, _ := manifest.Reads(b.Source.From)
+	return recordRead
+}
+
+func readTopics(command string) []string {
+	rc, _ := manifest.Reads(command)
 	return rc.Topics
+}
+
+func union(a, b []string) []string {
+	out := slices.Clone(a)
+	for _, t := range b {
+		if !slices.Contains(out, t) {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // changesWhen reports whether an event of the topic in project changed may put a block of the screen of project
 // own on it or take it off: its when reads its source or the record of the page. The screen is then resolved whole.
 func changesWhen(bs []manifest.Block, record string, deck bool, own, changed, topic string) bool {
-	page := "collection"
-	switch {
-	case deck:
-		page = "processes"
-	case record == manifest.DocumentRecord:
-		page = "documents"
-	}
+	page := readTopics(pageRead(deck, record))
 	for _, b := range bs {
 		switch {
-		case b.When != "" && record != "" && topic == page && (changed == "" || deck || changed == own),
+		case b.When != "" && record != "" && slices.Contains(page, topic) && (changed == "" || deck || changed == own),
 			b.When != "" && b.Source != nil && slices.Contains(topicsOf(b, deck), topic) && readsProject(b, deck, own, changed),
 			changesWhen(b.Blocks, record, deck, own, changed, topic):
 			return true
@@ -107,13 +137,8 @@ func screenTopics(bs []manifest.Block, record string, deck bool) []string {
 		}
 	}
 	walk(bs)
-	switch {
-	case deck && record != "":
-		add("processes")
-	case record == manifest.DocumentRecord:
-		add("documents")
-	case record != "":
-		add("collection")
+	if record != "" {
+		add(readTopics(pageRead(deck, record))...)
 	}
 	if !deck {
 		add("projects")

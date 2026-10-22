@@ -86,6 +86,21 @@ var tables = map[string]table{
 	"chat_message":      {"chat", ofTopic, nil},
 }
 
+// apart are the topics deck publishes by hand: of what it keeps in files or streams, not in tables.
+var apart = []string{"log", "secrets", "snapshots"}
+
+// Topics are every topic deck publishes: those of its tables and those it publishes apart.
+func Topics() []string {
+	out := slices.Clone(apart)
+	for _, t := range tables {
+		if !slices.Contains(out, t.topic) {
+			out = append(out, t.topic)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // silent are the tables no screen shows, so their writes publish nothing; every other table is in tables.
 var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot", "outbox", "record_mark"}
 

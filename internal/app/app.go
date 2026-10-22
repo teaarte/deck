@@ -111,7 +111,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	// Every service is allocated first, so each is then built whole with the functions of the others.
 	a := allocated()
 	a.Cfg, a.Home, a.Store, a.Bus, a.Scripts = cfg, h, st, events.NewBus(), script.New(cfg.Sandbox, h)
-	registry.Declare(cfg.Commands)
+	registry.Declare(cfg.Commands, store.Topics())
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	st.Changed = func(c store.Change) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})

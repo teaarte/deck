@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
+	"deck2/internal/registry"
 )
 
 // form gives a form the commands it can call with their schemas; on a record page the edit of the record
@@ -248,9 +251,14 @@ func (r *renderer) enum(p any) []map[string]any {
 // custom gives a custom block its HTML, the items of its source, the record of the page, its params, the buttons
 // it may press and the project whose files it reads; the client passes them through the MCP Apps bridge and nothing else.
 func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
-	html, err := r.src.Document(r.ctx, r.req.Project, b.Document)
-	if err != nil {
+	got, err := r.src.Read(r.ctx, documentRead, map[string]any{"project": r.req.Project.Name, "name": b.Document}, r.scope)
+	if err != nil && registry.Status(err) != http.StatusNotFound {
 		return nil, err
+	}
+	d, _ := got.(map[string]any)
+	html, _ := d["text"].(string)
+	if d["kind"] != docs.KindCustom || html == "" {
+		return nil, fmt.Errorf("no custom document %q", b.Document)
 	}
 	acts, err := r.actions(b.Actions, r.req.Record, r.record)
 	if err != nil {

@@ -359,7 +359,7 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 			in["record"] = record
 		}
 	}
-	got, err := r.src.Read(r.ctx, "deck.document_get", in, r.scope)
+	got, err := r.src.Read(r.ctx, documentRead, in, r.scope)
 	d, _ := got.(map[string]any)
 	switch {
 	case id == 0 && registry.Status(err) == http.StatusNotFound:

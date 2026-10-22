@@ -63,7 +63,7 @@ func (r *renderer) load(src manifest.Source, input map[string]any, picked map[st
 	var items []map[string]any
 	switch src.From {
 	case "", "collection":
-		got, err := r.src.Read(r.ctx, "deck.records_list", map[string]any{"project": r.req.Project.Name, "collection": src.Collection}, r.scope)
+		got, err := r.src.Read(r.ctx, recordsRead, map[string]any{"project": r.req.Project.Name, "collection": src.Collection}, r.scope)
 		if err != nil {
 			return nil, err
 		}

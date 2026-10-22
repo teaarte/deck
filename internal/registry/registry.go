@@ -127,8 +127,9 @@ func (r *Registry) Add(c *Command) {
 // without one.
 var reads sync.Map
 
-// Declare makes the reads among deck's commands known before any registry is built.
-func Declare(cs []*Command) {
+// Declare makes the reads among deck's commands known before any registry is built; a read follows only topics deck
+// publishes.
+func Declare(cs []*Command, topics []string) {
 	for _, c := range cs {
 		if !c.Reads {
 			continue
@@ -138,6 +139,11 @@ func Declare(cs []*Command) {
 		}
 		if len(c.Topics) == 0 {
 			panic("registry: read " + c.Name + " names no topic it follows")
+		}
+		for _, t := range c.Topics {
+			if t != Static && !slices.Contains(topics, t) {
+				panic("registry: read " + c.Name + " follows " + t + ", which deck does not publish")
+			}
 		}
 		reads.Store(c.Name, c)
 	}

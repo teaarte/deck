@@ -17,15 +17,14 @@ const (
 	CatalogID = "https://deck2.local/catalog/v1"
 )
 
-// Sources reads what a screen shows: records, the commands its blocks read, commands of forms and the
-// HTML of custom blocks; the screen itself touches no store.
+// Sources reads what a screen shows: records, the commands its blocks read and commands of forms; the screen itself
+// touches no store.
 type Sources interface {
 	// Read calls a command that only reads, as the one who looks at the screen, decoded with integers as int64;
 	// the scope adds the project, the language and the values picked in filters that the command takes.
 	Read(ctx context.Context, command string, input map[string]any, scope Scope) (any, error)
 	// Command is what a form needs of a command: name, title, project, input and result schemas.
 	Command(ctx context.Context, workspace int64, name string) (map[string]any, error)
-	Document(ctx context.Context, project db.Project, name string) (string, error)
 	// File is a file a media block shows: a stored file of the project by id or a path in its data folder, as
 	// name, type, size and the url the client reads it at.
 	File(ctx context.Context, project db.Project, ref any) (map[string]any, error)
@@ -193,7 +192,7 @@ func (r *renderer) loadRecord() error {
 		return fmt.Errorf("screen %q shows one record; open it with the record id", r.req.Screen.Name)
 	}
 	if r.deck() {
-		got, err := r.src.Read(r.ctx, "deck.process_get", map[string]any{"process": r.req.Record}, Scope{Workspace: r.scope.Workspace, Lang: r.req.Lang})
+		got, err := r.src.Read(r.ctx, processRead, map[string]any{"process": r.req.Record}, Scope{Workspace: r.scope.Workspace, Lang: r.req.Lang})
 		rec, _ := got.(map[string]any)
 		if err != nil || rec == nil {
 			return fmt.Errorf("no process %d", r.req.Record)
@@ -203,7 +202,7 @@ func (r *renderer) loadRecord() error {
 		return nil
 	}
 	if r.req.Screen.Record == manifest.DocumentRecord {
-		got, err := r.src.Read(r.ctx, "deck.document_get", map[string]any{"document": r.req.Record}, r.scope)
+		got, err := r.src.Read(r.ctx, documentRead, map[string]any{"document": r.req.Record}, r.scope)
 		rec, _ := got.(map[string]any)
 		if err != nil || rec == nil || rec["project"] != r.req.Project.Name {
 			return fmt.Errorf("no document %d in %s", r.req.Record, r.req.Project.Name)
@@ -212,7 +211,7 @@ func (r *renderer) loadRecord() error {
 		r.record, r.recordTitle = rec, fmt.Sprint(rec["name"])
 		return nil
 	}
-	got, err := r.src.Read(r.ctx, "deck.record_get", map[string]any{"record": r.req.Record}, r.scope)
+	got, err := r.src.Read(r.ctx, recordRead, map[string]any{"record": r.req.Record}, r.scope)
 	rec, _ := got.(map[string]any)
 	env, _ := rec["data"].(map[string]any)
 	if err != nil || env == nil || rec["project"] != r.req.Project.Name || rec["collection"] != r.req.Screen.Record {

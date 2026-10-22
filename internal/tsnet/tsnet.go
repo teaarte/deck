@@ -37,6 +37,14 @@ type Node struct {
 	ts  *tsnet.Server
 }
 
+// Ports are the port of the client on the node and of its second origin; the caller pairs them before deck serves.
+func Ports(plain bool) (main, second int) {
+	if plain {
+		return 80, 8080
+	}
+	return 443, 8443
+}
+
 // Start joins the tailnet in the background and serves the client and its second origin on the node's ports.
 func Start(ctx context.Context, cfg Config, srv *api.Server) (*Node, error) {
 	ts := &tsnet.Server{Hostname: cfg.Hostname, Dir: cfg.Dir, ControlURL: cfg.ControlURL, Logf: logger.Discard,
@@ -45,11 +53,7 @@ func Start(ctx context.Context, cfg Config, srv *api.Server) (*Node, error) {
 		return nil, err
 	}
 	n := &Node{cfg: cfg, ts: ts}
-	main, second := 443, 8443
-	if cfg.Plain {
-		main, second = 80, 8080
-	}
-	srv.Pair(main, second)
+	main, second := Ports(cfg.Plain)
 	go n.watch(ctx)
 	go n.serveAll(ctx, srv, main, second)
 	return n, nil

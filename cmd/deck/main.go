@@ -86,6 +86,9 @@ func run() error {
 	// deck's MCP server answers before any turn starts, a resumed one too; the rest waits until deck has started.
 	server := api.New(a, token, web.FS())
 	server.Pair(port, port+1)
+	if *tailnet != "" {
+		server.Pair(tsnet.Ports(false))
+	}
 	var started atomic.Bool
 	handler := server.Handler()
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,8 +99,8 @@ func run() error {
 		handler.ServeHTTP(w, r)
 	})}
 	side := &http.Server{Handler: server.Sandbox()}
-	go func() { _ = side.Serve(sideLn) }()
-	served := make(chan error, 1)
+	served := make(chan error, 2)
+	go func() { served <- side.Serve(sideLn) }()
 	go func() { served <- srv.Serve(ln) }()
 	stopped := make(chan struct{})
 	go func() {

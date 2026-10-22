@@ -41,8 +41,10 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	e := newEnv(t, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+	srv := api.New(e.App, token, web.FS())
+	srv.Pair(tsnet.Ports(true))
 	node, err := tsnet.Start(ctx, tsnet.Config{Hostname: "deck", Dir: t.TempDir(), ControlURL: control.HTTPTestServer.URL, Plain: true,
-		Health: e.App.TailnetHealth}, api.New(e.App, token, web.FS()))
+		Health: e.App.TailnetHealth}, srv)
 	if err != nil {
 		t.Fatal(err)
 	}

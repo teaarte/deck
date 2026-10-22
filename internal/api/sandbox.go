@@ -20,7 +20,8 @@ var sandboxPage string
 const sandboxCSP = "default-src 'none'; script-src 'self' %s 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; " +
 	"font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors %s"
 
-// Pair makes port sandbox the second origin of the client served on port main of the same host.
+// Pair makes port sandbox the second origin of the client served on port main of the same host; every pair is made
+// before deck serves, as the handlers read them unlocked.
 func (s *Server) Pair(main, sandbox int) {
 	if s.pairs == nil {
 		s.pairs = map[int]int{}

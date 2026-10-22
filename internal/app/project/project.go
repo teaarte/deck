@@ -25,26 +25,8 @@ import (
 	"deck2/internal/trigger"
 )
 
-// Service keeps the lifecycle of projects: create, enable, trial runs, import and delete; Save keeps their manifests.
+// Service keeps projects: their lifecycle, and their manifests with the checks, migrations and grants of a save.
 type Service struct {
-	St        *store.Store
-	Home      home.Layout
-	Registry  *registry.Registry
-	Gateway   *gateway.Gateway
-	Runner    *process.Runner
-	Scheduler *trigger.Scheduler
-	Host      *mcphost.Host
-	Save      *Saver
-	Folders   func(ctx context.Context, projectID int64) ([]folders.Row, error)
-	// Snapshot writes a snapshot before a delete.
-	Snapshot func(ctx context.Context, project int64) (string, error)
-	// Keep stores a file a command made for the owner to download.
-	Keep func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
-}
-
-// Saver saves the manifests of projects with their checks, migrations and grants, and gives the registry the
-// commands of the manifests in force.
-type Saver struct {
 	St        *store.Store
 	Bus       *events.Bus
 	Now       func() time.Time
@@ -57,6 +39,12 @@ type Saver struct {
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
+	Host      *mcphost.Host
+	Folders   func(ctx context.Context, projectID int64) ([]folders.Row, error)
+	// Snapshot writes a snapshot before a delete.
+	Snapshot func(ctx context.Context, project int64) (string, error)
+	// Keep stores a file a command made for the owner to download.
+	Keep func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
 	// PrepareLater records the health of the script commands of a project in the background.
 	PrepareLater func(projectID int64)
 	// Changed lists a change made without the owner.
@@ -73,5 +61,5 @@ type Saver struct {
 
 // Commands are the commands of projects.
 func (pj *Service) Commands() []*registry.Command {
-	return slices.Concat(pj.projectsCommands(), pj.importCommands(), pj.draftsCommands(), pj.projectDeleteCommands())
+	return slices.Concat(pj.projectsCommands(), pj.importCommands(), pj.draftsCommands(), pj.projectDeleteCommands(), pj.manifestCommands())
 }

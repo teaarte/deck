@@ -102,7 +102,7 @@ func run() error {
 		_ = srv.Shutdown(sctx)
 	}()
 
-	if err := a.Saver.Reconcile(ctx); err != nil {
+	if err := a.Projects.Reconcile(ctx); err != nil {
 		slog.Error("reconcile triggers", "err", err)
 	}
 	a.Providers.Checks(ctx, a.Cfg.Now())

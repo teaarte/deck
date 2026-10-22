@@ -14,12 +14,12 @@ import (
 
 // AddToList adds a value to a list of the project's manifest at the path of keys, as a new revision with the keys in
 // their order.
-func (sv *Saver) AddToList(ctx context.Context, act registry.Actor, p db.Project, value string, path ...string) error {
-	m, err := docs.Manifest(ctx, sv.St.Q, p)
+func (pj *Service) AddToList(ctx context.Context, act registry.Actor, p db.Project, value string, path ...string) error {
+	m, err := docs.Manifest(ctx, pj.St.Q, p)
 	if err != nil {
 		return err
 	}
-	raw, err := docs.CurrentText(ctx, sv.St.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
+	raw, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
 	if err != nil {
 		return err
 	}
@@ -45,6 +45,6 @@ func (sv *Saver) AddToList(ctx context.Context, act registry.Actor, p db.Project
 	}
 	at[last] = append(list, value)
 	b := manifest.Canonical(string(manifest.Ordered(doc, []byte(raw))))
-	_, err = sv.SaveManifest(ctx, act, p, []byte(b), "allow "+value+" always", 0, m.Revision)
+	_, err = pj.SaveManifest(ctx, act, p, []byte(b), "allow "+value+" always", 0, m.Revision)
 	return err
 }

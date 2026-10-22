@@ -19,7 +19,7 @@ import (
 )
 
 // widens lists what a change by the actor would grant an enabled project; the owner and drafts are not asked.
-func (sv *Saver) widens(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, next *manifest.Manifest) ([]string, error) {
+func (pj *Service) widens(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, next *manifest.Manifest) ([]string, error) {
 	if act.Kind == registry.Owner {
 		return nil, nil
 	}
@@ -36,7 +36,7 @@ func (sv *Saver) widens(ctx context.Context, q *db.Queries, act registry.Actor, 
 
 // ask holds a change that widens rights until the owner allows it: the manifest proposed on top of the current
 // revision, which the owner's yes merges into the manifest as it is then; a revert applies only to its revision.
-func (sv *Saver) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, cur db.Document, revertTo int64, widens []string, reason string, proposed []byte) (Saved, error) {
+func (pj *Service) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, cur db.Document, revertTo int64, widens []string, reason string, proposed []byte) (Saved, error) {
 	command, input := "manifest_save", map[string]any{"project": p.Name, "manifest": string(proposed), "reason": reason, "if_revision": cur.Current}
 	if revertTo > 0 {
 		own := strings.TrimPrefix(strings.TrimPrefix(reason, docs.RevertReason(revertTo, "")), ": ")
@@ -46,7 +46,7 @@ func (sv *Saver) ask(ctx context.Context, q *db.Queries, act registry.Actor, p d
 	f := gateway.Freeze(act, registry.Builtin+"."+command, raw)
 	f.As, f.Reason, f.Widens = gateway.AsOwner, reason, widens
 	text := fmt.Sprintf("%s asks to widen the rights of %s: %s", act.Author(), p.Name, strings.Join(widens, "; "))
-	row, err := gateway.Hold(ctx, q, act, p.ID, 0, ask.KindGrant, registry.Internal, text, f, time.Time{}, sv.Now())
+	row, err := gateway.Hold(ctx, q, act, p.ID, 0, ask.KindGrant, registry.Internal, text, f, time.Time{}, pj.Now())
 	return Saved{Waiting: row.ID, Widens: widens}, err
 }
 
@@ -107,14 +107,14 @@ func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string,
 
 // AnswerGrant makes the change of an allowed grant as the owner, merged into the current manifest; the grant closes
 // only when it applied.
-func (sv *Saver) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
+func (pj *Service) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
 	switch {
 	case answer == "allow":
-		p, err := sv.St.Q.GetProject(ctx, q.ProjectID.Int64)
+		p, err := pj.St.Q.GetProject(ctx, q.ProjectID.Int64)
 		if err != nil {
 			return nil, err
 		}
-		text, rev, err := merged(ctx, sv.St.Q, p, q)
+		text, rev, err := merged(ctx, pj.St.Q, p, q)
 		switch {
 		case errors.Is(err, errFrozen):
 		case err != nil:
@@ -124,7 +124,7 @@ func (sv *Saver) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, 
 				return nil, err
 			}
 		}
-		out, err := sv.Gateway.Decide(ctx, act, q, answer, nil)
+		out, err := pj.Gateway.Decide(ctx, act, q, answer, nil)
 		switch {
 		case errors.Is(err, ask.ErrNotOpen):
 			return nil, err
@@ -135,10 +135,10 @@ func (sv *Saver) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, 
 		}
 		return out, err
 	case answer == "deny" || strings.HasPrefix(answer, "deny:"):
-		if err := sv.Broker.Answer(ctx, q.ID, answer); err != nil {
+		if err := pj.Broker.Answer(ctx, q.ID, answer); err != nil {
 			return nil, err
 		}
-		sv.Gateway.Record(ctx, q, "rejected", "the owner said no")
+		pj.Gateway.Record(ctx, q, "rejected", "the owner said no")
 		return map[string]any{"ok": true}, nil
 	}
 	return nil, registry.Invalid("deck: answer a grant with allow, deny or deny:<reason>")

@@ -16,8 +16,8 @@ import (
 )
 
 // problems are what the checks of a save refuse in the current manifest of p, which a read only warns of.
-func (sv *Saver) problems(ctx context.Context, p db.Project) []string {
-	text, err := docs.CurrentText(ctx, sv.St.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
+func (pj *Service) problems(ctx context.Context, p db.Project) []string {
+	text, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
 	if err != nil {
 		return []string{fmt.Sprintf("the manifest does not load: %v", err)}
 	}
@@ -27,9 +27,9 @@ func (sv *Saver) problems(ctx context.Context, p db.Project) []string {
 	}
 	var out []string
 	for _, err := range []error{
-		checkKeys(ctx, sv.St.Q, p.WorkspaceID, pm.m),
-		checkReads(ctx, sv.St.Q, p.WorkspaceID, p.Name, pm.m),
-		sv.checkToolFit(ctx, sv.St.Q, p.WorkspaceID, p.ID, pm.m),
+		checkKeys(ctx, pj.St.Q, p.WorkspaceID, pm.m),
+		checkReads(ctx, pj.St.Q, p.WorkspaceID, p.Name, pm.m),
+		pj.checkToolFit(ctx, pj.St.Q, p.WorkspaceID, p.ID, pm.m),
 	} {
 		out = append(out, refusals(err)...)
 	}
@@ -46,17 +46,17 @@ func refusals(err error) []string {
 
 // CheckManifests puts a note of deck in the feed of each project whose current manifest the checks of this deck
 // refuse, once for the same problems: a newer deck may refuse what an older one saved.
-func (sv *Saver) CheckManifests(ctx context.Context) {
-	ps, err := sv.St.Q.ListProjects(ctx)
+func (pj *Service) CheckManifests(ctx context.Context) {
+	ps, err := pj.St.Q.ListProjects(ctx)
 	if err != nil {
 		slog.Error("check manifests", "err", err)
 		return
 	}
 	for _, p := range ps {
-		problems := sv.problems(ctx, p)
+		problems := pj.problems(ctx, p)
 		name := fmt.Sprintf("manifest_problems:%d", p.ID)
 		sum := sha256.Sum256([]byte(strings.Join(problems, "\n")))
-		err := sv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		err := pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			if len(problems) == 0 {
 				return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: p.WorkspaceID, Name: name})
 			}
@@ -70,7 +70,7 @@ func (sv *Saver) CheckManifests(ctx context.Context) {
 			text := fmt.Sprintf("The manifest of %s no longer passes the checks of this deck. It works as before, but its next save "+
 				"is refused until these are fixed in it (manifest_get lists them too; the master fixes them when asked):\n- %s",
 				p.Name, strings.Join(problems, "\n- "))
-			if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(sv.Now()), ProjectID: p.ID, Text: text}); err != nil {
+			if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(pj.Now()), ProjectID: p.ID, Text: text}); err != nil {
 				return err
 			}
 			return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: name, Value: hex.EncodeToString(sum[:])})

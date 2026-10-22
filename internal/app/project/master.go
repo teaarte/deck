@@ -91,7 +91,7 @@ func (pj *Service) seedMaster(ctx context.Context, workspace int64, m *manifest.
 			}
 			changed = changed || path == docs.ManifestName
 		}
-		if err := dropUnshipped(ctx, q, p, files, pj.Save.Now()); err != nil {
+		if err := dropUnshipped(ctx, q, p, files, pj.Now()); err != nil {
 			return err
 		}
 		if !changed {

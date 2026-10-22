@@ -30,17 +30,17 @@ type manifestView struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-func (sv *Saver) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (manifestView, error) {
-	p, err := access.Project(ctx, sv.St.Q, act, in.Project)
+func (pj *Service) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (manifestView, error) {
+	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
 	if err != nil {
 		return manifestView{}, err
 	}
 	ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-	d, err := docs.Find(ctx, sv.St.Q, ref)
+	d, err := docs.Find(ctx, pj.St.Q, ref)
 	if err != nil {
 		return manifestView{}, err
 	}
-	r, err := docs.Revision(ctx, sv.St.Q, d, 0)
+	r, err := docs.Revision(ctx, pj.St.Q, d, 0)
 	if err != nil {
 		return manifestView{}, err
 	}
@@ -49,9 +49,9 @@ func (sv *Saver) manifestGet(ctx context.Context, act registry.Actor, in manifes
 		v.Warnings = append(v.Warnings, fmt.Sprintf("stored in format %d; this is it raised to format %d, which its next save stores",
 			format(r.Text), manifest.FormatVersion))
 	}
-	v.Warnings = append(v.Warnings, sv.problems(ctx, p)...)
-	if m, err := docs.ManifestAt(ctx, sv.St.Q, p.ID, d.Current); err == nil {
-		v.Warnings = append(v.Warnings, sv.unassigned(ctx, p, m)...)
+	v.Warnings = append(v.Warnings, pj.problems(ctx, p)...)
+	if m, err := docs.ManifestAt(ctx, pj.St.Q, p.ID, d.Current); err == nil {
+		v.Warnings = append(v.Warnings, pj.unassigned(ctx, p, m)...)
 	}
 	return v, nil
 }
@@ -80,8 +80,8 @@ type manifestSaveIn struct {
 	IfRevision int64    `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 }
 
-func (sv *Saver) manifestSave(ctx context.Context, act registry.Actor, in manifestSaveIn) (any, error) {
-	p, err := access.Project(ctx, sv.St.Q, act, in.Project)
+func (pj *Service) manifestSave(ctx context.Context, act registry.Actor, in manifestSaveIn) (any, error) {
+	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -89,14 +89,14 @@ func (sv *Saver) manifestSave(ctx context.Context, act registry.Actor, in manife
 		if in.Manifest != "" {
 			return nil, registry.Invalid("deck: give the whole manifest or old and new parts, not both")
 		}
-		d, err := docs.Find(ctx, sv.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
+		d, err := docs.Find(ctx, pj.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
 		if err != nil {
 			return nil, err
 		}
 		if in.IfRevision != 0 && d.Current != in.IfRevision {
 			return nil, registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, d.Current, in.IfRevision)
 		}
-		r, err := docs.Revision(ctx, sv.St.Q, d, 0)
+		r, err := docs.Revision(ctx, pj.St.Q, d, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -108,37 +108,19 @@ func (sv *Saver) manifestSave(ctx context.Context, act registry.Actor, in manife
 	if strings.TrimSpace(in.Manifest) == "" {
 		return nil, registry.Invalid("deck: give the whole manifest JSON, or old and new parts of the current one")
 	}
-	return sv.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
+	return pj.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
 }
 
 // Commands are the commands of manifests.
-func (sv *Saver) Commands() []*registry.Command {
+func (pj *Service) manifestCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("manifest_get", "Get manifest",
 			"Returns the current manifest of a project as text; with fields such as manifest.writes, manifest.commands.<name> or manifest.screens.<name>, only that part of it, as text in the same form.",
-			registry.Everyone, sv.manifestGet).On("projects"),
+			registry.Everyone, pj.manifestGet).On("projects"),
 		registry.Def("manifest_save", "Save manifest",
 			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current one replaced with new ones.",
-			registry.OwnerSide, sv.manifestSave),
+			registry.OwnerSide, pj.manifestSave),
 	}
-}
-
-// Text is the current text of a project document by kind and name, of any kind for ""; empty when missing.
-func (sv *Saver) Text(ctx context.Context, projectID int64, kind, name string) (string, error) {
-	p, err := sv.St.Q.GetProject(ctx, projectID)
-	if err != nil {
-		return "", err
-	}
-	return docs.CurrentText(ctx, sv.St.Q, docs.ProjectScope(p), kind, name)
-}
-
-// Prompt is the current md prompt of a project; empty when it has none.
-func (sv *Saver) Prompt(ctx context.Context, projectID int64) (string, error) {
-	p, err := sv.St.Q.GetProject(ctx, projectID)
-	if err != nil {
-		return "", err
-	}
-	return docs.CurrentText(ctx, sv.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
 }
 
 type parsed struct {
@@ -166,16 +148,16 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 
 // CreateProject validates the manifest, stores it and the prompt as first revisions and registers triggers.
 // The owner's project is enabled; anyone else's is a draft.
-func (sv *Saver) CreateProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt string) (db.Project, error) {
+func (pj *Service) CreateProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt string) (db.Project, error) {
 	status := store.ProjectDraft
 	if act.Kind == registry.Owner {
 		status = store.ProjectEnabled
 	}
-	return sv.createProject(ctx, act, name, raw, prompt, status, nil)
+	return pj.createProject(ctx, act, name, raw, prompt, status, nil)
 }
 
 // createProject stores a new project; more stores further documents in the same transaction before the checks.
-func (sv *Saver) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
+func (pj *Service) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
 	more func(ctx context.Context, q *db.Queries, p db.Project) error) (db.Project, error) {
 	if !access.ProjectName.MatchString(name) || name == registry.Builtin {
 		return db.Project{}, registry.Invalid("deck: project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
@@ -185,7 +167,7 @@ func (sv *Saver) createProject(ctx context.Context, act registry.Actor, name str
 		return db.Project{}, err
 	}
 	var p db.Project
-	err = sv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
 			return registry.Invalid("deck: project %q already exists", name)
 		}
@@ -195,7 +177,7 @@ func (sv *Saver) createProject(ctx context.Context, act registry.Actor, name str
 		if err := checkReads(ctx, q, act.Workspace, name, pm.m); err != nil {
 			return err
 		}
-		if err := sv.checkToolFit(ctx, q, act.Workspace, 0, pm.m); err != nil {
+		if err := pj.checkToolFit(ctx, q, act.Workspace, 0, pm.m); err != nil {
 			return err
 		}
 		if p, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: act.Workspace, Name: name, Status: status}); err != nil {
@@ -220,12 +202,12 @@ func (sv *Saver) createProject(ctx context.Context, act registry.Actor, name str
 				return err
 			}
 		}
-		return sv.Scheduler.Sync(ctx, q, p.ID, pm.m)
+		return pj.Scheduler.Sync(ctx, q, p.ID, pm.m)
 	})
 	if err != nil {
 		return db.Project{}, err
 	}
-	sv.PrepareLater(p.ID)
+	pj.PrepareLater(p.ID)
 	return p, nil
 }
 
@@ -244,35 +226,35 @@ type Saved struct {
 
 // SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
 // change that widens rights waits for the owner; nonzero ifRevision must still be current.
-func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (Saved, error) {
+func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (Saved, error) {
 	pm, err := parseManifest(raw, p.Builtin == 1)
 	if err != nil {
 		return Saved{}, err
 	}
-	plan, err := sv.migrate(ctx, p, pm.m, revertTo)
+	plan, err := pj.migrate(ctx, p, pm.m, revertTo)
 	if err != nil {
 		return Saved{}, err
 	}
 	// The records are checked against the new schemas outside the writer; the writer checks again only when they
 	// changed meanwhile.
-	seen, err := sv.St.Q.RecordsMark(ctx, p.ID)
+	seen, err := pj.St.Q.RecordsMark(ctx, p.ID)
 	if err != nil {
 		return Saved{}, err
 	}
-	if err := checkRecords(ctx, sv.St.Q, p, pm.m, plan); err != nil {
+	if err := checkRecords(ctx, pj.St.Q, p, pm.m, plan); err != nil {
 		return Saved{}, err
 	}
 	var saved Saved
 	changed := false
 	var outdated []db.Ask
-	err = sv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := checkKeys(ctx, q, p.WorkspaceID, pm.m); err != nil {
 			return err
 		}
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
 			return err
 		}
-		if err := sv.checkToolFit(ctx, q, p.WorkspaceID, p.ID, pm.m); err != nil {
+		if err := pj.checkToolFit(ctx, q, p.WorkspaceID, p.ID, pm.m); err != nil {
 			return err
 		}
 		if now, err := q.RecordsMark(ctx, p.ID); err != nil || now != seen {
@@ -291,10 +273,10 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 		if ifRevision != 0 && cur.Current != ifRevision {
 			return registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, cur.Current, ifRevision)
 		}
-		w, err := sv.widens(ctx, q, act, p.ID, pm.m)
+		w, err := pj.widens(ctx, q, act, p.ID, pm.m)
 		if err != nil || len(w) > 0 {
 			if err == nil {
-				saved, err = sv.ask(ctx, q, act, p, cur, revertTo, w, reason, pm.text)
+				saved, err = pj.ask(ctx, q, act, p, cur, revertTo, w, reason, pm.text)
 			}
 			return err
 		}
@@ -308,35 +290,35 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 		if err := grant(ctx, q, p, n, pm.m); err != nil {
 			return err
 		}
-		if outdated, err = outdate(ctx, q, p, n, sv.Now()); err != nil {
+		if outdated, err = outdate(ctx, q, p, n, pj.Now()); err != nil {
 			return err
 		}
 		if err := q.DeleteScreenHealth(ctx, store.ID(p.ID)); err != nil {
 			return err
 		}
 		for name, mg := range plan {
-			if err := applyMigration(ctx, q, store.Time(sv.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
+			if err := applyMigration(ctx, q, store.Time(pj.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
 				return err
 			}
 		}
-		if err = sv.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
+		if err = pj.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
 			return err
 		}
-		return sv.Scheduler.Sync(ctx, q, p.ID, pm.m)
+		return pj.Scheduler.Sync(ctx, q, p.ID, pm.m)
 	})
 	if err != nil || saved.Waiting != 0 {
 		return saved, err
 	}
 	for _, a := range outdated {
-		sv.Gateway.Record(ctx, a, "expired", "the manifest changed after this request")
+		pj.Gateway.Record(ctx, a, "expired", "the manifest changed after this request")
 	}
 	if changed {
-		sv.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
-		sv.PrepareLater(p.ID)
+		pj.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
+		pj.PrepareLater(p.ID)
 	}
-	saved.Screens = sv.CheckScreens(ctx, act, p, pm.m)
+	saved.Screens = pj.CheckScreens(ctx, act, p, pm.m)
 	saved.Unused = pm.m.UnusedWords()
-	saved.Warnings = sv.unassigned(ctx, p, pm.m)
+	saved.Warnings = pj.unassigned(ctx, p, pm.m)
 	return saved, nil
 }
 
@@ -362,28 +344,28 @@ func grant(ctx context.Context, q *db.Queries, p db.Project, n int64, next *mani
 }
 
 // Reconcile brings stored triggers in line with the current manifests; run it on start.
-func (sv *Saver) Reconcile(ctx context.Context) error {
-	ps, err := sv.St.Q.ListProjects(ctx)
+func (pj *Service) Reconcile(ctx context.Context) error {
+	ps, err := pj.St.Q.ListProjects(ctx)
 	if err != nil {
 		return err
 	}
 	for _, p := range ps {
-		err := sv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		err := pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			m, err := docs.Manifest(ctx, q, p)
 			if err != nil {
 				return err
 			}
-			return sv.Scheduler.Sync(ctx, q, p.ID, m)
+			return pj.Scheduler.Sync(ctx, q, p.ID, m)
 		})
 		if err != nil {
 			slog.Error("reconcile triggers", "project", p.Name, "err", err)
 		}
-		sv.PrepareLater(p.ID)
+		pj.PrepareLater(p.ID)
 	}
 	return nil
 }
 
 // Save is SaveManifest for a service that takes any result.
-func (sv *Saver) Save(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error) {
-	return sv.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision)
+func (pj *Service) Save(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error) {
+	return pj.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision)
 }

@@ -17,16 +17,16 @@ import (
 )
 
 // ProjectCommands turns the commands of workspace manifests into registry commands.
-func (sv *Saver) ProjectCommands(ctx context.Context, workspace int64, name string) ([]*registry.Command, error) {
+func (pj *Service) ProjectCommands(ctx context.Context, workspace int64, name string) ([]*registry.Command, error) {
 	var ps []db.Project
 	if name == "" {
-		all, err := sv.St.Q.ListWorkspaceProjects(ctx, workspace)
+		all, err := pj.St.Q.ListWorkspaceProjects(ctx, workspace)
 		if err != nil {
 			return nil, err
 		}
 		ps = all
 	} else {
-		p, err := sv.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
+		p, err := pj.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -36,20 +36,20 @@ func (sv *Saver) ProjectCommands(ctx context.Context, workspace int64, name stri
 		ps = []db.Project{p}
 	}
 	var out []*registry.Command
-	ms, failed := docs.All(ctx, sv.St.Q, ps)
+	ms, failed := docs.All(ctx, pj.St.Q, ps)
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {
 			slog.Error("project manifest", "project", p.Name, "err", failed[p.ID])
 			continue
 		}
-		granted, err := docs.InForce(ctx, sv.St.Q, p, m)
+		granted, err := docs.InForce(ctx, pj.St.Q, p, m)
 		if err != nil {
 			slog.Error("project rights", "project", p.Name, "err", err)
 			continue
 		}
-		out = append(out, sv.prepared(ctx, p, m, granted)...)
-		mcpCmds, err := sv.MCP.Commands(ctx, sv.St.Q, p, granted)
+		out = append(out, pj.prepared(ctx, p, m, granted)...)
+		mcpCmds, err := pj.MCP.Commands(ctx, pj.St.Q, p, granted)
 		if err != nil {
 			return nil, err
 		}
@@ -66,11 +66,11 @@ func (sv *Saver) ProjectCommands(ctx context.Context, workspace int64, name stri
 
 // prepared are the commands and HTTP tools of a manifest as registry commands, compiled once per revision and
 // grant, with the rights the owner gave: those of granted, m in force.
-func (sv *Saver) prepared(ctx context.Context, p db.Project, m, granted *manifest.Manifest) []*registry.Command {
+func (pj *Service) prepared(ctx context.Context, p db.Project, m, granted *manifest.Manifest) []*registry.Command {
 	key := preparedKey{p.ID, m, p.GrantedRevision.Int64}
-	sv.preparedMu.Lock()
-	cmds, ok := sv.preparedCmds[key]
-	sv.preparedMu.Unlock()
+	pj.preparedMu.Lock()
+	cmds, ok := pj.preparedCmds[key]
+	pj.preparedMu.Unlock()
 	if ok {
 		return cmds
 	}
@@ -78,7 +78,7 @@ func (sv *Saver) prepared(ctx context.Context, p db.Project, m, granted *manifes
 		cmd := &registry.Command{
 			Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
 			Input: withRetryKey(c.InputSchema()), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(),
-			Handler: sv.startHandler(p.ID, m, c.Name),
+			Handler: pj.startHandler(p.ID, m, c.Name),
 		}
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project command", "command", cmd.Name, "err", err)
@@ -88,19 +88,19 @@ func (sv *Saver) prepared(ctx context.Context, p db.Project, m, granted *manifes
 	}
 	domains := append(slices.Clone(granted.Domains.Read), granted.Domains.Act...)
 	for _, t := range granted.Tools.HTTP {
-		cmd := sv.Tools.Command(p, t, domains)
+		cmd := pj.Tools.Command(p, t, domains)
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project tool", "tool", cmd.Name, "err", err)
 			continue
 		}
 		cmds = append(cmds, cmd)
 	}
-	sv.preparedMu.Lock()
-	if sv.preparedCmds == nil || len(sv.preparedCmds) >= 256 {
-		sv.preparedCmds = map[preparedKey][]*registry.Command{}
+	pj.preparedMu.Lock()
+	if pj.preparedCmds == nil || len(pj.preparedCmds) >= 256 {
+		pj.preparedCmds = map[preparedKey][]*registry.Command{}
 	}
-	sv.preparedCmds[key] = cmds
-	sv.preparedMu.Unlock()
+	pj.preparedCmds[key] = cmds
+	pj.preparedMu.Unlock()
 	return cmds
 }
 
@@ -112,7 +112,7 @@ type preparedKey struct {
 
 // startHandler runs a command of the manifest the registry checked the call against; the calling process
 // or the finished process of a trigger becomes its parent.
-func (sv *Saver) startHandler(projectID int64, m *manifest.Manifest, command string) registry.Handler {
+func (pj *Service) startHandler(projectID int64, m *manifest.Manifest, command string) registry.Handler {
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		input, err := manifest.DecodeObject(raw)
 		if err != nil {
@@ -121,7 +121,7 @@ func (sv *Saver) startHandler(projectID int64, m *manifest.Manifest, command str
 		key, _ := input[manifest.RetryKey].(string)
 		delete(input, manifest.RetryKey)
 		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: key, Trial: act.Trial, Alone: act.Alone}
-		id, err := sv.Runner.Start(ctx, projectID, m, command, input, o)
+		id, err := pj.Runner.Start(ctx, projectID, m, command, input, o)
 		if err != nil {
 			return nil, err
 		}

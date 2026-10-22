@@ -135,7 +135,7 @@ func (pj *Service) importFiles(ctx context.Context, act registry.Actor, name, fr
 		return nil, err
 	}
 	reason := "imported from " + from
-	p, err := pj.Save.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
+	p, err := pj.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
 		if filepath.IsAbs(from) {
 			if err := q.SetImportedFrom(ctx, db.SetImportedFromParams{ImportedFrom: from, ID: p.ID}); err != nil {
 				return err
@@ -156,7 +156,7 @@ func (pj *Service) importFiles(ctx context.Context, act registry.Actor, name, fr
 		return nil, err
 	}
 	out := map[string]any{"id": p.ID, "name": p.Name, "status": p.Status, "files": len(files), "rights": rights(pm.m)}
-	if w := pj.Save.unassigned(ctx, p, pm.m); len(w) > 0 {
+	if w := pj.unassigned(ctx, p, pm.m); len(w) > 0 {
 		out["warnings"] = w
 	}
 	return out, nil

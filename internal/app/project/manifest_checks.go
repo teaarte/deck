@@ -56,9 +56,9 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 }
 
 // unassigned are the warnings of the model commands of a manifest that no model of the settings takes.
-func (sv *Saver) unassigned(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
+func (pj *Service) unassigned(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
 	var out []string
-	for name, text := range sv.Unassigned(ctx, p.WorkspaceID, p.ID, m) {
+	for name, text := range pj.Unassigned(ctx, p.WorkspaceID, p.ID, m) {
 		out = append(out, "command "+name+": "+text)
 	}
 	slices.Sort(out)
@@ -92,7 +92,7 @@ func checkKeys(ctx context.Context, q *db.Queries, workspace int64, m *manifest.
 
 // checkToolFit checks tool commands whose tool is a builtin or an MCP tool deck has listed: the command
 // input must go to the tool as it is. An MCP tool deck has not seen yet is checked when the command runs.
-func (sv *Saver) checkToolFit(ctx context.Context, q *db.Queries, workspace, projectID int64, m *manifest.Manifest) error {
+func (pj *Service) checkToolFit(ctx context.Context, q *db.Queries, workspace, projectID int64, m *manifest.Manifest) error {
 	var listed []db.McpTool
 	if projectID != 0 {
 		var err error
@@ -107,7 +107,7 @@ func (sv *Saver) checkToolFit(ctx context.Context, q *db.Queries, workspace, pro
 		name := c.Executor.Tool
 		var input json.RawMessage
 		if strings.HasPrefix(name, registry.Builtin+".") {
-			t, err := sv.Registry.Lookup(ctx, workspace, name)
+			t, err := pj.Registry.Lookup(ctx, workspace, name)
 			if err != nil {
 				return registry.Invalid("deck: command %q: no builtin tool %q", c.Name, name)
 			}

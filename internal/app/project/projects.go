@@ -95,7 +95,7 @@ func (pj *Service) projectCreate(ctx context.Context, act registry.Actor, in pro
 	if strings.TrimSpace(in.Manifest) == "" {
 		in.Manifest = fmt.Sprintf(emptyManifest, manifest.FormatVersion)
 	}
-	p, err := pj.Save.CreateProject(ctx, act, in.Name, []byte(in.Manifest), in.Prompt)
+	p, err := pj.CreateProject(ctx, act, in.Name, []byte(in.Manifest), in.Prompt)
 	if err != nil {
 		return nil, err
 	}

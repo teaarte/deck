@@ -48,10 +48,7 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 	if err := ask.Check(q.Kind, in.Answer); err != nil {
 		return nil, err
 	}
-	if q.Kind == ask.KindGrant && q.State == ask.StateOpen {
-		return s.AnswerGrant(ctx, act, q, in.Answer)
-	}
-	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown {
+	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown || q.Kind == ask.KindGrant && q.State == ask.StateOpen {
 		return s.decide(ctx, act, q, in.Answer)
 	}
 	if err := s.Broker.Answer(ctx, in.Ask, in.Answer); err != nil {
@@ -75,8 +72,9 @@ func (s *Service) dismissExpired(ctx context.Context, q db.Ask, answer string) (
 	return map[string]any{"ok": true}, nil
 }
 
-// decide answers a frozen call or an unknown outcome: allowing or retrying makes the call now and delivers
-// what it gave to the process that asked; refusing or counting it done only tells the process.
+// decide answers a frozen call, a grant or an unknown outcome: allowing or retrying makes the call now and delivers
+// what it gave to the process that asked; refusing or counting it done only tells the process. An allowed grant
+// makes its change merged into the current manifest.
 func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
 	if err := ask.Check(q.Kind, answer); err != nil {
 		return nil, err
@@ -87,13 +85,25 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 		if q.State != ask.StateOpen {
 			return nil, ask.ErrNotOpen
 		}
+		var rev int64
+		if q.Kind == ask.KindGrant {
+			var err error
+			if q, rev, err = s.MergeGrant(ctx, q); err != nil {
+				return nil, err
+			}
+		}
 		var then func() error
 		if answer == "allow_always" {
 			then = func() error { return s.allowAlways(ctx, act, q) }
 		}
 		out, err := s.Gateway.Decide(ctx, act, q, answer, then)
-		if errors.Is(err, ask.ErrNotOpen) {
+		switch {
+		case errors.Is(err, ask.ErrNotOpen):
 			return nil, err
+		case q.Kind == ask.KindGrant && registry.Status(err) == 409 && rev != 0:
+			return nil, registry.Conflict("deck: the manifest changed while you answered; allow it again")
+		case q.Kind == ask.KindGrant && registry.Status(err) == 409:
+			return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
 		}
 		s.LateAnswer(ctx, q)
 		if err != nil {
@@ -104,7 +114,7 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 		if err := s.Broker.Answer(ctx, q.ID, answer); err != nil {
 			return nil, err
 		}
-		if q.Kind == ask.KindCall {
+		if q.Kind == ask.KindCall || q.Kind == ask.KindGrant {
 			s.Gateway.Record(ctx, q, "rejected", "the owner said no")
 		}
 		return map[string]any{"ok": true}, nil

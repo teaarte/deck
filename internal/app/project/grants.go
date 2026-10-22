@@ -105,43 +105,22 @@ func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string,
 	return text, d.Current, nil
 }
 
-// AnswerGrant makes the change of an allowed grant as the owner, merged into the current manifest; the grant closes
-// only when it applied.
-func (pj *Service) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
-	switch {
-	case answer == "allow":
-		p, err := pj.St.Q.GetProject(ctx, q.ProjectID.Int64)
-		if err != nil {
-			return nil, err
-		}
-		text, rev, err := merged(ctx, pj.St.Q, p, q)
-		switch {
-		case errors.Is(err, errFrozen):
-		case err != nil:
-			return nil, registry.Conflict("deck: %v; deny this request and ask again", err)
-		default:
-			if q.Payload, err = mergedCall(q.Payload, text, rev); err != nil {
-				return nil, err
-			}
-		}
-		out, err := pj.Gateway.Decide(ctx, act, q, answer, nil)
-		switch {
-		case errors.Is(err, ask.ErrNotOpen):
-			return nil, err
-		case registry.Status(err) == 409 && rev != 0:
-			return nil, registry.Conflict("deck: the manifest changed while you answered; allow it again")
-		case registry.Status(err) == 409:
-			return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
-		}
-		return out, err
-	case answer == "deny" || strings.HasPrefix(answer, "deny:"):
-		if err := pj.Broker.Answer(ctx, q.ID, answer); err != nil {
-			return nil, err
-		}
-		pj.Gateway.Record(ctx, q, "rejected", "the owner said no")
-		return map[string]any{"ok": true}, nil
+// MergeGrant is an allowed grant with its change merged into the current manifest, and the revision it merged into;
+// zero for a grant on the current revision.
+func (pj *Service) MergeGrant(ctx context.Context, q db.Ask) (db.Ask, int64, error) {
+	p, err := pj.St.Q.GetProject(ctx, q.ProjectID.Int64)
+	if err != nil {
+		return q, 0, err
 	}
-	return nil, registry.Invalid("deck: answer a grant with allow, deny or deny:<reason>")
+	text, rev, err := merged(ctx, pj.St.Q, p, q)
+	switch {
+	case errors.Is(err, errFrozen):
+		return q, 0, nil
+	case err != nil:
+		return q, 0, registry.Conflict("deck: %v; deny this request and ask again", err)
+	}
+	q.Payload, err = mergedCall(q.Payload, text, rev)
+	return q, rev, err
 }
 
 // mergedCall is the frozen save of a grant with the manifest merged into revision rev.

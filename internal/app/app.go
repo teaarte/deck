@@ -6,6 +6,7 @@ import (
 	apphealth "deck2/internal/app/health"
 	"deck2/internal/app/processes"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -189,7 +190,9 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Saver.CheckManifests(a.ctx)
 	status, text := script.Runtimes().Health()
-	health.Write(a.ctx, a.Store, health.Of{}, "scripts", status, text)
+	if err := health.Write(a.ctx, a.Store, health.Of{}, "scripts", status, text); err != nil {
+		return nil, err
+	}
 	return a, nil
 }
 
@@ -306,5 +309,7 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 
 // TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one.
 func (a *App) TailnetHealth(status, text string) {
-	health.Write(context.Background(), a.Store, health.Of{}, "tailscale", status, text)
+	if err := health.Write(context.Background(), a.Store, health.Of{}, "tailscale", status, text); err != nil {
+		slog.Error("write health", "err", err)
+	}
 }

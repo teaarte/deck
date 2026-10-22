@@ -79,15 +79,23 @@ func (s *Service) take(ctx context.Context, kind string, project int64) (string,
 	path, left, err := s.write(ctx, kind, project)
 	switch {
 	case err != nil:
-		health.Write(ctx, s.St, health.Of{}, "snapshot", health.Error, "the snapshot failed: "+err.Error())
+		if err := health.Write(ctx, s.St, health.Of{}, "snapshot", health.Error, "the snapshot failed: "+err.Error()); err != nil {
+			slog.Error("write health", "err", err)
+		}
 	case len(left.unread) > 0:
-		health.Write(ctx, s.St, health.Of{}, "snapshot", health.Warning, fmt.Sprintf("the snapshot left out %d files it could not read whole: %s",
-			len(left.unread), strings.Join(left.unread[:min(len(left.unread), 5)], "; ")))
+		if err := health.Write(ctx, s.St, health.Of{}, "snapshot", health.Warning, fmt.Sprintf("the snapshot left out %d files it could not read whole: %s",
+			len(left.unread), strings.Join(left.unread[:min(len(left.unread), 5)], "; "))); err != nil {
+			slog.Error("write health", "err", err)
+		}
 	case left.over > 0:
-		health.Write(ctx, s.St, health.Of{}, "snapshot", health.OK, fmt.Sprintf("%s, without %d MB of big files of data folders past %d MB",
-			filepath.Base(path), left.over>>20, s.Budget/2>>20))
+		if err := health.Write(ctx, s.St, health.Of{}, "snapshot", health.OK, fmt.Sprintf("%s, without %d MB of big files of data folders past %d MB",
+			filepath.Base(path), left.over>>20, s.Budget/2>>20)); err != nil {
+			slog.Error("write health", "err", err)
+		}
 	default:
-		health.Write(ctx, s.St, health.Of{}, "snapshot", health.OK, filepath.Base(path))
+		if err := health.Write(ctx, s.St, health.Of{}, "snapshot", health.OK, filepath.Base(path)); err != nil {
+			slog.Error("write health", "err", err)
+		}
 	}
 	return path, err
 }
@@ -437,7 +445,9 @@ func (s *Service) CheckDisk(ctx context.Context, now time.Time) {
 	if free < lowDisk {
 		status, text = "warning", "the disk is almost full; "+text
 	}
-	health.Write(ctx, s.St, health.Of{}, "disk", status, text)
+	if err := health.Write(ctx, s.St, health.Of{}, "disk", status, text); err != nil {
+		slog.Error("write health", "err", err)
+	}
 }
 
 // Commands are the commands of snapshots.

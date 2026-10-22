@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -71,7 +72,9 @@ func (c *Service) browserLoginDone(ctx context.Context, act registry.Actor, in b
 		return nil, err
 	}
 	c.Browser.LoginDone()
-	health.Write(ctx, c.St, health.Of{}, siteHealth(site), health.OK, "")
+	if err := health.Write(ctx, c.St, health.Of{}, siteHealth(site), health.OK, ""); err != nil {
+		return nil, err
+	}
 	n, err := c.signedIn(ctx, act.Workspace, "site", site)
 	return map[string]any{"site": site, "resumed": n}, err
 }
@@ -90,7 +93,9 @@ func (c *Service) browserNeedsLogin(ctx context.Context, act registry.Actor, in 
 	if act.ProcessID == 0 {
 		return nil, registry.Invalid("deck: only a process waits for a sign-in")
 	}
-	health.Write(ctx, c.St, health.Of{}, siteHealth(site), health.NeedsLogin, untrusted.Cut(in.Why, 300))
+	if err := health.Write(ctx, c.St, health.Of{}, siteHealth(site), health.NeedsLogin, untrusted.Cut(in.Why, 300)); err != nil {
+		return nil, err
+	}
 	payload, _ := json.Marshal(map[string]string{"site": site})
 	text := fmt.Sprintf("Sign in to %s in deck's browser (deck.browser_login), then say done: %s", site, untrusted.Cut(in.Why, 300))
 	row, err := store.TxGet(c.St, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
@@ -162,7 +167,9 @@ func (c *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 		return err
 	})
 	if err != nil {
-		health.Write(ctx, c.St, health.Project(p), "tool:"+tool, health.NeedsLogin, text+"; deck could not ask: "+err.Error())
+		if err := health.Write(ctx, c.St, health.Project(p), "tool:"+tool, health.NeedsLogin, text+"; deck could not ask: "+err.Error()); err != nil {
+			slog.Error("write health", "err", err)
+		}
 	}
 }
 
@@ -262,15 +269,21 @@ func (c *Service) ServerStatus(key string, list []*mcp.Tool, err error) {
 		}
 	}
 	if err != nil {
-		health.Write(ctx, c.St, of, subject, health.Error, err.Error())
+		if err := health.Write(ctx, c.St, of, subject, health.Error, err.Error()); err != nil {
+			slog.Error("write health", "err", err)
+		}
 		return
 	}
-	health.Write(ctx, c.St, of, subject, health.OK, "")
+	if err := health.Write(ctx, c.St, of, subject, health.OK, ""); err != nil {
+		slog.Error("write health", "err", err)
+	}
 }
 
 // ToolHealth is the health of a tool of a project.
 func (c *Service) ToolHealth(ctx context.Context, p db.Project, tool, status, text string) {
-	health.Write(ctx, c.St, health.Project(p), "tool:"+tool, status, text)
+	if err := health.Write(ctx, c.St, health.Project(p), "tool:"+tool, status, text); err != nil {
+		slog.Error("write health", "err", err)
+	}
 }
 
 // Servers starts the MCP servers of a project whose tools deck has not listed yet, so a process that starts

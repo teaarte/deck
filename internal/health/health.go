@@ -41,6 +41,6 @@ func Set(ctx context.Context, q *db.Queries, of Of, subject, status, text string
 }
 
 // Write sets a health row in a transaction of its own.
-func Write(ctx context.Context, st *store.Store, of Of, subject, status, text string) {
-	_ = st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return Set(ctx, q, of, subject, status, text) })
+func Write(ctx context.Context, st *store.Store, of Of, subject, status, text string) error {
+	return st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return Set(ctx, q, of, subject, status, text) })
 }

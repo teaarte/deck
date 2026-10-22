@@ -211,8 +211,10 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	if err == nil && id != 0 && s.goesOn(ctx, t, id) {
 		s.after(ctx, t, now)
 		if perr == nil {
-			health.Write(ctx, s.st, health.Project(p), subject, health.Warning,
-				fmt.Sprintf("the %s trigger did not start %s at %s: its run #%d still goes", t.Kind, t.Command, t.NextRunAt.String, id))
+			if err := health.Write(ctx, s.st, health.Project(p), subject, health.Warning,
+				fmt.Sprintf("the %s trigger did not start %s at %s: its run #%d still goes", t.Kind, t.Command, t.NextRunAt.String, id)); err != nil {
+				slog.Error("write health", "err", err)
+			}
 		}
 		return
 	}
@@ -232,7 +234,9 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	text := fmt.Sprintf("the %s trigger did not start %s: %v", t.Kind, t.Command, err)
 	s.after(ctx, t, now)
 	if perr == nil {
-		health.Write(ctx, s.st, health.Project(p), subject, health.Error, text)
+		if err := health.Write(ctx, s.st, health.Project(p), subject, health.Error, text); err != nil {
+			slog.Error("write health", "err", err)
+		}
 	}
 }
 

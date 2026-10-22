@@ -403,7 +403,9 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 			return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: retentionSubject(p.Name)})
 		})
 		if err != nil {
-			health.Write(ctx, s.St, health.Project(p), retentionSubject(p.Name), health.Error, fmt.Sprintf("deck could not delete the records of %s past their retention: %v", p.Name, err))
+			if err := health.Write(ctx, s.St, health.Project(p), retentionSubject(p.Name), health.Error, fmt.Sprintf("deck could not delete the records of %s past their retention: %v", p.Name, err)); err != nil {
+				slog.Error("write health", "err", err)
+			}
 		}
 	}
 	s.settle(ctx, open, 0, false)

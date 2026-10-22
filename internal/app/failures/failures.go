@@ -91,7 +91,9 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 		key := fmt.Sprintf("%d.screen:%s:%s@%d", p.ID, name, block, revision)
 		subject := "screen:" + p.Name + "." + name
 		if n, err := s.St.Q.HasProjectHealth(ctx, db.HasProjectHealthParams{ProjectID: store.ID(p.ID), Subject: subject}); err == nil && n == 0 {
-			health.Write(ctx, s.St, health.Project(p), subject, health.Error, e)
+			if err := health.Write(ctx, s.St, health.Project(p), subject, health.Error, e); err != nil {
+				slog.Error("write health", "err", err)
+			}
 		}
 		if !s.firstTime(ctx, p, screenErrorPrefix+key) {
 			continue

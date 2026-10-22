@@ -314,7 +314,9 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 			status = "error"
 		}
 		prev, err := dv.St.Q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: "push"})
-		health.Write(ctx, dv.St, health.Of{Workspace: workspace}, "push", status, text)
+		if err := health.Write(ctx, dv.St, health.Of{Workspace: workspace}, "push", status, text); err != nil {
+			slog.Error("write health", "err", err)
+		}
 		if !lasting || err == nil && prev.Status == "error" {
 			return
 		}

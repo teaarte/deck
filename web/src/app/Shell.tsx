@@ -90,7 +90,7 @@ export function Shell() {
         <ChatPanel phone={phone} layout={layout} onDragging={setDragging}
           onClose={() => { moveFocus('[data-chat-toggle]'); setChat(false); }} />
       </div>
-      <Drawer opened={phone && phoneNav} onClose={() => setPhoneNav(false)} size={300} padding={0} withCloseButton={false} keepMounted data-nav-phone>
+      <Drawer opened={phone && phoneNav} onClose={() => setPhoneNav(false)} size="100%" padding={0} withCloseButton={false} keepMounted data-nav-phone>
         <nav className={`${s.island} ${s.safe}`} style={{ height: '100dvh', borderRadius: 0, boxShadow: 'none', background: 'transparent' }}>
           <div className={s.navTop}>
             <Logo onClick={() => setPhoneNav(false)} />

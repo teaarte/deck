@@ -101,7 +101,7 @@ func (r *Runner) sign(processID int64, e provider.Event) {
 	}
 }
 
-// answered notes that the model of a running turn answered a call.
+// answered notes that the model of a running turn answered a call or called a tool of deck.
 func (r *Runner) answered(processID int64) {
 	r.mu.Lock()
 	if lt := r.live[processID]; lt != nil && lt.watch != nil {
@@ -114,21 +114,18 @@ func (r *Runner) answered(processID int64) {
 // provider went on a pause or red meanwhile.
 func (r *Runner) watchTurns(ctx context.Context, now time.Time) {
 	type watched struct {
-		id int64
 		lt *liveTurn
 		w  *watch
 	}
 	var all []watched
 	r.mu.Lock()
-	for id, lt := range r.live {
+	for _, lt := range r.live {
 		if lt.watch != nil {
-			all = append(all, watched{id, lt, lt.watch})
+			all = append(all, watched{lt, lt.watch})
 		}
 	}
 	r.mu.Unlock()
 	for _, x := range all {
-		// An ask of the turn is a call of its model that waits for the owner.
-		asked, _ := r.st.Q.ListOpenAsksOfProcess(ctx, x.id)
 		name := x.w.pv.Name()
 		quiet := quietAfter
 		if slices.Contains(x.w.pv.Caps(), provider.NoCloud) {
@@ -143,9 +140,6 @@ func (r *Runner) watchTurns(ctx context.Context, now time.Time) {
 			l = &leaving{f: fault.With(t, fmt.Sprintf("%s went %s during the turn: %s", name, status, untrusted.Line(text, 200)), text), down: status}
 		}
 		r.mu.Lock()
-		if len(asked) > 0 {
-			x.w.heard = true
-		}
 		// Only the call still under way is cut: a call that ended meanwhile keeps its outcome.
 		if x.lt.watch == x.w {
 			if l == nil && !x.w.heard && now.Sub(x.w.since) >= quiet {

@@ -711,6 +711,7 @@ func TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns(t *testing.T) {
 	child := make(chan int64, 1)
 	fake := &Fake{live: true, script: func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "child" {
+			c.Req.Emit(provider.Event{Kind: provider.EventThought, Text: "working"})
 			<-ctx.Done()
 			return provider.Result{}
 		}

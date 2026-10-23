@@ -48,6 +48,8 @@ type Session struct {
 	Wait time.Duration
 	// Master is an agent of the built-in project master: it acts as the master, across projects.
 	Master bool
+	// Heard hears each call of a tool of the session, a sign of the model that makes it.
+	Heard func()
 }
 
 func (s *Session) actor() registry.Actor {
@@ -244,6 +246,9 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			if method == "tools/call" && !g.alive(tok) {
 				return gone, nil
+			}
+			if method == "tools/call" && s.Heard != nil {
+				s.Heard()
 			}
 			return next(ctx, method, req)
 		}

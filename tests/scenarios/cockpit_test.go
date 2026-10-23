@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -41,19 +42,20 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	verbs := func(it listItem) []string {
 		var out []string
 		for _, a := range it.Actions {
-			out = append(out, a["verb"].(string))
+			out = append(out, fmt.Sprint(cmp.Or(a["verb"], a["label"])))
 		}
 		return out
 	}
-	who := fmt.Sprintf("#%d work", second)
-	if fresh.Title != "post" || fresh.Text != "POST "+svc.URL+"/items/n2" || fresh.Meta != "notes" ||
-		!strings.HasPrefix(fresh.Details, who+"\nnotes.post\n") {
-		t.Fatalf("a confirmation says what by the title of its command, where and its module; who and the command under its details: %+v", fresh)
+	by := fmt.Sprintf("#%d work", second)
+	if fresh.Title != "post" || !strings.HasSuffix(fresh.Text, "POST "+svc.URL+"/items/n2") || fresh.Meta != "Work · notes" ||
+		!strings.HasPrefix(fresh.Details, by+"\nnotes.post\n") {
+		t.Fatalf("a confirmation says what, where, who asks in words and its module; the process and the command under its details: %+v", fresh)
 	}
-	if !strings.Contains(fresh.Details, `"id": "n2"`) || !strings.Contains(fresh.Details, `"text": "hi"`) || !strings.Contains(fresh.Details, `"process": `) {
-		t.Fatalf("the whole frozen call is in the item: %s", fresh.Details)
+	if !strings.Contains(fresh.Details, `"id": "n2"`) || !strings.Contains(fresh.Details, `"text": "hi"`) || strings.Contains(fresh.Details, `"process": `) ||
+		strings.Contains(fresh.Details, `"caller"`) {
+		t.Fatalf("the call and only the call is in the details: %s", fresh.Details)
 	}
-	if got := verbs(fresh); !slices.Equal(got, []string{"allow", "allow_always", "deny", "deny_because"}) ||
+	if got := verbs(fresh); !slices.Equal(got, []string{"allow", "Always let notes run post", "deny", "deny_because"}) ||
 		fresh.Actions[0]["primary"] != true || fresh.Actions[0]["until"] == nil || fresh.Actions[3]["input"] != "reason" {
 		t.Fatalf("a confirmation offers allow first until it expires, then deny with a reason: %v", fresh.Actions)
 	}

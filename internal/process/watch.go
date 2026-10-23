@@ -1,6 +1,7 @@
 package process
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -133,11 +134,11 @@ func (r *Runner) watchTurns(ctx context.Context, now time.Time) {
 		}
 		var l *leaving
 		if status, text := r.deps.Down(ctx, x.w.workspace, name); status != "" {
-			t := fault.ModelUnavailable
+			t, went := fault.ModelUnavailable, "%s went red during the turn: %s"
 			if status == health.Paused {
-				t = fault.ModelLimit
+				t, went = fault.ModelLimit, "%s went on a pause during the turn: %s"
 			}
-			l = &leaving{f: fault.With(t, fmt.Sprintf("%s went %s during the turn: %s", name, status, untrusted.Line(text, 200)), text), down: status}
+			l = &leaving{f: fault.With(t, fmt.Sprintf(went, name, untrusted.Line(text, 200)), text), down: status}
 		}
 		r.mu.Lock()
 		// Only the call still under way is cut: a call that ended meanwhile keeps its outcome.
@@ -182,7 +183,7 @@ func (r *Runner) leaveModel(ctx context.Context, t *turn, l *leaving) {
 	if l.down != "" {
 		held := *t
 		held.resume, held.message = true, "deck: your model was held up and is back. Continue where you stopped."
-		r.warn(ctx, t.process, fmt.Sprintf("Process #%d of %s waits for %s: %s", t.process, t.cmd.Name, pv.Name(), l.f.Text))
+		r.warnOf(ctx, t.process, fmt.Sprintf("%s waits for %s: %s", cmp.Or(t.cmd.Title, t.cmd.Name), pv.Name(), l.f.Text), health.Provider(pv.Name()))
 		r.hold(ctx, held, StateWaitingProvider)
 		return
 	}

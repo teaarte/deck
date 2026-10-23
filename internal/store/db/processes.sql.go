@@ -1543,7 +1543,7 @@ WITH RECURSIVE tree(id) AS (
     UNION ALL
     SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
 )
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats FROM feed WHERE kind = 'change' AND undone_at IS NULL AND process_id IN (SELECT id FROM tree) ORDER BY id LIMIT 200
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts FROM feed WHERE kind = 'change' AND undone_at IS NULL AND process_id IN (SELECT id FROM tree) ORDER BY id LIMIT 200
 `
 
 func (q *Queries) ListTreeChanges(ctx context.Context, id int64) ([]Feed, error) {
@@ -1575,6 +1575,8 @@ func (q *Queries) ListTreeChanges(ctx context.Context, id int64) ([]Feed, error)
 			&i.ReadAt,
 			&i.ProcessID,
 			&i.Repeats,
+			&i.Cause,
+			&i.Parts,
 		); err != nil {
 			return nil, err
 		}

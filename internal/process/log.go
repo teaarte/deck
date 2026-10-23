@@ -98,6 +98,17 @@ func (r *Runner) Tail(processID int64, n int, kinds ...string) ([]json.RawMessag
 	return out, sc.Err()
 }
 
+// Said is the last message the agent of a process said, on one line; empty when it said none.
+func (r *Runner) Said(processID int64) string {
+	lines, err := r.Tail(processID, 1, provider.EventMessage)
+	if err != nil || len(lines) == 0 {
+		return ""
+	}
+	var l logLine
+	_ = json.Unmarshal(lines[0], &l)
+	return untrusted.Flat(l.Text, 300)
+}
+
 // LogPath is the file with the log of a process.
 func (r *Runner) LogPath(processID int64) string {
 	return r.cfg.Home.Stream(processID)

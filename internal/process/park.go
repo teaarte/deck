@@ -39,7 +39,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		return setHealth(ctx, q, pv, health.NeedsLogin, text)
 	})
 	if err != nil {
-		r.finish(ctx, processID, StateError, "", false, fault.New(fault.ModelLogin, "needs login: "+text))
+		r.finish(ctx, processID, StateError, "", false, fault.New(fault.ModelLogin, fmt.Sprintf("needs login: %s", text)))
 		return
 	}
 	if n > 0 {

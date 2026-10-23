@@ -47,7 +47,7 @@ func (r *Runner) stopAtCeiling(ctx context.Context, now time.Time) {
 			for _, k := range kids {
 				names = append(names, fmt.Sprintf("#%d %s", k.ID, k.Command))
 			}
-			text += "; the processes it started still run: " + strings.Join(names, ", ")
+			text = fmt.Sprintf("deck: the process reached its time ceiling; the processes it started still run: %s", strings.Join(names, ", "))
 		}
 		if err := r.end(ctx, id, StateError, fault.New(fault.Timeout, text), false); err != nil {
 			slog.Error("stop at ceiling", "process", id, "err", err)

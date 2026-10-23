@@ -15,6 +15,8 @@ why and tell the owner the fix; do not change the project yourself.
    button; `models_list` shows the connections) or name a model deck has that does the same work.
 3. Write one `notify` with the failed project: what failed, the exact error, and the fix — the file and the
    change, or the command of the project that would repair it; the owner says in the chat whether to make it.
+   A failure whose cause is a model or a connection names it in `cause` as the subject of its row of health,
+   such as `model:groq/llama-70b`, so the notes of every module about it are one.
    What the owner's memory says they turned down, you do not offer again. A one-off writes nothing.
 
 The result is one short line: what failed and what you told the owner.

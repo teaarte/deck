@@ -5,16 +5,16 @@
   "blocks": [
     {"type": "list", "title": "Needs your decision", "icon": "hand-finger", "span": 2, "when": "len(rows) > 0", "source": {"from": "deck.asks_list"},
         "description": "Nothing moves on without your answer.",
-      "item": {"title": "what", "text": "where",
-        "icon": "kind == 'question' ? 'message-question' : kind in ['sign_in', 'login'] ? 'key' : kind == 'unknown' ? 'help-triangle' : kind == 'grant' ? 'shield-check' : 'send'", "meta": "project", "since": "created_at", "tone": "expired ? 'muted' : 'warn'",
-        "details": "join(filter([who, command ?? '', kind in ['call', 'unknown', 'confirm', 'grant'] ? toJSON(payload) : ''], # != ''), '\\n')",
+      "item": {"title": "what", "text": "(why ?? '') != '' && (where ?? '') != '' ? why + ' — ' + where : (why ?? '') != '' ? why : where",
+        "icon": "kind == 'question' ? 'message-question' : kind in ['sign_in', 'login'] ? 'key' : kind == 'unknown' ? 'help-triangle' : kind == 'grant' ? 'shield-check' : 'send'", "meta": "join(filter([who, project], # != ''), ' · ')", "since": "created_at", "tone": "expired ? 'muted' : 'warn'",
+        "details": "join(filter([by ?? '', command ?? '', kind in ['call', 'unknown', 'confirm', 'grant'] ? toJSON(payload) : ''], # != ''), '\\n')",
         "questions": "kind == 'question' && len(payload?.questions ?? []) > 0 ? payload.questions : nil"},
       "actions": [
         {"verb": "answer", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id"}, "input": "answer", "when": "kind == 'question' && !expired"},
         {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "retry"}, "when": "kind == 'unknown' && !expired"},
         {"verb": "mark_done", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "done"}, "when": "kind == 'unknown' && !expired"},
         {"verb": "allow", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow"}, "until": "=expires_at", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
-        {"verb": "allow_always", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow_always"}, "until": "=expires_at", "when": "kind == 'call' && !expired"},
+        {"label": "=always", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow_always"}, "until": "=expires_at", "when": "kind == 'call' && (always ?? '') != '' && !expired"},
         {"verb": "deny", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
         {"verb": "deny_because", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "input": "reason", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
         {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "retry"}, "when": "kind == 'login' && !expired"},
@@ -49,7 +49,9 @@
       ]},
     {"type": "list", "title": "Notes", "span": 1, "icon": "bell", "when": "len(rows) > 0",
       "source": {"from": "deck.feed_list", "input": {"kind": "note", "unread": true}, "limit": 10},
-      "item": {"title": "text", "icon": "'news'", "since": "created_at", "meta": "project + ' · ' + author + ((repeats ?? 1) > 1 ? ' · ×' + string(repeats) : '')"},
+      "item": {"title": "text", "icon": "'news'", "since": "created_at",
+        "meta": "(len(projects ?? []) > 1 ? join(projects, ', ') : project + ' · ' + author) + ((repeats ?? 1) > 1 && len(parts ?? []) == 0 ? ' · ×' + string(repeats) : '')",
+        "details": "len(parts ?? []) > 1 ? join(map(parts, #.project + ': ' + #.text), '\\n') : ''"},
       "actions": [
         {"verb": "open", "screen": "=screen", "project": "=deck_screen ? '' : project", "record": "=record", "when": "screen != ''"},
         {"verb": "mark_read", "primary": true, "command": "deck.feed_read", "params": {"entry": "=id"}}

@@ -11,27 +11,34 @@ import (
 )
 
 const addDeckNote = `-- name: AddDeckNote :exec
-INSERT INTO feed (workspace_id, project_id, kind, author, text, created_at)
-SELECT j.workspace_id, j.id, 'note', 'deck', ?1, ?2 FROM project j WHERE j.id = ?3
+INSERT INTO feed (workspace_id, project_id, kind, author, text, created_at, cause)
+SELECT j.workspace_id, j.id, 'note', 'deck', ?1, ?2, ?3 FROM project j WHERE j.id = ?4
 `
 
 type AddDeckNoteParams struct {
 	Text      string
 	CreatedAt string
+	Cause     string
 	ProjectID int64
 }
 
 func (q *Queries) AddDeckNote(ctx context.Context, arg AddDeckNoteParams) error {
-	_, err := q.db.ExecContext(ctx, addDeckNote, arg.Text, arg.CreatedAt, arg.ProjectID)
+	_, err := q.db.ExecContext(ctx, addDeckNote,
+		arg.Text,
+		arg.CreatedAt,
+		arg.Cause,
+		arg.ProjectID,
+	)
 	return err
 }
 
 const addFeed = `-- name: AddFeed :one
-INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, created_at, process_id)
+INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, created_at, process_id,
+    cause)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12, ?13,
-    ?14)
-RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats
+    ?14, ?15)
+RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts
 `
 
 type AddFeedParams struct {
@@ -49,6 +56,7 @@ type AddFeedParams struct {
 	Revision    int64
 	CreatedAt   string
 	ProcessID   sql.NullInt64
+	Cause       string
 }
 
 func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) {
@@ -67,6 +75,7 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		arg.Revision,
 		arg.CreatedAt,
 		arg.ProcessID,
+		arg.Cause,
 	)
 	var i Feed
 	err := row.Scan(
@@ -89,6 +98,8 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		&i.ReadAt,
 		&i.ProcessID,
 		&i.Repeats,
+		&i.Cause,
+		&i.Parts,
 	)
 	return i, err
 }
@@ -112,6 +123,23 @@ func (q *Queries) AddMasterNote(ctx context.Context, arg AddMasterNoteParams) er
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const causeNote = `-- name: CauseNote :one
+SELECT id FROM feed WHERE workspace_id = ? AND cause = ? AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+ORDER BY id LIMIT 1
+`
+
+type CauseNoteParams struct {
+	WorkspaceID int64
+	Cause       string
+}
+
+func (q *Queries) CauseNote(ctx context.Context, arg CauseNoteParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, causeNote, arg.WorkspaceID, arg.Cause)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const countUnreadNotes = `-- name: CountUnreadNotes :one
@@ -140,7 +168,7 @@ func (q *Queries) DeleteMasterNotes(ctx context.Context, arg DeleteMasterNotesPa
 }
 
 const getFeed = `-- name: GetFeed :one
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats FROM feed WHERE id = ?
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts FROM feed WHERE id = ?
 `
 
 func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
@@ -166,12 +194,14 @@ func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
 		&i.ReadAt,
 		&i.ProcessID,
 		&i.Repeats,
+		&i.Cause,
+		&i.Parts,
 	)
 	return i, err
 }
 
 const listFeed = `-- name: ListFeed :many
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats FROM feed WHERE workspace_id = ?1 AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts FROM feed WHERE workspace_id = ?1 AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND (CAST(?3 AS TEXT) = '' OR kind = CAST(?3 AS TEXT)) AND for_master = 0 AND (CAST(?4 AS INTEGER) = 0 OR kind = 'note' AND read_at IS NULL)
 ORDER BY id DESC LIMIT ?5
 `
@@ -219,6 +249,8 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 			&i.ReadAt,
 			&i.ProcessID,
 			&i.Repeats,
+			&i.Cause,
+			&i.Parts,
 		); err != nil {
 			return nil, err
 		}
@@ -234,7 +266,7 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 }
 
 const listMasterNotes = `-- name: ListMasterNotes :many
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id
 `
 
 func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Feed, error) {
@@ -266,6 +298,8 @@ func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Fee
 			&i.ReadAt,
 			&i.ProcessID,
 			&i.Repeats,
+			&i.Cause,
+			&i.Parts,
 		); err != nil {
 			return nil, err
 		}

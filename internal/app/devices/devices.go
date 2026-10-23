@@ -26,6 +26,8 @@ type Service struct {
 	DeckScreen func(name string) *manifest.Screen
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
+	// Words are deck's words in a language.
+	Words func(lang string) map[string]string
 	// Tailnet is the https address of deck on the owner's tailnet, empty while it is not on one.
 	Tailnet atomic.Pointer[string]
 

@@ -302,13 +302,13 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 				r.finish(bg, processID, StateError, "", false, f)
 			}
 		case res.Outcome == provider.Unavailable:
-			f := fault.With(fault.ModelUnavailable, pv.Name()+" did not answer: "+untrusted.Flat(res.Text, 200), res.Text)
+			f := fault.With(fault.ModelUnavailable, fmt.Sprintf("%s did not answer: %s", pv.Name(), untrusted.Flat(res.Text, 200)), res.Text)
 			if !r.handOn(bg, *t, pv, f) {
 				r.finish(bg, processID, StateError, res.Text, false, f)
 			}
 			r.deps.Broke(bg, pv.Name())
 		case res.Outcome == provider.Limited:
-			if r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, pv.Name()+" reached its usage limit", res.Text)) {
+			if r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, fmt.Sprintf("%s reached its usage limit", pv.Name()), res.Text)) {
 				r.limited(bg, pv, res.ResetsAt, res.Text)
 			} else {
 				r.pause(bg, pv, processID, res.ResetsAt, res.Text)
@@ -316,10 +316,10 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		case res.Outcome == provider.Login:
 			r.needLogin(bg, pv, processID, res.Text)
 		case res.Outcome == provider.Failed:
-			r.finish(bg, processID, StateError, res.Text, false, fault.With(fault.TaskFailed, "the agent reported an error: "+untrusted.Flat(res.Text, 200), res.Text))
+			r.finish(bg, processID, StateError, res.Text, false, fault.With(fault.TaskFailed, fmt.Sprintf("the agent reported an error: %s", untrusted.Flat(res.Text, 200)), res.Text))
 			r.deps.Broke(bg, pv.Name())
 		case !blocked && verr != nil && res.Refusal != "":
-			f := fault.With(fault.ModelUnavailable, pv.Name()+" refused a call of the turn: "+untrusted.Flat(res.Refusal, 200), res.Refusal)
+			f := fault.With(fault.ModelUnavailable, fmt.Sprintf("%s refused a call of the turn: %s", pv.Name(), untrusted.Flat(res.Refusal, 200)), res.Refusal)
 			if !r.handOn(bg, *t, pv, f) {
 				r.finish(bg, processID, StateError, res.Refusal, false, f)
 			}

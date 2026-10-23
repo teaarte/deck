@@ -84,7 +84,7 @@ func TestAModelAtItsLimitHandsTheWorkOnToTheNextModel(t *testing.T) {
 	if waited.ID != next || waited.State != "done" {
 		t.Fatalf("a wait for the refused process goes on through the one that took its work: %+v", waited)
 	}
-	e.waitNote("goes on with it on backup")
+	e.waitNote("backup goes on with it")
 	if h := e.waitHealth("provider:fake", "paused"); !strings.Contains(h.Error, "usage limit") {
 		t.Fatalf("the model at its limit waits for its reset: %+v", h)
 	}
@@ -222,7 +222,7 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	if got := e.waitState(e.following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 2 {
 		t.Fatalf("the next model does the work: %+v", got)
 	}
-	e.waitNote("goes on with it on backup")
+	e.waitNote("backup goes on with it")
 	var cmds []struct {
 		Name, Model, Why string
 	}

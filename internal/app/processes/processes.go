@@ -233,13 +233,13 @@ func (s *Service) listed(ctx context.Context, act registry.Actor, name string) (
 
 // runOf is a process of another project as reads runs gives it: what ran, how it ended and on which models.
 func (s *Service) runOf(ctx context.Context, p db.Process, v processView, lang string) processView {
-	line, _, _ := strings.Cut(v.Error, "\n")
+	ws := s.Words(lang)
+	line, _, _ := strings.Cut(manifest.TrText(ws, v.Error), "\n")
 	r := processView{ID: v.ID, Project: v.Project, Command: v.Command, Kind: v.Kind, State: v.State, Trial: v.Trial, Error: line,
 		ErrorType: v.ErrorType, Whose: v.Whose, StartedAt: v.StartedAt, FinishedAt: v.FinishedAt, Provider: v.Provider}
 	if calls, err := s.St.Q.ListProcessModelCalls(ctx, store.ID(p.ID)); err == nil {
 		r.Models = modelsOf(calls)
 	}
-	ws := s.Words(lang)
 	r.Shown = process.Show(p, "", false, func(phrase string) string { return manifest.Tr(ws, phrase) })
 	return r
 }

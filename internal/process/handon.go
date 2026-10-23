@@ -1,6 +1,7 @@
 package process
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/fault"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
@@ -51,8 +53,8 @@ func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fa
 		return true
 	}
 	r.passOn(ctx, p.ID, id, heard)
-	r.warn(ctx, p.ID, fmt.Sprintf("%s stopped process #%d of %s: %s. Process #%d goes on with it on %s.",
-		pv.Name(), p.ID, t.cmd.Name, f.Text, id, next))
+	r.warnOf(ctx, p.ID, fmt.Sprintf("%s did not finish %s: %s. %s goes on with it.", pv.Name(), cmp.Or(t.cmd.Title, t.cmd.Name), f.Text, next),
+		health.Provider(pv.Name()))
 	return true
 }
 

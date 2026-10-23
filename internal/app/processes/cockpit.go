@@ -62,6 +62,7 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 	}
 	ws := s.Words(lang)
 	v.Shown = process.Show(p, question, v.Long, func(phrase string) string { return manifest.Tr(ws, phrase) })
+	v.Error = manifest.TrText(ws, v.Error)
 }
 
 // long reports whether a running process works, since it was last opened, more than twice as long as its

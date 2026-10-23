@@ -280,7 +280,7 @@
       "additionalProperties": false,
       "description": "A button: command calls a command of the project (or deck.record_delete on a row or record page of its own collection), screen opens a screen of the project, chat alone opens the chat of the master. Params and record take a fixed value or =<expression> over the item; _id is the id of a record.",
       "properties": {
-        "label": {"type": "string", "minLength": 1},
+        "label": {"type": "string", "minLength": 1, "description": "Text of the button, or =<expression> over the item that says what it does for this item."},
         "verb": {"type": "string", "description": "A built-in label the client translates, instead of label."},
         "icon": {"$ref": "#/$defs/icon", "description": "Icon on the button."},
         "command": {"type": "string"},

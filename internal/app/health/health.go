@@ -51,7 +51,7 @@ type shownRow struct {
 type healthListIn struct {
 	Project string `type:"project" opt:"" desc:"Only the commands, tools and servers of this project"`
 	Machine bool   `opt:"" desc:"Only what the machine runs: providers, the disk, the sandbox, the runtime of scripts, the tailnet"`
-	Lang    string `opt:"" desc:"Language of the prices of models, such as ru; English without one"`
+	Lang    string `opt:"" desc:"Language of the prices of models and of the sentences of deck, such as ru; English without one"`
 }
 
 // shown is the health of the workspace with the model of each command and schedule and the work of each model.
@@ -73,8 +73,10 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn
 		return nil, err
 	}
 	works, places := s.Works(ctx, act.Workspace, in.Lang), s.Places(ctx, act.Workspace)
+	ws := s.Words(in.Lang)
 	out := make([]shownRow, 0, len(rows))
 	for _, r := range rows {
+		r.Error = manifest.TrText(ws, r.Error)
 		v := shownRow{healthRow: r}
 		name := strings.TrimPrefix(r.Subject, r.Kind+":")
 		switch r.Kind {
@@ -171,6 +173,8 @@ type Service struct {
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
 	// NoSearch is what the owner does while no search is assigned, or "".
 	NoSearch func(ctx context.Context, workspace int64) string
+	// Words are deck's words in a language.
+	Words func(lang string) map[string]string
 	// Works looks up the model that does the work of a command; Places the work each model does.
 	Works  func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	Places func(ctx context.Context, workspace int64) map[string][]string

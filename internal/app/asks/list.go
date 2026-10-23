@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 
 	"deck2/internal/app/access"
 	"deck2/internal/ask"
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -19,6 +21,7 @@ import (
 
 type asksListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; every project without one"`
+	Lang    string `opt:"" desc:"Language of the sentences of deck, such as ru; English without one"`
 }
 
 // askRow is what waits for the owner, with who asks, what and where in words.
@@ -29,8 +32,13 @@ type askRow struct {
 	Process int64  `json:"process,omitempty"`
 	Who     string `json:"who"`
 	What    string `json:"what"`
-	// Command is the command a call waits to make, for the details of a decision.
-	Command   string          `json:"command,omitempty"`
+	// Command is the command a call waits to make and By the process that asks, for the details of a decision.
+	Command string `json:"command,omitempty"`
+	By      string `json:"by,omitempty"`
+	// Why is the last thing the agent said before it asked, its reason in its own words.
+	Why string `json:"why,omitempty"`
+	// Always says what a yes for always would allow from now on; empty where a call is allowed only once.
+	Always    string          `json:"always,omitempty"`
 	Where     string          `json:"where"`
 	Text      string          `json:"text"`
 	Payload   json.RawMessage `json:"payload"`
@@ -66,12 +74,16 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 	}
 	all := append(open, expired...)
 	slices.SortFunc(all, func(x, y db.Ask) int { return cmp.Compare(x.ID, y.ID) })
+	ws := s.Words(in.Lang)
+	tr := func(text string) string { return manifest.TrText(ws, text) }
 	out := make([]askRow, 0, len(all))
 	for _, q := range all {
 		if pid != 0 && q.ProjectID.Int64 != pid {
 			continue
 		}
-		out = append(out, s.askRow(ctx, q, names))
+		r := s.askRow(ctx, q, names)
+		r.What, r.Where, r.Text, r.Who, r.Always = tr(r.What), tr(r.Where), tr(r.Text), tr(r.Who), tr(r.Always)
+		out = append(out, r)
 	}
 	return out, nil
 }
@@ -90,7 +102,10 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) 
 	r := askRow{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID.Int64], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
 		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired, Link: answerLink}
 	if q.ProcessID.Valid {
-		r.Who = s.processName(ctx, q.ProcessID.Int64)
+		r.Who, r.By = s.processWho(ctx, q.ProcessID.Int64), s.processName(ctx, q.ProcessID.Int64)
+		if s.Said != nil {
+			r.Why = s.Said(q.ProcessID.Int64)
+		}
 	}
 	switch q.Kind {
 	case ask.KindQuestion:
@@ -103,17 +118,25 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) 
 	case ask.KindCall, ask.KindUnknown:
 		var f gateway.Frozen
 		_ = json.Unmarshal([]byte(q.Payload), &f)
-		r.Who, r.What, r.Where, r.Command = s.callerName(ctx, f.Caller), f.Call.Command, f.Target, f.Call.Command
+		r.Who, r.What, r.Where, r.Command = s.callerWho(ctx, f.Caller), f.Call.Command, f.Target, f.Call.Command
+		if f.Caller.Process != 0 {
+			r.By = s.processName(ctx, f.Caller.Process)
+		}
+		r.Payload = json.RawMessage(cmp.Or(string(f.Call.Input), "null"))
 		if c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
 			r.What = c.Title
 			if f.Target == "" && c.Target != nil {
 				r.Where = c.Target(f.Tool, f.Call.Input)
 			}
+			r.Always = s.always(r.Project, f, c)
 		}
 	case ask.KindGrant:
 		var f gateway.Frozen
 		_ = json.Unmarshal([]byte(q.Payload), &f)
-		r.Who, r.What, r.Where = s.callerName(ctx, f.Caller), "Widen the rights of "+r.Project, strings.Join(f.Widens, "; ")
+		r.Who, r.What, r.Where = s.callerWho(ctx, f.Caller), fmt.Sprintf("Widen the rights of %s", r.Project), strings.Join(f.Widens, "; ")
+		if f.Caller.Process != 0 {
+			r.By = s.processName(ctx, f.Caller.Process)
+		}
 		r.Text = cmp.Or(f.Reason, "no reason given")
 		r.Payload, _ = json.Marshal(map[string]any{"widens": f.Widens, "reason": f.Reason})
 	case ask.KindConfirm:
@@ -161,6 +184,48 @@ func (s *Service) processName(ctx context.Context, id int64) string {
 		return fmt.Sprintf("process #%d", id)
 	}
 	return fmt.Sprintf("#%d %s", id, p.Command)
+}
+
+// processWho says in words who a process is: the title of its command, empty for the master, which its project names.
+func (s *Service) processWho(ctx context.Context, id int64) string {
+	p, err := s.St.Q.GetProcess(ctx, id)
+	if err != nil {
+		return ""
+	}
+	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
+	if err != nil {
+		return ""
+	}
+	if proj.Builtin == 1 {
+		return ""
+	}
+	if c, err := s.Registry.Lookup(ctx, proj.WorkspaceID, proj.Name+"."+p.Command); err == nil {
+		return cmp.Or(c.Title, p.Command)
+	}
+	return p.Command
+}
+
+// callerWho says in words who made a frozen call: a process as processWho, a token, a trigger, the master or the owner.
+func (s *Service) callerWho(ctx context.Context, c gateway.Caller) string {
+	if c.Process != 0 && c.Token == 0 && c.Kind != registry.Token {
+		return s.processWho(ctx, c.Process)
+	}
+	return s.callerName(ctx, c)
+}
+
+// always says what a yes for always to frozen call f of command c of project would allow from now on: its own
+// external command or tool, or the site of a browser action; empty for a call allowed only once.
+func (s *Service) always(project string, f gateway.Frozen, c *registry.Command) string {
+	if strings.HasPrefix(f.Call.Command, registry.Builtin+".browser_") {
+		if u, err := url.Parse(f.Tool); err == nil && u.Host != "" {
+			return fmt.Sprintf("Always let %s act on %s", project, u.Host)
+		}
+		return ""
+	}
+	if project == "" || !strings.HasPrefix(f.Call.Command, project+".") || c.Class != registry.External {
+		return ""
+	}
+	return fmt.Sprintf("Always let %s run %s", project, cmp.Or(c.Title, c.Name))
 }
 
 // callerName says who made a frozen call: a process, a token, a trigger, the master or the owner.

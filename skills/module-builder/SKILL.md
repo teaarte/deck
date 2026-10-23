@@ -338,7 +338,10 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `manifest.screens.<name>` give only that part, as text in the same form, and `old` may come from it.
 - **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and
   optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
-  in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing.
+  in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing. A note about
+  something outside the module, such as a model or a connection, names it in `cause` as the subject of its row
+  of health (`model:groq/llama-70b`, `provider:claude-code`): the unread notes of one cause of a day, of any
+  module, are one note with each module's part.
 - **Remembering what was seen**: `records_upsert` replaces a whole record by its key, so write every
   required field. `record_get` reads one record by its id ; `records_list` gives the newest. `retention_days` deletes records with their documents: a collection that remembers what the
   owner has already seen, or holds what they asked for, gets none.

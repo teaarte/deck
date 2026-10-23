@@ -127,6 +127,8 @@ type Feed struct {
 	ReadAt      sql.NullString
 	ProcessID   sql.NullInt64
 	Repeats     int64
+	Cause       string
+	Parts       string
 }
 
 type File struct {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -149,11 +148,11 @@ func (s *Service) startCheck(name string, force bool) bool {
 		case ctx.Err() != nil:
 			status, text = health.Checking, "deck stopped during the self-check"
 		case unreached != nil:
-			status, text, verdict = health.Error, "agents do not reach deck's MCP server, so they would start without deck's tools: "+unreached.Error(), "adapter"
+			status, text, verdict = health.Error, fmt.Sprintf("agents do not reach deck's MCP server, so they would start without deck's tools: %s", unreached), "adapter"
 		case res.Outcome == provider.Limited:
-			status, text = health.Paused, "the self-check hit the usage limit; "+errText(res.Err)
+			status, text = health.Paused, fmt.Sprintf("the self-check hit the usage limit; %s", errText(res.Err))
 		case res.Outcome == provider.Login:
-			status, text = health.NeedsLogin, "the self-check found no valid login; "+errText(res.Err)
+			status, text = health.NeedsLogin, fmt.Sprintf("the self-check found no valid login; %s", errText(res.Err))
 		case res.Err != nil && res.Slow:
 			status, text, verdict = health.Warning, fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", of, ceiling, res.Err), "model"
 		case res.Err != nil && res.ModelFailed:
@@ -162,7 +161,11 @@ func (s *Service) startCheck(name string, force bool) bool {
 			status, text, verdict = health.Error, fmt.Sprintf("self-check of %s failed: %s", of, res.Err), "adapter"
 		}
 		if res.Speed > 0 {
-			text = strings.TrimPrefix(text+fmt.Sprintf("; the model answered at %.0f tokens/s", res.Speed), "; ")
+			if text == "" {
+				text = fmt.Sprintf("the model answered at %.0f tokens/s", res.Speed)
+			} else {
+				text = fmt.Sprintf("%s; the model answered at %.0f tokens/s", text, res.Speed)
+			}
 		}
 		version := res.Version
 		if status != health.OK && status != health.Error && status != health.Warning {

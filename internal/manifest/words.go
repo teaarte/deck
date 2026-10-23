@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 	"sort"
+	"strings"
 )
 
 // textKeys name the texts the owner sees; the values under notTexts are expressions and inputs, not texts.
@@ -29,7 +30,10 @@ func Texts(raw []byte) map[string]bool {
 			}
 			for k, x := range v {
 				if s, ok := x.(string); ok && slices.Contains(textKeys, k) {
-					out[s] = true
+					// A label of an expression is no text: what it says comes from the item.
+					if !strings.HasPrefix(s, "=") {
+						out[s] = true
+					}
 				} else if !slices.Contains(notTexts, k) {
 					walk(x)
 				}

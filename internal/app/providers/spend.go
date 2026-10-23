@@ -60,9 +60,9 @@ func (s *Service) answered(ctx context.Context, m db.Model, next string, status 
 	switch {
 	case status < 0:
 	case next != "":
-		text += "; " + next + " takes its work"
+		text = fmt.Sprintf("%s; %s takes its work", text, next)
 	default:
-		text += "; no model of its assignment is after it"
+		text = fmt.Sprintf("%s; no model of its assignment is after it", text)
 	}
 	subject, of := health.Model(m.Name), health.Of{Workspace: m.WorkspaceID}
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {

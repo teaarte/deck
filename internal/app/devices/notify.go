@@ -2,8 +2,10 @@ package devices
 
 import (
 	"context"
+	"database/sql"
 	"deck2/internal/app/access"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"deck2/internal/docs"
@@ -33,6 +35,7 @@ type notifyIn struct {
 	Screen  string `opt:"" desc:"Screen of the project the line opens, or deck/<screen> for a screen of deck such as deck/schedule"`
 	Record  int64  `type:"record" opt:"" desc:"Record the screen shows"`
 	Actions string `type:"json" opt:"" desc:"Buttons: a JSON list [{label, command, params, icon?, confirm?, input?}] with commands of the project; confirm asks the owner first, input names a param the owner types"`
+	Cause   string `opt:"" desc:"What the note is about, as the subject of a row of health such as model:groq/llama-70b or provider:claude-code: the unread notes of one cause of a day, of any module, are one note with each module's part"`
 }
 
 // notify writes a line to the feed of the cockpit; push comes with stage 3. The caller decides whether it is worth it.
@@ -89,16 +92,22 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 		}
 	}
 	raw, _ := json.Marshal(buttons)
-	var n db.Feed
+	var id int64
 	err = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		n, err = q.AddFeed(ctx, db.AddFeedParams{CreatedAt: store.Time(dv.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedNote, Author: act.Author(),
-			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw), Params: "{}"})
+		n, err := q.AddFeed(ctx, db.AddFeedParams{CreatedAt: store.Time(dv.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedNote, Author: act.Author(),
+			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw), Params: "{}", Cause: strings.TrimSpace(in.Cause)})
+		if errors.Is(err, sql.ErrNoRows) && in.Cause != "" {
+			// The note became a part of the unread one of its cause.
+			id, err = q.CauseNote(ctx, db.CauseNoteParams{WorkspaceID: p.WorkspaceID, Cause: strings.TrimSpace(in.Cause)})
+			return err
+		}
+		id = n.ID
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"notification": n.ID}, nil
+	return map[string]any{"notification": id}, nil
 }
 
 func (dv *Service) notifyCommands() []*registry.Command {

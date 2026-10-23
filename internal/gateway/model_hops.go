@@ -200,14 +200,15 @@ func (h ModelHop) past(body []byte) string {
 	return ""
 }
 
-// pastMinute is the words of a 413 of a model API that name a limit per minute, a request past it, which it closes;
-// empty for any other answer, which it leaves whole.
+// pastMinute is the words of a 413 of a model API past its limit per minute, which it closes; any other answer it
+// leaves whole, a 413 past another rate as a 429.
 func pastMinute(resp *http.Response) string {
 	if resp.StatusCode != http.StatusRequestEntityTooLarge {
 		return ""
 	}
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-	if fault.ModelAnswer(resp.StatusCode, raw) == resp.StatusCode {
+	if st := fault.ModelAnswer(resp.StatusCode, raw); st != fault.PastMinute {
+		resp.StatusCode = st
 		resp.Body = struct {
 			io.Reader
 			io.Closer

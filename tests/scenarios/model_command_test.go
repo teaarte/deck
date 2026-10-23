@@ -803,13 +803,15 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 				return 413, "text/html", "<html><body>413 Request Entity Too Large</body></html>"
 			case "busy":
 				return 429, "application/json", `{"error": {"message": "rate limited"}}`
+			case "daily":
+				return 413, "application/json", `{"error": {"message": "Daily quota of requests used up", "code": "rate_limit_exceeded"}}`
 			}
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.9}`)
 		},
 	})
 	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
-	for _, m := range []string{"gpt-oss", "huge", "busy", "fact-model"} {
+	for _, m := range []string{"gpt-oss", "huge", "busy", "daily", "fact-model"} {
 		e.must("deck.model_set", map[string]any{"connection": "groq", "model": m, "kind": "text"}, nil)
 	}
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss", "groq/fact-model"}}, nil)
@@ -831,6 +833,13 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss"}}, nil)
 	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.limit" || got.Whose != "model" {
 		t.Fatalf("the last model past its limit per minute is the model's limit: %+v", got)
+	}
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/daily"}}, nil)
+	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "daily"}), "done", "error").ID); got.ErrorType != "model.limit" {
+		t.Fatalf("a 413 past another rate is the model's limit: %+v", got)
+	}
+	if h := e.health("model:groq/daily"); h == nil || h["status"] != "error" {
+		t.Fatalf("a model past a rate other than per minute is red: %v", h)
 	}
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/huge", "groq/fact-model"}}, nil)
 	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "three"}), "done", "error").ID); got.ErrorType != "input.invalid" {

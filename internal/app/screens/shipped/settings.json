@@ -27,7 +27,8 @@
         {"type": "dialog", "name": "model", "title": "Add a model", "icon": "plus", "primary": true, "blocks": [
           {"type": "form", "command": "deck.model_set", "description": "A model of a connection; its kind and price come from the connection's catalog when left out. A model of the connection claude-code or codex runs agent turns in that CLI on the subscription, its effort in options, such as {\"effort\": \"low\"}.",
             "values": {"connection": "=param.connection", "model": "=param.model", "name": "=param.name", "kind": "=param.kind", "agent": "=param.agent", "free": "=param.free", "subscription": "=param.subscription",
-              "input_usd": "=param.input_usd", "output_usd": "=param.output_usd", "call_usd": "=param.call_usd", "unit": "=param.unit", "options": "=param.options"},
+              "input_usd": "=param.input_usd", "output_usd": "=param.output_usd", "call_usd": "=param.call_usd", "unit": "=param.unit", "options": "=param.options",
+              "tpm": "=param.tpm", "context": "=param.context"},
             "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
               "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing'"}, "value": "name"}}}]},
         {"type": "table", "title": "Models", "source": {"from": "deck.models_list", "rows": "models", "sort": "-used"}, "filter": ["kind", "connection", "status"],
@@ -43,7 +44,7 @@
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "tts", "model": "=name", "text": "This is a short check of the voice."}, "when": "kind == 'tts'"},
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "text", "model": "=name", "prompt": "This is a short check of the model: reply with the one word ok."}, "when": "kind == 'text' && (agent ?? '') == ''"},
             {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
-              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''"}, "when": "!builtin"},
+              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''", "tpm": "=tpm ?? 0", "context": "=context ?? 0"}, "when": "!builtin"},
             {"verb": "remove", "confirm": true, "command": "deck.model_remove", "params": {"name": "=name"}, "when": "!builtin"}
           ]}
       ]},

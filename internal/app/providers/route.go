@@ -131,7 +131,7 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.Mod
 		key = strings.TrimSpace(k)
 	}
 	h := gateway.ModelHop{Target: gateway.ModelTarget{URL: c.Url, API: c.Api, Key: key}, Connection: c.Name, Name: m.Name, Model: m.Model,
-		Local: c.Local != 0, Free: m.Free != 0, Queue: c.Local != 0 && slices.Contains(queuedKinds, m.Kind)}
+		Local: c.Local != 0, Free: m.Free != 0, Queue: c.Local != 0 && slices.Contains(queuedKinds, m.Kind), TPM: m.Tpm, Context: m.Context}
 	_ = json.Unmarshal([]byte(m.Options), &h.Options)
 	return h, nil
 }

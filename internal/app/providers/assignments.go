@@ -97,7 +97,35 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": models}, nil
+	out := map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": models}
+	if w := s.pastLimits(ctx, act.Workspace, project, in.Command, models); len(w) > 0 {
+		out["warnings"] = w
+	}
+	return out, nil
+}
+
+// pastLimits warns of the models whose limits a usual request of the work is past: the median of its last calls.
+func (s *Service) pastLimits(ctx context.Context, workspace, project int64, command string, models []string) []string {
+	tokens, err := s.St.Q.RecentRequestTokens(ctx, db.RecentRequestTokensParams{WorkspaceID: workspace, ProjectID: project, Command: command})
+	if err != nil || len(tokens) == 0 {
+		return nil
+	}
+	slices.Sort(tokens)
+	usual := tokens[len(tokens)/2]
+	var out []string
+	for _, name := range models {
+		row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
+		if err != nil {
+			continue
+		}
+		switch m := row.Model; {
+		case m.Context > 0 && usual > m.Context:
+			out = append(out, fmt.Sprintf("%s holds %d tokens a request, and a usual request of this work is about %d: it goes to the next model", name, m.Context, usual))
+		case m.Tpm > 0 && usual > m.Tpm:
+			out = append(out, fmt.Sprintf("%s takes %d tokens a minute, and a usual request of this work is about %d: it goes to the next model", name, m.Tpm, usual))
+		}
+	}
+	return out
 }
 
 // planned is the project of an assignment and the models it sets, checked; it changes nothing.

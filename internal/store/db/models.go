@@ -217,6 +217,8 @@ type Model struct {
 	CreatedAt    string
 	Unit         string
 	Subscription int64
+	Tpm          int64
+	Context      int64
 }
 
 type Outbox struct {

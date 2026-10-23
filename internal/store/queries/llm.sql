@@ -51,3 +51,11 @@ GROUP BY minute, provider, project;
 
 -- name: ListProcessModelCalls :many
 SELECT gen_ai_provider_name, cost_usd, subscription FROM llm_call WHERE process_id = ? ORDER BY id;
+
+
+-- name: RecentRequestTokens :many
+SELECT l.gen_ai_usage_input_tokens + l.gen_ai_usage_cache_read_input_tokens + l.gen_ai_usage_cache_creation_input_tokens AS tokens
+FROM llm_call l JOIN process p ON p.id = l.process_id
+WHERE l.workspace_id = sqlc.arg(workspace_id) AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR p.project_id = sqlc.arg(project_id))
+    AND (CAST(sqlc.arg(command) AS TEXT) = '' OR p.command = sqlc.arg(command))
+ORDER BY l.id DESC LIMIT 20;

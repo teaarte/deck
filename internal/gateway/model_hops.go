@@ -35,6 +35,8 @@ type ModelHop struct {
 	// replaces an @role the caller asked for.
 	Connection, Name string
 	Model            string
+	// TPM and Context are the tokens a minute and of one request the model takes, 0 when not known.
+	TPM, Context int64
 	// Local is a connection on the owner's hardware; Free is a model that costs nothing; Queue sends one call at a
 	// time to its server, such as a local server of pictures that would time out the calls it holds.
 	Local, Free, Queue bool
@@ -132,6 +134,10 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 		if err != nil {
 			return nil, h, err
 		}
+		if past := h.past(c.Body); past != "" {
+			last = &registry.Error{Status: http.StatusTooManyRequests, Text: past}
+			continue
+		}
 		release, waited, err := queued(ctx, h)
 		if err != nil {
 			return nil, h, err
@@ -171,6 +177,21 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 		return resp, h, nil
 	}
 	return nil, ModelHop{}, last
+}
+
+// bytesPerToken is how deck guesses the tokens of a request before it goes: four bytes a token.
+const bytesPerToken = 4
+
+// past says why a request of body is past a limit of the model of h, empty when it is not or the model has none.
+func (h ModelHop) past(body []byte) string {
+	n := int64(len(body) / bytesPerToken)
+	switch {
+	case h.Context > 0 && n > h.Context:
+		return fmt.Sprintf("deck: the request of about %d tokens is past the %d tokens a request of %s holds", n, h.Context, h.Name)
+	case h.TPM > 0 && n > h.TPM:
+		return fmt.Sprintf("deck: the request of about %d tokens is past the %d tokens a minute %s takes", n, h.TPM, h.Name)
+	}
+	return ""
 }
 
 // limitOf reads a 413 of a model API by its words: one past a limit per minute takes the status of a limit.
@@ -253,6 +274,9 @@ func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte,
 		return ModelCall{Method: r.Method, Path: path, Query: r.URL.RawQuery, Header: r.Header, Body: b}, nil
 	})
 	if err != nil {
+		if registry.Status(err) == http.StatusTooManyRequests {
+			w.Header().Set("Retry-After", "60")
+		}
 		http.Error(w, err.Error(), registry.Status(err))
 		return
 	}

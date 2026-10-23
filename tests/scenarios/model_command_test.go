@@ -833,3 +833,53 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 		t.Fatalf("a request too big for the model at all is the input's and goes to no other model: %+v", got)
 	}
 }
+
+// TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce: a model with tokens a minute or of a request in deck's
+// settings gets no request past them; the next model takes it, the last one is the model's limit, and an assignment
+// warns when a usual request of the work is past them.
+func TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce(t *testing.T) {
+	t.Parallel()
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(_ int, body map[string]any) (int, string, string) {
+			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.9}`)
+		},
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "small", "kind": "text", "tpm": 20}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "context": 100000}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "small", "call_usd": 0.001}, nil)
+	var m struct {
+		Models []struct {
+			Name         string
+			TPM, Context int64
+		}
+	}
+	e.must("deck.models_list", nil, &m)
+	if i := slices.IndexFunc(m.Models, func(x struct {
+		Name         string
+		TPM, Context int64
+	}) bool {
+		return x.Name == "groq/small"
+	}); i < 0 || m.Models[i].TPM != 20 {
+		t.Fatalf("the models list gives the limits, kept by a change without them: %+v", m.Models)
+	}
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/small", "groq/fact-model"}}, nil)
+	e.createProject("shorts", modelManifest)
+	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
+		t.Fatalf("the next model takes a request past the limit: %+v", e.fault(got.ID))
+	}
+	for _, c := range api.calls() {
+		if c.Model == "small" {
+			t.Fatalf("no request past its limit reaches the model: %+v", c)
+		}
+	}
+	var set struct{ Warnings []string }
+	e.must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "command": "factcheck", "models": []string{"groq/small"}}, &set)
+	if len(set.Warnings) != 1 || !strings.Contains(set.Warnings[0], "groq/small takes 20 tokens a minute") {
+		t.Fatalf("the assignment warns that a usual request of the work is past the limit: %+v", set)
+	}
+	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.limit" {
+		t.Fatalf("a request past the limit of the last model is the model's limit: %+v", got)
+	}
+}

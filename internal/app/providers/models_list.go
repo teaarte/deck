@@ -37,6 +37,9 @@ type modelView struct {
 	Free      bool     `json:"free"`
 	// Subscription is a model paid by the owner's subscription: what a call would cost is an estimate, out of the money spent.
 	Subscription bool `json:"subscription"`
+	// TPM and Context are the tokens a minute and of one request the model takes, 0 when not known.
+	TPM     int64 `json:"tpm,omitempty"`
+	Context int64 `json:"context,omitempty"`
 	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
 	Builtin bool    `json:"builtin"`
 	Status  string  `json:"status,omitempty"`
@@ -142,7 +145,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		m := r.Model
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: optionsOf(m.Options),
 			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0,
-			Subscription: m.Subscription != 0}
+			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context}
 		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}

@@ -35,6 +35,9 @@ type modelSetIn struct {
 	Agent        string  `opt:"" desc:"The agent that runs a text model for agent commands: claude-code or codex, the CLI on the owner's subscription, on the connection of the same name; or an ACP agent inside the sandbox of deck with a shell and files. The name is then the name of a provider. A model changed without it keeps its own"`
 	// CheckMinutes give a slow model more time for its self-check.
 	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`
+	// TPM and Context are limits of the model a request past which deck sends to the next model.
+	TPM     *int64 `json:"tpm" opt:"" desc:"Tokens a minute the model takes, such as 8000 of a free tier: a request past it goes to the next model of its assignment; 0 for none, a model changed without it keeps its own"`
+	Context *int64 `json:"context" opt:"" desc:"Tokens one request of the model may hold: a request past it goes to the next model of its assignment; 0 for none, a model changed without it keeps its own"`
 }
 
 // modelSetCommand is model_set, whose call held for the owner says the model it adds or changes and what it sets.
@@ -96,7 +99,18 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			m.InputUsd, m.OutputUsd, m.CallUsd, m.Free, unpriced = old.Model.InputUsd, old.Model.OutputUsd, old.Model.CallUsd, old.Model.Free, false
 		}
 		m.Kind, m.CheckMinutes, m.Unit = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes), cmp.Or(m.Unit, old.Model.Unit)
-		m.Subscription = old.Model.Subscription
+		m.Subscription, m.Tpm, m.Context = old.Model.Subscription, old.Model.Tpm, old.Model.Context
+	}
+	for _, l := range []struct {
+		in  *int64
+		out *int64
+	}{{in.TPM, &m.Tpm}, {in.Context, &m.Context}} {
+		if l.in != nil && *l.in < 0 {
+			return nil, registry.Invalid("deck: a limit of a model is a number of tokens, or 0 for none")
+		}
+		if l.in != nil {
+			*l.out = *l.in
+		}
 	}
 	m.Unit = cmp.Or(m.Unit, UnitToken)
 	if m.Unit != UnitToken && m.OutputUsd.Valid {
@@ -164,7 +178,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	}
 	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, Options: optionsOf(out.Options), InputUSD: nullable(out.InputUsd),
 		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Unit: out.Unit, Free: out.Free != 0,
-		Subscription: out.Subscription != 0}, nil
+		Subscription: out.Subscription != 0, TPM: out.Tpm, Context: out.Context}, nil
 }
 
 // checkAgent refuses a model in an agent deck cannot run: an agent it does not know or that is not installed, a

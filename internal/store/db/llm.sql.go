@@ -151,6 +151,43 @@ func (q *Queries) LogModelCall(ctx context.Context, arg LogModelCallParams) erro
 	return err
 }
 
+const recentRequestTokens = `-- name: RecentRequestTokens :many
+SELECT l.gen_ai_usage_input_tokens + l.gen_ai_usage_cache_read_input_tokens + l.gen_ai_usage_cache_creation_input_tokens AS tokens
+FROM llm_call l JOIN process p ON p.id = l.process_id
+WHERE l.workspace_id = ?1 AND (CAST(?2 AS INTEGER) = 0 OR p.project_id = ?2)
+    AND (CAST(?3 AS TEXT) = '' OR p.command = ?3)
+ORDER BY l.id DESC LIMIT 20
+`
+
+type RecentRequestTokensParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	Command     string
+}
+
+func (q *Queries) RecentRequestTokens(ctx context.Context, arg RecentRequestTokensParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, recentRequestTokens, arg.WorkspaceID, arg.ProjectID, arg.Command)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var tokens int64
+		if err := rows.Scan(&tokens); err != nil {
+			return nil, err
+		}
+		items = append(items, tokens)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const spendByCommand = `-- name: SpendByCommand :many
 SELECT CAST(COALESCE(c.project_id, 0) AS INTEGER) AS project_id, c.command, c.gen_ai_provider_name AS provider, c.gen_ai_request_model AS model,
     CAST(count(*) AS INTEGER) AS calls,

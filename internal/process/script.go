@@ -150,7 +150,9 @@ func refused(calls []gateway.Refusal, last bool, f *fault.F) *fault.F {
 }
 
 // warn tells the owner in the feed about something of a process deck refused or gave up on.
-func (r *Runner) warn(ctx context.Context, processID int64, text string) { r.warnOf(ctx, processID, text, "") }
+func (r *Runner) warn(ctx context.Context, processID int64, text string) {
+	r.warnOf(ctx, processID, text, "")
+}
 
 // warnOf is warn of a cause, the subject of a row of health: the unread notes of one cause of a day are one note.
 func (r *Runner) warnOf(ctx context.Context, processID int64, text, cause string) {

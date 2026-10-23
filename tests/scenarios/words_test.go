@@ -34,9 +34,8 @@ func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
 	}
 }
 
-// TestADecisionSaysWhoAsksWhyAndWhatChanges: a call that waits for the owner says who asks in words, why in the
-// agent's own last words and what it changes; the raw call is only in its details, and a call allowed only once
-// has no button to allow it always.
+// TestADecisionSaysWhoAsksWhyAndWhatChanges: a held call says who asks, why in the agent's last words and what it
+// changes; the raw call is only in its details, and a call allowed only once has no button to allow it always.
 func TestADecisionSaysWhoAsksWhyAndWhatChanges(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {

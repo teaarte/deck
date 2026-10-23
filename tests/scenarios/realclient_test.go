@@ -184,11 +184,11 @@ func checkBuiltClient(t *testing.T) {
 	}
 }
 
-// pastUntil moves the end of every allow_always button into the past, as if its confirmation ran out on screen.
+// pastUntil moves the end of every button that allows always into the past, as if its confirmation ran out on screen.
 func pastUntil(v any) {
 	switch x := v.(type) {
 	case map[string]any:
-		if x["verb"] == "allow_always" {
+		if p, ok := x["params"].(map[string]any); ok && p["answer"] == "allow_always" {
 			x["until"] = "2000-01-01T00:00:00Z"
 		}
 		for _, y := range x {

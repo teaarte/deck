@@ -291,13 +291,16 @@
           "name": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"}, "project": {"type": "string"},
           "input": {"type": "object"}, "order": {"type": ["array", "null"], "items": {"type": "string"}}, "result": {}}}},
         "values": {"type": "object"}, "fixed": {"type": "object", "description": "Values of fields the form does not show and sends as they are"}, "readonly": {"type": "array", "items": {"type": "string"}}, "record": {"type": "integer"}, "keep_open": {"type": "boolean"},
+        "send": {"$ref": "#/$defs/action", "description": "How the form calls its command when not with its fields as the input: its params with the fields as the JSON of its input field"},
         "choices": {"type": "object", "description": "Values offered by field", "additionalProperties": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["value", "label"], "properties": {"value": {}, "label": {"type": "string"}}}}}}},
       "document": {"type": "object", "additionalProperties": false, "required": ["id", "project", "name", "kind", "text", "revision", "editable", "revisions"], "properties": {
         "id": {"type": "integer", "description": "0 while the document is not written yet"}, "project": {"type": "string"}, "name": {"type": "string"}, "kind": {"type": "string"},
         "text": {"type": "string"}, "revision": {"type": "integer"}, "editable": {"type": "boolean"}, "record": {"type": "integer"},
         "size": {"type": "integer", "description": "Bytes of the text, given in its place to a viewer other than the owner"},
+        "save": {"$ref": "#/$defs/action", "description": "Of an editable document: saves its text, with the text, the reason and if_revision filled in"},
         "revisions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["revision", "author", "created_at"], "properties": {
-          "revision": {"type": "integer"}, "author": {"type": "string"}, "reason": {"type": "string"}, "created_at": {"type": "string"}}}}}},
+          "revision": {"type": "integer"}, "author": {"type": "string"}, "reason": {"type": "string"}, "created_at": {"type": "string"},
+          "revert": {"$ref": "#/$defs/action", "description": "Of an editable document: goes back to this revision"}}}}}},
       "custom": {"type": "object", "additionalProperties": false, "required": ["html", "actions"], "properties": {
         "html": {"type": "string"}, "items": {"type": "array", "items": {"type": "object"}}, "record": {"type": "object"}, "params": {"type": "object", "description": "The params of the block, resolved"},
         "project": {"type": "string", "description": "The module whose files the block reads; none on a screen of deck"}, "name": {"type": "string"}, "size": {"type": "integer", "description": "Bytes of the HTML, given in its place to a viewer other than the owner"},
@@ -309,7 +312,7 @@
           "id": {"type": "integer"}, "role": {"enum": ["owner", "master"]}, "text": {"type": "string"}, "process": {"type": "integer"},
           "files": {"type": "array", "description": "the files the owner attached, or that the reply and the processes it started made", "items": {"type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"}, "url": {"type": "string"}}}},
           "screen": {"type": "object", "description": "the screen the owner wrote it on: project, screen, record, process"},
-          "reply": {"$ref": "#/$defs/reply"}, "created_at": {"type": "string"},
+          "reply": {"$ref": "#/$defs/reply"}, "created_at": {"type": "string"}, "delete": {"$ref": "#/$defs/action", "description": "takes back a message of the owner no reply took yet"},
           "work": {"type": "object", "additionalProperties": false, "required": ["provider", "seconds", "steps", "processes"], "description": "how a reply of the master went",
             "properties": {"provider": {"type": "string"}, "model": {"type": "string"}, "cost_usd": {"type": "number"}, "subscription_usd": {"type": "number", "description": "what its calls on a subscription would cost, an estimate"}, "seconds": {"type": "integer"}, "steps": {"type": "integer"},
               "processes": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "project", "command", "state", "open"], "properties": {"id": {"type": "integer"}, "project": {"type": "string"}, "command": {"type": "string"}, "state": {"type": "string"}, "open": {"$ref": "#/$defs/action"}, "word": {"type": "string", "description": "the state in the owner's words"}, "tone": {"$ref": "#/$defs/tone"}, "waits": {"type": "boolean", "description": "it waits for the owner or its provider rather than works"}}}}}}}}},

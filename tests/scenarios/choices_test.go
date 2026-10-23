@@ -150,7 +150,12 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 		edit.Commands[0].Input.Properties["score"]["type"] != "integer" {
 		t.Fatalf("the edit form is filled from the record, by the schema of its collection, with what does not change read only: %+v", edit)
 	}
-	e.must("deck.record_update", map[string]any{"record": rec, "data": `{"title": "alpha", "score": 9, "source": "form"}`}, nil)
+	if edit.Send["input"] != "data" {
+		t.Fatalf("the edit form sends its fields as the JSON of one field of the button the server gives: %+v", edit.Send)
+	}
+	if code, out := e.press(merge(edit.Send, map[string]any{"params": merge(edit.Send["params"].(map[string]any), map[string]any{"data": `{"title": "alpha", "score": 9, "source": "form"}`})})); code != 200 {
+		t.Fatalf("the edit goes by the button of the form: %d %s", code, out)
+	}
 	e.refused("deck.record_update", map[string]any{"record": rec, "data": `{"title": "alpha", "score": 9, "source": "other"}`}, 422, "source")
 
 	share := blockData[formV](t, e.screenData("", "share", nil)["b0"]["value"])

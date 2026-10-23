@@ -28,10 +28,12 @@ print(body if body.strip() else "{}")
 `
 
 type pressAsk struct {
-	ID    int64  `json:"id"`
-	Kind  string `json:"kind"`
-	What  string `json:"what"`
-	Where string `json:"where"`
+	ID    int64          `json:"id"`
+	Kind  string         `json:"kind"`
+	What  string         `json:"what"`
+	Where string         `json:"where"`
+	Allow map[string]any `json:"allow"`
+	Deny  map[string]any `json:"deny"`
 }
 
 // pressAsks are the calls a run the owner started waits to make, as the button reads them.
@@ -70,7 +72,9 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	if got := e.pressAsks(e.start("picker", "main", map[string]any{"n": asks[0].ID})); len(got) != 1 || got[0].ID != asks[0].ID {
 		t.Fatalf("a run that names the ask it waits for gives the same ask to answer, not a copy: %+v", got)
 	}
-	e.answer(asks[0].ID, "allow")
+	if code, out := e.press(asks[0].Allow); code != 200 {
+		t.Fatalf("the button that allows comes with the ask: %d %s", code, out)
+	}
 	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("yes at the button applies the call: %v", got)
 	}
@@ -87,7 +91,9 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	if got := e.pressAsks(add); len(got) != 1 || got[0].Where != "openrouter/llama → kind text" {
 		t.Fatalf("a model to add says what it sets: %+v", got)
 	}
-	e.answer(e.pressAsks(add)[0].ID, "deny")
+	if code, out := e.press(e.pressAsks(add)[0].Deny); code != 200 {
+		t.Fatalf("the button that denies comes with the ask: %d %s", code, out)
+	}
 	two := e.start("picker", "main", map[string]any{"method": "many", "form": string(mustJSON([]map[string]any{
 		{"method": "deck.model_set", "form": map[string]any{"connection": "openrouter", "model": "mistral", "kind": "text", "free": true}},
 		{"method": "deck.assignment_set", "form": map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}}}))})

@@ -14,18 +14,20 @@ import (
 )
 
 type documentV struct {
-	ID        int64  `json:"id"`
-	Project   string `json:"project"`
-	Name      string `json:"name"`
-	Kind      string `json:"kind"`
-	Text      string `json:"text"`
-	Revision  int64  `json:"revision"`
-	Editable  bool   `json:"editable"`
-	Record    int64  `json:"record"`
+	ID        int64          `json:"id"`
+	Project   string         `json:"project"`
+	Name      string         `json:"name"`
+	Kind      string         `json:"kind"`
+	Text      string         `json:"text"`
+	Revision  int64          `json:"revision"`
+	Editable  bool           `json:"editable"`
+	Record    int64          `json:"record"`
+	Save      map[string]any `json:"save"`
 	Revisions []struct {
-		Revision int64  `json:"revision"`
-		Author   string `json:"author"`
-		Reason   string `json:"reason"`
+		Revision int64          `json:"revision"`
+		Author   string         `json:"author"`
+		Reason   string         `json:"reason"`
+		Revert   map[string]any `json:"revert"`
 	} `json:"revisions"`
 }
 
@@ -129,8 +131,13 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 	}
 
 	events := e.sse(t.Context())
-	var reverted struct{ Revision int64 }
-	e.must("deck.document_revert", map[string]any{"document": crit.ID, "revision": 1, "if_revision": 2}, &reverted)
+	d = page(crit.ID)
+	if d.Revisions[0].Revert != nil || d.Revisions[1].Revert == nil || d.Save["command"] != "deck.document_save" {
+		t.Fatalf("an editable document has its save, and each revision but the current its revert, from the server: %+v", d)
+	}
+	if code, out := e.press(d.Revisions[1].Revert); code != 200 {
+		t.Fatalf("the revert of the server goes back to its revision: %d %s", code, out)
+	}
 	waitTopic(t, events, "documents")
 	var got documentV
 	for _, m := range e.screenMessages("web", "document", map[string]any{"record": crit.ID, "topic": "documents"}) {

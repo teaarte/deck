@@ -159,6 +159,7 @@ type formV struct {
 	} `json:"commands"`
 	Values   map[string]any `json:"values"`
 	Readonly []string       `json:"readonly"`
+	Send     map[string]any `json:"send"`
 	Record   int64          `json:"record"`
 }
 

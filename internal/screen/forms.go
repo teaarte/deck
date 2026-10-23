@@ -28,6 +28,8 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 		c["input"], c["order"] = col.Schema, manifest.PropertyOrder(col.Schema)
 		cmds = []map[string]any{c}
 		v["values"], v["record"] = plain(r.record), r.req.Record
+		// The edit sends the fields of the form as the JSON of one field.
+		v["send"] = map[string]any{"command": manifest.RecordUpdate, "params": map[string]any{"record": r.req.Record}, "input": "data"}
 		ro := append([]string{}, col.Immutable...)
 		if slices.Contains(manifest.PropertyOrder(col.Schema), col.Key) && !slices.Contains(ro, col.Key) {
 			ro = append(ro, col.Key)

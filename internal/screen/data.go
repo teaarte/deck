@@ -226,15 +226,24 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		out["rows"] = rows
 	case "list":
 		lines := make([]map[string]any, 0, len(items))
+		var values, labels []string
 		if b.Board != "" {
 			lanes := []map[string]string{}
 			for _, v := range r.lanes(b) {
 				lanes = append(lanes, map[string]string{"value": v, "label": r.tr(v)})
+				values, labels = append(values, v), append(labels, r.tr(v))
 			}
 			out["board"] = map[string]any{"field": b.Board, "lanes": lanes}
 		}
 		for _, it := range items {
-			line := map[string]any{"id": it["_id"], "actions": r.rowActions(b, it)}
+			acts := r.rowActions(b, it)
+			// The button that moves a card picks its lane among those of the board.
+			for _, a := range acts {
+				if b.Board != "" && a["input"] == b.Board && a["options"] == nil {
+					a["options"], a["labels"] = values, labels
+				}
+			}
+			line := map[string]any{"id": it["_id"], "actions": acts}
 			if v, ok := it[b.Board]; b.Board != "" && ok && v != nil {
 				line["lane"] = fmt.Sprint(v)
 			}

@@ -80,6 +80,7 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 		} `json:"board"`
 		Items []struct {
 			Title, Lane string
+			Actions     []map[string]any
 		} `json:"items"`
 	}
 	for _, b := range block {
@@ -97,6 +98,9 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 	}
 	if lanes["a"] != "doing" || lanes["b"] != "todo" {
 		t.Fatalf("each item says its lane: %+v", data.Items)
+	}
+	if move := data.Items[0].Actions[0]; fmt.Sprint(move["options"]) != "[todo doing done]" || fmt.Sprint(move["labels"]) != "[todo в работе готово]" {
+		t.Fatalf("the button that moves a card picks among the lanes of the board: %+v", move)
 	}
 }
 

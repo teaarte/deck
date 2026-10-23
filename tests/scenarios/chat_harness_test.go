@@ -43,6 +43,7 @@ type chatMessage struct {
 	Screen  json.RawMessage `json:"screen"`
 	Process int64           `json:"process"`
 	Reply   *topicReply     `json:"reply"`
+	Delete  map[string]any  `json:"delete"`
 	Files   []struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`

@@ -66,6 +66,8 @@ type messageView struct {
 	// Work is how the reply went, on the last message of the master of each reply.
 	Work      *workView `json:"work,omitempty"`
 	CreatedAt string    `json:"created_at"`
+	// Delete takes back a message of the owner no reply took yet.
+	Delete action `json:"delete,omitempty"`
 }
 
 // fileView is a file of a message: one the owner attached, or one the reply and the processes it started made.
@@ -135,6 +137,9 @@ func viewReply(p db.Process, tr func(string) string) *replyView {
 
 func viewMessage(m db.ChatMessage) messageView {
 	v := messageView{ID: m.ID, Role: m.Role, Text: m.Text, Process: m.ProcessID, CreatedAt: m.CreatedAt}
+	if m.Role == roleOwner && m.ProcessID == 0 {
+		v.Delete = chatAction("delete", registry.Builtin+".chat_message_delete", map[string]any{"message": m.ID})
+	}
 	if m.Context != "" {
 		v.Screen = json.RawMessage(m.Context)
 	}

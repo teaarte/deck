@@ -165,7 +165,12 @@ func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 		t.Fatalf("the first message is taken by the reply that waits for a slot, the second waits: %+v", ms)
 	}
 	e.refused("deck.chat_message_delete", map[string]any{"message": ms[0].ID}, 409, "taken")
-	e.must("deck.chat_message_delete", map[string]any{"message": ms[1].ID}, nil)
+	if ms[0].Delete != nil || ms[1].Delete == nil {
+		t.Fatalf("only the message no reply took has its delete: %+v", ms)
+	}
+	if code, out := e.press(ms[1].Delete); code != 200 {
+		t.Fatalf("the delete of the server takes the message back: %d %s", code, out)
+	}
 	if left := e.chatMessages(topic); len(left) != 1 || left[0].ID != ms[0].ID {
 		t.Fatalf("only the message nobody took goes: %+v", left)
 	}

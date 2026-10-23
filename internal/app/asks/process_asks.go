@@ -65,8 +65,19 @@ func (s *Service) processAsks(ctx context.Context, act registry.Actor, in proces
 	}
 }
 
+// pressAsk is a call a pressed button's run waits to make, with the buttons that allow and deny it.
+type pressAsk struct {
+	askRow
+	Allow map[string]any `json:"allow"`
+	Deny  map[string]any `json:"deny"`
+}
+
+func answer(id int64, verb string) map[string]any {
+	return map[string]any{"verb": verb, "command": registry.Builtin + ".ask_answer", "params": map[string]any{"ask": id, "answer": verb}}
+}
+
 // asksOf are the open calls of a process and of its result, and whether it ended.
-func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project int64) ([]askRow, bool, error) {
+func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project int64) ([]pressAsk, bool, error) {
 	p, err := s.St.Q.GetProcess(ctx, id)
 	if err != nil {
 		return nil, false, err
@@ -89,10 +100,10 @@ func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project in
 	if err != nil {
 		return nil, false, err
 	}
-	out := []askRow{}
+	out := []pressAsk{}
 	for _, q := range open {
 		if q.Kind == ask.KindCall && q.ProjectID.Int64 == project && (q.ProcessID.Int64 == id || slices.Contains(named, q.ID)) {
-			out = append(out, s.askRow(ctx, q, names))
+			out = append(out, pressAsk{askRow: s.askRow(ctx, q, names), Allow: answer(q.ID, "allow"), Deny: answer(q.ID, "deny")})
 		}
 	}
 	return out, p.FinishedAt.Valid, nil

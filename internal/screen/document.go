@@ -29,7 +29,7 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 		if record != 0 {
 			v["record"] = record
 		}
-		return v, nil
+		return withSave(v), nil
 	case err != nil:
 		return nil, err
 	case d == nil || d["project"] != p.Name:
@@ -37,9 +37,15 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 	}
 	all, _ := d["revisions"].([]any)
 	revs := make([]map[string]any, 0, len(all))
+	editable, _ := d["editable"].(bool)
 	for _, rv := range all {
 		if m, ok := rv.(map[string]any); ok {
-			revs = append(revs, map[string]any{"revision": m["revision"], "author": m["author"], "reason": m["reason"], "created_at": m["created_at"]})
+			rev := map[string]any{"revision": m["revision"], "author": m["author"], "reason": m["reason"], "created_at": m["created_at"]}
+			if editable && fmt.Sprint(m["revision"]) != fmt.Sprint(d["revision"]) {
+				rev["revert"] = map[string]any{"verb": "revert", "command": "deck.document_revert",
+					"params": map[string]any{"document": d["id"], "revision": m["revision"], "if_revision": d["revision"]}}
+			}
+			revs = append(revs, rev)
 		}
 	}
 	v := map[string]any{"id": d["id"], "project": p.Name, "name": d["name"], "kind": d["kind"], "text": cmp.Or(d["text"], any("")), "revision": d["revision"],
@@ -50,5 +56,19 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 	if text, _ := v["text"].(string); r.req.Brief {
 		v["text"], v["size"] = "", len(text)
 	}
-	return v, nil
+	return withSave(v), nil
+}
+
+// withSave gives an editable document the button that saves its text as a new revision; the owner fills in the
+// text, the reason and the revision the edit began from.
+func withSave(v map[string]any) map[string]any {
+	if editable, _ := v["editable"].(bool); !editable {
+		return v
+	}
+	params := map[string]any{"project": v["project"], "name": v["name"], "kind": v["kind"]}
+	if rec, ok := v["record"]; ok {
+		params["record"] = rec
+	}
+	v["save"] = map[string]any{"verb": "save", "command": "deck.document_save", "params": params}
+	return v
 }

@@ -216,7 +216,7 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	e.waitHealth("provider:fake", "paused")
 	e.sweep()
 	e.waitState(id, "error")
-	if got := e.fault(id); got.ErrorType != "model.limit" || !strings.Contains(got.Error, "fake went paused during the turn") {
+	if got := e.fault(id); got.ErrorType != "model.limit" || !strings.Contains(got.Error, "fake went on a pause during the turn") {
 		t.Fatalf("a turn on a paused model leaves it as the model's limit: %+v", got)
 	}
 	if got := e.waitState(e.following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 2 {
@@ -245,7 +245,19 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	if got := e.waitState(alone, "waiting_provider", "error"); got.State != "waiting_provider" {
 		t.Fatalf("with no next model the turn waits for its model: %+v %+v", got, e.fault(alone))
 	}
-	e.waitNote("waits for fake")
+	e.waitFor("a part of the note of the cause of fake that the turn waits for it", func() bool {
+		var notes []struct {
+			Cause string
+			Parts []struct{ Text string }
+		}
+		e.must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
+		return slices.ContainsFunc(notes, func(n struct {
+			Cause string
+			Parts []struct{ Text string }
+		}) bool {
+			return n.Cause == "provider:fake" && slices.ContainsFunc(n.Parts, func(p struct{ Text string }) bool { return strings.Contains(p.Text, "waits for fake") })
+		})
+	})
 }
 
 // TestAnAgentInALoopLeavesItsModel: the same call of a tool with the same answer three times in a row is a loop of

@@ -58,7 +58,7 @@ export function useScreen(route: Route) {
     let topics: string[] | undefined;
     // shown is set once the screen is drawn; a failed read then leaves it drawn.
     let shown = false;
-    const handle = async (a: A2uiClientAction) => {
+    const handle = async (p: Processor, a: A2uiClientAction) => {
       const c = (a.context ?? {}) as Record<string, unknown>;
       const block = String(c.block ?? '');
       switch (a.name) {
@@ -77,7 +77,8 @@ export function useScreen(route: Route) {
       }
       const { reply, ...pressed } = c as Action & { reply?: string };
       const r = await run(pressed);
-      if (reply) proc.current?.model.getSurface(a.surfaceId)?.dataModel.set(PRESS + reply, r);
+      // The reply goes to the surface pressed, also one still shown while the next screen loads.
+      if (reply) p.model.getSurface(a.surfaceId)?.dataModel.set(PRESS + reply, r);
     };
     const load = async () => {
       const mine = ++generation;
@@ -86,7 +87,7 @@ export function useScreen(route: Route) {
         const msgs = await call<Message[]>('deck.screen', input());
         if (gone || mine !== generation) return;
         if (!proc.current) {
-          const p: Processor = new MessageProcessor<ReactComponentImplementation>([catalog], handle);
+          const p: Processor = new MessageProcessor<ReactComponentImplementation>([catalog], (a) => handle(p, a));
           p.onSurfaceCreated((s) => {
             shown = true;
             setDrawn({ surface: s, key });

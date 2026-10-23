@@ -32,7 +32,7 @@ export async function press(ctx: ComponentContext | undefined, a: Action, input?
   const model = ctx.dataContext.surface.dataModel;
   const got = model.get(PRESS + reply) as Reply | undefined;
   model.set(PRESS + reply, undefined);
-  return got ?? {};
+  return got ?? { error: i18n.t('press.lost') };
 }
 
 // readBlock asks the screen for the data of a block again: by a filter picked, the next page, a dialog opened.

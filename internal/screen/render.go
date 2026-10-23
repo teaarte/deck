@@ -93,19 +93,18 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []
 		root["title"] = r.tr(req.Screen.Title) + ": " + r.recordTitle
 	}
 	surface := r.surface()
-	if req.Topic != "" {
-		out := []map[string]any{}
-		for _, id := range slices.Sorted(maps.Keys(r.data)) {
-			out = append(out, map[string]any{"version": Version,
-				"updateDataModel": map[string]any{"surfaceId": surface, "path": "/" + id, "value": r.data[id]}})
-		}
-		return out, r.errs, nil
+	out := []map[string]any{}
+	if req.Topic == "" {
+		out = append(out,
+			map[string]any{"version": Version, "createSurface": map[string]any{"surfaceId": surface, "catalogId": CatalogID}},
+			map[string]any{"version": Version, "updateComponents": map[string]any{"surfaceId": surface, "components": r.comps}})
 	}
-	return []map[string]any{
-		{"version": Version, "createSurface": map[string]any{"surfaceId": surface, "catalogId": CatalogID}},
-		{"version": Version, "updateComponents": map[string]any{"surfaceId": surface, "components": r.comps}},
-		{"version": Version, "updateDataModel": map[string]any{"surfaceId": surface, "path": "/", "value": r.data}},
-	}, r.errs, nil
+	// Data goes only by the path of its block.
+	for _, id := range slices.Sorted(maps.Keys(r.data)) {
+		out = append(out, map[string]any{"version": Version,
+			"updateDataModel": map[string]any{"surfaceId": surface, "path": "/" + id, "value": r.data[id]}})
+	}
+	return out, r.errs, nil
 }
 
 // Check resolves a screen on the data there is now and names each block that failed.

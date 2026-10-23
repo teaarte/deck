@@ -47,18 +47,10 @@ export class Feed {
         if ((fresh.components ?? 0) > ticket) continue;
         fresh.components = ticket;
       }
-      let parts: Message[] = [m];
-      const dm = m.updateDataModel;
-      if (dm && dm.path === '/' && dm.value && typeof dm.value === 'object' && fresh.root !== undefined) {
-        parts = Object.entries(dm.value).map(([id, value]) => ({ ...m, updateDataModel: { ...dm, path: '/' + id, value } }));
-      }
-      for (const part of parts) {
-        const path = part.updateDataModel?.path as string | undefined;
-        const id = path && path !== '/' ? path.slice(1) : undefined;
-        if (id && (fresh[id] ?? 0) > ticket) continue;
-        if (id) fresh[id] = ticket;
-        this.process(part);
-      }
+      const id = (m.updateDataModel?.path as string | undefined)?.slice(1);
+      if (id && (fresh[id] ?? 0) > ticket) continue;
+      if (id) fresh[id] = ticket;
+      this.process(m);
     }
   }
 }

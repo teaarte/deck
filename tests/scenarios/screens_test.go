@@ -101,9 +101,6 @@ func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage)
 			}
 			_ = json.Unmarshal(raw, &dm)
 			values := map[string]any{dm.Path: dm.Value}
-			if dm.Path == "/" {
-				values = dm.Value.(map[string]any)
-			}
 			for id, v := range values {
 				if err := k.data.Validate(v); err != nil {
 					t.Fatalf("data of %s does not match the catalog: %v", id, err)
@@ -269,7 +266,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		t.Fatalf("asks reads the asks block: %v", got)
 	}
 	for _, topic := range []string{"feed", "asks", "processes"} {
-		if msgs := e.screenMessages("", "cockpit", map[string]any{"topic": topic}); len(msgs) != 3 {
+		if msgs := e.screenMessages("", "cockpit", map[string]any{"topic": topic}); len(msgs) < 2 || msgs[0]["createSurface"] == nil {
 			t.Fatalf("%s draws the cockpit whole: its lists are there only while they have lines: %v", topic, msgs)
 		}
 	}
@@ -283,7 +280,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		t.Fatalf("documents reads the projects, whose descriptions are their prompts: %v", got)
 	}
 	for _, topic := range []string{"projects", "spaceship"} {
-		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 3 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 6 {
+		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 8 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 6 {
 			t.Fatalf("a topic no block reads gives the whole screen with its data: %s, %d messages", topic, n)
 		}
 	}

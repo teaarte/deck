@@ -39,19 +39,31 @@ func (e *Env) screenMessages(project, screen string, extra map[string]any) []map
 // screenData is the data model of a resolved screen, by block id.
 func (e *Env) screenData(project, screen string, extra map[string]any) map[string]map[string]json.RawMessage {
 	e.T.Helper()
-	for _, m := range e.screenMessages(project, screen, extra) {
-		if raw, ok := m["updateDataModel"]; ok {
-			var dm struct {
-				Value map[string]map[string]json.RawMessage `json:"value"`
-			}
-			if err := json.Unmarshal(raw, &dm); err != nil {
-				e.T.Fatalf("the data of screen %s: %v", screen, err)
-			}
-			return dm.Value
+	return dataOf(e.T, e.screenMessages(project, screen, extra))
+}
+
+// dataOf merges the data messages of a screen, one per block path, by block id.
+func dataOf(t testing.TB, msgs []map[string]json.RawMessage) map[string]map[string]json.RawMessage {
+	t.Helper()
+	out := map[string]map[string]json.RawMessage{}
+	for _, m := range msgs {
+		raw, ok := m["updateDataModel"]
+		if !ok {
+			continue
 		}
+		var dm struct {
+			Path  string                     `json:"path"`
+			Value map[string]json.RawMessage `json:"value"`
+		}
+		if err := json.Unmarshal(raw, &dm); err != nil {
+			t.Fatalf("the data of a screen: %v", err)
+		}
+		out[strings.TrimPrefix(dm.Path, "/")] = dm.Value
 	}
-	e.T.Fatalf("screen %s has no data", screen)
-	return nil
+	if len(out) == 0 {
+		t.Fatalf("the screen has no data")
+	}
+	return out
 }
 
 // screenRows returns the rows of the first table block of a screen.

@@ -22,19 +22,7 @@ func (e *Env) screenAs(act registry.Actor, in map[string]any) map[string]map[str
 	if err := json.Unmarshal(b, &msgs); err != nil {
 		e.T.Fatal(err)
 	}
-	for _, m := range msgs {
-		if dm, ok := m["updateDataModel"]; ok {
-			var v struct {
-				Value map[string]map[string]json.RawMessage `json:"value"`
-			}
-			if err := json.Unmarshal(dm, &v); err != nil {
-				e.T.Fatal(err)
-			}
-			return v.Value
-		}
-	}
-	e.T.Fatalf("screen %v has no data", in)
-	return nil
+	return dataOf(e.T, msgs)
 }
 
 // TestTheMasterReadsAScreenWithoutTheBodiesOfDocuments: a screen read by anyone but the owner gives the HTML of a

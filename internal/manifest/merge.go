@@ -1,0 +1,281 @@
+package manifest
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"reflect"
+	"slices"
+	"strings"
+)
+
+// Conflict is a path of a manifest both sides changed, each its own way, with the value of base and of each side;
+// a missing value is nil.
+type Conflict struct {
+	Path             string
+	Base, Edit, Next json.RawMessage
+}
+
+// Merge3 puts the change from base to edit into next by the structure of the manifest: objects key by key, a set by
+// its values, an array of named entries entry by entry, any other value whole. Where both sides changed one path
+// differently next stands and the path comes back as a conflict; keys keep the order of next, new keys of edit go
+// last in their object.
+func Merge3(edit, base, next []byte) ([]byte, []Conflict, error) {
+	var vs [3]any
+	for i, raw := range [][]byte{edit, base, next} {
+		v, err := decodeOrdered(raw)
+		if err != nil {
+			return nil, nil, err
+		}
+		vs[i] = v
+	}
+	m := &merger{}
+	out, _ := m.merge("", vs[0], vs[1], vs[2], true, true, true)
+	var buf bytes.Buffer
+	encodeOrdered(&buf, out, "")
+	return []byte(Unescaped(buf.String())), m.conflicts, nil
+}
+
+// object is a JSON object that keeps the order of its keys.
+type object struct {
+	keys []string
+	vals map[string]any
+}
+
+type merger struct{ conflicts []Conflict }
+
+// merge merges one value; has* say whether the value is there at all, ok whether the result is.
+func (m *merger) merge(path string, edit, base, next any, hasEdit, hasBase, hasNext bool) (any, bool) {
+	switch {
+	case same(edit, base, hasEdit, hasBase):
+		return next, hasNext
+	case same(next, base, hasNext, hasBase), same(edit, next, hasEdit, hasNext):
+		return edit, hasEdit
+	}
+	if hasEdit && hasNext {
+		eo, eok := edit.(*object)
+		no, nok := next.(*object)
+		bo, bok := base.(*object)
+		if !hasBase {
+			bo, bok = &object{vals: map[string]any{}}, true
+		}
+		if eok && nok && bok {
+			return m.objects(path, eo, bo, no), true
+		}
+		ea, eok := edit.([]any)
+		na, nok := next.([]any)
+		ba, bok := base.([]any)
+		if !hasBase {
+			ba, bok = nil, true
+		}
+		if eok && nok && bok {
+			if setPath(path) {
+				return mergeSet(ea, ba, na), true
+			}
+			if key := keyOf(path); key != "" && keyed(ea, key) && keyed(ba, key) && keyed(na, key) {
+				return m.named(path, key, ea, ba, na), true
+			}
+		}
+	}
+	m.conflicts = append(m.conflicts, Conflict{Path: cmpPath(path), Base: raw(base, hasBase), Edit: raw(edit, hasEdit), Next: raw(next, hasNext)})
+	return next, hasNext
+}
+
+func (m *merger) objects(path string, edit, base, next *object) *object {
+	out := &object{vals: map[string]any{}}
+	put := func(k string) {
+		e, he := edit.vals[k]
+		b, hb := base.vals[k]
+		n, hn := next.vals[k]
+		if v, ok := m.merge(path+"/"+escape(k), e, b, n, he, hb, hn); ok {
+			out.keys, out.vals[k] = append(out.keys, k), v
+		}
+	}
+	for _, k := range next.keys {
+		put(k)
+	}
+	for _, k := range edit.keys {
+		if _, inNext := next.vals[k]; !inNext {
+			put(k)
+		}
+	}
+	return out
+}
+
+// named merges arrays of entries named by key as objects by their names, in the order of next.
+func (m *merger) named(path, key string, edit, base, next []any) []any {
+	asObject := func(a []any) *object {
+		o := &object{vals: map[string]any{}}
+		for _, v := range a {
+			name := fmt.Sprint(v.(*object).vals[key])
+			o.keys, o.vals[name] = append(o.keys, name), v
+		}
+		return o
+	}
+	merged := m.objects(path, asObject(edit), asObject(base), asObject(next))
+	out := make([]any, 0, len(merged.keys))
+	for _, k := range merged.keys {
+		out = append(out, merged.vals[k])
+	}
+	return out
+}
+
+// mergeSet is next with the values edit added to base and without those edit took from it.
+func mergeSet(edit, base, next []any) []any {
+	has := func(a []any, v any) bool {
+		return slices.ContainsFunc(a, func(x any) bool { return reflect.DeepEqual(x, v) })
+	}
+	var out []any
+	for _, v := range next {
+		if has(edit, v) || !has(base, v) {
+			out = append(out, v)
+		}
+	}
+	for _, v := range edit {
+		if !has(base, v) && !has(out, v) {
+			out = append(out, v)
+		}
+	}
+	if out == nil {
+		out = []any{}
+	}
+	return out
+}
+
+func same(a, b any, hasA, hasB bool) bool {
+	return hasA == hasB && (!hasA || reflect.DeepEqual(a, b))
+}
+
+// keyed reports whether every entry of a is an object with a distinct value of key.
+func keyed(a []any, key string) bool {
+	seen := map[string]bool{}
+	for _, v := range a {
+		o, ok := v.(*object)
+		if !ok {
+			return false
+		}
+		name, ok := o.vals[key].(string)
+		if !ok || seen[name] {
+			return false
+		}
+		seen[name] = true
+	}
+	return true
+}
+
+func raw(v any, has bool) json.RawMessage {
+	if !has {
+		return nil
+	}
+	var buf bytes.Buffer
+	encodeOrdered(&buf, v, "")
+	return json.RawMessage(buf.Bytes())
+}
+
+func escape(k string) string { return strings.NewReplacer("~", "~0", "/", "~1").Replace(k) }
+
+func cmpPath(p string) string {
+	if p == "" {
+		return "/"
+	}
+	return p
+}
+
+func decodeOrdered(raw []byte) (any, error) {
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.UseNumber()
+	v, err := decodeValue(d)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := d.Token(); err != io.EOF {
+		return nil, fmt.Errorf("manifest: text after the JSON value")
+	}
+	return v, nil
+}
+
+func decodeValue(d *json.Decoder) (any, error) {
+	t, err := d.Token()
+	if err != nil {
+		return nil, err
+	}
+	switch t {
+	case json.Delim('{'):
+		o := &object{vals: map[string]any{}}
+		for d.More() {
+			k, err := d.Token()
+			if err != nil {
+				return nil, err
+			}
+			v, err := decodeValue(d)
+			if err != nil {
+				return nil, err
+			}
+			key := k.(string)
+			if _, dup := o.vals[key]; !dup {
+				o.keys = append(o.keys, key)
+			}
+			o.vals[key] = v
+		}
+		_, err := d.Token()
+		return o, err
+	case json.Delim('['):
+		a := []any{}
+		for d.More() {
+			v, err := decodeValue(d)
+			if err != nil {
+				return nil, err
+			}
+			a = append(a, v)
+		}
+		_, err := d.Token()
+		return a, err
+	}
+	return t, nil
+}
+
+// encodeOrdered writes v as Canonical does: two spaces a level.
+func encodeOrdered(w *bytes.Buffer, v any, indent string) {
+	in := indent + "  "
+	switch x := v.(type) {
+	case *object:
+		if len(x.keys) == 0 {
+			w.WriteString("{}")
+			return
+		}
+		w.WriteString("{\n")
+		for i, k := range x.keys {
+			b, _ := json.Marshal(k)
+			w.WriteString(in)
+			w.Write(b)
+			w.WriteString(": ")
+			encodeOrdered(w, x.vals[k], in)
+			if i < len(x.keys)-1 {
+				w.WriteByte(',')
+			}
+			w.WriteByte('\n')
+		}
+		w.WriteString(indent + "}")
+	case []any:
+		if len(x) == 0 {
+			w.WriteString("[]")
+			return
+		}
+		w.WriteString("[\n")
+		for i, e := range x {
+			w.WriteString(in)
+			encodeOrdered(w, e, in)
+			if i < len(x)-1 {
+				w.WriteByte(',')
+			}
+			w.WriteByte('\n')
+		}
+		w.WriteString(indent + "]")
+	case json.Number:
+		w.WriteString(x.String())
+	default:
+		b, _ := json.Marshal(x)
+		w.Write(b)
+	}
+}

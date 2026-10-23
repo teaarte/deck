@@ -54,7 +54,7 @@ func (pj *Service) ask(ctx context.Context, q *db.Queries, act registry.Actor, p
 var errFrozen = errors.New("the manifest changed since it was asked")
 
 // merged is the change a grant holds merged into the current manifest of p, and the revision it merged into; an
-// error when the manifest changed the same lines since, or the merge would widen what the grant does not name.
+// error when the manifest changed the same paths since, or the merge would widen what the grant does not name.
 func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string, int64, error) {
 	var f gateway.Frozen
 	var in struct {
@@ -81,10 +81,18 @@ func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string,
 		if err != nil {
 			return "", 0, err
 		}
-		var conflicts []docs.Conflict
-		if text, conflicts = docs.Merge3(text, base.Text, cur.Text); len(conflicts) > 0 {
-			return "", 0, errors.New("the manifest changed the same lines since")
+		out, conflicts, err := manifest.Merge3([]byte(text), []byte(base.Text), []byte(cur.Text))
+		if err != nil {
+			return "", 0, err
 		}
+		if len(conflicts) > 0 {
+			paths := make([]string, 0, len(conflicts))
+			for _, c := range conflicts {
+				paths = append(paths, c.Path)
+			}
+			return "", 0, fmt.Errorf("the manifest changed %s since", strings.Join(paths, ", "))
+		}
+		text = manifest.Canonical(string(out))
 		if text == cur.Text {
 			return "", 0, errors.New("the manifest has this change already")
 		}

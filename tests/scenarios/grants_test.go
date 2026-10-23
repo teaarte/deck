@@ -176,48 +176,53 @@ func TestAOneLineManifestTakesANeutralEditWhileARequestWaits(t *testing.T) {
 	}
 }
 
-// TestAnEditOfTheRightARequestWaitsForOutdatesIt: an edit that changes the lines a request changes, without widening,
-// saves at once; the request no longer merges, so it closes with a note and its yes grants nothing.
+// TestAnEditOfTheRightARequestWaitsForOutdatesIt: an edit that changes the path a request changes, without widening,
+// saves at once; the request no longer merges, so it closes with a note naming the path and its yes grants nothing.
+// Two requests that add to one set both merge.
 func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
-	e.createProject("notes", grantManifest)
+	withTool := strings.Replace(grantManifest, `"writes": [],`, `"writes": [],
+  "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET", "url": "https://a.example/p", "class": "external"}]},`, 1)
+	e.createProject("notes", withTool)
 	_, tok := e.token("terminal", "deck.*")
 	var w struct{ Waiting int64 }
-	_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"a.example"`},
-		"new": []string{`"a.example", "b.example"`}})
+	_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes",
+		"manifest": strings.Replace(withTool, `"class": "external"}`, `"class": "internal"}`, 1)})
 	if json.Unmarshal(out, &w) != nil || w.Waiting == 0 {
-		t.Fatalf("a new domain waits: %s", out)
+		t.Fatalf("a milder class of a tool waits: %s", out)
 	}
-	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{"[\n      \"a.example\"\n    ]"},
-		"new": []string{`[]`}})
+	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes",
+		"manifest": strings.Replace(grantManifest, `"writes": [],`, `"writes": [], "tools": {"http": []},`, 1)})
 	if code != 200 || strings.Contains(string(out), "waiting") {
-		t.Fatalf("dropping a domain widens nothing and saves at once: %d %s", code, out)
+		t.Fatalf("dropping a tool widens nothing and saves at once: %d %s", code, out)
 	}
-	if n := e.waitNote("outdated"); !strings.Contains(n.Text, "same lines") || !strings.Contains(n.Text, "b.example") {
-		t.Fatalf("the owner hears why the request closed: %+v", n)
+	if n := e.waitNote("outdated"); !strings.Contains(n.Text, "changed /tools/http/page since") || !strings.Contains(n.Text, "class internal") {
+		t.Fatalf("the owner hears the path that closed the request: %+v", n)
 	}
 	if code, out := e.call("deck.ask_answer", map[string]any{"ask": w.Waiting, "answer": "allow"}); code == 200 {
 		t.Fatalf("an outdated request is closed: %d %s", code, out)
 	}
-	if m := e.inForce("notes"); len(m.Domains.Read) != 0 || m.Revision != 2 {
-		t.Fatalf("nothing of the outdated request is granted: %+v", m.Domains)
+	if m := e.inForce("notes"); len(m.Tools.HTTP) != 0 || m.Revision != 2 {
+		t.Fatalf("nothing of the outdated request is granted: %+v", m.Tools)
 	}
 
-	_, out = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"read": []`},
-		"new": []string{`"read": ["c.example"]`}})
-	if json.Unmarshal(out, &w) != nil || w.Waiting == 0 {
+	var first, second struct{ Waiting int64 }
+	_, out = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"a.example"`},
+		"new": []string{`"a.example", "c.example"`}})
+	if json.Unmarshal(out, &first) != nil || first.Waiting == 0 {
 		t.Fatalf("a new domain waits: %s", out)
 	}
-	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"read": []`},
-		"new": []string{`"read": ["d.example"]`}}); code != 200 || !strings.Contains(string(out), "waiting") {
-		t.Fatalf("another request for the same right waits on its own: %d %s", code, out)
+	_, out = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"a.example"`},
+		"new": []string{`"a.example", "d.example"`}})
+	if json.Unmarshal(out, &second) != nil || second.Waiting == 0 {
+		t.Fatalf("another request for the same right waits on its own: %s", out)
 	}
-	e.answer(w.Waiting, "allow")
-	if m := e.inForce("notes"); !slices.Equal(m.Domains.Read, []string{"c.example"}) {
-		t.Fatalf("the yes grants what that request named: %+v", m.Domains)
+	e.answer(first.Waiting, "allow")
+	e.answer(second.Waiting, "allow")
+	if m := e.inForce("notes"); !slices.Equal(m.Domains.Read, []string{"a.example", "c.example", "d.example"}) {
+		t.Fatalf("two requests that add to one set both merge: %+v", m.Domains)
 	}
-	e.waitNote("A request for rights of notes is outdated at revision 3")
 }
 
 // TestARequestForRightsListsWhatItWidens: asks_list gives a request for rights as who asks, what it widens and why,
@@ -244,5 +249,67 @@ func TestARequestForRightsListsWhatItWidens(t *testing.T) {
 	}
 	if _, ok := r.Payload["widens"]; !ok || strings.Contains(string(out), "Do the work.") || strings.Count(string(out), "keep the weekly report") != 2 {
 		t.Fatalf("the payload names what widens, not the manifest, and the reason is not repeated: %s", out)
+	}
+}
+
+// mergeManifest has two commands for requests and edits to change apart.
+const mergeManifest = `{
+  "version": 13,
+  "commands": [
+    {"name": "alpha", "title": "Alpha", "description": "Does alpha", "class": "external", "executor": {"type": "agent", "prompt": "Do alpha."}},
+    {"name": "beta", "title": "Beta", "description": "Does beta", "class": "internal", "executor": {"type": "agent", "prompt": "Do beta."}}
+  ],
+  "domains": {"read": ["a.example"]}
+}`
+
+// TestAGrantMergesIntoTheManifestByItsStructure: a request merges into the manifest by its parts: edits of other
+// commands and the same edit stay, keys keep the order of the manifest, an earlier grant is not lost; an edit of the
+// same field another way outdates the request with its path.
+func TestAGrantMergesIntoTheManifestByItsStructure(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	e.createProject("notes", mergeManifest)
+	_, tok := e.token("terminal", "deck.*")
+	save := func(m string) (waiting int64) {
+		t.Helper()
+		var w struct{ Waiting int64 }
+		code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": m})
+		if code != 200 || json.Unmarshal(out, &w) != nil {
+			t.Fatalf("save: %d %s", code, out)
+		}
+		return w.Waiting
+	}
+	milder := strings.Replace(strings.Replace(mergeManifest, `"Does alpha", "class": "external"`, `"Does alpha well", "class": "reversible"`, 1),
+		`"a.example"`, `"a.example", "c.example"`, 1)
+	request := save(milder)
+	if request == 0 {
+		t.Fatal("a milder class and a domain wait for the owner")
+	}
+	domain := save(strings.Replace(mergeManifest, `"a.example"`, `"a.example", "d.example"`, 1))
+	edited := strings.Replace(strings.Replace(mergeManifest, `"Does beta"`, `"Does beta now"`, 1), `"Does alpha"`, `"Does alpha well"`, 1)
+	edited = strings.Replace(edited, `"version": 13,`, `"version": 13,
+  "title": "Notes",`, 1)
+	if save(edited) != 0 {
+		t.Fatal("an edit that widens nothing saves at once")
+	}
+	e.answer(domain, "allow")
+	e.answer(request, "allow")
+	m := e.inForce("notes")
+	if m.Command("alpha").Class != "reversible" || m.Command("alpha").Description != "Does alpha well" || m.Command("beta").Description != "Does beta now" ||
+		!slices.Equal(m.Domains.Read, []string{"a.example", "d.example", "c.example"}) {
+		t.Fatalf("both grants and the edit of another command and the same edit stay: %+v %+v %+v", m.Command("alpha"), m.Command("beta"), m.Domains)
+	}
+	var cur struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &cur)
+	if i, j := strings.Index(cur.Manifest, `"title": "Notes"`), strings.Index(cur.Manifest, `"commands"`); i < 0 || j < i {
+		t.Fatalf("the keys keep the order of the manifest: %s", cur.Manifest)
+	}
+
+	request = save(strings.Replace(strings.Replace(cur.Manifest, `"Does beta now"`, `"Does beta later"`, 1), `"d.example"`, `"d.example", "e.example"`, 1))
+	if request == 0 || save(strings.Replace(cur.Manifest, `"Does beta now"`, `"Does beta in full"`, 1)) != 0 {
+		t.Fatal("a request waits and an edit of the same description saves at once")
+	}
+	if n := e.waitNote("outdated"); !strings.Contains(n.Text, "changed /commands/beta/description since") {
+		t.Fatalf("an edit of the same field another way outdates the request with its path: %+v", n)
 	}
 }

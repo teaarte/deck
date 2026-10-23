@@ -440,7 +440,7 @@ func TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory(t *testing.T) {
 	if runs := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-1-0"]["rows"]); len(runs) != 2 {
 		t.Fatalf("the failed runs of the schedule keep both: %+v", runs)
 	}
-	cockpit := e.screenData("", "cockpit", nil)
+	cockpit := e.screenData("", "cockpit", map[string]any{"dialog": "changes"})
 	notes := blockData[[]screenRow](t, cockpit["b5-1"]["rows"])
 	if len(notes) != 3 || notes[0].Cells[2] != "read" {
 		t.Fatalf("the history keeps the notes, read: %+v", notes)

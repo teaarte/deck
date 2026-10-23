@@ -24,7 +24,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	e.createProject("web", routedManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
 
-	data := e.screenData("web", "main", map[string]any{"params": `{"title": "alpha"}`})
+	data := e.screenData("web", "main", map[string]any{"params": `{"title": "alpha"}`, "dialog": "rescore"})
 	var form struct {
 		Value struct{ Values map[string]any }
 	}

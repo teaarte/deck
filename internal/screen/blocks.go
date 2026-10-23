@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
+	"strings"
 
 	"deck2/internal/manifest"
 )
@@ -28,7 +29,7 @@ func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
 // holds reports whether the block is on the screen by its when; a when that fails shows the block with its error.
 // A read of some blocks after an event reads no source for it: one whose when it may change draws the screen whole.
 func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
-	if b.When == "" || r.req.Topic != "" && b.Source != nil {
+	if b.When == "" || r.req.Topic != "" && b.Source != nil || r.req.Block != "" || r.closed() {
 		return true, nil
 	}
 	env := map[string]any{}
@@ -47,13 +48,17 @@ func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
 // rows are the items of a block's source with the filters the owner picked, read once per screen without picks,
 // and how many its limit left out.
 func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) ([]map[string]any, []map[string]any, int, error) {
+	src := *b.Source
+	if n := r.req.Pages[id]; n > 1 && src.Limit > 0 {
+		src.Limit *= n
+	}
 	if len(picked) > 0 {
-		return r.filtered(*b.Source, b.Filter, picked)
+		return r.filtered(src, b.Filter, picked)
 	}
 	if got, ok := r.read[id]; ok {
 		return got.items, got.filters, got.more, got.err
 	}
-	items, filters, more, err := r.filtered(*b.Source, b.Filter, nil)
+	items, filters, more, err := r.filtered(src, b.Filter, nil)
 	r.read[id] = readOf{items, filters, more, err}
 	return items, filters, more, err
 }
@@ -93,7 +98,9 @@ func (r *renderer) block(id string, b manifest.Block) {
 			panel["icon"] = b.Icon
 		}
 		r.comps = append(r.comps, map[string]any{"id": id, "component": "Modal", "trigger": id + "-open", "content": id + "-in"}, button, label, panel)
+		r.dialogs = append(r.dialogs, b.Name)
 		r.grid(panel, r.blocks(id+"-", b.Blocks))
+		r.dialogs = r.dialogs[:len(r.dialogs)-1]
 		return
 	case "tabs":
 		tabs := []map[string]any{}
@@ -131,7 +138,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 		comp["kind"] = cmp.Or(b.Kind, "line")
 	}
 	comp["data"] = map[string]any{"path": "/" + id}
-	if r.req.Topic != "" && (!follows(b, r.deck(), r.req.Topic) || !r.reads(b, r.req.Changed)) {
+	if r.req.Topic != "" && (!follows(b, r.deck(), r.req.Topic) || !r.reads(b, r.req.Changed)) || !r.wanted(id) {
 		return
 	}
 	value, err := r.resolve(id, b)
@@ -193,4 +200,35 @@ func (r *renderer) split(ids []string) (blocks, dialogs []string) {
 		}
 	}
 	return blocks, dialogs
+}
+
+// closed says whether the block being drawn is inside a dialog that is not open.
+func (r *renderer) closed() bool {
+	return !r.every && len(r.dialogs) > 0 && r.dialogs[len(r.dialogs)-1] != r.req.Dialog
+}
+
+// wanted says whether the data of the block of id is read now: it is in no closed dialog and, when the read is of
+// one block, it is that block or inside it.
+func (r *renderer) wanted(id string) bool {
+	return !r.closed() && (r.req.Block == "" || id == r.req.Block || strings.HasPrefix(id, r.req.Block+"-"))
+}
+
+// whenUnder says whether a block of id or inside it shows by a when, which may change what the screen holds.
+func whenUnder(bs []manifest.Block, prefix, id string) bool {
+	for i, b := range bs {
+		bid := fmt.Sprintf("%s%d", prefix, i)
+		inside := bid == id || strings.HasPrefix(bid, id+"-")
+		if !inside && !strings.HasPrefix(id, bid+"-") {
+			continue
+		}
+		if inside && b.When != "" || whenUnder(b.Blocks, bid+"-", id) {
+			return true
+		}
+		for j, t := range b.Tabs {
+			if whenUnder(t.Blocks, fmt.Sprintf("%s-%d-", bid, j), id) {
+				return true
+			}
+		}
+	}
+	return false
 }

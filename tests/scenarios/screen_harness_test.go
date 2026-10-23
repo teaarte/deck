@@ -60,9 +60,6 @@ func dataOf(t testing.TB, msgs []map[string]json.RawMessage) map[string]map[stri
 		}
 		out[strings.TrimPrefix(dm.Path, "/")] = dm.Value
 	}
-	if len(out) == 0 {
-		t.Fatalf("the screen has no data")
-	}
 	return out
 }
 
@@ -308,6 +305,22 @@ func keys(m map[string]map[string]json.RawMessage) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)
+	}
+	return out
+}
+
+// dialogsOf are the inputs of deck.screen that open each dialog of a screen.
+func (e *Env) dialogsOf(project, screen string) []map[string]any {
+	e.T.Helper()
+	var out []map[string]any
+	for _, m := range e.screenMessages(project, screen, nil) {
+		var uc struct{ Components []map[string]any }
+		_ = json.Unmarshal(m["updateComponents"], &uc)
+		for _, c := range uc.Components {
+			if name, _ := c["name"].(string); c["component"] == "screen" && name != "" {
+				out = append(out, map[string]any{"dialog": name})
+			}
+		}
 	}
 	return out
 }

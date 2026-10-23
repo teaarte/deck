@@ -22,11 +22,19 @@ type screenGetIn struct {
 	Filter  string `type:"json" opt:"" desc:"Values the owner picked in block filters, as JSON: block id to field to value"`
 	Params  string `type:"json" opt:"" desc:"Parameters of the screen from its address, as a JSON object of names to text: param.<name> in the screen, typed as it declares them"`
 	Lang    string `opt:"" desc:"Language of the texts of the screen, such as ru; as written without one"`
+	Dialog  string `opt:"" desc:"Name of the dialog open on the screen; the blocks of the others are read when they open"`
+	Block   string `opt:"" desc:"Id of a block: only the data of it and of the blocks inside it"`
+	Pages   string `type:"json" opt:"" desc:"How many pages of its limit a block shows, as JSON: block id to a number"`
 }
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
 func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenGetIn) (any, error) {
-	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Brief: act.Kind != registry.Owner}
+	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Brief: act.Kind != registry.Owner, Dialog: in.Dialog, Block: in.Block}
+	if strings.TrimSpace(in.Pages) != "" {
+		if err := json.Unmarshal([]byte(in.Pages), &req.Pages); err != nil {
+			return nil, registry.Invalid("deck: pages: a JSON object of block id to a number: %v", err)
+		}
+	}
 	if strings.TrimSpace(in.Filter) != "" {
 		if err := json.Unmarshal([]byte(in.Filter), &req.Filter); err != nil {
 			return nil, registry.Invalid("deck: filter: a JSON object of block id to field to value: %v", err)

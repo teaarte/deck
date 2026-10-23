@@ -61,6 +61,12 @@ type Request struct {
 	Lang  string
 	// Brief gives the HTML of custom blocks and the text of documents by name and size, not whole.
 	Brief bool
+	// Dialog is the dialog open on the screen: the blocks of any other dialog are read only when it opens.
+	Dialog string
+	// Block, when set, resolves only the data of the block of this id and of the blocks inside it.
+	Block string
+	// Pages are how many times its limit a block shows, by block id; the owner asks for more a page at a time.
+	Pages map[string]int
 }
 
 // Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.
@@ -84,7 +90,10 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []
 	if req.Topic == "projects" && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {
 		req.Topic = ""
 	}
-	r, err := resolve(ctx, src, req)
+	if req.Block != "" && whenUnder(req.Screen.Blocks, "b", req.Block) {
+		req.Block = ""
+	}
+	r, err := resolve(ctx, src, req, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -94,7 +103,7 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []
 	}
 	surface := r.surface()
 	out := []map[string]any{}
-	if req.Topic == "" {
+	if req.Topic == "" && req.Block == "" {
 		out = append(out,
 			map[string]any{"version": Version, "createSurface": map[string]any{"surfaceId": surface, "catalogId": CatalogID}},
 			map[string]any{"version": Version, "updateComponents": map[string]any{"surfaceId": surface, "components": r.comps}})
@@ -109,16 +118,17 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []
 
 // Check resolves a screen on the data there is now and names each block that failed.
 func Check(ctx context.Context, src Sources, req Request) ([]string, error) {
-	req.Topic = ""
-	r, err := resolve(ctx, src, req)
+	req.Topic, req.Block = "", ""
+	r, err := resolve(ctx, src, req, true)
 	if err != nil {
 		return nil, err
 	}
 	return r.errs, nil
 }
 
-func resolve(ctx context.Context, src Sources, req Request) (*renderer, error) {
+func resolve(ctx context.Context, src Sources, req Request, every bool) (*renderer, error) {
 	r := &renderer{ctx: ctx, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}, fetched: map[string]fetchOf{}, spans: map[string]any{}}
+	r.every = every
 	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name, Lang: req.Lang}
 	r.params = map[string]any{}
 	for name, typ := range req.Screen.Params {
@@ -160,6 +170,9 @@ type renderer struct {
 	// inRow counts the columns a block is inside; spans are those of standard blocks narrower than the screen.
 	inRow int
 	spans map[string]any
+	// dialogs are the names of the dialogs a block is inside, the innermost last; every reads them all as open.
+	dialogs []string
+	every   bool
 	// errs name the blocks that failed to resolve.
 	errs []string
 }

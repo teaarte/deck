@@ -108,9 +108,11 @@ func (e *Env) screenBlock(project, screen, title string, extra map[string]any) m
 // formID is the block id of the deck settings form of a command.
 func formID(t *testing.T, e *Env, command string) string {
 	t.Helper()
-	for id, d := range e.screenData("", "settings", nil) {
-		if strings.Contains(string(d["value"]), `"name":"`+command+`"`) && strings.Contains(string(d["value"]), `"commands":[{`) {
-			return id
+	for _, extra := range append([]map[string]any{nil}, e.dialogsOf("", "settings")...) {
+		for id, d := range e.screenData("", "settings", extra) {
+			if strings.Contains(string(d["value"]), `"name":"`+command+`"`) && strings.Contains(string(d["value"]), `"commands":[{`) {
+				return id
+			}
 		}
 	}
 	t.Fatalf("no form of %s", command)
@@ -120,9 +122,11 @@ func formID(t *testing.T, e *Env, command string) string {
 // screenForm is the data of the form of a screen that calls this command, in a dialog or not.
 func (e *Env) screenForm(project, screen, command string) map[string]json.RawMessage {
 	e.T.Helper()
-	for _, d := range e.screenData(project, screen, nil) {
-		if strings.Contains(string(d["value"]), `"commands":[{`) && strings.Contains(string(d["value"]), `"name":"`+command+`"`) {
-			return d
+	for _, extra := range append([]map[string]any{nil}, e.dialogsOf(project, screen)...) {
+		for _, d := range e.screenData(project, screen, extra) {
+			if strings.Contains(string(d["value"]), `"commands":[{`) && strings.Contains(string(d["value"]), `"name":"`+command+`"`) {
+				return d
+			}
 		}
 	}
 	e.T.Fatalf("%s has no form of %s", screen, command)
@@ -303,7 +307,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 		t.Fatalf("edit opens the dialog of the model filled with its values: %+v", edit)
 	}
 	var fv formV
-	_ = json.Unmarshal(e.screenData("", "settings", map[string]any{"params": `{"connection": "ollama", "model": "small"}`})[formID(t, e, "deck.model_set")]["value"], &fv)
+	_ = json.Unmarshal(e.screenData("", "settings", map[string]any{"params": `{"connection": "ollama", "model": "small"}`, "dialog": "model"})[formID(t, e, "deck.model_set")]["value"], &fv)
 	if fv.Values["connection"] != "ollama" || fv.Values["model"] != "small" {
 		t.Fatalf("the form of a model takes its values from the address: %+v", fv.Values)
 	}

@@ -62,7 +62,7 @@
         {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "=id"}, "when": "can_undo"}
       ]},
     {"type": "dialog", "name": "changes", "title": "History", "icon": "history", "blocks": [
-      {"type": "table", "title": "Done without you", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}},
+      {"type": "table", "title": "Done without you", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}, "limit": 50},
         "columns": [
           {"label": "What", "bind": "text"},
           {"label": "Module", "bind": "project", "format": "tag"},
@@ -72,7 +72,7 @@
         "actions": [
           {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "=id"}, "when": "can_undo"}
         ]},
-      {"type": "table", "title": "Notes", "source": {"from": "deck.feed_list", "input": {"kind": "note", "limit": 500}},
+      {"type": "table", "title": "Notes", "source": {"from": "deck.feed_list", "input": {"kind": "note", "limit": 500}, "limit": 50},
         "description": "Every note, those read or read all at once too.",
         "columns": [
           {"label": "Note", "bind": "text"},

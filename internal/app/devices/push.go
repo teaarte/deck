@@ -331,7 +331,7 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 			if err != nil {
 				return err
 			}
-			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(dv.Now()), ProjectID: mp.ID, Text: "Pushes stopped: " + untrusted.Cut(text, 300)})
+			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(dv.Now()), ProjectID: mp.ID, Text: "Pushes stopped: " + untrusted.Cut(text, 300), Cause: health.Push})
 		})
 		if err != nil {
 			slog.Error("note of stopped pushes", "err", err)

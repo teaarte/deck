@@ -53,7 +53,7 @@ func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fa
 		return true
 	}
 	r.passOn(ctx, p.ID, id, heard)
-	r.warnOf(ctx, p.ID, fmt.Sprintf("%s did not finish %s: %s. %s goes on with it.", pv.Name(), cmp.Or(t.cmd.Title, t.cmd.Name), f.Text, next),
+	r.warnOf(ctx, p.ID, fmt.Sprintf("%s did not finish %s, %s goes on with it: %s", pv.Name(), cmp.Or(t.cmd.Title, t.cmd.Name), next, f.Text),
 		health.Provider(pv.Name()))
 	return true
 }

@@ -28,7 +28,7 @@ func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
 	var notes []struct{ Text string }
 	e.must("deck.feed_list", map[string]any{"lang": "ru", "kind": "note"}, &notes)
 	if !slices.ContainsFunc(notes, func(n struct{ Text string }) bool {
-		return strings.HasPrefix(n.Text, "fake не закончила «work»: fake не ответила") && strings.HasSuffix(n.Text, "Продолжает backup.")
+		return strings.HasPrefix(n.Text, "fake не закончила «work», продолжает backup: fake did not answer: API Error")
 	}) {
 		t.Fatalf("a note of deck reads in Russian, without numbers of processes: %+v", notes)
 	}
@@ -102,6 +102,18 @@ func TestNotesOfOneCauseOfADayAreOneNote(t *testing.T) {
 	})
 	if i < 0 || !slices.Equal(notes[i].Projects, []string{"shorts", "btc"}) || len(notes[i].Parts) != 2 || !strings.Contains(notes[i].Parts[1].Text, "local-qwen") {
 		t.Fatalf("the note of the cause holds each module's part: %+v", notes)
+	}
+	e.must("deck.notify", map[string]any{"project": "btc", "text": "Groq refuses with 413; move btc to local-qwen", "cause": "provider:groq"}, nil)
+	e.must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
+	if i := slices.IndexFunc(notes, func(n struct {
+		Text     string
+		Cause    string
+		Projects []string
+		Parts    []struct{ Project, Text string }
+	}) bool {
+		return n.Cause == "provider:groq"
+	}); len(notes) != 2 || len(notes[i].Parts) != 2 {
+		t.Fatalf("the same note again adds no part: %+v", notes)
 	}
 	e.Clock.Add(24 * time.Hour)
 	e.must("deck.notify", map[string]any{"project": "shorts", "text": "Groq does not answer again", "cause": "provider:groq"}, nil)

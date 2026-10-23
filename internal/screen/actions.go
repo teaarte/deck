@@ -92,7 +92,9 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 	}
 	// A label of an expression says what the button does for this item, such as what it allows from now on.
 	if strings.HasPrefix(a.Label, "=") {
-		act["label"] = fmt.Sprint(value(a.Label))
+		if l, err := manifest.Resolve(a.Label, "", env); err == nil && l != nil {
+			act["label"] = fmt.Sprint(l)
+		}
 	}
 	if a.Primary {
 		act["primary"] = true

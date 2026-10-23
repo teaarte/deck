@@ -11,6 +11,7 @@ import (
 	"deck2/internal/app/access"
 	"deck2/internal/app/records"
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -62,7 +63,15 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 	}
 	ws := s.Words(lang)
 	v.Shown = process.Show(p, question, v.Long, func(phrase string) string { return manifest.Tr(ws, phrase) })
-	v.Error = manifest.TrText(ws, v.Error)
+	v.Error = deckError(ws, p, v.Error)
+}
+
+// deckError is the failure of p in the owner's words when deck wrote it; a script's own failure stays as it wrote it.
+func deckError(ws map[string]string, p db.Process, text string) string {
+	if p.Kind == process.KindScript && slices.Contains(fault.ByScript, p.ErrorType) {
+		return text
+	}
+	return manifest.TrText(ws, text)
 }
 
 // long reports whether a running process works, since it was last opened, more than twice as long as its

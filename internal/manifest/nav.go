@@ -94,7 +94,7 @@ func FormOf(s *Screen, command string) (FormPlace, bool) {
 var formats sync.Map
 
 // TrText is a text deck wrote in a language by words: a phrase as it is, or one with verbs whose values stay as they
-// are, such as the words of a model API inside deck's sentence; the text itself when no phrase fits.
+// are, but for a value that is a word of deck; the text itself when no phrase fits. Only text deck wrote goes in.
 func TrText(ws map[string]string, s string) string {
 	if t := ws[s]; t != "" || s == "" {
 		return cmp.Or(t, s)
@@ -113,7 +113,7 @@ func TrText(ws map[string]string, s string) string {
 		}
 		args := make([]any, len(m)-1)
 		for i, v := range m[1:] {
-			args[i] = TrText(ws, v)
+			args[i] = Tr(ws, v)
 		}
 		return fmt.Sprintf(verb.ReplaceAllString(ws[k], "%${1}s"), args...)
 	}

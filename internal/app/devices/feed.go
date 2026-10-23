@@ -76,6 +76,15 @@ type feedRow struct {
 	MarkRead map[string]any `json:"mark_read,omitempty"`
 }
 
+// deckText is the text of a line of the feed in the owner's words when deck wrote it: a change made without the owner
+// or a note of deck; a note of a module or the master is theirs as they wrote it.
+func deckText(ws map[string]string, kind, author, text string) string {
+	if kind == FeedChange || author == "deck" {
+		return manifest.TrText(ws, text)
+	}
+	return text
+}
+
 // notePart is a note of a cause another one of the day took in: its project, who wrote it and what.
 type notePart struct {
 	Project string `json:"project"`
@@ -93,7 +102,7 @@ func (r *feedRow) parts(f db.Feed, names map[int64]string, ws map[string]string)
 	_ = json.Unmarshal([]byte(f.Parts), &more)
 	r.Parts = []notePart{{Project: r.Project, Author: r.Author, Text: r.Text}}
 	for _, m := range more {
-		r.Parts = append(r.Parts, notePart{Project: names[m.ProjectID], Author: m.Author, Text: manifest.TrText(ws, m.Text)})
+		r.Parts = append(r.Parts, notePart{Project: names[m.ProjectID], Author: m.Author, Text: deckText(ws, FeedNote, m.Author, m.Text)})
 	}
 	for _, p := range r.Parts {
 		if !slices.Contains(r.Projects, p.Project) {
@@ -123,7 +132,7 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 	ws := dv.Words(in.Lang)
 	out := make([]feedRow, 0, len(rows))
 	for _, f := range rows {
-		r := feedRow{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: manifest.TrText(ws, f.Text), Screen: f.Screen,
+		r := feedRow{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: deckText(ws, f.Kind, f.Author, f.Text), Screen: f.Screen,
 			Record: f.RecordID.Int64, Buttons: []Button{}, CanUndo: f.Command != "" && !f.UndoneAt.Valid, Undone: f.UndoneAt.Valid,
 			Read: f.ReadAt.Valid, CanRead: f.Kind == FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt, Repeats: f.Repeats}
 		if f.Cause != "" {

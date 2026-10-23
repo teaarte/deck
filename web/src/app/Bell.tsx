@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActionIcon, Button, Group, Indicator, Loader, Popover, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconArrowUpRight, IconBell, IconBellOff } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import i18n from '../lib/i18n';
 import { useMenuData } from '../hooks/useMenu';
 import { useLiveRead } from '../hooks/useLiveRead';
 import { formatted } from '../lib/format';
@@ -29,7 +30,7 @@ export function Bell() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const fresh = useMenuData().pulse.notes ?? 0;
-  const notes = useLiveRead<Note[] | undefined>('deck.feed_list', { kind: 'note', limit: 30 }, ['feed'], undefined, !open);
+  const notes = useLiveRead<Note[] | undefined>('deck.feed_list', { kind: 'note', limit: 30, lang: i18n.language }, ['feed'], undefined, !open);
   useEffect(() => titleCount(fresh), [fresh]);
   const openNote = (n: Note) => { setOpen(false); if (n.open) void act(n.open); };
   const markRead = (n: Note) => { if (n.mark_read) act(n.mark_read).catch(() => undefined); };

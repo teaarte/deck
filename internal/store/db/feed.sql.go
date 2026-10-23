@@ -126,17 +126,19 @@ func (q *Queries) AddMasterNote(ctx context.Context, arg AddMasterNoteParams) er
 }
 
 const causeNote = `-- name: CauseNote :one
-SELECT id FROM feed WHERE workspace_id = ? AND cause = ? AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+SELECT id FROM feed WHERE workspace_id = ?1 AND cause = ?2 AND kind = 'note' AND for_master = 0
+    AND read_at IS NULL AND substr(created_at, 1, 10) = substr(CAST(?3 AS TEXT), 1, 10)
 ORDER BY id LIMIT 1
 `
 
 type CauseNoteParams struct {
 	WorkspaceID int64
 	Cause       string
+	CreatedAt   string
 }
 
 func (q *Queries) CauseNote(ctx context.Context, arg CauseNoteParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, causeNote, arg.WorkspaceID, arg.Cause)
+	row := q.db.QueryRowContext(ctx, causeNote, arg.WorkspaceID, arg.Cause, arg.CreatedAt)
 	var id int64
 	err := row.Scan(&id)
 	return id, err

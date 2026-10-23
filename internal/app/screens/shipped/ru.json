@@ -259,7 +259,6 @@
   "deck: the request of about %d tokens is past the %d tokens a request of %s holds": "deck: запрос примерно в %d токенов больше %d токенов, которые вмещает %s",
   "deck: the request of about %d tokens is past the %d tokens a minute %s takes": "deck: запрос примерно в %d токенов больше %d токенов в минуту, которые принимает %s",
   "needs login: %s": "нужен вход: %s",
-  "%s did not finish %s: %s. %s goes on with it.": "%s не закончила «%s»: %s. Продолжает %s.",
   "%s waits for %s: %s": "«%s» ждёт %s: %s",
   "%s changed the manifest of %s": "%s изменил манифест %s",
   "the self-check is running": "идёт самопроверка",
@@ -289,5 +288,8 @@
   "%s; %s takes its work": "%s; её работу берёт %s",
   "%s; no model of its assignment is after it": "%s; в назначении после неё моделей нет",
   "the model answered at %.0f tokens/s": "модель отвечала со скоростью %.0f токенов/с",
-  "%s; the model answered at %.0f tokens/s": "%s; модель отвечала со скоростью %.0f токенов/с"
+  "%s; the model answered at %.0f tokens/s": "%s; модель отвечала со скоростью %.0f токенов/с",
+  "%s did not finish %s, %s goes on with it: %s": "%s не закончила «%s», продолжает %s: %s",
+  "Question": "Вопрос",
+  "no reason given": "причина не названа"
 }

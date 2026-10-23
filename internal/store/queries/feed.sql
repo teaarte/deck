@@ -7,7 +7,8 @@ VALUES (sqlc.arg(workspace_id), sqlc.arg(project_id), sqlc.arg(kind), sqlc.arg(a
 RETURNING *;
 
 -- name: CauseNote :one
-SELECT id FROM feed WHERE workspace_id = ? AND cause = ? AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+SELECT id FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND cause = sqlc.arg(cause) AND kind = 'note' AND for_master = 0
+    AND read_at IS NULL AND substr(created_at, 1, 10) = substr(CAST(sqlc.arg(created_at) AS TEXT), 1, 10)
 ORDER BY id LIMIT 1;
 
 -- name: ListFeed :many

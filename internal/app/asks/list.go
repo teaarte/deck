@@ -82,7 +82,15 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 			continue
 		}
 		r := s.askRow(ctx, q, names)
-		r.What, r.Where, r.Text, r.Who, r.Always = tr(r.What), tr(r.Where), tr(r.Text), tr(r.Who), tr(r.Always)
+		r.Who, r.Always = tr(r.Who), tr(r.Always)
+		switch {
+		case q.Kind == ask.KindGrant:
+			r.What = tr(r.What)
+		case q.Kind == ask.KindLogin:
+			r.What, r.Text = tr(r.What), tr(r.Text)
+		case strings.HasPrefix(r.Command, registry.Builtin+"."):
+			r.Where = tr(r.Where)
+		}
 		out = append(out, r)
 	}
 	return out, nil
@@ -129,6 +137,8 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) 
 				r.Where = c.Target(f.Tool, f.Call.Input)
 			}
 			r.Always = s.always(r.Project, f, c)
+		} else if r.Project != "" && strings.HasPrefix(f.Call.Command, r.Project+".") {
+			r.Always = fmt.Sprintf("Always let %s run %s", r.Project, strings.TrimPrefix(f.Call.Command, r.Project+"."))
 		}
 	case ask.KindGrant:
 		var f gateway.Frozen

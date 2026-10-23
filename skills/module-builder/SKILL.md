@@ -222,7 +222,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "=_id"}}]}` — `where` and `bind` are expressions over record fields (`_id` is the id
   of the record, `record.<field>` the record of a record page),
-  `sort` is a field with `-` for descending, `filter` lists fields the owner narrows by. Put the columns in the order
+  `sort` is a field with `-` for descending, `limit` is a page (the owner asks for the next one), `filter` lists
+  fields the owner narrows by; the blocks of a dialog are read only once it opens, so a long history goes there. Put the columns in the order
   that matters: a line shows the first four (two on a phone) and the rest open in the row under it; a status is a
   `tag` column whose `details` (why it failed) is the hint of its badge, not a column of its own. A column, a `card`
   field and a `stat` take `format`, and the client shows the raw value in the owner's locale and time zone:

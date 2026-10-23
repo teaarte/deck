@@ -59,7 +59,9 @@ hold; look inside a package for the rest.
   reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit.
 - `internal/health` — health rows: state of what deck runs or reaches; events go to the feed.
 - `internal/ask` — the broker of what waits for the owner; `app/asks` its commands.
-- `internal/screen` — stored screens resolved into A2UI messages (blocks, data, actions, forms, topics, i18n).
+- `internal/screen` — stored screens resolved into A2UI messages (blocks, data, actions, forms, topics, i18n): the
+  containers of a manifest become the standard `Row`/`Column`/`Tabs`/`Modal`; data goes only by the path of a block;
+  `deck.screen` with `block` reads one block, the blocks of a closed dialog get no data, a source's `limit` is a page.
 - `internal/api` — HTTP API, SSE, files and the second origin of `custom` blocks (`Sandbox`: the guard of
   `sandbox.html` stays its first script — no WebRTC, no frames).
 - `internal/sandbox` — the sandbox of scripts, MCP servers and ACP agents (`sandbox-exec` on macOS, bubblewrap on
@@ -77,7 +79,10 @@ hold; look inside a package for the rest.
   `@a2ui/web_core/v0_9` (the root export is v0.8); folders by owner in `src/` (`app` the frame,
   `screen`, `cockpit`, `blocks` a folder or file per block, `chat`, `ui`, `hooks`, `lib`, `settings`, `theme`);
   `custom` blocks are hosted with `@modelcontextprotocol/ext-apps` 2; `web/dist` is the embedded build — rebuild and
-  commit it with the sources.
+  commit it with the sources. Every button presses through `screen/press.ts`: an A2UI action of its block's context,
+  the one handler in `useScreen` acts (`screen/act.ts`, `outcome()`) and replies in `/press/<reply>`; a block never
+  calls a command itself, and a button the client needs comes from the server in the block's data.
+  `web/foreign` is a test page: a screen in the stock renderer with deck's catalog alone.
 - `tests/scenarios` — scenario tests through the real gateway with a fake provider, helpers in `*_harness_test.go`.
 
 ## Rules

@@ -129,12 +129,13 @@ func (s *Service) startCheck(name string, force bool) bool {
 		if c, ok := sc.(interface{ CheckCeiling() time.Duration }); ok && c.CheckCeiling() > 0 {
 			ceiling = c.CheckCeiling()
 		}
-		// The ceiling bounds the wait for the first answer of the model and counts again from it, so a slow start
-		// of the agent does not eat the time of its steps.
+		// The ceiling counts from when the agent is ready and again from the first answer of its model; a start
+		// slowed by a busy machine has agentStart.
 		cctx, cancel := context.WithCancel(ctx)
-		timer := time.AfterFunc(ceiling, cancel)
-		var once sync.Once
-		cctx = provider.WithAnswered(cctx, func() { once.Do(func() { timer.Reset(ceiling) }) })
+		timer := time.AfterFunc(max(ceiling, agentStart), cancel)
+		var ready, answered sync.Once
+		cctx = provider.WithMarks(cctx, provider.Marks{Ready: func() { ready.Do(func() { timer.Reset(ceiling) }) },
+			Answered: func() { answered.Do(func() { timer.Reset(ceiling) }) }})
 		var res provider.Check
 		unreached := s.Reach(cctx)
 		if unreached == nil {
@@ -203,6 +204,9 @@ func (s *Service) startCheck(name string, force bool) bool {
 	}
 	return started
 }
+
+// agentStart is how long an agent of a self-check may take to start before the ceiling of its model counts.
+const agentStart = time.Minute
 
 func (s *Service) writeCheck(ctx context.Context, name, status, text, version, verdict string, speed float64) {
 	subject := health.Provider(name)

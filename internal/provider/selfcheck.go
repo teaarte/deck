@@ -14,15 +14,25 @@ import (
 
 type answeredKey struct{}
 
-// WithAnswered is ctx of a self-check that tells f the first answer of its model, from which its ceiling counts.
-func WithAnswered(ctx context.Context, f func()) context.Context {
-	return context.WithValue(ctx, answeredKey{}, f)
+// Marks are what a self-check hears of its agent: Ready once it can call its model, Answered at each answer.
+type Marks struct{ Ready, Answered func() }
+
+// WithMarks is ctx of a self-check whose ceiling counts again from the marks of its agent.
+func WithMarks(ctx context.Context, m Marks) context.Context {
+	return context.WithValue(ctx, answeredKey{}, m)
 }
 
 // Answered tells the self-check of ctx that its model answered.
 func Answered(ctx context.Context) {
-	if f, ok := ctx.Value(answeredKey{}).(func()); ok {
-		f()
+	if m, ok := ctx.Value(answeredKey{}).(Marks); ok && m.Answered != nil {
+		m.Answered()
+	}
+}
+
+// Ready tells the self-check of ctx that its agent started and can call its model.
+func Ready(ctx context.Context) {
+	if m, ok := ctx.Value(answeredKey{}).(Marks); ok && m.Ready != nil {
+		m.Ready()
 	}
 }
 

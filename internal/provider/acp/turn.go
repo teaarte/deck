@@ -58,6 +58,7 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 	t.c.mu.Lock()
 	t.c.session = sdk.SessionId(t.session)
 	t.c.mu.Unlock()
+	provider.Ready(ctx)
 	type answer struct {
 		r   sdk.PromptResponse
 		err error

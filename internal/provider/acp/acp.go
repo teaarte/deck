@@ -141,7 +141,8 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
-	e := &entry{mcp: mcp, api: a.cfg.API(req.OnUsage), modelAt: "/model/" + nonce.Hex(16), now: a.now, plain: a.cfg.Plain}
+	e := &entry{mcp: mcp, api: a.cfg.API(req.OnUsage), modelAt: "/model/" + nonce.Hex(16), now: a.now, plain: a.cfg.Plain,
+		answered: func() { provider.Answered(ctx) }}
 	if e.plain == nil {
 		e.plain = &atomic.Bool{}
 	}

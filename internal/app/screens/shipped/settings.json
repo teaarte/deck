@@ -2,7 +2,7 @@
   "name": "settings",
   "icon": "settings",
   "title": "Settings",
-  "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string"},
+  "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string", "tpm": "number", "context": "number"},
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Modules", "icon": "folders", "blocks": [

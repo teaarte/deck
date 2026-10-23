@@ -33,6 +33,8 @@ type entry struct {
 	refusal    string
 	// plain is set once the model API refused the reasoning an agent hands back in the history; it is of the model.
 	plain *atomic.Bool
+	// answered hears each answer of the model API, a refusal too.
+	answered func()
 }
 
 func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -92,6 +94,9 @@ type status struct {
 }
 
 func (s *status) WriteHeader(code int) {
+	if s.e.answered != nil {
+		s.e.answered()
+	}
 	s.e.mu.Lock()
 	s.e.last, s.e.retryAfter, s.e.refusal, s.e.past = code, s.Header().Get("Retry-After"), "", s.Header().Get(provider.PastLimit) != ""
 	s.e.mu.Unlock()

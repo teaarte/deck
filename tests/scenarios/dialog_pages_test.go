@@ -52,3 +52,25 @@ func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 		t.Fatalf("the check of a saved manifest reads the blocks of its dialogs too: %q", saved.Screens)
 	}
 }
+
+// TestASpanOfAContainerInsideColumnsIsItsWeight: a container with a span is as wide on screen as before: a span of
+// the screen's grid, or inside columns the standard weight of the child.
+func TestASpanOfAContainerInsideColumnsIsItsWeight(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "columns", "span": 2, "blocks": [{"type": "document", "document": "a.md"},
+        {"type": "tabs", "span": 2, "tabs": [{"title": "One", "blocks": [{"type": "document", "document": "a.md"}]}]}]},`, 1))
+	comps := map[string]map[string]any{}
+	for _, m := range e.screenMessages("web", "main", nil) {
+		var uc struct{ Components []map[string]any }
+		_ = json.Unmarshal(m["updateComponents"], &uc)
+		for _, c := range uc.Components {
+			comps[c["id"].(string)] = c
+		}
+	}
+	spans, _ := comps["root"]["spans"].(map[string]any)
+	if comps["b0"]["component"] != "Row" || spans["b0"] != float64(2) || comps["b0-1"]["component"] != "Tabs" || comps["b0-1"]["weight"] != float64(2) {
+		t.Fatalf("the span of columns is the screen's, that of tabs inside them their weight: %v %v %v", comps["root"], comps["b0"], comps["b0-1"])
+	}
+}

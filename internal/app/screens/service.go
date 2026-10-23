@@ -22,9 +22,10 @@ type Service struct {
 	Unread  func(ctx context.Context, act registry.Actor) (int64, error)
 	// Works looks up the model that does the work of a command.
 	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
-	// ScreenFailed and ScreenDrawn tell how a screen of a project drew; File is a file a media block shows.
+	// ScreenFailed and ScreenDrawn tell how a screen of a project drew, ScreenDrawn with the blocks that drew when it
+	// read not all of them; File is a file a media block shows.
 	ScreenFailed func(ctx context.Context, p db.Project, revision int64, name string, errs []string)
-	ScreenDrawn  func(ctx context.Context, p db.Project, name string)
+	ScreenDrawn  func(ctx context.Context, p db.Project, name string, good []string)
 	File         func(ctx context.Context, p db.Project, ref any) (map[string]any, error)
 	// Language is the language of the interface the workspace picked.
 	Language func(ctx context.Context, workspace int64) string

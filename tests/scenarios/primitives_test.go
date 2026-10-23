@@ -150,7 +150,7 @@ func TestABoardShowsItsLanesEmptyAndOnlyThoseItsButtonOffers(t *testing.T) {
 }
 
 // TestAScreenThatDrawsAgainIsHealthy: a block that failed on the data is red in health until the screen draws
-// without errors; one in a dialog turns red once the dialog is read, and a draw that left the dialog unread clears it not.
+// without errors; one in a dialog turns red once the dialog is read and green once a read draws it again.
 func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -184,6 +184,14 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 	}
 	if !red {
 		t.Fatal("a draw that left the dialog unread does not say the screen is healthy")
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "dialogs", "collection": "tasks", "records": `{"title": "a", "status": "doing", "note": "!"}`}, nil)
+	e.screenMessages("dialogs", "board", map[string]any{"dialog": "more", "block": "b0-in"})
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if h.Subject == "screen:dialogs.board" {
+			t.Fatalf("a read of the dialog that draws its block again is healthy: %+v", h)
+		}
 	}
 }
 

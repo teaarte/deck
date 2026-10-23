@@ -71,17 +71,21 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 		return nil, registry.NotFound("deck: no screen %q", in.Screen)
 	}
 	req.Words, req.Lang = words(in.Lang, req.Manifest), in.Lang
-	out, errs, every, err := screen.Render(ctx, ss.sources(act), req)
+	drawn, err := screen.Render(ctx, ss.sources(act), req)
+	out, errs := drawn.Messages, drawn.Errors
 	if err != nil {
 		return nil, registry.NotFound("deck: %v", err)
 	}
-	// A block that fails is told by a whole read or a read of a block; only a read of every block says the screen drew.
+	// A block that fails is told by a whole read or a read of a block; a read of every block, or one that drew the
+	// block health names, says the screen drew.
 	whole := len(out) > 0 && out[0]["createSurface"] != nil
 	switch own := req.Manifest != nil && req.Manifest.Screen(in.Screen) != nil && (whole || in.Block != ""); {
 	case own && len(errs) > 0:
 		ss.ScreenFailed(ctx, req.Project, req.Manifest.Revision, in.Screen, errs)
-	case own && every:
-		ss.ScreenDrawn(ctx, req.Project, in.Screen)
+	case own && drawn.Every:
+		ss.ScreenDrawn(ctx, req.Project, in.Screen, nil)
+	case own:
+		ss.ScreenDrawn(ctx, req.Project, in.Screen, drawn.Good)
 	}
 	return out, nil
 }

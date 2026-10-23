@@ -45,11 +45,14 @@ func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
 	return ok || err != nil, err
 }
 
+// maxPages is the most pages of its limit a block shows.
+const maxPages = 100
+
 // rows are the items of a block's source with the filters the owner picked, read once per screen without picks,
 // and how many its limit left out.
 func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) ([]map[string]any, []map[string]any, int, error) {
 	src := *b.Source
-	if n := r.req.Pages[id]; n > 1 && src.Limit > 0 {
+	if n := min(r.req.Pages[id], maxPages); n > 1 && src.Limit > 0 {
 		src.Limit *= n
 	}
 	if len(picked) > 0 {
@@ -98,9 +101,10 @@ func (r *renderer) block(id string, b manifest.Block) {
 			panel["icon"] = b.Icon
 		}
 		r.comps = append(r.comps, map[string]any{"id": id, "component": "Modal", "trigger": id + "-open", "content": id + "-in"}, button, label, panel)
-		r.dialogs = append(r.dialogs, b.Name)
+		row := r.inRow
+		r.dialogs, r.inRow = append(r.dialogs, b.Name), 0
 		r.grid(panel, r.blocks(id+"-", b.Blocks))
-		r.dialogs = r.dialogs[:len(r.dialogs)-1]
+		r.dialogs, r.inRow = r.dialogs[:len(r.dialogs)-1], row
 		return
 	case "tabs":
 		tabs := []map[string]any{}
@@ -112,7 +116,10 @@ func (r *renderer) block(id string, b manifest.Block) {
 				panel["icon"] = t.Icon
 			}
 			r.comps = append(r.comps, panel)
+			row := r.inRow
+			r.inRow = 0
 			r.grid(panel, r.blocks(tid+"-", t.Blocks))
+			r.inRow = row
 		}
 		r.standard(id, b, map[string]any{"component": "Tabs", "tabs": tabs})
 		return
@@ -142,18 +149,22 @@ func (r *renderer) block(id string, b manifest.Block) {
 		return
 	}
 	value, err := r.resolve(id, b)
+	name := fmt.Sprintf("%s block %q", b.Type, cmp.Or(b.Title, id))
 	if err != nil {
 		r.data[id] = map[string]any{"state": "error", "error": err.Error()}
-		r.errs = append(r.errs, fmt.Sprintf("%s block %q: %v", b.Type, cmp.Or(b.Title, id), err))
+		r.errs = append(r.errs, name+": "+err.Error())
 		return
 	}
+	r.good = append(r.good, name)
 	r.data[id] = value
 }
 
 // standard adds the standard component of a container block under id; standard containers have no title or
 // description, so a block with them is a Column of Texts over it, and its span is the screen's to say.
 func (r *renderer) standard(id string, b manifest.Block, comp map[string]any) {
-	if b.Span.N > 0 {
+	// Inside columns the span is the standard weight of the child, on a screen the screen's.
+	outer := comp
+	if b.Span.N > 0 && r.inRow == 0 {
 		r.spans[id] = b.Span.N
 	}
 	if b.Title != "" || b.Description != "" {
@@ -164,8 +175,12 @@ func (r *renderer) standard(id string, b manifest.Block, comp map[string]any) {
 				children = append(children, id+"-"+t.k)
 			}
 		}
-		r.comps = append(r.comps, map[string]any{"id": id, "component": "Column", "children": append(children, id+"-in")})
+		outer = map[string]any{"id": id, "component": "Column", "children": append(children, id+"-in")}
+		r.comps = append(r.comps, outer)
 		id += "-in"
+	}
+	if b.Span.N > 0 && r.inRow > 0 {
+		outer["weight"] = b.Span.N
 	}
 	comp["id"] = id
 	r.comps = append(r.comps, comp)

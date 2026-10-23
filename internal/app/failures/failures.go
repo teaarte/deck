@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -109,10 +110,15 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 	}
 }
 
-// ScreenDrawn clears the health of a screen of a project that drew without errors.
-func (s *Service) ScreenDrawn(ctx context.Context, p db.Project, name string) {
+// ScreenDrawn clears the health of a screen of a project that drew without errors: all of it, or with good the
+// blocks it read, among them the one its health names.
+func (s *Service) ScreenDrawn(ctx context.Context, p db.Project, name string, good []string) {
 	subject := health.Screen(p.Name, name)
-	if _, err := health.Get(ctx, s.St.Q, health.Project(p), subject); err != nil {
+	h, err := health.Get(ctx, s.St.Q, health.Project(p), subject)
+	if err != nil {
+		return
+	}
+	if block, _, _ := strings.Cut(h.Error, ": "); good != nil && !slices.Contains(good, block) {
 		return
 	}
 	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

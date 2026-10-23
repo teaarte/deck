@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useComputedColorScheme, useMantineTheme } from '@mantine/core';
 import { AppBridge, PostMessageTransport, type McpUiHostContext } from '@modelcontextprotocol/ext-apps/app-bridge';
-import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/client';
 import { call } from '../../lib/api';
 import { go, parse } from '../../app/router';
 import type { CustomValue } from '../../lib/catalog.gen';

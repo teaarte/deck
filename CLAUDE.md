@@ -145,7 +145,7 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   answer of a call read by `outcome` in `act.ts`); `cockpit/` the top of the cockpit `Hero.tsx` and its one-by-one
   `Triage.tsx` over the first list of decisions, `decisions.ts`;
   `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `form/`, `media/` (pictures, PDF, audio and video in the browser's player, the lightbox), `chart/`,
-  `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` the mascot `deki/Deki.tsx` (poses in `public/deki`, a switch of Interface), buttons in `actions/` (a failed press shows its error
+  `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 2.x on the MCP SDK 2 client); `chat/` the chat with the master around `chatStore.ts`; `ui/` the mascot `deki/Deki.tsx` (poses in `public/deki`, a switch of Interface), buttons in `actions/` (a failed press shows its error
   at the button, `Failed.tsx`; the undo toast `undo.tsx`; confirmation), icons by
   name, markdown (`@a2ui/markdown-it`), values; `hooks/` (`useLiveRead` — a command read again on its topics, `useClock`
   — one shared clock per period); `lib/` the API (`authed` every request) and live events (`events.ts`, `useLive`, one

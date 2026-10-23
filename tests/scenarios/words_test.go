@@ -25,13 +25,13 @@ func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
 	if run.Error != "fake не ответила: API Error: overloaded" {
 		t.Fatalf("a failure deck wrote reads in Russian, the words of the API as they came: %q", run.Error)
 	}
-	var notes []struct{ Text string }
-	e.must("deck.feed_list", map[string]any{"lang": "ru", "kind": "note"}, &notes)
-	if !slices.ContainsFunc(notes, func(n struct{ Text string }) bool {
-		return strings.HasPrefix(n.Text, "fake не закончила «work», продолжает backup: fake did not answer: API Error")
-	}) {
-		t.Fatalf("a note of deck reads in Russian, without numbers of processes: %+v", notes)
-	}
+	e.waitFor("a note of deck in Russian, without numbers of processes", func() bool {
+		var notes []struct{ Text string }
+		e.must("deck.feed_list", map[string]any{"lang": "ru", "kind": "note"}, &notes)
+		return slices.ContainsFunc(notes, func(n struct{ Text string }) bool {
+			return strings.HasPrefix(n.Text, "fake не закончила «work», продолжает backup: fake did not answer: API Error")
+		})
+	})
 }
 
 // TestADecisionSaysWhoAsksWhyAndWhatChanges: a held call says who asks, why in the agent's last words and what it

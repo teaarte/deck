@@ -116,3 +116,11 @@
     box-shadow: 0 0 0 1px var(--mantine-color-text);
   }
 }
+
+.grid > .cell[data-span='1'] {
+  flex: 1 1 var(--deck-cell);
+}
+
+.grid > .cell[data-span='2'] {
+  flex: 2 1 calc(var(--deck-cell) * 2);
+}

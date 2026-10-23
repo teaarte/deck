@@ -3,7 +3,26 @@
   "catalogId": "https://deck2.local/catalog/v1",
   "final_states": ["done", "error", "interrupted", "stopped"],
   "topics": ["collection", "asks", "processes", "feed", "health", "log", "triggers", "secrets", "tokens", "settings", "documents", "files", "snapshots", "chat", "calls", "usage", "projects", "models", "folders", "assignments", "tools"],
-  "description": "Blocks of deck screens as A2UI components. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}. block is the form a manifest stores the block in; its refs are the $defs of the manifest schema.",
+  "description": "The catalog of deck screens: the basic catalog of A2UI and the blocks of deck as components of their own. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}. block is the form a manifest stores the block in; its refs are the $defs of the manifest schema.",
+  "basic": {"catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json", "components": ["Row", "Column", "Tabs", "Modal", "Button", "Text"],
+    "description": "The standard components of A2UI a screen is drawn with besides the blocks of deck; a container block of a manifest is drawn by one of them, the server translates it."},
+  "blocks": {
+    "columns": {
+      "description": "Blocks side by side.",
+      "drawn": "Row, or Column inside columns",
+      "block": {"description": "Holds at least one block in blocks, side by side; nothing else.", "required": ["blocks"], "properties": {"blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}}
+    },
+    "dialog": {
+      "description": "A button that opens its blocks in a window over the screen; ?dialog=<name> in the address of the screen opens it too, and a form in it closes it once its call went through.",
+      "drawn": "Modal with a Button of a Text that opens it",
+      "block": {"description": "Needs title (the label of its button), name and at least one block in blocks; primary paints its button in the accent.", "required": ["title", "name", "blocks"], "properties": {"name": {"$ref": "#/$defs/name"}, "primary": {"type": "boolean"}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}}
+    },
+    "tabs": {
+      "description": "Blocks in tabs.",
+      "drawn": "Tabs",
+      "block": {"description": "Holds its tabs in tabs, each with a title and at least one block; nothing else.", "required": ["tabs"], "properties": {"tabs": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["title", "blocks"], "properties": {"title": {"type": "string", "minLength": 1}, "icon": {"$ref": "#/$defs/icon"}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}}}}}
+    }
+  },
   "components": {
     "screen": {
       "type": "object",
@@ -15,55 +34,11 @@
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
         "children": {"$ref": "common_types.json#/$defs/ChildList"},
-        "dialogs": {"$ref": "common_types.json#/$defs/ChildList", "description": "The dialogs of the screen, their buttons beside its title."},
+        "dialogs": {"$ref": "common_types.json#/$defs/ChildList", "description": "The dialogs of the screen, Modals whose buttons stand beside its title."},
+        "key": {"type": "string", "description": "Of a tab of Tabs: its title as written, its name in the address in every language."},
+        "name": {"type": "string", "description": "Of the window of a Modal: the name of its dialog, ?dialog=<name> in the address opens it."},
+        "spans": {"type": "object", "additionalProperties": {"enum": [1, 2]}, "description": "The cells of the grid a standard child narrower than the screen takes, by its id."},
         "topics": {"type": "array", "items": {"type": "string"}, "description": "Of the root screen: the event topics after which the client reads it again; it ignores the others."}
-      }
-    },
-    "columns": {
-      "description": "Blocks side by side.",
-      "block": {"description": "Holds at least one block in blocks, side by side; nothing else.", "required": ["blocks"], "properties": {"blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}},
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["children"],
-      "properties": {
-        "title": {"type": "string"},
-        "icon": {"type": "string"},
-        "span": {"enum": [1, 2, "full"], "default": "full"},
-        "description": {"type": "string"},
-        "children": {"$ref": "common_types.json#/$defs/ChildList"}
-      }
-    },
-    "dialog": {
-      "description": "A button that opens its blocks in a window over the screen; ?dialog=<name> in the address of the screen opens it too, and a form in it closes it once its call went through.",
-      "block": {"description": "Needs title (the label of its button), name and at least one block in blocks; primary paints its button in the accent.", "required": ["title", "name", "blocks"], "properties": {"name": {"$ref": "#/$defs/name"}, "primary": {"type": "boolean"}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}},
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["children", "name"],
-      "properties": {
-        "title": {"type": "string"},
-        "icon": {"type": "string"},
-        "span": {"enum": [1, 2, "full"], "default": 1},
-        "description": {"type": "string"},
-        "name": {"type": "string"},
-        "primary": {"type": "boolean"},
-        "children": {"$ref": "common_types.json#/$defs/ChildList"}
-      }
-    },
-    "tabs": {
-      "description": "Blocks in tabs.",
-      "block": {"description": "Holds its tabs in tabs, each with a title and at least one block; nothing else.", "required": ["tabs"], "properties": {"tabs": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["title", "blocks"], "properties": {"title": {"type": "string", "minLength": 1}, "icon": {"$ref": "#/$defs/icon"}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}}}}},
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["titles", "children"],
-      "properties": {
-        "title": {"type": "string"},
-        "icon": {"type": "string"},
-        "span": {"enum": [1, 2, "full"], "default": "full"},
-        "description": {"type": "string"},
-        "titles": {"type": "array", "items": {"type": "string"}},
-        "keys": {"type": "array", "items": {"type": "string"}, "description": "The title of each tab as written, its name in the address in every language."},
-        "icons": {"type": "array", "items": {"type": "string"}, "description": "The icon of each tab, empty for none."},
-        "children": {"$ref": "common_types.json#/$defs/ChildList"}
       }
     },
     "table": {

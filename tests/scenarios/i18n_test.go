@@ -62,7 +62,7 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	drawn, _ := json.Marshal(e.screenMessages("", "spend", map[string]any{"lang": "ru"}))
-	if !strings.Contains(string(drawn), `"Сегодня"`) || !strings.Contains(string(drawn), `"keys":["Today","7 days","30 days"]`) {
+	if !strings.Contains(string(drawn), `"Сегодня"`) || !strings.Contains(string(drawn), `"key":"Today"`) || !strings.Contains(string(drawn), `"key":"30 days"`) {
 		t.Fatalf("a tab shows its title translated and keeps its key: %s", drawn)
 	}
 	twice := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [

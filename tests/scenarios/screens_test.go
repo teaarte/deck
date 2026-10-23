@@ -79,6 +79,9 @@ func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage)
 			for _, comp := range uc.Components {
 				name := comp["component"].(string)
 				k.comps[comp["id"].(string)] = name
+				if slices.Contains(k.basic, name) {
+					continue
+				}
 				s, err := k.c.Compile("https://deck2.test/catalog.json#/components/" + name)
 				if err != nil {
 					t.Fatalf("component %s is not in the catalog: %v", name, err)

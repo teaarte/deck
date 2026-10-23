@@ -32,6 +32,20 @@ export interface Catalog {
   DocumentValue?: DocumentValue;
   CustomValue?: CustomValue;
   ChatValue?: ChatValue;
+  ScreenProps?: ScreenProps;
+  TableProps?: TableProps;
+  ListProps?: ListProps;
+  CardProps?: CardProps;
+  StatProps?: StatProps;
+  ChartProps?: ChartProps;
+  MediaProps?: MediaProps;
+  ActionsProps?: ActionsProps;
+  LogProps?: LogProps;
+  FormProps?: FormProps;
+  AppearanceProps?: AppearanceProps;
+  DocumentProps?: DocumentProps;
+  CustomProps?: CustomProps;
+  ChatProps?: ChatProps;
 }
 /**
  * A button: a command call or a move to a screen. verb names a built-in label the client translates.
@@ -719,4 +733,196 @@ export interface ChatValue {
    */
   model?: string;
   choose?: Action;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "ScreenProps".
+ */
+export interface ScreenProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  children: string[];
+  /**
+   * The dialogs of the screen, Modals whose buttons stand beside its title.
+   */
+  dialogs?: string[];
+  /**
+   * Of a tab of Tabs: its title as written, its name in the address in every language.
+   */
+  key?: string;
+  /**
+   * Of the window of a Modal: the name of its dialog, ?dialog=<name> in the address opens it.
+   */
+  name?: string;
+  /**
+   * The cells of the grid a standard child narrower than the screen takes, by its id.
+   */
+  spans?: {
+    [k: string]: 1 | 2;
+  };
+  /**
+   * Of the root screen: the event topics after which the client reads it again; it ignores the others.
+   */
+  topics?: string[];
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "TableProps".
+ */
+export interface TableProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  columns: {
+    label: string;
+    format?: string;
+    currency?: string;
+    /**
+     * The button of each row whose pick is the same is the one the cell picks the input of.
+     */
+    pick?: string;
+  }[];
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "ListProps".
+ */
+export interface ListProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  cards?: boolean;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "CardProps".
+ */
+export interface CardProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "StatProps".
+ */
+export interface StatProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  format?: string;
+  currency?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "ChartProps".
+ */
+export interface ChartProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  kind?: string;
+  format?: string;
+  currency?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "MediaProps".
+ */
+export interface MediaProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "ActionsProps".
+ */
+export interface ActionsProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "LogProps".
+ */
+export interface LogProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "FormProps".
+ */
+export interface FormProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "AppearanceProps".
+ */
+export interface AppearanceProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  part?: "look" | "pushes";
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "DocumentProps".
+ */
+export interface DocumentProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "CustomProps".
+ */
+export interface CustomProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "ChatProps".
+ */
+export interface ChatProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  data?: Data;
 }

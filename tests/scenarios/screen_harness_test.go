@@ -222,6 +222,8 @@ type catalogCheck struct {
 	c     *jsonschema.Compiler
 	data  *jsonschema.Schema
 	comps map[string]string
+	// basic are the standard components of A2UI the catalog draws with; the stock renderer checks their props.
+	basic []string
 }
 
 func newCatalogCheck(t *testing.T) *catalogCheck {
@@ -244,7 +246,9 @@ func newCatalogCheck(t *testing.T) *catalogCheck {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &catalogCheck{c: c, data: data, comps: map[string]string{}}
+	var cat struct{ Basic struct{ Components []string } }
+	_ = json.Unmarshal(raw, &cat)
+	return &catalogCheck{c: c, data: data, comps: map[string]string{}, basic: cat.Basic.Components}
 }
 
 func roundTrip(v any) any {

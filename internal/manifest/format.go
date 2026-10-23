@@ -9,16 +9,25 @@ import (
 	"deck2/schemas"
 )
 
-// catalog is the screen catalog: each component with a block form is a block type.
+type blockForm struct {
+	Description string         `json:"description"`
+	Block       map[string]any `json:"block"`
+}
+
+// catalog is the screen catalog: each component with a block form is a block type, and so is each container block
+// a standard component draws.
 var catalog = func() (c struct {
-	Components map[string]struct {
-		Description string         `json:"description"`
-		Block       map[string]any `json:"block"`
-	} `json:"components"`
+	Components map[string]blockForm `json:"components"`
 }) {
-	if err := json.Unmarshal(schemas.Catalog, &c); err != nil {
+	var raw struct {
+		Components map[string]blockForm `json:"components"`
+		Blocks     map[string]blockForm `json:"blocks"`
+	}
+	if err := json.Unmarshal(schemas.Catalog, &raw); err != nil {
 		panic(err)
 	}
+	c.Components = raw.Components
+	maps.Copy(c.Components, raw.Blocks)
 	return c
 }()
 

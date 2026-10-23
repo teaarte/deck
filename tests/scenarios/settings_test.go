@@ -80,7 +80,7 @@ func (e *Env) screenBlock(project, screen, title string, extra map[string]any) m
 			var uc struct{ Components []map[string]any }
 			_ = json.Unmarshal(raw, &uc)
 			for _, c := range uc.Components {
-				if c["title"] == title && c["component"] != "tabs" {
+				if c["title"] == title || c["component"] == "Text" && c["text"] == title {
 					id = c["id"].(string)
 				}
 			}

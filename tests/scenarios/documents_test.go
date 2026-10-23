@@ -418,6 +418,7 @@ func TestTheSkillNamesOnlyBlocksAndChartsTheCatalogHas(t *testing.T) {
 				} `json:"properties"`
 			} `json:"block"`
 		} `json:"components"`
+		Blocks map[string]struct{ Description string } `json:"blocks"`
 	}
 	if err := json.Unmarshal(raw, &catalog); err != nil {
 		t.Fatal(err)
@@ -429,7 +430,8 @@ func TestTheSkillNamesOnlyBlocksAndChartsTheCatalogHas(t *testing.T) {
 		t.Fatal("the skill lists the blocks and the kinds of chart")
 	}
 	for _, m := range quoted.FindAllStringSubmatch(blocks[1], -1) {
-		if _, ok := catalog.Components[m[1]]; !ok {
+		_, container := catalog.Blocks[m[1]]
+		if _, ok := catalog.Components[m[1]]; !ok && !container {
 			t.Errorf("the skill names block %q, which the catalog lacks", m[1])
 		}
 	}

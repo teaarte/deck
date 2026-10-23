@@ -70,27 +70,50 @@ func (r *renderer) block(id string, b manifest.Block) {
 		keys = append(keys, t.Title)
 	}
 	b = r.translated(b)
+	switch b.Type {
+	case "columns":
+		// Columns inside columns are one column of blocks.
+		name := "Row"
+		if r.inRow > 0 {
+			name = "Column"
+		}
+		r.inRow++
+		children := r.blocks(id+"-", b.Blocks)
+		r.inRow--
+		r.standard(id, b, map[string]any{"component": name, "children": children})
+		return
+	case "dialog":
+		label := map[string]any{"id": id + "-label", "component": "Text", "text": b.Title}
+		button := map[string]any{"id": id + "-open", "component": "Button", "child": id + "-label"}
+		if b.Primary {
+			button["variant"] = "primary"
+		}
+		panel := map[string]any{"id": id + "-in", "component": "screen", "name": b.Name}
+		if b.Icon != "" {
+			panel["icon"] = b.Icon
+		}
+		r.comps = append(r.comps, map[string]any{"id": id, "component": "Modal", "trigger": id + "-open", "content": id + "-in"}, button, label, panel)
+		r.grid(panel, r.blocks(id+"-", b.Blocks))
+		return
+	case "tabs":
+		tabs := []map[string]any{}
+		for j, t := range b.Tabs {
+			tid := fmt.Sprintf("%s-%d", id, j)
+			tabs = append(tabs, map[string]any{"title": t.Title, "child": tid})
+			panel := map[string]any{"id": tid, "component": "screen", "key": keys[j]}
+			if t.Icon != "" {
+				panel["icon"] = t.Icon
+			}
+			r.comps = append(r.comps, panel)
+			r.grid(panel, r.blocks(tid+"-", t.Blocks))
+		}
+		r.standard(id, b, map[string]any{"component": "Tabs", "tabs": tabs})
+		return
+	}
 	comp := static(b)
 	comp["id"], comp["component"], comp["span"] = id, b.Type, span(b)
 	r.comps = append(r.comps, comp)
 	switch b.Type {
-	case "columns":
-		comp["children"] = r.blocks(id+"-", b.Blocks)
-		return
-	case "dialog":
-		comp["children"] = r.blocks(id+"-", b.Blocks)
-		return
-	case "tabs":
-		titles, icons, children := []string{}, []string{}, []string{}
-		for j, t := range b.Tabs {
-			tid := fmt.Sprintf("%s-%d", id, j)
-			titles, icons, children = append(titles, t.Title), append(icons, t.Icon), append(children, tid)
-			panel := map[string]any{"id": tid, "component": "screen"}
-			r.comps = append(r.comps, panel)
-			panel["children"], panel["dialogs"] = r.split(r.blocks(tid+"-", t.Blocks))
-		}
-		comp["titles"], comp["keys"], comp["icons"], comp["children"] = titles, keys, icons, children
-		return
 	case "table":
 		cols := make([]map[string]any, 0, len(b.Columns))
 		for _, c := range b.Columns {
@@ -120,11 +143,46 @@ func (r *renderer) block(id string, b manifest.Block) {
 	r.data[id] = value
 }
 
+// standard adds the standard component of a container block under id; standard containers have no title or
+// description, so a block with them is a Column of Texts over it, and its span is the screen's to say.
+func (r *renderer) standard(id string, b manifest.Block, comp map[string]any) {
+	if b.Span.N > 0 {
+		r.spans[id] = b.Span.N
+	}
+	if b.Title != "" || b.Description != "" {
+		children := []string{}
+		for _, t := range []struct{ k, v, variant string }{{"title", b.Title, "h3"}, {"description", b.Description, "caption"}} {
+			if t.v != "" {
+				r.comps = append(r.comps, map[string]any{"id": id + "-" + t.k, "component": "Text", "text": t.v, "variant": t.variant})
+				children = append(children, id+"-"+t.k)
+			}
+		}
+		r.comps = append(r.comps, map[string]any{"id": id, "component": "Column", "children": append(children, id+"-in")})
+		id += "-in"
+	}
+	comp["id"] = id
+	r.comps = append(r.comps, comp)
+}
+
+// grid gives a screen, a tab or the window of a dialog its blocks, its dialogs and the spans of its standard blocks.
+func (r *renderer) grid(comp map[string]any, ids []string) {
+	comp["children"], comp["dialogs"] = r.split(ids)
+	spans := map[string]any{}
+	for _, id := range ids {
+		if sp, ok := r.spans[id]; ok {
+			spans[id] = sp
+		}
+	}
+	if len(spans) > 0 {
+		comp["spans"] = spans
+	}
+}
+
 // split puts the dialogs and menus of a screen apart from its blocks: their buttons stand beside its title.
 func (r *renderer) split(ids []string) (blocks, dialogs []string) {
 	head := map[string]bool{}
 	for _, c := range r.comps {
-		head[fmt.Sprint(c["id"])] = c["component"] == "dialog"
+		head[fmt.Sprint(c["id"])] = c["component"] == "Modal"
 	}
 	blocks, dialogs = []string{}, []string{}
 	for _, id := range ids {

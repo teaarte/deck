@@ -267,14 +267,16 @@ func TestTheHistoryOfTheCockpitIsADialogOfItsTop(t *testing.T) {
 		}
 		children, dialogs = ids(comps["root"]["children"]), ids(comps["root"]["dialogs"])
 		for _, id := range dialogs {
-			if comps[id]["name"] == "changes" {
-				history = comps[id]
+			content, _ := comps[id]["content"].(string)
+			if comps[id]["component"] == "Modal" && comps[content]["name"] == "changes" {
+				label, _ := comps[fmt.Sprint(comps[id]["trigger"])]["child"].(string)
+				history = map[string]any{"id": id, "title": comps[label]["text"]}
 			}
 		}
 		return children, dialogs, history
 	}
 	children, dialogs, history := root()
-	if len(dialogs) != 1 || history == nil || history["component"] != "dialog" || history["title"] != "History" || slices.Contains(children, dialogs[0]) {
+	if len(dialogs) != 1 || history == nil || history["title"] != "History" || slices.Contains(children, dialogs[0]) {
 		t.Fatalf("the cockpit has History as its one dialog, apart from its blocks: %v %v %v", children, dialogs, history)
 	}
 	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "done")

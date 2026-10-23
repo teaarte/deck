@@ -118,7 +118,7 @@ func Check(ctx context.Context, src Sources, req Request) ([]string, error) {
 }
 
 func resolve(ctx context.Context, src Sources, req Request) (*renderer, error) {
-	r := &renderer{ctx: ctx, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}, fetched: map[string]fetchOf{}}
+	r := &renderer{ctx: ctx, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}, fetched: map[string]fetchOf{}, spans: map[string]any{}}
 	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name, Lang: req.Lang}
 	r.params = map[string]any{}
 	for name, typ := range req.Screen.Params {
@@ -137,7 +137,7 @@ func resolve(ctx context.Context, src Sources, req Request) (*renderer, error) {
 		root["icon"] = req.Screen.Icon
 	}
 	r.comps = []map[string]any{root}
-	root["children"], root["dialogs"] = r.split(r.blocks("b", req.Screen.Blocks))
+	r.grid(root, r.blocks("b", req.Screen.Blocks))
 	return r, nil
 }
 
@@ -157,6 +157,9 @@ type renderer struct {
 	fetched map[string]fetchOf
 	// params are the parameters the screen declares, from its address in their types.
 	params map[string]any
+	// inRow counts the columns a block is inside; spans are those of standard blocks narrower than the screen.
+	inRow int
+	spans map[string]any
 	// errs name the blocks that failed to resolve.
 	errs []string
 }

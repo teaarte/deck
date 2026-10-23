@@ -41,7 +41,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	if !strings.Contains(string(drawn), `"params":{"dialog":"rescore","title":"alpha"}`) {
 		t.Fatalf("a button to a screen carries the parameters of its row: %s", drawn)
 	}
-	if !strings.Contains(string(drawn), `"component":"dialog"`) || !strings.Contains(string(drawn), `"name":"rescore"`) {
+	if !strings.Contains(string(drawn), `"component":"Modal"`) || !strings.Contains(string(drawn), `"name":"rescore"`) {
 		t.Fatalf("a dialog is drawn with its name: %s", drawn)
 	}
 	if !strings.Contains(string(drawn), `"dialogs":["b0"]`) {

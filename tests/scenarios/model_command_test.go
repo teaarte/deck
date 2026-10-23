@@ -834,9 +834,8 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 	}
 }
 
-// TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce: a model with tokens a minute or of a request in deck's
-// settings gets no request past them; the next model takes it, the last one is the model's limit, and an assignment
-// warns when a usual request of the work is past them.
+// TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce: no request past the limits of a model reaches it; the next
+// model takes it, the last is the model's limit, and an assignment warns when a usual request is past them.
 func TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){

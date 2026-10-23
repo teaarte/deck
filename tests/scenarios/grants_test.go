@@ -176,9 +176,8 @@ func TestAOneLineManifestTakesANeutralEditWhileARequestWaits(t *testing.T) {
 	}
 }
 
-// TestAnEditOfTheRightARequestWaitsForOutdatesIt: an edit that changes the path a request changes, without widening,
-// saves at once; the request no longer merges, so it closes with a note naming the path and its yes grants nothing.
-// Two requests that add to one set both merge.
+// TestAnEditOfTheRightARequestWaitsForOutdatesIt: an edit of the path a request changes, without widening, saves; the
+// request closes with a note naming the path and grants nothing. Two requests that add to one set both merge.
 func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
@@ -262,9 +261,8 @@ const mergeManifest = `{
   "domains": {"read": ["a.example"]}
 }`
 
-// TestAGrantMergesIntoTheManifestByItsStructure: a request merges into the manifest by its parts: edits of other
-// commands and the same edit stay, keys keep the order of the manifest, an earlier grant is not lost; an edit of the
-// same field another way outdates the request with its path.
+// TestAGrantMergesIntoTheManifestByItsStructure: edits of other commands, the same edit, the order of keys and an earlier
+// grant stay when a request merges; an edit of the same field another way outdates the request with its path.
 func TestAGrantMergesIntoTheManifestByItsStructure(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)

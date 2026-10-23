@@ -329,8 +329,7 @@ func TestAModuleReadsTheModelsOfEveryProjectByARight(t *testing.T) {
 }
 
 // TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight: reads {"project": "*", "runs": true}, granted by the owner,
-// lets a script list the runs of another project with what ran, how it ended and on which model, never their input,
-// result or log.
+// lists the runs of another project: what ran, how it ended, on which model; never input, result or log.
 func TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -369,5 +368,8 @@ func TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight(t *testing.T) {
 	}
 	if c := e.scriptCall("watcher", "deck.records_list", map[string]any{"project": "plain", "collection": "items"}); c.Status != 403 {
 		t.Fatalf("the runs open no data of the project: %+v", c)
+	}
+	if c := e.scriptCall("watcher", "deck.processes_list", map[string]any{"project": "master"}); c.Status != 403 {
+		t.Fatalf("every project is not the master, whose runs hold the owner's topics: %+v", c)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/fault"
 	"deck2/internal/home"
+	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -158,6 +159,9 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 	if err != nil {
 		return nil, err
 	}
+	if runs && (in.Record != 0 || in.Topic != 0) {
+		return nil, registry.Invalid("deck: the runs of another project list by state, command and time, not by record or topic")
+	}
 	var ps []db.Process
 	switch {
 	case in.Failed:
@@ -235,7 +239,8 @@ func (s *Service) runOf(ctx context.Context, p db.Process, v processView, lang s
 	if calls, err := s.St.Q.ListProcessModelCalls(ctx, store.ID(p.ID)); err == nil {
 		r.Models = modelsOf(calls)
 	}
-	s.shown(ctx, p, &r, lang)
+	ws := s.Words(lang)
+	r.Shown = process.Show(p, "", false, func(phrase string) string { return manifest.Tr(ws, phrase) })
 	return r
 }
 

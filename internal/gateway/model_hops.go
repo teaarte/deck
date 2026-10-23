@@ -275,7 +275,7 @@ func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte,
 	})
 	if err != nil {
 		if registry.Status(err) == http.StatusTooManyRequests {
-			w.Header().Set("Retry-After", "60")
+			w.Header().Set(provider.PastLimit, "1")
 		}
 		http.Error(w, err.Error(), registry.Status(err))
 		return

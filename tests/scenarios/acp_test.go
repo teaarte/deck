@@ -889,3 +889,26 @@ func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
 		t.Fatalf("deck writes no skill into the owner's folder and keeps the owner's: %q %q", b, listed)
 	}
 }
+
+// TestACPTurnPastTheLimitOfItsModelGoesOnWithoutAPause: a call of an ACP turn past the tokens a minute of its model
+// reaches no model; the turn is the model's limit, and the model does not pause, since it met no limit of its own.
+func TestACPTurnPastTheLimitOfItsModelGoesOnWithoutAPause(t *testing.T) {
+	t.Parallel()
+	f := newACP(t)
+	llm := acpLLM(t)
+	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		acpModel, `{"end": "end_turn"}`))
+	e := acpEnv(t, f, "goose", llm)
+	before := len(llm.requests())
+	e.must("deck.model_set", map[string]any{"connection": "acp", "name": "acp", "model": "m", "tpm": 10}, nil)
+	got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "rate_limited")
+	if fl := e.fault(got.ID); got.State != "error" || fl.ErrorType != "model.limit" || !strings.Contains(fl.Error, "tokens a minute acp takes") {
+		t.Fatalf("a call past the limit of the model is the model's limit: %+v %+v", got, fl)
+	}
+	if n := len(llm.requests()); n != before {
+		t.Fatalf("the call past the limit reaches no model: %d calls after %d", n, before)
+	}
+	if h := e.health("provider:acp"); h == nil || h["status"] == "paused" {
+		t.Fatalf("the model does not pause on a limit it did not meet: %v", h)
+	}
+}

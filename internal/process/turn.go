@@ -295,6 +295,12 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		case err != nil:
 			fail(fault.Of(err))
 			r.deps.Broke(bg, pv.Name())
+		case res.Past != "":
+			// Deck held the call back, so the model is not at a limit of its own and does not pause.
+			f := fault.With(fault.ModelLimit, untrusted.Flat(res.Past, 300), res.Past)
+			if !r.handOn(bg, *t, pv, f) {
+				r.finish(bg, processID, StateError, "", false, f)
+			}
 		case res.Outcome == provider.Unavailable:
 			f := fault.With(fault.ModelUnavailable, pv.Name()+" did not answer: "+untrusted.Flat(res.Text, 200), res.Text)
 			if !r.handOn(bg, *t, pv, f) {

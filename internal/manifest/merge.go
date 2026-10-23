@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"reflect"
 	"slices"
 	"strings"
 )
@@ -17,10 +16,8 @@ type Conflict struct {
 	Base, Edit, Next json.RawMessage
 }
 
-// Merge3 puts the change from base to edit into next by the structure of the manifest: objects key by key, a set by
-// its values, an array of named entries entry by entry, any other value whole. Where both sides changed one path
-// differently next stands and the path comes back as a conflict; keys keep the order of next, new keys of edit go
-// last in their object.
+// Merge3 puts the change from base to edit into next by parts: objects by keys, sets by values, named entries by name,
+// the rest whole; a path both changed apart keeps next and is a conflict. Keys keep the order of next, edit's go last.
 func Merge3(edit, base, next []byte) ([]byte, []Conflict, error) {
 	var vs [3]any
 	for i, raw := range [][]byte{edit, base, next} {
@@ -124,7 +121,7 @@ func (m *merger) named(path, key string, edit, base, next []any) []any {
 // mergeSet is next with the values edit added to base and without those edit took from it.
 func mergeSet(edit, base, next []any) []any {
 	has := func(a []any, v any) bool {
-		return slices.ContainsFunc(a, func(x any) bool { return reflect.DeepEqual(x, v) })
+		return slices.ContainsFunc(a, func(x any) bool { return equal(x, v) })
 	}
 	var out []any
 	for _, v := range next {
@@ -144,7 +141,36 @@ func mergeSet(edit, base, next []any) []any {
 }
 
 func same(a, b any, hasA, hasB bool) bool {
-	return hasA == hasB && (!hasA || reflect.DeepEqual(a, b))
+	return hasA == hasB && (!hasA || equal(a, b))
+}
+
+// equal compares JSON values by what they mean: objects whatever the order of their keys, numbers by value.
+func equal(a, b any) bool {
+	switch x := a.(type) {
+	case *object:
+		y, ok := b.(*object)
+		if !ok || len(x.vals) != len(y.vals) {
+			return false
+		}
+		for k, v := range x.vals {
+			if w, ok := y.vals[k]; !ok || !equal(v, w) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		y, ok := b.([]any)
+		return ok && slices.EqualFunc(x, y, equal)
+	case json.Number:
+		y, ok := b.(json.Number)
+		if !ok {
+			return false
+		}
+		f, err1 := x.Float64()
+		g, err2 := y.Float64()
+		return err1 == nil && err2 == nil && f == g || x == y
+	}
+	return a == b
 }
 
 // keyed reports whether every entry of a is an object with a distinct value of key.

@@ -29,6 +29,7 @@ type entry struct {
 	// last is the status and Retry-After of the last answer of the model API, with the words of one that refused.
 	last       int
 	retryAfter string
+	past       bool
 	refusal    string
 	// plain is set once the model API refused the reasoning an agent hands back in the history; it is of the model.
 	plain *atomic.Bool
@@ -92,7 +93,7 @@ type status struct {
 
 func (s *status) WriteHeader(code int) {
 	s.e.mu.Lock()
-	s.e.last, s.e.retryAfter, s.e.refusal = code, s.Header().Get("Retry-After"), ""
+	s.e.last, s.e.retryAfter, s.e.refusal, s.e.past = code, s.Header().Get("Retry-After"), "", s.Header().Get(provider.PastLimit) != ""
 	s.e.mu.Unlock()
 	s.ResponseWriter.WriteHeader(code)
 }
@@ -116,8 +117,12 @@ func (s *status) Flush() {
 // needs a login, another refusal keeps the words of the API.
 func (e *entry) refused(res provider.Result) provider.Result {
 	e.mu.Lock()
-	status, after, words := e.last, e.retryAfter, e.refusal
+	status, after, words, past := e.last, e.retryAfter, e.refusal, e.past
 	e.mu.Unlock()
+	if past {
+		res.Outcome, res.Past = provider.Failed, untrusted.Line(words, 500)
+		return res
+	}
 	if !provider.Refused(&res, status, after, e.now()) && status >= 400 {
 		res.Refusal = fmt.Sprintf("%d %s", status, untrusted.Line(words, 500))
 	}

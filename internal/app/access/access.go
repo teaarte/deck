@@ -202,6 +202,9 @@ func ReadRuns(ctx context.Context, q *db.Queries, act registry.Actor, p db.Proje
 	if act.Within(p.ID) {
 		return nil
 	}
+	if p.Builtin == 1 {
+		return registry.Refuse("deck: the runs of project %s are for the master only", master.Name)
+	}
 	m, err := docs.For(ctx, q, act, act.ProjectID)
 	if err != nil {
 		return err

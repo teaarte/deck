@@ -34,7 +34,7 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 		if err != nil {
 			return registry.Invalid("deck: reads: no project %q", r.Project)
 		}
-		if p.Builtin == 1 && !onlyModels {
+		if p.Builtin == 1 && (!onlyModels || r.Runs) {
 			return registry.Invalid("deck: reads: project %s keeps the owner's memory and topics; no project reads it", p.Name)
 		}
 		for _, d := range r.Documents {

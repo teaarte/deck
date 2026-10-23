@@ -114,6 +114,8 @@ type Result struct {
 	Denied []string
 	// Refusal is the status and words of the model API when it refused the last call of the turn as a bad request.
 	Refusal string
+	// Past is why deck did not send the last call of the turn: it was past a limit of the model in deck's settings.
+	Past string
 }
 
 // Held is what of the outcome holds the provider and not only the turn: a usage limit or a lost login, else Done.
@@ -172,6 +174,9 @@ func (r Request) Emit(e Event) {
 		r.OnEvent(e)
 	}
 }
+
+// PastLimit marks deck's own refusal of a call of a model past a limit in its settings: no model got the call.
+const PastLimit = "X-Deck-Past-Limit"
 
 // Refused marks a result by the status deck's proxy answered a call of a model with: a usage limit pauses until
 // Retry-After, a refused key needs a login, a fault is a model that did not answer; false for any other status.

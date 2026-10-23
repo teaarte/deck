@@ -4,12 +4,10 @@ import { IconDots } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Action } from '../../lib/catalog.gen';
 import { ActionButton } from './ActionButton';
-import type { Before } from './useActionRun';
 import { actionKeys, useVisibleActions } from './useVisibleActions';
 
-// Actions are the buttons of an item, the primary first; past max the rest wait in a menu. before runs ahead of
-// each call, onDone after one went through.
-export function Actions({ actions, onDone, before, max = 3 }: { actions?: Action[]; onDone?: () => void; before?: Before; max?: number }) {
+// Actions are the buttons of an item, the primary first; past max the rest wait in a menu.
+export function Actions({ actions, max = 3 }: { actions?: Action[]; max?: number }) {
   const { t } = useTranslation();
   const more = useId();
   const shown = useVisibleActions(actions);
@@ -20,7 +18,7 @@ export function Actions({ actions, onDone, before, max = 3 }: { actions?: Action
   const keys = actionKeys(sorted);
   return (
     <Group gap={6} wrap="wrap" data-actions>
-      {sorted.slice(0, cut).map((a, i) => <ActionButton key={keys[i]} act={a} onDone={onDone} before={before} />)}
+      {sorted.slice(0, cut).map((a, i) => <ActionButton key={keys[i]} act={a} />)}
       {rest.length > 0 && (
         <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md" radius="md">
           <Menu.Target>
@@ -28,7 +26,7 @@ export function Actions({ actions, onDone, before, max = 3 }: { actions?: Action
           </Menu.Target>
           <Menu.Dropdown p={4} miw={180} data-more-menu={more}>
             <Stack gap={2}>
-              {rest.map((a, i) => <ActionButton key={keys[cut + i]} act={a} onDone={onDone} before={before} inMenu />)}
+              {rest.map((a, i) => <ActionButton key={keys[cut + i]} act={a} inMenu />)}
             </Stack>
           </Menu.Dropdown>
         </Menu>

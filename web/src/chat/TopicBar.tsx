@@ -1,11 +1,11 @@
 import { ActionIcon, Button, Group, Menu, Select, Tooltip } from '@mantine/core';
 import { IconCheck, IconCpu, IconPlus, IconStack2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { call } from '../lib/api';
 import type { ChatValue } from '../lib/catalog.gen';
 import { notifyError } from '../lib/notify';
 import n from '../app/nav.module.css';
 import { ActionsMenu } from '../ui/actions/ActionsMenu';
+import { press, useBlockContext } from '../screen/press';
 import type { useTopics } from './useTopics';
 
 const check = (on: boolean) => (on ? <IconCheck size={14} /> : <span style={{ width: 14 }} />);
@@ -20,9 +20,10 @@ export function TopicBar({ value, topics, model, setModel }: {
   const narrowed = topics.scopes.find((x) => x.value === topics.scope && topics.scope !== topics.scopes[0]?.value);
   const own = topic ? topic.model ?? '' : model;
   const shown = own || value.model || '';
+  const ctx = useBlockContext();
   const choose = (m: string) => {
     if (!topic) return setModel(m);
-    if (value.choose?.command) void call(value.choose.command, { ...value.choose.params, model: m }).catch((e) => notifyError(e, t('chat.model_failed')));
+    if (value.choose) void press(ctx, value.choose, { model: m }).then((r) => { if (r.error) notifyError(new Error(r.error), t('chat.model_failed')); });
   };
   return (
     <Group gap={4} wrap="nowrap" miw={0}>

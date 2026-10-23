@@ -10,7 +10,7 @@ import a from '../ui/aura.module.css';
 import { Deki, useMascot } from '../ui/deki/Deki';
 import { Dots } from '../ui/Dots';
 import { Glyph } from '../ui/Glyph';
-import { useActionRun } from '../ui/actions/useActionRun';
+import { usePress } from '../ui/actions/usePress';
 import s from './chat.module.css';
 
 type TurnValue = NonNullable<ChatValue['turn']>;
@@ -50,7 +50,7 @@ export function Processes({ list }: { list: Proc[] }) {
 export function Turn({ turn }: { turn: TurnValue }) {
   const { t } = useTranslation();
   const [folded, setFolded] = useLocalStorage({ key: 'deck-chat-turn-folded', defaultValue: false });
-  const open = useActionRun(turn.open ?? {});
+  const open = usePress(turn.open ?? {});
   const running = turn.state === 'running';
   const mascot = useMascot();
   const lines = logLines(turn.lines);

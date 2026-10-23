@@ -1,14 +1,27 @@
 import { useState } from 'react';
 import { Anchor, Badge, Button, Code, Collapse, Group, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { call } from '../lib/api';
-import type { DocumentValue } from '../lib/catalog.gen';
+import type { Action, DocumentValue } from '../lib/catalog.gen';
 import { Markdown } from '../ui/Markdown';
 import { blockImpl } from './blockImpl';
-import { errorText } from '../lib/notify';
 import { Failed } from '../ui/actions/Failed';
+import { usePress } from '../ui/actions/usePress';
 
-// Document shows a document with its revisions; an md one is edited as text and saved as a new revision.
+const none: Action = {};
+
+// Revert is the button of a revision that goes back to it.
+function Revert({ act, revision }: { act: Action; revision: number }) {
+  const { t } = useTranslation();
+  const { busy, send, error, clear } = usePress(act);
+  return (
+    <Failed error={error} onClose={clear}>
+      <Button size="compact-xs" variant="default" loading={busy} data-revert={revision} onClick={() => void send()}>{t('document.revert')}</Button>
+    </Failed>
+  );
+}
+
+// Document shows a document with its revisions; an md one is edited as text and saved as a new revision by the
+// buttons the server gives it.
 function Document({ value }: { value: DocumentValue }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -16,30 +29,13 @@ function Document({ value }: { value: DocumentValue }) {
   // base is the revision the draft was begun from; a save over a newer one is refused.
   const [base, setBase] = useState(0);
   const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState(false);
+  const save = usePress(value.save ?? none);
   const md = value.name.endsWith('.md');
 
-  // failed is why the press of a button, save or revert-<revision>, did not go through.
-  const [failed, setFailed] = useState({ at: '', error: '' });
-  const run = async (command: string, input: Record<string, unknown>, at: string) => {
-    setBusy(true);
-    setFailed({ at: '', error: '' });
-    try {
-      await call(command, input);
-      return true;
-    } catch (e) {
-      setFailed({ at, error: errorText(e) });
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
-  const save = async () => {
-    const input: Record<string, unknown> = { project: value.project, name: value.name, kind: value.kind, text: draft, reason };
-    if (value.record) input.record = value.record;
-    if (base > 0) input.if_revision = base;
-    if (await run('deck.document_save', input, 'save')) {
+  const send = async () => {
+    const r = await save.send({ text: draft, reason, ...(base > 0 ? { if_revision: base } : {}) });
+    if (r && !r.error) {
       setEditing(false);
       setReason('');
     }
@@ -53,7 +49,7 @@ function Document({ value }: { value: DocumentValue }) {
           <Badge variant="light" size="sm">{value.kind}</Badge>
           {value.revision > 0 && <Text size="xs" c="dimmed">{t('document.revision', { n: value.revision })}</Text>}
         </Group>
-        {value.editable && !editing && (
+        {value.save && !editing && (
           <Button size="xs" variant="default" onClick={() => { setDraft(value.text); setBase(value.revision); setEditing(true); }} data-edit>{t('document.edit')}</Button>
         )}
       </Group>
@@ -63,8 +59,8 @@ function Document({ value }: { value: DocumentValue }) {
             styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }} />
           <TextInput size="xs" placeholder={t('document.why')} value={reason} onChange={(e) => setReason(e.currentTarget.value)} data-reason />
           <Group gap="xs">
-            <Failed error={failed.at === 'save' ? failed.error : ''} onClose={() => setFailed({ at: '', error: '' })}>
-              <Button size="xs" loading={busy} onClick={save} data-save-document>{t('document.save')}</Button>
+            <Failed error={save.error} onClose={save.clear}>
+              <Button size="xs" loading={save.busy} onClick={send} data-save-document>{t('document.save')}</Button>
             </Failed>
             <Button size="xs" variant="subtle" onClick={() => setEditing(false)}>{t('verb.cancel')}</Button>
           </Group>
@@ -88,14 +84,7 @@ function Document({ value }: { value: DocumentValue }) {
                   <Text size="xs" style={{ overflowWrap: 'anywhere' }}>
                     #{r.revision} · {r.author} · {new Date(r.created_at).toLocaleString()}{r.reason ? ' · ' + r.reason : ''}
                   </Text>
-                  {value.editable && r.revision !== value.revision && (
-                    <Failed error={failed.at === `revert-${r.revision}` ? failed.error : ''} onClose={() => setFailed({ at: '', error: '' })}>
-                      <Button size="compact-xs" variant="default" loading={busy} data-revert={r.revision}
-                        onClick={() => void run('deck.document_revert', { document: value.id, revision: r.revision, if_revision: value.revision }, `revert-${r.revision}`)}>
-                        {t('document.revert')}
-                      </Button>
-                    </Failed>
-                  )}
+                  {r.revert && <Revert act={r.revert} revision={r.revision} />}
                 </Group>
               ))}
             </Stack>

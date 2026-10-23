@@ -11,7 +11,7 @@ import { NamedIcon } from '../ui/NamedIcon';
 import { QuestionPicker } from '../ui/QuestionPicker';
 import { opener, rowOpen } from '../ui/rowOpen';
 import type { Data } from '../lib/catalog.gen';
-import { useScreenActions } from '../screen/ScreenActions';
+import { press, useBlockContext } from '../screen/press';
 import { dropList, keepList } from '../cockpit/decisions';
 import { blockImpl } from './blockImpl';
 
@@ -27,11 +27,10 @@ type BoardData = NonNullable<Data['board']>;
 // Board lays the items in lanes of their field, each no higher than the screen; dropping one in a lane presses its
 // button whose input is that field with the value of the lane, which on a phone picks the lane itself.
 function Board({ board, items }: { board: BoardData; items: Item[] }) {
-  const { run } = useScreenActions();
+  const ctx = useBlockContext();
   const [moved, setMoved] = useState<Record<string, string>>({});
   useEffect(() => setMoved({}), [items]);
-  const values = board.lanes.map((l) => l.value);
-  const shown = items.map((it) => ({ ...it, actions: it.actions?.map((a) => a.input === board.field && !a.options ? { ...a, options: values } : a) }));
+  const shown = items;
   const mover = (it: Item) => it.actions?.find((a) => a.input === board.field && a.command);
   const laneOf = (it: Item) => moved[show(it.id)] ?? it.lane ?? '';
   const movable = shown.some((it) => mover(it));
@@ -42,10 +41,12 @@ function Board({ board, items }: { board: BoardData; items: Item[] }) {
     const act = it && mover(it);
     if (!it || !act || laneOf(it) === lane) return;
     setMoved((m) => ({ ...m, [id]: lane }));
-    run({ ...act, params: { ...act.params, [board.field]: lane } }).catch(() => setMoved((m) => {
-      const { [id]: _, ...rest } = m;
-      return rest;
-    }));
+    void press(ctx, act, { [board.field]: lane }).then((r) => {
+      if (r.error) setMoved((m) => {
+        const { [id]: _, ...rest } = m;
+        return rest;
+      });
+    });
   };
   return (
     <div className={s.board} data-board={board.field}>
@@ -77,12 +78,12 @@ function Items({ items, context, cards }: { items: Item[]; context: ComponentCon
 
 // Line is one item of a list.
 export function Line({ it, big }: { it: Item; big?: boolean }) {
-  const { run } = useScreenActions();
+  const ctx = useBlockContext();
   const answer = it.questions ? it.actions?.find((a) => a.input) : undefined;
   const open = opener(it.actions);
   // A plain open button goes: a click on the line opens it.
   const rest = (it.actions ?? []).filter((a) => a !== answer && !(a === open && a.verb === 'open' && !a.primary));
-  const opens = rowOpen(it.actions, run);
+  const opens = rowOpen(it.actions, ctx);
   const until = (it.actions ?? []).map((a) => a.until).filter(Boolean).sort()[0];
   const mark = it.icon ? <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={17} /></span>
       : it.tone && it.tone !== 'muted' ? <span className={s.dot} /> : null;

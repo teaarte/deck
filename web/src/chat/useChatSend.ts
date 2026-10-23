@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { call } from '../lib/api';
+import { press, useBlockContext } from '../screen/press';
 import { notifyError } from '../lib/notify';
 import type { ChatValue } from '../lib/catalog.gen';
 import { chatScreen } from './chatStore';
@@ -16,6 +16,7 @@ export function useChatSend(value: ChatValue, { before, files, model, sent }: {
   before: () => void; files: () => Promise<string[] | undefined>; model: () => string; sent: (topic: number) => void;
 }) {
   const { t } = useTranslation();
+  const ctx = useBlockContext();
   const [busy, setBusy] = useState(false);
   const key = useRef('');
   const send = async (text: string, detached: boolean) => {
@@ -26,11 +27,12 @@ export function useChatSend(value: ChatValue, { before, files, model, sent }: {
     key.current ||= newKey();
     try {
       const ids = await files();
-      const out = await call<{ topic: number }>(value.send.command!, {
-        ...value.send.params, text: message, ...(detached ? {} : { screen: chatScreen() }), retry_key: key.current, ...(ids ? { files: ids } : {}), ...(model() ? { model: model() } : {}),
+      const r = await press(ctx, value.send, {
+        text: message, ...(detached ? {} : { screen: chatScreen() }), retry_key: key.current, ...(ids ? { files: ids } : {}), ...(model() ? { model: model() } : {}),
       });
+      if (r.error !== undefined) throw new Error(r.error);
       key.current = '';
-      sent(out.topic);
+      sent((r.result as { topic: number }).topic);
     } catch (e) {
       notifyError(e, t('chat.send_failed'));
     } finally {

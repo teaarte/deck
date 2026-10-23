@@ -9,6 +9,7 @@
     "stale": "Out of date",
     "stale_why": "The live connection is down; this may be old",
     "error": "The source failed",
+    "show_more": "Show more · {{count}} left",
     "more_one": "{{count}} more is not shown",
     "more_other": "{{count}} more are not shown"
   },

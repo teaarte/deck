@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useComputedColorScheme, useMantineTheme } from '@mantine/core';
 import { AppBridge, PostMessageTransport, type McpUiHostContext } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/client';
+import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { call } from '../../lib/api';
+import { press } from '../../screen/press';
 import { go, parse } from '../../app/router';
 import type { CustomValue } from '../../lib/catalog.gen';
 import { hostContext } from './hostContext';
@@ -27,9 +29,11 @@ const text = (s: string): CallToolResult['content'] => [{ type: 'text', text: s 
 type Resource = { uri: string; type: string; blob: string };
 
 // useAppBridge connects the frame of a custom block to deck: the theme, the data of its source and its params, its
-// size, the files of its module, and calls of its buttons' commands, all but internal ones asked of the owner one by one.
-export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolean>) {
+// size, the files of its module, and presses of its buttons, all but internal ones asked of the owner one by one.
+export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolean>, ctx: ComponentContext | undefined) {
   const frame = useRef<HTMLIFrameElement>(null);
+  const block = useRef(ctx);
+  block.current = ctx;
   const bridge = useRef<AppBridge>(undefined);
   const latest = useRef(value);
   const asking = useRef(false);
@@ -80,13 +84,11 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
         const ok = await ask({ act, input }).finally(() => { asking.current = false; });
         if (!ok) return { isError: true, content: text(`deck: the owner declined ${act.command}`) };
       }
-      try {
-        const out = await call(act.command, input);
-        const structured = out && typeof out === 'object' && !Array.isArray(out) ? (out as Record<string, unknown>) : { result: out };
-        return { content: text(JSON.stringify(out)), structuredContent: structured };
-      } catch (e) {
-        return { isError: true, content: text((e as Error).message) };
-      }
+      const r = await press(block.current, { ...act, params: input });
+      if (r.error !== undefined) return { isError: true, content: text(r.error) };
+      const out = r.result;
+      const structured = out && typeof out === 'object' && !Array.isArray(out) ? (out as Record<string, unknown>) : { result: out };
+      return { content: text(JSON.stringify(out ?? null)), structuredContent: structured };
     };
     // A file of the block's module comes whole from deck, which checks it is of that module.
     b.onreadresource = async ({ uri }): Promise<ReadResourceResult> => {

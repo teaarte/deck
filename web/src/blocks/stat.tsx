@@ -1,8 +1,9 @@
 import { createComponentImplementation } from '@a2ui/react/v0_9';
+import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Card, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { Shown } from '../lib/format';
-import { useScreenActions } from '../screen/ScreenActions';
+import { BlockContext, press } from '../screen/press';
 import { NamedIcon } from '../ui/NamedIcon';
 import { Pending } from '../ui/Pending';
 import { Value } from '../ui/Value';
@@ -11,17 +12,16 @@ import { api, type BlockProps } from './blockImpl';
 import s from './stat.module.css';
 
 // stat is one number with its icon in the color of its tone and its title under it; a click opens what it counts.
-export const stat = createComponentImplementation(api('stat'), ({ props }) => {
+export const stat = createComponentImplementation(api('stat'), ({ props, context }) => {
   const p = props as BlockProps & Shown;
-  return <Stat p={p} />;
+  return <BlockContext.Provider value={context}><Stat p={p} context={context} /></BlockContext.Provider>;
 });
 
-function Stat({ p }: { p: BlockProps & Shown }) {
+function Stat({ p, context }: { p: BlockProps & Shown; context: ComponentContext }) {
   const { t } = useTranslation();
   const d = p.data;
-  const { run } = useScreenActions();
   const opens = d?.actions?.find((a) => a.screen);
-  const open = () => { if (opens) void run(opens); };
+  const open = () => { if (opens) void press(context, opens); };
   let value;
   if (!d) value = <Pending />;
   else if (d.state === 'error') value = <Text span inherit c="red">{t('state.error')}</Text>;

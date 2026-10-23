@@ -7,7 +7,7 @@ import { formatted } from '../lib/format';
 import { useClock } from '../hooks/useClock';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { Failed } from '../ui/actions/Failed';
-import { useActionRun } from '../ui/actions/useActionRun';
+import { usePress } from '../ui/actions/usePress';
 import { Dots } from '../ui/Dots';
 import { Markdown } from '../ui/Markdown';
 import { blockImpl } from './blockImpl';
@@ -67,10 +67,10 @@ function Live({ since, steps }: { since: string; steps: number }) {
 function Say({ act }: { act: Action }) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
-  const { busy, send, error, clear } = useActionRun(act);
+  const { busy, send, error, clear } = usePress(act);
   const go = () => {
     if (!text.trim()) return;
-    void send({ [act.input ?? 'text']: text }).then((ok) => { if (ok) setText(''); });
+    void send({ [act.input ?? 'text']: text }).then((r) => { if (r && !r.error) setText(''); });
   };
   return (
     <Failed error={error} onClose={clear}>

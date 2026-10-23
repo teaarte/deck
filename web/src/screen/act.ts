@@ -4,23 +4,25 @@ import { openTopic } from '../chat/chatStore';
 import { go } from '../app/router';
 import { watchRun } from '../ui/actions/pressStore';
 
-// act runs a button: a move to its screen, or its call; a chat button opens the topic it made, a download button
-// downloads the file it made, and the calls a run it started waits to make come to the owner. A failed call throws.
-export async function act(c: Action): Promise<boolean> {
+// act does what a pressed button means and gives the answer of its call: a move to its screen, or its call; a chat
+// button opens the topic it made, a download button downloads the file it made, and the calls a run it started waits
+// to make come to the owner. A failed call throws.
+export async function act(c: Action): Promise<unknown> {
   if (c.chat && !c.command && !c.screen) {
     openTopic('new');
-    return true;
+    return undefined;
   }
   if (c.screen) {
     const params = c.params as Record<string, string> | undefined;
     go({ project: c.project || undefined, screen: c.screen, record: c.record, params: params && Object.keys(params).length ? params : undefined });
-    return true;
+    return undefined;
   }
-  const o = outcome(await call(c.command!, c.params ?? {}));
+  const out = await call(c.command!, c.params ?? {});
+  const o = outcome(out);
   if (o.started) watchRun(o.started);
   if (c.chat && o.topic) openTopic(o.topic);
   if (c.download && o.file) saveBlob(await fetchFile('/api/files/' + o.file.id), o.file.name);
-  return true;
+  return out;
 }
 
 // Outcome is what an answer of a call names: the process it started, the topic of the chat it made, the file it made.

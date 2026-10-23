@@ -3,12 +3,12 @@ import { ActionIcon, Tooltip, type MantineColor } from '@mantine/core';
 import type { Action } from '../../lib/catalog.gen';
 import { ConfirmModal } from './ConfirmModal';
 import { Failed } from './Failed';
-import { useActionRun } from './useActionRun';
+import { usePress } from './usePress';
 
 // ActionIconButton is a button of a screen drawn as an icon alone, its label in the tooltip; it asks first when it
 // has a confirmation. A button that takes an input is an ActionButton.
 export function ActionIconButton({ act, icon, color = 'gray', variant = 'subtle' }: { act: Action; icon: ReactNode; color?: MantineColor; variant?: string }) {
-  const { busy, label, send, error, clear } = useActionRun(act);
+  const { busy, label, send, error, clear } = usePress(act);
   const [asking, setAsking] = useState(false);
   return (
     <>

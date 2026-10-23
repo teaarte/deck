@@ -4,6 +4,7 @@ import s from './blocks.module.css';
 import { Hero } from '../cockpit/Hero';
 import { IconTitle } from '../ui/IconTitle';
 import type { ScreenProps } from '../lib/catalog.gen';
+import { BlockContext } from '../screen/press';
 import { api, children } from './blockImpl';
 
 // screen is the root of a screen, a tab or the window of a dialog: its title with the buttons of its dialogs, and a
@@ -14,6 +15,7 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
   const cockpit = !!p.title && context.dataContext.surface.id === 'deck-cockpit';
   const heads = dialogs && children(p.dialogs).map((c) => <span key={String(c)}>{buildChild(String(c))}</span>);
   return (
+    <BlockContext.Provider value={context}>
     <Stack gap="lg" data-screen data-span="full">
       {((p.title && !cockpit) || (dialogs && !cockpit)) && (
         <Group justify="space-between" align="center" gap="sm" data-screen-head>
@@ -29,5 +31,6 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
         })}
       </div>
     </Stack>
+    </BlockContext.Provider>
   );
 });

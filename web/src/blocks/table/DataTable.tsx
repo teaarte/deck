@@ -8,7 +8,7 @@ import { usePhone } from '../../hooks/usePhone';
 import { Actions } from '../../ui/actions/Actions';
 import { rowOpen } from '../../ui/rowOpen';
 import { Value } from '../../ui/Value';
-import { useScreenActions } from '../../screen/ScreenActions';
+import { useBlockContext } from '../../screen/press';
 import { Cell } from './Cell';
 import { Pick } from './Pick';
 import { useTableView, type Row } from './useTableView';
@@ -27,7 +27,7 @@ export function DataTable({ columns, rows }: { columns: Column[]; rows: Row[] })
   const { t } = useTranslation();
   const phone = usePhone();
   const v = useTableView(rows);
-  const { run } = useScreenActions();
+  const ctx = useBlockContext();
   const [opened, setOpened] = useState<Record<string, boolean>>({});
   const pickOf = (r: Row, j: number) => columns[j]?.pick && r.actions?.find((a) => a.pick === columns[j].pick);
   const own = (r: Row) => r.actions?.filter((a) => !a.pick || !columns.some((c) => c.pick === a.pick));
@@ -69,7 +69,7 @@ export function DataTable({ columns, rows }: { columns: Column[]; rows: Row[] })
               const key = show(r.id) || String(i);
               const open = !!opened[key];
               const flip = () => setOpened((o) => ({ ...o, [key]: !o[key] }));
-              const opener = rowOpen(r.actions, run);
+              const opener = rowOpen(r.actions, ctx);
               const click = 'onClick' in opener ? opener : more(r) ? { style: { cursor: 'pointer' }, onClick: (e: { target: EventTarget }) => {
                 if ((e.target as HTMLElement).closest('button, a, input, textarea, [role="button"], [role="combobox"]') || window.getSelection()?.toString()) return;
                 flip();

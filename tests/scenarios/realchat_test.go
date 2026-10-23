@@ -375,12 +375,12 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 		b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
 	}
 	say("first")
-	b.until("the first message, taken by the reply that waits for a slot", `document.querySelectorAll('[data-message="owner"]').length === 1 && !document.querySelector('[data-message-delete]')`)
+	b.until("the first message, taken by the reply that waits for a slot", `document.querySelectorAll('[data-message="owner"]').length === 1 && !document.querySelector('[data-message="owner"] [data-verb="delete"]')`)
 	say("sent by mistake")
-	b.until("the second message with its delete button", `document.querySelectorAll('[data-message="owner"]').length === 2 && document.querySelectorAll('[data-message-delete]').length === 1`)
+	b.until("the second message with its delete button", `document.querySelectorAll('[data-message="owner"]').length === 2 && document.querySelectorAll('[data-message="owner"] [data-verb="delete"]').length === 1`)
 	b.shot("chat-delete")
-	b.eval(`(document.querySelector('[data-message-delete]').click(), '')`)
-	b.until("the deleted message gone", `document.querySelectorAll('[data-message="owner"]').length === 1 && !document.querySelector('[data-message-delete]')`)
+	b.eval(`(document.querySelector('[data-message="owner"] [data-verb="delete"]').click(), '')`)
+	b.until("the deleted message gone", `document.querySelectorAll('[data-message="owner"]').length === 1 && !document.querySelector('[data-message="owner"] [data-verb="delete"]')`)
 	var topics []struct{ ID int64 }
 	e.chatTopics(false, &topics)
 	if ms := e.chatMessages(topics[0].ID); len(ms) != 1 || ms[0].Text != "first" {

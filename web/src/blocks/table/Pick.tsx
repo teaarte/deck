@@ -3,12 +3,12 @@ import type { Action } from '../../lib/catalog.gen';
 import { show } from '../../lib/format';
 import { choices } from '../../ui/actions/ActionInput';
 import { Failed } from '../../ui/actions/Failed';
-import { useActionRun } from '../../ui/actions/useActionRun';
+import { usePress } from '../../ui/actions/usePress';
 
 // Pick is a cell that is the input of a button of its row: it shows the value by its label, and a pick presses the
 // button with it.
 export function Pick({ act, value }: { act: Action; value: unknown }) {
-  const { busy, label, send, error, clear } = useActionRun(act);
+  const { busy, label, send, error, clear } = usePress(act);
   const now = show(value);
   const opts = choices(act);
   const data = opts.some((o) => o.value === now) || !now ? opts : [{ value: now, label: now }, ...opts];

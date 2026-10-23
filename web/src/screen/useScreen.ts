@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MessageProcessor, type A2uiClientAction, type SurfaceModel } from '@a2ui/web_core/v0_9';
 import type { ReactComponentImplementation } from '@a2ui/react/v0_9';
 import { call } from '../lib/api';
@@ -8,10 +8,9 @@ import { notifyError } from '../lib/notify';
 import catalogSchema from '../lib/catalogSchema';
 import type { Action } from '../lib/catalog.gen';
 import { screenKey, serverParams, type Route } from '../app/router';
-import { act } from './act';
 import { catalog } from './catalog';
 import { Feed, type Message } from './feed';
-import type { ScreenActions } from './ScreenActions';
+import { PRESS, run } from './press';
 
 const TOPICS: string[] = catalogSchema.topics;
 
@@ -21,13 +20,14 @@ const rootTopics = (msgs: Message[]): string[] | undefined =>
 
 type Processor = MessageProcessor<ReactComponentImplementation>;
 
-// useScreen reads a screen and keeps it fresh: events of the topics it names read it again at most every 200 ms,
-// merged by topic and project, a return to the page reads it whole; a drawn screen updates in place, keeping the tab and what was typed, or a read error.
+// useScreen reads a screen and keeps it fresh: events of the topics it names read the blocks they change at most every
+// 200 ms, merged by topic and project, a return to the page reads it whole. Every action of the screen comes to its
+// one handler: a press calls its command and replies in the data of the surface; a filter, a next page and an opened
+// dialog read their block.
 export function useScreen(route: Route) {
   const [drawn, setDrawn] = useState<{ surface: SurfaceModel<ReactComponentImplementation>; key: string }>();
   const [error, setError] = useState('');
   const proc = useRef<Processor>(undefined);
-  const filterRef = useRef<ScreenActions['filter']>(() => undefined);
   const routeRef = useRef(route);
   routeRef.current = route;
   const key = screenKey(route);
@@ -35,10 +35,18 @@ export function useScreen(route: Route) {
   useEffect(() => {
     let gone = false;
     const picked: Record<string, Record<string, string>> = {};
-    const input = () => {
-      const params = serverParams(routeRef.current);
-      const base = { project: route.project, screen: route.screen, record: route.record, lang: i18n.language, ...(params ? { params: JSON.stringify(params) } : {}) };
-      return Object.keys(picked).length ? { ...base, filter: JSON.stringify(picked) } : base;
+    const pages: Record<string, number> = {};
+    const input = (extra: Record<string, unknown> = {}) => {
+      const r = routeRef.current;
+      const params = serverParams(r);
+      return {
+        project: route.project, screen: route.screen, record: route.record, lang: i18n.language,
+        ...(params ? { params: JSON.stringify(params) } : {}),
+        ...(r.params?.dialog ? { dialog: r.params.dialog } : {}),
+        ...(Object.keys(picked).length ? { filter: JSON.stringify(picked) } : {}),
+        ...(Object.keys(pages).length ? { pages: JSON.stringify(pages) } : {}),
+        ...extra,
+      };
     };
     const feed = new Feed((m) => {
       try {
@@ -52,6 +60,27 @@ export function useScreen(route: Route) {
     let topics: string[] | undefined;
     // shown is set once the screen is drawn; a failed read then leaves it drawn.
     let shown = false;
+    const handle = async (a: A2uiClientAction) => {
+      const c = (a.context ?? {}) as Record<string, unknown>;
+      const block = String(c.block ?? '');
+      switch (a.name) {
+        case 'filter': {
+          const f = { ...picked[block], [String(c.field)]: String(c.value ?? '') };
+          if (!c.value) delete f[String(c.field)];
+          if (Object.keys(f).length) picked[block] = f;
+          else delete picked[block];
+          return readBlock(block);
+        }
+        case 'more':
+          pages[block] = (pages[block] ?? 1) + 1;
+          return readBlock(block);
+        case 'dialog':
+          return readBlock(block);
+      }
+      const { reply, ...pressed } = c as Action & { reply?: string };
+      const r = await run(pressed);
+      if (reply) proc.current?.model.getSurface(a.surfaceId)?.dataModel.set(PRESS + reply, r);
+    };
     const load = async () => {
       const mine = ++generation;
       const ticket = feed.ticket();
@@ -59,14 +88,7 @@ export function useScreen(route: Route) {
         const msgs = await call<Message[]>('deck.screen', input());
         if (gone || mine !== generation) return;
         if (!proc.current) {
-          const p: Processor = new MessageProcessor<ReactComponentImplementation>([catalog], (a: A2uiClientAction) => {
-            if (a.name === 'filter') {
-              const c = a.context as { block: string; field: string; value: string };
-              filter(c.block, c.field, c.value);
-              return;
-            }
-            return act(a.context as Action).then(() => undefined, (e) => notifyError(e));
-          });
+          const p: Processor = new MessageProcessor<ReactComponentImplementation>([catalog], handle);
           p.onSurfaceCreated((s) => {
             shown = true;
             setDrawn({ surface: s, key });
@@ -85,23 +107,19 @@ export function useScreen(route: Route) {
         else setError((e as Error).message);
       }
     };
-    let filtering = 0;
-    const filter = async (block: string, field: string, value: string) => {
-      const f = { ...picked[block], [field]: value };
-      if (!value) delete f[field];
-      if (Object.keys(f).length) picked[block] = f;
-      else delete picked[block];
+    // readBlock reads the data of one block and those inside it; a read of a block with a when draws the screen whole.
+    const readBlock = async (block: string) => {
       const mine = generation;
-      const n = ++filtering;
       const ticket = feed.ticket();
       try {
-        const msgs = await call<Message[]>('deck.screen', input());
-        if (!gone && mine === generation && n === filtering) feed.feed(msgs.filter((m) => m.updateDataModel), ticket);
+        const msgs = await call<Message[]>('deck.screen', input({ block }));
+        if (gone || mine !== generation) return;
+        topics = rootTopics(msgs) ?? topics;
+        feed.feed(msgs, ticket);
       } catch (e) {
         if (!gone) notifyError(e);
       }
     };
-    filterRef.current = (block, field, value) => void filter(block, field, value);
     const missed: LiveEvent[] = [];
     const pending = new Map<string, LiveEvent>();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -113,7 +131,7 @@ export function useScreen(route: Route) {
       const mine = generation;
       const ticket = feed.ticket();
       try {
-        const msgs = await call<Message[]>('deck.screen', { ...input(), topic: e.topic, ...(e.project ? { changed: e.project } : {}) });
+        const msgs = await call<Message[]>('deck.screen', input({ topic: e.topic, ...(e.project ? { changed: e.project } : {}) }));
         if (gone || mine !== generation) return;
         topics = rootTopics(msgs) ?? topics;
         feed.feed(msgs, ticket);
@@ -143,8 +161,7 @@ export function useScreen(route: Route) {
     };
   }, [key]);
 
-  const actions = useMemo<ScreenActions>(() => ({ run: act, filter: (block, field, value) => filterRef.current(block, field, value) }), []);
   // A surface of the screen before is not drawn again under the key of the next one.
   const surface = drawn?.key === key ? drawn.surface : undefined;
-  return { surface, error, key, actions };
+  return { surface, error, key };
 }

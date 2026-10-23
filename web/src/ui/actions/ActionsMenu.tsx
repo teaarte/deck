@@ -7,7 +7,7 @@ import { ActionButton } from './ActionButton';
 import { actionKeys, useVisibleActions } from './useVisibleActions';
 
 // ActionsMenu is one button that opens buttons in a menu: a label with its icon, or dots without one.
-export function ActionsMenu({ actions, label, icon, onDone }: { actions?: Action[]; label?: string; icon?: ReactNode; onDone?: () => void }) {
+export function ActionsMenu({ actions, label, icon }: { actions?: Action[]; label?: string; icon?: ReactNode }) {
   const { t } = useTranslation();
   const id = useId();
   const shown = useVisibleActions(actions);
@@ -23,7 +23,7 @@ export function ActionsMenu({ actions, label, icon, onDone }: { actions?: Action
         )}
       </Menu.Target>
       <Menu.Dropdown p={4} miw={190} data-more-menu={id}>
-        <Stack gap={2}>{shown.map((a, i) => <ActionButton key={keys[i]} act={a} onDone={onDone} inMenu />)}</Stack>
+        <Stack gap={2}>{shown.map((a, i) => <ActionButton key={keys[i]} act={a} inMenu />)}</Stack>
       </Menu.Dropdown>
     </Menu>
   );

@@ -1,6 +1,6 @@
 import { Text, ThemeIcon, UnstyledButton } from '@mantine/core';
 import type { Action } from '../../lib/catalog.gen';
-import { useActionRun } from '../../ui/actions/useActionRun';
+import { usePress } from '../../ui/actions/usePress';
 import { NamedIcon } from '../../ui/NamedIcon';
 import type { Item } from './kinds';
 import s from './files.module.css';
@@ -11,7 +11,7 @@ const none: Action = {};
 // primary button of the line.
 export function Place({ it, size, row }: { it: Item; size: number; row?: boolean }) {
   const act = it.actions?.find((a) => a.primary);
-  const { send, busy } = useActionRun(act ?? none);
+  const { send, busy } = usePress(act ?? none);
   const name = it.title || it.name || '';
   return (
     <UnstyledButton className={row ? s.row : s.tile} style={row ? { flex: 1, minWidth: 0 } : undefined} disabled={!act || busy}

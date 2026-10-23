@@ -4,7 +4,7 @@ import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
 import { useMenuData } from '../hooks/useMenu';
-import { useScreenActions } from '../screen/ScreenActions';
+import { readBlock } from '../screen/press';
 import { onTopicOpen } from './chatStore';
 
 const ALL = '*';
@@ -14,14 +14,13 @@ const NONE = '-';
 // offers; the topics on offer narrow to a module, which opens its last topic. The modules opened last come first.
 export function useTopics(value: ChatValue, context: ComponentContext) {
   const { t } = useTranslation();
-  const { filter } = useScreenActions();
   const menu = useMenuData();
   const pinned = useRef(false);
   const [scope, setScope] = useState<string | null>(null);
   const [recent, setRecent] = useLocalStorage<string[]>({ key: 'deck-chat-modules', defaultValue: [] });
   const pick = (topic: string) => {
     pinned.current = true;
-    filter(context.componentModel.id, 'topic', topic);
+    readBlock(context, 'filter', { field: 'topic', value: topic });
   };
   const topic = value.topic;
   useEffect(() => onTopicOpen((id) => pick(String(id))), []);

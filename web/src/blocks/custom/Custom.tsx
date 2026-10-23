@@ -3,6 +3,7 @@ import { ActionIcon, Button, Code, Group, Modal, Stack, Text } from '@mantine/co
 import { IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { CustomValue } from '../../lib/catalog.gen';
+import { useBlockContext } from '../../screen/press';
 import { useAppBridge, type Ask } from './useAppBridge';
 
 // Custom hosts an MCP App written by a model: its HTML runs in a frame of the second origin without network,
@@ -12,7 +13,7 @@ export function Custom({ value }: { value: CustomValue }) {
   const [asking, setAsking] = useState<Ask & { done: (ok: boolean) => void }>();
   const ask = (q: Ask) => new Promise<boolean>((done) => setAsking({ ...q, done }));
   const answer = (ok: boolean) => { asking?.done(ok); setAsking(undefined); };
-  const { frame, height, full, inline, failed } = useAppBridge(value, ask);
+  const { frame, height, full, inline, failed } = useAppBridge(value, ask, useBlockContext());
   // Allow waits a moment, so a click meant for the screen under a window the frame just opened does not land on it.
   const [armed, setArmed] = useState(false);
   useEffect(() => {

@@ -3,11 +3,10 @@ import { Alert, Button, Group, Loader, Select, Stack, Text } from '@mantine/core
 import { useTranslation } from 'react-i18next';
 import { DialogClose } from '../../screen/dialogContext';
 import { outcome } from '../../screen/act';
-import { call } from '../../lib/api';
+import { press, useBlockContext } from '../../screen/press';
 import { sharedSent } from '../../lib/share';
 import { errorText } from '../../lib/notify';
 import { Failed } from '../../ui/actions/Failed';
-import { watchRun } from '../../ui/actions/pressStore';
 import type { FormValue as Generated } from '../../lib/catalog.gen';
 import { useMountedRef } from '../../hooks/useMountedRef';
 import { Field } from './Field';
@@ -19,8 +18,6 @@ import { FINAL, useProcessWatch, type ProcessState } from './useProcessWatch';
 type FormCommand = Omit<Generated['commands'][number], 'input' | 'result'> & { input?: Schema; result?: Schema };
 export type FormValue = Omit<Generated, 'commands'> & { commands: FormCommand[] };
 
-const EDIT = 'deck.record_update';
-
 type Outcome = ProcessState & { process?: number };
 
 // Form asks for the input of a command by its schema, calls it and shows the result under the form.
@@ -31,6 +28,7 @@ export function Form({ value }: { value: FormValue }) {
   const [picked, setPicked] = useState(value.commands.length === 1 ? value.commands[0].name : '');
   const cmd = value.commands.find((c) => c.name === picked);
   const alive = useMountedRef();
+  const ctx = useBlockContext();
   const form = useFormValues(value.values as Record<string, unknown> | undefined, value.record, cmd, alive);
   const watch = useProcessWatch(alive);
   const [busy, setBusy] = useState(false);
@@ -42,7 +40,7 @@ export function Form({ value }: { value: FormValue }) {
   const fields = [...(cmd?.order ?? []).filter((k) => k in props), ...Object.keys(props).filter((k) => !cmd?.order?.includes(k))];
   const required = new Set(cmd?.input?.required ?? []);
   const ro = new Set(value.readonly ?? []);
-  const edit = cmd?.name === EDIT;
+  const edit = !!value.send?.input;
   const project = cmd?.project ?? value.project;
 
   const submit = async () => {
@@ -55,12 +53,18 @@ export function Form({ value }: { value: FormValue }) {
       // The fixed fields are not drawn; their values go as the server gave them.
       const data = { ...await buildInput(props, form.values, form.files,
         { project: project ?? '', record: edit ? (value.values as Record<string, unknown> | undefined) ?? {} : undefined }), ...value.fixed };
-      const res = await call<unknown>(cmd.name, edit ? { record: value.record, data: JSON.stringify(data) } : data);
+      const sent = value.send?.input
+        ? await press(ctx, value.send, { [value.send.input]: JSON.stringify(data) })
+        : await press(ctx, { command: cmd.name }, data);
+      if (sent.error) {
+        setFailed({ at: 'run', error: sent.error });
+        return;
+      }
+      const res = sent.result;
       const hidden = Object.keys(props).filter((k) => props[k].writeOnly);
       if (hidden.length && alive.current) form.forget(hidden);
       if (Object.values(form.files).some((f) => f.length)) await sharedSent();
       const started = outcome(res).started;
-      if (started) watchRun(started);
       if (!started) {
         if (alive.current) setOut({ state: 'done', result: res });
         close?.();

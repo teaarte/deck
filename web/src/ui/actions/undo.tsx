@@ -5,7 +5,7 @@ import i18n from '../../lib/i18n';
 import { notifyError } from '../../lib/notify';
 import { createStore, useStore } from '../../lib/store';
 import type { Action } from '../../lib/catalog.gen';
-import type { ScreenActions } from '../../screen/ScreenActions';
+import { act } from '../../screen/act';
 import s from './undo.module.css';
 
 const SHOWN = 5000;
@@ -19,9 +19,9 @@ const drop = (id: number) => {
 };
 
 // offerUndo shows for a moment the call that takes back the one that just went through; a new offer takes its place.
-export function offerUndo(undo: Action, label: string, run: ScreenActions['run']) {
+export function offerUndo(undo: Action, label: string) {
   const id = ++offers;
-  offer.set({ id, label, undo: () => { drop(id); run(undo).catch((e) => notifyError(e, label)); } });
+  offer.set({ id, label, undo: () => { drop(id); act(undo).catch((e) => notifyError(e, label)); } });
 }
 
 // UndoToast is the offer to take back a call, on top in the middle of the screen with the time it has left.

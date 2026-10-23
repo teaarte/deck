@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { Alert, Badge, Card, Group, Stack, Text } from '@mantine/core';
+import { Alert, Anchor, Badge, Card, Group, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { IconAlertTriangle, IconInbox } from '@tabler/icons-react';
 import type { Data } from '../lib/catalog.gen';
@@ -8,12 +8,13 @@ import s from './blocks.module.css';
 import { IconTitle } from '../ui/IconTitle';
 import { Pending } from '../ui/Pending';
 import { useLive } from '../lib/events';
+import { readBlock } from '../screen/press';
 import { Filters } from './Filters';
 
 export type Span = 1 | 2 | 'full';
 
 // Block is the frame of a block: its title, icon, description, filters, the state of its data and how many items
-// its limit left out.
+// its limit left out, which a press reads a page more of.
 export function Block({ title, icon, span, description, data, context, children }: { title?: string; icon?: string; span?: Span; description?: string; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
   const { t } = useTranslation();
   const old = !useLive();
@@ -43,7 +44,9 @@ export function Block({ title, icon, span, description, data, context, children 
         {description && <Text size="sm" c="dimmed" mt={title ? -6 : 0} lh={1.5} data-description>{description}</Text>}
         <Filters filters={data?.filters} context={context} />
         {body}
-        {!!data?.more && data.state === 'ready' && <Text size="xs" c="dimmed" data-more={data.more}>{t('state.more', { count: data.more })}</Text>}
+        {!!data?.more && data.state === 'ready' && (context
+          ? <Anchor component="button" size="xs" onClick={() => readBlock(context, 'more')} data-more={data.more}>{t('state.show_more', { count: data.more })}</Anchor>
+          : <Text size="xs" c="dimmed" data-more={data.more}>{t('state.more', { count: data.more })}</Text>)}
       </Stack>
     </Card>
   );

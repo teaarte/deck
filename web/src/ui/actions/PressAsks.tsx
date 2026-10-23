@@ -24,8 +24,8 @@ export function PressAsks() {
         <Stack gap="sm">
           <Text fw={650}>{a.what}</Text>
           {a.where && <Text size="sm" style={{ overflowWrap: 'anywhere' }} data-press-where>{a.where}</Text>}
-          {a.payload?.call?.input !== undefined && (
-            <Code block mah={240} style={{ overflow: 'auto' }} data-press-input>{JSON.stringify(a.payload.call.input, null, 2)}</Code>
+          {a.payload !== undefined && a.payload !== null && (
+            <Code block mah={240} style={{ overflow: 'auto' }} data-press-input>{JSON.stringify(a.payload, null, 2)}</Code>
           )}
           {a.who && <Text size="xs" c="dimmed">{a.who}</Text>}
           {error && <Text size="sm" c="red" data-press-error>{error}</Text>}

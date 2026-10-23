@@ -2,7 +2,7 @@ import { call } from '../../lib/api';
 import { createStore, useStore } from '../../lib/store';
 
 // PressAsk is a call a run started by a button waits to make, as deck.process_asks gives it.
-export interface PressAsk { id: number; what: string; where: string; who: string; command?: string; payload?: { call?: { input?: unknown } } }
+export interface PressAsk { id: number; what: string; where: string; who: string; command?: string; payload?: unknown }
 
 const asks = createStore<PressAsk[]>([]);
 

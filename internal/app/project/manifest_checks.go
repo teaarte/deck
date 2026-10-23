@@ -26,7 +26,7 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 		case r.Project == name:
 			return registry.Invalid("deck: reads: a project does not need to read itself")
 		case r.Project == manifest.AnyProject && !onlyModels:
-			return registry.Invalid(`deck: reads: %s names every project only for which models do their work: {"project": "*", "models": true}`, manifest.AnyProject)
+			return registry.Invalid(`deck: reads: %s names every project only for which models do their work and their runs: {"project": "*", "models": true, "runs": true}`, manifest.AnyProject)
 		case r.Project == manifest.AnyProject:
 			continue
 		}

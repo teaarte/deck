@@ -99,8 +99,15 @@ func rightsManifest(r *rand.Rand) string {
 				rd += `, "documents": ` + list(ds)
 			}
 		}
-		if project == "*" || r.IntN(2) == 0 {
+		models, runs := r.IntN(2) == 0, r.IntN(2) == 0
+		if project == "*" && !models && !runs {
+			models = true
+		}
+		if models {
 			rd += `, "models": true`
+		}
+		if runs {
+			rd += `, "runs": true`
 		}
 		reads = append(reads, rd+"}")
 	}

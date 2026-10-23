@@ -247,12 +247,15 @@ type Read struct {
 	Documents   []string `json:"documents,omitempty"`
 	// Models reads which models do the work of the project, or of every one under AnyProject.
 	Models bool `json:"models,omitempty"`
+	// Runs reads the runs of the project in brief, or of every one under AnyProject: command, state, failure, model,
+	// times; never input, result or log.
+	Runs bool `json:"runs,omitempty"`
 }
 
-// Data says the entry reads data of its project, not only which models do its work.
-func (r Read) Data() bool { return !r.Models || len(r.Collections)+len(r.Documents) > 0 }
+// Data says the entry reads data of its project, not only which models do its work or its runs.
+func (r Read) Data() bool { return !r.Models && !r.Runs || len(r.Collections)+len(r.Documents) > 0 }
 
-// AnyProject in reads names every project; it reads only which models do their work.
+// AnyProject in reads names every project; it reads only which models do their work and their runs.
 const AnyProject = "*"
 
 type Screen struct {

@@ -223,10 +223,11 @@
       "additionalProperties": false,
       "required": ["project"],
       "properties": {
-        "project": {"type": "string", "description": "A project, or * for every project, whose only read is models."},
+        "project": {"type": "string", "description": "A project, or * for every project, whose only reads are models and runs."},
         "collections": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
         "documents": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "models": {"type": "boolean", "default": false, "description": "Read which models do the work of the project (deck.models_list with project): assignments, the work of its commands and scripts, choices and prices; never keys."}
+        "models": {"type": "boolean", "default": false, "description": "Read which models do the work of the project (deck.models_list with project): assignments, the work of its commands and scripts, choices and prices; never keys."},
+        "runs": {"type": "boolean", "default": false, "description": "Read the runs of the project in brief (deck.processes_list with project): command, state, type and first line of a failure, the model that answered, times, trial; never input, result, log or files."}
       }
     },
     "screen": {

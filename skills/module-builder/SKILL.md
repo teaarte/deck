@@ -158,7 +158,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "deck.records_list", "input": {"project": "other", "collection": "items"}}`, its fields under `data.`.
   `{"project": "*", "models": true}` (or a project's name) lets them read which models do the work of every project:
   `models_list` with `project` gives its assignments, the work of its commands and scripts, choices and prices. To
-  change one, propose it with `assignment_set`. Nothing ever writes to another project.
+  change one, propose it with `assignment_set`. `"runs": true` on the same entry lets them read its runs in brief:
+  `processes_list` with `project` gives the command, state, type and first line of a failure, the models that
+  answered and the times, never input, result or log. Nothing ever writes to another project.
 - **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities and confidence,
   a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do", and an agent
   may give it only where the result schema takes it: `"type": ["object", "null"]`; with `"type": "object"` a null

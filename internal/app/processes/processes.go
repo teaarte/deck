@@ -154,7 +154,7 @@ type processesListIn struct {
 }
 
 func (s *Service) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {
-	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
+	pid, runs, err := s.listed(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -191,6 +191,10 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 			continue
 		}
 		v := procView(p, names[p.ProjectID])
+		if runs {
+			out = append(out, s.runOf(ctx, p, v, in.Lang))
+			continue
+		}
 		if in.Brief {
 			v.Result = nil
 		}
@@ -207,6 +211,43 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// listed is the project a list of processes narrows to, and whether the caller reads it only in brief: another
+// project whose runs reads of its manifest gives.
+func (s *Service) listed(ctx context.Context, act registry.Actor, name string) (int64, bool, error) {
+	if name == "" || !act.Confined() {
+		pid, err := access.Filter(ctx, s.St.Q, act, name)
+		return pid, false, err
+	}
+	p, err := access.ByName(ctx, s.St.Q, act, name)
+	if err != nil || act.Within(p.ID) {
+		return p.ID, false, err
+	}
+	return p.ID, true, access.ReadRuns(ctx, s.St.Q, act, p)
+}
+
+// runOf is a process of another project as reads runs gives it: what ran, how it ended and on which models.
+func (s *Service) runOf(ctx context.Context, p db.Process, v processView, lang string) processView {
+	line, _, _ := strings.Cut(v.Error, "\n")
+	r := processView{ID: v.ID, Project: v.Project, Command: v.Command, Kind: v.Kind, State: v.State, Trial: v.Trial, Error: line,
+		ErrorType: v.ErrorType, Whose: v.Whose, StartedAt: v.StartedAt, FinishedAt: v.FinishedAt, Provider: v.Provider}
+	if calls, err := s.St.Q.ListProcessModelCalls(ctx, store.ID(p.ID)); err == nil {
+		r.Models = modelsOf(calls)
+	}
+	s.shown(ctx, p, &r, lang)
+	return r
+}
+
+// modelsOf are the models of deck's settings calls went to, each once.
+func modelsOf(calls []db.ListProcessModelCallsRow) []string {
+	var out []string
+	for _, c := range calls {
+		if !slices.Contains(out, c.GenAiProviderName) {
+			out = append(out, c.GenAiProviderName)
+		}
+	}
+	return out
 }
 
 // Open are how many processes have not finished, as processes_list with open gives them, by project.
@@ -293,11 +334,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	if err != nil {
 		return processView{}, err
 	}
-	for _, c := range calls {
-		if !slices.Contains(v.Models, c.GenAiProviderName) {
-			v.Models = append(v.Models, c.GenAiProviderName)
-		}
-	}
+	v.Models = modelsOf(calls)
 	v.CostUSD, v.SubscriptionUSD = provider.Spent(calls, func(c db.ListProcessModelCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
 	if p.Trial != 0 {
 		if v.Left, err = process.LeftBy(ctx, s.St.Q, p.ID); err != nil {

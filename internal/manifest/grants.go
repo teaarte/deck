@@ -147,6 +147,9 @@ var rights = []right{
 			if r.Models && (old == nil || !old.Models) {
 				add("reads which models do the work of %s", readsWhose(r.Project))
 			}
+			if r.Runs && (old == nil || !old.Runs) {
+				add("reads the runs of %s", readsWhose(r.Project))
+			}
 			if r.Project != AnyProject && r.Data() && (old == nil || !old.Data()) {
 				add("reads project %s", r.Project)
 			}
@@ -168,7 +171,7 @@ var rights = []right{
 				continue
 			}
 			g := granted.Reads[i]
-			r.Collections, r.Documents, r.Models = kept(r.Collections, g.Collections), kept(r.Documents, g.Documents), r.Models && g.Models
+			r.Collections, r.Documents, r.Models, r.Runs = kept(r.Collections, g.Collections), kept(r.Documents, g.Documents), r.Models && g.Models, r.Runs && g.Runs
 			if r.Data() && !g.Data() {
 				continue
 			}

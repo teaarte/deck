@@ -327,3 +327,47 @@ func TestAModuleReadsTheModelsOfEveryProjectByARight(t *testing.T) {
 	data := strings.Replace(module, `"scripts":`, `"reads": [{"project": "*", "collections": ["items"]}], "scripts":`, 1)
 	e.refused("deck.manifest_save", map[string]any{"project": "watcher", "manifest": data}, 422, "names every project only for which models do their work")
 }
+
+// TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight: reads {"project": "*", "runs": true}, granted by the owner,
+// lets a script list the runs of another project with what ran, how it ended and on which model, never their input,
+// result or log.
+func TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`), Text: "secret result"}
+	})
+	plain := e.createProject("plain", testManifest([]string{agentCommand("work", `{"type": "object", "properties": {"q": {"type": "string"}}}`)}, nil))
+	id := e.run(plain, "work")
+	e.waitState(id, "done")
+	module := scriptManifest("main", "", "")
+	e.createProject("watcher", module)
+	e.saveScript("watcher", "scripts/main.py", deckCallScript)
+	list := map[string]any{"project": "plain"}
+	if c := e.scriptCall("watcher", "deck.processes_list", list); c.Status != 403 || !strings.Contains(c.Body, `"runs": true`) {
+		t.Fatalf("without the right a module does not list the runs of another project, and is told what gives it: %+v", c)
+	}
+	_, tok := e.token("terminal", "deck.*")
+	_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "watcher",
+		"manifest": strings.Replace(module, `"scripts":`, `"reads": [{"project": "*", "runs": true}], "scripts":`, 1)})
+	var saved struct {
+		Waiting int64
+		Widens  []string
+	}
+	_ = json.Unmarshal(out, &saved)
+	if saved.Waiting == 0 || !slices.Equal(saved.Widens, []string{"reads the runs of every project"}) {
+		t.Fatalf("the right waits for the owner's button, named plainly: %s", out)
+	}
+	e.answer(saved.Waiting, "allow")
+	c := e.scriptCall("watcher", "deck.processes_list", list)
+	var runs []map[string]any
+	if c.Status != 200 || json.Unmarshal([]byte(c.Body), &runs) != nil || len(runs) != 1 {
+		t.Fatalf("with the right the module lists the runs of plain: %+v", c)
+	}
+	if r := runs[0]; r["command"] != "work" || r["state"] != "done" || r["provider"] != "fake" || r["result"] != nil || r["input"] != nil ||
+		r["session_id"] != nil || r["started_at"] == nil {
+		t.Fatalf("a run of another project is brief: %v", r)
+	}
+	if c := e.scriptCall("watcher", "deck.records_list", map[string]any{"project": "plain", "collection": "items"}); c.Status != 403 {
+		t.Fatalf("the runs open no data of the project: %+v", c)
+	}
+}

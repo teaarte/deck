@@ -196,6 +196,24 @@ func ReadModels(ctx context.Context, q *db.Queries, act registry.Actor, name str
 	return p, registry.Refuse("deck: this project does not read which models do the work of %s; a reads entry of its manifest with \"models\": true gives that", p.Name)
 }
 
+// ReadRuns says whether a confined actor reads the runs of another project p in brief: a reads entry of its manifest
+// with runs gives that for p or for every project.
+func ReadRuns(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) error {
+	if act.Within(p.ID) {
+		return nil
+	}
+	m, err := docs.For(ctx, q, act, act.ProjectID)
+	if err != nil {
+		return err
+	}
+	for _, r := range m.Reads {
+		if r.Runs && (r.Project == p.Name || r.Project == manifest.AnyProject) {
+			return nil
+		}
+	}
+	return registry.Refuse("deck: this process cannot touch another project; a reads entry of its manifest with \"runs\": true reads its runs in brief")
+}
+
 // Master is the built-in project master of a workspace.
 func Master(ctx context.Context, q *db.Queries, workspace int64) (db.Project, error) {
 	p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})

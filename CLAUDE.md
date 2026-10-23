@@ -78,7 +78,7 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   of its scripts, its model calls), Access (folders, secrets, tools, tokens), Health, Files) deck adds
   to every project
 - `internal/manifest` — project manifest (format 13, the only one: `version.go` refuses another): `types.go`, `parse.go`,
-  `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`grants.go`: one table of rights, each with what widens it and how `Clip` cuts it — what is in force widens nothing beyond the grant —; `rights.go` the hosts of agent shells), schemas read through `Props` (`schema.go`), a `where` through `Where`, checks of screens by
+  `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`grants.go`: one table of rights, each with what widens it and how `Clip` cuts it — what is in force widens nothing beyond the grant —; `rights.go` the hosts of agent shells), the structural three-way merge of a grant into the manifest (`merge.go`, its sets and named arrays in `rights.go`), schemas read through `Props` (`schema.go`), a `where` through `Where`, checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry

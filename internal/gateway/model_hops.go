@@ -162,7 +162,13 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 			h.Done(ctx, -1, nil)
 			return nil, h, last
 		}
-		limitOf(resp)
+		if past := pastMinute(resp); past != "" {
+			// A request past what the model takes a minute: the next model takes it, and the model waits for nothing.
+			release()
+			h.Done(ctx, resp.StatusCode, nil)
+			last = &registry.Error{Status: http.StatusTooManyRequests, Text: fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, past)}
+			continue
+		}
 		if Fallible(resp.StatusCode) && i < len(hops)-1 {
 			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 			_ = resp.Body.Close()
@@ -194,17 +200,22 @@ func (h ModelHop) past(body []byte) string {
 	return ""
 }
 
-// limitOf reads a 413 of a model API by its words: one past a limit per minute takes the status of a limit.
-func limitOf(resp *http.Response) {
+// pastMinute is the words of a 413 of a model API that name a limit per minute, a request past it, which it closes;
+// empty for any other answer, which it leaves whole.
+func pastMinute(resp *http.Response) string {
 	if resp.StatusCode != http.StatusRequestEntityTooLarge {
-		return
+		return ""
 	}
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-	resp.Body = struct {
-		io.Reader
-		io.Closer
-	}{io.MultiReader(bytes.NewReader(raw), resp.Body), resp.Body}
-	resp.StatusCode = fault.ModelAnswer(resp.StatusCode, raw)
+	if fault.ModelAnswer(resp.StatusCode, raw) == resp.StatusCode {
+		resp.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.MultiReader(bytes.NewReader(raw), resp.Body), resp.Body}
+		return ""
+	}
+	_ = resp.Body.Close()
+	return untrusted.Cut(strings.TrimSpace(string(raw)), 500)
 }
 
 // queues hold the one call at a time of a queued hop, by the server of its connection.

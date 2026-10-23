@@ -154,12 +154,9 @@ func rightsManifest(r *rand.Rand) string {
 	return "{" + strings.Join(parts, ", ") + "}"
 }
 
-// asksEachTime reports whether widening w of what is in force asks the owner on every call: a new or changed MCP
-// server with no classes, a command on another executor with class external, a secret only tools that ask or granted servers use.
+// asksEachTime reports whether widening w of what is in force asks the owner on every call: a command on another
+// executor with class external, a secret only tools that ask or granted servers use.
 func asksEachTime(g, in *manifest.Manifest, w string) bool {
-	if server, ok := strings.CutPrefix(w, "MCP server "); ok && strings.HasSuffix(w, ": new or changed") {
-		return len(in.Tools.MCP.Servers[strings.TrimSuffix(server, ": new or changed")].Classes) == 0
-	}
 	if secret, ok := strings.CutPrefix(w, "secret: "); ok {
 		for _, tool := range in.Tools.HTTP {
 			asks := tool.Class == registry.External && !slices.Contains(in.AllowedExternal, tool.Name)

@@ -790,7 +790,7 @@ func TestATextModelOfAnAPIHasACheckThatCallsIt(t *testing.T) {
 }
 
 // TestARequestPastTheLimitPerMinuteIsTheModelsLimit: a 413 whose words name a limit per minute is the model's limit,
-// taken over by the next model; a 413 of a request too big for the model at all is the input's.
+// taken over by the next model without a pause; a 413 of a request too big for the model at all is the input's.
 func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 	t.Parallel()
 	const tpm = `{"error": {"message": "Request too large for model openai/gpt-oss-120b in organization org_1 service tier on_demand on tokens per minute (TPM): Limit 8000, Requested 15234, please reduce your message size and try again.", "type": "tokens", "code": "rate_limit_exceeded"}}`
@@ -801,13 +801,15 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 				return 413, "application/json", tpm
 			case "huge":
 				return 413, "text/html", "<html><body>413 Request Entity Too Large</body></html>"
+			case "busy":
+				return 429, "application/json", `{"error": {"message": "rate limited"}}`
 			}
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.9}`)
 		},
 	})
 	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
-	for _, m := range []string{"gpt-oss", "huge", "fact-model"} {
+	for _, m := range []string{"gpt-oss", "huge", "busy", "fact-model"} {
 		e.must("deck.model_set", map[string]any{"connection": "groq", "model": m, "kind": "text"}, nil)
 	}
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss", "groq/fact-model"}}, nil)
@@ -815,13 +817,15 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
 		t.Fatalf("the next model takes a request past the limit per minute: %+v %+v", got, e.fault(got.ID))
 	}
-	if h := e.health("model:groq/gpt-oss"); h == nil || h["status"] != "error" {
-		t.Fatalf("the model past its limit is red in health: %v", h)
+	if h := e.health("model:groq/gpt-oss"); h != nil && h["status"] != "ok" {
+		t.Fatalf("a request past the limit per minute leaves the model up for smaller ones: %v", h)
 	}
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/busy", "groq/fact-model"}}, nil)
+	e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "busy"}), "done", "error")
 	var m modelsOut
 	e.must("deck.models_list", nil, &m)
 	if i := slices.IndexFunc(m.Assignments, func(a assignmentOut) bool { return a.Role == "text" }); i < 0 || m.Assignments[i].Using != "groq/fact-model" ||
-		!strings.HasPrefix(m.Assignments[i].Why, "groq/gpt-oss: answered HTTP 429") {
+		!strings.HasPrefix(m.Assignments[i].Why, "groq/busy: answered HTTP 429") {
 		t.Fatalf("the assignment says in one line of health why the first model does not take the work: %+v", m.Assignments)
 	}
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss"}}, nil)

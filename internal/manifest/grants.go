@@ -53,7 +53,7 @@ var rights = []right{
 			add("act domain: %s", d)
 		}
 	}, func(granted, m, c *Manifest) { c.Domains.Act = covered(granted.Domains.Act, m.Domains.Act) }},
-	// The right of MCP servers below drops a new server with secrets.
+	// The right of MCP servers below drops a new server, so its secrets are not in force either.
 	{func(prev, next *Manifest, add say) {
 		for _, s := range added(serverSecrets(prev), serverSecrets(next)) {
 			add("secret: %s", s)
@@ -288,8 +288,8 @@ func Widens(prev, next *Manifest) []string {
 	return out
 }
 
-// Clip is m with only the rights granted gives, everything Widens sees; an HTTP tool or MCP server that would widen
-// them asks on every call, and a new server with secrets is dropped.
+// Clip is m with only the rights granted gives, everything Widens sees; an HTTP tool or a command that would widen
+// them asks on every call, and an MCP server runs only as granted: a new one does not run.
 func Clip(granted, m *Manifest) *Manifest {
 	c := *m
 	for _, r := range rights {
@@ -348,16 +348,15 @@ func toolWidens(prev, next *Manifest, t HTTPTool, add say) {
 	}
 }
 
-// clipServer is MCP server s of m as granted: a new or changed server only without secrets and with every tool
-// asking; a granted one with no tools past its filter and no milder classes. False drops it.
+// clipServer is MCP server s of m as granted: a new one is not in force, a changed one runs as granted, with no
+// tools past its filter and no milder classes. False drops it.
 func clipServer(granted map[string]MCPServer, name string, s MCPServer) (MCPServer, bool) {
 	old, ok := granted[name]
-	if !ok || !sameServer(old, s) {
-		if len(secretRef.FindAllString(fmt.Sprint(s.Env, s.Args, s.URL, s.Command), -1)) > 0 {
-			return s, false
-		}
-		s.Classes = nil
-		return s, true
+	if !ok {
+		return s, false
+	}
+	if !sameServer(old, s) {
+		s = old
 	}
 	if len(old.ToolFilter) > 0 && len(s.ToolFilter) == 0 {
 		s.ToolFilter = old.ToolFilter

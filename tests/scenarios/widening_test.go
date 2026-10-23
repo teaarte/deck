@@ -252,12 +252,10 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 		t.Fatalf("the saved revision widens class, callers, provider, domains, models and servers: %v", w)
 	}
 	for _, w := range manifest.Widens(granted, inForce) {
-		if w != "MCP server open: new or changed" {
-			t.Errorf("what is in force widens nothing the owner did not grant, but for a server that asks every call: %s", w)
-		}
+		t.Errorf("what is in force widens nothing the owner did not grant: %s", w)
 	}
-	if _, ok := inForce.Tools.MCP.Servers["svc"]; ok || len(inForce.Tools.MCP.Servers["open"].Classes) != 0 {
-		t.Fatalf("a new server with a secret is not in force, one without asks every call: %+v", inForce.Tools.MCP.Servers)
+	if len(inForce.Tools.MCP.Servers) != 0 {
+		t.Fatalf("a new server does not run before the owner grants it, with a secret or without: %+v", inForce.Tools.MCP.Servers)
 	}
 }
 

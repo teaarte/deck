@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"deck2/internal/manifest"
 	"deck2/internal/store/db"
@@ -90,6 +91,8 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []
 	if req.Topic == "projects" && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {
 		req.Topic = ""
 	}
+	// The window of a dialog is read as its dialog.
+	req.Block = strings.TrimSuffix(req.Block, "-in")
 	if req.Block != "" && whenUnder(req.Screen.Blocks, "b", req.Block) {
 		req.Block = ""
 	}

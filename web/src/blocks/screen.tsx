@@ -1,10 +1,11 @@
+import { useEffect } from 'react';
 import { createComponentImplementation } from '@a2ui/react/v0_9';
 import { Group, Stack } from '@mantine/core';
 import s from './blocks.module.css';
 import { Hero } from '../cockpit/Hero';
 import { IconTitle } from '../ui/IconTitle';
 import type { ScreenProps } from '../lib/catalog.gen';
-import { BlockContext } from '../screen/press';
+import { BlockContext, readBlock } from '../screen/press';
 import { api, children } from './blockImpl';
 
 // screen is the root of a screen, a tab or the window of a dialog: its title with the buttons of its dialogs, and a
@@ -14,6 +15,8 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
   const dialogs = (p.dialogs?.length ?? 0) > 0;
   const cockpit = !!p.title && context.dataContext.surface.id === 'deck-cockpit';
   const heads = dialogs && children(p.dialogs).map((c) => <span key={String(c)}>{buildChild(String(c))}</span>);
+  // The window of a dialog asks for its blocks once it is open.
+  useEffect(() => { if (p.name) readBlock(context, 'dialog', { dialog: p.name }); }, [p.name, context]);
   return (
     <BlockContext.Provider value={context}>
     <Stack gap="lg" data-screen data-span="full">

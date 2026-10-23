@@ -20,10 +20,8 @@ const rootTopics = (msgs: Message[]): string[] | undefined =>
 
 type Processor = MessageProcessor<ReactComponentImplementation>;
 
-// useScreen reads a screen and keeps it fresh: events of the topics it names read the blocks they change at most every
-// 200 ms, merged by topic and project, a return to the page reads it whole. Every action of the screen comes to its
-// one handler: a press calls its command and replies in the data of the surface; a filter, a next page and an opened
-// dialog read their block.
+// useScreen reads a screen and keeps it fresh by the topics it names; its one handler of actions replies to a press in
+// the data of the surface and reads the block of a filter, a next page or an opened dialog.
 export function useScreen(route: Route) {
   const [drawn, setDrawn] = useState<{ surface: SurfaceModel<ReactComponentImplementation>; key: string }>();
   const [error, setError] = useState('');
@@ -75,7 +73,7 @@ export function useScreen(route: Route) {
           pages[block] = (pages[block] ?? 1) + 1;
           return readBlock(block);
         case 'dialog':
-          return readBlock(block);
+          return readBlock(block, { dialog: String(c.dialog ?? '') });
       }
       const { reply, ...pressed } = c as Action & { reply?: string };
       const r = await run(pressed);
@@ -108,11 +106,11 @@ export function useScreen(route: Route) {
       }
     };
     // readBlock reads the data of one block and those inside it; a read of a block with a when draws the screen whole.
-    const readBlock = async (block: string) => {
+    const readBlock = async (block: string, extra: Record<string, unknown> = {}) => {
       const mine = generation;
       const ticket = feed.ticket();
       try {
-        const msgs = await call<Message[]>('deck.screen', input({ block }));
+        const msgs = await call<Message[]>('deck.screen', input({ block, ...extra }));
         if (gone || mine !== generation) return;
         topics = rootTopics(msgs) ?? topics;
         feed.feed(msgs, ticket);

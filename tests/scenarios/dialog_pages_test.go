@@ -33,7 +33,7 @@ func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 		t.Fatalf("an open dialog reads its table, its limit a page: %d rows, %s more", len(rows), open["b0-0"]["more"])
 	}
 
-	msgs := e.screenMessages("web", "main", map[string]any{"dialog": "all", "block": "b0", "pages": `{"b0-0": 2}`})
+	msgs := e.screenMessages("web", "main", map[string]any{"dialog": "all", "block": "b0-in", "pages": `{"b0-0": 2}`})
 	alone := dataOf(t, msgs)
 	_ = json.Unmarshal(alone["b0-0"]["rows"], &rows)
 	if len(msgs) != 2 || len(alone) != 2 || len(rows) != 4 || string(alone["b0-0"]["more"]) != "1" {

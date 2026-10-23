@@ -66,13 +66,13 @@ after reading what it may do.
 You need Go 1.27, and at least one agent CLI on the machine (`claude` or `codex`); Node only to rebuild the client.
 
 ```bash
-go build -o deck ./cmd/deck
+go build -tags tailnet -o deck ./cmd/deck   # without -tags tailnet deck has no tailnet and is smaller
 DECK_HOME=~/.deck ./deck            # prints the URL with the access token
-./deck -tailscale deck              # the same on your tailnet over HTTPS
+./deck -tailscale deck              # the same on your tailnet over HTTPS (a build with -tags tailnet)
 cd web && npm ci && npm run build   # rebuilds the embedded client (web/dist)
 ```
 
-A build for another Mac with Apple silicon: `GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o deck ./cmd/deck`
+A build for another Mac with Apple silicon: `GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -tags tailnet -trimpath -o deck ./cmd/deck`
 (SQLite is pure Go). Updating is replacing the binary: the base and the manifests of modules are raised to the new
 format on start. A deck from before 23 October 2026 moves its modules by export and import instead.
 

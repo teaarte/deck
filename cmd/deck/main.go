@@ -42,6 +42,9 @@ func run() error {
 	addr := flag.String("addr", "127.0.0.1:7700", "listen address; the next port is the second origin of custom blocks")
 	tailnet := flag.String("tailscale", "", "join the owner's tailnet under this name and serve HTTPS there")
 	flag.Parse()
+	if *tailnet != "" && !tsnet.Built {
+		return errors.New("deck: -tailscale needs a deck built with go build -tags tailnet")
+	}
 
 	home := os.Getenv("DECK_HOME")
 	if home == "" {

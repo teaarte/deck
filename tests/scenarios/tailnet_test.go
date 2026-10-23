@@ -1,3 +1,5 @@
+//go:build tailnet
+
 package scenarios
 
 import (

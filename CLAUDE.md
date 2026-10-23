@@ -5,10 +5,12 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
 
 ## Commands
 
-- Build: `go build -o deck ./cmd/deck`; web client: `cd web && npm ci && npm run build` (type check + `web/dist`)
+- Build: `go build -tags tailnet -o deck ./cmd/deck` (the owner's deck; without the tag there is no tailnet and
+  `-tailscale` refuses to start); web client: `cd web && npm ci && npm run build` (type check + `web/dist`)
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token; the next port is the second origin of
   `custom` blocks); on the owner's tailnet: `./deck -tailscale deck` (sign-in link in the log and in health)
-- Tests: `go test -race -timeout 30m ./...`
+- Tests: `go test -race -timeout 30m ./...`; the tailnet scenario only with the tag:
+  `go test -tags tailnet ./tests/scenarios -run TestPhoneReachesDeckOverTheTailnet`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
 - Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios -run TestRealCodex -v`
 - The ACP agent Goose on a local Ollama: `DECK_REAL_ACP=1 go test ./tests/scenarios -run TestRealACPAgents -v`
@@ -134,7 +136,7 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   `deck.screen` command; `Sandbox` is the second origin of `custom` blocks (proxy page with a CSP without network;
   the block runs in its frame of an opaque origin with the guard of `sandbox.html` as its first script — no WebRTC,
   no frames, which would bring it back —, `/ext-apps.js`), paired with the client's port (`Pair`)
-- `internal/tsnet` — deck on the owner's tailnet from inside the binary: HTTPS on 443, the second origin on 8443
+- `internal/tsnet` — deck on the owner's tailnet from inside the binary, only in a build with the tag `tailnet`: HTTPS on 443, the second origin on 8443
 - `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports), folders by owner in
   `src/`: `app/` the frame of islands (menu `Nav.tsx`, screen, chat panel `ChatPanel.tsx`, `Toolbar.tsx`, `PhoneBar.tsx`,
   the notifications `Bell.tsx`, the icon pattern `Backdrop.tsx`, the address and back button `router.ts`: tab and

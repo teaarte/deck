@@ -79,9 +79,9 @@ a file and shared**; whoever installs one sees everything it is allowed to do fi
 ## Quick start
 
 ```bash
-go build -o deck ./cmd/deck
+go build -tags tailnet -o deck ./cmd/deck
 ./deck                       # prints the address to open, with your access token (data in ~/.deck2)
-./deck -tailscale deck       # or on your own tailnet, over HTTPS, from any device
+./deck -tailscale deck       # or on your own tailnet, over HTTPS, from any device (needs -tags tailnet)
 ```
 
 You need macOS or Linux, Go 1.27, and an agent CLI on the machine (`claude` or `codex`); add any other model

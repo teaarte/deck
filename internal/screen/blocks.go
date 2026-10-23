@@ -210,7 +210,11 @@ func (r *renderer) closed() bool {
 // wanted says whether the data of the block of id is read now: it is in no closed dialog and, when the read is of
 // one block, it is that block or inside it.
 func (r *renderer) wanted(id string) bool {
-	return !r.closed() && (r.req.Block == "" || id == r.req.Block || strings.HasPrefix(id, r.req.Block+"-"))
+	if r.closed() {
+		r.skipped = true
+		return false
+	}
+	return r.req.Block == "" || id == r.req.Block || strings.HasPrefix(id, r.req.Block+"-")
 }
 
 // whenUnder says whether a block of id or inside it shows by a when, which may change what the screen holds.

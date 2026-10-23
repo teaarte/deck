@@ -79,9 +79,9 @@ var Topics = func() []string {
 	return c.Topics
 }()
 
-// Render resolves a stored screen into A2UI messages (createSurface, updateComponents, updateDataModel) and
-// names the blocks that failed; clients only draw components and send actions back.
-func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []string, error) {
+// Render resolves a stored screen into A2UI messages (createSurface, updateComponents, updateDataModel), names the
+// blocks that failed and says whether it read every block; clients only draw components and send actions back.
+func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []string, bool, error) {
 	if !slices.Contains(Topics, req.Topic) {
 		req.Topic = ""
 	}
@@ -98,7 +98,7 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []
 	}
 	r, err := resolve(ctx, src, req, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	root := r.comps[0]
 	if r.recordTitle != "" {
@@ -116,7 +116,7 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []
 		out = append(out, map[string]any{"version": Version,
 			"updateDataModel": map[string]any{"surfaceId": surface, "path": "/" + id, "value": r.data[id]}})
 	}
-	return out, r.errs, nil
+	return out, r.errs, req.Topic == "" && req.Block == "" && !r.skipped, nil
 }
 
 // Check resolves a screen on the data there is now and names each block that failed.
@@ -176,6 +176,8 @@ type renderer struct {
 	// dialogs are the names of the dialogs a block is inside, the innermost last; every reads them all as open.
 	dialogs []string
 	every   bool
+	// skipped is set once a block of a closed dialog was left unread.
+	skipped bool
 	// errs name the blocks that failed to resolve.
 	errs []string
 }

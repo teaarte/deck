@@ -150,7 +150,7 @@ func TestABoardShowsItsLanesEmptyAndOnlyThoseItsButtonOffers(t *testing.T) {
 }
 
 // TestAScreenThatDrawsAgainIsHealthy: a block that failed on the data is red in health until the screen draws
-// without errors.
+// without errors; one in a dialog turns red once the dialog is read, and a draw that left the dialog unread clears it not.
 func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -168,6 +168,22 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 		if h.Subject == "screen:work.board" {
 			t.Fatalf("a screen that draws again is healthy: %+v", h)
 		}
+	}
+	e.createProject("dialogs", strings.Replace(strings.Replace(m, `"item": {"title": "title + note"}`, `"item": {"title": "title"}`, 1), `"blocks": [
+    {"type": "list"`, `"blocks": [
+    {"type": "dialog", "name": "more", "title": "More", "blocks": [{"type": "table", "title": "Broken", "source": {"collection": "tasks"}, "columns": [{"label": "X", "bind": "title + note"}]}]},
+    {"type": "list"`, 1))
+	e.must("deck.records_upsert", map[string]any{"project": "dialogs", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
+	e.screenMessages("dialogs", "board", map[string]any{"dialog": "more", "block": "b0-in"})
+	e.waitHealth("screen:dialogs.board", "error")
+	e.screenData("dialogs", "board", nil)
+	e.must("deck.health_list", nil, &hs)
+	red := false
+	for _, h := range hs {
+		red = red || h.Subject == "screen:dialogs.board"
+	}
+	if !red {
+		t.Fatal("a draw that left the dialog unread does not say the screen is healthy")
 	}
 }
 

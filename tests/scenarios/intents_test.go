@@ -257,7 +257,8 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 			Commands []string
 		}
 	}
-	_ = json.Unmarshal(a.Payload, &frozen)
+	stored, _ := e2.App.Store.Q.GetAsk(context.Background(), a.ID)
+	_ = json.Unmarshal([]byte(stored.Payload), &frozen)
 	if a.Kind != "unknown" || frozen.Caller.Kind != "token" || frozen.Caller.Token != tid || len(frozen.Caller.Commands) != 1 {
 		t.Fatalf("the unknown outcome is the token's, not the owner's: %+v %s", a, a.Payload)
 	}

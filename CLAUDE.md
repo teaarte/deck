@@ -34,8 +34,9 @@ hold; look inside a package for the rest.
   `internal/app`. Who may touch what is `app/access`. Deck's screens are data in `app/screens/shipped/` (a file a
   screen, `ru.json` the one dictionary of deck's words — of screens, of commands and of the sentences deck writes,
   phrases with verbs too, `manifest.TrText`).
-- `internal/registry` — every input (API, MCP, triggers) calls commands through it; `Def` takes the schema from a
-  tagged input struct, `Read` declares a read with its result type and event topics (screens read only these).
+- `internal/registry` — every input (API, MCP, triggers) calls commands through it; input schemas are limited to
+  App Intents types; `Def` takes the schema from a tagged input struct, `Read` declares a read with its result type
+  and event topics (screens read only these; a read without topics panics, `registry.Static` for none).
 - `internal/store` — SQLite: one writer (`Tx`; no network or waiting inside), readers apart; a committed write
   publishes the topic of its table (`changes.go`; a table is in a scope or `silent`); goose migrations from the base
   `00043_base.sql`; sqlc queries one file per area (`db/` is generated).
@@ -51,21 +52,29 @@ hold; look inside a package for the rest.
 - `internal/provider` — model providers behind one interface and one `Outcome` of a turn: `claudecode`, `codex`
   (generated protocol), `acp` (an ACP agent in deck's sandbox on a model through deck's proxy); self-checks.
 - `internal/gateway` — deck's MCP server of a process (permissions, questions, confirmations, commands as tools),
-  the HTTP entry of scripts, `Egress`, and the proxy of models: `SendHops` is the one loop of fallbacks.
-- `internal/fault` — the one form of a failure: a type of a closed set, whose it is, text and details.
+  the HTTP entry of scripts, and the proxy of models: `SendHops` is the one loop of fallbacks. `Egress` is the one
+  way to the web: a name resolves once, the proxy dials its addresses, a name reaches only public ones; `Fetch` a
+  page the same way — new outbound HTTP goes through it.
+- `internal/fault` — the one form of a failure: a type of a closed set, whose it is, text and details; a script
+  reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit.
 - `internal/health` — health rows: state of what deck runs or reaches; events go to the feed.
 - `internal/ask` — the broker of what waits for the owner; `app/asks` its commands.
 - `internal/screen` — stored screens resolved into A2UI messages (blocks, data, actions, forms, topics, i18n).
-- `internal/api` — HTTP API, SSE, files and the second origin of `custom` blocks (`Sandbox`).
+- `internal/api` — HTTP API, SSE, files and the second origin of `custom` blocks (`Sandbox`: the guard of
+  `sandbox.html` stays its first script — no WebRTC, no frames).
 - `internal/sandbox` — the sandbox of scripts, MCP servers and ACP agents (`sandbox-exec` on macOS, bubblewrap on
-  Linux), `Door` the one way out, `Env` the one environment.
-- `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/files`,
-  `internal/paths`, `internal/home`, `internal/untrusted`, `internal/nonce` — what their names say.
+  Linux), `Door` the one way out (no door, no network), `Env` the one environment.
+- `internal/untrusted` — text deck did not write, shaped (`Cut`, `Line`, `Block`) before a prompt, an ask or a
+  journal.
+- `internal/files` — the files a command input points to and tools answer with (the files service is `app/files`).
+- `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/paths`,
+  `internal/home`, `internal/nonce` — what their names say.
 - `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet`.
 - `internal/lint` — code rules checked by `tests/lint`.
 - `master` — the built-in project master (manifest, prompts, skills, deck's texts for its agents).
 - `skills` — the skills deck ships to agents; `schemas` — manifest schema, screen block catalog, App Intents rules.
-- `web` — the client: Vite + React + Mantine v9 + `@a2ui/react` (v0.9); folders by owner in `src/` (`app` the frame,
+- `web` — the client: Vite + React + Mantine v9 + `@a2ui/react` v0.9 — import from `@a2ui/react/v0_9` and
+  `@a2ui/web_core/v0_9` (the root export is v0.8); folders by owner in `src/` (`app` the frame,
   `screen`, `cockpit`, `blocks` a folder or file per block, `chat`, `ui`, `hooks`, `lib`, `settings`, `theme`);
   `custom` blocks are hosted with `@modelcontextprotocol/ext-apps` 2; `web/dist` is the embedded build — rebuild and
   commit it with the sources.

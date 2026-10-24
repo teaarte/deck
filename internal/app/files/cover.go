@@ -95,6 +95,7 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 		return nil
 	})
 	if err != nil {
+		s.dropUploads(ctx, v.ID, thumb.Int64)
 		return nil, err
 	}
 	return map[string]any{"project": p.Name, "cover": v.ID, "theme": in.Theme, "scheme": scheme}, nil
@@ -145,8 +146,26 @@ func (s *Service) Thumbs(ctx context.Context) {
 			return err
 		})
 		if err != nil {
+			s.dropUploads(ctx, thumb.Int64)
 			slog.Error("files: light copy of a picture", "picture", pic.ID, "err", err)
 		}
+	}
+}
+
+// dropUploads deletes the uploads a picture did not take, so none stays among the files of the project.
+func (s *Service) dropUploads(ctx context.Context, ids ...int64) {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		for _, id := range ids {
+			if f, err := q.GetFile(ctx, id); err == nil && f.OwnerKind == "upload" {
+				if err := q.DeleteFile(ctx, id); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		slog.Error("files: uploads of a picture", "err", err)
 	}
 }
 

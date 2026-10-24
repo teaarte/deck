@@ -117,8 +117,7 @@ func TestRealBrowserTilesOrder(t *testing.T) {
 }
 
 // TestRealBrowserCards: deck opens on its tiles, Today first, a module with its cover and no icon, one without with
-// its icon, no menu on a tile; a tile opens its module and the way home goes back:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCards -v.
+// its icon, no menu on a tile; a tile opens its module and the way home goes back.
 func TestRealBrowserCards(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")

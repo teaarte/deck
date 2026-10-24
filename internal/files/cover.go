@@ -51,8 +51,21 @@ func Shown(p db.Picture) int64 {
 // ThumbWidth is the width of the light copy of a picture: twice a card.
 const ThumbWidth = 720
 
+// maxPixels is the largest picture deck makes a light copy of; a larger one is shown itself.
+const maxPixels = 50_000_000
+
 // Thumb is the light copy of a picture as JPEG, no wider than ThumbWidth, and its main color as #rrggbb.
-func Thumb(r io.Reader) ([]byte, string, error) {
+func Thumb(r io.ReadSeeker) ([]byte, string, error) {
+	cfg, _, err := image.DecodeConfig(r)
+	if err != nil {
+		return nil, "", err
+	}
+	if cfg.Width*cfg.Height > maxPixels {
+		return nil, "", fmt.Errorf("deck: a picture of %d×%d is too large for a light copy", cfg.Width, cfg.Height)
+	}
+	if _, err := r.Seek(0, io.SeekStart); err != nil {
+		return nil, "", err
+	}
 	src, _, err := image.Decode(r)
 	if err != nil {
 		return nil, "", err

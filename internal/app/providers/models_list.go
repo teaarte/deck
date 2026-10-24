@@ -36,6 +36,8 @@ type modelView struct {
 	CallUSD   *float64 `json:"call_usd,omitempty"`
 	Unit      string   `json:"unit"`
 	Free      bool     `json:"free"`
+	// Local is a model of the owner's own hardware: without a price it is free.
+	Local bool `json:"-"`
 	// Subscription is a model paid by the owner's subscription: what a call would cost is an estimate, out of the money spent.
 	Subscription bool `json:"subscription"`
 	// TPM and Context are the tokens a minute and of one request the model takes, 0 when not known.
@@ -137,7 +139,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	for _, r := range models {
 		m := r.Model
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: s.shownOptions(ctx, m.Options),
-			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0 || r.Connection.Local != 0,
+			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0,
 			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context}
 		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)

@@ -491,8 +491,8 @@ func TestAModelPricedPerCharOrSecondCostsWhatItTook(t *testing.T) {
 	}
 }
 
-// TestTwoModelsOfOneAPIModelKeepTheirOwnNames: two models of deck on the same model of an API, with their own price,
-// are each called and counted by their own name.
+// TestTwoModelsOfOneAPIModelKeepTheirOwnNames: two models of deck on the same model of an API, with their own
+// options and price, are each called and counted by their own name.
 func TestTwoModelsOfOneAPIModelKeepTheirOwnNames(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
@@ -501,7 +501,7 @@ func TestTwoModelsOfOneAPIModelKeepTheirOwnNames(t *testing.T) {
 	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "name": "first", "kind": "text", "call_usd": 0.01}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "name": "second", "kind": "text", "call_usd": 0.02}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "name": "second", "kind": "text", "call_usd": 0.02, "options": `{"temperature": 0}`}, nil)
 	e.must("deck.model_call", map[string]any{"kind": "text", "model": "second", "prompt": "hi"}, nil)
 	var name string
 	var cost float64

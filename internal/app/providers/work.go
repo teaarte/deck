@@ -15,7 +15,7 @@ import (
 )
 
 // Price is how the price of a model reads in the owner's words: by subscription, free, what it costs by its unit, or
-// unknown; a model of a local connection is free.
+// unknown; an unpriced model of a local connection is free.
 func Price(v modelView, tr func(string) string) string {
 	usd := func(f float64) string { return "$" + strconv.FormatFloat(f, 'f', -1, 64) }
 	switch {
@@ -25,6 +25,8 @@ func Price(v modelView, tr func(string) string) string {
 		return tr("free")
 	case v.CallUSD != nil:
 		return fmt.Sprintf(tr("%s a call"), usd(*v.CallUSD))
+	case v.InputUSD == nil && v.Local:
+		return tr("free")
 	case v.InputUSD == nil:
 		return tr("unknown")
 	case v.Unit == UnitChar:
@@ -58,7 +60,7 @@ func (s *Service) book(ctx context.Context, workspace int64, tr func(string) str
 	for _, r := range rows {
 		m := r.Model
 		b.add(modelView{Name: m.Name, Kind: m.Kind, Agent: m.Agent, InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd),
-			CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0 || r.Connection.Local != 0, Subscription: m.Subscription != 0})
+			CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0, Subscription: m.Subscription != 0})
 	}
 	return b
 }

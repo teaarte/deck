@@ -173,6 +173,8 @@ type Service struct {
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
 	// NoSearch is what the owner does while no search is assigned, or "".
 	NoSearch func(ctx context.Context, workspace int64) string
+	// Missing are the names assignments hold that are no model of deck, with the places that name them.
+	Missing func(ctx context.Context, workspace int64) map[string][]string
 	// Words are deck's words in a language.
 	Words func(lang string) map[string]string
 	// Works looks up the model that does the work of a command; Places the work each model does.

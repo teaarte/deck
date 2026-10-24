@@ -228,7 +228,7 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("connection_remove", "Remove connection", "Removes a connection that has no models left.",
 			registry.OwnerOnly, s.connectionRemove),
 		s.modelSetCommand(),
-		registry.Def("model_remove", "Remove model", "Removes a model; assignments that name it skip it.",
+		registry.Def("model_remove", "Remove model", "Removes a model and takes it out of the assignments that name it.",
 			registry.OwnerOnly, s.modelRemove),
 		s.modelCallCommand(),
 	}, s.webCommands()...)

@@ -169,7 +169,7 @@ func (s *Service) planned(ctx context.Context, workspace int64, in assignmentSet
 	return project, slices.Compact(slices.Clone(in.Models)), nil
 }
 
-// place is the project of an assignment and, for agent turns of a command, the command.
+// place is the project of an assignment and, for agent turns of a command, the command; a removal needs none.
 func (s *Service) place(ctx context.Context, workspace int64, in assignmentSetIn) (int64, *manifest.Command, error) {
 	if in.Command != "" && in.Project == "" {
 		return 0, nil, registry.Invalid("deck: an assignment of a command names its project too")
@@ -182,7 +182,7 @@ func (s *Service) place(ctx context.Context, workspace int64, in assignmentSetIn
 		}
 		project = p.ID
 	}
-	if in.Role != RoleAgent || in.Command == "" {
+	if in.Role != RoleAgent || in.Command == "" || len(in.Models) == 0 && in.Model == "" {
 		return project, nil, nil
 	}
 	_, cmd, err := s.agentCommand(ctx, workspace, in.Project+"."+in.Command)

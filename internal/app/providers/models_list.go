@@ -174,7 +174,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		v := assignmentView{Project: r.Project, Command: r.Command, Role: r.Role}
 		_ = json.Unmarshal([]byte(r.Models), &v.Models)
 		for _, name := range v.Models {
-			if s.Up(ctx, act.Workspace, name) {
+			if s.exists(ctx, act.Workspace, name) && s.Up(ctx, act.Workspace, name) {
 				v.Using = name
 				break
 			}

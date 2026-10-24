@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -60,6 +61,11 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 	if text := s.NoSearch(ctx, ws); text != "" {
 		want[health.Search] = derived{health.Of{Workspace: ws}, health.Warning, text}
 	}
+	missing := s.Missing(ctx, ws)
+	for name, places := range missing {
+		want[health.Model(name)] = derived{health.Of{Workspace: ws}, health.Warning,
+			fmt.Sprintf("deck has no such model, and the assignments of %s name it; pick another in Settings → Commands", strings.Join(places, ", "))}
+	}
 	for _, p := range ps {
 		m, err := docs.Manifest(ctx, s.St.Q, p)
 		if err != nil {
@@ -108,7 +114,7 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 		}
 		for _, r := range rows {
 			h := r.Health
-			if _, ok := want[h.Subject]; ok || h.WorkspaceID.Int64 != ws || !ownDerived(h, scripts) {
+			if _, ok := want[h.Subject]; ok || h.WorkspaceID.Int64 != ws || !ownDerived(h, scripts) && !gone(ctx, q, ws, h) {
 				continue
 			}
 			if err := health.Clear(ctx, q, health.Of{Workspace: ws}, h.Subject); err != nil {
@@ -117,6 +123,16 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 		}
 		return nil
 	})
+}
+
+// gone reports whether a row is of a model deck has none of, written by Derive while an assignment named it.
+func gone(ctx context.Context, q *db.Queries, ws int64, h db.Health) bool {
+	name, ok := strings.CutPrefix(h.Subject, "model:")
+	if !ok {
+		return false
+	}
+	_, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name})
+	return err != nil
 }
 
 // ownDerived reports whether Derive writes a row: of a manifest, a secret, search, or of a command that is not of a

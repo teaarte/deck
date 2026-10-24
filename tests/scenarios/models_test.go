@@ -680,3 +680,56 @@ print(json.dumps({"status": status, "out": out}))
 		t.Fatalf("a module sees the assignments of the workspace and its own, not of other projects: %v", where)
 	}
 }
+
+// TestAssignmentsGoWithTheirCommandsAndModels: an assignment of a command a save drops goes, one may always be
+// removed, a removed model leaves the assignments that named it, and one deck has no model of is in health.
+func TestAssignmentsGoWithTheirCommandsAndModels(t *testing.T) {
+	t.Parallel()
+	other := &Fake{name: "other", script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "other"} }}
+	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{&Fake{}, other})
+	e.createProject("plain", testManifest([]string{agentCommand("work", ""), agentCommand("spare", "")}, nil))
+	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "spare", "models": []string{"other"}}, nil)
+	assigned := func(command string) *assignmentOut {
+		var m modelsOut
+		e.must("deck.models_list", nil, &m)
+		for _, a := range m.Assignments {
+			if a.Project == "plain" && a.Command == command {
+				return &a
+			}
+		}
+		return nil
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "plain", "manifest": testManifest([]string{agentCommand("work", "")}, nil)}, nil)
+	e.waitFor("the assignment of a command the manifest dropped goes", func() bool { return assigned("spare") == nil })
+
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'gone', 'agent', '["other"]' FROM project WHERE name = 'plain'`); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "gone", "models": []string{}}, nil)
+	if assigned("gone") != nil {
+		t.Fatal("an assignment of a command that is gone is removed")
+	}
+
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'work', 'agent', '["vanished", "other"]' FROM project WHERE name = 'plain'`); err != nil {
+		t.Fatal(err)
+	}
+	if a := assigned("work"); a == nil || a.Using != "other" || !strings.Contains(a.Why, "vanished") {
+		t.Fatalf("a model deck has none of is not the one that works, and the assignment says why: %+v", a)
+	}
+	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	if h := e.waitHealth("model:vanished", "warning"); !strings.Contains(h.Error, "plain.work") {
+		t.Fatalf("health names the assignments of a model deck has none of: %+v", h)
+	}
+	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/voice", "name": "voice", "kind": "tts"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/voice2", "name": "voice2", "kind": "tts"}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"voice", "voice2"}}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "tts", "project": "plain", "models": []string{"voice"}}, nil)
+	e.must("deck.model_remove", map[string]any{"name": "voice"}, nil)
+	var m modelsOut
+	e.must("deck.models_list", nil, &m)
+	for _, a := range m.Assignments {
+		if a.Role == "tts" && (a.Project != "" || !slices.Equal(a.Models, []string{"voice2"})) {
+			t.Fatalf("a removed model leaves its assignments, and one left with none goes: %+v", m.Assignments)
+		}
+	}
+}

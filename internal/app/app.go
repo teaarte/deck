@@ -164,7 +164,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
 		Words: screens.Phrases}
-	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch,
+	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch, Missing: a.Providers.Missing,
 		Works: a.Providers.Works, Places: a.Providers.Places, Words: screens.Phrases}
 	a.Screens = screens.Service{St: st, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Devices.Unread, Works: a.Providers.Works,
@@ -187,6 +187,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	a.Projects.CheckManifests(a.ctx)
+	a.Providers.Prune(a.ctx, 0)
+	a.Providers.Watch(a.Bus)
 	a.Health.Watch(a.Bus)
 	a.Health.Derive(a.ctx, 0)
 	status, text := script.Runtimes().Health()

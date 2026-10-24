@@ -153,6 +153,9 @@ func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
 // empty when the first does the work.
 func (s *Service) why(ctx context.Context, workspace int64, models []string, using string) string {
 	for _, name := range models {
+		if !s.exists(ctx, workspace, name) {
+			return name + ": " + noModel
+		}
 		if h, err := s.healthOf(ctx, workspace, name); err == nil && !s.Up(ctx, workspace, name) {
 			return name + ": " + untrusted.Flat(cmp.Or(h.Error, h.Status), 200)
 		}

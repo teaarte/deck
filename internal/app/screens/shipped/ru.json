@@ -291,5 +291,7 @@
   "%s; the model answered at %.0f tokens/s": "%s; модель отвечала со скоростью %.0f токенов/с",
   "%s did not finish %s, %s goes on with it: %s": "%s не закончила «%s», продолжает %s: %s",
   "Question": "Вопрос",
-  "no reason given": "причина не названа"
+  "no reason given": "причина не названа",
+  "deck has no such model, and the assignments of %s name it; pick another in Settings → Commands": "такой модели в deck нет, а её называют назначения: %s; выберите другую в Настройки → Команды",
+  "deck has no such model, so the work skips it": "такой модели в deck нет, работа её пропускает"
 }

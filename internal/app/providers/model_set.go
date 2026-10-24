@@ -290,6 +290,9 @@ func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelR
 		if n, err = q.DeleteModel(ctx, db.DeleteModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err != nil || n == 0 {
 			return err
 		}
+		if err := dropModel(ctx, q, act.Workspace, in.Name); err != nil {
+			return err
+		}
 		return q.DeleteModelHealth(ctx, db.DeleteModelHealthParams{WorkspaceID: store.ID(act.Workspace), Name: in.Name})
 	})
 	if err != nil {

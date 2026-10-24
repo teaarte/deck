@@ -8,21 +8,16 @@ export interface Look {
   accent: string;
   density: 'compact' | 'default' | 'comfortable';
   font: 'small' | 'default' | 'large';
-  // mascot shows Deki in the chat and on the cockpit; motion keeps the animations; slim folds the top block of the
-  // cockpit.
+  // mascot shows Deki in the chat and on the cockpit; motion keeps the animations.
   mascot: boolean;
   motion: boolean;
-  slim: boolean;
-  // home is the frame: classic with the side menu, or cards, the modules as tiles instead of it.
-  home: 'classic' | 'cards';
 }
 
 const KEY = 'deck-look';
 export const ACCENTS = palette.accents;
 export const DENSITIES: Look['density'][] = ['compact', 'default', 'comfortable'];
 export const FONTS: Look['font'][] = ['small', 'default', 'large'];
-export const HOMES: Look['home'][] = ['classic', 'cards'];
-const DEFAULT: Look = { accent: 'coral', density: 'default', font: 'default', mascot: true, motion: true, slim: false, home: 'classic' };
+const DEFAULT: Look = { accent: 'coral', density: 'default', font: 'default', mascot: true, motion: true };
 
 function read(): Look {
   try {
@@ -33,8 +28,6 @@ function read(): Look {
       font: FONTS.includes(got.font!) ? got.font! : DEFAULT.font,
       mascot: typeof got.mascot === 'boolean' ? got.mascot : DEFAULT.mascot,
       motion: typeof got.motion === 'boolean' ? got.motion : DEFAULT.motion,
-      slim: typeof got.slim === 'boolean' ? got.slim : DEFAULT.slim,
-      home: HOMES.includes(got.home!) ? got.home! : DEFAULT.home,
     };
   } catch {
     return DEFAULT;

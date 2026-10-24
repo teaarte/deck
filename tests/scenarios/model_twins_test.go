@@ -26,6 +26,7 @@ func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 		`INSERT INTO chat_session (topic_id, provider, session_id) SELECT id, 'google-flash', 's1' FROM chat_topic`,
 		`INSERT INTO project (workspace_id, name) VALUES (1, 'work')`,
 		`INSERT INTO process (project_id, command, state, provider) SELECT id, 'run', 'paused', 'google-flash' FROM project WHERE name = 'work'`,
+		`DROP TABLE picture`,
 		`DELETE FROM goose_db_version WHERE version_id >= 46`,
 	} {
 		if _, err := st.DB.Exec(q); err != nil {

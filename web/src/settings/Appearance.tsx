@@ -3,7 +3,7 @@ import { Button, CheckIcon, ColorSwatch, Group, Select, SimpleGrid, Stack, Switc
 import { IconSparkles } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { openTopic } from '../chat/chatStore';
-import { ACCENTS, DENSITIES, FONTS, HOMES, setLook, useLook, type Look } from '../theme/look';
+import { ACCENTS, DENSITIES, FONTS, setLook, useLook, type Look } from '../theme/look';
 import { useWorn } from '../theme/worn';
 import { useLiveRead } from '../hooks/useLiveRead';
 import { call } from '../lib/api';
@@ -35,7 +35,6 @@ export function Appearance({ part }: { part?: string }) {
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md">
         <Language />
         <Theme />
-        <Choice label={t('look.home')} name="home" value={look.home} options={HOMES} onChange={(v: Look['home']) => setLook({ home: v })} />
         {worn.schemes.length === 1 ? (
           <Text size="sm" c="dimmed" data-look-note="scheme">{t(worn.schemes[0] === 'dark' ? 'look.dark_only' : 'look.light_only', { theme: worn.title })}</Text>
         ) : (
@@ -59,7 +58,6 @@ export function Appearance({ part }: { part?: string }) {
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
         <Switch label={t('look.mascot')} checked={look.mascot} onChange={(e) => setLook({ mascot: e.currentTarget.checked })} data-look="mascot" />
         <Switch label={t('look.motion')} checked={look.motion} onChange={(e) => setLook({ motion: e.currentTarget.checked })} data-look="motion" />
-        <Switch label={t('look.slim')} checked={look.slim} onChange={(e) => setLook({ slim: e.currentTarget.checked })} data-look="slim" />
       </SimpleGrid>
     </Stack>
   );
@@ -83,20 +81,20 @@ function Theme() {
       notifyError(e, t('look.theme'));
     }
   };
-  const redraw = async () => {
+  const fill = async () => {
     try {
       const out = await call<{ topic?: number }>('deck.covers_draw', {});
       if (out.topic) openTopic(out.topic);
     } catch (e) {
-      notifyError(e, t('look.redraw'));
+      notifyError(e, t('look.fill_covers'));
     }
   };
   return (
     <Stack gap={4}>
       <Choice label={t('look.theme')} name="theme" value={current} options={rows.map((r) => r.name)}
         labels={Object.fromEntries(rows.map((r) => [r.name, r.title]))} onChange={(v) => void pick(v)} />
-      <Button variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void redraw()} data-redraw-covers
-        style={{ alignSelf: 'flex-start' }}>{t('look.redraw')}</Button>
+      <Button variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void fill()} data-fill-covers
+        style={{ alignSelf: 'flex-start' }}>{t('look.fill_covers')}</Button>
     </Stack>
   );
 }

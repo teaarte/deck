@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// worstContrast is the lowest contrast of the text on the menu island and the tabs over the plain canvas and over
-// the strokes of its pattern under the glass.
+// worstContrast is the lowest contrast of the text on the tabs of a phone and of a screen over the plain canvas and
+// over the strokes of its pattern under the glass.
 const worstContrast = `(() => {
   const c = document.createElement('canvas'); c.width = c.height = 1;
   const x = c.getContext('2d', { willReadFrequently: true });
@@ -22,7 +22,7 @@ const worstContrast = `(() => {
   const stroke = document.querySelector('[data-backdrop] > div');
   const spots = [[canvas], stroke ? [canvas, getComputedStyle(stroke).backgroundColor] : [canvas]];
   let worst = 99;
-  for (const [sel, text] of [['[data-nav]', '[data-nav] [data-system]'], ['[data-nav]', '[data-nav] a'], ['[data-nav]', '[data-nav] a[data-active]'],
+  for (const [sel, text] of [['[data-phone-tabs]', '[data-phone-tabs] [data-tab]'], ['[data-phone-tabs]', '[data-phone-tabs] [data-tab][data-active]'],
     ['.mantine-Tabs-list', '[role=tab]'], ['.mantine-Tabs-list', '[role=tab][data-active]']]) {
     const surface = document.querySelector(sel), el = document.querySelector(text);
     if (!surface || !el) continue;
@@ -56,7 +56,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	style := func(sel, prop string) string {
 		return b.eval(`getComputedStyle(document.querySelector('` + sel + `')).` + prop)
 	}
-	if got := style("[data-nav]", "backdropFilter"); got != "none" {
+	if got := style(".mantine-Tabs-list", "backdropFilter"); got != "none" {
 		t.Fatalf("juce has no glass: %s", got)
 	}
 	b.look("theme", "glass")
@@ -76,9 +76,6 @@ func TestRealBrowserGlass(t *testing.T) {
 	b.until("the table and the custom block", `document.querySelector('[data-block] table') && document.querySelector('[data-custom]')`)
 	if got := b.eval(`document.documentElement.dataset.deckTheme + ' ' + JSON.parse(localStorage.getItem('deck-theme')).name`); got != "glass glass" {
 		t.Fatalf("the device keeps the last theme for the next load: %s", got)
-	}
-	if got := style("[data-nav]", "backdropFilter"); got == "none" {
-		t.Fatalf("the menu island is glass: %s", got)
 	}
 	table := `[...document.querySelectorAll('[data-block]')].find((x) => x.querySelector('table'))`
 	if got := b.eval(`(() => { const s = getComputedStyle(` + table + `); return s.backdropFilter + ' ' + s.backgroundColor })()`); got != "none rgb(255, 255, 255)" {
@@ -107,9 +104,6 @@ func TestRealBrowserGlass(t *testing.T) {
 	b.until("the dark scheme", `document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the table", `document.querySelector('[data-block] table')`)
-	if got := style("[data-nav]", "backdropFilter"); got == "none" {
-		t.Fatalf("the dark menu island is glass: %s", got)
-	}
 	if got := b.eval(`(() => { const s = getComputedStyle(` + table + `); return s.backdropFilter + ' ' + /rgba|\/ 0?\./.test(s.backgroundColor) })()`); got != "none false" {
 		t.Fatalf("a dark block with a table stays solid: %s", got)
 	}
@@ -138,11 +132,14 @@ func TestRealBrowserGlass(t *testing.T) {
 	if got := b.eval(`getComputedStyle(document.querySelector('input[data-field="title"]')).fontSize`); got == "16px" {
 		t.Fatalf("a field larger than 16px keeps its size on a touch screen: %s", got)
 	}
-	if got := style("[data-phone-bar]", "backdropFilter"); got == "none" {
-		t.Fatalf("the bar of a phone is glass: %s", got)
+	if got := style("[data-phone-tabs]", "backdropFilter"); got == "none" {
+		t.Fatalf("the tabs of a phone are glass: %s", got)
 	}
-	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
-	b.until("the menu on a phone", `document.querySelector('[data-nav-phone] [data-system]')?.getBoundingClientRect().left >= 0`)
+	if got, _ := strconv.ParseFloat(b.eval(worstContrast), 64); got < 4.5 {
+		t.Fatalf("the text of the tabs of a phone on the glass is AA: %.2f", got)
+	}
+	b.eval(`(document.querySelector('[data-tab="more"]').click(), '')`)
+	b.until("the glass menu of More on a phone", `document.querySelector('[data-more]') && getComputedStyle(document.querySelector('[data-more]')).backdropFilter !== 'none'`)
 	b.shot("glass-phone-menu")
 
 	media := func(name, value string) {
@@ -152,21 +149,21 @@ func TestRealBrowserGlass(t *testing.T) {
 	}
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	media("prefers-reduced-transparency", "reduce")
-	b.open(e.URL + "/#/p/web/main")
-	b.until("no glass with reduced transparency", `matchMedia('(prefers-reduced-transparency: reduce)').matches && document.querySelector('[data-nav]') && getComputedStyle(document.querySelector('[data-nav]')).backdropFilter === 'none'`)
-	if got := style("[data-nav]", "backgroundColor"); got != "rgb(34, 34, 40)" {
-		t.Fatalf("the menu island is solid with reduced transparency: %s", got)
+	b.open(e.URL + "/#/deck/settings")
+	b.until("no glass with reduced transparency", `matchMedia('(prefers-reduced-transparency: reduce)').matches && document.querySelector('.mantine-Tabs-list') && getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter === 'none'`)
+	if got := style(".mantine-Tabs-list", "backgroundColor"); got != "rgb(34, 34, 40)" {
+		t.Fatalf("the tabs are solid with reduced transparency: %s", got)
 	}
 	b.shot("glass-reduced")
 	media("prefers-contrast", "more")
-	b.until("more contrast", `matchMedia('(prefers-contrast: more)').matches && getComputedStyle(document.querySelector('[data-nav]')).backdropFilter === 'none'`)
-	if got := style("[data-nav]", "backgroundColor") + " " + style("[data-nav]", "boxShadow"); got != "rgb(34, 34, 40) rgb(230, 230, 236) 0px 0px 0px 1px" {
-		t.Fatalf("the menu island is solid with a plain edge for more contrast: %s", got)
+	b.until("more contrast", `matchMedia('(prefers-contrast: more)').matches && getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter === 'none'`)
+	if got := style(".mantine-Tabs-list", "backgroundColor") + " " + style(".mantine-Tabs-list", "boxShadow"); got != "rgb(34, 34, 40) rgb(230, 230, 236) 0px 0px 0px 1px" {
+		t.Fatalf("the tabs are solid with a plain edge for more contrast: %s", got)
 	}
 	media("prefers-contrast", "no-preference")
 
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "default")
-	b.until("the default theme back", `document.documentElement.dataset.deckTheme === 'default' && getComputedStyle(document.querySelector('[data-nav]')).backdropFilter === 'none'`)
+	b.until("the default theme back", `document.documentElement.dataset.deckTheme === 'default' && getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter === 'none'`)
 }

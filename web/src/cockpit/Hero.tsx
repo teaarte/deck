@@ -1,11 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import { ActionIcon, Button, Group, Text, Tooltip } from '@mantine/core';
+import { Button, Group, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconArrowsDiagonal, IconArrowsDiagonalMinimize2, IconPlayerPlayFilled } from '@tabler/icons-react';
+import { IconPlayerPlayFilled } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useMenuData, type HeroLine } from '../hooks/useMenu';
 import type { Action } from '../lib/catalog.gen';
-import { setLook, useLook } from '../theme/look';
 import { useWorn } from '../theme/worn';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { Deki, moodOf, useMascot } from '../ui/deki/Deki';
@@ -30,14 +29,13 @@ function Lines({ lines }: { lines: HeroLine[] }) {
 }
 
 // Hero is the top of the cockpit as deck writes it, Deki in the pose of it, the way through the decisions and the
-// dialogs of the cockpit under its words; folded, and always on a phone, it is a line over its counts.
+// dialogs of the cockpit under its words; on a phone it is a line over its counts.
 export function Hero({ dialogs }: { dialogs?: ReactNode }) {
   const { t } = useTranslation();
   const { pulse } = useMenuData();
-  const { slim: folded } = useLook();
   const sky = useWorn().backdrop === 'sky';
   const phone = useMediaQuery('(max-width: 48em)') ?? false;
-  const slim = folded || phone;
+  const slim = phone;
   const [triage, setTriage] = useState(false);
   const mascot = useMascot();
   const { asks, state } = pulse;
@@ -48,13 +46,6 @@ export function Hero({ dialogs }: { dialogs?: ReactNode }) {
       {phone ? t('hero.triage_short') : t('hero.triage')}
     </Button>
   );
-  const fold = (
-    <Tooltip label={slim ? t('hero.unfold') : t('hero.fold')}>
-      <ActionIcon variant="subtle" color="gray" radius="xl" size={30} onClick={() => setLook({ slim: !slim })} aria-label={slim ? t('hero.unfold') : t('hero.fold')} data-hero-fold>
-        {slim ? <IconArrowsDiagonal size={15} /> : <IconArrowsDiagonalMinimize2 size={15} />}
-      </ActionIcon>
-    </Tooltip>
-  );
   return (
     <>
       {slim ? (
@@ -62,7 +53,7 @@ export function Hero({ dialogs }: { dialogs?: ReactNode }) {
           <div className={s.slimHead}>
             {mascot && <span className={s.slimArt}><Deki mood={mood} size={44} still /></span>}
             <Text fw={700} fz={15} truncate data-hero-title>{pulse.title}</Text>
-            <Group gap={6} wrap="nowrap" ml="auto" data-hero-dialogs>{go}{dialogs}{!phone && fold}</Group>
+            <Group gap={6} wrap="nowrap" ml="auto" data-hero-dialogs>{go}{dialogs}</Group>
           </div>
           <Lines lines={lines} />
         </div>
@@ -75,7 +66,6 @@ export function Hero({ dialogs }: { dialogs?: ReactNode }) {
             {(go || dialogs) && <Group gap={8} className={s.actions} data-hero-dialogs>{dialogs}{go}</Group>}
           </div>
           <div className={s.art}><Deki mood={mood} size={mood === 'chill' ? 150 : 180} /></div>
-          <div className={s.fold}>{fold}</div>
         </div>
       )}
       <Triage opened={triage} onClose={() => setTriage(false)} />

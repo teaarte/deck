@@ -10,8 +10,8 @@ import (
 const filledShown = `String([...document.querySelectorAll('.mantine-Button-root[data-variant="filled"]')].filter((x) => { const r = x.getBoundingClientRect();
 	return x.checkVisibility() && r.width > 0 && r.bottom > 0 && r.top < innerHeight }).length)`
 
-// TestRealBrowserOneAccent: one filled button at most on the cockpit and the chat, the state in words on a card, clouds
-// only in moments: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserOneAccent -v.
+// TestRealBrowserOneAccent: one filled button at most on the cockpit and the chat, decisions in words on Today's tile,
+// clouds only in moments: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserOneAccent -v.
 func TestRealBrowserOneAccent(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
@@ -55,7 +55,7 @@ func TestRealBrowserOneAccent(t *testing.T) {
 	}
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.open(e.URL + "/?theme=juce&scheme=light#/deck/apps")
-	b.until("the state in words on the cockpit's card", `[...document.querySelectorAll('[data-apps] [data-status]')].some((x) => x.innerText.includes('Waiting for you: 2') && x.querySelector('[data-asks="2"]'))`)
+	b.until("the decisions in words on the tile of Today", `document.querySelector('[data-app-tile][data-big] [data-today-title]')?.innerText === 'Decisions waiting: 2'`)
 	b.shot("accent-cards")
 	b.open(e.URL + "/?theme=juce&scheme=light#/p/web/main")
 	b.until("the master's button", `document.querySelector('[data-chat-toggle]')`)

@@ -9,15 +9,21 @@ export interface MenuEntry {
   title: string;
   icon?: string;
   screens: ScreenLink[];
-  // open is the one screen of a project that has one, opened by its header.
+  // open is the one screen of a project that has one.
   open?: ScreenLink;
   extra?: ScreenLink[];
   running?: number;
   asks?: number;
   errors?: number;
-  // cover is where the picture of the project's card in the light scheme is read, cover_dark in the dark one.
+  // cover is where the light copy of the picture of the project's card in the light scheme is read, cover_dark in
+  // the dark one; their colors are shown while they load.
   cover?: string;
   cover_dark?: string;
+  cover_color?: string;
+  cover_dark_color?: string;
+  // doing is the title of the command the project runs now, next the next run of its schedule.
+  doing?: string;
+  next?: { title: string; at: string };
 }
 
 // HeroLine is a count of the top of the cockpit: its words, tone, the screen it opens and the button that clears it.
@@ -57,7 +63,7 @@ export type Place = ScreenLink & { project?: string };
 export function placesOf(m: Menu, project?: string): Place[] {
   if (!project) {
     const own = m.system.flatMap((g) => g.links).filter((l) => !l.project);
-    return [{ name: 'cockpit', title: i18n.t('nav.cockpit'), icon: 'layout-dashboard' }, ...own];
+    return [{ name: 'cockpit', title: i18n.t('nav.cockpit'), icon: 'sun' }, ...own];
   }
   const e = entryOf(m, project);
   return e ? [...e.screens, ...(e.extra ?? [])].map((l) => ({ ...l, project })) : [];

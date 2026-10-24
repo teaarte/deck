@@ -378,9 +378,8 @@ func TestAFolderOfTheDataFolderShowsItsSteps(t *testing.T) {
 	}
 }
 
-// TestAModuleHasACoverForEachTheme: a picture is the cover of a module's card for a theme and scheme or for every
-// theme; deck keeps a light copy with its main color and the menu gives the one of the theme in use, else of the
-// other scheme, else for every theme, else any; the browser keeps it; remove takes off the theme's alone.
+// TestAModuleHasACoverForEachTheme: a cover is for a theme and scheme or every theme, kept with a light copy and main
+// color; the menu gives the theme's, else the other scheme's, else every theme's, else any; remove takes one theme's.
 func TestAModuleHasACoverForEachTheme(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)

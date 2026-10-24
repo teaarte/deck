@@ -1,7 +1,7 @@
 {
   "name": "cockpit",
   "icon": "layout-dashboard",
-  "title": "Cockpit",
+  "title": "Today",
   "blocks": [
     {"type": "list", "title": "Needs your decision", "icon": "hand-finger", "span": 2, "when": "len(rows) > 0", "source": {"from": "deck.asks_list"},
         "description": "Nothing moves on without your answer.",

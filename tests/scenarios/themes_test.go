@@ -61,7 +61,7 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 	var l themeLook
 	e.must("deck.theme", map[string]any{}, &l)
 	if l.Name != "juce" || l.Accent != "coral" || l.Backdrop != "sky" || !strings.Contains(l.CSS, "--deck-canvas: linear-gradient(180deg, #cfe6fa") ||
-		!strings.Contains(l.CSS, "--deck-island-radius: 24px") || !strings.Contains(l.CSS, "[data-nav] [data-asks]") || l.Mood == "" {
+		!strings.Contains(l.CSS, "--deck-island-radius: 24px") || !strings.Contains(l.CSS, "[data-phone-tabs] [data-asks]") || l.Mood == "" {
 		t.Fatalf("juce as the client wears it: %+v", l)
 	}
 
@@ -129,7 +129,7 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.must("deck.theme", map[string]any{}, &l)
-	if l.Name != "night" || len(l.Problems) != 2 || strings.Contains(l.CSS, "url(") || !strings.Contains(l.CSS, "[data-nav] [data-asks]") {
+	if l.Name != "night" || len(l.Problems) != 2 || strings.Contains(l.CSS, "url(") || !strings.Contains(l.CSS, "[data-phone-tabs] [data-asks]") {
 		t.Fatalf("an old theme is worn without what a check refuses: %+v", l)
 	}
 	var c struct{ OK bool }

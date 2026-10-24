@@ -128,13 +128,6 @@ a.lineText:hover {
   line-height: 0;
 }
 
-.fold {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 2;
-}
-
 .slim {
   flex-direction: column;
   align-items: stretch;

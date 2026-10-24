@@ -33,7 +33,6 @@
   "The records, files of deck and changes of documents the trial and the processes it started made; what a script or an agent wrote into the data folder of the project is not listed and is not undone.": "Записи, файлы deck и правки документов, которые сделала проба и запущенные ею процессы; то, что скрипт или агент записал в папку данных проекта, здесь не перечислено и не откатывается.",
   "Calls of the gateway": "Вызовы шлюза",
   "Class": "Класс",
-  "Cockpit": "Кокпит",
   "Command": "Команда",
   "Commands": "Команды",
   "Create a token": "Создать токен",

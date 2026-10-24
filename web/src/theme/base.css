@@ -3,6 +3,21 @@
   --deck-island-radius: min(calc(var(--mantine-radius-default) * 2 + 4px), 28px);
   --deck-block-radius: min(calc(var(--mantine-radius-default) * 1.5 + 2px), 22px);
   --deck-cell: 240px;
+  --deck-tile-min: 200px;
+  --deck-tile-height: 180px;
+  --deck-tile-gap: var(--mantine-spacing-xl);
+  --deck-tile-text: #fff;
+  --deck-tile-text-shadow: 0 1px 8px rgb(0 0 0 / 0.35);
+  --deck-tile-shade: linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.55) 100%);
+  --deck-tile-icon: rgb(0 0 0 / 0.28);
+  --deck-tile-shadow: var(--mantine-shadow-md);
+  --deck-tile-lift: scale(1.015);
+  --deck-cockpit: var(--mantine-primary-color-filled);
+}
+
+/* A tile without a picture or a color of the theme takes a color of its name. */
+[data-app-tile] {
+  --deck-tile-auto: linear-gradient(135deg, hsl(var(--hue) 70% 55%), hsl(calc(var(--hue) + 50) 75% 40%));
 }
 
 body {

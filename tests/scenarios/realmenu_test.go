@@ -11,38 +11,6 @@ import (
 	"deck2/internal/provider"
 )
 
-// TestRealBrowserMenu: the arrow of Control stands in the middle of its button, its title whole, on a desktop and a phone:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserMenu -v.
-func TestRealBrowserMenu(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	e.createProject("notes", notesManifest)
-	e.createProject("plain", plainManifest)
-	b := newPlaywright(t)
-	centered := func(scope string) string {
-		return `(() => { const h = document.querySelector('` + scope + ` [data-system-head]'), a = h.querySelector('[data-chevron]').getBoundingClientRect(), r = h.getBoundingClientRect();
-			const l = h.querySelector('[class*=linkTitle]');
-			return Math.abs((a.left + a.right) / 2 - (r.left + r.right) / 2) <= 1 && l.scrollWidth <= l.clientWidth })()`
-	}
-	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
-	b.until("the arrow of Control in the middle of its button", centered("[data-nav]"))
-	b.shot("menu-control")
-	b.eval(`(document.querySelector('[data-nav] [data-system-head]').click(), '')`)
-	b.until("the foot unfolded", `document.querySelector('[data-nav] [data-system-head]').getAttribute('aria-expanded') === 'true'`)
-	b.shot("menu-control-open")
-
-	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/#/deck/cockpit")
-	b.until("the phone bar", `document.querySelector('[data-phone-bar]')`)
-	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
-	b.until("the arrow of Control in the middle of its button on a phone", `document.querySelector('[data-nav-phone] [data-system]')?.offsetParent && `+centered("[data-nav-phone]"))
-	b.shot("menu-control-phone")
-}
-
 // TestRealBrowserCockpitHistory: History stands in the top of the cockpit clear of Deki and keeps its place:
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCockpitHistory -v.
 func TestRealBrowserCockpitHistory(t *testing.T) {
@@ -98,9 +66,9 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 	}
 }
 
-// TestRealBrowserMenuOrder: the arrows of the order mode move a project in the side list on a desktop and a phone,
-// and the order stays after a reload: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserMenuOrder -v.
-func TestRealBrowserMenuOrder(t *testing.T) {
+// TestRealBrowserTilesOrder: the arrows of the order move a module among the tiles on a desktop and a phone, and the
+// order stays after a reload: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserTilesOrder -v.
+func TestRealBrowserTilesOrder(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
@@ -110,46 +78,47 @@ func TestRealBrowserMenuOrder(t *testing.T) {
 		e.createProject(name, plainManifest)
 	}
 	b := newPlaywright(t)
-	order := func(scope, want string) string {
-		return `[...document.querySelectorAll('` + scope + ` [data-group]:not([data-system] [data-group])')].map((x) => x.dataset.group).join(' ') === '` + want + `'`
+	order := func(want string) string {
+		return `[...document.querySelectorAll('[data-module]')].map((x) => x.dataset.module).join(' ') === '` + want + `'`
 	}
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
-	b.until("the projects by name", order("[data-nav]", "alpha beta gamma"))
-	b.eval(`(document.querySelector('[data-nav] [data-nav-order]').click(), '')`)
-	b.until("the arrows of the order", `document.querySelector('[data-nav] [data-order="alpha"] [data-move="up"]')?.disabled`)
-	b.shot("menu-order")
-	b.eval(`(document.querySelector('[data-nav] [data-order="alpha"] [data-move="down"]').click(), '')`)
-	b.until("alpha moved down", order("[data-nav]", "beta alpha gamma"))
-	b.open(e.URL + "/?reload=1#/deck/cockpit")
-	b.until("the order after a reload", order("[data-nav]", "beta alpha gamma"))
+	b.open(e.URL + "/?token=" + token)
+	b.until("the modules by name", order("alpha beta gamma"))
+	if got := b.eval(`String(!document.querySelector('[data-move]'))`); got != "true" {
+		t.Fatalf("no arrows until the owner orders the tiles: %s", got)
+	}
+	b.eval(`(document.querySelector('[data-apps-order]').click(), '')`)
+	b.until("the arrows of the order", `document.querySelector('[data-module="alpha"] [data-move="up"]')?.disabled`)
+	b.shot("tiles-order")
+	b.eval(`(document.querySelector('[data-module="alpha"] [data-move="down"]').click(), '')`)
+	b.until("alpha moved later", order("beta alpha gamma"))
+	b.open(e.URL + "/?reload=1")
+	b.until("the order after a reload", order("beta alpha gamma"))
 	if names, _ := e.side(); !slices.Equal(names, []string{"beta", "alpha", "gamma"}) {
 		t.Fatalf("deck keeps the order of the browser: %v", names)
 	}
-	b.eval(`(document.querySelector('[data-nav] [data-nav-order]').click(), '')`)
+	b.eval(`(document.querySelector('[data-apps-order]').click(), '')`)
 	for _, want := range []string{"beta gamma alpha", "gamma beta alpha"} {
-		b.until("the arrow of gamma ready", `document.querySelector('[data-nav] [data-order="gamma"] [data-move="up"]')?.disabled === false`)
-		b.eval(`(document.querySelector('[data-nav] [data-order="gamma"] [data-move="up"]').click(), '')`)
-		b.until("gamma up to "+want, order("[data-nav]", want))
+		b.until("the arrow of gamma ready", `document.querySelector('[data-module="gamma"] [data-move="up"]')?.disabled === false`)
+		b.eval(`(document.querySelector('[data-module="gamma"] [data-move="up"]').click(), '')`)
+		b.until("gamma earlier to "+want, order(want))
 	}
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/?reload=2#/deck/cockpit")
-	b.until("the phone bar", `document.querySelector('[data-phone-bar]')`)
-	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
-	b.until("the order on a phone", `document.querySelector('[data-nav-phone] [data-nav-order]')?.offsetParent && `+order("[data-nav-phone]", "gamma beta alpha"))
-	b.eval(`(document.querySelector('[data-nav-phone] [data-nav-order]').click(), '')`)
-	b.until("the arrows on a phone", `document.querySelector('[data-nav-phone] [data-order="alpha"] [data-move="up"]')`)
-	b.eval(`(document.querySelector('[data-nav-phone] [data-order="alpha"] [data-move="up"]').click(), '')`)
-	b.until("alpha moved up on a phone", order("[data-nav-phone]", "gamma alpha beta"))
-	b.shot("menu-order-phone")
-	b.open(e.URL + "/?reload=3#/deck/cockpit")
-	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
-	b.until("the order of the phone after a reload", order("[data-nav-phone]", "gamma alpha beta"))
+	b.open(e.URL + "/?reload=2")
+	b.until("the order on a phone", `document.querySelector('[data-phone-tabs]') && `+order("gamma beta alpha"))
+	b.eval(`(document.querySelector('[data-apps-order]').click(), '')`)
+	b.until("the arrows on a phone", `document.querySelector('[data-module="alpha"] [data-move="up"]')`)
+	b.eval(`(document.querySelector('[data-module="alpha"] [data-move="up"]').click(), '')`)
+	b.until("alpha earlier on a phone", order("gamma alpha beta"))
+	b.shot("tiles-order-phone")
+	b.open(e.URL + "/?reload=3")
+	b.until("the order of the phone after a reload", order("gamma alpha beta"))
 }
 
-// TestRealBrowserCards: the cards look opens on cards instead of the menu, the cockpit first, a module with its cover;
-// a card opens its module and the way home goes back: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCards -v.
+// TestRealBrowserCards: deck opens on its tiles, Today first, a module with its cover and no icon, one without with
+// its icon, no menu on a tile; a tile opens its module and the way home goes back:
+// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCards -v.
 func TestRealBrowserCards(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
@@ -162,38 +131,42 @@ func TestRealBrowserCards(t *testing.T) {
 	e.must("deck.project_cover", map[string]any{"project": "notes", "file": strconv.FormatInt(png, 10)}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
-	b.until("the client", `document.querySelector('[data-nav]')`)
-	b.eval(`(localStorage.setItem('deck-look', JSON.stringify({home: 'cards'})), location.hash = '', location.reload(), '')`)
-	b.until("the cards instead of the menu", `document.querySelector('[data-apps]') && !document.querySelector('[data-nav]') && location.hash === '#/deck/apps'`)
-	b.until("the cockpit first, then the modules, one with its cover", `(() => { const c = [...document.querySelectorAll('[data-app]')].map((a) => a.dataset.app);
-		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && document.querySelector('[data-app=notes]').closest('[data-app-tile]').dataset.cover === 'true' })()`)
+	b.open(e.URL + "/?token=" + token)
+	b.until("the tiles, Today first, then the modules, one with its cover faded in", `(() => { const c = [...document.querySelectorAll('[data-app]')].map((a) => a.dataset.app);
+		const notes = document.querySelector('[data-app=notes]')?.closest('[data-app-tile]');
+		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && notes.dataset.cover === 'true' && notes.querySelector('[data-cover-img][data-shown]') })()`)
+	if got := b.eval(`(() => { const notes = document.querySelector('[data-module=notes]'), plain = document.querySelector('[data-module=plain]');
+		return [!notes.querySelector('[data-app-tile-icon]'), !!plain.querySelector('[data-app-tile-icon]'), !document.querySelector('[data-card-places], [data-card-more]'),
+			!!document.querySelector('[data-new-module]'), getComputedStyle(document.querySelector('[data-app-tile][data-big]')).gridColumnEnd].join(' ') })()`); got != "true true true true span 2" {
+		t.Fatalf("a tile with a cover has no icon, one without has, no menu on a tile, a new module, Today on two columns: %s", got)
+	}
 	b.shot("cards")
-	b.until("Deki on the cockpit's card in the pose of the pulse", `document.querySelector('[data-app=cockpit] ~ [data-card-deki] [data-deki]')`)
+	b.until("Deki on Today's tile in the pose of the pulse", `document.querySelector('[data-app=cockpit] ~ [data-card-deki] [data-deki]')`)
 	b.eval(`(document.querySelector('[data-card-deki]').click(), '')`)
-	b.until("Deki opens the chat with the master", `document.querySelector('[data-chat-close]') && location.hash === '#/deck/apps'`)
+	b.until("Deki opens the chat with the master", `document.querySelector('[data-chat-close]') && (location.hash === '' || location.hash === '#/')`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
-	b.until("a card lists the screens of its module, its settings last", `(() => { const a = [...document.querySelectorAll('[data-app=notes] ~ [data-card-places] a')].map((a) => a.getAttribute('href'));
-		return a.length > 1 && a[0].startsWith('#/p/notes/') && a.at(-1) === '#/p/notes/settings' })()`)
+	b.eval(`(document.querySelector('[data-new-module]').click(), '')`)
+	b.until("a new module is a new topic of the chat", `document.querySelector('[data-chat-panel] [data-chat-input]') && location.hash === '#/deck/apps'`)
+	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.eval(`(document.querySelector('[data-app=plain]').click(), '')`)
-	b.until("a card opens its module", `location.hash.startsWith('#/p/plain/') && document.querySelector('[data-apps-home]')`)
+	b.until("a tile opens its module", `location.hash.startsWith('#/p/plain/') && document.querySelector('[data-apps-home]')`)
 	b.until("the module's screens are tabs", `document.querySelector('[data-places] a[aria-current=page]') && document.querySelector('[data-places] a[href="#/p/plain/settings"]')`)
 	b.eval(`(document.querySelector('[data-places] a[href="#/p/plain/settings"]').click(), '')`)
 	b.until("its settings", `location.hash === '#/p/plain/settings' && document.querySelector('[data-places] a[aria-current=page]').getAttribute('href') === '#/p/plain/settings'`)
-	b.until("a card without a picture offers to draw one", `[...document.querySelectorAll('button')].some((x) => x.innerText.trim() === 'Draw')`)
-	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Draw').click(), '')`)
+	b.until("a module offers to draw its cover for this theme", `[...document.querySelectorAll('button')].some((x) => x.innerText.trim() === 'Draw for this theme')`)
+	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Draw for this theme').click(), '')`)
 	b.until("the dialog to draw the cover with a wish and a model", `document.querySelector('.mantine-Modal-content [data-field="wish"]') && document.querySelector('.mantine-Modal-content [data-field="model"]') && !document.querySelector('.mantine-Modal-content [data-field="project"]')`)
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.locator('.mantine-Modal-content [data-field="wish"]').fill('a paper boat'); await page.locator('.mantine-Modal-content [data-submit]').click(); }`})
 	b.until("the master is told in the chat", `document.querySelector('[data-chat-panel]')?.innerText.includes('a paper boat')`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	dark := e.upload("plain", "dark.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
 	e.must("deck.project_cover", map[string]any{"project": "plain", "file": strconv.FormatInt(dark, 10), "scheme": "dark"}, nil)
+	b.until("the covers of the module by theme in its settings", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Every theme · dark scheme · on the card'))`)
 	b.eval(`(document.querySelector('[data-apps-home]').click(), '')`)
 	b.until("the way home", `document.querySelector('[data-apps]')`)
-	b.until("a card with only a dark cover shows it in the light scheme too", `document.querySelector('[data-app=plain]').closest('[data-app-tile]').dataset.cover === 'true'`)
+	b.until("a tile with only a dark cover shows it in the light scheme too", `document.querySelector('[data-app=plain]').closest('[data-app-tile]').dataset.cover === 'true'`)
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.until("the cards on a phone", `document.querySelector('[data-phone-bar]') && document.querySelector('[data-apps]') && !document.querySelector('[data-nav-open]')`)
+	b.until("the tiles on a phone", `document.querySelector('[data-phone-tabs]') && document.querySelector('[data-apps]') && !document.querySelector('[data-apps-home]')`)
 	b.shot("cards-phone")
-	b.eval(`(localStorage.removeItem('deck-look'), '')`)
 }

@@ -18,7 +18,7 @@ export function MasterButton({ m, open, onClick }: { m?: MenuEntry; open: boolea
   const state = busy ? t('chat.working') : m?.asks ? t('nav.asks', { n: m.asks }) : m?.errors ? t('nav.errors', { n: m.errors }) : undefined;
   return (
     <Tooltip label={state ?? name} disabled={!state}>
-      <Button size="xs" radius="xl" variant={m?.asks && !open && !cockpit ? 'filled' : 'light'} data-busy={busy || undefined} data-open={open || undefined}
+      <Button size="xs" variant={m?.asks && !open && !cockpit ? 'filled' : 'light'} data-busy={busy || undefined} data-open={open || undefined}
         leftSection={<Glyph busy={busy} />} onClick={onClick} aria-label={state ? `${name}: ${state}` : undefined} data-chat-toggle
         rightSection={m?.asks ? <span className={s.masterAsks} data-master-asks>{m.asks}</span> : m?.errors ? <IconAlertCircleFilled size={14} color="var(--mantine-color-red-6)" aria-hidden /> : undefined}>
         {name}

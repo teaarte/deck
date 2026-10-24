@@ -1,8 +1,7 @@
 {
   "actions": { "more": "More", "copy": "Copy", "copied": "Copied" },
-  "bell": { "title": "Notifications", "empty": "No notifications yet" },
   "table": { "more": "More", "less": "Less", "search": "Search", "nothing": "Nothing matches", "range": "{{from}}–{{to}} of {{of}}", "size": "Rows on a page" },
-  "nav": { "screens": "Screens", "apps": "Modules", "control": "Control", "cockpit": "Cockpit", "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}", "order": "Order the projects", "order_done": "Done", "up": "Up", "down": "Down" },
+  "nav": { "screens": "Screens", "apps": "Modules", "control": "Control", "cockpit": "Today", "deck": "deck", "back": "Back", "more": "More", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}", "order": "Order of modules", "order_done": "Done", "earlier": "Earlier", "later": "Later" },
   "state": {
     "loading": "Loading…",
     "empty": "Nothing here",
@@ -90,17 +89,13 @@
     "json": "{{field}} is not valid JSON"
   },
   "look": {
-    "home": "Layout",
-    "classic": "Classic, with the side menu",
-    "cards": "Cards of modules",
     "mascot": "Mascot Deki in the chat and on the cockpit",
     "motion": "Animations",
-    "slim": "Fold the top block of the cockpit",
     "device": "The theme is the whole deck's; the rest stays on this device.",
     "language": "Language of the interface (for the whole workspace)",
     "dark_only": "{{theme}} is dark only.",
     "light_only": "{{theme}} is light only.",
-    "redraw": "Redraw all covers in this theme",
+    "fill_covers": "Draw the missing covers for this theme",
     "theme": "Theme",
     "scheme": "Color scheme",
     "accent": "Accent",
@@ -194,7 +189,10 @@
     "off": "Stop pushes here",
     "unsupported": "This browser takes no pushes; on an iPhone, add deck to the home screen first"
   },
-  "hero": {"triage": "Go through one by one", "fold": "Fold", "unfold": "Unfold", "triage_short": "One by one"},
+  "hero": {"triage": "Go through one by one", "triage_short": "One by one"},
   "press": {"title": "Your yes is needed", "yes": "Yes", "no": "No", "later": "Later, in the cockpit", "lost": "deck did not answer the press; look at what it changed before pressing again"},
-  "triage": {"title": "Triage", "count": "{{n}} of {{of}}", "close": "Close", "skip": "Skip", "done": "All done", "done_text": "The answers are on their way. If something goes wrong, the master will write in the chat.", "back": "Back to the cockpit"}
+  "triage": {"title": "Triage", "count": "{{n}} of {{of}}", "close": "Close", "skip": "Skip", "done": "All done", "done_text": "The answers are on their way. If something goes wrong, the master will write in the chat.", "back": "Back to the cockpit"},
+  "today": { "one": "One decision waits for you", "many": "Decisions waiting: {{n}}", "none": "All decided" },
+  "apps": { "new": "New module", "new_text": "Tell Deki what to do" },
+  "lead": { "doing": "Now: {{what}}", "next": "Next: {{what}} {{when}}", "assign": "Assign", "assign_to": "Assign to the module “{{name}}”" }
 }

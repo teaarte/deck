@@ -306,7 +306,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 		t.Fatalf("a picture in markdown is not fetched from the network: %d requests", n)
 	}
 
-	b.eval(`(document.querySelector('[data-group="web"] [data-extra="documents"]').click(), '')`)
+	b.eval(`(document.querySelector('[data-places] a[href="#/p/web/documents"]').click(), '')`)
 	b.until("the documents screen as tiles", `[...document.querySelectorAll('[data-place]')].some((x) => x.offsetParent && x.innerText.includes('criteria.md'))`)
 	b.eval(`([...document.querySelectorAll('[data-place]')].find((x) => x.offsetParent && x.innerText.includes('criteria.md')).click(), '')`)
 	b.until("the document page", `location.hash === '#/p/web/document/`+fmt.Sprint(d.ID)+`' && document.querySelector('[data-edit]')`)

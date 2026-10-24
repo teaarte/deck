@@ -14,6 +14,7 @@ export function NavStatus({ m, words }: { m: MenuEntry; words?: boolean }) {
   const said = (icon: ReactNode, label: string) => words
     ? <Group gap={5} wrap="nowrap">{icon}<Text size="sm" fw={600} c="inherit">{label}</Text></Group>
     : <Tooltip label={label}>{icon}</Tooltip>;
+  if (!m.errors && !m.asks && !m.running) return null;
   return (
     <Group gap={words ? 12 : 6} wrap={words ? 'wrap' : 'nowrap'} data-status>
       {!!m.errors && said(<IconAlertCircleFilled size={16} color="var(--mantine-color-red-6)" role="img" aria-label={errors} data-errors={m.errors} style={{ flex: 'none' }} />, errors)}

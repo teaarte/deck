@@ -319,7 +319,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   filled, and the owner saves it. How the pipeline of a record goes is a table on its page over
   `{"from": "deck.processes_list", "input": {"record": "=_id"}}` — the processes whose input field `record` is its
   id (columns `command`, `state`, `question` when one waits for the owner; `after` triggers start the next).
-- **Look of a module**: `title` is the name the owner sees in the menu (the project name is for code), `icon` of
+- **Look of a module**: `title` is the name the owner sees on its tile (the project name is for code), `icon` of
   the project, a screen, a block or a button is a Tabler icon name; blocks flow in a grid, `span` (1, 2 or "full")
   widens one, `description` says under a title what a block is for. Write the texts in English and add `i18n`
   with a translation into the owner's language (`{"ru": {"Notes": "Заметки"}}`) for every title, label,

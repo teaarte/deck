@@ -19,7 +19,7 @@ export function parse(hash: string): Route {
   const p = Object.keys(params).length ? { params } : {};
   if (kind === 'p' && a && b) return { project: a, screen: b, record: c ? Number(c) : undefined, ...p };
   if (kind === 'deck' && a) return { screen: a, record: b ? Number(b) : undefined, ...p };
-  return { screen: 'cockpit', ...p };
+  return { screen: 'apps', ...p };
 }
 
 export function href(r: Route): string {

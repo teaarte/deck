@@ -20,7 +20,7 @@ func TestRealBrowserFirstRun(t *testing.T) {
 	b.until("the starter module as a card", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Start with a module') && x.innerText.includes('Free models'))`)
 	b.shot("first-run")
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Add as a draft').click(), '')`)
-	b.until("the draft in the menu and its review offered", `document.querySelector('[data-nav]')?.innerText.includes('Free models') && [...document.querySelectorAll('button')].some((x) => x.innerText.trim() === 'What it can do')`)
+	b.until("its review offered", `[...document.querySelectorAll('button')].some((x) => x.innerText.trim() === 'What it can do')`)
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'What it can do').click(), '')`)
 	b.until("the review names what it needs and what it may do", `location.hash.startsWith('#/deck/draft') && document.body.innerText.includes('What it needs to work') && document.body.innerText.includes('Add the connection nvidia') && document.body.innerText.includes('What it may do once enabled')`)
 	b.shot("first-run-draft")

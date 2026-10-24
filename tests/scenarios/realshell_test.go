@@ -10,7 +10,7 @@ import (
 	"deck2/internal/provider"
 )
 
-// TestRealBrowserShell drives the islands of deck in a real browser, menu, chat and columns:
+// TestRealBrowserShell drives the frame of deck in a real browser, tiles, tabs, chat and columns:
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserShell -v.
 func TestRealBrowserShell(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
@@ -43,42 +43,29 @@ func TestRealBrowserShell(t *testing.T) {
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
-	b.until("the cockpit in its islands", `document.querySelector('[data-nav] [data-system]') && document.querySelector('[data-block]')`)
-	if got := b.eval(`String(!!document.querySelector('header'))`); got != "false" {
-		t.Fatalf("the desktop has no header bar: %s", got)
+	b.open(e.URL + "/?token=" + token)
+	b.until("the tiles are the home of deck", `document.querySelector('[data-apps]') && document.querySelector('[data-module="web"]') && document.querySelector('[data-block]') === null`)
+	if got := b.eval(`[!document.querySelector('header'), !document.querySelector('[data-nav]'), !document.querySelector('[data-apps-home]'), !!document.querySelector('[data-toolbar] [data-chat-toggle]'), !document.querySelector('[data-phone-tabs]')].join(' ')`); got != "true true true true true" {
+		t.Fatalf("the desktop has no header bar and no side menu, only Deki over the tiles: %s", got)
 	}
-	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('[data-nav]')); const r = document.querySelector('[data-nav]').getBoundingClientRect();
-		return [parseFloat(s.borderTopLeftRadius) > 0, s.boxShadow !== 'none', r.left > 0, r.top > 0].join(' ') })()`); got != "true true true true" {
-		t.Fatalf("the menu is an island: rounded, with a shadow, apart from the edges: %s", got)
+	if got := b.eval(`[...document.querySelectorAll('[data-module]')].map((x) => x.dataset.module).sort().join(' ')`); got != "solo web" {
+		t.Fatalf("the tiles of the modules without deck and the master: %s", got)
 	}
-	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-system-head] [data-icon]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
-	if got := b.eval(`[...document.querySelectorAll('[data-nav] [data-group]:not([data-system] [data-group])')].map((x) => x.dataset.group).sort().join(' ')`); got != "solo web" {
-		t.Fatalf("the projects of the menu without deck and the master: %s", got)
+	b.until("the icon of a module without a cover on its tile", `document.querySelector('[data-module="web"] [data-app-tile-icon] [data-icon="rocket"]')`)
+	if got := b.eval(`String([...document.querySelectorAll('[data-apps-links] a')].some((a) => a.getAttribute('href').startsWith('#/p/master/') && a.getAttribute('href').split('?')[0].endsWith('/settings')))`); got != "false" {
+		t.Fatalf("the settings of the master are not a quiet link of the tiles: %s", got)
 	}
-	if got := b.eval(`(() => { const h = document.querySelector('[data-system-head]'), a = document.querySelector('[data-system] a[href="#/deck/schedule"]');
-		return [h.getAttribute('aria-expanded'), !a || a.getBoundingClientRect().height === 0].join(' ') })()`); got != "false true" {
-		t.Fatalf("the foot of the menu is one folded button until a tap: %s", got)
-	}
-	b.shot("shell-system-folded")
-	b.eval(`(document.querySelector('[data-system-head]').click(), '')`)
-	b.until("deck's screens and the master's unfold at the foot of the menu", `document.querySelector('[data-system-head]').getAttribute('aria-expanded') === 'true' &&
-		document.querySelector('[data-system] [data-group=""] a[href="#/deck/schedule"]')?.getBoundingClientRect().height > 0 && document.querySelector('[data-system] [data-group="settings"] a')`)
-	if got := b.eval(`String([...document.querySelectorAll('[data-system] a')].some((a) => a.getAttribute('href').startsWith('#/p/master/') && a.getAttribute('href').split('?')[0].endsWith('/settings')))`); got != "false" {
-		t.Fatalf("the settings of the master are not a quick link of the foot: %s", got)
-	}
-	b.shot("shell-system-menu")
-	b.eval(`(document.querySelector('[data-system] a[href="#/deck/schedule"]').click(), '')`)
-	b.until("the schedule from the foot of the menu", `location.hash === '#/deck/schedule'`)
+	b.shot("shell-tiles")
+	b.eval(`(document.querySelector('[data-apps-links] a[href="#/deck/schedule"]').click(), '')`)
+	b.until("the schedule from the quiet links", `location.hash === '#/deck/schedule'`)
 	b.until("the tab named after its screen, with Deki for its icon", `/^(\(\d+\) )?Schedule · deck$/.test(document.title) && document.querySelector('link[rel=icon]').getAttribute('href') === '/favicon.png'`)
-	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('[data-system] a[data-active]')), h = getComputedStyle(document.querySelector('[data-nav] [data-group-head]'));
-		const accent = getComputedStyle(document.documentElement).getPropertyValue('--mantine-primary-color-light').trim(), probe = document.createElement('i');
-		probe.style.color = accent; document.body.append(probe); const light = getComputedStyle(probe).color; probe.remove();
-		return [s.borderTopLeftRadius === h.borderTopLeftRadius, s.backgroundColor === light].join(' ') })()`); got != "true true" {
-		t.Fatalf("the link of the foot on its screen has the corners and the light accent of the menu: %s", got)
+	if got := b.eval(`(() => { const home = document.querySelector('[data-apps-home]').getBoundingClientRect(), deki = document.querySelector('[data-chat-toggle]').getBoundingClientRect();
+		const tabs = [...document.querySelectorAll('[data-places] a')].map((a) => a.getAttribute('href'));
+		return [home.left < 100, deki.right > innerWidth - 100, tabs[0] === '#/deck/cockpit', document.querySelector('[data-places] a[aria-current=page]').getAttribute('href')].join(' ') })()`); got != "true true true #/deck/schedule" {
+		t.Fatalf("the way to the tiles on the left, Deki on the right, deck's screens as tabs under them, Today first: %s", got)
 	}
-	b.eval(`(document.querySelector('[data-nav] [data-logo]').click(), '')`)
-	b.until("the logo opens the cockpit", `location.hash === '#/deck/cockpit' && !document.querySelector('[data-system] a[data-active]')`)
+	b.eval(`(document.querySelector('[data-places] a[href="#/deck/cockpit"]').click(), '')`)
+	b.until("Today from its tab", `location.hash === '#/deck/cockpit'`)
 	b.until("the counts of the cockpit in its top", `[...document.querySelectorAll('[data-hero-line]')].some((x) => x.innerText.includes('Running: 1'))`)
 	if got := b.eval(`String(document.querySelectorAll('[data-stat]').length)`); got != "0" {
 		t.Fatalf("the cockpit counts once, in its top, with no tiles that say it again: %s", got)
@@ -94,50 +81,33 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the sky of juce behind the shell", `document.documentElement.dataset.deckTheme === 'juce' && document.querySelectorAll('[data-backdrop] [data-cloud]').length === 2`)
 	b.until("Deki at work while a process runs", `document.querySelector('[data-hero="full"] [data-deki="work"]')`)
 	b.shot("shell-cockpit")
-	b.until("a new notification on the bell", `document.querySelector('[data-bell-count="1"]')`)
 	b.until("the count of new notifications ahead of the tab's name", `/^\(1\) .+ · deck$/.test(document.title)`)
-	b.eval(`(document.querySelector('[data-bell]').click(), '')`)
-	b.until("the notification in the list of the bell", `document.querySelector('[data-bell-list] [data-note]')?.innerText.includes('alpha scored high')`)
-	b.until("an Open button on a note with a screen", `document.querySelector('[data-bell-list] [data-note] [data-note-open]')`)
-	b.shot("shell-bell")
-	b.until("a button of a notification with its icon", `document.querySelector('[data-bell-list] [data-note] [data-icon="hand-finger"]')`)
-	b.eval(`([...document.querySelectorAll('[data-bell-list] button')].find((x) => x.innerText.includes('Touch it')).click(), '')`)
-	b.until("the button asks first, as a button of a screen does", `document.querySelector('[data-confirm-yes]')`)
-	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
-	e.waitFor("the call of the button", func() bool {
-		for _, p := range e.processes() {
-			if p.Command == "touch" {
-				return true
-			}
-		}
-		return false
-	})
-	if b.eval(`String(!!document.querySelector('[data-bell-list]'))`) != "true" {
-		b.eval(`(document.querySelector('[data-bell]').click(), '')`)
-	}
-	b.until("a note to mark read", `document.querySelector('[data-bell-list] [data-note-read]')`)
-	b.eval(`(document.querySelector('[data-bell-list] [data-note-read]').click(), '')`)
-	b.until("the note marked read", `document.querySelector('[data-bell-list] [data-note][data-read]') && !document.querySelector('[data-bell-list] [data-note-read]')`)
-	b.until("the bell counts nothing once the note is read", `!document.querySelector('[data-bell-count]')`)
-	if b.eval(`String(!!document.querySelector('[data-bell-list]'))`) == "true" {
-		b.eval(`(document.querySelector('[data-bell]').click(), '')`)
-	}
 
-	b.eval(`(document.querySelector('[data-group="web"] [data-group-head]').click(), '')`)
-	b.until("the group of web folded", `!document.querySelector('[data-group="web"] a:not([data-extra])')?.offsetParent && document.querySelector('[data-group="web"] [data-group-head]').getAttribute('aria-expanded') === 'false'`)
-	b.eval(`(document.querySelector('[data-group="web"] [data-group-head]').click(), '')`)
-	b.until("the group of web open again", `document.querySelector('[data-group="web"] a:not([data-extra])')?.offsetParent`)
+	b.eval(`(document.querySelector('[data-apps-home]').click(), '')`)
+	b.until("the tiles again", `document.querySelector('[data-module="web"]')`)
+	b.eval(`(document.querySelector('[data-app="web"]').click(), '')`)
+	b.until("a tile opens its module with its screens as tabs", `location.hash === '#/p/web/main' && document.querySelector('[data-places] a[href="#/p/web/more"]') && document.querySelector('[data-places] a[aria-current=page]')?.getAttribute('href') === '#/p/web/main'`)
+	b.until("what the module does now under the title of its screen", `document.querySelector('[data-module-lead] [data-doing]')?.innerText.includes('Score') && document.querySelector('[data-module-lead] [data-assign]')`)
+	if got := b.eval(`(() => { const h = document.querySelector('[data-screen-head]').getBoundingClientRect(), l = document.querySelector('[data-module-lead]').getBoundingClientRect(); return String(l.top >= h.bottom - 1) })()`); got != "true" {
+		t.Fatalf("the line of the module stands under the title of the screen: %s", got)
+	}
+	b.shot("shell-module")
+	b.eval(`(document.querySelector('[data-module-lead] [data-assign]').click(), '')`)
+	b.until("Assign opens a new topic of the chat", `document.querySelector('[data-chat-panel] [data-chat-input]')`)
+	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
+	b.until("the chat closed", `!document.querySelector('[data-chat-panel]')`)
+	b.until("the rows of the notes", `[...document.querySelectorAll('[data-block] tr button')].some((x) => x.innerText.includes('Open'))`)
+	if got := b.eval(`String(!document.querySelector('[data-back]'))`); got != "true" {
+		t.Fatalf("no way back on a screen of tabs: %s", got)
+	}
+	b.eval(`([...document.querySelectorAll('[data-block] tr button')].find((x) => x.innerText.includes('Open')).click(), '')`)
+	b.until("an open record has the way back", `/^#\/p\/web\/note\/\d+/.test(location.hash) && document.querySelector('[data-back]')`)
+	b.eval(`(document.querySelector('[data-back]').click(), '')`)
+	b.until("back to the list", `location.hash === '#/p/web/main'`)
 
-	b.eval(`(document.querySelector('[data-group="solo"] a[data-group-head]').click(), '')`)
-	b.until("a project with one screen opens it from its header, which shows it open", `location.hash === '#/p/solo/main' &&
-		document.querySelector('[data-group="solo"] a[data-group-head][data-active]') && !document.querySelector('[data-group="solo"] [aria-expanded]')`)
-	b.shot("shell-one-screen")
 
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the project screen", `document.querySelector('[data-block] table')`)
-	b.eval(`(document.querySelector('[data-group="web"] [data-group-head]').click(), '')`)
-	b.until("the group of the open screen folds too", `document.querySelector('[data-group="web"] [data-group-head]').getAttribute('aria-expanded') === 'false'`)
-	b.eval(`(document.querySelector('[data-group="web"] [data-group-head]').click(), '')`)
 	if got := b.eval(`(() => { const t = [...document.querySelectorAll('[data-block]')].find((x) => x.querySelector('table')); return String(t.scrollWidth <= t.clientWidth + 1) })()`); got != "true" {
 		t.Fatalf("a long word stays inside its block: %s", got)
 	}
@@ -171,14 +141,8 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("a header of a table keeps its words whole: %s", got)
 	}
 
-	b.eval(`(document.querySelector('[data-nav-hide]').click(), '')`)
-	b.until("the menu hidden, the focus on the button that brings it back", `!document.querySelector('[data-nav]') && document.activeElement === document.querySelector('[data-nav-show]')`)
 	b.open(e.URL + "/#/p/web/main")
-	b.until("the menu stays hidden after a reload", `document.querySelector('[data-nav-show]') && !document.querySelector('[data-nav]')`)
-	b.shot("shell-no-menu")
-	b.eval(`(document.querySelector('[data-nav-show]').click(), '')`)
-	b.until("the menu back", `document.querySelector('[data-nav]')`)
-
+	b.until("the project screen", `document.querySelector('[data-block] table')`)
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the chat island", `document.querySelector('[data-chat-panel] [data-chat-input]')`)
 	b.call("browser_resize", map[string]any{"width": 1100, "height": 900})
@@ -215,7 +179,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the dark glass", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
 	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"]')`)
-	b.until("the glass of the theme document on the menu", `getComputedStyle(document.querySelector('[data-nav]')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
+	b.until("the glass of the theme document on the chat", `getComputedStyle(document.querySelector('[data-chat-panel]')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
 	if got := b.eval(`document.querySelectorAll('[data-backdrop] > div').length`); got != "2" {
 		t.Fatalf("glass draws the pattern of its backdrop: %s", got)
 	}
@@ -229,8 +193,8 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the dark project screen", `document.querySelector('[data-block] table')`)
-	if got := b.eval(`getComputedStyle(document.querySelector('[data-nav]')).backdropFilter`); got == "none" {
-		t.Fatalf("the menu island is glass: %s", got)
+	if got := b.eval(`getComputedStyle(document.querySelector('[data-chat-panel]')).backdropFilter`); got == "none" {
+		t.Fatalf("the chat island is glass: %s", got)
 	}
 	b.shot("shell-glass-dark")
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
@@ -247,17 +211,25 @@ func TestRealBrowserShell(t *testing.T) {
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/p/web/main")
-	b.until("the phone bar", `document.querySelector('[data-phone-bar]') && document.querySelector('[data-block] table')`)
+	b.until("the tabs of the phone", `document.querySelector('[data-phone-tabs]') && document.querySelector('[data-block] table')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the screen fits the width of a phone: %s", got)
 	}
+	if got := b.eval(`(() => { const t = document.querySelector('[data-phone-tabs]').getBoundingClientRect(), last = [...document.querySelectorAll('[data-block]')].at(-1);
+		const labels = [...document.querySelectorAll('[data-phone-tabs] [data-tab]')].map((x) => x.querySelector('span:last-child'));
+		return [document.querySelectorAll('[data-phone-tabs] [data-tab]').length, innerHeight - t.bottom >= 14, labels.every((l) => l.scrollWidth <= l.clientWidth),
+			document.querySelector('[data-tab="apps"]').hasAttribute('data-active'), !document.querySelector('[data-toolbar]'), document.querySelector('[data-phone-title]')?.innerText].join(' ') })()`); got != "5 true true true true web" {
+		t.Fatalf("five tabs at the foot of a phone, whole words, Modules active in a module, the title of the module on top: %s", got)
+	}
 	b.shot("shell-phone")
-	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
-	b.until("the menu on a phone", `document.querySelector('[data-nav-phone] [data-system]')?.offsetParent`)
-	b.shot("shell-phone-menu")
-	b.eval(`(document.querySelector('[data-nav-phone] [data-system-head]').click(), '')`)
-	b.until("the foot folds on a tap on a phone", `document.querySelector('[data-nav-phone] [data-system-head]').getAttribute('aria-expanded') === 'false'`)
-	b.shot("shell-phone-menu-folded")
+	b.eval(`(document.querySelector('[data-tab="more"]').click(), '')`)
+	b.until("the rest of deck behind More", `['#/deck/spend', '#/deck/files', '#/deck/settings'].every((h) => document.querySelector('[data-more] a[href="' + h + '"]')) && !document.querySelector('[data-more] a[href="#/deck/schedule"]')`)
+	b.shot("shell-phone-more")
+	b.eval(`(document.querySelector('[data-more] a[href="#/deck/spend"]').click(), '')`)
+	b.until("Spend from More, More active", `location.hash.startsWith('#/deck/spend') && document.querySelector('[data-tab="more"]').hasAttribute('data-active')`)
+	b.eval(`(document.querySelector('[data-tab="deki"]').click(), '')`)
+	b.until("Deki opens the chat as a sheet", `document.querySelector('[data-chat-phone] [data-chat-input]')`)
+	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.open(e.URL + "/#/deck/cockpit")
 	b.until("the cockpit on a phone", `document.querySelector('[data-hero="slim"] [data-hero-line]') && document.querySelector('[data-grid] [data-block]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
@@ -303,7 +275,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.look("theme", "juce")
 	b.until("juce gives the device its accent", `JSON.parse(localStorage.getItem('deck-look')).accent === 'coral'`)
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav] [data-system]')?.innerText.includes('Настройки') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Деки')`)
+	b.until("the interface in the language the owner picked", `document.querySelector('[data-places]')?.innerText.includes('Настройки') && document.querySelector('[data-places]')?.innerText.includes('Сегодня') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Деки')`)
 	b.shot("shell-ru")
 	b.open(e.URL + "/#/deck/spend?tab=7 days")
 	b.until("a link to a tab opens it in any language", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.includes('7 дней')`)

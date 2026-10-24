@@ -148,9 +148,8 @@ func TestRealBrowserMenuOrder(t *testing.T) {
 	b.until("the order of the phone after a reload", order("[data-nav-phone]", "gamma alpha beta"))
 }
 
-// TestRealBrowserCards: with the cards look deck opens on the cards instead of the side menu, the cockpit first and a
-// module with its cover; a card opens its module, the way home goes back, on a desktop and a phone:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCards -v.
+// TestRealBrowserCards: the cards look opens on cards instead of the menu, the cockpit first, a module with its cover;
+// a card opens its module and the way home goes back: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCards -v.
 func TestRealBrowserCards(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")

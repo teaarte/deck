@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "deck theme",
-  "description": "A theme of deck: the look of the whole deck in a light and a dark scheme. Values are CSS values: colors, lengths, shadows, gradients and the functions rgb, hsl, oklch, color-mix, *-gradient, calc, min, max, clamp, var, blur, saturate and the like; no url(), no images, no backslashes. var() takes the tokens below as --<token>, the accent of the device as --accent (--accent-0..9, --accent-light, --accent-contrast), the colors of the palette as --color-<name>-<0..9>, the radii --radius, --island-radius and --card-radius, and a theme's own --theme-<name>.",
+  "description": "A theme of deck: the look of the whole deck in a light and a dark scheme. Values are CSS values: colors, lengths, shadows, gradients and the functions rgb, hsl, oklch, color-mix, *-gradient, calc, min, max, clamp, var, blur, saturate and the like; no url(), no images, no backslashes. var() takes the tokens below as --<token>, the accent of the device as --accent (--accent-0..9, --accent-light, --accent-contrast), the colors of the palette as --color-<name>-<0..9>, the radii --radius, --island-radius and --card-radius, the spacings --spacing-xs..xl, and a theme's own --theme-<name>.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "title", "mood"],
@@ -21,13 +21,15 @@
     "tokens": {"$ref": "#/$defs/tokens", "description": "Tokens of both schemes."},
     "light": {"$ref": "#/$defs/tokens", "description": "Tokens of the light scheme over tokens."},
     "dark": {"$ref": "#/$defs/tokens", "description": "Tokens of the dark scheme over tokens."},
-    "parts": {"type": "object", "additionalProperties": false, "description": "The look of the parts of deck: card is a block of a screen, and its radius that of the cards of modules too.",
+    "parts": {"type": "object", "additionalProperties": false, "description": "The look of the parts of deck: card is a block of a screen, and its radius that of the cards of modules too unless tile has its own; tile a card of a module in the grid (the cockpit's card is the token cockpit and the class today); notification a notification or a toast; menu a dropdown; dialog a dialog or a sheet; tabs a tab of a screen or of the screens of a module; bubble a message of the chat.",
       "properties": {"button": {"$ref": "#/$defs/part"}, "card": {"$ref": "#/$defs/part"}, "island": {"$ref": "#/$defs/part"},
-        "field": {"$ref": "#/$defs/part"}, "badge": {"$ref": "#/$defs/part"}}},
-    "css": {"type": "string", "maxLength": 20000, "description": "More CSS. A selector is made of the classes of the catalog alone (.button, .nav .asks, .tab[data-active], .h2:hover), states [data-variant=…], [data-active], [data-disabled], [data-checked], [data-expanded], :hover, :active, :focus, :focus-visible, :focus-within, :disabled, :first-child, :last-child, :not(…), ::before, ::after, ::placeholder, and the combinators space, >, +, ~. .root, .light and .dark are the page in both schemes, the light and the dark one, and only start a selector. At-rules: @media of prefers-*, forced-colors, hover, pointer, min-width, max-width; @supports. Custom properties: the tokens, the accent and the radii by their names above, and --theme-<name>."}
+        "field": {"$ref": "#/$defs/part"}, "badge": {"$ref": "#/$defs/part"}, "tile": {"$ref": "#/$defs/part"},
+        "notification": {"$ref": "#/$defs/part"}, "menu": {"$ref": "#/$defs/part"}, "dialog": {"$ref": "#/$defs/part"},
+        "tabs": {"$ref": "#/$defs/part"}, "bubble": {"$ref": "#/$defs/part"}}},
+    "css": {"type": "string", "maxLength": 20000, "description": "More CSS. A selector is made of the classes of the catalog alone (.button, .nav .asks, .tab[data-active], .h2:hover), states [data-variant=…], [data-active], [data-disabled], [data-checked], [data-expanded], [data-cover] and [data-big] of a card, :hover, :active, :focus, :focus-visible, :focus-within, :disabled, :first-child, :last-child, :not(…), ::before, ::after, ::placeholder, and the combinators space, >, +, ~. .root, .light and .dark are the page in both schemes, the light and the dark one, and only start a selector. At-rules: @media of prefers-*, forced-colors, hover, pointer, min-width, max-width; @supports. Custom properties: the tokens, the accent and the radii by their names above, and --theme-<name>."}
   },
   "$defs": {
-    "tokenNames": {"enum": ["canvas", "body", "island", "block", "text", "text-2", "dimmed", "line", "divider", "hover", "fill", "fill-hover", "ring", "shadow", "pattern", "pattern-alt", "sky"]},
+    "tokenNames": {"enum": ["canvas", "body", "island", "block", "text", "text-2", "dimmed", "line", "divider", "hover", "fill", "fill-hover", "ring", "shadow", "pattern", "pattern-alt", "sky", "meadow", "cockpit", "tile", "tile-shade", "tile-text", "tile-icon", "tile-shadow", "tile-lift", "tile-min", "tile-height", "tile-gap", "toast", "toast-text"]},
     "tokens": {"type": "object", "additionalProperties": false, "propertyNames": {"$ref": "#/$defs/tokenNames"},
       "patternProperties": {"": {"type": "string", "minLength": 1, "maxLength": 400}}},
     "part": {"type": "object", "additionalProperties": false,
@@ -55,14 +57,29 @@
       "shadow": {"var": "--deck-shadow", "desc": "The shadow of islands and blocks", "light": "0 1px 2px rgb(16 24 40 / 0.06), 0 4px 10px -2px rgb(16 24 40 / 0.05), 0 18px 40px -14px rgb(16 24 40 / 0.22)", "dark": "0 1px 2px rgb(0 0 0 / 0.5), 0 4px 10px -2px rgb(0 0 0 / 0.35), 0 22px 48px -14px rgb(0 0 0 / 0.85)"},
       "pattern": {"var": "--deck-pattern-color", "desc": "The icons of the pattern behind", "light": "color-mix(in srgb, var(--accent) 22%, transparent)", "dark": "color-mix(in srgb, var(--accent) 30%, transparent)"},
       "pattern-alt": {"var": "--deck-pattern-alt", "desc": "The second layer of the pattern", "light": "color-mix(in srgb, var(--accent-3) 45%, transparent)", "dark": "color-mix(in srgb, var(--accent-8) 55%, transparent)"},
-      "sky": {"var": "--deck-sky", "desc": "The sky of the cockpit's head", "light": "linear-gradient(170deg, #cfe6fa, #eaf4fc)", "dark": "linear-gradient(170deg, #1b2f4a, #142234)"}
+      "sky": {"var": "--deck-sky", "desc": "The sky of the cockpit's head", "light": "linear-gradient(170deg, #cfe6fa, #eaf4fc)", "dark": "linear-gradient(170deg, #1b2f4a, #142234)"},
+      "meadow": {"var": "--deck-meadow", "desc": "The ground under the sky at the foot of the page; none for no ground", "light": "none", "dark": "none"},
+      "cockpit": {"var": "--deck-cockpit", "desc": "The card of the cockpit among the cards of modules; a color or a gradient under tile-shade and tile-text", "light": "linear-gradient(135deg, var(--accent-5), var(--accent-8))", "dark": "linear-gradient(135deg, var(--accent-6), var(--accent-9))"},
+      "tile": {"var": "--deck-tile", "desc": "A card of a module without a cover; empty for a color of its own by the module's name", "light": "", "dark": ""},
+      "tile-shade": {"var": "--deck-tile-shade", "desc": "The shade under the text of a card, over its cover or color; a gradient whose last stop is under the text", "light": "linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.55) 100%)", "dark": "linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.55) 100%)"},
+      "tile-text": {"var": "--deck-tile-text", "desc": "The text and icons of a card", "light": "#ffffff", "dark": "#ffffff"},
+      "tile-icon": {"var": "--deck-tile-icon", "desc": "The plate under the icon of a card", "light": "rgb(0 0 0 / 0.28)", "dark": "rgb(0 0 0 / 0.28)"},
+      "tile-shadow": {"var": "--deck-tile-shadow", "desc": "The shadow of a card, a box-shadow", "light": "0 1px 3px rgb(0 0 0 / 0.05), 0 10px 15px -5px rgb(0 0 0 / 0.05), 0 7px 7px -5px rgb(0 0 0 / 0.04)", "dark": "0 1px 3px rgb(0 0 0 / 0.4), 0 10px 15px -5px rgb(0 0 0 / 0.35), 0 7px 7px -5px rgb(0 0 0 / 0.3)"},
+      "tile-lift": {"var": "--deck-tile-lift", "desc": "How a card rises under the pointer, a transform; none for staying", "light": "scale(1.015)", "dark": "scale(1.015)"},
+      "tile-min": {"var": "--deck-tile-min", "desc": "The least width of a card in the grid", "light": "200px", "dark": "200px"},
+      "tile-height": {"var": "--deck-tile-height", "desc": "The height of a card on a wide screen; a phone takes four fifths of it", "light": "180px", "dark": "180px"},
+      "tile-gap": {"var": "--deck-tile-gap", "desc": "The space between cards; a phone takes half of it", "light": "var(--spacing-xl)", "dark": "var(--spacing-xl)"},
+      "toast": {"var": "--deck-toast", "desc": "A toast, the short note with Undo after a press", "light": "#0e1116", "dark": "#2b2d33"},
+      "toast-text": {"var": "--deck-toast-text", "desc": "The text of a toast", "light": "#ffffff", "dark": "#ffffff"}
     },
     "vars": {"accent": "--mantine-primary-color-filled", "accent-light": "--mantine-primary-color-light", "accent-contrast": "--mantine-primary-color-contrast",
-      "radius": "--mantine-radius-default", "island-radius": "--deck-island-radius", "card-radius": "--deck-block-radius"},
+      "radius": "--mantine-radius-default", "island-radius": "--deck-island-radius", "card-radius": "--deck-block-radius",
+      "spacing-xs": "--mantine-spacing-xs", "spacing-sm": "--mantine-spacing-sm", "spacing-md": "--mantine-spacing-md", "spacing-lg": "--mantine-spacing-lg", "spacing-xl": "--mantine-spacing-xl"},
     "classes": {
       "island": "[data-island]", "nav": "[data-nav]", "nav-item": "[data-nav] :is(a, [data-system])", "main": "[data-main]",
       "chat": "[data-chat-panel]", "chat-phone": "[data-chat-phone]", "phone-bar": "[data-phone-bar]", "block": "[data-block]",
-      "card": "[data-card]", "hero": "[data-hero]", "screen-head": "[data-screen-head]", "actions": "[data-actions]",
+      "card": "[data-card]", "tile": "[data-app-tile]", "today": "[data-app-tile][data-big]", "tile-icon": "[data-app-tile-icon]",
+      "board-card": "[data-lane] [data-card]", "toast": "[data-toast]", "meadow": "[data-meadow]", "places": "[data-places]", "place": "[data-places] > a", "hero": "[data-hero]", "screen-head": "[data-screen-head]", "actions": "[data-actions]",
       "composer": "[data-composer]", "message": "[data-message] > div", "turn": "[data-turn]", "backdrop": "[data-backdrop] > div",
       "asks": "[data-asks]", "running": "[data-running]",
       "button": ".mantine-Button-root", "icon-button": ".mantine-ActionIcon-root", "field": ".mantine-Input-input",
@@ -77,7 +94,13 @@
       "card": {"selector": "[data-block]", "radius": "--deck-block-radius"},
       "island": {"selector": "[data-island]", "radius": "--deck-island-radius"},
       "field": {"selector": ".mantine-Input-input"},
-      "badge": {"selector": ".mantine-Badge-root"}
+      "badge": {"selector": ".mantine-Badge-root"},
+      "tile": {"selector": "[data-app-tile]:not([data-big])"},
+      "notification": {"selector": ":is(.mantine-Notification-root, [data-toast])"},
+      "menu": {"selector": ":is(.mantine-Popover-dropdown, .mantine-Menu-dropdown, .mantine-Combobox-dropdown)"},
+      "dialog": {"selector": ":is(.mantine-Modal-content, .mantine-Drawer-content)"},
+      "tabs": {"selector": ":is(.mantine-Tabs-tab, [data-places] > a)"},
+      "bubble": {"selector": "[data-message] > div"}
     }
   }
 }

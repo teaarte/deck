@@ -38,7 +38,7 @@ function patterns(all: Nodes, seed: number): [string, string] {
 }
 
 // Backdrop is the canvas behind the shell as the theme has it: a grid of icons in the accent of the device, a sky with
-// clouds, or the canvas alone. Clouds are for moments only: the cards, the cockpit and the chat open.
+// clouds over the theme's meadow, or the canvas alone. Clouds are for moments only: the cards, the cockpit, the chat.
 export function Backdrop() {
   const { backdrop } = useWorn();
   const route = useRoute();
@@ -52,6 +52,7 @@ export function Backdrop() {
   }, [pattern]);
   return (
     <div className={s.backdrop} data-backdrop aria-hidden>
+      {backdrop === 'sky' && <div className={s.meadow} data-meadow />}
       {sky && <img className={`${s.cloud} ${s.cloudLeft}`} src="/deki/clouds-left.webp" alt="" data-cloud />}
       {sky && <img className={`${s.cloud} ${s.cloudRight}`} src="/deki/clouds-right.webp" alt="" data-cloud />}
       {pattern && tiles && <div className={s.pattern} style={{ maskImage: tiles[0], WebkitMaskImage: tiles[0] }} />}

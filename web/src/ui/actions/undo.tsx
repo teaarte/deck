@@ -35,7 +35,7 @@ export function UndoToast() {
   if (!o) return null;
   return (
     <Portal>
-      <div key={o.id} className={s.toast} role="status" data-undo>
+      <div key={o.id} className={s.toast} role="status" data-undo data-toast>
         <IconCheck size={17} className={s.icon} />
         <span className={s.text}>{o.label}</span>
         <UnstyledButton className={s.undo} onClick={o.undo} data-undo-button>

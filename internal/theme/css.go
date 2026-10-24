@@ -19,7 +19,7 @@ const Root = ":root:root:root"
 var roots = map[string]string{"root": Root, "light": Root + "[data-mantine-color-scheme='light']", "dark": Root + "[data-mantine-color-scheme='dark']"}
 
 var (
-	attrs        = []string{"data-variant", "data-active", "data-disabled", "data-checked", "data-expanded"}
+	attrs        = []string{"data-variant", "data-active", "data-disabled", "data-checked", "data-expanded", "data-cover", "data-big"}
 	pseudos      = []string{"hover", "active", "focus", "focus-visible", "focus-within", "disabled", "first-child", "last-child"}
 	elements     = []string{"before", "after", "placeholder"}
 	functions    = []string{"rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch", "color-mix", "linear-gradient", "radial-gradient", "conic-gradient", "repeating-linear-gradient", "repeating-radial-gradient", "calc", "min", "max", "clamp", "var", "blur", "saturate", "brightness", "contrast", "grayscale", "opacity", "drop-shadow", "hue-rotate", "translate", "translatex", "translatey", "scale", "rotate", "cubic-bezier", "steps"}
@@ -54,7 +54,7 @@ func variable(name string) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("no variable %s: a theme reads its tokens, --accent, --accent-<0..9>, --color-<name>-<0..9>, the radii and --theme-<name>", name)
+	return "", fmt.Errorf("no variable %s: a theme reads its tokens, --accent, --accent-<0..9>, --color-<name>-<0..9>, the radii, the spacings and --theme-<name>", name)
 }
 
 func lex(v string) []css.Token {

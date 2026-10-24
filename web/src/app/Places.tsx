@@ -14,7 +14,7 @@ export function Places() {
     <nav className={s.places} aria-label={t('nav.screens')} data-places>
       {places.map((p) => (
         <a key={p.name} href={href({ project: p.project, screen: p.name })} className={s.place}
-          aria-current={p.name === route.screen ? 'page' : undefined}>
+          aria-current={p.name === route.screen ? 'page' : undefined} data-active={p.name === route.screen || undefined}>
           <NamedIcon name={p.icon} fallback={p.title} size={16} />
           <span>{p.title}</span>
         </a>

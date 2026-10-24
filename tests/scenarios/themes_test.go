@@ -144,3 +144,57 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 		t.Fatalf("a deleted theme in use gives way to juce: %+v", l)
 	}
 }
+
+// TestThemesStyleTheCardsOfModules: the cockpit's card takes the accent until a theme gives its own, a theme styles the
+// cards of modules, their grid, the toast and the parts of deck by the catalog, and faint text on a card is refused.
+func TestThemesStyleTheCardsOfModules(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, idle)
+	var l themeLook
+	e.must("deck.theme", map[string]any{}, &l)
+	if !strings.Contains(l.CSS, "--deck-cockpit: linear-gradient(135deg, var(--mantine-primary-color-5), var(--mantine-primary-color-8))") ||
+		strings.Contains(l.CSS, "--deck-tile:") || !strings.Contains(l.CSS, "--deck-tile-gap: var(--mantine-spacing-xl)") || len(l.Problems) > 0 {
+		t.Fatalf("the cards of juce: the cockpit's in the accent, the others by their names: %+v", l)
+	}
+
+	cards := `{"version": 1, "title": {"en": "Cards"}, "mood": "m", "schemes": ["light"], "backdrop": "sky",
+  "tokens": {"cockpit": "linear-gradient(180deg, #ffffff, #f2f6ee)", "tile": "#ffffff", "tile-text": "#0e1116", "tile-shade": "none",
+    "tile-icon": "var(--accent-light)", "tile-min": "240px", "tile-height": "200px", "tile-lift": "translateY(-2px)",
+    "meadow": "radial-gradient(70% 100% at 22% 100%, #b7d79a 0%, transparent 75%)", "toast": "#1b1b21"},
+  "parts": {"tile": {"radius": "24px", "shadow": "var(--ring), var(--shadow)"}, "notification": {"radius": "14px"}, "tabs": {"weight": "600"},
+    "bubble": {"radius": "18px"}, "menu": {"radius": "12px"}, "dialog": {"radius": "20px"}},
+  "css": ".today[data-cover] .h2 { color: var(--tile-text) }\n.tile:not([data-big]) .tile-icon { color: var(--accent) }\n.board-card { border-radius: 8px }\n.toast .button { font-weight: 600 }\n.meadow { opacity: 0.8 }\n.place[data-active] { font-weight: 700 }"}`
+	var c struct {
+		OK       bool
+		Problems []string
+	}
+	e.must("deck.theme_check", map[string]any{"text": cards}, &c)
+	if !c.OK {
+		t.Fatalf("a theme of white cards with dark text passes: %+v", c)
+	}
+	e.must("deck.theme_save", map[string]any{"name": "cards", "text": cards}, nil)
+	e.must("deck.theme_use", map[string]any{"name": "cards"}, nil)
+	e.must("deck.theme", map[string]any{}, &l)
+	for _, want := range []string{"--deck-tile: #ffffff", "--deck-cockpit: linear-gradient(180deg, #ffffff, #f2f6ee)", "--deck-tile-min: 240px",
+		"--deck-meadow: radial-gradient", "[data-app-tile]:not([data-big]) { border-radius: 24px; box-shadow: var(--deck-ring), var(--deck-shadow); }",
+		":is(.mantine-Notification-root, [data-toast]) { border-radius: 14px; }", ":is(.mantine-Tabs-tab, [data-places] > a) { font-weight: 600; }",
+		"[data-app-tile][data-big][data-cover] h2", "[data-app-tile]:not([data-big]) [data-app-tile-icon]", "[data-places] > a[data-active]", "[data-lane] [data-card]", "[data-toast] .mantine-Button-root",
+		"[data-meadow]"} {
+		if !strings.Contains(l.CSS, want) {
+			t.Fatalf("the cards theme as the client wears it has %q: %s", want, l.CSS)
+		}
+	}
+
+	faint := map[string]string{
+		"tile-text on cockpit reads": `{"version": 1, "title": {"en": "X"}, "mood": "m", "tokens": {"cockpit": "#fff3bf", "tile-shade": "none"}}`,
+		"tile-text on tile reads":    `{"version": 1, "title": {"en": "X"}, "mood": "m", "tokens": {"tile": "#ffffff", "tile-shade": "none"}}`,
+		"toast-text on toast reads":  `{"version": 1, "title": {"en": "X"}, "mood": "m", "light": {"toast": "#f1f3f5"}}`,
+		"a theme reads the states":   `{"version": 1, "title": {"en": "X"}, "mood": "m", "css": ".tile[data-app] { color: red }"}`,
+	}
+	for want, text := range faint {
+		e.must("deck.theme_check", map[string]any{"text": text}, &c)
+		if c.OK || !strings.Contains(strings.Join(c.Problems, "\n"), want) {
+			t.Fatalf("check of %s: want %q, got %+v", text, want, c)
+		}
+	}
+}

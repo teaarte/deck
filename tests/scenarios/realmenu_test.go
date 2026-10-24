@@ -167,7 +167,7 @@ func TestRealBrowserCards(t *testing.T) {
 	b.eval(`(localStorage.setItem('deck-look', JSON.stringify({home: 'cards'})), location.hash = '', location.reload(), '')`)
 	b.until("the cards instead of the menu", `document.querySelector('[data-apps]') && !document.querySelector('[data-nav]') && location.hash === '#/deck/apps'`)
 	b.until("the cockpit first, then the modules, one with its cover", `(() => { const c = [...document.querySelectorAll('[data-app]')].map((a) => a.dataset.app);
-		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && document.querySelector('[data-app=notes]').dataset.cover === 'true' })()`)
+		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && document.querySelector('[data-app=notes]').closest('[data-app-tile]').dataset.cover === 'true' })()`)
 	b.shot("cards")
 	b.until("Deki on the cockpit's card in the pose of the pulse", `document.querySelector('[data-app=cockpit] ~ [data-card-deki] [data-deki]')`)
 	b.eval(`(document.querySelector('[data-card-deki]').click(), '')`)
@@ -190,7 +190,7 @@ func TestRealBrowserCards(t *testing.T) {
 	e.must("deck.project_cover", map[string]any{"project": "plain", "file": strconv.FormatInt(dark, 10), "scheme": "dark"}, nil)
 	b.eval(`(document.querySelector('[data-apps-home]').click(), '')`)
 	b.until("the way home", `document.querySelector('[data-apps]')`)
-	b.until("a card with only a dark cover shows it in the light scheme too", `document.querySelector('[data-app=plain]').dataset.cover === 'true'`)
+	b.until("a card with only a dark cover shows it in the light scheme too", `document.querySelector('[data-app=plain]').closest('[data-app-tile]').dataset.cover === 'true'`)
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.until("the cards on a phone", `document.querySelector('[data-phone-bar]') && document.querySelector('[data-apps]') && !document.querySelector('[data-nav-open]')`)

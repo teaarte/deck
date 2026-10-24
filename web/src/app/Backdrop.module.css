@@ -22,8 +22,16 @@
   -webkit-mask-position: 36px 36px;
 }
 
+.meadow {
+  position: absolute;
+  inset: auto 0 0;
+  height: 300px;
+  background: var(--deck-meadow, none);
+}
+
 @media (prefers-contrast: more) {
-  .pattern {
+  .pattern,
+  .meadow {
     display: none;
   }
 }

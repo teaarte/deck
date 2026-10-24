@@ -231,6 +231,9 @@ func (t *Theme) Wear(name, lang string) Look {
 		toks := t.tokens(scheme)
 		b.WriteString(roots[scheme] + " {\n")
 		for _, n := range sorted(toks) {
+			if toks[n] == "" {
+				continue
+			}
 			v, err := Value(toks[n])
 			if err != nil {
 				l.Problems = append(l.Problems, fmt.Sprintf("%s: %s: %v", scheme, n, err))
@@ -319,7 +322,8 @@ func (t *Theme) Contrast() []string {
 	return out
 }
 
-// pairs is the contrast of text and dimmed on each surface they sit on.
+// pairs is the contrast of text and dimmed on each surface they sit on, of the text of a card on the cockpit and a
+// card without a cover under its shade, and of a toast.
 func (cs *colors) pairs(scheme string) (map[string]float64, error) {
 	base := rgba{1, 1, 1, 1}
 	if scheme == "dark" {
@@ -353,6 +357,39 @@ func (cs *colors) pairs(scheme string) (map[string]float64, error) {
 		}
 	}
 	out := map[string]float64{}
+	least := func(k string, fg rgba, bgs []rgba) {
+		for _, bg := range bgs {
+			if r := contrast(fg, bg); out[k] == 0 || r < out[k] {
+				out[k] = r
+			}
+		}
+	}
+	shade := []rgba{{}}
+	if cs.tokens["tile-shade"] != "none" {
+		if shade, err = get("tile-shade"); err != nil {
+			return nil, err
+		}
+	}
+	for _, pair := range [][3]string{{"tile-text", "cockpit", "tile-shade"}, {"tile-text", "tile", "tile-shade"}, {"toast-text", "toast", ""}} {
+		if cs.tokens[pair[1]] == "" {
+			continue
+		}
+		fg, err := cs.color(cs.tokens[pair[0]])
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", pair[0], err)
+		}
+		bgs, err := get(pair[1])
+		if err != nil {
+			return nil, err
+		}
+		for i := range bgs {
+			bgs[i] = bgs[i].over(base)
+			if pair[2] != "" {
+				bgs[i] = shade[len(shade)-1].over(bgs[i])
+			}
+		}
+		least(pair[0]+" on "+pair[1], fg, bgs)
+	}
 	for _, fg := range []string{"text", "dimmed"} {
 		c, err := cs.color(cs.tokens[fg])
 		if err != nil {
@@ -362,12 +399,7 @@ func (cs *colors) pairs(scheme string) (map[string]float64, error) {
 			if fg == "dimmed" && n == "canvas" {
 				continue
 			}
-			for _, bg := range bgs {
-				k := fg + " on " + n
-				if r := contrast(c, bg); out[k] == 0 || r < out[k] {
-					out[k] = r
-				}
-			}
+			least(fg+" on "+n, c, bgs)
 		}
 	}
 	return out, nil

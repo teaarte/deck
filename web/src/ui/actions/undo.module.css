@@ -10,8 +10,8 @@
   padding: 10px 10px 10px 14px;
   overflow: hidden;
   border-radius: 14px;
-  color: #fff;
-  background: #0e1116;
+  color: var(--deck-toast-text, #fff);
+  background: var(--deck-toast, #0e1116);
   box-shadow: 0 20px 40px -12px rgb(0 0 0 / 0.5);
   font-size: 13px;
   font-weight: 500;

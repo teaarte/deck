@@ -24,8 +24,8 @@ function Card({ to, title, cover, seed, big, places, art, children }: { to: stri
   const [open, setOpen] = useState(false);
   const style = { '--hue': hue(seed), ...(src ? { backgroundImage: `url(${src})` } : {}) } as CSSProperties;
   return (
-    <div className={s.card} data-card data-big={big || undefined} data-open={open || undefined} style={style} onMouseLeave={() => setOpen(false)}>
-      <a href={to} className={s.open} aria-label={title} data-app={seed} data-cover={src ? true : undefined} />
+    <div className={s.card} data-card data-app-tile data-big={big || undefined} data-cover={src ? true : undefined} data-open={open || undefined} style={style} onMouseLeave={() => setOpen(false)}>
+      <a href={to} className={s.open} aria-label={title} data-app={seed} />
       <span className={s.shade} />
       <span className={s.body}>{children}</span>
       {art}
@@ -62,14 +62,14 @@ export function Apps() {
     <div className={s.apps} data-apps>
       <div className={s.grid}>
         <Card to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big places={[]} art={<CardDeki size={phone ? 104 : 150} />}>
-          <span className={s.icon}><IconLayoutDashboard size={26} /></span>
+          <span className={s.icon} data-app-tile-icon><IconLayoutDashboard size={26} /></span>
           <Title order={2} className={s.title}>{t('nav.cockpit')}</Title>
           {menu.pulse.title && <Text size="sm" className={s.text} lineClamp={2}>{menu.pulse.title}</Text>}
           <NavStatus m={{ title: '', screens: [], asks: menu.pulse.asks, running: menu.pulse.running, errors: menu.pulse.errors }} words />
         </Card>
         {menu.projects.map((p) => (
           <Card key={p.project} to={open(p)} title={p.title} cover={dark ? p.cover_dark || p.cover : p.cover || p.cover_dark} seed={p.project ?? p.title} places={placesOf(menu, p.project)}>
-            <span className={s.icon}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={24} /></span>
+            <span className={s.icon} data-app-tile-icon><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={24} /></span>
             <Title order={3} className={s.title}>{p.title}</Title>
             <NavStatus m={p} words />
           </Card>

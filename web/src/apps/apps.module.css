@@ -8,25 +8,28 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--mantine-spacing-xl);
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--deck-tile-min, 200px), 100%), 1fr));
+  gap: var(--deck-tile-gap, var(--mantine-spacing-xl));
 }
 
 .card {
   position: relative;
   display: block;
-  min-height: 180px;
+  min-height: var(--deck-tile-height, 180px);
   border-radius: var(--deck-block-radius);
   overflow: hidden;
-  color: #fff;
+  color: var(--deck-tile-text, #fff);
   text-decoration: none;
-  background: linear-gradient(135deg, hsl(var(--hue) 70% 55%), hsl(calc(var(--hue) + 50) 75% 40%));
+  background: var(--deck-tile, linear-gradient(135deg, hsl(var(--hue) 70% 55%), hsl(calc(var(--hue) + 50) 75% 40%)));
   background-size: cover;
   background-position: center;
-  box-shadow: var(--mantine-shadow-md);
+  box-shadow: var(--deck-tile-shadow, var(--mantine-shadow-md));
   transition: transform 160ms ease-out, box-shadow 160ms ease-out;
 }
 
+.card[data-big]:not([data-cover]) {
+  background: var(--deck-cockpit, var(--mantine-primary-color-filled));
+}
 
 .card[data-big] {
   grid-column: span 2;
@@ -46,8 +49,8 @@
 
 @media (hover: hover) and (pointer: fine) {
   .card:hover {
-    transform: scale(1.015);
-    box-shadow: var(--mantine-shadow-xl);
+    transform: var(--deck-tile-lift, scale(1.015));
+    box-shadow: var(--deck-tile-shadow, var(--mantine-shadow-md)), var(--mantine-shadow-lg);
   }
 }
 
@@ -66,11 +69,11 @@
 @media (max-width: 36em) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--mantine-spacing-md);
+    gap: calc(var(--deck-tile-gap, var(--mantine-spacing-xl)) / 2);
   }
 
   .card {
-    min-height: 140px;
+    min-height: calc(var(--deck-tile-height, 180px) * 0.8);
   }
 
   .apps {
@@ -82,7 +85,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.55) 100%);
+  background: var(--deck-tile-shade, linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.55) 100%));
 }
 
 .body {
@@ -105,17 +108,20 @@
   width: 44px;
   height: 44px;
   border-radius: var(--mantine-radius-md);
-  background: rgb(0 0 0 / 0.28);
+  background: var(--deck-tile-icon, rgb(0 0 0 / 0.28));
 }
 
 .title {
   color: inherit;
-  text-shadow: 0 1px 8px rgb(0 0 0 / 0.35);
   overflow-wrap: anywhere;
 }
 
+.card[data-cover] .title {
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.35);
+}
+
 .text {
-  color: rgb(255 255 255 / 0.9);
+  color: color-mix(in srgb, currentColor 90%, transparent);
 }
 
 .links {

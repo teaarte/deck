@@ -1,6 +1,6 @@
 ---
 name: themes
-description: Makes, changes, checks and deletes the themes of deck — colors of both schemes, fonts, radii, the look of buttons, cards, islands, fields and badges, a little CSS and the mood of pictures. Use when the owner asks for a new look of deck, a theme, colors, fonts or a style for covers.
+description: Makes, changes, checks and deletes the themes of deck — colors of both schemes, fonts, radii, the look of buttons, cards, the cards of modules, islands, fields, badges, notifications, menus, dialogs, tabs and chat bubbles, a little CSS and the mood of pictures. Use when the owner asks for a new look of deck, a theme, colors, fonts or a style for covers.
 ---
 
 # Themes of deck
@@ -17,11 +17,16 @@ and the owner's.
 2. Write the tokens of both schemes (`tokens` for both, `light`, `dark` over them). Text and dimmed need 4.5:1
    on canvas, body, island and block with every accent: give those tokens as #hex, rgb() or color-mix().
 3. `mood` is the style of pictures in this theme in one or two sentences — the covers of modules are drawn by it.
-4. CSS only when tokens and parts are not enough, and only by the classes of the catalog: no url(), no
-   @import, no selectors of the page.
-5. `deck.theme_check` with the text names every problem; fix them all, then `deck.theme_save`. Its answer
+4. The cards of modules have their own tokens: `cockpit` (the cockpit's card; the accent by default), `tile` (a
+   card without a cover), `tile-shade`, `tile-text`, `tile-icon`, `tile-shadow`, `tile-lift`, and of their grid
+   `tile-min`, `tile-height`, `tile-gap`; `meadow` is the ground under the sky, `toast` and `toast-text` the note
+   with Undo. Text on the cockpit and on a card without a cover needs 4.5:1 under the last stop of its shade.
+5. CSS only when tokens and parts are not enough, and only by the classes of the catalog: no url(), no
+   @import, no selectors of the page. A card of a module is `.tile` (`.today` the cockpit's, `[data-cover]` one
+   with a picture), a card of a board `.board-card`; `.card` names both and stays for older themes.
+6. `deck.theme_check` with the text names every problem; fix them all, then `deck.theme_save`. Its answer
    gives two preview addresses, light and dark: give them to the owner as links.
-6. Only the owner puts a theme on: tell them it is in Settings → Interface → Theme.
+7. Only the owner puts a theme on: tell them it is in Settings → Interface → Theme.
 
 ## Deleting
 

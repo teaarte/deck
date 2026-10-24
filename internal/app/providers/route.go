@@ -136,6 +136,9 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.Mod
 		h.TPM, h.Context = m.Tpm, m.Context
 	}
 	_ = json.Unmarshal([]byte(m.Options), &h.Options)
+	if err := s.withFiles(h.Options, m.Name); err != nil {
+		return gateway.ModelHop{}, err
+	}
 	return h, nil
 }
 

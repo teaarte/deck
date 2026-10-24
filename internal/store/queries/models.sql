@@ -74,3 +74,14 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND coalesce(project_id, 0) = CAST(s
 SELECT a.id, a.project_id, CAST(COALESCE(j.name, '') AS TEXT) AS project, a.command, a.role, a.models FROM assignment a
 LEFT JOIN project j ON j.id = a.project_id
 WHERE a.workspace_id = ? ORDER BY a.role, a.project_id IS NOT NULL, j.name, a.command;
+
+
+-- name: SetModelOptions :exec
+UPDATE model SET options = ? WHERE id = ?;
+
+
+-- name: DeleteUnusedModelFiles :exec
+-- A big value of the options of a model is a file of the model while its options name it as {"$file": id}.
+DELETE FROM file WHERE owner_kind = 'model' AND owner_id = sqlc.arg(model_id) AND id NOT IN (
+    SELECT CASE WHEN j.type = 'object' THEN json_extract(j.value, '$."$file"') END FROM model m, json_each(m.options) j
+    WHERE m.id = sqlc.arg(model_id) AND (CASE WHEN j.type = 'object' THEN json_extract(j.value, '$."$file"') END) IS NOT NULL);

@@ -713,6 +713,55 @@ func TestSpeechTakesItsVoiceFromTheOptionsOfItsModel(t *testing.T) {
 	}
 }
 
+// TestABigOptionOfAModelIsAFileOfIt: a long value of the options of a model is kept as its file, the models list gives
+// its name and size, a call sends it whole, a save of what the form shows keeps it, and new options drop it.
+func TestABigOptionOfAModelIsAFileOfIt(t *testing.T) {
+	t.Parallel()
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "local", "api": "openai", "url": api.URL + "/v1", "local": true}, nil)
+	sample := strings.Repeat("UklGRg", 20000)
+	options, _ := json.Marshal(map[string]any{"voice": "own", "ref_audio": sample})
+	set := map[string]any{"connection": "local", "model": "qwen3-tts", "name": "voice", "kind": "tts", "options": string(options)}
+	e.must("deck.model_set", set, nil)
+	shown := func() string {
+		var models struct {
+			Models []struct{ Name, Options string }
+		}
+		e.must("deck.models_list", map[string]any{}, &models)
+		for _, m := range models.Models {
+			if m.Name == "voice" {
+				return m.Options
+			}
+		}
+		return ""
+	}
+	form := shown()
+	if len(form) > 200 || !strings.Contains(form, `"$file"`) || !strings.Contains(form, `"size":120000`) || !strings.Contains(form, `"voice":"own"`) {
+		t.Fatalf("the form gets the name and size of a big option, not the value: %s", form)
+	}
+	check := map[string]any{"kind": "tts", "model": "voice", "text": "Hello."}
+	e.must("deck.model_call", check, nil)
+	if got := api.calls(); got[len(got)-1].Body["ref_audio"] != sample {
+		t.Fatal("a call sends the big option whole")
+	}
+	set["options"] = form
+	e.must("deck.model_set", set, nil)
+	e.must("deck.model_call", check, nil)
+	if got := api.calls(); got[len(got)-1].Body["ref_audio"] != sample || shown() != form {
+		t.Fatalf("what the form showed saves back to the same file: %s", shown())
+	}
+	set["options"] = `{"voice": "own"}`
+	e.must("deck.model_set", set, nil)
+	var files int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'model'`).Scan(&files)
+	if files != 0 {
+		t.Fatalf("a file the options no longer name goes: %d", files)
+	}
+}
+
 // TestTheLastModelAtItsLimitIsTheModelsFailure: a model command whose last model answers 429 fails as the model's
 // limit, red in the health of that model, and does not go to the master; a refused key is the model's login.
 func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {

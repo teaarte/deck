@@ -31,7 +31,7 @@ type modelSetIn struct {
 	CallUSD      float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
 	Subscription *bool   `opt:"" desc:"The owner pays the model by a subscription: deck shows what a call would cost as an estimate and leaves it out of the money spent; a model changed without it keeps its own"`
 	Free         *bool   `opt:"" desc:"The model costs nothing, so a trial or a draft calls it without the owner's yes; a model changed without it or a price keeps its own, a new one takes it from the catalog of the connection"`
-	Options      string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text, {\"voice\": \"…\"} of tts, or {\"effort\": \"low\"} of a model of a CLI, the one option it takes; a model changed without them keeps its own, {} clears them"`
+	Options      string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text, {\"voice\": \"…\"} of tts, or {\"effort\": \"low\"} of a model of a CLI, the one option it takes; a model changed without them keeps its own, {} clears them; a text value past 16 KB is kept as a file of the model, named {\"$file\": id}"`
 	Agent        string  `opt:"" desc:"The agent that runs a text model for agent commands: claude-code or codex, the CLI on the owner's subscription, on the connection of the same name; or an ACP agent inside the sandbox of deck with a shell and files. The name is then the name of a provider. A model changed without it keeps its own"`
 	// CheckMinutes give a slow model more time for its self-check.
 	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`
@@ -173,10 +173,13 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if err != nil {
 		return nil, err
 	}
+	if out.Options, err = s.keepBig(ctx, act.Workspace, out); err != nil {
+		return nil, err
+	}
 	if in.Agent != "" && c.Api != APICLI {
 		s.startCheck(in.Name, true)
 	}
-	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, Options: optionsOf(out.Options), InputUSD: nullable(out.InputUsd),
+	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, Options: s.shownOptions(ctx, out.Options), InputUSD: nullable(out.InputUsd),
 		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Unit: out.Unit, Free: out.Free != 0,
 		Subscription: out.Subscription != 0, TPM: out.Tpm, Context: out.Context}, nil
 }
@@ -286,6 +289,11 @@ func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelR
 		}
 		if active > 0 {
 			return registry.Invalid("deck: %d processes still run on %s; stop them or let them finish first", active, in.Name)
+		}
+		if old, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
+			if err := q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: "model", OwnerID: old.Model.ID}); err != nil {
+				return err
+			}
 		}
 		if n, err = q.DeleteModel(ctx, db.DeleteModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err != nil || n == 0 {
 			return err

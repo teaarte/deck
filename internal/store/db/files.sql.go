@@ -367,6 +367,7 @@ DELETE FROM file
 WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
    OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
    OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message))
+   OR (owner_kind = 'model' AND owner_id NOT IN (SELECT id FROM model))
 `
 
 func (q *Queries) PurgeOrphanFiles(ctx context.Context) error {

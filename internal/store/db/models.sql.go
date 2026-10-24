@@ -181,6 +181,18 @@ func (q *Queries) DeleteModel(ctx context.Context, arg DeleteModelParams) (int64
 	return result.RowsAffected()
 }
 
+const deleteUnusedModelFiles = `-- name: DeleteUnusedModelFiles :exec
+DELETE FROM file WHERE owner_kind = 'model' AND owner_id = ?1 AND id NOT IN (
+    SELECT CASE WHEN j.type = 'object' THEN json_extract(j.value, '$."$file"') END FROM model m, json_each(m.options) j
+    WHERE m.id = ?1 AND (CASE WHEN j.type = 'object' THEN json_extract(j.value, '$."$file"') END) IS NOT NULL)
+`
+
+// A big value of the options of a model is a file of the model while its options name it as {"$file": id}.
+func (q *Queries) DeleteUnusedModelFiles(ctx context.Context, modelID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteUnusedModelFiles, modelID)
+	return err
+}
+
 const getAssignment = `-- name: GetAssignment :one
 SELECT models FROM assignment
 WHERE workspace_id = ?1 AND coalesce(project_id, 0) = CAST(?2 AS INTEGER) AND command = ?3 AND role = ?4
@@ -507,5 +519,19 @@ func (q *Queries) SetAssignment(ctx context.Context, arg SetAssignmentParams) er
 		arg.Role,
 		arg.Models,
 	)
+	return err
+}
+
+const setModelOptions = `-- name: SetModelOptions :exec
+UPDATE model SET options = ? WHERE id = ?
+`
+
+type SetModelOptionsParams struct {
+	Options string
+	ID      int64
+}
+
+func (q *Queries) SetModelOptions(ctx context.Context, arg SetModelOptionsParams) error {
+	_, err := q.db.ExecContext(ctx, setModelOptions, arg.Options, arg.ID)
 	return err
 }

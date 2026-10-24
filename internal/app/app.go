@@ -189,6 +189,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Projects.CheckManifests(a.ctx)
 	a.Providers.Prune(a.ctx, 0)
+	a.Providers.KeepBigOptions(a.ctx)
 	a.Providers.Watch(a.Bus)
 	a.Health.Watch(a.Bus)
 	a.Health.Derive(a.ctx, 0)

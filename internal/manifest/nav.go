@@ -25,7 +25,10 @@ func Nav(name string, m *Manifest, ws map[string]string) (string, string, []Scre
 		s := m.Screen(n)
 		links = append(links, ScreenLink{Name: n, Title: Tr(ws, s.Title), Icon: s.Icon})
 	}
-	return Tr(ws, cmp.Or(m.Title, name)), m.Icon, links
+	if m.Title == "" {
+		return name, m.Icon, links
+	}
+	return Tr(ws, m.Title), m.Icon, links
 }
 
 // ScreenLink is a screen in the menu by its name, title and icon.

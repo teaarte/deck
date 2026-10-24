@@ -220,8 +220,11 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	e.createProject("video", testManifest([]string{agentCommand("search", "")}, []string{`{"command": "search", "cron": "0 9 * * *"}`}))
 	var ps []struct{ Name, Title, Meta string }
 	e.must("deck.projects_list", map[string]any{"lang": "ru"}, &ps)
-	if i := slices.IndexFunc(ps, func(v struct{ Name, Title, Meta string }) bool { return v.Name == "web" }); i < 0 || ps[i].Title != "Веб-заметки" || ps[i].Meta != "включён" {
+	if i := slices.IndexFunc(ps, func(v struct{ Name, Title, Meta string }) bool { return v.Name == "web" }); i < 0 || ps[i].Title != "Веб-заметки" || !strings.HasPrefix(ps[i].Meta, "включён") {
 		t.Fatalf("a module's title and its line come in the owner's language: %+v", ps)
+	}
+	if i := slices.IndexFunc(ps, func(v struct{ Name, Title, Meta string }) bool { return v.Name == "video" }); i < 0 || ps[i].Title != "video" {
+		t.Fatalf("a module without a title is named by its name, though deck has a word like it: %+v", ps)
 	}
 	var cmds []struct{ Name, Title string }
 	e.must("deck.commands_list", map[string]any{"project": "web", "lang": "ru"}, &cmds)

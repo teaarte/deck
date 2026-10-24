@@ -78,6 +78,7 @@ var tables = map[string]table{
 	"document":          {"documents", ofProject, nil},
 	"document_revision": {"documents", ofDocument, nil},
 	"file":              {"files", ofProject, nil},
+	"picture":           {"files", ofProject, nil},
 	"ask":               {"asks", ofProject, nil},
 	"tool_call":         {"calls", ofProject, nil},
 	"llm_call":          {"usage", ofProject, nil},

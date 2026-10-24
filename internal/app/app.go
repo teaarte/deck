@@ -142,7 +142,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 
 	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
 	a.Folders = folders.Service{St: st, Home: h}
-	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx}
+	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx,
+		Themed: a.Themes.Exists}
 	a.Journal = journal.Service{St: st, Now: cfg.Now}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake, Words: screens.Phrases}
 	a.Themes = themes.Service{St: st, Now: cfg.Now, Invoke: a.Registry.Invoke, Words: screens.Phrases, Language: a.Settings.Language}
@@ -171,7 +172,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Works: a.Providers.Works, Places: a.Providers.Places, Words: screens.Phrases}
 	a.Screens = screens.Service{St: st, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Devices.Unread, Works: a.Providers.Works,
-		ScreenFailed: a.Failures.Screen, ScreenDrawn: a.Failures.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language}
+		ScreenFailed: a.Failures.Screen, ScreenDrawn: a.Failures.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
+		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
 	a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
@@ -273,8 +275,8 @@ func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Snapshots.CheckDisk(ctx, now)
 }
 
-// slow is the work of the loop that waits on the network or the disk: pushes, within pushTimeout, and the daily
-// cleanup and snapshot.
+// slow is the work of the loop that waits on the network or the disk: pushes, within pushTimeout, the light copies
+// of pictures, and the daily cleanup and snapshot.
 func (a *App) slow(ctx context.Context, now time.Time) {
 	pctx, cancel := context.WithTimeout(ctx, pushTimeout)
 	if spaces, err := a.Store.Q.ListWorkspaces(pctx); err == nil {
@@ -283,6 +285,7 @@ func (a *App) slow(ctx context.Context, now time.Time) {
 		}
 	}
 	cancel()
+	a.Files.Thumbs(ctx)
 	a.Snapshots.Daily(ctx, now)
 }
 

@@ -3,10 +3,16 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -372,64 +378,122 @@ func TestAFolderOfTheDataFolderShowsItsSteps(t *testing.T) {
 	}
 }
 
-// TestAModuleHasACoverForItsCard: a picture the owner gives is the cover of a module's card, the menu names where it
-// is read, another one replaces it, a file that is no picture is refused, and only remove takes it off.
-func TestAModuleHasACoverForItsCard(t *testing.T) {
+// TestAModuleHasACoverForEachTheme: a picture is the cover of a module's card for a theme and scheme or for every
+// theme; deck keeps a light copy with its main color and the menu gives the one of the theme in use, else of the
+// other scheme, else for every theme, else any; the browser keeps it; remove takes off the theme's alone.
+func TestAModuleHasACoverForEachTheme(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("notes", plainManifest)
-	cover := func() string {
-		var m struct {
-			Projects []struct{ Project, Cover string }
-		}
+	type card struct {
+		Project, Cover string
+		CoverDark      string `json:"cover_dark"`
+		CoverColor     string `json:"cover_color"`
+	}
+	menu := func() card {
+		var m struct{ Projects []card }
 		e.must("deck.menu", nil, &m)
 		for _, p := range m.Projects {
 			if p.Project == "notes" {
-				return p.Cover
+				return p
 			}
 		}
-		return ""
+		return card{}
 	}
-	png := e.upload("notes", "cover.png", "image/png", "\x89PNG\r\n\x1a\n")
-	e.must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(png)}, nil)
-	first := cover()
-	if !strings.HasPrefix(first, "/api/files/") {
-		t.Fatalf("the menu names where the cover of a module is read: %q", first)
+	picture := func(c color.RGBA) string {
+		img := image.NewRGBA(image.Rect(0, 0, 1600, 900))
+		draw.Draw(img, img.Bounds(), &image.Uniform{c}, image.Point{}, draw.Src)
+		var b bytes.Buffer
+		_ = png.Encode(&b, img)
+		return b.String()
 	}
-	again := e.upload("", "other.png", "image/png", "\x89PNG\r\n\x1a\n")
-	e.must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(again)}, nil)
-	var n int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'cover'`).Scan(&n)
-	if now := cover(); now == first || now == "" || n != 1 {
-		t.Fatalf("a new cover replaces the old one: %q %q %d", first, now, n)
+	set := func(name string, c color.RGBA, in map[string]any) int64 {
+		id := e.upload("notes", name, "image/png", picture(c))
+		in["project"], in["file"] = "notes", fmt.Sprint(id)
+		e.must("deck.project_cover", in, nil)
+		return id
 	}
+	red := set("red.png", color.RGBA{220, 30, 30, 255}, map[string]any{})
+	got := menu()
+	if got.Cover == "" || got.Cover == fmt.Sprintf("/api/files/%d", red) || got.CoverDark != got.Cover || !strings.HasPrefix(got.CoverColor, "#d") {
+		t.Fatalf("a cover for every theme shows its light copy in both schemes, with its main color: %+v", got)
+	}
+	var kind string
+	var width int
+	_ = e.App.Store.DB.QueryRow(`SELECT f.type FROM file f JOIN picture p ON p.thumb_id = f.id`).Scan(&kind)
+	req, _ := http.NewRequest("GET", e.URL+got.Cover, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err := jpeg.DecodeConfig(resp.Body); err == nil {
+		width = cfg.Width
+	}
+	resp.Body.Close()
+	if kind != "image/jpeg" || width != 720 || !strings.Contains(resp.Header.Get("Cache-Control"), "immutable") {
+		t.Fatalf("the light copy is a JPEG of twice a card the browser keeps: %q %d %q", kind, width, resp.Header.Get("Cache-Control"))
+	}
+
+	cur := themeLook{}
+	e.must("deck.theme", map[string]any{}, &cur)
+	set("blue.png", color.RGBA{30, 30, 220, 255}, map[string]any{"theme": cur.Name, "scheme": "dark"})
+	got = menu()
+	if got.CoverDark != got.Cover || !strings.HasPrefix(got.CoverColor, "#1") {
+		t.Fatalf("the cover of the theme in use goes first, in its scheme and in the other: %+v", got)
+	}
+	e.must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
+	if got = menu(); !strings.HasPrefix(got.CoverColor, "#d") {
+		t.Fatalf("another theme shows the cover for every theme: %+v", got)
+	}
+	e.refused("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(red), "theme": "nowhere"}, 404, "theme")
 	text := e.upload("notes", "a.txt", "text/plain", "hello")
 	e.refused("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(text)}, 422, "picture")
 	e.refused("deck.project_cover", map[string]any{"project": "notes"}, 422, "remove")
-	dark := e.upload("notes", "dark.png", "image/png", "\x89PNG\r\n\x1a\n")
-	e.must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(dark), "scheme": "dark"}, nil)
-	var ps []struct {
-		Cover     int64
-		CoverDark int64 `json:"cover_dark"`
+
+	var rows []struct {
+		Theme, Scheme string
+		Shown         bool
 	}
-	e.must("deck.projects_list", map[string]any{"project": "notes"}, &ps)
-	if len(ps) != 1 || ps[0].Cover == 0 || ps[0].CoverDark == 0 || ps[0].Cover == ps[0].CoverDark {
-		t.Fatalf("a module has a cover for each scheme: %+v", ps)
-	}
-	e.must("deck.project_cover", map[string]any{"project": "notes", "remove": true, "scheme": "light"}, nil)
-	e.must("deck.projects_list", map[string]any{"project": "notes"}, &ps)
-	if ps[0].Cover != 0 || ps[0].CoverDark == 0 {
-		t.Fatalf("remove with a scheme takes off its cover alone: %+v", ps)
+	e.must("deck.project_covers", map[string]any{"project": "notes"}, &rows)
+	if len(rows) != 2 || rows[0].Theme != "" || !rows[0].Shown || rows[1].Theme != cur.Name || rows[1].Shown {
+		t.Fatalf("the covers of a module by theme, and which the card shows: %+v", rows)
 	}
 	e.must("deck.project_cover", map[string]any{"project": "notes", "remove": true}, nil)
-	e.must("deck.projects_list", map[string]any{"project": "notes"}, &ps)
-	if cover() != "" || ps[0].CoverDark != 0 {
-		t.Fatal("remove without a scheme takes both covers off")
+	if got = menu(); !strings.HasPrefix(got.CoverColor, "#1") {
+		t.Fatalf("remove takes off the covers for every theme alone; the card shows any other: %+v", got)
+	}
+	var files int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'picture'`).Scan(&files)
+	if files != 2 {
+		t.Fatalf("a picture taken off takes its files with it: %d", files)
+	}
+}
+
+// TestAPictureWithoutALightCopyGetsOne: a cover deck kept before light copies gets one in the sweep, transparent
+// parts on white.
+func TestAPictureWithoutALightCopyGetsOne(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("notes", plainManifest)
+	img := image.NewRGBA(image.Rect(0, 0, 300, 200))
+	var b bytes.Buffer
+	_ = png.Encode(&b, img)
+	id := e.upload("notes", "old.png", "image/png", b.String())
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'notes'`, id); err != nil {
+		t.Fatal(err)
+	}
+	e.App.Sweep(context.Background(), time.Now())
+	var thumb sql.NullInt64
+	var c string
+	_ = e.App.Store.DB.QueryRow(`SELECT thumb_id, color FROM picture`).Scan(&thumb, &c)
+	if !thumb.Valid || thumb.Int64 == 0 || c != "#ffffff" {
+		t.Fatalf("the sweep makes the light copy and the color: %v %q", thumb, c)
 	}
 }
 
 // TestTheMasterDrawsCoversInTheMoodOfTheTheme: deck tells the master what to draw: the module, the theme's mood, the
-// wish and the model, a free one by default; for a new theme every cover is drawn again.
+// wish and the model, a free one by default; without a module, every module without a cover of the theme in use.
 func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -438,7 +502,6 @@ func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "http://127.0.0.1:9/api/v1"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.04}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
-	e.refused("deck.covers_draw", map[string]any{}, 422, "no module has a cover yet")
 
 	var out struct{ Topic int64 }
 	e.must("deck.covers_draw", map[string]any{"project": "notes", "wish": "a fox with a notebook"}, &out)
@@ -451,13 +514,12 @@ func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
 		t.Fatalf("the master is told what to draw: %+v", said)
 	}
 
-	png := e.upload("notes", "cover.png", "image/png", "\x89PNG\r\n\x1a\n")
-	e.must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(png)}, nil)
 	e.must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	e.must("deck.covers_draw", map[string]any{"model": "openrouter/painter"}, &out)
 	said = e.chatMessages(out.Topic)
-	if len(said) == 0 || !strings.Contains(said[0].Text, "Перерисуй обложки модулей notes в теме deck «Пиксели»") ||
+	if len(said) == 0 || !strings.Contains(said[0].Text, "Нарисуй обложки модулей notes, у которых их нет в теме deck «Пиксели»") ||
+		!strings.Contains(said[0].Text, "тема pixel") ||
 		!strings.Contains(said[0].Text, "8-bit pixel art") || !strings.Contains(said[0].Text, "вида image на openrouter/painter") {
 		t.Fatalf("every cover again for the new theme, in the owner's language: %+v", said)
 	}

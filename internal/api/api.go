@@ -157,7 +157,8 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	send(w, out)
 }
 
-// download sends a stored file as an attachment, never as a page of deck's origin.
+// download sends a stored file as an attachment, never as a page of deck's origin; a file of an id never changes, so
+// the browser keeps it.
 func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -165,6 +166,9 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f, file, err := s.app.Files.OpenFile(r.Context(), actor(r), id)
+	if err == nil {
+		w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	}
 	serveFile(w, r, f.Name, f.Type, file, err)
 }
 

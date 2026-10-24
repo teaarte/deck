@@ -21,22 +21,23 @@
               {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
             ]},
           {"type": "dialog", "name": "cover", "title": "Upload a cover", "icon": "photo-up", "blocks": [
-            {"type": "form", "command": "deck.project_cover", "fixed": ["remove"], "description": "A picture for the card of the module when deck lays out the modules as cards: one for the light scheme, one for the dark; a card shows the one of its scheme, or the only one."}]},
+            {"type": "form", "command": "deck.project_cover", "fixed": ["remove"], "description": "A picture for the card of the module: for one theme or for every theme, one for the light scheme, one for the dark."}]},
           {"type": "dialog", "name": "draw-cover", "title": "Draw the cover", "icon": "sparkles", "blocks": [
             {"type": "form", "command": "deck.covers_draw", "fixed": ["project"], "values": {"project": "=param.name"},
-              "description": "The master draws a light and a dark picture in the mood of the theme of deck. Without a model it takes a free one of deck.",
+              "description": "The master draws the pictures of the schemes of the theme in use in its mood. Without a model it takes a free one of deck.",
               "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + (free ? ' · free' : '')"}}}]},
-          {"type": "media", "title": "Cover", "when": "len(rows) > 0", "source": {"from": "deck.projects_list", "where": "cover > 0"},
-            "item": {"file": "cover", "title": "title"}},
-          {"type": "media", "title": "Cover, dark", "when": "len(rows) > 0", "source": {"from": "deck.projects_list", "where": "cover_dark > 0"},
-            "item": {"file": "cover_dark", "title": "title"}},
-          {"type": "list", "title": "Card", "description": "The picture of the module's card when deck lays out the modules as cards.", "source": {"from": "deck.projects_list"},
-            "item": {"title": "cover > 0 || cover_dark > 0 ? 'The card has a picture' : 'The card has no picture yet'", "icon": "'photo'"},
+          {"type": "media", "title": "Covers", "description": "The picture of the module's card in each theme, light and dark; the card shows the one of the theme in use, else one for every theme, else any.",
+            "source": {"from": "deck.project_covers", "input": {"project": "=param.name"}},
+            "item": {"file": "file", "title": "title + ' · ' + (scheme == 'dark' ? 'dark scheme' : 'light scheme') + (shown ? ' · ' + 'on the card' : '')"},
+            "empty": "The card has no picture yet: it shows the icon of the module.",
             "actions": [
-              {"label": "Draw", "icon": "sparkles", "primary": true, "screen": "settings", "params": {"dialog": "draw-cover"}, "when": "cover == 0 && cover_dark == 0"},
-              {"label": "Redraw", "icon": "sparkles", "primary": true, "screen": "settings", "params": {"dialog": "draw-cover"}, "when": "cover > 0 || cover_dark > 0"},
-              {"label": "Upload", "icon": "upload", "screen": "settings", "params": {"dialog": "cover"}},
-              {"verb": "delete", "confirm": true, "command": "deck.project_cover", "params": {"project": "=name", "remove": "true"}, "when": "cover > 0 || cover_dark > 0"}
+              {"verb": "delete", "confirm": true, "command": "deck.project_cover", "params": {"project": "=project", "theme": "=theme", "scheme": "=scheme", "remove": "true"}}
+            ]},
+          {"type": "list", "title": "Card", "source": {"from": "deck.projects_list"},
+            "item": {"title": "'The picture of the card in the theme in use'", "icon": "'photo'"},
+            "actions": [
+              {"label": "Draw for this theme", "icon": "sparkles", "primary": true, "screen": "settings", "params": {"dialog": "draw-cover"}},
+              {"label": "Upload", "icon": "upload", "screen": "settings", "params": {"dialog": "cover"}}
             ]},
           {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
             "description": "What the module can do and when it runs by itself.",

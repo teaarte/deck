@@ -35,6 +35,8 @@ type Service struct {
 	// Go runs work beside the calls unless deck stops, under Ctx.
 	Go  func(func()) bool
 	Ctx context.Context
+	// Themed reports whether a theme of the name is there.
+	Themed func(ctx context.Context, ws int64, name string) bool
 	// draining keeps one drain of the outbox at a time; kicked says one more is due.
 	draining sync.Mutex
 	kicked   atomic.Bool

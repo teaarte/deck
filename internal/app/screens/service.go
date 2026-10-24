@@ -29,6 +29,8 @@ type Service struct {
 	File         func(ctx context.Context, p db.Project, ref any) (map[string]any, error)
 	// Language is the language of the interface the workspace picked.
 	Language func(ctx context.Context, workspace int64) string
+	// Theme is the name of the theme the workspace wears.
+	Theme func(ctx context.Context, workspace int64) string
 }
 
 // Commands are the commands of screens and the menu.

@@ -4,23 +4,36 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
+	"deck2/internal/app/access"
 	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
 
+// Exists reports whether a theme of the name is there, shipped or the owner's.
+func (s *Service) Exists(ctx context.Context, ws int64, name string) bool {
+	raw, _, err := s.text(ctx, s.St.Q, ws, name)
+	return err == nil && raw != nil
+}
+
 type drawIn struct {
-	Project string `type:"project" opt:"" desc:"The module; every module that has a cover without it"`
+	Project string `type:"project" opt:"" desc:"The module; every module without a cover of the theme in use without it"`
 	Wish    string `type:"text" opt:"" desc:"What the owner wishes to see in the picture"`
 	Model   string `opt:"" desc:"The image model; a free one of deck without it"`
 }
 
-// draw tells the master to draw covers in the mood of the theme in use; deck draws nothing itself.
+// draw tells the master to draw covers in the mood of the theme in use, for its schemes; deck draws nothing itself.
 func (s *Service) draw(ctx context.Context, act registry.Actor, in drawIn) (any, error) {
 	ws := s.Words(s.Language(ctx, act.Workspace))
+	cur := s.Current(ctx, act.Workspace)
+	l, err := s.look(ctx, act.Workspace, cur, s.Language(ctx, act.Workspace))
+	if err != nil {
+		return nil, err
+	}
 	var names []string
 	if in.Project != "" {
 		p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: in.Project})
@@ -33,18 +46,21 @@ func (s *Service) draw(ctx context.Context, act registry.Actor, in drawIn) (any,
 		if err != nil {
 			return nil, err
 		}
+		pics, err := s.St.Q.ListWorkspacePictures(ctx, db.ListWorkspacePicturesParams{WorkspaceID: act.Workspace, Slot: files.CoverSlot})
+		if err != nil {
+			return nil, err
+		}
 		for _, p := range ps {
-			if files.Cover(ctx, s.St.Q, p.ID, "light") != 0 || files.Cover(ctx, s.St.Q, p.ID, "dark") != 0 {
+			has := func(scheme string) bool {
+				return slices.ContainsFunc(pics, func(x db.Picture) bool { return x.ProjectID == p.ID && x.Theme == cur && x.Scheme == scheme })
+			}
+			if p.Builtin == 0 && slices.ContainsFunc(l.Schemes, func(sc string) bool { return !has(sc) }) {
 				names = append(names, p.Name)
 			}
 		}
 		if len(names) == 0 {
-			return nil, registry.Invalid("deck: no module has a cover yet; draw one in the settings of a module")
+			return nil, registry.Invalid("deck: every module has its cover in this theme")
 		}
-	}
-	l, err := s.look(ctx, act.Workspace, s.Current(ctx, act.Workspace), s.Language(ctx, act.Workspace))
-	if err != nil {
-		return nil, err
 	}
 	model := in.Model
 	if model == "" {
@@ -54,7 +70,7 @@ func (s *Service) draw(ctx context.Context, act registry.Actor, in drawIn) (any,
 	if len(names) == 1 && in.Project != "" {
 		b = append(b, manifest.TrText(ws, fmt.Sprintf("Draw the cover of module %s for its card in the theme %s of deck: %s", names[0], l.Title, l.Mood)))
 	} else {
-		b = append(b, manifest.TrText(ws, fmt.Sprintf("Draw the covers of modules %s again in the theme %s of deck: %s", strings.Join(names, ", "), l.Title, l.Mood)))
+		b = append(b, manifest.TrText(ws, fmt.Sprintf("Draw the covers of modules %s that have none in the theme %s of deck: %s", strings.Join(names, ", "), l.Title, l.Mood)))
 	}
 	if w := strings.TrimSpace(in.Wish); w != "" {
 		b = append(b, manifest.TrText(ws, fmt.Sprintf("The owner wishes: %s", w)))
@@ -62,7 +78,11 @@ func (s *Service) draw(ctx context.Context, act registry.Actor, in drawIn) (any,
 	if model == "" {
 		model = "the image model deck gives"
 	}
-	b = append(b, manifest.TrText(ws, fmt.Sprintf("One picture for the light scheme and one for the dark: call deck.model_call of kind image on %s for each, then set each with deck.project_cover, its file as results/<the name the call gave>, scheme light or dark.", model)))
+	if len(l.Schemes) == 1 {
+		b = append(b, manifest.TrText(ws, fmt.Sprintf("One picture for the %s scheme, the only one of the theme: call deck.model_call of kind image on %s, then set it with deck.project_cover, theme %s, its file as results/<the name the call gave>, scheme %s.", l.Schemes[0], model, cur, l.Schemes[0])))
+	} else {
+		b = append(b, manifest.TrText(ws, fmt.Sprintf("One picture for the light scheme and one for the dark: call deck.model_call of kind image on %s for each, then set each with deck.project_cover, theme %s, its file as results/<the name the call gave>, scheme light or dark.", model, cur)))
+	}
 	input, _ := json.Marshal(map[string]any{"text": strings.Join(b, "\n\n")})
 	return s.Invoke(ctx, act, registry.Builtin+".chat_send", input)
 }
@@ -87,4 +107,60 @@ func (s *Service) freeImageModel(ctx context.Context, act registry.Actor) string
 		}
 	}
 	return free
+}
+
+type coversIn struct {
+	Project string `type:"project" desc:"Project name"`
+	Lang    string `opt:"" desc:"Language of the titles, such as ru"`
+}
+
+// coverRow is a cover of a module: the theme it is for, empty for every theme, with its title, the scheme, the
+// picture, and whether the card shows it now.
+type coverRow struct {
+	Project string `json:"project"`
+	Theme   string `json:"theme"`
+	Title   string `json:"title"`
+	Scheme  string `json:"scheme"`
+	File    int64  `json:"file"`
+	Shown   bool   `json:"shown"`
+}
+
+func (s *Service) covers(ctx context.Context, act registry.Actor, in coversIn) ([]coverRow, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
+	if err != nil {
+		return nil, err
+	}
+	pics, err := s.St.Q.ListPictures(ctx, db.ListPicturesParams{ProjectID: p.ID, Slot: files.CoverSlot})
+	if err != nil {
+		return nil, err
+	}
+	cur := s.Current(ctx, act.Workspace)
+	shown := map[int64]bool{}
+	for _, sc := range []string{"light", "dark"} {
+		if x := files.Pick(pics, cur, sc); x != nil {
+			shown[x.ID] = true
+		}
+	}
+	out := []coverRow{}
+	for _, x := range pics {
+		title := manifest.Tr(s.Words(in.Lang), "Every theme")
+		if x.Theme != "" {
+			title = x.Theme
+			if l, err := s.look(ctx, act.Workspace, x.Theme, in.Lang); err == nil {
+				title = l.Title
+			}
+		}
+		out = append(out, coverRow{Project: p.Name, Theme: x.Theme, Title: title, Scheme: x.Scheme, File: x.FileID, Shown: shown[x.ID]})
+	}
+	slices.SortStableFunc(out, func(a, b coverRow) int {
+		return boolRank(b.Theme == cur) - boolRank(a.Theme == cur)
+	})
+	return out, nil
+}
+
+func boolRank(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

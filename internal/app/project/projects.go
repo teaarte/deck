@@ -4,7 +4,6 @@ import (
 	"context"
 	"deck2/internal/app/folders"
 	"deck2/internal/docs"
-	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -39,9 +38,6 @@ type projectView struct {
 	// Icon and Title are the icon and the name the owner sees that its manifest gives; Title is the name without one.
 	Icon  string `json:"icon,omitempty"`
 	Title string `json:"title"`
-	// Cover is the stored file of the picture of its card in the light scheme, CoverDark in the dark one; 0 without.
-	Cover     int64 `json:"cover"`
-	CoverDark int64 `json:"cover_dark"`
 	// Meta is one line of its state, folders and what enabling a draft grants, in the language asked for.
 	Meta string `json:"meta"`
 }
@@ -72,7 +68,6 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []manifest.ScreenLink{},
 		Rights: []string{}, Asks: []string{}, Models: []string{}}
 	v.Folders, _ = pj.Folders(ctx, p.ID)
-	v.Cover, v.CoverDark = files.Cover(ctx, pj.St.Q, p.ID, "light"), files.Cover(ctx, pj.St.Q, p.ID, "dark")
 	if prompt, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}

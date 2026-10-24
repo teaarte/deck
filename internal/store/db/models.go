@@ -233,6 +233,18 @@ type Outbox struct {
 	Path      string
 }
 
+type Picture struct {
+	ID        int64
+	ProjectID int64
+	Slot      string
+	Theme     string
+	Scheme    string
+	FileID    int64
+	ThumbID   sql.NullInt64
+	Color     string
+	CreatedAt string
+}
+
 type Process struct {
 	ID               int64
 	ProjectID        int64

@@ -30,9 +30,22 @@ type menuEntry struct {
 	Running int64 `json:"running,omitempty"`
 	Asks    int64 `json:"asks,omitempty"`
 	Errors  int64 `json:"errors,omitempty"`
-	// Cover is where the client reads the picture of the project's card, none without one.
-	Cover     string `json:"cover,omitempty"`
-	CoverDark string `json:"cover_dark,omitempty"`
+	// Cover is where the client reads the light copy of the picture of the project's card in the theme in use, for
+	// the light scheme and the dark, none without one; the colors are their main ones, shown while they load.
+	Cover          string `json:"cover,omitempty"`
+	CoverDark      string `json:"cover_dark,omitempty"`
+	CoverColor     string `json:"cover_color,omitempty"`
+	CoverDarkColor string `json:"cover_dark_color,omitempty"`
+	// Doing is the title of the command the newest open process of the project runs; Next the next run of its
+	// schedule.
+	Doing string   `json:"doing,omitempty"`
+	Next  *nextRun `json:"next,omitempty"`
+}
+
+// nextRun is the command a trigger of the schedule runs next, by its title, and when.
+type nextRun struct {
+	Title string `json:"title"`
+	At    string `json:"at"`
 }
 
 // menuGroup is a group of links at the foot of the menu: work (deck's screens), master (the master's) and settings.
@@ -59,9 +72,10 @@ type menuOut struct {
 	Topics   []string    `json:"topics"`
 }
 
-// menuTopics are the topics of what the menu reads: the projects, their manifests, their order and what it counts.
+// menuTopics are the topics of what the menu reads: the projects, their manifests, order, covers and schedules, and
+// what it counts.
 var menuTopics = sync.OnceValue(func() []string {
-	out := []string{"projects", "documents", "settings", "files"}
+	out := []string{"projects", "documents", "settings", "files", "triggers"}
 	for _, name := range []string{"deck.asks_list", "deck.processes_list", "deck.health_list", "deck.feed_list"} {
 		c, _ := manifest.Reads(name)
 		for _, t := range c.Topics {
@@ -101,6 +115,10 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 	}
 	slices.SortStableFunc(ps, func(x, y db.Project) int { return rank(order, x.ID) - rank(order, y.ID) })
 	ms, _ := docs.All(ctx, ss.St.Q, ps)
+	pics, _ := ss.St.Q.ListWorkspacePictures(ctx, db.ListWorkspacePicturesParams{WorkspaceID: act.Workspace, Slot: files.CoverSlot})
+	open, _ := ss.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace})
+	triggers, _ := ss.St.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace})
+	theme := ss.Theme(ctx, act.Workspace)
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {
@@ -108,12 +126,14 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 		}
 		ws := words(in.Lang, m)
 		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name]}
-		if id := files.Cover(ctx, ss.St.Q, p.ID, "light"); id != 0 {
-			e.Cover = fmt.Sprintf("/api/files/%d", id)
+		own := slices.DeleteFunc(slices.Clone(pics), func(x db.Picture) bool { return x.ProjectID != p.ID })
+		if x := files.Pick(own, theme, "light"); x != nil {
+			e.Cover, e.CoverColor = fmt.Sprintf("/api/files/%d", files.Shown(*x)), x.Color
 		}
-		if id := files.Cover(ctx, ss.St.Q, p.ID, "dark"); id != 0 {
-			e.CoverDark = fmt.Sprintf("/api/files/%d", id)
+		if x := files.Pick(own, theme, "dark"); x != nil {
+			e.CoverDark, e.CoverDarkColor = fmt.Sprintf("/api/files/%d", files.Shown(*x)), x.Color
 		}
+		e.Doing, e.Next = doing(p, m, ws, open, triggers)
 		e.Title, e.Icon, e.Screens = manifest.Nav(p.Name, m, ws)
 		for _, s := range shipped().Project {
 			if s.Record == "" && m.Screen(s.Name) == nil {
@@ -134,6 +154,27 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 	}
 	out.System = ss.foot(out, in.Lang)
 	return out, nil
+}
+
+// doing is the title of the command the newest open process of a project runs, and the next run of its schedule.
+func doing(p db.Project, m *manifest.Manifest, ws map[string]string, open []db.Process, triggers []db.Trigger) (string, *nextRun) {
+	title := func(command string) string {
+		if c := m.Command(command); c != nil && c.Title != "" {
+			return manifest.Tr(ws, c.Title)
+		}
+		return command
+	}
+	var now string
+	if i := slices.IndexFunc(open, func(x db.Process) bool { return x.ProjectID == p.ID && x.ParentID.Int64 == 0 }); i >= 0 {
+		now = title(open[i].Command)
+	}
+	var next *nextRun
+	for _, t := range triggers {
+		if t.ProjectID == p.ID && t.Paused == 0 && t.NextRunAt.Valid && (next == nil || t.NextRunAt.String < next.At) {
+			next = &nextRun{Title: title(t.Command), At: t.NextRunAt.String}
+		}
+	}
+	return now, next
 }
 
 // menuOrderKey is the setting of the order of the side list of the menu: a JSON list of ids of projects, so a new

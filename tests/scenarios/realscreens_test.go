@@ -95,8 +95,9 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.until("the compact spacing", root("--mantine-spacing-md")+`.includes('0.75')`)
 	b.look("font", "large")
 	b.until("the large text", root("--mantine-font-size-md")+`.includes('1.15')`)
-	b.look("radius", "xl")
-	b.until("the round corners", root("--mantine-radius-default")+` === `+root("--mantine-radius-xl"))
+	if got := b.eval(`String(!document.querySelector('[data-look="radius"]'))`); got != "true" {
+		t.Fatal("the corners are the theme's, not a setting of the device")
+	}
 	b.shot("settings-interface")
 
 	b.open(e.URL + "/#/deck/settings")

@@ -373,7 +373,7 @@ func TestAFolderOfTheDataFolderShowsItsSteps(t *testing.T) {
 }
 
 // TestAModuleHasACoverForItsCard: a picture the owner gives is the cover of a module's card, the menu names where it
-// is read, another one replaces it, a file that is no picture is refused, and without a file it goes.
+// is read, another one replaces it, a file that is no picture is refused, and only remove takes it off.
 func TestAModuleHasACoverForItsCard(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -405,8 +405,9 @@ func TestAModuleHasACoverForItsCard(t *testing.T) {
 	}
 	text := e.upload("notes", "a.txt", "text/plain", "hello")
 	e.refused("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(text)}, 422, "picture")
-	e.must("deck.project_cover", map[string]any{"project": "notes"}, nil)
+	e.refused("deck.project_cover", map[string]any{"project": "notes"}, 422, "remove")
+	e.must("deck.project_cover", map[string]any{"project": "notes", "remove": true}, nil)
 	if cover() != "" {
-		t.Fatal("without a file the cover goes")
+		t.Fatal("remove takes the cover off")
 	}
 }

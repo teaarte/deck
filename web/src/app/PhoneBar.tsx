@@ -21,7 +21,7 @@ export function PhoneBar({ entry, onMenu, master, cards }: { entry?: MenuEntry; 
           </ActionIcon>
         )}
         <BackButton />
-        {entry?.project ? <Crumb entry={entry} /> : <Logo />}
+        {entry?.project ? <Crumb entry={entry} cards={cards} /> : <Logo />}
       </Group>
       <Group gap={4} wrap="nowrap"><Bell />{master}</Group>
     </header>

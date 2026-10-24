@@ -13,7 +13,8 @@ import (
 
 type projectCoverIn struct {
 	Project string `type:"project" desc:"Project name"`
-	File    string `type:"file" opt:"" desc:"The picture: an upload, a stored file of the project or the master, or results/<name> of the calling process; the cover goes without it"`
+	File    string `type:"file" opt:"" desc:"The picture: an upload, a stored file of the project or the master, or results/<name> of the calling process"`
+	Remove  bool   `opt:"" desc:"Take the cover off instead"`
 }
 
 // projectCover sets the picture of a project's card from a file, a copy of it, or takes it off.
@@ -22,7 +23,10 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(in.File) == "" {
+	if in.Remove == (strings.TrimSpace(in.File) != "") {
+		return nil, registry.Invalid("deck: give the picture in file, or remove")
+	}
+	if in.Remove {
 		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: files.CoverKind, OwnerID: p.ID})
 		})
@@ -64,6 +68,6 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 
 func (s *Service) coverCommand() *registry.Command {
 	return registry.Def("project_cover", "Set cover",
-		"Sets the picture of the card of a project, which deck shows when it lays out the modules as cards; without a file the cover goes.",
+		"Sets the picture of the card of a project, which deck shows when it lays out the modules as cards, or takes it off.",
 		registry.OwnerSide, s.projectCover)
 }

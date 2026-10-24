@@ -467,6 +467,7 @@
   "The card has a picture": "У карточки есть картинка",
   "The card has no picture yet": "У карточки пока нет картинки",
   "Set cover": "Обложка модуля",
-  "Sets the picture of the card of a project, which deck shows when it lays out the modules as cards; without a file the cover goes.": "Ставит картинку карточки модуля, которую deck показывает, когда раскладывает модули карточками; без файла обложка убирается.",
-  "The picture: an upload, a stored file of the project or the master, or results/<name> of the calling process; the cover goes without it": "Картинка; без неё обложка убирается"
+  "Sets the picture of the card of a project, which deck shows when it lays out the modules as cards, or takes it off.": "Ставит картинку карточки модуля, которую deck показывает, когда раскладывает модули карточками, или убирает её.",
+  "The picture: an upload, a stored file of the project or the master, or results/<name> of the calling process": "Картинка",
+  "Take the cover off instead": "Убрать обложку"
 }

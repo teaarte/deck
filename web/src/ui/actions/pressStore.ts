@@ -1,4 +1,5 @@
 import { call } from '../../lib/api';
+import i18n from '../../lib/i18n';
 import type { Action } from '../../lib/catalog.gen';
 import { createStore, useStore } from '../../lib/store';
 
@@ -9,7 +10,7 @@ const asks = createStore<PressAsk[]>([]);
 
 // watchRun asks deck for the calls the run of a press waits to make, to answer them where the owner pressed.
 export function watchRun(process: number) {
-  call<PressAsk[]>('deck.process_asks', { process }).then((got) => {
+  call<PressAsk[]>('deck.process_asks', { process, lang: i18n.language }).then((got) => {
     const fresh = (got ?? []).filter((a) => !asks.get().some((x) => x.id === a.id));
     if (fresh.length) asks.set([...asks.get(), ...fresh]);
   }, () => undefined);

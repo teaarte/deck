@@ -4,7 +4,7 @@
 CREATE TEMP TABLE twin AS
 SELECT d.id, d.name, d.agent, d.check_minutes, k.id AS keep_id, k.name AS keep
 FROM model d JOIN model k ON k.id = (SELECT min(m.id) FROM model m
-    WHERE m.connection_id = d.connection_id AND m.model = d.model AND m.kind = d.kind AND m.options = d.options)
+    WHERE m.connection_id = d.connection_id AND m.model = d.model AND m.kind = d.kind AND json(m.options) = json(d.options))
 WHERE d.id != k.id;
 
 UPDATE model SET
@@ -20,6 +20,14 @@ WHERE EXISTS (SELECT 1 FROM json_each(assignment.models) j JOIN twin t ON t.name
 
 UPDATE chat_topic SET model = (SELECT t.keep FROM twin t WHERE t.name = chat_topic.model)
 WHERE model IN (SELECT name FROM twin);
+
+UPDATE process SET provider = (SELECT t.keep FROM twin t WHERE t.name = process.provider)
+WHERE provider IN (SELECT name FROM twin);
+
+UPDATE OR IGNORE chat_session SET provider = (SELECT t.keep FROM twin t WHERE t.name = chat_session.provider)
+WHERE provider IN (SELECT name FROM twin);
+
+DELETE FROM chat_session WHERE provider IN (SELECT name FROM twin);
 
 DELETE FROM health WHERE subject IN (SELECT 'model:' || name FROM twin UNION SELECT 'provider:' || name FROM twin);
 

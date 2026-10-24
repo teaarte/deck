@@ -145,7 +145,8 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		if err := s.checkFiles(ctx, act.Workspace, in.Name, o); err != nil {
 			return nil, err
 		}
-		m.Options = in.Options
+		canon, _ := json.Marshal(o)
+		m.Options = string(canon)
 	}
 	var out db.Model
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

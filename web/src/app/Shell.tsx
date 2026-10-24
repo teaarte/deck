@@ -90,7 +90,7 @@ export function Shell() {
             <Nav menu={menu} current={current} />
           </nav>
         ) : null}
-        <main className={s.main} data-main>
+        <main className={s.main} data-main data-main-apps={apps || undefined}>
           {phone ? <PhoneBar entry={entry} onMenu={() => setPhoneNav(true)} master={master} cards={cards} />
             : <Toolbar entry={entry} navOpen={navOpen && !cards} onShowNav={() => { moveFocus('[data-nav-hide]'); setNavOpen(true); }} master={!chat && master} cards={cards} />}
           {cards && !apps && <Places />}

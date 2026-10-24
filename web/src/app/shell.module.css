@@ -71,6 +71,11 @@
   padding: var(--deck-gap) 6px calc(var(--deck-gap) * 3);
 }
 
+.main[data-main-apps] {
+  display: flex;
+  flex-direction: column;
+}
+
 .toolbar {
   display: flex;
   align-items: center;

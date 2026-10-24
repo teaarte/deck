@@ -10,13 +10,15 @@ import (
 
 	"deck2/internal/app/access"
 	"deck2/internal/ask"
+	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
 
 type processAsksIn struct {
-	Process int64 `desc:"The process a button of the owner started"`
+	Process int64  `desc:"The process a button of the owner started"`
+	Lang    string `opt:"" desc:"Language of the sentences of deck, such as ru; English without one"`
 }
 
 // processAsksWait is how long process_asks waits for a script or tool to ask or end, processAsksQuiet how long
@@ -43,12 +45,12 @@ func (s *Service) processAsks(ctx context.Context, act registry.Actor, in proces
 		return nil, err
 	}
 	if p.Kind == process.KindAgent {
-		out, _, err := s.asksOf(ctx, act, p.ID, p.ProjectID)
+		out, _, err := s.asksOf(ctx, act, p.ID, p.ProjectID, in.Lang)
 		return out, err
 	}
 	until, quiet, seen := time.After(processAsksWait), time.Now(), 0
 	for {
-		out, ended, err := s.asksOf(ctx, act, p.ID, p.ProjectID)
+		out, ended, err := s.asksOf(ctx, act, p.ID, p.ProjectID, in.Lang)
 		if len(out) != seen {
 			quiet, seen = time.Now(), len(out)
 		}
@@ -77,7 +79,7 @@ func answer(id int64, verb string) map[string]any {
 }
 
 // asksOf are the open calls of a process and of its result, and whether it ended.
-func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project int64) ([]pressAsk, bool, error) {
+func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project int64, lang string) ([]pressAsk, bool, error) {
 	p, err := s.St.Q.GetProcess(ctx, id)
 	if err != nil {
 		return nil, false, err
@@ -103,7 +105,9 @@ func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project in
 	out := []pressAsk{}
 	for _, q := range open {
 		if q.Kind == ask.KindCall && q.ProjectID.Int64 == project && (q.ProcessID.Int64 == id || slices.Contains(named, q.ID)) {
-			out = append(out, pressAsk{askRow: s.askRow(ctx, q, names, ""), Allow: answer(q.ID, "allow"), Deny: answer(q.ID, "deny")})
+			r := s.askRow(ctx, q, names, lang)
+			r.Who = manifest.TrText(s.Words(lang), r.Who)
+			out = append(out, pressAsk{askRow: r, Allow: answer(q.ID, "allow"), Deny: answer(q.ID, "deny")})
 		}
 	}
 	return out, p.FinishedAt.Valid, nil

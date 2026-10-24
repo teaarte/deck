@@ -255,8 +255,8 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.shot("settings-phone")
 
 	tab("Modules")
-	if got := b.eval(`String(document.querySelector('nav').textContent.toLowerCase().includes('notes'))`); got != "true" {
-		t.Fatalf("the project is in the menu before the delete: %s", got)
+	if names, _ := e.side(); !slices.Contains(names, "notes") {
+		t.Fatalf("the project is in the menu before the delete: %v", names)
 	}
 	b.eval(pressIn(itemOf("notes", "enabled"), "delete"))
 	b.until("the owner asked before the delete", `document.querySelector('[data-confirm]')?.innerText.includes('notes')`)
@@ -266,7 +266,10 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Fatalf("nothing is deleted before the owner says yes: %+v", still)
 	}
 	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
-	b.until("the deleted project gone from the tab and the menu", `![...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes ·')) && !document.querySelector('nav').innerText.toLowerCase().includes('notes')`)
+	b.until("the deleted project gone from the tab", `![...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes ·'))`)
+	if names, _ := e.side(); slices.Contains(names, "notes") {
+		t.Fatalf("the deleted project is gone from the menu: %v", names)
+	}
 	still = nil
 	e.projectsOf(&still)
 	if len(still) != 1 || still[0].Name != "web" {

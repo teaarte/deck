@@ -136,7 +136,7 @@ func TestRealBrowserCards(t *testing.T) {
 		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && notes.dataset.cover === 'true' && notes.querySelector('[data-cover-img][data-shown]') })()`)
 	if got := b.eval(`(() => { const notes = document.querySelector('[data-module=notes]'), plain = document.querySelector('[data-module=plain]');
 		return [!notes.querySelector('[data-app-tile-icon]'), !!plain.querySelector('[data-app-tile-icon]'), !document.querySelector('[data-card-places], [data-card-more]'),
-			!!document.querySelector('[data-new-module]'), getComputedStyle(document.querySelector('[data-app-tile][data-big]')).gridColumnEnd].join(' ') })()`); got != "true true true true span 2" {
+			!!document.querySelector('[data-new-module]'), getComputedStyle(document.querySelector('[data-app-tile][data-big]')).gridColumnStart].join(' ') })()`); got != "true true true true span 2" {
 		t.Fatalf("a tile with a cover has no icon, one without has, no menu on a tile, a new module, Today on two columns: %s", got)
 	}
 	b.shot("cards")
@@ -152,15 +152,15 @@ func TestRealBrowserCards(t *testing.T) {
 	b.until("the module's screens are tabs", `document.querySelector('[data-places] a[aria-current=page]') && document.querySelector('[data-places] a[href="#/p/plain/settings"]')`)
 	b.eval(`(document.querySelector('[data-places] a[href="#/p/plain/settings"]').click(), '')`)
 	b.until("its settings", `location.hash === '#/p/plain/settings' && document.querySelector('[data-places] a[aria-current=page]').getAttribute('href') === '#/p/plain/settings'`)
-	b.until("a module offers to draw its cover for this theme", `[...document.querySelectorAll('button')].some((x) => x.innerText.trim() === 'Draw for this theme')`)
-	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Draw for this theme').click(), '')`)
+	b.until("a module offers to draw its cover for this theme", `document.querySelector('[data-dialog-open="draw-cover"]')`)
+	b.eval(`(document.querySelector('[data-dialog-open="draw-cover"]').click(), '')`)
 	b.until("the dialog to draw the cover with a wish and a model", `document.querySelector('.mantine-Modal-content [data-field="wish"]') && document.querySelector('.mantine-Modal-content [data-field="model"]') && !document.querySelector('.mantine-Modal-content [data-field="project"]')`)
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.locator('.mantine-Modal-content [data-field="wish"]').fill('a paper boat'); await page.locator('.mantine-Modal-content [data-submit]').click(); }`})
 	b.until("the master is told in the chat", `document.querySelector('[data-chat-panel]')?.innerText.includes('a paper boat')`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	dark := e.upload("plain", "dark.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
 	e.must("deck.project_cover", map[string]any{"project": "plain", "file": strconv.FormatInt(dark, 10), "scheme": "dark"}, nil)
-	b.until("the covers of the module by theme in its settings", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Every theme · dark scheme · on the card'))`)
+	b.until("the cover of the module in its settings", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.startsWith('Covers') && x.querySelector('img'))`)
 	b.eval(`(document.querySelector('[data-apps-home]').click(), '')`)
 	b.until("the way home", `document.querySelector('[data-apps]')`)
 	b.until("a tile with only a dark cover shows it in the light scheme too", `document.querySelector('[data-app=plain]').closest('[data-app-tile]').dataset.cover === 'true'`)

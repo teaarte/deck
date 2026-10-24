@@ -22,22 +22,16 @@
             ]},
           {"type": "dialog", "name": "cover", "title": "Upload a cover", "icon": "photo-up", "blocks": [
             {"type": "form", "command": "deck.project_cover", "fixed": ["remove"], "description": "A picture for the card of the module: for one theme or for every theme, one for the light scheme, one for the dark."}]},
-          {"type": "dialog", "name": "draw-cover", "title": "Draw the cover", "icon": "sparkles", "blocks": [
+          {"type": "dialog", "name": "draw-cover", "title": "Draw the cover for this theme", "icon": "sparkles", "blocks": [
             {"type": "form", "command": "deck.covers_draw", "fixed": ["project"], "values": {"project": "=param.name"},
               "description": "The master draws the pictures of the schemes of the theme in use in its mood. Without a model it takes a free one of deck.",
               "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + (free ? ' · free' : '')"}}}]},
           {"type": "media", "title": "Covers", "description": "The picture of the module's card in each theme, light and dark; the card shows the one of the theme in use, else one for every theme, else any.",
-            "source": {"from": "deck.project_covers", "input": {"project": "=param.name"}},
+            "source": {"from": "deck.project_covers"},
             "item": {"file": "file", "title": "title + ' · ' + (scheme == 'dark' ? 'dark scheme' : 'light scheme') + (shown ? ' · ' + 'on the card' : '')"},
             "empty": "The card has no picture yet: it shows the icon of the module.",
             "actions": [
               {"verb": "delete", "confirm": true, "command": "deck.project_cover", "params": {"project": "=project", "theme": "=theme", "scheme": "=scheme", "remove": "true"}}
-            ]},
-          {"type": "list", "title": "Card", "source": {"from": "deck.projects_list"},
-            "item": {"title": "'The picture of the card in the theme in use'", "icon": "'photo'"},
-            "actions": [
-              {"label": "Draw for this theme", "icon": "sparkles", "primary": true, "screen": "settings", "params": {"dialog": "draw-cover"}},
-              {"label": "Upload", "icon": "upload", "screen": "settings", "params": {"dialog": "cover"}}
             ]},
           {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
             "description": "What the module can do and when it runs by itself.",

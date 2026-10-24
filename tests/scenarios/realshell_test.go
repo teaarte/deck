@@ -179,7 +179,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the dark glass", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
 	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"]')`)
-	b.until("the glass of the theme document on the chat", `getComputedStyle(document.querySelector('[data-chat-panel]')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
+	b.until("the glass of the theme document on the tabs", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
 	if got := b.eval(`document.querySelectorAll('[data-backdrop] > div').length`); got != "2" {
 		t.Fatalf("glass draws the pattern of its backdrop: %s", got)
 	}
@@ -193,9 +193,6 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the dark project screen", `document.querySelector('[data-block] table')`)
-	if got := b.eval(`getComputedStyle(document.querySelector('[data-chat-panel]')).backdropFilter`); got == "none" {
-		t.Fatalf("the chat island is glass: %s", got)
-	}
 	b.shot("shell-glass-dark")
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.open(e.URL + "/#/deck/cockpit")

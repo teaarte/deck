@@ -110,7 +110,7 @@ func (s *Service) freeImageModel(ctx context.Context, act registry.Actor) string
 }
 
 type coversIn struct {
-	Project string `type:"project" desc:"Project name"`
+	Project string `type:"project" opt:"" desc:"Project name; the caller's own without one"`
 	Lang    string `opt:"" desc:"Language of the titles, such as ru"`
 }
 
@@ -150,7 +150,7 @@ func (s *Service) covers(ctx context.Context, act registry.Actor, in coversIn) (
 				title = l.Title
 			}
 		}
-		out = append(out, coverRow{Project: p.Name, Theme: x.Theme, Title: title, Scheme: x.Scheme, File: x.FileID, Shown: shown[x.ID]})
+		out = append(out, coverRow{Project: p.Name, Theme: x.Theme, Title: title, Scheme: x.Scheme, File: files.Shown(x), Shown: shown[x.ID]})
 	}
 	slices.SortStableFunc(out, func(a, b coverRow) int {
 		return boolRank(b.Theme == cur) - boolRank(a.Theme == cur)

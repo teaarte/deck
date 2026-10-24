@@ -34,7 +34,8 @@ WHERE m.connection_id = ? AND m.model = ? ORDER BY m.id LIMIT 1;
 
 
 -- name: ModelTwin :one
-SELECT name FROM model WHERE connection_id = ? AND model = ? AND kind = ? AND json(options) = json(sqlc.arg(options)) AND name != ?
+SELECT name FROM model WHERE connection_id = sqlc.arg(connection_id) AND model = sqlc.arg(model) AND kind = sqlc.arg(kind)
+    AND json(options) = json(CAST(sqlc.arg(options) AS TEXT)) AND name != sqlc.arg(name)
 ORDER BY id LIMIT 1;
 
 

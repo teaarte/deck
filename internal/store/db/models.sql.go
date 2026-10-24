@@ -498,7 +498,8 @@ func (q *Queries) ModelInOtherWorkspace(ctx context.Context, arg ModelInOtherWor
 }
 
 const modelTwin = `-- name: ModelTwin :one
-SELECT name FROM model WHERE connection_id = ? AND model = ? AND kind = ? AND json(options) = json(?5) AND name != ?
+SELECT name FROM model WHERE connection_id = ?1 AND model = ?2 AND kind = ?3
+    AND json(options) = json(CAST(?4 AS TEXT)) AND name != ?5
 ORDER BY id LIMIT 1
 `
 
@@ -506,7 +507,7 @@ type ModelTwinParams struct {
 	ConnectionID int64
 	Model        string
 	Kind         string
-	Options      interface{}
+	Options      string
 	Name         string
 }
 

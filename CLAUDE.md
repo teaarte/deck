@@ -57,6 +57,8 @@ hold; look inside a package for the rest.
   page the same way — new outbound HTTP goes through it.
 - `internal/fault` — the one form of a failure: a type of a closed set, whose it is, text and details; a script
   reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit.
+- `internal/theme` — the themes of deck: the schema and catalog (`schemas/theme.json`), the check of tokens, parts,
+  limited CSS and contrast, the CSS the client wears; the shipped themes in `shipped/`. `app/themes` its commands.
 - `internal/health` — health rows: state of what deck runs or reaches; events go to the feed.
 - `internal/ask` — the broker of what waits for the owner; `app/asks` its commands.
 - `internal/screen` — stored screens resolved into A2UI messages (blocks, data, actions, forms, topics, i18n): the
@@ -73,6 +75,8 @@ hold; look inside a package for the rest.
   `internal/home`, `internal/nonce` — what their names say.
 - `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet`.
 - `internal/lint` — code rules checked by `tests/lint`.
+- `starters` — the modules deck offers on its first run, each a `.zip` as `deck.project_export` makes it; data, no
+  code of deck for any of them.
 - `master` — the built-in project master (manifest, prompts, skills, deck's texts for its agents).
 - `skills` — the skills deck ships to agents; `schemas` — manifest schema, screen block catalog, App Intents rules.
 - `web` — the client: Vite + React + Mantine v9 + `@a2ui/react` v0.9 — import from `@a2ui/react/v0_9` and

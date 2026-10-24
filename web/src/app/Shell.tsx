@@ -75,7 +75,7 @@ export function Shell() {
       <div className={s.shell} data-full={(side && full) || undefined} data-dragging={dragging || undefined}
         style={desk ? { gridTemplateColumns: [navOpen && !cards && 'auto', !(side && full) && 'minmax(0, 1fr)', side && (full ? 'minmax(0, 1fr)' : 'auto')].filter(Boolean).join(' ') } : undefined}>
         {desk && navOpen && !cards ? (
-          <nav className={`${s.island} ${s.nav}`} data-nav>
+          <nav className={`${s.island} ${s.nav}`} data-nav data-island>
             <div className={s.navTop}>
               <Logo />
               <Group gap={2}>

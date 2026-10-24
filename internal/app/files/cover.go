@@ -1,6 +1,7 @@
 package files
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"strings"
@@ -14,7 +15,8 @@ import (
 type projectCoverIn struct {
 	Project string `type:"project" desc:"Project name"`
 	File    string `type:"file" opt:"" desc:"The picture: an upload, a stored file of the project or the master, or results/<name> of the calling process"`
-	Remove  bool   `opt:"" desc:"Take the cover off instead"`
+	Scheme  string `opt:"" enum:"light|dark" desc:"The color scheme the picture is for: light by default; a card shows the one of its scheme, or the only one"`
+	Remove  bool   `opt:"" desc:"Take the cover of the scheme off instead, both without a scheme"`
 }
 
 // projectCover sets the picture of a project's card from a file, a copy of it, or takes it off.
@@ -27,10 +29,19 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 		return nil, registry.Invalid("deck: give the picture in file, or remove")
 	}
 	if in.Remove {
+		kinds := []string{files.CoverKind, files.CoverDarkKind}
+		if in.Scheme != "" {
+			kinds = []string{files.CoverOf(in.Scheme)}
+		}
 		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: files.CoverKind, OwnerID: p.ID})
+			for _, k := range kinds {
+				if err := q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: k, OwnerID: p.ID}); err != nil {
+					return err
+				}
+			}
+			return nil
 		})
-		return map[string]any{"project": p.Name, "cover": nil}, err
+		return map[string]any{"project": p.Name, "removed": kinds}, err
 	}
 	ref, err := files.Resolve(ctx, s.Home, s.St.Q, p.ID, act.ProcessID, in.File)
 	if err != nil {
@@ -54,20 +65,20 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 		return nil, err
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: files.CoverKind, OwnerID: p.ID}); err != nil {
+		if err := q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: files.CoverOf(in.Scheme), OwnerID: p.ID}); err != nil {
 			return err
 		}
-		_, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: files.CoverKind, OwnerID: p.ID, ID: v.ID, ProjectID: p.ID, FromKind: "upload", FromID: 0})
+		_, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: files.CoverOf(in.Scheme), OwnerID: p.ID, ID: v.ID, ProjectID: p.ID, FromKind: "upload", FromID: 0})
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"project": p.Name, "cover": v.ID}, nil
+	return map[string]any{"project": p.Name, "cover": v.ID, "scheme": cmp.Or(in.Scheme, "light")}, nil
 }
 
 func (s *Service) coverCommand() *registry.Command {
 	return registry.Def("project_cover", "Set cover",
-		"Sets the picture of the card of a project, which deck shows when it lays out the modules as cards, or takes it off.",
+		"Sets the picture of the card of a project for the light or the dark scheme, which deck shows when it lays out the modules as cards, or takes it off.",
 		registry.OwnerSide, s.projectCover)
 }

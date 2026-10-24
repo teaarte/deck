@@ -25,6 +25,7 @@ import (
 	"deck2/internal/app/settings"
 	"deck2/internal/app/signins"
 	"deck2/internal/app/snapshots"
+	"deck2/internal/app/themes"
 	"deck2/internal/app/tokens"
 	"deck2/internal/app/triggers"
 	"deck2/internal/ask"
@@ -61,6 +62,7 @@ type App struct {
 	Tokens    tokens.Service
 	Secrets   secrets.Service
 	Settings  settings.Service
+	Themes    themes.Service
 	Folders   folders.Service
 	Files     appfiles.Service
 	Journal   journal.Service
@@ -143,6 +145,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx}
 	a.Journal = journal.Service{St: st, Now: cfg.Now}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake, Words: screens.Phrases}
+	a.Themes = themes.Service{St: st, Now: cfg.Now, Invoke: a.Registry.Invoke, Words: screens.Phrases, Language: a.Settings.Language}
 	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Providers.Works, Words: screens.Phrases}
 	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Changed: a.Devices.Changed}
@@ -175,7 +178,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.Screens.CheckScreens,
-		Unassigned: a.Providers.Unassigned, Words: screens.Phrases}
+		Unassigned: a.Providers.Unassigned, Words: screens.Phrases, Secret: a.Secrets.Has}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)

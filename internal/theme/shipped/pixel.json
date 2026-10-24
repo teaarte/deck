@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "title": {"en": "Pixel", "ru": "Пиксели"},
+  "mood": "8-bit pixel art: chunky square pixels, a small limited palette around the accent color, hard black outlines and hard offset shadows, a retro game screen, no text.",
+  "font": {"text": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace", "headings": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace"},
+  "radius": "0",
+  "backdrop": "pattern",
+  "tokens": {"ring": "0 0 0 2px var(--text)", "shadow": "6px 6px 0 0 color-mix(in srgb, var(--accent) 85%, #000)"},
+  "parts": {"island": {"radius": "0px"}, "card": {"radius": "0px"}, "button": {"radius": "0"}, "field": {"radius": "0"}, "badge": {"radius": "0"}},
+  "css": ".paper, .dialog, .popover, .composer, .turn, .message { border-radius: 0 !important; }\n.button[data-variant=filled] { box-shadow: 3px 3px 0 0 var(--text); }\n.actions, .screen-head .group { gap: 10px; padding: 0 3px 3px 0; }\n.nav-item[data-active] { box-shadow: 3px 3px 0 0 var(--text); }\n.h1, .h2, .h3 { text-transform: uppercase; letter-spacing: 0.04em; }\n.backdrop { image-rendering: pixelated; mask-size: 360px; -webkit-mask-size: 360px; }\n"
+}

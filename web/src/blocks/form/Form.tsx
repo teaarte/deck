@@ -3,6 +3,7 @@ import { Alert, Button, Group, Loader, Select, Stack, Text } from '@mantine/core
 import { useTranslation } from 'react-i18next';
 import { DialogClose } from '../../screen/dialogContext';
 import { outcome } from '../../screen/act';
+import { openTopic } from '../../chat/chatStore';
 import { press, useBlockContext } from '../../screen/press';
 import { sharedSent } from '../../lib/share';
 import { errorText } from '../../lib/notify';
@@ -64,7 +65,9 @@ export function Form({ value }: { value: FormValue }) {
       const hidden = Object.keys(props).filter((k) => props[k].writeOnly);
       if (hidden.length && alive.current) form.forget(hidden);
       if (Object.values(form.files).some((f) => f.length)) await sharedSent();
-      const started = outcome(res).started;
+      const { started, topic } = outcome(res);
+      // A command that answers with a chat topic, such as one telling the master, opens it.
+      if (topic) openTopic(topic);
       if (!started) {
         if (alive.current) setOut({ state: 'done', result: res });
         close?.();

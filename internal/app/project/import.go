@@ -44,9 +44,10 @@ func moduleKind(m *manifest.Manifest, name string) string {
 }
 
 type projectImportIn struct {
-	Folder string `opt:"" desc:"Absolute path of the folder"`
-	File   string `type:"file" opt:"" desc:"A .zip of a module folder, as deck.project_export makes it; instead of folder"`
-	Name   string `opt:"" desc:"Project name; the folder or file name when omitted"`
+	Folder  string `opt:"" desc:"Absolute path of the folder"`
+	File    string `type:"file" opt:"" desc:"A .zip of a module folder, as deck.project_export makes it; instead of folder"`
+	Starter string `opt:"" desc:"A module deck ships for a start, by its name in deck.starters_list; instead of folder or file"`
+	Name    string `opt:"" desc:"Project name; the folder or file name when omitted"`
 }
 
 // importable lets someone other than the owner import only from the data of the master and from the folders the
@@ -76,21 +77,28 @@ func (pj *Service) importable(ctx context.Context, act registry.Actor, dir strin
 // projectImport creates a draft from a module folder, or from a .zip of one, in one transaction; hidden files are
 // left out.
 func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in projectImportIn) (any, error) {
-	if (in.Folder == "") == (in.File == "") {
-		return nil, registry.Invalid("deck: give folder or file, one of them")
+	if n := btoi(in.Folder != "") + btoi(in.File != "") + btoi(in.Starter != ""); n != 1 {
+		return nil, registry.Invalid("deck: give folder, file or starter, one of them")
 	}
 	var (
 		files      []folderFile
 		skipped    []string
 		from, name string
 	)
-	if in.File != "" {
+	switch {
+	case in.Starter != "":
+		var err error
+		if files, err = starter(in.Starter); err != nil {
+			return nil, err
+		}
+		from, name = "starter "+in.Starter, in.Starter
+	case in.File != "":
 		var err error
 		if files, skipped, name, err = pj.readUpload(ctx, act, in.File); err != nil {
 			return nil, err
 		}
 		from = "file " + name
-	} else {
+	default:
 		dir, err := folders.Abs(in.Folder)
 		if err != nil {
 			return nil, err
@@ -159,6 +167,7 @@ func (pj *Service) importFiles(ctx context.Context, act registry.Actor, name, fr
 	if w := pj.unassigned(ctx, p, pm.m); len(w) > 0 {
 		out["warnings"] = w
 	}
+	out["needs"] = slices.DeleteFunc(pj.needs(ctx, p, pm.m, nil, nil), func(n needRow) bool { return n.Done })
 	return out, nil
 }
 
@@ -221,7 +230,7 @@ func readFolder(root string) (files []folderFile, skipped []string, err error) {
 func (pj *Service) importCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_import", "Import project",
-			"Creates a draft project from a module folder, or from a .zip of one: manifest.json, prompt.md and the other files by their document names.",
+			"Creates a draft project from a module folder, from a .zip of one, or from a starter module deck ships: manifest.json, prompt.md and the other files by their document names; the result names what it needs to work.",
 			registry.OwnerSide, pj.projectImport),
 		registry.Def("project_export", "Export project",
 			"Keeps a .zip of the documents of a project to share as a module: manifest, prompts, skills, scripts and the other documents, without its memory, records, data and secrets; the result names the file.",
@@ -230,4 +239,11 @@ func (pj *Service) importCommands() []*registry.Command {
 			"Lists what enabling a draft lets it do beyond its own records, such as the web, secrets, folders and models, and the calls that will wait for the owner each time.",
 			registry.OwnerSide, pj.projectRights).On("projects", "documents"),
 	}
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

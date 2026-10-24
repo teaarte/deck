@@ -60,6 +60,12 @@ Change the model of any command right in its row.</sub></td>
 <td width="50%" align="center"><img src="docs/screenshots/phone.png" alt="The cockpit on a phone" width="260"><br><sub><b>On your phone.</b>
 The same cockpit, with pushes and sharing.</sub></td>
 </tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/first-run.png" alt="An empty deck: tell Deki what to do, or start with a module"><br><sub><b>The first run.</b>
+Tell Deki what you need, or start with a module that finds free models.</sub></td>
+<td width="50%"><img src="docs/screenshots/first-run-draft.png" alt="A draft module: what it needs to work and what it may do"><br><sub><b>A module comes as a draft.</b>
+See what it needs and what it may do, then enable it.</sub></td>
+</tr>
 </table>
 
 ## What people run on it

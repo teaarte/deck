@@ -1,0 +1,29 @@
+---
+name: themes
+description: Makes, changes, checks and deletes the themes of deck — colors of both schemes, fonts, radii, the look of buttons, cards, islands, fields and badges, a little CSS and the mood of pictures. Use when the owner asks for a new look of deck, a theme, colors, fonts or a style for covers.
+---
+
+# Themes of deck
+
+A theme is the look of the whole deck: a JSON document checked before it is saved. `deck.theme_format` gives its
+schema with the catalog — the tokens (canvas, island, block, text, dimmed, …), the variables a value may read and
+the classes CSS may name. deck ships juce, default, glass, pixel, neon and paper; `deck.themes_list` names them
+and the owner's.
+
+## Making or changing one
+
+1. Start from the closest theme: `deck.theme` with its name gives its `text`. Save under its name to put the
+   owner's over a shipped one, under a new name for a new one.
+2. Write the tokens of both schemes (`tokens` for both, `light`, `dark` over them). Text and dimmed need 4.5:1
+   on canvas, body, island and block with every accent: give those tokens as #hex, rgb() or color-mix().
+3. `mood` is the style of pictures in this theme in one or two sentences — the covers of modules are drawn by it.
+4. CSS only when tokens and parts are not enough, and only by the classes of the catalog: no url(), no
+   @import, no selectors of the page.
+5. `deck.theme_check` with the text names every problem; fix them all, then `deck.theme_save`. Its answer
+   gives two preview addresses, light and dark: give them to the owner as links.
+6. Only the owner puts a theme on: tell them it is in Settings → Interface → Theme.
+
+## Deleting
+
+`deck.theme_delete` removes the owner's theme; over a shipped one, the shipped one is back. A deleted theme in
+use gives way to juce.

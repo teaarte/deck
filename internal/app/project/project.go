@@ -55,6 +55,8 @@ type Service struct {
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
 	// Words are deck's phrases in a language.
 	Words func(lang string) map[string]string
+	// Secret reports whether a secret of a workspace is set.
+	Secret func(workspace int64, name string) bool
 
 	// preparedCmds are the registry commands of each manifest revision.
 	preparedMu   sync.Mutex
@@ -63,5 +65,5 @@ type Service struct {
 
 // Commands are the commands of projects.
 func (pj *Service) Commands() []*registry.Command {
-	return slices.Concat(pj.projectsCommands(), pj.importCommands(), pj.draftsCommands(), pj.projectDeleteCommands(), pj.manifestCommands())
+	return slices.Concat(pj.projectsCommands(), pj.importCommands(), pj.startersCommands(), pj.draftsCommands(), pj.projectDeleteCommands(), pj.manifestCommands())
 }

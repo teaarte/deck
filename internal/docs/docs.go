@@ -25,9 +25,10 @@ const (
 	KindDoc      = "doc"
 	KindArtifact = "artifact"
 	KindMemory   = "memory"
+	KindTheme    = "theme"
 )
 
-var Kinds = []string{KindPrompt, KindManifest, KindScript, KindSkill, KindCustom, KindArtifact, KindMemory, KindDoc}
+var Kinds = []string{KindPrompt, KindManifest, KindScript, KindSkill, KindCustom, KindArtifact, KindMemory, KindDoc, KindTheme}
 
 // Editable says a document is edited as text on a screen: md, but not the manifest, scripts or custom blocks.
 func Editable(kind, name string) bool {

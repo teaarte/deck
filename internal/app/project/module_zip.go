@@ -47,18 +47,24 @@ func (pj *Service) readUpload(ctx context.Context, act registry.Actor, ref strin
 		return nil, nil, "", missing
 	}
 	defer file.Close()
-	zr, err := zip.NewReader(file, f.Size)
+	return readZip(f.Name, file, f.Size)
+}
+
+// readZip reads the text files of a .zip of a module folder; what it cannot take is in skipped, and name is its one
+// top folder, or the file name without one.
+func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, skipped []string, name string, err error) {
+	zr, err := zip.NewReader(r, size)
 	if err != nil {
-		return nil, nil, "", registry.Invalid("deck: %s is not a .zip: %v", f.Name, err)
+		return nil, nil, "", registry.Invalid("deck: %s is not a .zip: %v", fileName, err)
 	}
 	if len(zr.File) > maxZipEntries {
-		return nil, nil, "", registry.Invalid("deck: %s has more than %d entries", f.Name, maxZipEntries)
+		return nil, nil, "", registry.Invalid("deck: %s has more than %d entries", fileName, maxZipEntries)
 	}
 	total := 0
 	for _, e := range zr.File {
 		p := path.Clean(e.Name)
 		if strings.Contains(e.Name, `\`) || path.IsAbs(p) || p == ".." || strings.HasPrefix(p, "../") {
-			return nil, nil, "", registry.Invalid("deck: %s: %s leaves the module folder", f.Name, e.Name)
+			return nil, nil, "", registry.Invalid("deck: %s: %s leaves the module folder", fileName, e.Name)
 		}
 		if e.FileInfo().IsDir() || hidden(p) {
 			continue
@@ -73,13 +79,13 @@ func (pj *Service) readUpload(ctx context.Context, act registry.Actor, ref strin
 		}
 		r, err := e.Open()
 		if err != nil {
-			return nil, nil, "", registry.Invalid("deck: %s: %s: %v", f.Name, p, err)
+			return nil, nil, "", registry.Invalid("deck: %s: %s: %v", fileName, p, err)
 		}
 		b, err := io.ReadAll(io.LimitReader(r, documents.MaxFile+1))
 		_ = r.Close()
 		switch {
 		case err != nil:
-			return nil, nil, "", registry.Invalid("deck: %s: %s: %v", f.Name, p, err)
+			return nil, nil, "", registry.Invalid("deck: %s: %s: %v", fileName, p, err)
 		case len(b) > documents.MaxFile:
 			skipped = append(skipped, p+": larger than 1 MB")
 			continue
@@ -88,11 +94,11 @@ func (pj *Service) readUpload(ctx context.Context, act registry.Actor, ref strin
 			continue
 		}
 		if total += len(b); total > maxFolder {
-			return nil, nil, "", registry.Invalid("deck: %s holds more than 32 MB of text", f.Name)
+			return nil, nil, "", registry.Invalid("deck: %s holds more than 32 MB of text", fileName)
 		}
 		files = append(files, folderFile{path: p, text: string(b)})
 	}
-	name = strings.TrimSuffix(f.Name, filepath.Ext(f.Name))
+	name = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	if top := oneFolder(files); top != "" {
 		name = top
 		for i := range files {

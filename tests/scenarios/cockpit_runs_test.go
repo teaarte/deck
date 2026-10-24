@@ -378,10 +378,13 @@ func TestTheHeroTellsWhatFailedWaitsAndRuns(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	})
-	if h := e.hero(""); h.State != "calm" || h.Title != "All is calm" || len(h.Lines) != 0 {
-		t.Fatalf("a quiet deck says it is calm and counts nothing: %+v", h)
+	if h := e.hero(""); h.State != "calm" || h.Title != "Tell Deki what to do" || len(h.Lines) != 0 {
+		t.Fatalf("a quiet empty deck says what to do and counts nothing: %+v", h)
 	}
 	e.createProject("shorts", jobsModule)
+	if h := e.hero(""); h.State != "calm" || h.Title != "All is calm" {
+		t.Fatalf("a quiet deck with a module says it is calm: %+v", h)
+	}
 	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
 	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)

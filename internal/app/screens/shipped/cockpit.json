@@ -62,7 +62,7 @@
         {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "=id"}, "when": "can_undo"}
       ]},
     {"type": "dialog", "name": "changes", "title": "History", "icon": "history", "blocks": [
-      {"type": "table", "title": "Done without you", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}, "limit": 50},
+      {"type": "table", "title": "Done without you", "empty": "Nothing was done without you yet", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}, "limit": 50},
         "columns": [
           {"label": "What", "bind": "text"},
           {"label": "Module", "bind": "project", "format": "tag"},
@@ -72,7 +72,7 @@
         "actions": [
           {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "=id"}, "when": "can_undo"}
         ]},
-      {"type": "table", "title": "Notes", "source": {"from": "deck.feed_list", "input": {"kind": "note", "limit": 500}, "limit": 50},
+      {"type": "table", "title": "Notes", "empty": "No notes yet", "source": {"from": "deck.feed_list", "input": {"kind": "note", "limit": 500}, "limit": 50},
         "description": "Every note, those read or read all at once too.",
         "columns": [
           {"label": "Note", "bind": "text"},
@@ -82,6 +82,14 @@
         ],
         "actions": [
           {"verb": "open", "screen": "=screen", "project": "=deck_screen ? '' : project", "record": "=record", "when": "screen != ''"}
-        ]}]}
+        ]}]},
+    {"type": "list", "title": "Start with a module", "icon": "rocket", "span": 2, "cards": true, "when": "len(rows) > 0", "source": {"from": "deck.starters_list"},
+      "description": "A module comes as a draft: see what it can do, then enable it.",
+      "item": {"title": "title", "text": "description", "icon": "icon != '' ? icon : 'box'",
+        "meta": "status == 'draft' ? 'A draft: not enabled yet' : ''", "tone": "status == 'draft' ? 'warn' : ''"},
+      "actions": [
+        {"label": "Add as a draft", "icon": "download", "primary": true, "command": "deck.project_import", "params": {"starter": "=name"}, "when": "status == ''"},
+        {"label": "What it can do", "icon": "shield-check", "primary": true, "screen": "draft", "params": {"project": "=name", "revision": "=revision"}, "when": "status == 'draft'"}
+      ]}
   ]
 }

@@ -3,7 +3,7 @@
   "icon": "folder",
   "title": "Files",
   "blocks": [
-    {"type": "media", "title": "Documents", "span": "full", "source": {"from": "deck.documents_list", "input": {"with_deleted": true}, "sort": "name"}, "filter": ["kind"],
+    {"type": "media", "title": "Documents", "empty": "No documents yet: its agents write them, or ask Deki in the chat", "span": "full", "source": {"from": "deck.documents_list", "input": {"with_deleted": true}, "sort": "name"}, "filter": ["kind"],
       "item": {"title": "name",
         "icon": "deleted ? 'trash' : kind == 'skill' ? 'sparkles' : kind == 'script' ? 'code' : kind == 'manifest' ? 'settings' : kind == 'prompt' ? 'message' : 'file-text'"},
       "actions": [

@@ -55,7 +55,8 @@
           "topic-summary",
           "memory",
           "module-builder",
-          "code-project"
+          "code-project",
+          "themes"
         ]
       }
     },

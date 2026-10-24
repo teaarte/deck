@@ -244,6 +244,8 @@ github.com/tailscale/xnet v0.0.0-20240729143630-8497ac4dab2e h1:zOGKqN5D5hHhiYUp
 github.com/tailscale/xnet v0.0.0-20240729143630-8497ac4dab2e/go.mod h1:orPd6JZXXRyuDusYilywte7k094d7dycXXU5YnWsrwg=
 github.com/tc-hib/winres v0.2.1 h1:YDE0FiP0VmtRaDn7+aaChp1KiF4owBiJa5l964l5ujA=
 github.com/tc-hib/winres v0.2.1/go.mod h1:C/JaNhH3KBvhNKVbvdlDWkbMDO9H4fKKDaN7/07SSuk=
+github.com/tdewolff/parse/v2 v2.8.20 h1:eU+UStwuoeHnXdaSBIoEfNnj33URx24gJDdNViHHYwM=
+github.com/tdewolff/parse/v2 v2.8.20/go.mod h1:OemXEPll2+Sn7pQ6xFxC9cEm1wDnNt1hC2q3jIh+OoI=
 github.com/u-root/gobusybox/src v0.0.0-20240225013946-a274a8d5d83a h1:eg5FkNoQp76ZsswyGZ+TjYqA/rhKefxK8BW7XOlQsxo=
 github.com/u-root/gobusybox/src v0.0.0-20240225013946-a274a8d5d83a/go.mod h1:e/8TmrdreH0sZOw2DFKBaUV7bvDWRq6SeM9PzkuVM68=
 github.com/u-root/u-root v0.14.0 h1:Ka4T10EEML7dQ5XDvO9c3MBN8z4nuSnGjcd1jmU2ivg=

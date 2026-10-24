@@ -217,8 +217,8 @@ type documentSaveIn struct {
 }
 
 func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in documentSaveIn) (any, error) {
-	if in.Kind == docs.KindManifest {
-		return nil, registry.Invalid("deck: save manifests with deck.manifest_save")
+	if err := ownSave(in.Kind); err != nil {
+		return nil, err
 	}
 	s, err := dc.memoryScope(ctx, act, in.Project, in.Name)
 	if err != nil {
@@ -247,8 +247,8 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 			}
 			in.Kind = old.Kind
 		}
-		if in.Kind == docs.KindManifest {
-			return registry.Invalid("deck: save manifests with deck.manifest_save")
+		if err := ownSave(in.Kind); err != nil {
+			return err
 		}
 		if err := mayWrite(ctx, q, act, s, in.Kind, in.Name); err != nil {
 			return err
@@ -273,6 +273,17 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 		}
 	}
 	return v, nil
+}
+
+// ownSave refuses the kinds that have their own command to save them, which checks them.
+func ownSave(kind string) error {
+	switch kind {
+	case docs.KindManifest:
+		return registry.Invalid("deck: save manifests with deck.manifest_save")
+	case docs.KindTheme:
+		return registry.Invalid("deck: save themes with deck.theme_save")
+	}
+	return nil
 }
 
 // mayWrite refuses an agent or script a document of its project other than artifacts and memory unless writes in

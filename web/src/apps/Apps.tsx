@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { Text, Title } from '@mantine/core';
+import { Text, Title, useComputedColorScheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconChevronDown, IconLayoutDashboard } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +24,7 @@ function Card({ to, title, cover, seed, big, places, art, children }: { to: stri
   const [open, setOpen] = useState(false);
   const style = { '--hue': hue(seed), ...(src ? { backgroundImage: `url(${src})` } : {}) } as CSSProperties;
   return (
-    <div className={s.card} data-big={big || undefined} data-open={open || undefined} style={style} onMouseLeave={() => setOpen(false)}>
+    <div className={s.card} data-card data-big={big || undefined} data-open={open || undefined} style={style} onMouseLeave={() => setOpen(false)}>
       <a href={to} className={s.open} aria-label={title} data-app={seed} data-cover={src ? true : undefined} />
       <span className={s.shade} />
       <span className={s.body}>{children}</span>
@@ -56,6 +56,7 @@ export function Apps() {
   const { t } = useTranslation();
   const menu = useMenuData();
   const phone = useMediaQuery('(max-width: 36em)') ?? false;
+  const dark = useComputedColorScheme('light') === 'dark';
   const links = menu.system.flatMap((g) => g.links).filter((l) => !(l.project && l.project === menu.master?.project && l.name === 'settings'));
   return (
     <div className={s.apps} data-apps>
@@ -67,7 +68,7 @@ export function Apps() {
           <NavStatus m={{ title: '', screens: [], asks: menu.pulse.asks, running: menu.pulse.running, errors: menu.pulse.errors }} />
         </Card>
         {menu.projects.map((p) => (
-          <Card key={p.project} to={open(p)} title={p.title} cover={p.cover} seed={p.project ?? p.title} places={placesOf(menu, p.project)}>
+          <Card key={p.project} to={open(p)} title={p.title} cover={dark ? p.cover_dark || p.cover : p.cover || p.cover_dark} seed={p.project ?? p.title} places={placesOf(menu, p.project)}>
             <span className={s.icon}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={24} /></span>
             <Title order={3} className={s.title}>{p.title}</Title>
             <NavStatus m={p} />

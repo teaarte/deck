@@ -16,7 +16,7 @@
   position: relative;
   display: block;
   min-height: 180px;
-  border-radius: var(--mantine-radius-lg);
+  border-radius: var(--deck-block-radius);
   overflow: hidden;
   color: #fff;
   text-decoration: none;

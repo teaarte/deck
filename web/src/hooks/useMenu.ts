@@ -15,8 +15,9 @@ export interface MenuEntry {
   running?: number;
   asks?: number;
   errors?: number;
-  // cover is where the picture of the project's card is read.
+  // cover is where the picture of the project's card in the light scheme is read, cover_dark in the dark one.
   cover?: string;
+  cover_dark?: string;
 }
 
 // HeroLine is a count of the top of the cockpit: its words, tone, the screen it opens and the button that clears it.

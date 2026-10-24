@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { setChatOpen } from '../chat/chatStore';
 import { useMenuData } from '../hooks/useMenu';
 import { useLook } from '../theme/look';
+import { useWorn } from '../theme/worn';
 import { Deki, moodOf, useMascot, useMasterName } from '../ui/deki/Deki';
 import s from './apps.module.css';
 
@@ -11,7 +12,8 @@ import s from './apps.module.css';
 export function CardDeki({ size }: { size: number }) {
   const { t } = useTranslation();
   const { pulse } = useMenuData();
-  const { sky, motion } = useLook();
+  const { motion } = useLook();
+  const sky = useWorn().backdrop === 'sky';
   const ref = useRef<HTMLButtonElement>(null);
   const mascot = useMascot();
   const name = useMasterName();

@@ -406,8 +406,59 @@ func TestAModuleHasACoverForItsCard(t *testing.T) {
 	text := e.upload("notes", "a.txt", "text/plain", "hello")
 	e.refused("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(text)}, 422, "picture")
 	e.refused("deck.project_cover", map[string]any{"project": "notes"}, 422, "remove")
+	dark := e.upload("notes", "dark.png", "image/png", "\x89PNG\r\n\x1a\n")
+	e.must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(dark), "scheme": "dark"}, nil)
+	var ps []struct {
+		Cover     int64
+		CoverDark int64 `json:"cover_dark"`
+	}
+	e.must("deck.projects_list", map[string]any{"project": "notes"}, &ps)
+	if len(ps) != 1 || ps[0].Cover == 0 || ps[0].CoverDark == 0 || ps[0].Cover == ps[0].CoverDark {
+		t.Fatalf("a module has a cover for each scheme: %+v", ps)
+	}
+	e.must("deck.project_cover", map[string]any{"project": "notes", "remove": true, "scheme": "light"}, nil)
+	e.must("deck.projects_list", map[string]any{"project": "notes"}, &ps)
+	if ps[0].Cover != 0 || ps[0].CoverDark == 0 {
+		t.Fatalf("remove with a scheme takes off its cover alone: %+v", ps)
+	}
 	e.must("deck.project_cover", map[string]any{"project": "notes", "remove": true}, nil)
-	if cover() != "" {
-		t.Fatal("remove takes the cover off")
+	e.must("deck.projects_list", map[string]any{"project": "notes"}, &ps)
+	if cover() != "" || ps[0].CoverDark != 0 {
+		t.Fatal("remove without a scheme takes both covers off")
+	}
+}
+
+// TestTheMasterDrawsCoversInTheMoodOfTheTheme: deck tells the master what to draw: the module, the theme's mood, the
+// wish and the model, a free one by default; for a new theme every cover is drawn again.
+func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("notes", plainManifest)
+	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "http://127.0.0.1:9/api/v1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.04}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
+	e.refused("deck.covers_draw", map[string]any{}, 422, "no module has a cover yet")
+
+	var out struct{ Topic int64 }
+	e.must("deck.covers_draw", map[string]any{"project": "notes", "wish": "a fox with a notebook"}, &out)
+	said := e.chatMessages(out.Topic)
+	var mood themeLook
+	e.must("deck.theme", map[string]any{}, &mood)
+	if len(said) == 0 || !strings.Contains(said[0].Text, "module notes") || !strings.Contains(said[0].Text, mood.Mood) ||
+		!strings.Contains(said[0].Text, "a fox with a notebook") || !strings.Contains(said[0].Text, "kind image on local-image") ||
+		!strings.Contains(said[0].Text, "scheme light or dark") {
+		t.Fatalf("the master is told what to draw: %+v", said)
+	}
+
+	png := e.upload("notes", "cover.png", "image/png", "\x89PNG\r\n\x1a\n")
+	e.must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(png)}, nil)
+	e.must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.must("deck.covers_draw", map[string]any{"model": "openrouter/painter"}, &out)
+	said = e.chatMessages(out.Topic)
+	if len(said) == 0 || !strings.Contains(said[0].Text, "Перерисуй обложки модулей notes в теме deck «Пиксели»") ||
+		!strings.Contains(said[0].Text, "8-bit pixel art") || !strings.Contains(said[0].Text, "вида image на openrouter/painter") {
+		t.Fatalf("every cover again for the new theme, in the owner's language: %+v", said)
 	}
 }

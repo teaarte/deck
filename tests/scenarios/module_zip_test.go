@@ -133,6 +133,6 @@ func TestAZipThatLeavesItsFolderIsRefused(t *testing.T) {
 	if im.Name != "plain" {
 		t.Fatalf("a .zip with the module at its root is named after the file: %+v", im)
 	}
-	e.refused("deck.project_import", map[string]any{}, 422, "folder or file")
+	e.refused("deck.project_import", map[string]any{}, 422, "folder, file or starter")
 	e.refused("deck.project_import", map[string]any{"file": "not-a-zip"}, 404, "no uploaded file")
 }

@@ -10,7 +10,7 @@
           {"type": "form", "command": "deck.project_create", "values": {"name": "=param.name"}}]},
         {"type": "dialog", "name": "import-project", "title": "Import module", "icon": "file-import", "blocks": [
           {"type": "form", "command": "deck.project_import", "description": "A .zip of a module or a folder of this machine; it comes as a draft, and deck shows what it may do before you enable it."}]},
-        {"type": "list", "title": "Modules", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
+        {"type": "list", "title": "Modules", "empty": "No modules yet: tell Deki what to do, or import a module", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
             "meta": "meta",
             "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
@@ -31,7 +31,7 @@
               "tpm": "=param.tpm", "context": "=param.context"},
             "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
               "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing'"}, "value": "name"}}}]},
-        {"type": "table", "title": "Models", "source": {"from": "deck.models_list", "rows": "models", "sort": "-used"}, "filter": ["kind", "connection", "status"],
+        {"type": "table", "title": "Models", "empty": "No models yet: add a connection, then its models; Deki can propose them in the chat", "source": {"from": "deck.models_list", "rows": "models", "sort": "-used"}, "filter": ["kind", "connection", "status"],
           "description": "Every model deck reaches, those that work goes to first; the others are dimmed.",
           "columns": [
             {"label": "Name", "bind": "name", "format": "copy", "tone": "used ? '' : 'muted'"},
@@ -109,7 +109,7 @@
             "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}]},
         {"type": "table", "title": "Connections", "source": {"from": "deck.models_list", "rows": "connections"},
           "description": "Where deck reaches models: an API or a server of this machine, with its address and key.",
-          "empty": "No connections yet",
+          "empty": "No connections yet: add one with the address of a model API and its key",
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "API", "bind": "api", "format": "tag"},
@@ -159,7 +159,7 @@
           "actions": [
             {"verb": "edit", "command": "deck.settings_set", "params": {"name": "=name"}, "input": "value", "options": "=options"}
           ]},
-        {"type": "table", "title": "Agents", "source": {"from": "deck.models_list", "rows": "agents"},
+        {"type": "table", "title": "Agents", "empty": "No agent found: install Claude Code or Codex, or add an ACP agent", "source": {"from": "deck.models_list", "rows": "agents"},
           "description": "The programs agent commands run in, with their version; change them only when an agent breaks.",
           "columns": [
             {"label": "Agent", "bind": "name"},
@@ -180,7 +180,7 @@
           ]},
         {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
           "description": "Keys and passwords of connections and tools; agents and scripts never see them.",
-          "empty": "No secrets yet",
+          "empty": "No secrets yet: a module names the ones it needs",
           "columns": [{"label": "Name", "bind": "name", "format": "copy"}],
           "actions": [
             {"verb": "replace", "screen": "settings", "params": {"tab": "Advanced", "dialog": "secret", "name": "=name"}},
@@ -188,7 +188,7 @@
           ]},
         {"type": "table", "title": "Automation tokens", "source": {"from": "deck.tokens_list", "sort": "-id"},
           "description": "A way in for Shortcuts or your scripts: POST /api/commands/<command> with Authorization: Bearer <token>, only the commands it lists.",
-          "empty": "No tokens yet",
+          "empty": "No tokens yet: make one for a script or a service outside deck that calls its commands",
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'"},

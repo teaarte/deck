@@ -4,6 +4,18 @@
   "title": "Review a draft",
   "params": {"project": "string", "revision": "number"},
   "blocks": [
+    {"type": "table", "title": "What it needs to work", "span": "full", "source": {"from": "deck.project_needs", "input": {"project": "=param.project"}, "where": "kind != 'right'"},
+      "description": "Secrets, programs and models it needs besides what enabling grants; give them before or after enabling it.",
+      "empty": "Nothing more: it works once enabled",
+      "columns": [
+        {"label": "What", "bind": "kind == 'secret' ? 'Secret ' + what : kind == 'program' ? 'Script ' + what : what"},
+        {"label": "How", "bind": "detail"},
+        {"label": "State", "bind": "done ? 'ready' : 'needed'", "format": "tag", "tone": "done ? 'ok' : 'warn'"}
+      ],
+      "actions": [
+        {"label": "Secrets", "icon": "key", "screen": "settings", "params": {"tab": "Advanced"}, "when": "kind == 'secret' && !done"},
+        {"label": "Models", "icon": "cpu", "screen": "settings", "params": {"tab": "Models"}, "when": "kind == 'model'"}
+      ]},
     {"type": "table", "title": "What it may do once enabled", "span": "full", "source": {"from": "deck.project_rights", "input": {"project": "=param.project"}},
       "description": "Install modules only from authors you know. Once enabled, a module does what is listed here without asking you again: it reaches these sites, reads these secrets, works in these folders and calls these models. deck checks nothing more.",
       "empty": "Nothing beyond its own records: it reaches no site, reads no secret and calls no model",

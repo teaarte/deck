@@ -27,7 +27,7 @@ func (a *App) builtins() []*registry.Command {
 		a.Documents.Commands(), a.Devices.Commands(), a.Folders.Commands(), a.Projects.Commands(),
 		a.Journal.Commands(),
 		a.Processes.Commands(), a.Providers.Commands(), a.Records.Commands(),
-		a.Screens.Commands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(),
+		a.Screens.Commands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(), a.Themes.Commands(),
 		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Cfg.Commands} {
 		out = append(out, cs...)
 	}

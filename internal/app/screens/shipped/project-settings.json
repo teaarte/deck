@@ -21,16 +21,22 @@
               {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
             ]},
           {"type": "dialog", "name": "cover", "title": "Upload a cover", "icon": "photo-up", "blocks": [
-            {"type": "form", "command": "deck.project_cover", "fixed": ["remove"], "description": "A picture for the card of the module when deck lays out the modules as cards."}]},
+            {"type": "form", "command": "deck.project_cover", "fixed": ["remove"], "description": "A picture for the card of the module when deck lays out the modules as cards: one for the light scheme, one for the dark; a card shows the one of its scheme, or the only one."}]},
+          {"type": "dialog", "name": "draw-cover", "title": "Draw the cover", "icon": "sparkles", "blocks": [
+            {"type": "form", "command": "deck.covers_draw", "fixed": ["project"], "values": {"project": "=param.name"},
+              "description": "The master draws a light and a dark picture in the mood of the theme of deck. Without a model it takes a free one of deck.",
+              "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + (free ? ' · free' : '')"}}}]},
           {"type": "media", "title": "Cover", "when": "len(rows) > 0", "source": {"from": "deck.projects_list", "where": "cover > 0"},
             "item": {"file": "cover", "title": "title"}},
+          {"type": "media", "title": "Cover, dark", "when": "len(rows) > 0", "source": {"from": "deck.projects_list", "where": "cover_dark > 0"},
+            "item": {"file": "cover_dark", "title": "title"}},
           {"type": "list", "title": "Card", "description": "The picture of the module's card when deck lays out the modules as cards.", "source": {"from": "deck.projects_list"},
-            "item": {"title": "cover > 0 ? 'The card has a picture' : 'The card has no picture yet'", "icon": "'photo'"},
+            "item": {"title": "cover > 0 || cover_dark > 0 ? 'The card has a picture' : 'The card has no picture yet'", "icon": "'photo'"},
             "actions": [
-              {"label": "Draw one", "icon": "sparkles", "primary": true, "chat": true, "command": "deck.chat_send",
-                "params": {"text": "='Draw a cover picture for the card of module ' + name + ' by its title and description: call deck.model_call of kind image, then set the picture with deck.project_cover, its file as results/<the name the call gave>.'"}},
+              {"label": "Draw", "icon": "sparkles", "primary": true, "screen": "settings", "params": {"dialog": "draw-cover"}, "when": "cover == 0 && cover_dark == 0"},
+              {"label": "Redraw", "icon": "sparkles", "primary": true, "screen": "settings", "params": {"dialog": "draw-cover"}, "when": "cover > 0 || cover_dark > 0"},
               {"label": "Upload", "icon": "upload", "screen": "settings", "params": {"dialog": "cover"}},
-              {"verb": "delete", "confirm": true, "command": "deck.project_cover", "params": {"project": "=name", "remove": "true"}, "when": "cover > 0"}
+              {"verb": "delete", "confirm": true, "command": "deck.project_cover", "params": {"project": "=name", "remove": "true"}, "when": "cover > 0 || cover_dark > 0"}
             ]},
           {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
             "description": "What the module can do and when it runs by itself.",

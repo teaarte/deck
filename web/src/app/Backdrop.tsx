@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { loadIcons, svgOf, type Nodes } from '../lib/icons';
-import { useLook } from '../theme/look';
+import { useWorn } from '../theme/worn';
 import s from './Backdrop.module.css';
 
 const CELL = 72;
@@ -35,12 +35,12 @@ function patterns(all: Nodes, seed: number): [string, string] {
   return [tile(body[0]), tile(body[1])];
 }
 
-// Backdrop is the canvas behind the shell: a quiet color and a grid of icons in the accent of the device, or in juce
-// a sky with clouds.
+// Backdrop is the canvas behind the shell as the theme has it: a grid of icons in the accent of the device, a sky with
+// clouds, or the canvas alone.
 export function Backdrop() {
-  const look = useLook();
-  const pattern = look.pattern && look.theme !== 'juce';
-  const sky = look.sky && look.theme === 'juce';
+  const { backdrop } = useWorn();
+  const pattern = backdrop === 'pattern';
+  const sky = backdrop === 'sky';
   const [tiles, setTiles] = useState<[string, string]>();
   useEffect(() => {
     if (!pattern || tiles || matchMedia('(prefers-contrast: more)').matches) return;

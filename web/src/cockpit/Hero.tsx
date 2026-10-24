@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useMenuData, type HeroLine } from '../hooks/useMenu';
 import type { Action } from '../lib/catalog.gen';
 import { setLook, useLook } from '../theme/look';
+import { useWorn } from '../theme/worn';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { Deki, moodOf, useMascot } from '../ui/deki/Deki';
 import s from './hero.module.css';
@@ -33,7 +34,8 @@ function Lines({ lines }: { lines: HeroLine[] }) {
 export function Hero({ dialogs }: { dialogs?: ReactNode }) {
   const { t } = useTranslation();
   const { pulse } = useMenuData();
-  const { slim: folded, sky } = useLook();
+  const { slim: folded } = useLook();
+  const sky = useWorn().backdrop === 'sky';
   const phone = useMediaQuery('(max-width: 48em)') ?? false;
   const slim = folded || phone;
   const [triage, setTriage] = useState(false);

@@ -2,24 +2,7 @@
   --deck-gap: 12px;
   --deck-island-radius: min(calc(var(--mantine-radius-default) * 2 + 4px), 28px);
   --deck-block-radius: min(calc(var(--mantine-radius-default) * 1.5 + 2px), 22px);
-  --deck-canvas: color-mix(in srgb, var(--mantine-primary-color-filled) 5%, #eceef3);
-  --deck-pattern-color: color-mix(in srgb, var(--mantine-primary-color-filled) 22%, transparent);
-  --deck-pattern-alt: color-mix(in srgb, var(--mantine-primary-color-3) 45%, transparent);
-  --deck-island-bg: var(--mantine-color-body);
-  --deck-shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 4px 10px -2px rgb(16 24 40 / 0.05), 0 18px 40px -14px rgb(16 24 40 / 0.22);
-  --deck-ring: 0 0 0 1px rgb(16 24 40 / 0.04);
-  --deck-text-2: color-mix(in srgb, var(--mantine-color-text) 82%, transparent);
   --deck-cell: 240px;
-  --deck-sky: linear-gradient(170deg, #cfe6fa, #eaf4fc);
-}
-
-:root[data-mantine-color-scheme='dark'] {
-  --deck-canvas: color-mix(in srgb, var(--mantine-primary-color-filled) 6%, #08080b);
-  --deck-pattern-color: color-mix(in srgb, var(--mantine-primary-color-filled) 30%, transparent);
-  --deck-pattern-alt: color-mix(in srgb, var(--mantine-primary-color-8) 55%, transparent);
-  --deck-shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 10px -2px rgb(0 0 0 / 0.35), 0 22px 48px -14px rgb(0 0 0 / 0.85);
-  --deck-ring: 0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.04);
-  --deck-sky: linear-gradient(170deg, #1b2f4a, #142234);
 }
 
 body {

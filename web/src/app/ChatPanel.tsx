@@ -36,7 +36,7 @@ export function ChatPanel({ phone, layout, onClose, onDragging }: {
   if (!layout.chat) return null;
   const full = layout.full;
   return (
-    <aside className={`${s.island} ${s.aside}`} style={{ width: `min(${grip.width}px, calc(100vw - ${layout.navOpen ? 276 : 0}px - 440px))` }} data-chat-panel>
+    <aside className={`${s.island} ${s.aside}`} style={{ width: `min(${grip.width}px, calc(100vw - ${layout.navOpen ? 276 : 0}px - 440px))` }} data-chat-panel data-island>
       <div className={s.grip} {...grip.props} data-dragging={grip.dragging || undefined} role="separator" aria-orientation="vertical" aria-label={t('chat.resize')} />
       <div className={s.asideHead}>
         {title}

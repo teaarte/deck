@@ -104,6 +104,7 @@ require (
 	github.com/tailscale/wf v0.0.0-20240214030419-6fbb0a674ee6 // indirect
 	github.com/tailscale/wireguard-go v0.0.0-20260715223240-2e01ba5b00f0 // indirect
 	github.com/tailscale/xnet v0.0.0-20240729143630-8497ac4dab2e // indirect
+	github.com/tdewolff/parse/v2 v2.8.20 // indirect
 	github.com/u-root/u-root v0.14.0 // indirect
 	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect

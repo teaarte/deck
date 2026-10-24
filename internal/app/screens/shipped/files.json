@@ -5,11 +5,11 @@
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Files", "icon": "files", "blocks": [
-        {"type": "media", "title": "By module", "span": "full", "source": {"from": "deck.projects_list", "sort": "name"},
+        {"type": "media", "title": "By module", "empty": "No modules yet: tell Deki what to do, or import a module", "span": "full", "source": {"from": "deck.projects_list", "sort": "name"},
           "description": "The files each module made or took, such as the pictures of a video, on the page of the module.",
           "item": {"title": "title", "icon": "(icon ?? '') != '' ? icon : 'box'"},
           "actions": [{"verb": "open", "primary": true, "screen": "settings", "project": "=name", "params": {"tab": "Files"}}]},
-        {"type": "media", "title": "All files", "span": "full", "source": {"from": "deck.files_list", "sort": "-created_at"}, "filter": ["project"],
+        {"type": "media", "title": "All files", "empty": "No files yet: modules keep here what they make", "span": "full", "source": {"from": "deck.files_list", "sort": "-created_at"}, "filter": ["project"],
           "item": {"file": "id", "title": "name"},
           "actions": [
             {"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"},

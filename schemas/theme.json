@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "deck theme",
+  "description": "A theme of deck: the look of the whole deck in a light and a dark scheme. Values are CSS values: colors, lengths, shadows, gradients and the functions rgb, hsl, oklch, color-mix, *-gradient, calc, min, max, clamp, var, blur, saturate and the like; no url(), no images, no backslashes. var() takes the tokens below as --<token>, the accent of the device as --accent (--accent-0..9, --accent-light, --accent-contrast), the colors of the palette as --color-<name>-<0..9>, the radii --radius, --island-radius and --card-radius, and a theme's own --theme-<name>.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "title", "mood"],
+  "properties": {
+    "version": {"const": 1},
+    "title": {"type": "object", "description": "The name of the theme by language; en is required.", "required": ["en"],
+      "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 40}},
+    "mood": {"type": "string", "minLength": 1, "maxLength": 600, "description": "The style of pictures in this theme, in words, for the model that draws the covers of modules."},
+    "schemes": {"type": "array", "description": "The color schemes the theme has; a theme of one scheme forces it. Both by default.", "minItems": 1, "uniqueItems": true,
+      "items": {"enum": ["light", "dark"]}},
+    "accent": {"type": "string", "description": "The accent a device takes when the owner picks the theme; the device may change it after."},
+    "font": {"type": "object", "additionalProperties": false, "description": "Font stacks of the text and the headings; the system face without them.",
+      "properties": {"text": {"type": "string", "maxLength": 200}, "headings": {"type": "string", "maxLength": 200}}},
+    "radius": {"enum": ["0", "xs", "sm", "md", "lg", "xl"], "description": "The radius of controls; md by default."},
+    "density": {"enum": ["compact", "default", "comfortable"], "description": "The spacing; a device scales it further."},
+    "backdrop": {"enum": ["pattern", "sky", "plain"], "description": "Behind the shell: a grid of icons in the accent, the sky with clouds, or the canvas alone."},
+    "tokens": {"$ref": "#/$defs/tokens", "description": "Tokens of both schemes."},
+    "light": {"$ref": "#/$defs/tokens", "description": "Tokens of the light scheme over tokens."},
+    "dark": {"$ref": "#/$defs/tokens", "description": "Tokens of the dark scheme over tokens."},
+    "parts": {"type": "object", "additionalProperties": false, "description": "The look of the parts of deck: card is a block of a screen, and its radius that of the cards of modules too.",
+      "properties": {"button": {"$ref": "#/$defs/part"}, "card": {"$ref": "#/$defs/part"}, "island": {"$ref": "#/$defs/part"},
+        "field": {"$ref": "#/$defs/part"}, "badge": {"$ref": "#/$defs/part"}}},
+    "css": {"type": "string", "maxLength": 20000, "description": "More CSS. A selector is made of the classes of the catalog alone (.button, .nav .asks, .tab[data-active], .h2:hover), states [data-variant=…], [data-active], [data-disabled], [data-checked], [data-expanded], :hover, :active, :focus, :focus-visible, :focus-within, :disabled, :first-child, :last-child, :not(…), ::before, ::after, ::placeholder, and the combinators space, >, +, ~. .root, .light and .dark are the page in both schemes, the light and the dark one, and only start a selector. At-rules: @media of prefers-*, forced-colors, hover, pointer, min-width, max-width; @supports. Custom properties: the tokens, the accent and the radii by their names above, and --theme-<name>."}
+  },
+  "$defs": {
+    "tokenNames": {"enum": ["canvas", "body", "island", "block", "text", "text-2", "dimmed", "line", "divider", "hover", "fill", "fill-hover", "ring", "shadow", "pattern", "pattern-alt", "sky"]},
+    "tokens": {"type": "object", "additionalProperties": false, "propertyNames": {"$ref": "#/$defs/tokenNames"},
+      "patternProperties": {"": {"type": "string", "minLength": 1, "maxLength": 400}}},
+    "part": {"type": "object", "additionalProperties": false,
+      "properties": {
+        "radius": {"type": "string", "description": "0, xs..xl or a length"},
+        "shadow": {"type": "string"}, "border": {"type": "string"}, "background": {"type": "string"},
+        "transform": {"enum": ["none", "uppercase", "lowercase", "capitalize"]},
+        "weight": {"type": "string"}, "spacing": {"type": "string", "description": "letter spacing"}}}
+  },
+  "catalog": {
+    "tokens": {
+      "canvas": {"var": "--deck-canvas", "desc": "The page behind the islands; a color or a gradient", "light": "color-mix(in srgb, var(--accent) 5%, #eceef3)", "dark": "color-mix(in srgb, var(--accent) 6%, #08080b)"},
+      "body": {"var": "--mantine-color-body", "desc": "The background of controls, dialogs and menus", "light": "#ffffff", "dark": "var(--color-dark-7)"},
+      "island": {"var": "--deck-island-bg", "desc": "The menu, the screen and the chat", "light": "var(--body)", "dark": "var(--body)"},
+      "block": {"var": "--deck-block-bg", "desc": "A block of a screen", "light": "var(--body)", "dark": "var(--body)"},
+      "text": {"var": "--mantine-color-text", "desc": "The text", "light": "#000000", "dark": "var(--color-dark-0)"},
+      "text-2": {"var": "--deck-text-2", "desc": "Secondary text of the cockpit", "light": "color-mix(in srgb, var(--text) 82%, transparent)", "dark": "color-mix(in srgb, var(--text) 82%, transparent)"},
+      "dimmed": {"var": "--mantine-color-dimmed", "desc": "Quiet text", "light": "var(--color-gray-6)", "dark": "var(--color-dark-2)"},
+      "line": {"var": "--mantine-color-default-border", "desc": "Borders of controls", "light": "var(--color-gray-4)", "dark": "var(--color-dark-4)"},
+      "divider": {"var": "--deck-line", "desc": "Lines between rows", "light": "var(--line)", "dark": "var(--line)"},
+      "hover": {"var": "--mantine-color-default-hover", "desc": "A control under the pointer", "light": "var(--color-gray-0)", "dark": "var(--color-dark-5)"},
+      "fill": {"var": "--deck-fill", "desc": "Quiet fills: icons of stats, heads of the menu", "light": "var(--hover)", "dark": "var(--hover)"},
+      "fill-hover": {"var": "--deck-fill-hover", "desc": "A fill under the pointer", "light": "var(--hover)", "dark": "var(--hover)"},
+      "ring": {"var": "--deck-ring", "desc": "The thin edge of islands and blocks, a box-shadow", "light": "0 0 0 1px rgb(16 24 40 / 0.04)", "dark": "0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.04)"},
+      "shadow": {"var": "--deck-shadow", "desc": "The shadow of islands and blocks", "light": "0 1px 2px rgb(16 24 40 / 0.06), 0 4px 10px -2px rgb(16 24 40 / 0.05), 0 18px 40px -14px rgb(16 24 40 / 0.22)", "dark": "0 1px 2px rgb(0 0 0 / 0.5), 0 4px 10px -2px rgb(0 0 0 / 0.35), 0 22px 48px -14px rgb(0 0 0 / 0.85)"},
+      "pattern": {"var": "--deck-pattern-color", "desc": "The icons of the pattern behind", "light": "color-mix(in srgb, var(--accent) 22%, transparent)", "dark": "color-mix(in srgb, var(--accent) 30%, transparent)"},
+      "pattern-alt": {"var": "--deck-pattern-alt", "desc": "The second layer of the pattern", "light": "color-mix(in srgb, var(--accent-3) 45%, transparent)", "dark": "color-mix(in srgb, var(--accent-8) 55%, transparent)"},
+      "sky": {"var": "--deck-sky", "desc": "The sky of the cockpit's head", "light": "linear-gradient(170deg, #cfe6fa, #eaf4fc)", "dark": "linear-gradient(170deg, #1b2f4a, #142234)"}
+    },
+    "vars": {"accent": "--mantine-primary-color-filled", "accent-light": "--mantine-primary-color-light", "accent-contrast": "--mantine-primary-color-contrast",
+      "radius": "--mantine-radius-default", "island-radius": "--deck-island-radius", "card-radius": "--deck-block-radius"},
+    "classes": {
+      "island": "[data-island]", "nav": "[data-nav]", "nav-item": "[data-nav] :is(a, [data-system])", "main": "[data-main]",
+      "chat": "[data-chat-panel]", "chat-phone": "[data-chat-phone]", "phone-bar": "[data-phone-bar]", "block": "[data-block]",
+      "card": "[data-card]", "hero": "[data-hero]", "screen-head": "[data-screen-head]", "actions": "[data-actions]",
+      "composer": "[data-composer]", "message": "[data-message] > div", "turn": "[data-turn]", "backdrop": "[data-backdrop] > div",
+      "asks": "[data-asks]", "running": "[data-running]",
+      "button": ".mantine-Button-root", "icon-button": ".mantine-ActionIcon-root", "field": ".mantine-Input-input",
+      "badge": ".mantine-Badge-root", "paper": ".mantine-Paper-root", "group": ".mantine-Group-root",
+      "dialog": ":is(.mantine-Modal-content, .mantine-Drawer-content)", "overlay": ":is(.mantine-Modal-overlay, .mantine-Drawer-overlay)",
+      "popover": ":is(.mantine-Popover-dropdown, .mantine-Menu-dropdown, .mantine-HoverCard-dropdown, .mantine-Combobox-dropdown, .mantine-Select-dropdown, .mantine-MultiSelect-dropdown, .mantine-TagsInput-dropdown, .mantine-Autocomplete-dropdown)",
+      "notification": ".mantine-Notification-root", "tabs": ".mantine-Tabs-list", "tab": ".mantine-Tabs-tab",
+      "h1": "h1", "h2": "h2", "h3": "h3"
+    },
+    "parts": {
+      "button": {"selector": ":is(.mantine-Button-root, .mantine-ActionIcon-root)"},
+      "card": {"selector": "[data-block]", "radius": "--deck-block-radius"},
+      "island": {"selector": "[data-island]", "radius": "--deck-island-radius"},
+      "field": {"selector": ".mantine-Input-input"},
+      "badge": {"selector": ".mantine-Badge-root"}
+    }
+  }
+}

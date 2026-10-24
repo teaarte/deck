@@ -214,15 +214,16 @@ func TestRealBrowserShell(t *testing.T) {
 	b.look("scheme", "dark")
 	b.until("the dark glass", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
-	b.until("the tint slider of the glass", `document.querySelector('[data-look="tint"]')?.offsetParent`)
 	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"]')`)
-	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const t = await page.locator('[data-look="tint"] [role=slider]'); await t.focus(); await page.keyboard.press('End'); }`})
-	b.until("opaque glass at the end of the slider", `getComputedStyle(document.documentElement).getPropertyValue('--glass-tint-user').trim() === '1' && /rgb\(\d+, \d+, \d+\)$/.test(getComputedStyle(document.querySelector('[data-nav]')).backgroundColor)`)
-	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const t = await page.locator('[data-look="tint"] [role=slider]'); await t.focus(); await page.keyboard.press('Home'); }`})
-	b.eval(`(document.querySelector('[data-look="pattern"]').click(), '')`)
-	b.until("no pattern when the owner turns it off", `!document.querySelector('[data-backdrop] > div')`)
-	b.eval(`(document.querySelector('[data-look="pattern"]').click(), '')`)
-	b.until("the pattern back", `document.querySelectorAll('[data-backdrop] > div').length === 2`)
+	b.until("the glass of the theme document on the menu", `getComputedStyle(document.querySelector('[data-nav]')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
+	if got := b.eval(`document.querySelectorAll('[data-backdrop] > div').length`); got != "2" {
+		t.Fatalf("glass draws the pattern of its backdrop: %s", got)
+	}
+	var worn struct{ Name string }
+	e.must("deck.theme", map[string]any{}, &worn)
+	if worn.Name != "glass" {
+		t.Fatalf("the theme is the whole deck's, kept on the server: %+v", worn)
+	}
 	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)
 	b.until("no Deki anywhere once the mascot is off", `!document.querySelector('[data-deki]')`)
 	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)
@@ -265,15 +266,22 @@ func TestRealBrowserShell(t *testing.T) {
 	b.shot("shell-phone-cockpit")
 
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
-	for _, look := range []string{"pixel vivid light", "neon tinted dark", "paper neutral light", "default vivid dark"} {
+	for _, look := range []string{"pixel light", "neon dark", "paper light", "default dark", "juce dark"} {
 		parts := strings.Fields(look)
-		b.eval(`(localStorage.setItem('deck-look', JSON.stringify({ ...JSON.parse(localStorage.getItem('deck-look')), theme: '` + parts[0] + `', surface: '` + parts[1] + `' })),
-			localStorage.setItem('mantine-color-scheme-value', '` + parts[2] + `'), location.hash = '#/p/web/main', location.reload(), '')`)
-		b.until("the look "+look, `document.documentElement.dataset.deckTheme === '`+parts[0]+`' && document.documentElement.dataset.deckSurface === '`+parts[1]+`' && document.querySelector('[data-block] table')`)
+		b.open(e.URL + "/?theme=" + parts[0] + "&scheme=" + parts[1] + "#/p/web/main")
+		b.until("the preview of "+look, `document.documentElement.dataset.deckTheme === '`+parts[0]+`' && document.documentElement.dataset.mantineColorScheme === '`+parts[1]+`' && document.querySelector('[data-block] table')`)
 		b.shot("theme-" + parts[0] + "-" + parts[1])
 	}
+	if got := b.eval(`String(document.querySelectorAll('[data-backdrop] [data-cloud]').length)`); got != "2" {
+		t.Fatalf("the sky of juce behind its preview: %s", got)
+	}
+	var cur struct{ Name string }
+	e.must("deck.theme", map[string]any{}, &cur)
+	if cur.Name != "glass" {
+		t.Fatalf("a preview changes no theme: %+v", cur)
+	}
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
-	b.until("the chat on a vivid surface", `document.querySelector('[data-chat-panel] [data-block]')`)
+	b.until("the chat beside the screen", `document.querySelector('[data-chat-panel] [data-block]')`)
 	if got := b.eval(`getComputedStyle(document.querySelector('[data-chat-panel] [data-block]')).backgroundColor`); got != "rgba(0, 0, 0, 0)" {
 		t.Fatalf("the chat has one background, none of a block under its text: %s", got)
 	}
@@ -281,17 +289,19 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("a block on the screen keeps its own background: %s", got)
 	}
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
-	b.eval(`(localStorage.setItem('deck-look', JSON.stringify({ ...JSON.parse(localStorage.getItem('deck-look')), theme: 'pixel', surface: 'neutral' })), location.hash = '#/deck/settings', location.reload(), '')`)
+	b.open(e.URL + "/#/deck/settings")
+	b.look("theme", "pixel")
+	b.open(e.URL + "/#/deck/settings")
 	b.until("the projects of settings in pixels", `document.documentElement.dataset.deckTheme === 'pixel' && document.querySelector('[data-item] [data-actions]')`)
 	if got := b.eval(`(() => { const bs = [...document.querySelector('[data-item] [data-actions]').children].map((x) => x.getBoundingClientRect());
 		return String(bs.every((r, i) => i === 0 || r.left - bs[i - 1].right >= 6)) })()`); got != "true" {
 		t.Fatalf("the hard shadow of a pixel button leaves room before the next one: %s", got)
 	}
 	b.shot("theme-pixel-settings")
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
-	b.until("no corners in pixels", `document.querySelector('[data-look="theme"]')?.offsetParent && !document.querySelector('[data-look="radius"]')`)
 	b.look("theme", "neon")
-	b.until("no scheme in neon, only its note", `!document.querySelector('[data-look="scheme"]') && document.querySelector('[data-look-note="scheme"]') && document.querySelector('[data-look="radius"]')`)
+	b.until("no scheme in neon, only its note", `!document.querySelector('[data-look="scheme"]') && document.querySelector('[data-look-note="scheme"]')?.innerText.includes('Neon') && document.documentElement.dataset.mantineColorScheme === 'dark'`)
+	b.look("theme", "juce")
+	b.until("juce gives the device its accent", `JSON.parse(localStorage.getItem('deck-look')).accent === 'coral'`)
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav] [data-system]')?.innerText.includes('Настройки') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Деки')`)
 	b.shot("shell-ru")

@@ -1,7 +1,11 @@
 import { useState } from 'react';
-import { CheckIcon, ColorSwatch, Group, Select, SimpleGrid, Slider, Stack, Switch, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
+import { Button, CheckIcon, ColorSwatch, Group, Select, SimpleGrid, Stack, Switch, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
+import { IconSparkles } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { ACCENTS, DENSITIES, FACES, FONTS, HOMES, RADII, SURFACES, THEMES, setLook, useLook, type Look } from '../theme/look';
+import { openTopic } from '../chat/chatStore';
+import { ACCENTS, DENSITIES, FONTS, HOMES, setLook, useLook, type Look } from '../theme/look';
+import { useWorn } from '../theme/worn';
+import { useLiveRead } from '../hooks/useLiveRead';
 import { call } from '../lib/api';
 import { Pushes } from './Pushes';
 import { notifyError } from '../lib/notify';
@@ -18,10 +22,11 @@ function Choice<T extends string>({ label, name, value, options, labels, onChang
   );
 }
 
-// Appearance is how deck looks on this device, or with part pushes the pushes of the device.
+// Appearance is the theme of the whole deck and how deck looks on this device, or with part pushes the pushes of the device.
 export function Appearance({ part }: { part?: string }) {
   const { t } = useTranslation();
   const look = useLook();
+  const worn = useWorn();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   if (part === 'pushes') return <Pushes />;
   return (
@@ -29,21 +34,16 @@ export function Appearance({ part }: { part?: string }) {
       <Text size="sm" c="dimmed">{t('look.device')}</Text>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md">
         <Language />
+        <Theme />
         <Choice label={t('look.home')} name="home" value={look.home} options={HOMES} onChange={(v: Look['home']) => setLook({ home: v })} />
-        <Choice label={t('look.theme')} name="theme" value={look.theme} options={THEMES} onChange={(v: Look['theme']) => setLook(v === 'juce' ? { theme: v, accent: 'coral' } : { theme: v })} />
-        {look.theme === 'neon' ? (
-          <Text size="sm" c="dimmed" data-look-note="scheme">{t('look.dark_only')}</Text>
+        {worn.schemes.length === 1 ? (
+          <Text size="sm" c="dimmed" data-look-note="scheme">{t(worn.schemes[0] === 'dark' ? 'look.dark_only' : 'look.light_only', { theme: worn.title })}</Text>
         ) : (
           <Choice label={t('look.scheme')} name="scheme" value={colorScheme} options={['auto', 'light', 'dark'] as MantineColorScheme[]}
             onChange={setColorScheme} />
         )}
-        <Choice label={t('look.surface')} name="surface" value={look.surface} options={SURFACES} onChange={(v: Look['surface']) => setLook({ surface: v })} />
         <Choice label={t('look.density')} name="density" value={look.density} options={DENSITIES} onChange={(v: Look['density']) => setLook({ density: v })} />
-        <Choice label={t('look.face')} name="face" value={look.face} options={FACES} onChange={(v: Look['face']) => setLook({ face: v })} />
         <Choice label={t('look.font')} name="font" value={look.font} options={FONTS} onChange={(v: Look['font']) => setLook({ font: v })} />
-        {look.theme !== 'pixel' && (
-          <Choice label={t('look.radius')} name="radius" value={look.radius} options={RADII} onChange={(v: Look['radius']) => setLook({ radius: v })} />
-        )}
       </SimpleGrid>
       <Stack gap={6}>
         <Text size="sm" fw={500}>{t('look.accent')}</Text>
@@ -57,23 +57,46 @@ export function Appearance({ part }: { part?: string }) {
         </Group>
       </Stack>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="sm">
-        {look.theme === 'juce' ? (
-          <Switch label={t('look.sky')} checked={look.sky} onChange={(e) => setLook({ sky: e.currentTarget.checked })} data-look="sky" />
-        ) : (
-          <Switch label={t('look.pattern')} checked={look.pattern} onChange={(e) => setLook({ pattern: e.currentTarget.checked })} data-look="pattern" />
-        )}
         <Switch label={t('look.mascot')} checked={look.mascot} onChange={(e) => setLook({ mascot: e.currentTarget.checked })} data-look="mascot" />
         <Switch label={t('look.motion')} checked={look.motion} onChange={(e) => setLook({ motion: e.currentTarget.checked })} data-look="motion" />
         <Switch label={t('look.slim')} checked={look.slim} onChange={(e) => setLook({ slim: e.currentTarget.checked })} data-look="slim" />
       </SimpleGrid>
-      {look.theme === 'glass' && (
-        <Stack gap={4} maw={420}>
-          <Text size="sm" fw={500}>{t('look.tint')}</Text>
-          <Slider value={look.tint} min={0} max={1} step={0.05} label={(v) => `${Math.round(v * 100)}%`} data-look="tint"
-            marks={[{ value: 0, label: t('look.tint_clear') }, { value: 1, label: t('look.tint_full') }]} mb="md"
-            onChange={(v) => setLook({ tint: v })} />
-        </Stack>
-      )}
+    </Stack>
+  );
+}
+
+interface ThemeRow { name: string; title: string; current: boolean; problems?: string[] }
+
+// Theme is the theme of the whole deck, from the shipped ones and the owner's; one with an accent gives it to this device.
+function Theme() {
+  const { t, i18n } = useTranslation();
+  const worn = useWorn();
+  const listed = useLiveRead<ThemeRow[]>('deck.themes_list', { lang: i18n.language }, ['documents', 'settings'], []);
+  const rows = listed.length ? listed : [{ name: worn.name, title: worn.title, current: true }];
+  const current = rows.find((r) => r.current)?.name ?? worn.name;
+  const pick = async (name: string) => {
+    try {
+      const got = await call<{ accent?: string }>('deck.theme', { name });
+      await call('deck.theme_use', { name });
+      if (got.accent) setLook({ accent: got.accent });
+    } catch (e) {
+      notifyError(e, t('look.theme'));
+    }
+  };
+  const redraw = async () => {
+    try {
+      const out = await call<{ topic?: number }>('deck.covers_draw', {});
+      if (out.topic) openTopic(out.topic);
+    } catch (e) {
+      notifyError(e, t('look.redraw'));
+    }
+  };
+  return (
+    <Stack gap={4}>
+      <Choice label={t('look.theme')} name="theme" value={current} options={rows.map((r) => r.name)}
+        labels={Object.fromEntries(rows.map((r) => [r.name, r.title]))} onChange={(v) => void pick(v)} />
+      <Button variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void redraw()} data-redraw-covers
+        style={{ alignSelf: 'flex-start' }}>{t('look.redraw')}</Button>
     </Stack>
   );
 }

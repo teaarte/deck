@@ -74,8 +74,8 @@ func TestRealBrowserGlass(t *testing.T) {
 
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the table and the custom block", `document.querySelector('[data-block] table') && document.querySelector('[data-custom]')`)
-	if got := b.eval(`document.documentElement.dataset.deckTheme + ' ' + JSON.parse(localStorage.getItem('deck-look')).theme`); got != "glass glass" {
-		t.Fatalf("the theme is kept on the device: %s", got)
+	if got := b.eval(`document.documentElement.dataset.deckTheme + ' ' + JSON.parse(localStorage.getItem('deck-theme')).name`); got != "glass glass" {
+		t.Fatalf("the device keeps the last theme for the next load: %s", got)
 	}
 	if got := style("[data-nav]", "backdropFilter"); got == "none" {
 		t.Fatalf("the menu island is glass: %s", got)

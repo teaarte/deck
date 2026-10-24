@@ -31,7 +31,8 @@ type menuEntry struct {
 	Asks    int64 `json:"asks,omitempty"`
 	Errors  int64 `json:"errors,omitempty"`
 	// Cover is where the client reads the picture of the project's card, none without one.
-	Cover string `json:"cover,omitempty"`
+	Cover     string `json:"cover,omitempty"`
+	CoverDark string `json:"cover_dark,omitempty"`
 }
 
 // menuGroup is a group of links at the foot of the menu: work (deck's screens), master (the master's) and settings.
@@ -90,6 +91,10 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 	}
 	var asks, running, failing map[string]int64
 	out.Pulse, asks, running, failing = ss.pulse(ctx, act, in.Lang)
+	if out.Pulse.State == "calm" && !slices.ContainsFunc(ps, func(p db.Project) bool { return p.Builtin == 0 }) {
+		out.Pulse.Title, out.Pulse.Text = manifest.Tr(deckWords, "Tell Deki what to do"),
+			manifest.Tr(deckWords, "Say a task in the chat: Deki builds a module for it. Or start with a module below.")
+	}
 	order, err := ss.menuOrder(ctx, ss.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -103,8 +108,11 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 		}
 		ws := words(in.Lang, m)
 		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name]}
-		if id := files.Cover(ctx, ss.St.Q, p.ID); id != 0 {
+		if id := files.Cover(ctx, ss.St.Q, p.ID, "light"); id != 0 {
 			e.Cover = fmt.Sprintf("/api/files/%d", id)
+		}
+		if id := files.Cover(ctx, ss.St.Q, p.ID, "dark"); id != 0 {
+			e.CoverDark = fmt.Sprintf("/api/files/%d", id)
 		}
 		e.Title, e.Icon, e.Screens = manifest.Nav(p.Name, m, ws)
 		for _, s := range shipped().Project {

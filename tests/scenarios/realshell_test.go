@@ -72,10 +72,10 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the schedule from the foot of the menu", `location.hash === '#/deck/schedule'`)
 	b.until("the tab named after its screen, with Deki for its icon", `/^(\(\d+\) )?Schedule · deck$/.test(document.title) && document.querySelector('link[rel=icon]').getAttribute('href') === '/favicon.png'`)
 	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('[data-system] a[data-active]')), h = getComputedStyle(document.querySelector('[data-nav] [data-group-head]'));
-		const accent = getComputedStyle(document.documentElement).getPropertyValue('--mantine-primary-color-filled').trim(), probe = document.createElement('i');
-		probe.style.color = accent; document.body.append(probe); const filled = getComputedStyle(probe).color; probe.remove();
-		return [s.borderTopLeftRadius === h.borderTopLeftRadius, s.backgroundColor === filled].join(' ') })()`); got != "true true" {
-		t.Fatalf("the link of the foot on its screen has the corners and the accent of the menu: %s", got)
+		const accent = getComputedStyle(document.documentElement).getPropertyValue('--mantine-primary-color-light').trim(), probe = document.createElement('i');
+		probe.style.color = accent; document.body.append(probe); const light = getComputedStyle(probe).color; probe.remove();
+		return [s.borderTopLeftRadius === h.borderTopLeftRadius, s.backgroundColor === light].join(' ') })()`); got != "true true" {
+		t.Fatalf("the link of the foot on its screen has the corners and the light accent of the menu: %s", got)
 	}
 	b.eval(`(document.querySelector('[data-nav] [data-logo]').click(), '')`)
 	b.until("the logo opens the cockpit", `location.hash === '#/deck/cockpit' && !document.querySelector('[data-system] a[data-active]')`)
@@ -272,8 +272,8 @@ func TestRealBrowserShell(t *testing.T) {
 		b.until("the preview of "+look, `document.documentElement.dataset.deckTheme === '`+parts[0]+`' && document.documentElement.dataset.mantineColorScheme === '`+parts[1]+`' && document.querySelector('[data-block] table')`)
 		b.shot("theme-" + parts[0] + "-" + parts[1])
 	}
-	if got := b.eval(`String(document.querySelectorAll('[data-backdrop] [data-cloud]').length)`); got != "2" {
-		t.Fatalf("the sky of juce behind its preview: %s", got)
+	if got := b.eval(`String(document.querySelectorAll('[data-backdrop] [data-cloud]').length)`); got != "0" {
+		t.Fatalf("the sky of juce has no clouds on a working screen: %s", got)
 	}
 	var cur struct{ Name string }
 	e.must("deck.theme", map[string]any{}, &cur)

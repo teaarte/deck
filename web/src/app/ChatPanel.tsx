@@ -28,7 +28,7 @@ export function ChatPanel({ phone, layout, onClose, onDragging }: {
     return (
       <Drawer opened={layout.chat} onClose={() => layout.setChat(false)} size="100%" position="right" withCloseButton={false} padding="xs" data-chat-phone
         styles={{ body: { height: '100%', display: 'flex', flexDirection: 'column' } }}>
-        <Group justify="space-between" wrap="nowrap" px={6}>{title}<ActionIcon variant="subtle" color="gray" radius="xl" onClick={() => layout.setChat(false)} aria-label={t('chat.close')}><IconX size={18} /></ActionIcon></Group>
+        <Group justify="space-between" wrap="nowrap" px={6}>{title}<ActionIcon variant="subtle" color="gray" radius="xl" onClick={() => layout.setChat(false)} aria-label={t('chat.close')} data-chat-close><IconX size={18} /></ActionIcon></Group>
         <div className={s.fill} style={{ flex: 1, minHeight: 0 }}>{layout.chat && panel}</div>
       </Drawer>
     );

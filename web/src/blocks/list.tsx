@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Group, Stack, Text } from '@mantine/core';
+import { IconAlertCircle, IconAlertTriangle, IconCheck } from '@tabler/icons-react';
 import s from './list.module.css';
 import { relative, show, when } from '../lib/format';
 import { useClock } from '../hooks/useClock';
@@ -58,7 +59,7 @@ function Board({ board, items }: { board: BoardData; items: Item[] }) {
             {here.map((it, i) => (
               <div key={show(it.id) || i} className={s.card} draggable={!!mover(it)} data-card={show(it.id)}
                 onDragStart={(e) => e.dataTransfer.setData('text/deck-item', show(it.id))}>
-                <Line it={it} />
+                <Line it={it} quiet={it !== shown[0]} />
               </div>
             ))}
           </div>
@@ -73,11 +74,14 @@ function Items({ items, context, cards }: { items: Item[]; context: ComponentCon
   const at = useRef<HTMLDivElement>(null);
   useEffect(() => keepList(id, items, at.current!), [id, items]);
   useEffect(() => () => dropList(id), [id]);
-  return <div ref={at} className={cards ? s.cards : s.items} data-cards={cards || undefined}>{items.map((it, i) => <Line key={show(it.id) || i} it={it} />)}</div>;
+  return <div ref={at} className={cards ? s.cards : s.items} data-cards={cards || undefined}>{items.map((it, i) => <Line key={show(it.id) || i} it={it} quiet={i > 0} />)}</div>;
 }
 
+// TONES are the icons of a tone for a line without its own icon, so a tone is not color alone.
+const TONES: Record<string, typeof IconCheck> = { ok: IconCheck, warn: IconAlertTriangle, error: IconAlertCircle };
+
 // Line is one item of a list.
-export function Line({ it, big }: { it: Item; big?: boolean }) {
+export function Line({ it, big, quiet }: { it: Item; big?: boolean; quiet?: boolean }) {
   const ctx = useBlockContext();
   const answer = it.questions ? it.actions?.find((a) => a.input) : undefined;
   const open = opener(it.actions);
@@ -85,8 +89,9 @@ export function Line({ it, big }: { it: Item; big?: boolean }) {
   const rest = (it.actions ?? []).filter((a) => a !== answer && !(a === open && a.verb === 'open' && !a.primary));
   const opens = rowOpen(it.actions, ctx);
   const until = (it.actions ?? []).map((a) => a.until).filter(Boolean).sort()[0];
+  const Tone = it.tone ? TONES[it.tone] : undefined;
   const mark = it.icon ? <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={17} /></span>
-      : it.tone && it.tone !== 'muted' ? <span className={s.dot} /> : null;
+      : Tone ? <span className={s.itemIcon} data-tone-icon><Tone size={17} /></span> : null;
   return (
     <div className={s.item} data-item data-tone={it.tone} data-big={big || undefined} data-marked={mark ? true : undefined}
       title={it.since ? when(it.since)?.toLocaleString() : undefined} {...opens}>
@@ -106,8 +111,8 @@ export function Line({ it, big }: { it: Item; big?: boolean }) {
       </Group>
       <div className={s.under}>
         {it.details && <Details text={it.details} open={big} />}
-        {it.questions && <QuestionPicker questions={it.questions} act={answer} />}
-        <Actions actions={rest} max={big ? 4 : 3} />
+        {it.questions && <QuestionPicker questions={it.questions} act={answer} quiet={quiet} />}
+        <Actions actions={rest} max={big ? 4 : 3} quiet={quiet} />
       </div>
     </div>
   );

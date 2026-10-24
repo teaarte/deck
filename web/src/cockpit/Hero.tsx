@@ -44,7 +44,7 @@ export function Hero({ dialogs }: { dialogs?: ReactNode }) {
   const lines = pulse.lines ?? [];
   const mood = moodOf(state, sky);
   const go = asks > 0 && (
-    <Button size={slim ? 'xs' : 'sm'} radius="md" leftSection={<IconPlayerPlayFilled size={14} />} onClick={() => setTriage(true)} data-triage-open>
+    <Button size={slim ? 'xs' : 'sm'} radius="md" variant="light" leftSection={<IconPlayerPlayFilled size={14} />} onClick={() => setTriage(true)} data-triage-open>
       {phone ? t('hero.triage_short') : t('hero.triage')}
     </Button>
   );

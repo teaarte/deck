@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActionIcon, Badge, Code, Group, Spoiler, Stack, Text, TextInput } from '@mantine/core';
-import { IconSend } from '@tabler/icons-react';
+import { IconActivity, IconSend } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Action, Data } from '../lib/catalog.gen';
 import { formatted } from '../lib/format';
@@ -8,7 +8,6 @@ import { useClock } from '../hooks/useClock';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { Failed } from '../ui/actions/Failed';
 import { usePress } from '../ui/actions/usePress';
-import { Dots } from '../ui/Dots';
 import { Markdown } from '../ui/Markdown';
 import { blockImpl } from './blockImpl';
 import s from './log.module.css';
@@ -49,13 +48,13 @@ function At({ at }: { at: string }) {
   return <Text size="xs" c="dimmed" ml="auto" style={{ flexShrink: 0 }} title={d.toLocaleString()}>{text}</Text>;
 }
 
-// Live is the head of a log still going: dots, how long it runs and how many steps it made.
+// Live is the head of a log still going: how long it runs and how many steps it made.
 function Live({ since, steps }: { since: string; steps: number }) {
   const { t } = useTranslation();
   const now = useClock(1000);
   return (
     <Group gap="xs" className={s.live} data-log-live>
-      <Dots />
+      <IconActivity size={15} color="var(--mantine-color-green-7)" aria-hidden />
       <Text size="xs" c="dimmed">
         {t('log.running')} · {formatted(Math.max(0, (now - Date.parse(since)) / 1000), { format: 'duration' })}{steps > 0 ? ' · ' + t('chat.steps', { count: steps }) : ''}
       </Text>

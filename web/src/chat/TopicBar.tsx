@@ -1,9 +1,8 @@
 import { ActionIcon, Button, Group, Menu, Select, Tooltip } from '@mantine/core';
-import { IconCheck, IconCpu, IconPlus, IconStack2 } from '@tabler/icons-react';
+import { IconActivity, IconCheck, IconCpu, IconPlus, IconStack2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
 import { notifyError } from '../lib/notify';
-import n from '../app/nav.module.css';
 import { ActionsMenu } from '../ui/actions/ActionsMenu';
 import { press, useBlockContext } from '../screen/press';
 import type { useTopics } from './useTopics';
@@ -63,7 +62,7 @@ export function TopicBar({ value, topics, model, setModel }: {
           <Menu.Dropdown data-topic-projects>
             {topics.scopes.map((x) => (
               <Menu.Item key={x.value} onClick={() => topics.setScope(x.value)} data-scope={x.value} leftSection={check(x.value === topics.scope)}
-                rightSection={topics.working.has(x.value) ? <span className={n.pulse} data-busy /> : undefined}>{x.label}</Menu.Item>
+                rightSection={topics.working.has(x.value) ? <IconActivity size={14} color="var(--mantine-color-green-7)" aria-label={t('chat.working')} data-busy /> : undefined}>{x.label}</Menu.Item>
             ))}
           </Menu.Dropdown>
         </Menu>

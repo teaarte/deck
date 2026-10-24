@@ -32,7 +32,7 @@
         "meta": "project + ((repeats ?? 0) > 1 ? ' · ×' + string(repeats) : '')",
         "details": "'#' + string(id) + ' · ' + project + '.' + command + ((error_type ?? '') != '' ? ' · ' + error_type : '') + ((provider ?? '') != '' ? ' · ' + provider : '')"},
       "actions": [
-        {"verb": "retry", "primary": true, "command": "deck.process_retry", "params": {"process": "=id"}, "when": "retry ?? false"},
+        {"verb": "retry", "command": "deck.process_retry", "params": {"process": "=id"}, "when": "retry ?? false"},
         {"verb": "open", "screen": "process", "record": "=id"},
         {"verb": "close", "command": "deck.process_dismiss", "params": {"process": "=id"}}
       ]},
@@ -54,7 +54,7 @@
         "details": "len(parts ?? []) > 1 ? join(map(parts, #.project + ': ' + #.text), '\\n') : ''"},
       "actions": [
         {"verb": "open", "screen": "=screen", "project": "=deck_screen ? '' : project", "record": "=record", "when": "screen != ''"},
-        {"verb": "mark_read", "primary": true, "command": "deck.feed_read", "params": {"entry": "=id"}}
+        {"verb": "mark_read", "command": "deck.feed_read", "params": {"entry": "=id"}}
       ]},
     {"type": "list", "title": "Done without you", "span": 1, "icon": "checks", "when": "len(rows) > 0", "source": {"from": "deck.feed_list", "input": {"kind": "change"}, "limit": 3},
       "item": {"title": "text", "since": "created_at", "meta": "project + ' · ' + author"},

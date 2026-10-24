@@ -92,26 +92,9 @@
   background: #e7f5ee;
 }
 
-.dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  margin: 8px 12px 0;
-  border-radius: 50%;
-  background: var(--mantine-color-dimmed);
-}
 
-.item[data-tone='warn'] .dot {
-  background: var(--mantine-color-coral-6);
-}
 
-.item[data-tone='error'] .dot {
-  background: var(--mantine-color-red-6);
-}
 
-.item[data-tone='ok'] .dot {
-  background: #2e9e6b;
-}
 
 .itemTitle {
   font-size: 15px;

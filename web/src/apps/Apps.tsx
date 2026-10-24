@@ -65,13 +65,13 @@ export function Apps() {
           <span className={s.icon}><IconLayoutDashboard size={26} /></span>
           <Title order={2} className={s.title}>{t('nav.cockpit')}</Title>
           {menu.pulse.title && <Text size="sm" className={s.text} lineClamp={2}>{menu.pulse.title}</Text>}
-          <NavStatus m={{ title: '', screens: [], asks: menu.pulse.asks, running: menu.pulse.running, errors: menu.pulse.errors }} />
+          <NavStatus m={{ title: '', screens: [], asks: menu.pulse.asks, running: menu.pulse.running, errors: menu.pulse.errors }} words />
         </Card>
         {menu.projects.map((p) => (
           <Card key={p.project} to={open(p)} title={p.title} cover={dark ? p.cover_dark || p.cover : p.cover || p.cover_dark} seed={p.project ?? p.title} places={placesOf(menu, p.project)}>
             <span className={s.icon}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={24} /></span>
             <Title order={3} className={s.title}>{p.title}</Title>
-            <NavStatus m={p} />
+            <NavStatus m={p} words />
           </Card>
         ))}
       </div>

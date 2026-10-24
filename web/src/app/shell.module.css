@@ -56,9 +56,8 @@
   width: 28px;
   height: 28px;
   border-radius: 9px;
-  color: var(--mantine-primary-color-contrast);
-  background: linear-gradient(135deg, var(--mantine-primary-color-5), var(--mantine-primary-color-7));
-  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--mantine-primary-color-filled) 55%, transparent);
+  color: var(--mantine-primary-color-light-color);
+  background: var(--mantine-primary-color-light);
 }
 
 .main {

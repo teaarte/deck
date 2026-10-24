@@ -8,12 +8,12 @@ import { usePress } from './usePress';
 import { verbIcon } from './verbIcons';
 
 // ActionButton is one button of a screen: it asks for its input or a confirmation first when it has one, and shows
-// why a press failed beside it.
-export function ActionButton({ act, params, inMenu }: { act: Action; params?: Record<string, unknown>; inMenu?: boolean }) {
+// why a press failed beside it. A primary is filled unless quiet.
+export function ActionButton({ act, params, inMenu, quiet }: { act: Action; params?: Record<string, unknown>; inMenu?: boolean; quiet?: boolean }) {
   const { busy, label, send, error, clear } = usePress(act);
   const [typing, setTyping] = useState(false);
   const [asking, setAsking] = useState(false);
-  const variant = inMenu ? 'subtle' : act.primary ? 'filled' : 'default';
+  const variant = inMenu ? 'subtle' : act.primary ? (quiet ? 'light' : 'filled') : 'default';
   if (act.input && !params) {
     if (typing) {
       return (

@@ -54,7 +54,7 @@ export function Browser({ items, crumbs }: { items: Item[]; crumbs?: Crumb[] }) 
                   : <Text size="xs" c="dimmed">{formatted(it.size, { format: 'bytes' })}</Text>}
               </UnstyledButton>}
               {!it.error && !it.icon && <Download it={it} />}
-              <Actions actions={it.icon ? it.actions?.filter((x) => !x.primary) : it.actions} max={2} />
+              <Actions actions={it.icon ? it.actions?.filter((x) => !x.primary) : it.actions} max={2} quiet={i > 0} />
             </Group>
           ))}
         </Stack>

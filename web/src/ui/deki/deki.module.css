@@ -62,10 +62,6 @@
   .pose:not([data-still])[data-deki='sleepy'] {
     animation: arrive 0.35s ease-out, float 6s ease-in-out 0.35s infinite;
   }
-
-  .head[data-bob] {
-    animation: bob 2.6s ease-in-out infinite;
-  }
 }
 
 @keyframes arrive {
@@ -108,11 +104,5 @@
 @keyframes float {
   50% {
     transform: translateY(-8px);
-  }
-}
-
-@keyframes bob {
-  50% {
-    transform: translateY(-3px);
   }
 }

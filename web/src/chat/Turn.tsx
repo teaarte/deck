@@ -6,9 +6,7 @@ import type { ChatValue } from '../lib/catalog.gen';
 import { useClock } from '../hooks/useClock';
 import { formatted, toneColor } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
-import a from '../ui/aura.module.css';
 import { Deki, useMascot } from '../ui/deki/Deki';
-import { Dots } from '../ui/Dots';
 import { Glyph } from '../ui/Glyph';
 import { usePress } from '../ui/actions/usePress';
 import s from './chat.module.css';
@@ -65,12 +63,11 @@ export function Turn({ turn }: { turn: TurnValue }) {
   );
   return (
     <div className={s.turn} data-turn={turn.state} data-folded={folded || undefined}>
-      <div className={`${s.turnHead} ${a.aura}`} data-live={running || undefined}>
-        <span className={s.turnMark}>{mascot ? <Deki mood={running ? 'dots' : 'wait'} size={26} still={!running} /> : <Glyph busy={running} />}</span>
+      <div className={s.turnHead} data-live={running || undefined}>
+        <span className={s.turnMark}>{mascot ? <Deki mood={running ? 'dots' : 'wait'} size={26} still /> : <Glyph busy={running} />}</span>
         <Text size="xs" fw={500} truncate style={{ flex: 1 }}>
           {running ? t(mascot ? 'chat.replying_deki' : 'chat.replying', { provider: turn.provider ?? '' }) : turn.word}
         </Text>
-        {running && <Dots />}
         {!Number.isNaN(started) && (
           <Text size="xs" c="dimmed" data-turn-timer>
             {formatted(Math.max(0, (now - started) / 1000), { format: 'duration' })}{steps > 0 ? ' · ' + t('chat.steps', { count: steps }) : ''}

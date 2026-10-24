@@ -32,11 +32,11 @@ export function Deki({ mood, size, still }: { mood: Mood; size: number; still?: 
   );
 }
 
-// DekiHead is the face of Deki in a round or rounded square, size pixels across; bob lets it sway.
-export function DekiHead({ size, square, bob }: { size: number; square?: boolean; bob?: boolean }) {
+// DekiHead is the face of Deki in a round or rounded square, size pixels across.
+export function DekiHead({ size, square }: { size: number; square?: boolean }) {
   if (!useMascot()) return null;
   return (
-    <span className={s.head} style={{ width: size, height: size, borderRadius: square ? Math.round(size / 3) : '50%' }} data-bob={bob || undefined} data-deki="head">
+    <span className={s.head} style={{ width: size, height: size, borderRadius: square ? Math.round(size / 3) : '50%' }} data-deki="head">
       <img src="/deki/head.webp" alt="" />
     </span>
   );

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { loadIcons, svgOf, type Nodes } from '../lib/icons';
+import { useChatPanel } from '../chat/chatStore';
 import { useWorn } from '../theme/worn';
+import { useRoute } from './router';
 import s from './Backdrop.module.css';
 
 const CELL = 72;
@@ -36,11 +38,13 @@ function patterns(all: Nodes, seed: number): [string, string] {
 }
 
 // Backdrop is the canvas behind the shell as the theme has it: a grid of icons in the accent of the device, a sky with
-// clouds, or the canvas alone.
+// clouds, or the canvas alone. Clouds are for moments only: the cards, the cockpit and the chat open.
 export function Backdrop() {
   const { backdrop } = useWorn();
+  const route = useRoute();
+  const { open: chat } = useChatPanel();
   const pattern = backdrop === 'pattern';
-  const sky = backdrop === 'sky';
+  const sky = backdrop === 'sky' && (chat || (!route.project && !route.record && (route.screen === 'apps' || route.screen === 'cockpit')));
   const [tiles, setTiles] = useState<[string, string]>();
   useEffect(() => {
     if (!pattern || tiles || matchMedia('(prefers-contrast: more)').matches) return;

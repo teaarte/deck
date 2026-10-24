@@ -7,7 +7,7 @@ import { ActionButton } from './actions/ActionButton';
 type Question = NonNullable<NonNullable<Data['items']>[number]['questions']>[number];
 
 // QuestionPicker answers the questions of an agent: options to pick, or a text of the owner's own.
-export function QuestionPicker({ questions, act }: { questions: Question[]; act?: Action }) {
+export function QuestionPicker({ questions, act, quiet }: { questions: Question[]; act?: Action; quiet?: boolean }) {
   const { t } = useTranslation();
   const [picked, setPicked] = useState<Record<string, string | string[]>>({});
   const [other, setOther] = useState<Record<string, string>>({});
@@ -39,8 +39,8 @@ export function QuestionPicker({ questions, act }: { questions: Question[]; act?
         </Stack>
       ))}
       <Group>
-        {ready ? <ActionButton act={act} params={{ [act.input ?? 'answer']: JSON.stringify(all) }} />
-          : <Button size="xs" disabled>{act.label || t('verb.' + (act.verb ?? 'answer'))}</Button>}
+        {ready ? <ActionButton act={act} params={{ [act.input ?? 'answer']: JSON.stringify(all) }} quiet={quiet} />
+          : <Button size="xs" variant={quiet ? 'light' : undefined} disabled>{act.label || t('verb.' + (act.verb ?? 'answer'))}</Button>}
       </Group>
     </Stack>
   );

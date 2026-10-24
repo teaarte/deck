@@ -47,10 +47,8 @@
   }
 
   &[data-active] {
-    background: var(--mantine-primary-color-filled);
-    color: var(--mantine-primary-color-contrast);
-    box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--mantine-primary-color-filled) 75%, transparent),
-      inset 0 1px 0 rgb(255 255 255 / 0.2);
+    background: var(--mantine-primary-color-light);
+    color: var(--mantine-primary-color-light-color);
   }
 }
 
@@ -86,11 +84,9 @@
   }
 
   &[data-active] {
-    background: var(--mantine-primary-color-filled);
-    color: var(--mantine-primary-color-contrast);
+    background: var(--mantine-primary-color-light);
+    color: var(--mantine-primary-color-light-color);
     font-weight: 600;
-    box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--mantine-primary-color-filled) 75%, transparent),
-      inset 0 1px 0 rgb(255 255 255 / 0.2);
 
     & svg {
       color: currentColor;
@@ -128,10 +124,8 @@ a.groupHead {
 }
 
 .groupHead[data-active] {
-  background: var(--mantine-primary-color-filled);
-  color: var(--mantine-primary-color-contrast);
-  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--mantine-primary-color-filled) 75%, transparent),
-    inset 0 1px 0 rgb(255 255 255 / 0.2);
+  background: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
 
   & .groupIcon {
     color: currentColor;
@@ -198,8 +192,8 @@ a.groupHead {
   }
 
   &[data-active] {
-    color: var(--mantine-primary-color-contrast);
-    background: var(--mantine-primary-color-filled);
+    color: var(--mantine-primary-color-light-color);
+    background: var(--mantine-primary-color-light);
   }
 }
 
@@ -262,11 +256,9 @@ a.groupHead {
   }
 
   &[data-active] {
-    background: var(--mantine-primary-color-filled);
-    color: var(--mantine-primary-color-contrast);
+    background: var(--mantine-primary-color-light);
+    color: var(--mantine-primary-color-light-color);
     font-weight: 600;
-    box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--mantine-primary-color-filled) 75%, transparent),
-      inset 0 1px 0 rgb(255 255 255 / 0.2);
 
     & svg {
       color: currentColor;
@@ -286,46 +278,9 @@ a.groupHead {
   white-space: nowrap;
 }
 
-.pulse {
-  position: relative;
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--mantine-primary-color-filled);
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: inherit;
-  }
-}
-
-.dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--mantine-color-red-filled);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mantine-color-red-filled) 22%, transparent);
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .chevron {
     transition: transform 200ms ease;
   }
-
-  .pulse::after {
-    animation: ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
-  }
 }
 
-@keyframes ping {
-  75%,
-  100% {
-    transform: scale(2.4);
-    opacity: 0;
-  }
-}

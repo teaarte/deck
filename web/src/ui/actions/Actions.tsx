@@ -6,8 +6,9 @@ import type { Action } from '../../lib/catalog.gen';
 import { ActionButton } from './ActionButton';
 import { actionKeys, useVisibleActions } from './useVisibleActions';
 
-// Actions are the buttons of an item, the primary first; past max the rest wait in a menu.
-export function Actions({ actions, max = 3 }: { actions?: Action[]; max?: number }) {
+// Actions are the buttons of an item, the primary first; past max the rest wait in a menu. quiet, for every item of a
+// block but its first, keeps a primary light: one accent on a screen.
+export function Actions({ actions, max = 3, quiet }: { actions?: Action[]; max?: number; quiet?: boolean }) {
   const { t } = useTranslation();
   const more = useId();
   const shown = useVisibleActions(actions);
@@ -18,7 +19,7 @@ export function Actions({ actions, max = 3 }: { actions?: Action[]; max?: number
   const keys = actionKeys(sorted);
   return (
     <Group gap={6} wrap="wrap" data-actions>
-      {sorted.slice(0, cut).map((a, i) => <ActionButton key={keys[i]} act={a} />)}
+      {sorted.slice(0, cut).map((a, i) => <ActionButton key={keys[i]} act={a} quiet={quiet} />)}
       {rest.length > 0 && (
         <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md" radius="md">
           <Menu.Target>

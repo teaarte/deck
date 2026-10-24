@@ -87,7 +87,7 @@ export function DataTable({ columns, rows }: { columns: Column[]; rows: Row[] })
                       </Table.Td>
                     )}
                     {main.map((j) => <Table.Td key={j}>{pickOf(r, j) ? cell(r, j) : <Cell>{cell(r, j)}</Cell>}</Table.Td>)}
-                    {acts && <Table.Td className={s.rowActions}><Actions actions={own(r)} max={2} /></Table.Td>}
+                    {acts && <Table.Td className={s.rowActions}><Actions actions={own(r)} max={2} quiet={i > 0} /></Table.Td>}
                   </Table.Tr>
                   {open && (
                     <Table.Tr className={s.more} data-row-more>

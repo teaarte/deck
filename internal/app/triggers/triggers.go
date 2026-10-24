@@ -29,8 +29,6 @@ type Service struct {
 	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	// Words are deck's phrases in a language.
 	Words func(lang string) map[string]string
-	// OpenFailures are the failed processes of the workspace not fixed by a later run, retried or dismissed.
-	OpenFailures func(ctx context.Context, act registry.Actor) ([]db.Process, error)
 }
 
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
@@ -87,20 +85,6 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 	work := s.Works(ctx, act.Workspace, in.Lang)
 	ws := s.Words(in.Lang)
 	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
-	var failing map[int64]bool
-	open := func(id int64) bool {
-		if failing == nil {
-			failing = map[int64]bool{}
-			ps, err := s.OpenFailures(ctx, act)
-			if err != nil {
-				return true
-			}
-			for _, p := range ps {
-				failing[p.ID] = true
-			}
-		}
-		return failing[id]
-	}
 	out := make([]triggerView, 0, len(ts))
 	for _, t := range ts {
 		p, ok := names[t.ProjectID]
@@ -132,7 +116,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 				v.LastState = lp.State
 				shown := process.Show(lp, "", false, tr)
 				v.LastWord, v.LastTone = shown.Word, shown.Tone
-				if v.LastTone == "error" && !open(lp.ID) {
+				if good, err := s.St.Q.ProcessMadeGood(ctx, lp.ID); v.LastTone == "error" && err == nil && good.Bool {
 					v.LastWord, v.LastTone = tr("failed, fixed since"), "muted"
 				}
 			}

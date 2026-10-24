@@ -217,6 +217,7 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 		[]string{`{"command": "send", "after": "work"}`}),
 		`"version": 13,`, `"version": 13, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "work": "Работа"}},`, 1)
 	p := e.createProject("web", m)
+	e.createProject("video", testManifest([]string{agentCommand("search", "")}, []string{`{"command": "search", "cron": "0 9 * * *"}`}))
 	var ps []struct{ Name, Title, Meta string }
 	e.must("deck.projects_list", map[string]any{"lang": "ru"}, &ps)
 	if i := slices.IndexFunc(ps, func(v struct{ Name, Title, Meta string }) bool { return v.Name == "web" }); i < 0 || ps[i].Title != "Веб-заметки" || ps[i].Meta != "включён" {
@@ -239,5 +240,8 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	}
 	if rows := string(schedule["b0-0-0"]["rows"]); !strings.Contains(rows, "после «work»") {
 		t.Fatalf("a trigger after another command says so in words: %s", rows)
+	}
+	if rows := string(schedule["b0-0-0"]["rows"]); !strings.Contains(rows, `"video"`) || !strings.Contains(rows, `"search"`) || strings.Contains(rows, "видео") {
+		t.Fatalf("names of modules and commands stay names though deck has words like them: %s", rows)
 	}
 }

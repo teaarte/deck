@@ -63,7 +63,7 @@ func Assigned(ctx context.Context, q *db.Queries, workspace, project int64, comm
 type assignmentView struct {
 	Project string   `json:"project,omitempty"`
 	Command string   `json:"command,omitempty"`
-	Role    string   `json:"role"`
+	Role    string   `json:"role" enum:"agent|text|image|tts|stt|music|video|search"`
 	Models  []string `json:"models"`
 	// Using is the model that takes the work now: the first that is up, a fallback when the first is down.
 	Using string `json:"using,omitempty"`

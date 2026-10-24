@@ -21,7 +21,7 @@ type healthRow struct {
 	Subject string `json:"subject"`
 	// Project is the project the row is of, none for the machine and the workspace.
 	Project string `json:"project,omitempty"`
-	Status  string `json:"status"`
+	Status  string `json:"status" enum:"ok|warning|error|checking|paused|needs_login|missing"`
 	Error   string `json:"error"`
 	Version string `json:"version"`
 	// Verdict of a failed self-check: model when the model does not manage it, adapter when it broke.

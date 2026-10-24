@@ -26,7 +26,7 @@ type modelView struct {
 	Name       string `json:"name"`
 	Connection string `json:"connection"`
 	Model      string `json:"model"`
-	Kind       string `json:"kind"`
+	Kind       string `json:"kind" enum:"text|image|tts|stt|music|video|search"`
 	Agent      string `json:"agent,omitempty"`
 	// Options are the fields deck adds to every call of the model, as JSON.
 	Options   string   `json:"options,omitempty"`
@@ -42,7 +42,7 @@ type modelView struct {
 	Context int64 `json:"context,omitempty"`
 	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
 	Builtin bool    `json:"builtin"`
-	Status  string  `json:"status,omitempty"`
+	Status  string  `json:"status,omitempty" enum:"ok|warning|error|checking|paused|needs_login|missing"`
 	Error   string  `json:"error,omitempty"`
 	Verdict string  `json:"verdict,omitempty"`
 	Speed   float64 `json:"speed,omitempty"`

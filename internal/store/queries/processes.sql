@@ -365,3 +365,15 @@ SELECT id, command, state, provider FROM process WHERE follows_id = ? ORDER BY i
 UPDATE process SET follows_id = sqlc.arg(follows) WHERE id = sqlc.arg(id) AND follows_id IS NULL;
 
 
+
+
+-- name: ProcessMadeGood :one
+-- A later run made a failed process good, by the rule of ListFailedProcesses: of its record or input, or one that
+-- follows it and works or still goes.
+SELECT EXISTS (SELECT 1 FROM process q WHERE q.project_id = p.project_id AND q.command = p.command AND q.id > p.id
+    AND q.state = 'done' AND q.not_by_schema = 0 AND q.trial = 0
+    AND CASE WHEN json_extract(p.input, '$.record') IS NULL THEN q.input = p.input
+      ELSE json_extract(q.input, '$.record') = json_extract(p.input, '$.record') END)
+  OR EXISTS (SELECT 1 FROM process f WHERE f.follows_id = p.id
+    AND (f.finished_at IS NULL OR f.state = 'done' AND f.not_by_schema = 0))
+FROM process p WHERE p.id = ?;

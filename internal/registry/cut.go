@@ -80,31 +80,26 @@ func cut(out any, fields []string) (any, error) {
 			t = t[name]
 		}
 	}
-	var miss []string
-	v = keep.cut(v, &miss)
-	if len(miss) > 0 {
-		return nil, NotFound("deck: fields: no item or field %s", strings.Join(miss, ", "))
-	}
-	return v, nil
+	return keep.cut(v), nil
 }
 
 type tree map[string]tree
 
-func (t tree) cut(v any, miss *[]string) any {
+func (t tree) cut(v any) any {
 	switch v := v.(type) {
 	case []any:
 		for i := range v {
-			v[i] = t.cut(v[i], miss)
+			v[i] = t.cut(v[i])
 		}
 	case string:
-		if s, ok := t.text(v, miss); ok {
+		if s, ok := t.text(v); ok {
 			return s
 		}
 	case map[string]any:
 		out := map[string]any{}
 		for name, sub := range t {
 			if x, ok := v[name]; ok && len(sub) > 0 {
-				out[name] = sub.cut(x, miss)
+				out[name] = sub.cut(x)
 			} else if ok {
 				out[name] = x
 			}
@@ -116,21 +111,21 @@ func (t tree) cut(v any, miss *[]string) any {
 
 // text is the parts of a JSON text named by the tree, in the order and indentation of the text; ok is false when
 // the text is no JSON object or array.
-func (t tree) text(s string, miss *[]string) (string, bool) {
+func (t tree) text(s string) (string, bool) {
 	raw := bytes.TrimSpace([]byte(s))
 	if len(t) == 0 || len(raw) == 0 || raw[0] != '{' && raw[0] != '[' || !json.Valid(raw) {
 		return s, false
 	}
 	var buf bytes.Buffer
-	if json.Indent(&buf, t.keep(raw, miss), "", "  ") != nil {
+	if json.Indent(&buf, t.keep(raw), "", "  ") != nil {
 		return s, false
 	}
 	return buf.String(), true
 }
 
 // keep is the parts of a JSON value named by the tree, the kept keys in their order; the name of an item of a list
-// picks the items of that name, and a key naming no item nor a field of one is missed.
-func (t tree) keep(raw json.RawMessage, miss *[]string) json.RawMessage {
+// picks the items of that name, and keys that name no item nor a field of one pick none.
+func (t tree) keep(raw json.RawMessage) json.RawMessage {
 	raw = bytes.TrimSpace(raw)
 	if len(t) == 0 || len(raw) == 0 {
 		return raw
@@ -159,7 +154,7 @@ func (t tree) keep(raw json.RawMessage, miss *[]string) json.RawMessage {
 			e.SetEscapeHTML(false)
 			_ = e.Encode(name)
 			b.WriteByte(':')
-			b.Write(sub.keep(v, miss))
+			b.Write(sub.keep(v))
 		}
 		b.WriteByte('}')
 	case '[':
@@ -169,22 +164,20 @@ func (t tree) keep(raw json.RawMessage, miss *[]string) json.RawMessage {
 			if json.Unmarshal(raw, &list) != nil {
 				return raw
 			}
-			return t.list(list, miss, func(json.RawMessage) (tree, bool) { return t, true })
+			return t.list(list, func(json.RawMessage) (tree, bool) { return t, true })
 		}
-		named := tree{}
+		named, fields := tree{}, false
 		for k, sub := range t {
 			if slices.ContainsFunc(items, func(it map[string]json.RawMessage) bool { return string(it["name"]) == strconv.Quote(k) }) {
 				named[k] = sub
-			} else if !slices.ContainsFunc(items, func(it map[string]json.RawMessage) bool { _, ok := it[k]; return ok }) &&
-				slices.ContainsFunc(items, func(it map[string]json.RawMessage) bool { _, ok := it["name"]; return ok }) {
-				*miss = append(*miss, strconv.Quote(k))
 			}
+			fields = fields || slices.ContainsFunc(items, func(it map[string]json.RawMessage) bool { _, ok := it[k]; return ok })
 		}
 		var list []json.RawMessage
 		_ = json.Unmarshal(raw, &list)
-		return t.list(list, miss, func(it json.RawMessage) (tree, bool) {
+		return t.list(list, func(it json.RawMessage) (tree, bool) {
 			if len(named) == 0 {
-				return t, true
+				return t, fields
 			}
 			var n struct{ Name *string }
 			if json.Unmarshal(it, &n) != nil || n.Name == nil {
@@ -200,7 +193,7 @@ func (t tree) keep(raw json.RawMessage, miss *[]string) json.RawMessage {
 }
 
 // list is the items of a list each picks, cut by the tree it gives.
-func (t tree) list(items []json.RawMessage, miss *[]string, pick func(json.RawMessage) (tree, bool)) json.RawMessage {
+func (t tree) list(items []json.RawMessage, pick func(json.RawMessage) (tree, bool)) json.RawMessage {
 	b := []byte{'['}
 	for _, it := range items {
 		sub, ok := pick(it)
@@ -210,7 +203,7 @@ func (t tree) list(items []json.RawMessage, miss *[]string, pick func(json.RawMe
 		if len(b) > 1 {
 			b = append(b, ',')
 		}
-		b = append(b, sub.keep(it, miss)...)
+		b = append(b, sub.keep(it)...)
 	}
 	return append(b, ']')
 }

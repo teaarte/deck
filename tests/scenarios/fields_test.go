@@ -130,7 +130,10 @@ func TestFieldsReachIntoTheManifestText(t *testing.T) {
 		t.Fatalf("a field of every item of a list: %s", m.Manifest)
 	}
 
-	e.refused("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.nowhere"}}, 404, `"nowhere"`)
+	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.nowhere"}}, &m)
+	if strings.Contains(m.Manifest, "{}") {
+		t.Fatalf("a part that names no item nor a field of one is none, not empty items: %s", m.Manifest)
+	}
 
 	e.must("deck.manifest_save", map[string]any{"project": "source", "old": []string{`"description": "Not shared."`}, "new": []string{`"description": "Kept apart."`}}, nil)
 	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.private.description"}}, &m)

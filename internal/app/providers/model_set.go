@@ -142,6 +142,9 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		if err := json.Unmarshal([]byte(in.Options), &o); err != nil {
 			return nil, registry.Invalid("deck: options are a JSON object: %v", err)
 		}
+		if err := s.checkFiles(ctx, act.Workspace, in.Name, o); err != nil {
+			return nil, err
+		}
 		m.Options = in.Options
 	}
 	var out db.Model

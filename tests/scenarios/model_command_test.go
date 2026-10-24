@@ -747,6 +747,12 @@ func TestABigOptionOfAModelIsAFileOfIt(t *testing.T) {
 	if got := api.calls(); got[len(got)-1].Body["ref_audio"] != sample {
 		t.Fatal("a call sends the big option whole")
 	}
+	other := e.upload("", "other.txt", "text/plain", "not of the model")
+	set["options"] = fmt.Sprintf(`{"ref_audio": {"$file": %d}}`, other)
+	e.refused("deck.model_set", set, 422, "no file of model voice")
+	if shown() != form {
+		t.Fatalf("options naming a file of another are not saved: %s", shown())
+	}
 	set["options"] = form
 	e.must("deck.model_set", set, nil)
 	e.must("deck.model_call", check, nil)

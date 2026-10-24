@@ -178,6 +178,8 @@ type renderer struct {
 	recordTitle string
 	// types are the input types of the commands buttons call, read once per screen.
 	types map[string]map[string]string
+	// results are the result schemas of the commands of deck the blocks read, by name.
+	results map[string]json.RawMessage
 	read  map[string]readOf
 	// fetched are the items of each source read for this screen.
 	fetched map[string]fetchOf

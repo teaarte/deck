@@ -47,7 +47,7 @@ WHERE id = sqlc.arg(id) AND project_id = sqlc.arg(project_id) AND owner_kind = s
 
 -- name: ListWorkspaceFiles :many
 SELECT * FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
-  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER)) AND owner_kind NOT IN ('trash', 'keeping')
+  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER)) AND owner_kind NOT IN ('trash', 'keeping', 'model')
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 

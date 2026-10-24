@@ -1856,6 +1856,25 @@ func (q *Queries) PauseCeilingAtLastOutput(ctx context.Context, id int64) error 
 	return err
 }
 
+const processMadeGood = `-- name: ProcessMadeGood :one
+SELECT EXISTS (SELECT 1 FROM process q WHERE q.project_id = p.project_id AND q.command = p.command AND q.id > p.id
+    AND q.state = 'done' AND q.not_by_schema = 0 AND q.trial = 0
+    AND CASE WHEN json_extract(p.input, '$.record') IS NULL THEN q.input = p.input
+      ELSE json_extract(q.input, '$.record') = json_extract(p.input, '$.record') END)
+  OR EXISTS (SELECT 1 FROM process f WHERE f.follows_id = p.id
+    AND (f.finished_at IS NULL OR f.state = 'done' AND f.not_by_schema = 0))
+FROM process p WHERE p.id = ?
+`
+
+// A later run made a failed process good, by the rule of ListFailedProcesses: of its record or input, or one that
+// follows it and works or still goes.
+func (q *Queries) ProcessMadeGood(ctx context.Context, id int64) (sql.NullBool, error) {
+	row := q.db.QueryRowContext(ctx, processMadeGood, id)
+	var column_1 sql.NullBool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const purgeEmptyProcesses = `-- name: PurgeEmptyProcesses :many
 DELETE FROM process WHERE state = 'done' AND result = 'null' AND not_by_schema = 0 AND finished_at < CAST(?1 AS TEXT)
   AND NOT EXISTS (SELECT 1 FROM ask a WHERE a.process_id = process.id AND a.kind IN ('call', 'unknown')

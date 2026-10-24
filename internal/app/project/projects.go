@@ -17,7 +17,7 @@ import (
 type projectView struct {
 	ID            int64                 `json:"id"`
 	Name          string                `json:"name"`
-	Status        string                `json:"status"`
+	Status        string                `json:"status" enum:"enabled|draft"`
 	Paused        bool                  `json:"paused"`
 	Builtin       bool                  `json:"builtin"`
 	Description   string                `json:"description"`
@@ -74,7 +74,7 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	ws := maps.Clone(pj.Words(lang))
 	if err != nil {
 		v.ManifestError = err.Error()
-		v.Meta = pj.meta(ws, v)
+		v.Meta = pj.meta(pj.Words(lang), v)
 		return v
 	}
 	if lang != "" {
@@ -91,11 +91,12 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	if f, err := docs.For(ctx, pj.St.Q, registry.Actor{}, p.ID); err == nil {
 		v.Models = append(v.Models, f.Uses()...)
 	}
-	v.Meta = pj.meta(ws, v)
+	v.Meta = pj.meta(pj.Words(lang), v)
 	return v
 }
 
-// meta is the line of a project under its title: its state, its folders and what enabling a draft grants and asks.
+// meta is the line of a project under its title in deck's words alone: its state, its folders and what enabling a
+// draft grants and asks.
 func (pj *Service) meta(ws map[string]string, v projectView) string {
 	say := func(phrase string, a ...any) string { return fmt.Sprintf(manifest.Tr(ws, phrase), a...) }
 	parts := []string{manifest.Tr(ws, v.Status)}

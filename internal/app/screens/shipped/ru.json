@@ -448,5 +448,11 @@
   "%s: token counts: the turn reported no usage, so the model call journal would count zero": "%s: подсчёт токенов: ход не сообщил расход, журнал вызовов посчитал бы ноль",
   "deck: %s cannot be called by %s; only %s may call it": "deck: %s нельзя вызывать от имени %s; вызывает только %s",
   "not set, so the tools that send it fail; set it in Settings → Advanced → Secrets": "не задан, поэтому инструменты, которые его отправляют, не работают; задайте его в Настройки → Дополнительно → Секреты",
-  "All data folders": "Все папки данных"
+  "All data folders": "Все папки данных",
+  "waiting_answer": "ждёт ответа",
+  "rate_limited": "на паузе по лимиту",
+  "waiting_provider": "ждёт модель",
+  "waiting_slot": "ждёт очереди",
+  "waiting_folder": "ждёт папку",
+  "interrupted": "прервано перезапуском"
 }

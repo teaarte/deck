@@ -199,7 +199,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					return nil, fmt.Errorf("column %q: %w", c.Label, err)
 				}
 				if c.Pick == "" {
-					v = r.word(r.worded(b.Source, c.Bind, c.Format == "tag"), v)
+					v = r.word(r.worded(b.Source, c.Bind), v)
 				}
 				cells = append(cells, v)
 				cell := map[string]any{}
@@ -266,7 +266,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				case key == "details", key == "questions":
 					line[key] = v
 				default:
-					line[key] = fmt.Sprint(r.word(r.worded(b.Source, e, false), v))
+					line[key] = fmt.Sprint(r.word(r.worded(b.Source, e), v))
 				}
 			}
 			if _, ok := line["title"]; !ok {
@@ -319,17 +319,58 @@ func (r *renderer) fieldEnum(collection, expr string) []string {
 	return nil
 }
 
-// worded says which values of an expression are words to put in the owner's language: those of the enum of a field of
-// the module's collection, else any deck or the module has a word for when the value is a tag or from deck's source.
-func (r *renderer) worded(src *manifest.Source, expr string, tag bool) func(string) bool {
-	var collection, from string
+// worded says which values of an expression are words to put in the owner's language: those of the enum of its field,
+// of the module's collection or of the result of the command it reads, and the texts the expression writes itself.
+func (r *renderer) worded(src *manifest.Source, expr string) func(string) bool {
+	values := slices.Concat(literal(expr))
 	if src != nil {
-		collection, from = src.Collection, src.From
+		values = slices.Concat(values, r.fieldEnum(src.Collection, expr), r.resultEnum(*src, expr))
 	}
-	if values := r.fieldEnum(collection, expr); values != nil {
-		return func(s string) bool { return slices.Contains(values, s) }
+	return func(s string) bool { return slices.Contains(values, s) }
+}
+
+// quoted are the texts an expression writes, in single quotes.
+var quoted = regexp.MustCompile(`'([^'\\]*)'`)
+
+func literal(expr string) []string {
+	var out []string
+	for _, m := range quoted.FindAllStringSubmatch(expr, -1) {
+		out = append(out, m[1])
 	}
-	return func(s string) bool { return (tag || strings.HasPrefix(from, "deck.")) && r.tr(s) != s }
+	return out
+}
+
+// resultEnum are the values of the enum of the field an expression reads in the rows of a command of deck.
+func (r *renderer) resultEnum(src manifest.Source, expr string) []string {
+	field := expr
+	if !bare.MatchString(expr) {
+		field = manifest.OneField(expr)
+	}
+	if field == "" || !strings.HasPrefix(src.From, "deck.") {
+		return nil
+	}
+	raw, ok := r.results[src.From]
+	if !ok {
+		c, _ := r.src.Command(r.ctx, r.scope.Workspace, src.From)
+		raw, _ = c["result"].(json.RawMessage)
+		if r.results == nil {
+			r.results = map[string]json.RawMessage{}
+		}
+		r.results[src.From] = raw
+	}
+	var schema struct {
+		Type       string
+		Items      json.RawMessage
+		Properties map[string]struct{ Items json.RawMessage }
+	}
+	if json.Unmarshal(raw, &schema) != nil {
+		return nil
+	}
+	rows := schema.Items
+	if src.Rows != "" {
+		rows = schema.Properties[src.Rows].Items
+	}
+	return manifest.Enum(rows, field)
 }
 
 func among(values []string) func(string) bool {

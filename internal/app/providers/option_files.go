@@ -36,6 +36,22 @@ func fileOf(v any) int64 {
 	return 0
 }
 
+// checkFiles refuses options that name a file which is no file of the model.
+func (s *Service) checkFiles(ctx context.Context, workspace int64, model string, o map[string]any) error {
+	for k, v := range o {
+		id := fileOf(v)
+		if id == 0 {
+			continue
+		}
+		m, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: model})
+		f, ferr := s.St.Q.GetFile(ctx, id)
+		if err != nil || ferr != nil || f.OwnerKind != "model" || f.OwnerID != m.Model.ID {
+			return registry.Invalid("deck: option %s names file %d, which is no file of model %s", k, id, model)
+		}
+	}
+	return nil
+}
+
 // keepBig keeps the long text values of the options of a model as its files and names them there by reference; a
 // file its options no longer name goes. A reference may come back with the name and size the screen showed.
 func (s *Service) keepBig(ctx context.Context, workspace int64, m db.Model) (string, error) {
@@ -76,6 +92,8 @@ func (s *Service) keepBig(ctx context.Context, workspace int64, m db.Model) (str
 	}
 	ids := map[string]int64{}
 	options := m.Options
+	s.FilesMu.RLock()
+	defer s.FilesMu.RUnlock()
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		changed := len(big) > 0
 		for k, v := range o {
@@ -117,6 +135,7 @@ func (s *Service) keepBig(ctx context.Context, workspace int64, m db.Model) (str
 	}
 	for _, b := range big {
 		if err := os.Rename(b.tmp, s.Home.File(ids[b.key])); err != nil {
+			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, ids[b.key]) })
 			return "", err
 		}
 	}

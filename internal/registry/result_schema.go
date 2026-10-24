@@ -50,5 +50,8 @@ func resultFields(t reflect.Type, props map[string]any) {
 			name = f.Name
 		}
 		props[name] = resultSchema(f.Type)
+		if e := f.Tag.Get("enum"); e != "" && f.Type.Kind() == reflect.String {
+			props[name] = map[string]any{"type": "string", "enum": strings.Split(e, "|")}
+		}
 	}
 }

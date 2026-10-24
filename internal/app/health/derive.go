@@ -108,13 +108,18 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 			if scripts[subject] {
 				continue
 			}
+			if name, ok := strings.CutPrefix(subject, "model:"); ok {
+				if _, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name}); err == nil {
+					continue
+				}
+			}
 			if _, err := health.Set(ctx, q, d.of, subject, d.status, d.text); err != nil {
 				return err
 			}
 		}
 		for _, r := range rows {
 			h := r.Health
-			if _, ok := want[h.Subject]; ok || h.WorkspaceID.Int64 != ws || !ownDerived(h, scripts) && !gone(ctx, q, ws, h) {
+			if _, ok := want[h.Subject]; ok || h.WorkspaceID.Int64 != ws || !ownDerived(h, scripts) && !gone(h) {
 				continue
 			}
 			if err := health.Clear(ctx, q, health.Of{Workspace: ws}, h.Subject); err != nil {
@@ -125,14 +130,12 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 	})
 }
 
-// gone reports whether a row is of a model deck has none of, written by Derive while an assignment named it.
-func gone(ctx context.Context, q *db.Queries, ws int64, h db.Health) bool {
-	name, ok := strings.CutPrefix(h.Subject, "model:")
-	if !ok {
-		return false
-	}
-	_, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name})
-	return err != nil
+// noModel is the start of the row Derive writes of a model deck has none of while assignments name it.
+const noModel = "deck has no such model"
+
+// gone reports whether a row is the one Derive writes of a model deck has none of.
+func gone(h db.Health) bool {
+	return strings.HasPrefix(h.Subject, "model:") && strings.HasPrefix(h.Error, noModel)
 }
 
 // ownDerived reports whether Derive writes a row: of a manifest, a secret, search, or of a command that is not of a

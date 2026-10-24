@@ -379,7 +379,9 @@ func TestAModuleHasACoverForItsCard(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("notes", plainManifest)
 	cover := func() string {
-		var m struct{ Projects []struct{ Project, Cover string } }
+		var m struct {
+			Projects []struct{ Project, Cover string }
+		}
 		e.must("deck.menu", nil, &m)
 		for _, p := range m.Projects {
 			if p.Project == "notes" {

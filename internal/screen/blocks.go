@@ -38,7 +38,8 @@ func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
 	if b.Source != nil && b.Source.From != manifest.LogSource {
 		items, _, _, err := r.rows(id, b, nil)
 		if err != nil {
-			return true, err
+			// The block reads its source again from what rows kept and shows the error as its own.
+			return true, nil
 		}
 		env["rows"] = items
 	}
@@ -57,14 +58,35 @@ func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) (
 		src.Limit *= n
 	}
 	if len(picked) > 0 {
-		return r.filtered(src, b.Filter, picked)
+		items, filters, more, err := r.filtered(src, b.Filter, picked)
+		r.labeled(b, filters)
+		return items, filters, more, err
 	}
 	if got, ok := r.read[id]; ok {
 		return got.items, got.filters, got.more, got.err
 	}
 	items, filters, more, err := r.filtered(src, b.Filter, nil)
+	r.labeled(b, filters)
 	r.read[id] = readOf{items, filters, more, err}
 	return items, filters, more, err
+}
+
+// labeled gives a filter without a label of its own the label of the column of its field, else its field's name.
+func (r *renderer) labeled(b manifest.Block, filters []map[string]any) {
+	for _, fl := range filters {
+		if _, ok := fl["label"]; ok {
+			continue
+		}
+		f, _ := fl["field"].(string)
+		label := strings.ToUpper(f[:min(1, len(f))]) + strings.ReplaceAll(f[min(1, len(f)):], "_", " ")
+		for _, c := range b.Columns {
+			if strings.TrimSpace(c.Bind) == f || manifest.OneField(c.Bind) == f {
+				label = c.Label
+				break
+			}
+		}
+		fl["label"] = r.tr(label)
+	}
 }
 
 type readOf struct {

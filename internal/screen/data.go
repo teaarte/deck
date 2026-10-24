@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 
 	"deck2/internal/manifest"
 )
@@ -119,7 +120,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if err != nil {
 				return nil, fmt.Errorf("field %q: %w", f.Label, err)
 			}
-			v = r.word(r.fieldEnum(r.req.Screen.Record, f.Bind), v)
+			v = r.word(among(r.fieldEnum(r.req.Screen.Record, f.Bind)), v)
 			if v == nil || v == "" {
 				continue
 			}
@@ -195,7 +196,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					return nil, fmt.Errorf("column %q: %w", c.Label, err)
 				}
 				if c.Pick == "" {
-					v = r.word(r.fieldEnum(b.Source.Collection, c.Bind), v)
+					v = r.word(r.worded(b.Source, c.Bind, c.Format == "tag"), v)
 				}
 				cells = append(cells, v)
 				cell := map[string]any{}
@@ -262,7 +263,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				case key == "details", key == "questions":
 					line[key] = v
 				default:
-					line[key] = fmt.Sprint(r.word(r.fieldEnum(b.Source.Collection, e), v))
+					line[key] = fmt.Sprint(r.word(r.worded(b.Source, e, false), v))
 				}
 			}
 			if _, ok := line["title"]; !ok {
@@ -315,10 +316,27 @@ func (r *renderer) fieldEnum(collection, expr string) []string {
 	return nil
 }
 
-// word is v, or each value of a list v, in the owner's language where it is one of values; else as it is.
-func (r *renderer) word(values []string, v any) any {
+// worded says which values of an expression are words to put in the owner's language: those of the enum of a field of
+// the module's collection, else any deck or the module has a word for when the value is a tag or from deck's source.
+func (r *renderer) worded(src *manifest.Source, expr string, tag bool) func(string) bool {
+	var collection, from string
+	if src != nil {
+		collection, from = src.Collection, src.From
+	}
+	if values := r.fieldEnum(collection, expr); values != nil {
+		return func(s string) bool { return slices.Contains(values, s) }
+	}
+	return func(s string) bool { return (tag || strings.HasPrefix(from, "deck.")) && r.tr(s) != s }
+}
+
+func among(values []string) func(string) bool {
+	return func(s string) bool { return slices.Contains(values, s) }
+}
+
+// word is v, or each value of a list v, in the owner's language where it is a word; else as it is.
+func (r *renderer) word(known func(string) bool, v any) any {
 	one := func(x any) any {
-		if s, ok := x.(string); ok && slices.Contains(values, s) {
+		if s, ok := x.(string); ok && known(s) {
 			return r.tr(s)
 		}
 		return x

@@ -53,6 +53,8 @@ type Service struct {
 	CheckScreens func(ctx context.Context, act registry.Actor, p db.Project, m *manifest.Manifest) []string
 	// Unassigned are the commands of a manifest no model takes, with what the owner does.
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
+	// Words are deck's phrases in a language.
+	Words func(lang string) map[string]string
 
 	// preparedCmds are the registry commands of each manifest revision.
 	preparedMu   sync.Mutex

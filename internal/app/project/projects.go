@@ -9,6 +9,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -37,10 +38,13 @@ type projectView struct {
 	// Icon and Title are the icon and the name the owner sees that its manifest gives; Title is the name without one.
 	Icon  string `json:"icon,omitempty"`
 	Title string `json:"title"`
+	// Meta is one line of its state, folders and what enabling a draft grants, in the language asked for.
+	Meta string `json:"meta"`
 }
 
 type projectsListIn struct {
 	Project string `type:"project" opt:"" desc:"Only this project"`
+	Lang    string `opt:"" desc:"Language of the titles and words, such as ru; English without one"`
 }
 
 func (pj *Service) projectsList(ctx context.Context, act registry.Actor, in projectsListIn) ([]projectView, error) {
@@ -54,32 +58,64 @@ func (pj *Service) projectsList(ctx context.Context, act registry.Actor, in proj
 	ms, failed := docs.All(ctx, pj.St.Q, ps)
 	out := make([]projectView, 0, len(ps))
 	for _, p := range ps {
-		out = append(out, pj.viewProject(ctx, p, ms[p.ID], failed[p.ID]))
+		out = append(out, pj.viewProject(ctx, p, ms[p.ID], failed[p.ID], in.Lang))
 	}
 	return out, nil
 }
 
 // viewProject is a project as the owner sees it, with its manifest when that loads.
-func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error) projectView {
+func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error, lang string) projectView {
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []manifest.ScreenLink{},
 		Rights: []string{}, Asks: []string{}, Models: []string{}}
 	v.Folders, _ = pj.Folders(ctx, p.ID)
 	if prompt, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}
+	ws := maps.Clone(pj.Words(lang))
 	if err != nil {
 		v.ManifestError = err.Error()
+		v.Meta = pj.meta(ws, v)
 		return v
 	}
+	if lang != "" {
+		if ws == nil {
+			ws = map[string]string{}
+		}
+		maps.Copy(ws, m.I18n[lang])
+	}
 	v.Revision, v.NoNetwork, v.Network = m.Revision, m.NoNetwork, manifest.AgentNetwork(m)
-	v.Title, v.Icon, v.Screens = manifest.Nav(p.Name, m, nil)
+	v.Title, v.Icon, v.Screens = manifest.Nav(p.Name, m, ws)
 	if p.Status == store.ProjectDraft {
 		v.Rights, v.Asks = append(v.Rights, rights(m)...), append(v.Asks, m.AskEachTime()...)
 	}
 	if f, err := docs.For(ctx, pj.St.Q, registry.Actor{}, p.ID); err == nil {
 		v.Models = append(v.Models, f.Uses()...)
 	}
+	v.Meta = pj.meta(ws, v)
 	return v
+}
+
+// meta is the line of a project under its title: its state, its folders and what enabling a draft grants and asks.
+func (pj *Service) meta(ws map[string]string, v projectView) string {
+	say := func(phrase string, a ...any) string { return fmt.Sprintf(manifest.Tr(ws, phrase), a...) }
+	parts := []string{manifest.Tr(ws, v.Status)}
+	if v.Paused {
+		parts[0] = say("%s, paused", parts[0])
+	}
+	if len(v.Folders) > 0 {
+		names := make([]string, 0, len(v.Folders))
+		for _, f := range v.Folders {
+			names = append(names, f.Name)
+		}
+		parts = append(parts, say("folders: %s", strings.Join(names, ", ")))
+	}
+	if v.Status == store.ProjectDraft && len(v.Rights) > 0 {
+		parts = append(parts, say("enabling grants: %s", strings.Join(v.Rights, "; ")))
+	}
+	if v.Status == store.ProjectDraft && len(v.Asks) > 0 {
+		parts = append(parts, say("asks you each time: %s", strings.Join(v.Asks, ", ")))
+	}
+	return strings.Join(parts, " · ")
 }
 
 // emptyManifest is a project with nothing in it yet.

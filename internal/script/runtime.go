@@ -31,18 +31,18 @@ func Runtimes() Runtime { return picked() }
 func (r Runtime) Health() (status, text string) {
 	py := "no python3"
 	if r.Python != "" {
-		py = "python " + r.PythonVersion + " at " + r.Python
+		py = fmt.Sprintf("python %s at %s", r.PythonVersion, r.Python)
 	}
 	node := "no node"
 	if r.Node != "" {
-		node = "node " + r.NodeVersion + " at " + r.Node
+		node = fmt.Sprintf("node %s at %s", r.NodeVersion, r.Node)
 	}
-	text = "Scripts run on " + py + "; " + node + "."
+	text = fmt.Sprintf("Scripts run on %s; %s.", py, node)
 	switch {
 	case r.Python == "":
-		return "warning", text + " Python scripts cannot run: the owner installs python 3.10 or newer (brew install python)."
+		return "warning", fmt.Sprintf("%s Python scripts cannot run: the owner installs python 3.10 or newer (brew install python).", text)
 	case r.Old:
-		return "warning", text + " It is older than 3.10: the owner installs a newer one (brew install python)."
+		return "warning", fmt.Sprintf("%s It is older than 3.10: the owner installs a newer one (brew install python).", text)
 	}
 	return "ok", text
 }

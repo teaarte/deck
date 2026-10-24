@@ -176,7 +176,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.Screens.CheckScreens,
-		Unassigned: a.Providers.Unassigned}
+		Unassigned: a.Providers.Unassigned, Words: screens.Phrases}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)

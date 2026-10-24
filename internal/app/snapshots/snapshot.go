@@ -48,7 +48,7 @@ func (s *Service) take(ctx context.Context, kind string, project int64) (string,
 	path, left, err := s.write(ctx, kind, project)
 	switch {
 	case err != nil:
-		if err := health.Write(ctx, s.St, health.Of{}, health.Snapshot, health.Error, "the snapshot failed: "+err.Error()); err != nil {
+		if err := health.Write(ctx, s.St, health.Of{}, health.Snapshot, health.Error, fmt.Sprintf("the snapshot failed: %s", err)); err != nil {
 			slog.Error("write health", "err", err)
 		}
 	case len(left.unread) > 0:

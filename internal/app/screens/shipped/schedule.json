@@ -12,7 +12,7 @@
           "columns": [
             {"label": "Module", "bind": "project", "format": "tag", "tone": "paused || draft ? 'muted' : ''"},
             {"label": "Command", "bind": "command", "tone": "paused || draft ? 'muted' : ''"},
-            {"label": "How often", "bind": "kind == 'cron' ? spec : kind + ' ' + spec", "format": "cron"},
+            {"label": "How often", "bind": "kind == 'cron' ? spec : every ?? spec", "format": "cron"},
             {"label": "Model", "bind": "model ?? ''", "pick": "model"},
             {"label": "Price", "bind": "price ?? ''"}
           ],

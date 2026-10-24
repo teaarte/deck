@@ -358,7 +358,7 @@ func (r *Registry) reachable(a Actor, c *Command) error {
 		if a.Run != "" {
 			who += " (" + a.Run + ")"
 		}
-		return Refuse("deck: %s cannot be called by %s; only %s call it", c.Name, who, strings.Join(c.Callers, ", "))
+		return Refuse("deck: %s cannot be called by %s; only %s may call it", c.Name, who, strings.Join(c.Callers, ", "))
 	}
 	if c.ProjectID != 0 && (a.Kind == Agent || a.Kind == Trigger) && a.ProjectID != c.ProjectID {
 		return Refuse("deck: %s belongs to another project", c.Name)

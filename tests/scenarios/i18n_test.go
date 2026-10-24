@@ -72,7 +72,7 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 }
 
 // TestEveryTextOfDeckScreensHasItsTranslation: each text of deck's screens is translated, and each translation
-// is of a text there is, of the title of a command of deck a form shows, or of a text of deck's code.
+// is of a text there is, of the title of a command of deck a form shows, of a text of deck's code or a value of a screen.
 func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -89,11 +89,13 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 		t.Fatalf("no screens of deck: %v", err)
 	}
 	texts, ru := map[string]bool{}, map[string]string{}
+	var screens strings.Builder
 	for _, f := range files {
 		raw, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
+		screens.Write(raw)
 		switch filepath.Base(f) {
 		case "ru.json":
 			if err := json.Unmarshal(raw, &ru); err != nil {
@@ -118,7 +120,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 		return nil
 	})
 	for k := range ru {
-		if !texts[k] && !titles[k] && !strings.Contains(code.String(), strconv.Quote(k)) {
+		if !texts[k] && !titles[k] && !strings.Contains(code.String(), strconv.Quote(k)) && !strings.Contains(screens.String(), "'"+k+"'") {
 			t.Errorf("ru translates %q, which is no text", k)
 		}
 	}
@@ -203,5 +205,39 @@ func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
 		if s.screen == "main" && !strings.Contains(string(drawn), strings.Replace(want, `"state"`, `"tags"`, 1)) {
 			t.Errorf("a list of an enum offers its values translated too: %s", drawn)
 		}
+	}
+}
+
+// TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner: the titles of modules and commands come in the owner's
+// language by the module's words, a filter is named like its column, and deck's values and tags are translated.
+func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	m := strings.Replace(testManifest([]string{agentCommand("work", ""), agentCommand("send", `{"type": "object", "properties": {"process": {"type": "integer"}}}`)},
+		[]string{`{"command": "send", "after": "work"}`}),
+		`"version": 13,`, `"version": 13, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "work": "Работа"}},`, 1)
+	p := e.createProject("web", m)
+	var ps []struct{ Name, Title, Meta string }
+	e.must("deck.projects_list", map[string]any{"lang": "ru"}, &ps)
+	if i := slices.IndexFunc(ps, func(v struct{ Name, Title, Meta string }) bool { return v.Name == "web" }); i < 0 || ps[i].Title != "Веб-заметки" || ps[i].Meta != "включён" {
+		t.Fatalf("a module's title and its line come in the owner's language: %+v", ps)
+	}
+	var cmds []struct{ Name, Title string }
+	e.must("deck.commands_list", map[string]any{"project": "web", "lang": "ru"}, &cmds)
+	if i := slices.IndexFunc(cmds, func(c struct{ Name, Title string }) bool { return c.Name == "web.work" }); i < 0 || cmds[i].Title != "Работа" {
+		t.Fatalf("a command's title comes in the owner's language: %+v", cmds)
+	}
+	e.waitState(e.run(p, "work"), "done")
+	schedule := e.screenData("", "schedule", map[string]any{"lang": "ru"})
+	var filters []struct {
+		Field, Label string
+		Labels       []string
+	}
+	_ = json.Unmarshal(schedule["b0-2-0"]["filters"], &filters)
+	if len(filters) != 2 || filters[0].Label != "Модуль" || filters[1].Label != "Состояние" || !slices.Contains(filters[1].Labels, "готово") {
+		t.Fatalf("a filter is named like its column and offers deck's values in words: %+v", filters)
+	}
+	if rows := string(schedule["b0-0-0"]["rows"]); !strings.Contains(rows, "после «work»") {
+		t.Fatalf("a trigger after another command says so in words: %s", rows)
 	}
 }

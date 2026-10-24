@@ -51,6 +51,8 @@ type triggerView struct {
 	Command   string          `json:"command"`
 	Kind      string          `json:"kind"`
 	Spec      string          `json:"spec"`
+	// Every is how often it runs in words, for a trigger that is no schedule.
+	Every string `json:"every,omitempty"`
 	Params    json.RawMessage `json:"params"`
 	NextRunAt string          `json:"next_run_at"`
 	// Paused is the trigger's own pause or its project's; ProjectPaused and OwnPaused say which.
@@ -113,6 +115,9 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 			SkipMissed: t.SkipMissed == 1, Draft: p.Status != store.ProjectEnabled}
 		if v.Draft {
 			v.NextRunAt = ""
+		}
+		if t.Kind == trigger.KindAfter {
+			v.Every = fmt.Sprintf(tr("after %s"), t.Spec)
 		}
 		key := fmt.Sprint(t.ProjectID, ".", t.Command)
 		w, ok := works[key]

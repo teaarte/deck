@@ -12,7 +12,7 @@
           {"type": "form", "command": "deck.project_import", "description": "A .zip of a module or a folder of this machine; it comes as a draft, and deck shows what it may do before you enable it."}]},
         {"type": "list", "title": "Modules", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
-            "meta": "status + (paused ? ', paused' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name), ', ') : '') + (status == 'draft' && len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (status == 'draft' && len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
+            "meta": "meta",
             "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
           "actions": [
             {"verb": "settings", "primary": true, "screen": "settings", "project": "=name", "when": "status != 'draft' || manifest_error != ''"},

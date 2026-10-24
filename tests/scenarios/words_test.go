@@ -12,7 +12,7 @@ import (
 )
 
 // TestDecksOwnSentencesSpeakTheLanguageOfTheScreen: what deck writes itself — the failure of a process, a row of
-// health, a note — reads in the owner's language; the words of a model API inside stay as they came.
+// health, a note, a phrase inside another — reads in the owner's language; the words of a model API stay as they came.
 func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
 	t.Parallel()
 	e, _, _ := twoModels(t, func(ctx context.Context, c *Call) provider.Result {
@@ -29,7 +29,7 @@ func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
 		var notes []struct{ Text string }
 		e.must("deck.feed_list", map[string]any{"lang": "ru", "kind": "note"}, &notes)
 		return slices.ContainsFunc(notes, func(n struct{ Text string }) bool {
-			return strings.HasPrefix(n.Text, "fake не закончила «work», продолжает backup: fake did not answer: API Error")
+			return strings.HasPrefix(n.Text, "fake не закончила «work», продолжает backup: fake не ответила: API Error")
 		})
 	})
 }

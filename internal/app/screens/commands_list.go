@@ -122,6 +122,13 @@ func (ss *Service) commandsList(ctx context.Context, act registry.Actor, in comm
 				manifests[c.ProjectID] = m
 			}
 		}
+		if in.Lang != "" {
+			ws := words(in.Lang, m)
+			r.Title = manifest.Tr(ws, r.Title)
+			if r.Description != "" {
+				r.Description = manifest.Tr(ws, r.Description)
+			}
+		}
 		if ownerOnly[c.Name] {
 			r.OwnerOnly = true
 			r.Form, r.FormParams = formOf(c.Name, r.Project, m)

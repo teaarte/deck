@@ -160,7 +160,7 @@ func TestAScriptFailedByARefusalSaysWhatDeckRefused(t *testing.T) {
 	e.waitScript(id, "done", "error")
 	f := e.fault(id)
 	if f.ErrorType != "rights.denied" || !strings.Contains(f.Error, "deck refused its calls: deck.settings_list") ||
-		!strings.Contains(f.Error, "cannot be called by agent (script); only owner, master call it") {
+		!strings.Contains(f.Error, "cannot be called by agent (script); only owner, master may call it") {
 		t.Fatalf("the failure names the refusal: %+v", f)
 	}
 }

@@ -156,7 +156,7 @@ func (r *renderer) filtered(src manifest.Source, fields []string, picked map[str
 		fl["options"] = append([]string{}, options...)
 		labels, named := make([]string, len(options)), false
 		for i, o := range options {
-			labels[i] = fmt.Sprint(r.word(r.fieldEnum(src.Collection, f), o))
+			labels[i] = fmt.Sprint(r.word(r.worded(&src, f, true), o))
 			named = named || labels[i] != o
 		}
 		if named {

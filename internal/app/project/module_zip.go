@@ -192,7 +192,7 @@ func (pj *Service) projectRights(ctx context.Context, act registry.Actor, in pro
 	if err := failed[p.ID]; err != nil {
 		return nil, registry.Invalid("deck: the manifest of %s does not load: %v", p.Name, err)
 	}
-	v := pj.viewProject(ctx, p, ms[p.ID], nil)
+	v := pj.viewProject(ctx, p, ms[p.ID], nil, "")
 	out := []rightRow{}
 	for _, r := range v.Rights {
 		what, detail, _ := strings.Cut(r, ": ")

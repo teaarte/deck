@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -611,5 +612,39 @@ func TestRunNowKeepsTheRightsOfItsCaller(t *testing.T) {
 	e.must("deck.trigger_run", map[string]any{"trigger": job}, &started)
 	if e.waitState(started.Process, "done"); e.countOf("c1") != 2 {
 		t.Fatalf("the owner runs it now in a pause: %d runs", e.countOf("c1"))
+	}
+}
+
+// TestAScheduleThatFailedIsFixedByALaterRunOfTheSameWork: the last run of a trigger that failed stops being red once
+// a run of the same command with the same input works, as in the cockpit.
+func TestAScheduleThatFailedIsFixedByALaterRunOfTheSameWork(t *testing.T) {
+	t.Parallel()
+	var fail atomic.Bool
+	fail.Store(true)
+	e := newClockEnv(t, func(context.Context, *Call) provider.Result {
+		if fail.Load() {
+			return provider.Result{Outcome: provider.Failed, Text: "down"}
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	p := e.createProject("alpha", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
+	last := func() (string, string) {
+		var ts []struct {
+			LastWord string `json:"last_word"`
+			LastTone string `json:"last_tone"`
+		}
+		e.must("deck.triggers_list", map[string]any{"project": "alpha"}, &ts)
+		return ts[0].LastWord, ts[0].LastTone
+	}
+	var started struct{ Process int64 }
+	e.must("deck.trigger_run", map[string]any{"trigger": e.triggers()[0].ID}, &started)
+	e.waitState(started.Process, "error")
+	if _, tone := last(); tone != "error" {
+		t.Fatalf("a schedule whose last run failed is red: %s", tone)
+	}
+	fail.Store(false)
+	e.waitState(e.run(p, "job"), "done")
+	if word, tone := last(); tone != "muted" || word != "failed, fixed since" {
+		t.Fatalf("a later run of the same work that went well fixes the schedule too: %s %s", word, tone)
 	}
 }

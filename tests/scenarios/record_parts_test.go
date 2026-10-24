@@ -101,7 +101,7 @@ func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 		Title, Icon, URL, Error string
 		Actions                 []map[string]any
 	}
-	tiles := blockData[[]tile](t, e.screenData("", "data", map[string]any{"params": `{"project": "shorts", "path": "cache"}`})["b0"]["files"])
+	tiles := blockData[[]tile](t, e.screenData("", "data", map[string]any{"params": `{"project": "shorts", "path": "cache"}`})["b1"]["files"])
 	if len(tiles) != 3 || tiles[0].Title != ".." || tiles[0].Icon != "arrow-up" || tiles[1].Title != "zz" || tiles[1].Icon != "folder" ||
 		tiles[2].Title != "tiles.bin" || tiles[2].Icon != "" || !strings.Contains(tiles[2].URL, "/api/files/data/shorts/cache/tiles.bin") {
 		t.Fatalf("the way up and the folders come first as tiles, then the files: %+v", tiles)

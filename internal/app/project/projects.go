@@ -95,13 +95,19 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	return v
 }
 
-// meta is the line of a project under its title in deck's words alone: its state, its folders and what enabling a
-// draft grants and asks.
+// meta is the line of a project under its title in deck's words alone: its state, its network, its folders and what
+// enabling a draft grants and asks.
 func (pj *Service) meta(ws map[string]string, v projectView) string {
 	say := func(phrase string, a ...any) string { return fmt.Sprintf(manifest.Tr(ws, phrase), a...) }
 	parts := []string{manifest.Tr(ws, v.Status)}
 	if v.Paused {
 		parts[0] = say("%s, paused", parts[0])
+	}
+	if v.NoNetwork {
+		parts = append(parts, manifest.Tr(ws, "no network"))
+	}
+	if v.Network != "" {
+		parts = append(parts, manifest.TrText(ws, v.Network))
 	}
 	if len(v.Folders) > 0 {
 		names := make([]string, 0, len(v.Folders))

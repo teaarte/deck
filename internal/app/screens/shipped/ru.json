@@ -296,7 +296,7 @@
   "failed, fixed since": "не получилось, потом исправлено",
   "deck has no such model, and the assignments of %s name it; pick another in Settings → Commands": "такой модели в deck нет, а её называют назначения: %s; выберите другую в Настройки → Команды",
   "deck has no such model, so the work skips it": "такой модели в deck нет, работа её пропускает",
-  "agent": "Агент",
+  "agent": "агент",
   "api": "API",
   "call_usd": "USD за вызов",
   "check_minutes": "Минут на самопроверку",
@@ -454,5 +454,7 @@
   "waiting_provider": "ждёт модель",
   "waiting_slot": "ждёт очереди",
   "waiting_folder": "ждёт папку",
-  "interrupted": "прервано перезапуском"
+  "interrupted": "прервано перезапуском",
+  "no network": "без сети",
+  "agents on Claude Code or Codex: the whole network, whatever domains.read names": "агенты на Claude Code или Codex: вся сеть, что бы ни называл domains.read"
 }

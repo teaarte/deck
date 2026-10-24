@@ -55,7 +55,7 @@ func TestADecisionSaysWhoAsksWhyAndWhatChanges(t *testing.T) {
 		return len(asks) == 1 && asks[0].Why != ""
 	})
 	a := asks[0]
-	if a.Who != "work" || a.Why != "groq answers 413 on this work, so nemotron should take it" || !strings.HasPrefix(a.Where, "agent для plain.work: ") ||
+	if a.Who != "work" || a.Why != "groq answers 413 on this work, so nemotron should take it" || !strings.HasPrefix(a.Where, "агент для plain.work: ") ||
 		!strings.HasSuffix(a.Where, "→ quiet") || !strings.HasPrefix(a.By, "#") {
 		t.Fatalf("who asks in words, why in its own words, was → becomes in Russian, the process apart: %+v", a)
 	}

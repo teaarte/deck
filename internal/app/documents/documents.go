@@ -64,7 +64,7 @@ type documentsListIn struct {
 	Project     string `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
 	Kind        string `opt:"" desc:"Only this kind"`
 	Deleted     bool   `opt:"" desc:"The deleted documents instead, which the owner can bring back"`
-	WithDeleted bool   `json:"with_deleted" opt:"" desc:"The deleted documents after the others, for the owner"`
+	WithDeleted bool   `json:"with_deleted" opt:"" desc:"The deleted documents after the others when the owner reads; others get the rest alone"`
 	Record      int64  `type:"record" opt:"" desc:"Only the documents of this record"`
 }
 
@@ -79,9 +79,10 @@ func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in doc
 	if err != nil {
 		return nil, err
 	}
-	if (in.Deleted || in.WithDeleted) && act.Kind != registry.Owner {
+	if in.Deleted && act.Kind != registry.Owner {
 		return nil, registry.Refuse("deck: only the owner lists deleted documents")
 	}
+	in.WithDeleted = in.WithDeleted && act.Kind == registry.Owner
 	var ds []db.Document
 	if !in.Deleted {
 		if ds, err = dc.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Kind: in.Kind, RecordID: in.Record}); err != nil {

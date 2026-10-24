@@ -498,7 +498,7 @@ func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 	}
 	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.screen",
 		[]byte(`{"screen": "chat"}`))
-	if err != nil || !strings.Contains(fmt.Sprint(out), "deck.chat cannot be called by master") {
+	if err != nil || !strings.Contains(fmt.Sprint(out), "only the owner sees this") {
 		t.Fatalf("only the owner reads the chat: %v %v", out, err)
 	}
 }

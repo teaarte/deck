@@ -292,6 +292,7 @@
   "%s did not finish %s, %s goes on with it: %s": "%s не закончила «%s», продолжает %s: %s",
   "Question": "Вопрос",
   "no reason given": "причина не названа",
+  "only the owner sees this": "это видит только владелец",
   "failed, fixed since": "не получилось, потом исправлено",
   "deck has no such model, and the assignments of %s name it; pick another in Settings → Commands": "такой модели в deck нет, а её называют назначения: %s; выберите другую в Настройки → Команды",
   "deck has no such model, so the work skips it": "такой модели в deck нет, работа её пропускает"

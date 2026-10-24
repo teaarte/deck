@@ -3,6 +3,7 @@ package screen
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -20,6 +21,9 @@ const (
 
 // Sources reads what a screen shows: records, the commands its blocks read and commands of forms; the screen itself
 // touches no store.
+// OwnerOnly is the error of a read only the owner may make, read by another; its block says so and is no failure.
+var OwnerOnly = errors.New("only the owner sees this")
+
 type Sources interface {
 	// Read calls a command that only reads, as the one who looks at the screen, decoded with integers as int64;
 	// the scope adds the project, the language and the values picked in filters that the command takes.

@@ -2,6 +2,7 @@ package screen
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"maps"
 	"strings"
@@ -150,6 +151,10 @@ func (r *renderer) block(id string, b manifest.Block) {
 	}
 	value, err := r.resolve(id, b)
 	name := fmt.Sprintf("%s block %q", b.Type, cmp.Or(b.Title, id))
+	if errors.Is(err, OwnerOnly) {
+		r.data[id] = map[string]any{"state": "empty", "empty": r.tr(OwnerOnly.Error())}
+		return
+	}
 	if err != nil {
 		r.data[id] = map[string]any{"state": "error", "error": err.Error()}
 		r.errs = append(r.errs, name+": "+err.Error())

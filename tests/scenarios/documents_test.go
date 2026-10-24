@@ -2,8 +2,10 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -449,5 +451,24 @@ func TestTheSkillNamesOnlyBlocksAndChartsTheCatalogHas(t *testing.T) {
 		if !slices.Contains(catalog.Components["chart"].Block.Properties.Kind.Enum, m[1]) {
 			t.Errorf("the skill names chart kind %q, which the catalog lacks", m[1])
 		}
+	}
+}
+
+// TestAScreenReadByAnotherShowsWhatItMayAndSaysWhatIsTheOwners: the master reading the files of deck and the
+// documents of a project gets the documents without the deleted ones, and a block only the owner reads says so.
+func TestAScreenReadByAnotherShowsWhatItMayAndSaysWhatIsTheOwners(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("plain", plainManifest)
+	master := registry.Actor{Kind: registry.Master, Workspace: 1}
+	for _, in := range []string{`{"screen": "files"}`, `{"project": "plain", "screen": "documents"}`} {
+		out, err := e.App.Registry.Invoke(context.Background(), master, "deck.screen", []byte(in))
+		if err != nil || strings.Contains(fmt.Sprint(out), "deleted documents") || strings.Contains(fmt.Sprint(out), `"state":"error"`) {
+			t.Fatalf("a screen the master reads has no failed blocks: %s %v %v", in, out, err)
+		}
+	}
+	out, _ := e.App.Registry.Invoke(context.Background(), master, "deck.screen", []byte(`{"screen": "files"}`))
+	if !strings.Contains(fmt.Sprint(out), "only the owner sees this") {
+		t.Fatalf("the snapshots of the owner say whose they are: %v", out)
 	}
 }

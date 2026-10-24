@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CheckIcon, ColorSwatch, Group, Select, SimpleGrid, Slider, Stack, Switch, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { ACCENTS, DENSITIES, FACES, FONTS, RADII, SURFACES, THEMES, setLook, useLook, type Look } from '../theme/look';
+import { ACCENTS, DENSITIES, FACES, FONTS, HOMES, RADII, SURFACES, THEMES, setLook, useLook, type Look } from '../theme/look';
 import { call } from '../lib/api';
 import { Pushes } from './Pushes';
 import { notifyError } from '../lib/notify';
@@ -29,6 +29,7 @@ export function Appearance({ part }: { part?: string }) {
       <Text size="sm" c="dimmed">{t('look.device')}</Text>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md">
         <Language />
+        <Choice label={t('look.home')} name="home" value={look.home} options={HOMES} onChange={(v: Look['home']) => setLook({ home: v })} />
         <Choice label={t('look.theme')} name="theme" value={look.theme} options={THEMES} onChange={(v: Look['theme']) => setLook(v === 'juce' ? { theme: v, accent: 'coral' } : { theme: v })} />
         {look.theme === 'neon' ? (
           <Text size="sm" c="dimmed" data-look-note="scheme">{t('look.dark_only')}</Text>

@@ -7,7 +7,9 @@ import { useFocusHandoff } from '../hooks/useFocusHandoff';
 import { entryOf, MenuContext, useMenu } from '../hooks/useMenu';
 import { usePhone } from '../hooks/usePhone';
 import { setLanguage } from '../lib/i18n';
+import { Apps } from '../apps/Apps';
 import { ScreenView } from '../screen/ScreenView';
+import { useLook } from '../theme/look';
 import { PressAsks } from '../ui/actions/PressAsks';
 import s from './shell.module.css';
 import { Backdrop } from './Backdrop';
@@ -36,6 +38,11 @@ export function Shell() {
   const layout = useChatLayout();
   const { chat, setChat, full, navOpen, setNavOpen } = layout;
   const phone = usePhone();
+  const cards = useLook().home === 'cards';
+  const apps = !route.project && route.screen === 'apps';
+  useEffect(() => {
+    if (cards && (location.hash === '' || location.hash === '#/')) location.replace(href({ screen: 'apps' }));
+  }, [cards]);
   const [phoneNav, setPhoneNav] = useState(false);
   const [dragging, setDragging] = useState(false);
   const moveFocus = useFocusHandoff([navOpen, chat]);
@@ -53,7 +60,7 @@ export function Shell() {
   }), [chat, phone, full]);
   const current = href({ ...route, record: undefined });
   const entry = entryOf(menu, route.project);
-  const screen = route.screen === 'cockpit' && !route.project ? t('nav.cockpit') : [...(entry?.screens ?? []), ...(entry?.extra ?? [])].find((x) => x.name === route.screen)?.title;
+  const screen = apps ? t('nav.apps') : route.screen === 'cockpit' && !route.project ? t('nav.cockpit') : [...(entry?.screens ?? []), ...(entry?.extra ?? [])].find((x) => x.name === route.screen)?.title;
   useEffect(() => titlePlace([screen, route.project && entry?.title].filter(Boolean).join(' · ')), [screen, route.project, entry?.title]);
   const master = (
     <MasterButton m={menu.master} open={chat}
@@ -65,8 +72,8 @@ export function Shell() {
     <MenuContext.Provider value={menu}>
       <Backdrop />
       <div className={s.shell} data-full={(side && full) || undefined} data-dragging={dragging || undefined}
-        style={desk ? { gridTemplateColumns: [navOpen && 'auto', !(side && full) && 'minmax(0, 1fr)', side && (full ? 'minmax(0, 1fr)' : 'auto')].filter(Boolean).join(' ') } : undefined}>
-        {desk && navOpen ? (
+        style={desk ? { gridTemplateColumns: [navOpen && !cards && 'auto', !(side && full) && 'minmax(0, 1fr)', side && (full ? 'minmax(0, 1fr)' : 'auto')].filter(Boolean).join(' ') } : undefined}>
+        {desk && navOpen && !cards ? (
           <nav className={`${s.island} ${s.nav}`} data-nav>
             <div className={s.navTop}>
               <Logo />
@@ -83,14 +90,14 @@ export function Shell() {
           </nav>
         ) : null}
         <main className={s.main} data-main>
-          {phone ? <PhoneBar entry={entry} onMenu={() => setPhoneNav(true)} master={master} />
-            : <Toolbar entry={entry} navOpen={navOpen} onShowNav={() => { moveFocus('[data-nav-hide]'); setNavOpen(true); }} master={!chat && master} />}
-          <ScreenView route={route} />
+          {phone ? <PhoneBar entry={entry} onMenu={() => setPhoneNav(true)} master={master} cards={cards} />
+            : <Toolbar entry={entry} navOpen={navOpen && !cards} onShowNav={() => { moveFocus('[data-nav-hide]'); setNavOpen(true); }} master={!chat && master} cards={cards} />}
+          {apps ? <Apps /> : <ScreenView route={route} />}
         </main>
         <ChatPanel phone={phone} layout={layout} onDragging={setDragging}
           onClose={() => { moveFocus('[data-chat-toggle]'); setChat(false); }} />
       </div>
-      <Drawer opened={phone && phoneNav} onClose={() => setPhoneNav(false)} size="100%" padding={0} withCloseButton={false} keepMounted data-nav-phone>
+      <Drawer opened={phone && phoneNav && !cards} onClose={() => setPhoneNav(false)} size="100%" padding={0} withCloseButton={false} keepMounted data-nav-phone>
         <nav className={`${s.island} ${s.safe}`} style={{ height: '100dvh', borderRadius: 0, boxShadow: 'none', background: 'transparent' }}>
           <div className={s.navTop}>
             <Logo onClick={() => setPhoneNav(false)} />

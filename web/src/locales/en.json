@@ -2,7 +2,7 @@
   "actions": { "more": "More", "copy": "Copy", "copied": "Copied" },
   "bell": { "title": "Notifications", "empty": "No notifications yet" },
   "table": { "more": "More", "less": "Less", "search": "Search", "nothing": "Nothing matches", "range": "{{from}}–{{to}} of {{of}}", "size": "Rows on a page" },
-  "nav": { "control": "Control", "cockpit": "Cockpit", "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}", "order": "Order the projects", "order_done": "Done", "up": "Up", "down": "Down" },
+  "nav": { "apps": "Modules", "control": "Control", "cockpit": "Cockpit", "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}", "order": "Order the projects", "order_done": "Done", "up": "Up", "down": "Down" },
   "state": {
     "loading": "Loading…",
     "empty": "Nothing here",
@@ -90,6 +90,9 @@
     "json": "{{field}} is not valid JSON"
   },
   "look": {
+    "home": "Layout",
+    "classic": "Classic, with the side menu",
+    "cards": "Cards of modules",
     "juce": "Juce",
     "sky": "Sky and clouds behind the screen",
     "mascot": "Mascot Deki in the chat and on the cockpit",

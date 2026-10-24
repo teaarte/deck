@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/docs"
+	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"sync"
@@ -28,6 +30,8 @@ type menuEntry struct {
 	Running int64 `json:"running,omitempty"`
 	Asks    int64 `json:"asks,omitempty"`
 	Errors  int64 `json:"errors,omitempty"`
+	// Cover is where the client reads the picture of the project's card, none without one.
+	Cover string `json:"cover,omitempty"`
 }
 
 // menuGroup is a group of links at the foot of the menu: work (deck's screens), master (the master's) and settings.
@@ -56,7 +60,7 @@ type menuOut struct {
 
 // menuTopics are the topics of what the menu reads: the projects, their manifests, their order and what it counts.
 var menuTopics = sync.OnceValue(func() []string {
-	out := []string{"projects", "documents", "settings"}
+	out := []string{"projects", "documents", "settings", "files"}
 	for _, name := range []string{"deck.asks_list", "deck.processes_list", "deck.health_list", "deck.feed_list"} {
 		c, _ := manifest.Reads(name)
 		for _, t := range c.Topics {
@@ -99,6 +103,9 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 		}
 		ws := words(in.Lang, m)
 		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name]}
+		if id := files.Cover(ctx, ss.St.Q, p.ID); id != 0 {
+			e.Cover = fmt.Sprintf("/api/files/%d", id)
+		}
 		e.Title, e.Icon, e.Screens = manifest.Nav(p.Name, m, ws)
 		for _, s := range shipped().Project {
 			if s.Record == "" && m.Screen(s.Name) == nil {

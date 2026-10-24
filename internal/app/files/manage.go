@@ -69,6 +69,7 @@ func (s *Service) fileRestore(ctx context.Context, act registry.Actor, in fileRe
 
 func (s *Service) manageCommands() []*registry.Command {
 	return []*registry.Command{
+		s.coverCommand(),
 		registry.Def("file_delete", "Delete file",
 			"Deletes a stored file; file_restore brings it back for a day.",
 			registry.OwnerOnly, s.fileDelete),

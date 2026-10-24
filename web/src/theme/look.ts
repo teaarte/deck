@@ -23,6 +23,8 @@ export interface Look {
   motion: boolean;
   sky: boolean;
   slim: boolean;
+  // home is the frame: classic with the side menu, or cards, the modules as tiles instead of it.
+  home: 'classic' | 'cards';
 }
 
 const KEY = 'deck-look';
@@ -33,8 +35,9 @@ export const FACES: Look['face'][] = ['themed', 'system'];
 export const RADII: Look['radius'][] = ['xs', 'sm', 'md', 'lg', 'xl'];
 export const THEMES: Look['theme'][] = ['juce', 'default', 'glass', 'pixel', 'neon', 'paper'];
 export const SURFACES: Look['surface'][] = ['neutral', 'tinted', 'vivid'];
+export const HOMES: Look['home'][] = ['classic', 'cards'];
 const DEFAULT: Look = { accent: 'coral', density: 'default', font: 'default', face: 'themed', radius: 'md', theme: 'juce', surface: 'neutral', pattern: true, tint: 0.35,
-  mascot: true, motion: true, sky: true, slim: false };
+  mascot: true, motion: true, sky: true, slim: false, home: 'classic' };
 
 function read(): Look {
   try {
@@ -53,6 +56,7 @@ function read(): Look {
       motion: typeof got.motion === 'boolean' ? got.motion : DEFAULT.motion,
       sky: typeof got.sky === 'boolean' ? got.sky : DEFAULT.sky,
       slim: typeof got.slim === 'boolean' ? got.slim : DEFAULT.slim,
+      home: HOMES.includes(got.home!) ? got.home! : DEFAULT.home,
     };
   } catch {
     return DEFAULT;

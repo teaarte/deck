@@ -371,3 +371,40 @@ func TestAFolderOfTheDataFolderShowsItsSteps(t *testing.T) {
 		}
 	}
 }
+
+// TestAModuleHasACoverForItsCard: a picture the owner gives is the cover of a module's card, the menu names where it
+// is read, another one replaces it, a file that is no picture is refused, and without a file it goes.
+func TestAModuleHasACoverForItsCard(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("notes", plainManifest)
+	cover := func() string {
+		var m struct{ Projects []struct{ Project, Cover string } }
+		e.must("deck.menu", nil, &m)
+		for _, p := range m.Projects {
+			if p.Project == "notes" {
+				return p.Cover
+			}
+		}
+		return ""
+	}
+	png := e.upload("notes", "cover.png", "image/png", "\x89PNG\r\n\x1a\n")
+	e.must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(png)}, nil)
+	first := cover()
+	if !strings.HasPrefix(first, "/api/files/") {
+		t.Fatalf("the menu names where the cover of a module is read: %q", first)
+	}
+	again := e.upload("", "other.png", "image/png", "\x89PNG\r\n\x1a\n")
+	e.must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(again)}, nil)
+	var n int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'cover'`).Scan(&n)
+	if now := cover(); now == first || now == "" || n != 1 {
+		t.Fatalf("a new cover replaces the old one: %q %q %d", first, now, n)
+	}
+	text := e.upload("notes", "a.txt", "text/plain", "hello")
+	e.refused("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(text)}, 422, "picture")
+	e.must("deck.project_cover", map[string]any{"project": "notes"}, nil)
+	if cover() != "" {
+		t.Fatal("without a file the cover goes")
+	}
+}

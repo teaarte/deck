@@ -77,7 +77,8 @@ hold; look inside a package for the rest.
 - `skills` — the skills deck ships to agents; `schemas` — manifest schema, screen block catalog, App Intents rules.
 - `web` — the client: Vite + React + Mantine v9 + `@a2ui/react` v0.9 — import from `@a2ui/react/v0_9` and
   `@a2ui/web_core/v0_9` (the root export is v0.8); folders by owner in `src/` (`app` the frame,
-  `screen`, `cockpit`, `blocks` a folder or file per block, `chat`, `ui`, `hooks`, `lib`, `settings`, `theme`);
+  `screen`, `cockpit`, `apps` the cards that stand for the side menu in that look, `blocks` a folder or file per block,
+  `chat`, `ui`, `hooks`, `lib`, `settings`, `theme`);
   `custom` blocks are hosted with `@modelcontextprotocol/ext-apps` 2; `web/dist` is the embedded build — rebuild and
   commit it with the sources. Every button presses through `screen/press.ts`: an A2UI action of its block's context,
   the one handler in `useScreen` acts (`screen/act.ts`, `outcome()`) and replies in `/press/<reply>`; a block never

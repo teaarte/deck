@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -145,4 +146,37 @@ func TestRealBrowserMenuOrder(t *testing.T) {
 	b.open(e.URL + "/?reload=3#/deck/cockpit")
 	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
 	b.until("the order of the phone after a reload", order("[data-nav-phone]", "gamma alpha beta"))
+}
+
+// TestRealBrowserCards: with the cards look deck opens on the cards instead of the side menu, the cockpit first and a
+// module with its cover; a card opens its module, the way home goes back, on a desktop and a phone:
+// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCards -v.
+func TestRealBrowserCards(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, ok)
+	e.createProject("notes", notesManifest)
+	e.createProject("plain", plainManifest)
+	png := e.upload("notes", "cover.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
+	e.must("deck.project_cover", map[string]any{"project": "notes", "file": strconv.FormatInt(png, 10)}, nil)
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.until("the client", `document.querySelector('[data-nav]')`)
+	b.eval(`(localStorage.setItem('deck-look', JSON.stringify({home: 'cards'})), location.hash = '', location.reload(), '')`)
+	b.until("the cards instead of the menu", `document.querySelector('[data-apps]') && !document.querySelector('[data-nav]') && location.hash === '#/deck/apps'`)
+	b.until("the cockpit first, then the modules, one with its cover", `(() => { const c = [...document.querySelectorAll('[data-app]')].map((a) => a.dataset.app);
+		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && document.querySelector('[data-app=notes]').dataset.cover === 'true' })()`)
+	b.shot("cards")
+	b.eval(`(document.querySelector('[data-app=plain]').click(), '')`)
+	b.until("a card opens its module", `location.hash.startsWith('#/p/plain/') && document.querySelector('[data-apps-home]')`)
+	b.eval(`(document.querySelector('[data-apps-home]').click(), '')`)
+	b.until("the way home", `document.querySelector('[data-apps]')`)
+
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.until("the cards on a phone", `document.querySelector('[data-phone-bar]') && document.querySelector('[data-apps]') && !document.querySelector('[data-nav-open]')`)
+	b.shot("cards-phone")
+	b.eval(`(localStorage.removeItem('deck-look'), '')`)
 }

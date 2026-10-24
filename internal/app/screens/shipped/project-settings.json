@@ -20,6 +20,18 @@
               {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
               {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
             ]},
+          {"type": "dialog", "name": "cover", "title": "Upload a cover", "icon": "photo-up", "blocks": [
+            {"type": "form", "command": "deck.project_cover", "description": "A picture for the card of the module when deck lays out the modules as cards."}]},
+          {"type": "media", "title": "Cover", "when": "len(rows) > 0", "source": {"from": "deck.projects_list", "where": "cover > 0"},
+            "item": {"file": "cover", "title": "title"}},
+          {"type": "list", "title": "Card", "description": "The picture of the module's card when deck lays out the modules as cards.", "source": {"from": "deck.projects_list"},
+            "item": {"title": "cover > 0 ? 'The card has a picture' : 'The card has no picture yet'", "icon": "'photo'"},
+            "actions": [
+              {"label": "Draw one", "icon": "sparkles", "primary": true, "chat": true, "command": "deck.chat_send",
+                "params": {"text": "='Draw a cover picture for the card of module ' + name + ' by its title and description: call deck.model_call of kind image, then set the picture with deck.project_cover.'"}},
+              {"label": "Upload", "icon": "upload", "screen": "settings", "params": {"dialog": "cover"}},
+              {"verb": "delete", "confirm": true, "command": "deck.project_cover", "params": {"project": "=name"}, "when": "cover > 0"}
+            ]},
           {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
             "description": "What the module can do and when it runs by itself.",
             "columns": [

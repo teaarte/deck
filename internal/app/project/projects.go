@@ -4,6 +4,7 @@ import (
 	"context"
 	"deck2/internal/app/folders"
 	"deck2/internal/docs"
+	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -38,6 +39,8 @@ type projectView struct {
 	// Icon and Title are the icon and the name the owner sees that its manifest gives; Title is the name without one.
 	Icon  string `json:"icon,omitempty"`
 	Title string `json:"title"`
+	// Cover is the stored file of the picture of its card, 0 without one.
+	Cover int64 `json:"cover"`
 	// Meta is one line of its state, folders and what enabling a draft grants, in the language asked for.
 	Meta string `json:"meta"`
 }
@@ -68,6 +71,7 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []manifest.ScreenLink{},
 		Rights: []string{}, Asks: []string{}, Models: []string{}}
 	v.Folders, _ = pj.Folders(ctx, p.ID)
+	v.Cover = files.Cover(ctx, pj.St.Q, p.ID)
 	if prompt, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}
@@ -149,7 +153,7 @@ func (pj *Service) projectsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("projects_list", "List projects",
 			"Lists projects with their description (the first line of the md prompt), screens, folders and what enabling a draft grants.",
-			registry.OwnerSide, pj.projectsList).On("projects", "folders", "documents"),
+			registry.OwnerSide, pj.projectsList).On("projects", "folders", "documents", "files"),
 		registry.Def("project_create", "Create project",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it is empty.",
 			registry.OwnerSide, pj.projectCreate),

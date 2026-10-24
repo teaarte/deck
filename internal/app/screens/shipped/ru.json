@@ -456,5 +456,17 @@
   "waiting_folder": "ждёт папку",
   "interrupted": "прервано перезапуском",
   "no network": "без сети",
-  "agents on Claude Code or Codex: the whole network, whatever domains.read names": "агенты на Claude Code или Codex: вся сеть, что бы ни называл domains.read"
+  "agents on Claude Code or Codex: the whole network, whatever domains.read names": "агенты на Claude Code или Codex: вся сеть, что бы ни называл domains.read",
+  "Upload a cover": "Загрузить обложку",
+  "Cover": "Обложка",
+  "Card": "Карточка",
+  "A picture for the card of the module when deck lays out the modules as cards.": "Картинка карточки модуля, когда deck показывает модули карточками.",
+  "The picture of the module's card when deck lays out the modules as cards.": "Картинка карточки модуля, когда deck показывает модули карточками.",
+  "Draw one": "Нарисовать",
+  "Upload": "Загрузить",
+  "The card has a picture": "У карточки есть картинка",
+  "The card has no picture yet": "У карточки пока нет картинки",
+  "Set cover": "Обложка модуля",
+  "Sets the picture of the card of a project, which deck shows when it lays out the modules as cards; without a file the cover goes.": "Ставит картинку карточки модуля, которую deck показывает, когда раскладывает модули карточками; без файла обложка убирается.",
+  "The picture: an upload, a stored file of the project or the master, or results/<name> of the calling process; the cover goes without it": "Картинка; без неё обложка убирается"
 }

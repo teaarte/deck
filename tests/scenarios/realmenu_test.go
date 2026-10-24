@@ -169,6 +169,10 @@ func TestRealBrowserCards(t *testing.T) {
 	b.until("the cockpit first, then the modules, one with its cover", `(() => { const c = [...document.querySelectorAll('[data-app]')].map((a) => a.dataset.app);
 		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && document.querySelector('[data-app=notes]').dataset.cover === 'true' })()`)
 	b.shot("cards")
+	b.until("Deki on the cockpit's card in the pose of the pulse", `document.querySelector('[data-app=cockpit] ~ [data-card-deki] [data-deki]')`)
+	b.eval(`(document.querySelector('[data-card-deki]').click(), '')`)
+	b.until("Deki opens the chat with the master", `document.querySelector('[data-chat-close]') && location.hash === '#/deck/apps'`)
+	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.until("a card lists the screens of its module, its settings last", `(() => { const a = [...document.querySelectorAll('[data-app=notes] ~ [data-card-places] a')].map((a) => a.getAttribute('href'));
 		return a.length > 1 && a[0].startsWith('#/p/notes/') && a.at(-1) === '#/p/notes/settings' })()`)
 	b.eval(`(document.querySelector('[data-app=plain]').click(), '')`)

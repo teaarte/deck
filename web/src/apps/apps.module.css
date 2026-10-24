@@ -155,6 +155,37 @@
   background: var(--mantine-color-default-hover);
 }
 
+.deki {
+  position: absolute;
+  right: var(--mantine-spacing-lg);
+  bottom: 0;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  line-height: 0;
+  background: none;
+  cursor: pointer;
+  transform: translate(var(--look-x, 0), var(--look-y, 0)) rotate(var(--look-r, 0));
+  transform-origin: 50% 100%;
+  transition: transform 200ms ease-out, scale 160ms ease-out;
+}
+
+.card:hover .deki {
+  scale: 1.04;
+}
+
+.deki:focus-visible {
+  outline: 3px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+  border-radius: var(--mantine-radius-md);
+}
+
+:root[data-deck-motion='off'] .deki {
+  transform: none;
+  transition: none;
+  scale: none;
+}
+
 .more {
   position: absolute;
   top: var(--mantine-spacing-sm);

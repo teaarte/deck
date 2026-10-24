@@ -151,6 +151,7 @@
     "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr", "denied": "Refused", "more": "Show more", "less": "Show less", "owner": "You", "deck": "deck", "waiting": "not taken yet", "taken": "taken", "write": "Write to the agent", "running": "running" },
   "files": {"no_preview": "no preview", "cut": "Only the start of the file is shown", "previous": "Previous", "next": "Next", "grid": "Tiles", "list": "List", "up": "Up a level"},
   "chat": {
+    "talk": "Talk to {{name}}",
     "delete": "Delete, the master has not taken it",
     "master": "Master",
     "deki": "Deki",

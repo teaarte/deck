@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Text, Title } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { IconChevronDown, IconLayoutDashboard } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { NavStatus } from '../app/NavStatus';
@@ -8,6 +9,7 @@ import { useBlob } from '../blocks/media/useBlob';
 import { placesOf, useMenuData, type MenuEntry, type Place } from '../hooks/useMenu';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './apps.module.css';
+import { CardDeki } from './CardDeki';
 
 // hue is a color of a card without a picture, the same for a name on every device.
 function hue(name: string) {
@@ -16,7 +18,7 @@ function hue(name: string) {
   return h;
 }
 
-function Card({ to, title, cover, seed, big, places, children }: { to: string; title: string; cover?: string; seed: string; big?: boolean; places: Place[]; children: ReactNode }) {
+function Card({ to, title, cover, seed, big, places, art, children }: { to: string; title: string; cover?: string; seed: string; big?: boolean; places: Place[]; art?: ReactNode; children: ReactNode }) {
   const { t } = useTranslation();
   const { src } = useBlob(cover);
   const [open, setOpen] = useState(false);
@@ -26,6 +28,7 @@ function Card({ to, title, cover, seed, big, places, children }: { to: string; t
       <a href={to} className={s.open} aria-label={title} data-app={seed} data-cover={src ? true : undefined} />
       <span className={s.shade} />
       <span className={s.body}>{children}</span>
+      {art}
       {places.length > 1 && (
         <>
           <button type="button" className={s.more} onClick={() => setOpen(!open)} aria-label={t('nav.screens')} aria-expanded={open} data-card-more>
@@ -52,11 +55,12 @@ const open = (e: MenuEntry) => href({ project: e.project, screen: (e.open ?? e.s
 export function Apps() {
   const { t } = useTranslation();
   const menu = useMenuData();
+  const phone = useMediaQuery('(max-width: 36em)') ?? false;
   const links = menu.system.flatMap((g) => g.links).filter((l) => !(l.project && l.project === menu.master?.project && l.name === 'settings'));
   return (
     <div className={s.apps} data-apps>
       <div className={s.grid}>
-        <Card to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big places={placesOf(menu)}>
+        <Card to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big places={[]} art={<CardDeki size={phone ? 104 : 150} />}>
           <span className={s.icon}><IconLayoutDashboard size={26} /></span>
           <Title order={2} className={s.title}>{t('nav.cockpit')}</Title>
           {menu.pulse.title && <Text size="sm" className={s.text} lineClamp={2}>{menu.pulse.title}</Text>}

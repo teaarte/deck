@@ -7,6 +7,12 @@ import s from './deki.module.css';
 // while a turn of the chat goes, think over failing checks, chill when all is calm, sleepy when calm without the sky.
 export type Mood = 'dots' | 'think' | 'wait' | 'work' | 'chill' | 'sleepy';
 
+// MOODS are the poses of Deki for each state of the pulse; a calm one rests under the sky.
+const MOODS: Record<string, Mood> = { asks: 'wait', running: 'work', errors: 'think', talking: 'dots' };
+
+// moodOf is the pose of Deki for a state of the pulse.
+export const moodOf = (state: string, sky: boolean): Mood => MOODS[state] ?? (sky ? 'chill' : 'sleepy');
+
 // useMascot says whether this device shows Deki.
 export const useMascot = () => useLook().mascot;
 

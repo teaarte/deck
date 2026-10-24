@@ -7,12 +7,9 @@ import { useMenuData, type HeroLine } from '../hooks/useMenu';
 import type { Action } from '../lib/catalog.gen';
 import { setLook, useLook } from '../theme/look';
 import { ActionButton } from '../ui/actions/ActionButton';
-import { Deki, useMascot, type Mood } from '../ui/deki/Deki';
+import { Deki, moodOf, useMascot } from '../ui/deki/Deki';
 import s from './hero.module.css';
 import { Triage } from './Triage';
-
-// MOODS are the poses of Deki for each state of the pulse; a calm one rests under the sky.
-const MOODS: Record<string, Mood> = { asks: 'wait', running: 'work', errors: 'think', talking: 'dots' };
 
 // Lines are the counts deck gives for the top of the cockpit, each opening its screen, some with the button that
 // clears them at once.
@@ -43,7 +40,7 @@ export function Hero({ dialogs }: { dialogs?: ReactNode }) {
   const mascot = useMascot();
   const { asks, state } = pulse;
   const lines = pulse.lines ?? [];
-  const mood: Mood = MOODS[state] ?? (sky ? 'chill' : 'sleepy');
+  const mood = moodOf(state, sky);
   const go = asks > 0 && (
     <Button size={slim ? 'xs' : 'sm'} radius="md" leftSection={<IconPlayerPlayFilled size={14} />} onClick={() => setTriage(true)} data-triage-open>
       {phone ? t('hero.triage_short') : t('hero.triage')}

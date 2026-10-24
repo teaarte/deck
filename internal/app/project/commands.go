@@ -77,7 +77,7 @@ func (pj *Service) prepared(ctx context.Context, p db.Project, m, granted *manif
 	for _, c := range granted.Commands {
 		cmd := &registry.Command{
 			Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
-			Input: withRetryKey(c.InputSchema()), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(),
+			Input: withRetryKey(c.InputSchema()), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(), Words: m.I18n,
 			Handler: pj.startHandler(p.ID, m, c.Name),
 		}
 		if err := registry.Prepare(cmd); err != nil {

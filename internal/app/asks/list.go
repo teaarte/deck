@@ -81,7 +81,7 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 		if pid != 0 && q.ProjectID.Int64 != pid {
 			continue
 		}
-		r := s.askRow(ctx, q, names)
+		r := s.askRow(ctx, q, names, in.Lang)
 		r.Who, r.Always = tr(r.Who), tr(r.Always)
 		switch {
 		case q.Kind == ask.KindGrant:
@@ -106,7 +106,7 @@ func (s *Service) Waiting(ctx context.Context, act registry.Actor) (map[string]i
 	return out, err
 }
 
-func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) askRow {
+func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, lang string) askRow {
 	r := askRow{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID.Int64], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
 		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired, Link: answerLink}
 	if q.ProcessID.Valid {
@@ -132,11 +132,11 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) 
 		}
 		r.Payload = json.RawMessage(cmp.Or(string(f.Call.Input), "null"))
 		if c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
-			r.What = c.Title
+			r.What = c.Tr(s.Words(lang), lang, c.Title)
 			if f.Target == "" && c.Target != nil {
 				r.Where = c.Target(f.Tool, f.Call.Input)
 			}
-			r.Always = s.always(r.Project, f, c)
+			r.Always = s.always(r.Project, f, c, r.What)
 		} else if r.Project != "" && strings.HasPrefix(f.Call.Command, r.Project+".") {
 			r.Always = fmt.Sprintf("Always let %s run %s", r.Project, strings.TrimPrefix(f.Call.Command, r.Project+"."))
 		}
@@ -225,7 +225,7 @@ func (s *Service) callerWho(ctx context.Context, c gateway.Caller) string {
 
 // always says what a yes for always to frozen call f of command c of project would allow from now on: its own
 // external command or tool, or the site of a browser action; empty for a call allowed only once.
-func (s *Service) always(project string, f gateway.Frozen, c *registry.Command) string {
+func (s *Service) always(project string, f gateway.Frozen, c *registry.Command, title string) string {
 	if strings.HasPrefix(f.Call.Command, registry.Builtin+".browser_") {
 		if u, err := url.Parse(f.Tool); err == nil && u.Host != "" {
 			return fmt.Sprintf("Always let %s act on %s", project, u.Host)
@@ -235,7 +235,7 @@ func (s *Service) always(project string, f gateway.Frozen, c *registry.Command) 
 	if project == "" || !strings.HasPrefix(f.Call.Command, project+".") || c.Class != registry.External {
 		return ""
 	}
-	return fmt.Sprintf("Always let %s run %s", project, cmp.Or(c.Title, c.Name))
+	return fmt.Sprintf("Always let %s run %s", project, cmp.Or(title, c.Name))
 }
 
 // callerName says who made a frozen call: a process, a token, a trigger, the master or the owner.

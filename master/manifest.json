@@ -1,6 +1,30 @@
 {
   "version": 13,
   "icon": "sparkles",
+  "i18n": {
+    "ru": {
+      "Reply": "Ответ",
+      "Answers the owner's messages in a chat topic.": "Отвечает на сообщения владельца в теме чата.",
+      "The chat topic": "Тема чата",
+      "Long work": "Долгая работа",
+      "Does a long task of the owner the master handed over from a chat topic, such as rebuilding a module with its renders and self-checks.": "Делает долгую задачу владельца, которую мастер передал из темы чата, например пересборку модуля с отрисовкой и самопроверками.",
+      "What to do, with everything the owner said that it needs": "Что сделать, со всем, что для этого сказал владелец",
+      "The chat topic the task came from": "Тема чата, из которой пришла задача",
+      "Clean up memory": "Прибрать память",
+      "Merges, shortens and deletes facts of the memory of the owner and of each project by the memory skill.": "Сливает, сокращает и удаляет факты памяти владельца и каждого модуля по скиллу памяти.",
+      "Daily review": "Ежедневный обзор",
+      "Looks over the projects of deck and tells the owner in the feed what is worth doing.": "Просматривает модули deck и пишет владельцу в ленту, что стоит сделать.",
+      "Look into an error": "Разобрать ошибку",
+      "Finds out why a process or a block of a screen of a project failed and tells the owner the fix in the feed.": "Выясняет, почему упал процесс или блок экрана модуля, и пишет владельцу в ленту, как исправить.",
+      "The process that failed": "Упавший процесс",
+      "The project with a screen that failed": "Модуль с упавшим экраном",
+      "The screen with a block that failed": "Экран с упавшим блоком",
+      "The block and its error": "Блок и его ошибка",
+      "The type of the failure of the process, such as script.failed or program.missing": "Тип сбоя процесса, например script.failed или program.missing",
+      "Whose the failure is: module, environment or owner": "Чей это сбой: модуля, окружения или владельца",
+      "The master: takes the owner's tasks, puts them into the right projects, works with modules and builds new ones.": "Мастер: принимает задачи владельца, раскладывает их по нужным модулям, работает с модулями и собирает новые."
+    }
+  },
   "commands": [
     {
       "name": "reply",

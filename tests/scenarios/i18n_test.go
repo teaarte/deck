@@ -248,3 +248,76 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 		t.Fatalf("names of modules and commands stay names though deck has words like them: %s", rows)
 	}
 }
+
+// TestEveryCommandTheOwnerSeesHasItsTranslation: the title of each command of deck and of the master, and the
+// texts of each form of deck's screens and of the master's commands, are translated.
+func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	var ru map[string]string
+	raw, err := os.ReadFile("../../internal/app/screens/shipped/ru.json")
+	if err != nil || json.Unmarshal(raw, &ru) != nil {
+		t.Fatalf("no ru of deck: %v", err)
+	}
+	var master struct {
+		I18n map[string]map[string]string `json:"i18n"`
+	}
+	mraw, err := os.ReadFile("../../master/manifest.json")
+	if err != nil || json.Unmarshal(mraw, &master) != nil {
+		t.Fatalf("no manifest of the master: %v", err)
+	}
+	var cmds []struct{ Name, Title string }
+	e.must("deck.commands_list", nil, &cmds)
+	forms := map[string]bool{}
+	files, _ := filepath.Glob("../../internal/app/screens/shipped/*.json")
+	for _, f := range files {
+		b, _ := os.ReadFile(f)
+		for _, m := range regexp.MustCompile(`"type": *"form", "command": *"(deck\.[a-z_]+)"`).FindAllSubmatch(b, -1) {
+			forms[string(m[1])] = true
+		}
+	}
+	missing := map[string]bool{}
+	for _, c := range cmds {
+		words := ru
+		switch {
+		case strings.HasPrefix(c.Name, "deck."):
+		case strings.HasPrefix(c.Name, "master."):
+			words = maps.Clone(ru)
+			maps.Copy(words, master.I18n["ru"])
+			forms[c.Name] = true
+		default:
+			continue
+		}
+		if words[c.Title] == "" {
+			missing[c.Title] = true
+		}
+		if !forms[c.Name] {
+			continue
+		}
+		var spec struct {
+			Description string
+			Input       struct {
+				Properties map[string]struct{ Title, Description string }
+			}
+		}
+		e.must("deck.command_describe", map[string]any{"command": c.Name}, &spec)
+		texts := []string{spec.Description}
+		for _, p := range spec.Input.Properties {
+			texts = append(texts, p.Title, p.Description)
+		}
+		for _, s := range texts {
+			if s != "" && words[s] == "" {
+				missing[s] = true
+			}
+		}
+	}
+	for _, s := range slices.Sorted(maps.Keys(missing)) {
+		t.Errorf("no ru for %q", s)
+	}
+	var projects []struct{ Name, Description string }
+	e.must("deck.projects_list", map[string]any{"lang": "ru"}, &projects)
+	if i := slices.IndexFunc(projects, func(p struct{ Name, Description string }) bool { return p.Name == "master" }); i < 0 ||
+		!strings.HasPrefix(projects[i].Description, "Мастер:") {
+		t.Errorf("the description of a module comes in its words too: %+v", projects)
+	}
+}

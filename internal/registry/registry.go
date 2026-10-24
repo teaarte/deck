@@ -57,6 +57,8 @@ type Command struct {
 	Class       string          `json:"class"`
 	Callers     []string        `json:"callers"`
 	ProjectID   int64           `json:"-"`
+	// Words are the translations of the texts of a command of a module by language, from its manifest.
+	Words map[string]map[string]string `json:"-"`
 	// Journals marks a command that writes its own intent to the gateway journal.
 	Journals bool `json:"-"`
 	// Reads marks a builtin command that changes nothing; only such a command fills a screen block. Topics are
@@ -198,6 +200,17 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+// Tr is a text of the command in a language: by the words of its module, else deck's, else as written.
+func (c *Command) Tr(deck map[string]string, lang, text string) string {
+	if w := c.Words[lang][text]; w != "" {
+		return w
+	}
+	if w := deck[text]; w != "" {
+		return w
+	}
+	return text
 }
 
 func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*Command, error) {

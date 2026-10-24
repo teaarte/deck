@@ -74,9 +74,12 @@ func Translate(v any, tr func(string) string) any {
 	return v
 }
 
-// UnusedWords are the keys of the i18n of a manifest that no text of it is, by language.
-func (m *Manifest) UnusedWords() []string {
+// UnusedWords are the keys of the i18n of a manifest that no text of it or of also is, by language.
+func (m *Manifest) UnusedWords(also ...string) []string {
 	texts := Texts(m.text)
+	for _, t := range also {
+		texts[t] = true
+	}
 	// The values of an enum of a collection show in the owner's language too.
 	for _, c := range m.Collections {
 		for _, f := range schemaFields(c.Schema) {

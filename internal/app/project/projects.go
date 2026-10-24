@@ -86,6 +86,7 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 			ws = map[string]string{}
 		}
 		maps.Copy(ws, m.I18n[lang])
+		v.Description = manifest.Tr(ws, v.Description)
 	}
 	v.Revision, v.NoNetwork, v.Network = m.Revision, m.NoNetwork, manifest.AgentNetwork(m)
 	v.Title, v.Icon, v.Screens = manifest.Nav(p.Name, m, ws)

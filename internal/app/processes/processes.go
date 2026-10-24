@@ -205,7 +205,7 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 		s.ofRecord(ctx, p, &v)
 		c, err := s.Lookup(ctx, act.Workspace, v.Project+"."+p.Command)
 		if err == nil {
-			v.Title = c.Title
+			v.Title = c.Tr(s.Words(in.Lang), in.Lang, c.Title)
 		}
 		if in.Failed {
 			v.Retry = err == nil && slices.Contains(c.Callers, registry.Owner)

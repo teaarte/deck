@@ -103,7 +103,7 @@ func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project in
 	out := []pressAsk{}
 	for _, q := range open {
 		if q.Kind == ask.KindCall && q.ProjectID.Int64 == project && (q.ProcessID.Int64 == id || slices.Contains(named, q.ID)) {
-			out = append(out, pressAsk{askRow: s.askRow(ctx, q, names), Allow: answer(q.ID, "allow"), Deny: answer(q.ID, "deny")})
+			out = append(out, pressAsk{askRow: s.askRow(ctx, q, names, ""), Allow: answer(q.ID, "allow"), Deny: answer(q.ID, "deny")})
 		}
 	}
 	return out, p.FinishedAt.Valid, nil

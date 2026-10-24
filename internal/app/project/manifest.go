@@ -297,7 +297,8 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 		pj.PrepareLater(p.ID)
 	}
 	saved.Screens = pj.CheckScreens(ctx, act, p, pm.m)
-	saved.Unused = pm.m.UnusedWords()
+	prompt, _ := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
+	saved.Unused = pm.m.UnusedWords(docs.Description(prompt))
 	saved.Warnings = pj.unassigned(ctx, p, pm.m)
 	return saved, nil
 }

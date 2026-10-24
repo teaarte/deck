@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -233,7 +234,8 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 		for _, c := range m.Commands {
 			if c.Executor.Type == "agent" || c.Executor.Type == "model" {
 				w := s.commandWork(ctx, b, p.ID, c.Name)
-				out.Work = append(out.Work, workView{Project: p.Name, Command: c.Name, Title: c.Title, Own: own(c.Name, w.Role), Work: w})
+				title := cmp.Or(m.I18n[lang][c.Title], manifest.Tr(ws, c.Title))
+				out.Work = append(out.Work, workView{Project: p.Name, Command: c.Name, Title: title, Own: own(c.Name, w.Role), Work: w})
 			}
 		}
 		for _, w := range roles {

@@ -129,6 +129,7 @@
       "block": {"description": "Needs item.file, an expression over an item of its source, or on a record page without a source over the record itself: the id of a stored file of the project (a result of its process, an attachment of its record) or a path in the data folder of the project; item.title is the caption. A line whose item.file is empty or null is a tile of its item.icon, such as a folder or a document, that presses its primary button; with folders and files of a folder together, the block is a file manager. A file of another project or a path that is no file of the data folder is an error of its line, not of the block. A player with marks on its timeline is a custom block (MCP Apps) that reads the file through resources/read of deck://data/<path>. A single picture takes the width of the block.", "required": ["item"], "properties": {
         "source": {"$ref": "#/$defs/source"},
         "item": {"type": "object", "additionalProperties": false, "properties": {"file": {"type": "string"}, "title": {"type": "string"}, "icon": {"type": "string", "description": "Expression giving the Tabler icon of a line that names no file, such as a folder or a document: its tile presses the primary button of the line."}}},
+        "path": {"type": "string", "description": "An expression over the params of the screen giving the folder a file manager shows, such as param.path: the block shows it as steps from the root of the folder, each opening its folder by the primary button of a folder line with that path, and a step up."},
         "actions": {"$ref": "#/$defs/actions", "description": "Buttons of each file, over its item, as the buttons of a row of a table."},
         "filter": {"$ref": "#/$defs/filter"},
         "empty": {"$ref": "#/$defs/empty"}}},
@@ -385,6 +386,10 @@
           "properties": {"id": {}, "title": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"},
             "url": {"type": "string", "description": "where the client reads the file, with its token"}, "icon": {"type": "string", "description": "the icon of a line that is no file; its tile presses the primary button"}, "error": {"type": "string"},
             "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
+        }},
+        "crumbs": {"type": "array", "description": "the steps of the folder a file manager shows, its root first, each with the button that opens it", "items": {
+          "type": "object", "required": ["label"], "additionalProperties": false,
+          "properties": {"label": {"type": "string"}, "action": {"$ref": "#/$defs/action"}}
         }},
         "lines": {"type": "array", "description": "the log of a process, newest first", "items": {
           "type": "object", "required": ["at", "kind"],

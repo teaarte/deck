@@ -344,3 +344,30 @@ func TestTheMasterReadsTheDataFolderOfAProject(t *testing.T) {
 		t.Fatalf("nothing outside the data folder is read: %d %s", code, out)
 	}
 }
+
+// TestAFolderOfTheDataFolderShowsItsSteps: the file manager of a data folder shows the steps from its root, each
+// opening its folder, the last being where it is.
+func TestAFolderOfTheDataFolderShowsItsSteps(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	p := e.createProject("notes", plainManifest)
+	_ = os.MkdirAll(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Data(p), "cache", "pages"), 0o700)
+	var crumbs []struct {
+		Label  string
+		Action map[string]any
+	}
+	for _, d := range e.screenData("", "data", map[string]any{"params": `{"project": "notes", "path": "cache/pages"}`, "lang": "ru"}) {
+		if raw, ok := d["crumbs"]; ok {
+			_ = json.Unmarshal(raw, &crumbs)
+		}
+	}
+	if len(crumbs) != 3 || crumbs[0].Label != "Папка данных" || crumbs[1].Label != "cache" || crumbs[2].Label != "pages" || crumbs[2].Action != nil {
+		t.Fatalf("the steps of the folder from its root: %+v", crumbs)
+	}
+	for i, want := range []string{"", "cache"} {
+		params, _ := crumbs[i].Action["params"].(map[string]any)
+		if crumbs[i].Action["screen"] != "data" || params["path"] != want || params["project"] != "notes" {
+			t.Fatalf("a step opens its folder: %+v", crumbs[i].Action)
+		}
+	}
+}

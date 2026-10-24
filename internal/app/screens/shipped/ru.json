@@ -447,5 +447,6 @@
   "%s: the model ended its turn in words without calling result_submit (%s)": "%s: модель закончила ход словами, не вызвав result_submit (%s)",
   "%s: token counts: the turn reported no usage, so the model call journal would count zero": "%s: подсчёт токенов: ход не сообщил расход, журнал вызовов посчитал бы ноль",
   "deck: %s cannot be called by %s; only %s may call it": "deck: %s нельзя вызывать от имени %s; вызывает только %s",
-  "not set, so the tools that send it fail; set it in Settings → Advanced → Secrets": "не задан, поэтому инструменты, которые его отправляют, не работают; задайте его в Настройки → Дополнительно → Секреты"
+  "not set, so the tools that send it fail; set it in Settings → Advanced → Secrets": "не задан, поэтому инструменты, которые его отправляют, не работают; задайте его в Настройки → Дополнительно → Секреты",
+  "All data folders": "Все папки данных"
 }

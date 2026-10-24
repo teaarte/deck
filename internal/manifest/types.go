@@ -324,6 +324,8 @@ type Block struct {
 	Document string `json:"document,omitempty"`
 	// Params are what a custom block is given beside its items: fixed text or =<expression> over the record of the page.
 	Params map[string]string `json:"params,omitempty"`
+	// Path is the folder a media block that is a file manager shows, an expression over the params of the screen.
+	Path string `json:"path,omitempty"`
 }
 
 // Span is the cells of the grid a block takes: N of them, or the whole width.

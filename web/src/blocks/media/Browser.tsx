@@ -4,6 +4,7 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconLayoutGrid, IconList } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { formatted } from '../../lib/format';
+import { Crumbs, type Crumb } from './Crumbs';
 import { Download } from './Download';
 import { Actions } from '../../ui/actions/Actions';
 import type { Item } from './kinds';
@@ -18,8 +19,8 @@ type View = { mode: 'grid' | 'list' };
 const TILE = 120;
 
 // Browser shows many files as tiles or as a list, kept per device, and opens each in a lightbox; a line that is no
-// file, such as a folder, opens by its button.
-export function Browser({ items }: { items: Item[] }) {
+// file, such as a folder, opens by its button; crumbs are the steps of the folder it shows.
+export function Browser({ items, crumbs }: { items: Item[]; crumbs?: Crumb[] }) {
   const { t } = useTranslation();
   const [view, setView] = useLocalStorage<View>({ key: 'deck-files-view', defaultValue: { mode: 'grid' } });
   const [at, setAt] = useState<number | null>(null);
@@ -27,7 +28,8 @@ export function Browser({ items }: { items: Item[] }) {
   const open = (it: Item) => setAt(files.indexOf(it));
   return (
     <Stack gap="sm" data-files={view.mode}>
-      <Group gap="xs" justify="flex-end">
+      <Group gap="xs" justify="flex-end" wrap="nowrap">
+        {crumbs && <Crumbs crumbs={crumbs} />}
         <SegmentedControl size="xs" value={view.mode} onChange={(v) => setView({ mode: v as View['mode'] })} data-files-mode
           data={[{ value: 'grid', label: <IconLayoutGrid size={14} aria-label={t('files.grid')} /> }, { value: 'list', label: <IconList size={14} aria-label={t('files.list')} /> }]} />
       </Group>

@@ -179,6 +179,9 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			files = append(files, r.file(b, it))
 		}
 		out["files"] = files
+		if c := r.crumbs(b); len(c) > 1 {
+			out["crumbs"] = c
+		}
 	case "chart":
 		v, err := r.chart(b, items)
 		if err != nil {

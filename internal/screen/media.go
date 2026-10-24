@@ -1,8 +1,10 @@
 package screen
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
+	"strings"
 
 	"deck2/internal/manifest"
 )
@@ -46,4 +48,51 @@ func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 		}
 	}
 	return line
+}
+
+// crumbs are the steps of the folder of a file manager, its root first, each with the primary button of a folder
+// line of that path; none when the block names no path or has no such button.
+func (r *renderer) crumbs(b manifest.Block) []map[string]any {
+	if b.Path == "" {
+		return nil
+	}
+	v, err := r.eval(b.Path, nil)
+	if err != nil {
+		return nil
+	}
+	path, _ := v.(string)
+	steps := []string{""}
+	var at []string
+	for seg := range strings.SplitSeq(strings.Trim(path, "/"), "/") {
+		if seg != "" {
+			at = append(at, seg)
+			steps = append(steps, strings.Join(at, "/"))
+		}
+	}
+	out := make([]map[string]any, 0, len(steps))
+	for i, step := range steps {
+		label := r.tr(cmp.Or(b.Title, "Folder"))
+		if i > 0 {
+			label = at[i-1]
+		}
+		c := map[string]any{"label": label}
+		if i < len(steps)-1 {
+			it := map[string]any{"name": label, "path": step, "dir": true}
+			acts, err := r.actions(b.Actions, 0, it)
+			if err != nil {
+				return nil
+			}
+			for _, a := range acts {
+				if a["primary"] == true {
+					c["action"] = a
+					break
+				}
+			}
+			if c["action"] == nil {
+				return nil
+			}
+		}
+		out = append(out, c)
+	}
+	return out
 }

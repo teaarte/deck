@@ -346,6 +346,13 @@ export interface Data {
     actions?: Action[];
   }[];
   /**
+   * the steps of the folder a file manager shows, its root first, each with the button that opens it
+   */
+  crumbs?: {
+    label: string;
+    action?: Action;
+  }[];
+  /**
    * the log of a process, newest first
    */
   lines?: {

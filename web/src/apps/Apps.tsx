@@ -1,11 +1,11 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Text, Title } from '@mantine/core';
-import { IconLayoutDashboard } from '@tabler/icons-react';
+import { IconChevronDown, IconLayoutDashboard } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { NavStatus } from '../app/NavStatus';
 import { href } from '../app/router';
 import { useBlob } from '../blocks/media/useBlob';
-import { useMenuData, type MenuEntry } from '../hooks/useMenu';
+import { placesOf, useMenuData, type MenuEntry, type Place } from '../hooks/useMenu';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './apps.module.css';
 
@@ -16,15 +16,32 @@ function hue(name: string) {
   return h;
 }
 
-function Card({ to, title, cover, seed, big, children }: { to: string; title: string; cover?: string; seed: string; big?: boolean; children: ReactNode }) {
+function Card({ to, title, cover, seed, big, places, children }: { to: string; title: string; cover?: string; seed: string; big?: boolean; places: Place[]; children: ReactNode }) {
+  const { t } = useTranslation();
   const { src } = useBlob(cover);
+  const [open, setOpen] = useState(false);
   const style = { '--hue': hue(seed), ...(src ? { backgroundImage: `url(${src})` } : {}) } as CSSProperties;
   return (
-    <a href={to} className={s.card} data-big={big || undefined} data-cover={src ? true : undefined} style={style}
-      aria-label={title} data-app={seed}>
+    <div className={s.card} data-big={big || undefined} data-open={open || undefined} style={style} onMouseLeave={() => setOpen(false)}>
+      <a href={to} className={s.open} aria-label={title} data-app={seed} data-cover={src ? true : undefined} />
       <span className={s.shade} />
       <span className={s.body}>{children}</span>
-    </a>
+      {places.length > 1 && (
+        <>
+          <button type="button" className={s.more} onClick={() => setOpen(!open)} aria-label={t('nav.screens')} aria-expanded={open} data-card-more>
+            <IconChevronDown size={18} />
+          </button>
+          <nav className={s.places} aria-label={t('nav.screens')} data-card-places>
+            {places.map((p) => (
+              <a key={p.name} href={href({ project: p.project, screen: p.name })} className={s.place}>
+                <NamedIcon name={p.icon} fallback={p.title} size={14} />
+                <span>{p.title}</span>
+              </a>
+            ))}
+          </nav>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -39,14 +56,14 @@ export function Apps() {
   return (
     <div className={s.apps} data-apps>
       <div className={s.grid}>
-        <Card to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big>
+        <Card to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big places={placesOf(menu)}>
           <span className={s.icon}><IconLayoutDashboard size={26} /></span>
           <Title order={2} className={s.title}>{t('nav.cockpit')}</Title>
           {menu.pulse.title && <Text size="sm" className={s.text} lineClamp={2}>{menu.pulse.title}</Text>}
           <NavStatus m={{ title: '', screens: [], asks: menu.pulse.asks, running: menu.pulse.running, errors: menu.pulse.errors }} />
         </Card>
         {menu.projects.map((p) => (
-          <Card key={p.project} to={open(p)} title={p.title} cover={p.cover} seed={p.project ?? p.title}>
+          <Card key={p.project} to={open(p)} title={p.title} cover={p.cover} seed={p.project ?? p.title} places={placesOf(menu, p.project)}>
             <span className={s.icon}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={24} /></span>
             <Title order={3} className={s.title}>{p.title}</Title>
             <NavStatus m={p} />

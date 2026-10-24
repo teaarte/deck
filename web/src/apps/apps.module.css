@@ -42,9 +42,16 @@
   grid-column: span 2;
 }
 
-.card:focus-visible {
+.card:has(.open:focus-visible) {
   outline: 3px solid var(--mantine-primary-color-filled);
   outline-offset: 3px;
+}
+
+.open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  outline: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -87,12 +94,14 @@
 .shade {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background: linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.55) 100%);
 }
 
 .body {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -144,6 +153,89 @@
 .link:hover {
   color: var(--mantine-color-text);
   background: var(--mantine-color-default-hover);
+}
+
+.more {
+  position: absolute;
+  top: var(--mantine-spacing-sm);
+  right: var(--mantine-spacing-sm);
+  z-index: 2;
+  display: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(0 0 0 / 0.28);
+  cursor: pointer;
+}
+
+.card[data-open] .more svg {
+  transform: rotate(180deg);
+}
+
+.places {
+  position: absolute;
+  top: var(--mantine-spacing-sm);
+  right: var(--mantine-spacing-sm);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  max-height: calc(100% - 2 * var(--mantine-spacing-sm));
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease-out, visibility 120ms;
+}
+
+.place {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--mantine-radius-xl);
+  color: #fff;
+  background: rgb(0 0 0 / 0.45);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.place:hover {
+  background: rgb(0 0 0 / 0.65);
+}
+
+.card:hover .places,
+.card:focus-within .places,
+.card[data-open] .places {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (hover: none) {
+  .more {
+    display: grid;
+  }
+
+  .places {
+    top: calc(var(--mantine-spacing-sm) + 38px);
+    max-height: calc(100% - 2 * var(--mantine-spacing-sm) - 38px);
+  }
+
+  .card:hover .places,
+  .card:focus-within .places {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .card[data-open] .places {
+    opacity: 1;
+    visibility: visible;
+  }
 }
 
 @media (max-width: 36em) {

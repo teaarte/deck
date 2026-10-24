@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { ActionIcon, Group, Menu, Tooltip, UnstyledButton } from '@mantine/core';
-import { IconArrowLeft, IconChevronDown, IconLayoutGrid, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
+import { ActionIcon, Group, Tooltip } from '@mantine/core';
+import { IconArrowLeft, IconLayoutGrid, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '../hooks/useMenu';
 import { NamedIcon } from '../ui/NamedIcon';
@@ -23,26 +23,10 @@ export function BackButton() {
   );
 }
 
-// Crumb names the project the screen belongs to; with the cards, which stand for the menu, it opens its screens.
-export function Crumb({ entry, cards }: { entry?: MenuEntry; cards?: boolean }) {
-  const route = useRoute();
+// Crumb names the project the screen belongs to.
+export function Crumb({ entry }: { entry?: MenuEntry }) {
   if (!entry?.project) return null;
-  const name = <><NamedIcon name={entry.icon} fallback={entry.title} size={16} />{entry.title}</>;
-  const links = [...entry.screens, ...(entry.extra ?? [])];
-  if (!cards || links.length < 2) return <span className={s.crumb}>{name}</span>;
-  return (
-    <Menu position="bottom-start" shadow="md" radius="md" withinPortal>
-      <Menu.Target>
-        <UnstyledButton className={s.crumb} data-crumb-menu>{name}<IconChevronDown size={14} /></UnstyledButton>
-      </Menu.Target>
-      <Menu.Dropdown data-crumb-screens>
-        {links.map((l) => (
-          <Menu.Item key={l.name} component="a" href={href({ project: entry.project, screen: l.name })} data-active={l.name === route.screen || undefined}
-            leftSection={<NamedIcon name={l.icon} fallback={l.title} size={16} />}>{l.title}</Menu.Item>
-        ))}
-      </Menu.Dropdown>
-    </Menu>
-  );
+  return <span className={s.crumb}><NamedIcon name={entry.icon} fallback={entry.title} size={16} />{entry.title}</span>;
 }
 
 // Home is the way to the cards of deck when they stand instead of the side menu.
@@ -75,7 +59,7 @@ export function Toolbar({ entry, navOpen, onShowNav, master, cards }: { entry?: 
           </Tooltip>
         )}
         <BackButton />
-        <Crumb entry={entry} cards={cards} />
+        <Crumb entry={entry} />
       </Group>
       {navOpen ? master : <Group gap={4} wrap="nowrap"><Bell />{master}</Group>}
     </div>

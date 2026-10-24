@@ -48,3 +48,16 @@ export const useMenuData = () => useContext(MenuContext);
 
 // useMenu is the menu of deck, read again after a change of a topic it names.
 export const useMenu = () => useLiveRead<Menu>('deck.menu', { lang: i18n.language }, (m) => m?.topics ?? [], EMPTY);
+
+// Place is a screen to open, of a project or of deck.
+export type Place = ScreenLink & { project?: string };
+
+// placesOf are the screens of a project, its files and settings last; deck's are the cockpit and deck's own screens.
+export function placesOf(m: Menu, project?: string): Place[] {
+  if (!project) {
+    const own = m.system.flatMap((g) => g.links).filter((l) => !l.project);
+    return [{ name: 'cockpit', title: i18n.t('nav.cockpit'), icon: 'layout-dashboard' }, ...own];
+  }
+  const e = entryOf(m, project);
+  return e ? [...e.screens, ...(e.extra ?? [])].map((l) => ({ ...l, project })) : [];
+}

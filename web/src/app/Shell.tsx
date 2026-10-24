@@ -8,6 +8,7 @@ import { entryOf, MenuContext, useMenu } from '../hooks/useMenu';
 import { usePhone } from '../hooks/usePhone';
 import { setLanguage } from '../lib/i18n';
 import { Apps } from '../apps/Apps';
+import { Places } from './Places';
 import { ScreenView } from '../screen/ScreenView';
 import { useLook } from '../theme/look';
 import { PressAsks } from '../ui/actions/PressAsks';
@@ -92,6 +93,7 @@ export function Shell() {
         <main className={s.main} data-main>
           {phone ? <PhoneBar entry={entry} onMenu={() => setPhoneNav(true)} master={master} cards={cards} />
             : <Toolbar entry={entry} navOpen={navOpen && !cards} onShowNav={() => { moveFocus('[data-nav-hide]'); setNavOpen(true); }} master={!chat && master} cards={cards} />}
+          {cards && !apps && <Places />}
           {apps ? <Apps /> : <ScreenView route={route} />}
         </main>
         <ChatPanel phone={phone} layout={layout} onDragging={setDragging}

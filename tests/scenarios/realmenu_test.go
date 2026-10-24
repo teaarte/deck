@@ -169,12 +169,13 @@ func TestRealBrowserCards(t *testing.T) {
 	b.until("the cockpit first, then the modules, one with its cover", `(() => { const c = [...document.querySelectorAll('[data-app]')].map((a) => a.dataset.app);
 		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && document.querySelector('[data-app=notes]').dataset.cover === 'true' })()`)
 	b.shot("cards")
+	b.until("a card lists the screens of its module, its settings last", `(() => { const a = [...document.querySelectorAll('[data-app=notes] ~ [data-card-places] a')].map((a) => a.getAttribute('href'));
+		return a.length > 1 && a[0].startsWith('#/p/notes/') && a.at(-1) === '#/p/notes/settings' })()`)
 	b.eval(`(document.querySelector('[data-app=plain]').click(), '')`)
 	b.until("a card opens its module", `location.hash.startsWith('#/p/plain/') && document.querySelector('[data-apps-home]')`)
-	b.eval(`(document.querySelector('[data-crumb-menu]').click(), '')`)
-	b.until("the module's screens open from its name", `[...document.querySelectorAll('[data-crumb-screens] a')].some((a) => a.getAttribute('href') === '#/p/plain/settings')`)
-	b.eval(`(document.querySelector('[data-crumb-screens] a[href="#/p/plain/settings"]').click(), '')`)
-	b.until("its settings", `location.hash === '#/p/plain/settings'`)
+	b.until("the module's screens are tabs", `document.querySelector('[data-places] a[aria-current=page]') && document.querySelector('[data-places] a[href="#/p/plain/settings"]')`)
+	b.eval(`(document.querySelector('[data-places] a[href="#/p/plain/settings"]').click(), '')`)
+	b.until("its settings", `location.hash === '#/p/plain/settings' && document.querySelector('[data-places] a[aria-current=page]').getAttribute('href') === '#/p/plain/settings'`)
 	b.eval(`(document.querySelector('[data-apps-home]').click(), '')`)
 	b.until("the way home", `document.querySelector('[data-apps]')`)
 

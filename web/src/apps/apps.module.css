@@ -9,7 +9,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--mantine-spacing-xl);
-  perspective: 900px;
 }
 
 .card {
@@ -24,9 +23,18 @@
   background-size: cover;
   background-position: center;
   box-shadow: var(--mantine-shadow-md);
-  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
-  transition: transform 180ms ease-out, box-shadow 180ms ease-out;
-  will-change: transform;
+  transition: transform 160ms ease-out;
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--mantine-shadow-xl);
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+  pointer-events: none;
 }
 
 .card[data-big] {
@@ -40,13 +48,17 @@
 
 @media (hover: hover) and (pointer: fine) {
   .card:hover {
-    box-shadow: var(--mantine-shadow-xl);
+    transform: translateY(-4px);
+  }
+
+  .card:hover::after {
+    opacity: 1;
   }
 }
 
-:root[data-deck-motion='off'] .card,
-.card:not(:hover) {
+:root[data-deck-motion='off'] .card {
   transform: none;
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -92,8 +104,7 @@
   width: 44px;
   height: 44px;
   border-radius: var(--mantine-radius-md);
-  background: rgb(255 255 255 / 0.22);
-  backdrop-filter: blur(6px);
+  background: rgb(0 0 0 / 0.28);
 }
 
 .title {

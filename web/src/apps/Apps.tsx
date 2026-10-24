@@ -1,4 +1,4 @@
-import type { CSSProperties, PointerEvent, ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Text, Title } from '@mantine/core';
 import { IconLayoutDashboard } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -8,24 +8,6 @@ import { useBlob } from '../blocks/media/useBlob';
 import { useMenuData, type MenuEntry } from '../hooks/useMenu';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './apps.module.css';
-
-// TILT is how many degrees a card leans away from the pointer at its edge.
-const TILT = 7;
-
-// lean tilts a card away from the pointer over it; the styles keep it still on touch and without motion.
-function lean(e: PointerEvent<HTMLAnchorElement>) {
-  if (e.pointerType !== 'mouse') return;
-  const r = e.currentTarget.getBoundingClientRect();
-  const x = (e.clientX - r.left) / r.width - 0.5;
-  const y = (e.clientY - r.top) / r.height - 0.5;
-  e.currentTarget.style.setProperty('--ry', `${(x * TILT * 2).toFixed(2)}deg`);
-  e.currentTarget.style.setProperty('--rx', `${(-y * TILT * 2).toFixed(2)}deg`);
-}
-
-function still(e: PointerEvent<HTMLAnchorElement>) {
-  e.currentTarget.style.removeProperty('--ry');
-  e.currentTarget.style.removeProperty('--rx');
-}
 
 // hue is a color of a card without a picture, the same for a name on every device.
 function hue(name: string) {
@@ -39,7 +21,7 @@ function Card({ to, title, cover, seed, big, children }: { to: string; title: st
   const style = { '--hue': hue(seed), ...(src ? { backgroundImage: `url(${src})` } : {}) } as CSSProperties;
   return (
     <a href={to} className={s.card} data-big={big || undefined} data-cover={src ? true : undefined} style={style}
-      onPointerMove={lean} onPointerLeave={still} aria-label={title} data-app={seed}>
+      aria-label={title} data-app={seed}>
       <span className={s.shade} />
       <span className={s.body}>{children}</span>
     </a>

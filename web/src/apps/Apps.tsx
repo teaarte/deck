@@ -57,7 +57,7 @@ export function Apps() {
         <nav className={s.links} aria-label={t('nav.control')} data-apps-links>
           {links.map((l) => (
             <a key={(l.project ?? '') + l.name} href={href({ project: l.project, screen: l.name })} className={s.link}>
-              <NamedIcon name={l.icon ?? 'point'} fallback={l.title} size={18} />
+              <NamedIcon name={l.icon ?? 'point'} fallback={l.title} size={16} />
               <span>{l.title}</span>
             </a>
           ))}

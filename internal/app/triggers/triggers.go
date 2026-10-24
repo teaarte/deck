@@ -44,13 +44,13 @@ type triggersListIn struct {
 
 // triggerView is a trigger with its next run, whose pause holds it, and how its last run ended.
 type triggerView struct {
-	ID        int64           `json:"id"`
-	Project   string          `json:"project"`
-	Command   string          `json:"command"`
-	Kind      string          `json:"kind"`
-	Spec      string          `json:"spec"`
+	ID      int64  `json:"id"`
+	Project string `json:"project"`
+	Command string `json:"command"`
+	Kind    string `json:"kind"`
+	Spec    string `json:"spec"`
 	// Every is how often it runs in words, for a trigger that is no schedule.
-	Every string `json:"every,omitempty"`
+	Every     string          `json:"every,omitempty"`
 	Params    json.RawMessage `json:"params"`
 	NextRunAt string          `json:"next_run_at"`
 	// Paused is the trigger's own pause or its project's; ProjectPaused and OwnPaused say which.

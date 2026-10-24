@@ -180,7 +180,7 @@ type renderer struct {
 	types map[string]map[string]string
 	// results are the result schemas of the commands of deck the blocks read, by name.
 	results map[string]json.RawMessage
-	read  map[string]readOf
+	read    map[string]readOf
 	// fetched are the items of each source read for this screen.
 	fetched map[string]fetchOf
 	// params are the parameters the screen declares, from its address in their types.

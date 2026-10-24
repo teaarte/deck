@@ -28,11 +28,11 @@ import (
 // Service keeps the providers. Wake lets turns that wait for a provider go on once it is ready; Ctx and Go are
 // the life of deck, for the self-checks it runs in the background.
 type Service struct {
-	St               *store.Store
-	Now              func() time.Time
-	Home             home.Layout
+	St   *store.Store
+	Now  func() time.Time
+	Home home.Layout
 	// FilesMu keeps a snapshot from copying the base between the row of a file of a model and its blob.
-	FilesMu *sync.RWMutex
+	FilesMu          *sync.RWMutex
 	Sandbox          sandbox.Sandbox
 	ACPBinaries      map[string]string
 	ACPCallLimit     time.Duration

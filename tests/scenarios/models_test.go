@@ -733,3 +733,30 @@ func TestAssignmentsGoWithTheirCommandsAndModels(t *testing.T) {
 		}
 	}
 }
+
+// TestAModelOfAConnectionIsAddedOnceAndItsPriceReads: a second name of the same model of a connection is refused,
+// one with other options is its own model; a model of a local connection is free, one without a price unknown.
+func TestAModelOfAConnectionIsAddedOnceAndItsPriceReads(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "api", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "box", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "api", "model": "flash"}, nil)
+	if code, body := e.call("deck.model_set", map[string]any{"connection": "api", "model": "flash", "name": "api-flash"}); code < 400 ||
+		!strings.Contains(string(body), "already model api/flash") {
+		t.Fatalf("the same model of a connection under another name is refused, naming the one to change: %d %s", code, body)
+	}
+	e.must("deck.model_set", map[string]any{"connection": "api", "model": "flash", "name": "flash-ru", "options": `{"language": "ru"}`}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "box", "model": "qwen"}, nil)
+	var m struct {
+		Models []struct{ Name, Price string } `json:"models"`
+	}
+	e.must("deck.models_list", nil, &m)
+	price := map[string]string{}
+	for _, v := range m.Models {
+		price[v.Name] = v.Price
+	}
+	if price["api/flash"] != "unknown" || price["flash-ru"] != "unknown" || price["box/qwen"] != "free" {
+		t.Fatalf("a model without a price reads unknown, one of a local connection free: %v", price)
+	}
+}

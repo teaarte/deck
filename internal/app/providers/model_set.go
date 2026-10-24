@@ -157,6 +157,9 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 				m.Agent, m.CheckMinutes = old.Model.Agent, old.Model.CheckMinutes
 			}
 		}
+		if twin, err := q.ModelTwin(ctx, db.ModelTwinParams{ConnectionID: c.ID, Model: m.Model, Kind: m.Kind, Options: m.Options, Name: m.Name}); err == nil {
+			return registry.Invalid("deck: %s of connection %s is already model %s; change that one, its agent too", m.Model, c.Name, twin)
+		}
 		if in.Agent != "" {
 			if err := health.Clear(ctx, q, health.Of{Workspace: act.Workspace}, health.Model(in.Name)); err != nil {
 				return err

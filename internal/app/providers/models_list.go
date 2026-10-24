@@ -136,7 +136,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	for _, r := range models {
 		m := r.Model
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: s.shownOptions(ctx, m.Options),
-			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0,
+			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0 || r.Connection.Local != 0,
 			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context}
 		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)

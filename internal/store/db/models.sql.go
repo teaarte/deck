@@ -497,6 +497,32 @@ func (q *Queries) ModelInOtherWorkspace(ctx context.Context, arg ModelInOtherWor
 	return count, err
 }
 
+const modelTwin = `-- name: ModelTwin :one
+SELECT name FROM model WHERE connection_id = ? AND model = ? AND kind = ? AND options = ? AND name != ?
+ORDER BY id LIMIT 1
+`
+
+type ModelTwinParams struct {
+	ConnectionID int64
+	Model        string
+	Kind         string
+	Options      string
+	Name         string
+}
+
+func (q *Queries) ModelTwin(ctx context.Context, arg ModelTwinParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, modelTwin,
+		arg.ConnectionID,
+		arg.Model,
+		arg.Kind,
+		arg.Options,
+		arg.Name,
+	)
+	var name string
+	err := row.Scan(&name)
+	return name, err
+}
+
 const setAssignment = `-- name: SetAssignment :exec
 INSERT INTO assignment (workspace_id, project_id, command, role, models)
 VALUES (?1, ?2, ?3, ?4, ?5)

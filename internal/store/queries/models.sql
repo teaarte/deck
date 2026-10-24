@@ -33,6 +33,11 @@ SELECT sqlc.embed(m), sqlc.embed(k) FROM model m JOIN connection k ON k.id = m.c
 WHERE m.connection_id = ? AND m.model = ? ORDER BY m.id LIMIT 1;
 
 
+-- name: ModelTwin :one
+SELECT name FROM model WHERE connection_id = ? AND model = ? AND kind = ? AND options = ? AND name != ?
+ORDER BY id LIMIT 1;
+
+
 -- name: ModelInOtherWorkspace :one
 SELECT count(*) FROM model WHERE name = ? AND workspace_id != ?;
 

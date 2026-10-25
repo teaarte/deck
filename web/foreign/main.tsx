@@ -34,11 +34,13 @@ const input = { screen: q.get('screen'), ...(q.get('project') ? { project: q.get
 const screenOf = async (extra: Record<string, unknown> = {}) => (await fetch('/api/commands/deck.screen', {
   method: 'POST', headers: { Authorization: 'Bearer ' + token(), 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, ...extra }),
 })).json();
-// The page hears every action and answers only the read of an opened dialog, with the messages deck gives as they are.
+// The page hears every action and answers only the read of an opened dialog or a tab shown, with the messages deck gives
+// as they are.
 const proc = new MessageProcessor([catalog], async (a: A2uiClientAction) => {
   heard.push(a);
   shown.textContent = JSON.stringify(heard);
   if (a.name === 'dialog') proc.processMessages(await screenOf({ block: a.context.block, dialog: a.context.dialog }));
+  if (a.name === 'tab') proc.processMessages(await screenOf({ block: a.context.block, [String(a.context.param)]: a.context.key }));
 });
 try {
   proc.processMessages(await screenOf());

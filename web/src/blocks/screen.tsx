@@ -1,4 +1,4 @@
-import { useContext, useEffect } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 import { createComponentImplementation } from '@a2ui/react/v0_9';
 import { Group, Stack } from '@mantine/core';
 import s from './blocks.module.css';
@@ -15,10 +15,15 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
   const dialogs = (p.dialogs?.length ?? 0) > 0;
   const root = !p.name && !!p.title;
   const lead = useContext(ScreenLead);
+  const inTab = useContext(InTab);
   const heads = dialogs && children(p.dialogs).map((c) => <span key={String(c)}>{buildChild(String(c))}</span>);
-  // The window of a dialog asks for its blocks once it is open.
-  useEffect(() => { if (p.name) readBlock(context, 'dialog', { dialog: p.name }); }, [p.name, context]);
+  // The window of a dialog asks for its blocks once it is open, a tab once it is shown.
+  useEffect(() => {
+    if (p.name) readBlock(context, 'dialog', { dialog: p.name });
+    else if (p.key) readBlock(context, 'tab', { param: inTab ? 'sub' : 'tab', key: p.key, children: children(p.children).map(String) });
+  }, [p.name, p.key, context]);
   return (
+    <InTab.Provider value={inTab || !!p.key}>
     <BlockContext.Provider value={context}>
     <Stack gap="lg" data-screen data-span="full">
       {(p.title || dialogs) && (
@@ -36,5 +41,9 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
       </div>
     </Stack>
     </BlockContext.Provider>
+    </InTab.Provider>
   );
 });
+
+// InTab is set inside a tab: a tab there is read by the key of the tab inside one.
+const InTab = createContext(false);

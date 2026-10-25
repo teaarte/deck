@@ -28,6 +28,9 @@ export class Feed {
 
   ticket = () => ++this.tickets;
 
+  // since is the ticket of the read that gave the data of a block, 0 for none.
+  since = (id: string) => this.fresh[id] ?? 0;
+
   // drawn says whether a whole screen was read once.
   get drawn() { return this.fresh.root !== undefined; }
 

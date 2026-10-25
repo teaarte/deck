@@ -64,6 +64,8 @@ export function useScreen(route: Route, shownNow = true) {
       }
     });
     let generation = 0;
+    // wide is the ticket of the last read of the whole screen or of a topic, which leaves the tabs not shown as they were.
+    let wide = 0;
     // topics are those the screen named once read; until then any topic of the catalog.
     let topics: string[] | undefined;
     // shown is set once the screen is drawn; a failed read then leaves it drawn.
@@ -85,6 +87,8 @@ export function useScreen(route: Route, shownNow = true) {
         case 'dialog':
           return readBlock(block, { dialog: String(c.dialog ?? '') });
         case 'tab':
+          // A tab shown with what the last wide read gave it is not read again.
+          if ((c.children as string[] | undefined)?.every((id) => feed.since(id) >= wide)) return;
           return readBlock(block, { [String(c.param)]: String(c.key ?? '') });
       }
       const { reply, ...pressed } = c as Action & { reply?: string };
@@ -114,6 +118,7 @@ export function useScreen(route: Route, shownNow = true) {
         const msgs = await call<Message[]>('deck.screen', input());
         if (gone || mine !== generation) return;
         setError('');
+        wide = ticket;
         draw(msgs, ticket);
         remember(kept(), msgs, true);
         // A change heard while the screen was first read is read again now that it is drawn.
@@ -151,6 +156,7 @@ export function useScreen(route: Route, shownNow = true) {
       try {
         const msgs = await call<Message[]>('deck.screen', input({ topic: e.topic, ...(e.project ? { changed: e.project } : {}) }));
         if (gone || mine !== generation) return;
+        wide = ticket;
         topics = rootTopics(msgs) ?? topics;
         feed.feed(msgs, ticket);
         remember(kept(), msgs, false);

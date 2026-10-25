@@ -85,11 +85,11 @@ func TestRealBrowserStaysQuick(t *testing.T) {
 	}
 	drawn := `document.querySelector('[data-screen-view]:not([aria-busy]) [data-block]')`
 	steps := []struct{ name, hash, ready string }{
-		{"a module", "#/p/notes/main", drawn + ` && document.body.innerText.includes('notes note 199')`},
+		{"a module", "#/p/notes/main", drawn + ` && document.body.innerText.includes('notes note 0')`},
 		{"its record", fmt.Sprintf("#/p/notes/note/%d", recs[0].ID), drawn + ` && document.querySelector('[data-field="title"]')`},
 		{"Spend", "#/deck/spend", drawn},
 		{"Schedule", "#/deck/schedule", drawn},
-		{"the module again", "#/p/notes/main", `document.body.innerText.includes('notes note 199')`},
+		{"the module again", "#/p/notes/main", `document.body.innerText.includes('notes note 0')`},
 	}
 	for _, s := range steps {
 		got := move(s.name, s.hash, s.ready)

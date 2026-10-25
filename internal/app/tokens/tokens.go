@@ -28,6 +28,7 @@ var commandPattern = regexp.MustCompile(`^(\*|[a-z][a-z0-9-]*\.(\*|[a-z][a-z0-9_
 type Service struct {
 	St      *store.Store
 	MCPBase string
+	loans   loans
 	Journal func(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params string)
 }
 

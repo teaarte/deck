@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useRoute } from '../app/router';
 import { call } from '../lib/api';
 import { notifyError } from '../lib/notify';
-import { endPreview, usePreview, useWorn } from './worn';
+import { endPreview, shot, usePreview, useWorn } from './worn';
 import s from './preview.module.css';
 
 // PreviewBar says the page wears a theme of a link, not the one in use: Use puts it on this deck, Leave ends it, as
@@ -22,7 +22,7 @@ export function PreviewBar() {
     if (now !== at.current) endPreview();
     at.current = now;
   }, [route.project, route.screen, route.record]);
-  if (!preview.theme && !preview.scheme) return null;
+  if ((!preview.theme && !preview.scheme) || shot) return null;
   const use = async () => {
     try {
       if (preview.theme) await call('deck.theme_use', { name: preview.theme });

@@ -23,6 +23,7 @@ import (
 	"deck2/internal/app/records"
 	"deck2/internal/app/secrets"
 	"deck2/internal/app/settings"
+	"deck2/internal/app/shots"
 	"deck2/internal/app/signins"
 	"deck2/internal/app/snapshots"
 	"deck2/internal/app/themes"
@@ -82,6 +83,7 @@ type App struct {
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
 	Browser   *tools.Browser
+	Shots     *shots.Service
 	Host      *mcphost.Host
 
 	ctx      context.Context
@@ -182,6 +184,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
 	a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
+	a.Shots = &shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Tokens.Lend, Return: a.Tokens.Return,
+		Themed: a.Themes.Exists}
 	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,

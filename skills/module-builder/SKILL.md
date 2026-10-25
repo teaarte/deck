@@ -631,6 +631,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    runs the same checks and saves nothing: what a save refuses, its warnings, what it widens and whether that
    waits for the owner, `screens`, `untranslated`; of a project with the whole text or `old`/`new`, or of a
    manifest alone (an old `.zip`). Check before you save, and fix a module from a `.zip` before its import.
+   To see a screen as the owner does, `screen_shot` draws it (`#/p/<module>/<screen>?tab=…`, a phone or a
+   computer, light or dark) and answers the picture's `path` to read and `ms` it took to draw.
    `project_needs` is what the module needs to work, which deck counts from the manifest: rights that enabling
    grants, secrets and whether they are set, programs its scripts miss, roles without a model and work no model
    takes; a connection it names that deck lacks is `optional`. Build on it, not on your own list: tell the owner

@@ -19,6 +19,7 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/gateway"
+	"deck2/internal/app/tokens"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 )
@@ -77,8 +78,10 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		if got == "" && r.Method == http.MethodGet {
 			got = "Bearer " + r.URL.Query().Get("token")
 		}
-		act := owner
-		if s.token == "" || subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) != 1 {
+		act, lent := owner, false
+		if a, ok := s.app.Tokens.Lent(strings.TrimPrefix(got, "Bearer ")); ok {
+			act, lent = a, true
+		} else if s.token == "" || subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) != 1 {
 			var err error
 			if act, err = s.app.Tokens.Automation(r.Context(), strings.TrimPrefix(got, "Bearer ")); err != nil {
 				// The challenge tells a refused token of deck from a model's refused key a command answers with.
@@ -87,15 +90,21 @@ func (s *Server) auth(next http.Handler) http.Handler {
 				return
 			}
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), actorKey{}, act)))
+		ctx := context.WithValue(r.Context(), actorKey{}, act)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, lentKey{}, lent)))
 	})
 }
 
+type lentKey struct{}
+
 func actor(r *http.Request) registry.Actor { return r.Context().Value(actorKey{}).(registry.Actor) }
+
+// lentTo says the request comes with a token deck lent its own browser: its caller's rights, reads only.
+func lentTo(r *http.Request) bool { return r.Context().Value(lentKey{}) == true }
 
 func (s *Server) ownerOnly(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if actor(r).Kind != registry.Owner {
+		if actor(r).Kind != registry.Owner && !lentTo(r) {
 			http.Error(w, "deck: automation tokens call commands only", http.StatusForbidden)
 			return
 		}
@@ -111,6 +120,10 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var out any
+	if lentTo(r) && !tokens.Reads(r.PathValue("name")) {
+		http.Error(w, "deck: a page deck opens itself only reads", http.StatusForbidden)
+		return
+	}
 	if act := actor(r); act.Kind == registry.Token {
 		out, err = s.app.Gateway.CallAs(r.Context(), act, r.PathValue("name"), body)
 	} else {

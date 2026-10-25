@@ -33,7 +33,9 @@ and the owner's.
    being recorded). Radius `0` squares all of them already.
 6. `deck.theme_check` with the text names every problem; fix them all, then `deck.theme_save`. Its answer
    gives two preview addresses, light and dark: give them to the owner as links, and `unreached`, the parts of
-   deck no theme changes yet: do not chase them with CSS.
+   deck no theme changes yet: do not chase them with CSS. Look at it before the owner does: `screen_shot` with
+   `theme` and `scheme` draws a screen in it (the tiles `#/`, Today `#/deck/cockpit`, a module) on a computer and
+   a phone; read the picture at `path`.
 7. Only the owner puts a theme on: tell them it is in Settings → Look.
 
 ## Deleting

@@ -82,8 +82,12 @@ func browserTools(dir string) []fakeTool {
 				note(dir, fmt.Sprintf("upload:%d", len(a["paths"].([]any))))
 				return text("uploaded")
 			}},
-		{name: "browser_run_code_unsafe", desc: "Runs code", run: func(map[string]any) *mcp.CallToolResult {
+		{name: "browser_run_code_unsafe", desc: "Runs code", run: func(a map[string]any) *mcp.CallToolResult {
+			code, _ := a["code"].(string)
 			note(dir, "code")
+			if strings.Contains(code, "waitForFunction") {
+				return text("### Result\n\"{\\\"ms\\\":12,\\\"error\\\":\\\"\\\"}\"\n")
+			}
 			return text("ran")
 		}},
 	}

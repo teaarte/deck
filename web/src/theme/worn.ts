@@ -27,6 +27,8 @@ const BARE: Worn = { name: '', title: '', mood: '', schemes: ['light', 'dark'], 
 export interface Preview { theme: string; scheme: '' | 'light' | 'dark' }
 
 const params = new URLSearchParams(location.search);
+// shot marks a page deck opens itself to take its picture: it wears a theme of a link without the bar that says so.
+export const shot = params.has('shot');
 const previewing = createStore<Preview>({ theme: params.get('theme') ?? '', scheme: (params.get('scheme') ?? '') as Preview['scheme'] });
 export const usePreview = () => useStore(previewing);
 

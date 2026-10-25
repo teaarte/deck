@@ -21,7 +21,7 @@ func (e *Env) starters() []starterView {
 
 type needView struct {
 	Kind, What, Detail string
-	Done               bool
+	Done, Optional     bool
 }
 
 // TestAnEmptyDeckStartsWithAModule: an empty deck tells the owner to speak to Deki and offers the starter module;
@@ -64,9 +64,12 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 		}
 	}
 	if kinds["right"] == 0 || !slices.ContainsFunc(needs, func(n needView) bool {
-		return n.Kind == "model" && n.What == "nvidia" && strings.Contains(n.Detail, "Добавь подключение nvidia")
+		return n.Kind == "model" && n.What == "nvidia" && n.Optional && strings.Contains(n.Detail, "По желанию: добавьте подключение nvidia")
 	}) {
-		t.Fatalf("the needs name the rights enabling grants and the connections deck lacks: %+v", needs)
+		t.Fatalf("the needs name the rights enabling grants and, as optional, the connections deck lacks: %+v", needs)
+	}
+	if slices.ContainsFunc(needs, func(n needView) bool { return n.Kind == "model" && !n.Optional && !n.Done }) {
+		t.Fatalf("the starter asks for roles, not for the connections or models of its author: %+v", needs)
 	}
 	e.must("deck.connection_set", map[string]any{"name": "nvidia", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
 	e.must("deck.project_needs", map[string]any{"project": "free-models"}, &needs)

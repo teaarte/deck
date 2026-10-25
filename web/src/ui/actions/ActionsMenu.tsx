@@ -14,12 +14,12 @@ export function ActionsMenu({ actions, label, icon }: { actions?: Action[]; labe
   if (!shown.length) return null;
   const keys = actionKeys(shown);
   return (
-    <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md" radius="md">
+    <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md">
       <Menu.Target>
         {label ? (
-          <Button variant="default" radius="xl" leftSection={icon} rightSection={<IconChevronDown size={14} />} data-more={id} data-menu>{label}</Button>
+          <Button variant="default" leftSection={icon} rightSection={<IconChevronDown size={14} />} data-more={id} data-menu>{label}</Button>
         ) : (
-          <ActionIcon variant="subtle" color="gray" radius="xl" aria-label={t('actions.more')} data-more={id} data-menu><IconDots size={18} /></ActionIcon>
+          <ActionIcon variant="subtle" color="gray" aria-label={t('actions.more')} data-more={id} data-menu><IconDots size={18} /></ActionIcon>
         )}
       </Menu.Target>
       <Menu.Dropdown p={4} miw={190} data-more-menu={id}>

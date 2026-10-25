@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"time"
 
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
@@ -25,6 +27,8 @@ type Service struct {
 	Now       func() time.Time
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
+	// IsFailure says whether a process is an open failure, as the cockpit counts them.
+	IsFailure func(ctx context.Context, act registry.Actor, process int64) (bool, error)
 	// Works looks up the model that does the work of a command, on the models of a workspace, prices in a language.
 	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	// Words are deck's phrases in a language.
@@ -47,12 +51,15 @@ type triggerView struct {
 	ID      int64  `json:"id"`
 	Project string `json:"project"`
 	Command string `json:"command"`
-	Kind    string `json:"kind"`
-	Spec    string `json:"spec"`
+	// Title is the command in the owner's words, ProjectTitle its module.
+	Title        string `json:"title"`
+	ProjectTitle string `json:"project_title"`
+	Kind         string `json:"kind"`
+	Spec         string `json:"spec"`
 	// Every is how often it runs in words, for a trigger that is no schedule.
 	Every     string          `json:"every,omitempty"`
 	Params    json.RawMessage `json:"params"`
-	NextRunAt string          `json:"next_run_at"`
+	NextRunAt string          `json:"next_at"`
 	// Paused is the trigger's own pause or its project's; ProjectPaused and OwnPaused say which.
 	Paused        bool `json:"paused"`
 	ProjectPaused bool `json:"project_paused"`
@@ -62,6 +69,10 @@ type triggerView struct {
 	Draft       bool   `json:"draft"`
 	LastProcess int64  `json:"last_process"`
 	LastState   string `json:"last_state"`
+	// LastAt is when its last run started or came back.
+	LastAt string `json:"last_at,omitempty"`
+	// Failure is why its last run is an open failure, or why it did not start; empty while all is well.
+	Failure string `json:"failure,omitempty"`
 	// Word and Tone say whether it runs; LastWord and LastTone how its last run ended.
 	Word     string `json:"word"`
 	Tone     string `json:"tone,omitempty"`
@@ -81,6 +92,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		return nil, err
 	}
 	names := map[int64]db.Project{}
+	manifests := map[int64]*manifest.Manifest{}
 	works := map[string]provider.Work{}
 	work := s.Works(ctx, act.Workspace, in.Lang)
 	ws := s.Words(in.Lang)
@@ -93,12 +105,22 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 				return nil, err
 			}
 			names[t.ProjectID] = p
+			manifests[t.ProjectID], _ = docs.Manifest(ctx, s.St.Q, p)
 		}
+		m := manifests[t.ProjectID]
 		v := triggerView{ID: t.ID, Project: p.Name, Command: t.Command, Kind: t.Kind, Spec: t.Spec, Params: json.RawMessage(cmp.Or(t.Params, "null")),
 			NextRunAt: t.NextRunAt.String, Paused: t.Paused == 1 || p.Paused == 1, ProjectPaused: p.Paused == 1, OwnPaused: t.Paused == 1,
 			SkipMissed: t.SkipMissed == 1, Draft: p.Status != store.ProjectEnabled}
 		if v.Draft {
 			v.NextRunAt = ""
+		}
+		v.Title, v.ProjectTitle = t.Command, p.Name
+		if m != nil {
+			mws := docs.Words(ws, m, in.Lang)
+			v.ProjectTitle, _, _ = manifest.Nav(p.Name, m, mws)
+			if c := m.Command(t.Command); c != nil && c.Title != "" {
+				v.Title = manifest.Tr(mws, c.Title)
+			}
 		}
 		if t.Kind == trigger.KindAfter {
 			v.Every = fmt.Sprintf(tr("after %s"), t.Spec)
@@ -114,12 +136,24 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 			v.LastProcess = t.LastProcessID.Int64
 			if lp, err := s.St.Q.GetProcess(ctx, v.LastProcess); err == nil {
 				v.LastState = lp.State
+				v.LastAt = cmp.Or(lp.ReopenedAt.String, lp.StartedAt)
 				shown := process.Show(lp, "", false, tr)
 				v.LastWord, v.LastTone = shown.Word, shown.Tone
-				if good, err := s.St.Q.ProcessMadeGood(ctx, lp.ID); v.LastTone == "error" && err == nil && good.Bool {
-					v.LastWord, v.LastTone = tr("failed, fixed since"), "muted"
+				// A failure the cockpit no longer counts, closed, made good or old, is no red line here either.
+				if v.LastTone == "error" {
+					switch open, _ := s.IsFailure(ctx, act, lp.ID); {
+					case open:
+						v.Failure = manifest.TrText(ws, cmp.Or(lp.Error, shown.Word))
+					case s.madeGood(ctx, lp.ID):
+						v.LastWord, v.LastTone = tr("failed, fixed since"), "muted"
+					default:
+						v.LastTone = "muted"
+					}
 				}
 			}
+		}
+		if h, err := s.St.Q.GetHealthAt(ctx, db.GetHealthAtParams{Workspace: act.Workspace, Subject: health.Trigger(p.Name, t.Command)}); err == nil && h.Status == health.Error && !v.Draft && !(h.SeenAt.Valid && h.SeenAt.String >= h.UpdatedAt) {
+			v.Failure, v.LastWord, v.LastTone = manifest.TrText(ws, h.Error), tr("did not start"), "error"
 		}
 		switch {
 		case v.Draft:
@@ -254,4 +288,9 @@ func (s *Service) Commands() []*registry.Command {
 			"Pauses or resumes every trigger of a project, including triggers added later.",
 			registry.OwnerSide, s.projectPause),
 	}
+}
+
+func (s *Service) madeGood(ctx context.Context, process int64) bool {
+	good, err := s.St.Q.ProcessMadeGood(ctx, process)
+	return err == nil && good.Bool
 }

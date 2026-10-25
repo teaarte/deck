@@ -2,14 +2,19 @@
   "name": "documents",
   "icon": "folder",
   "title": "Files",
+  "params": {"path": "string"},
   "blocks": [
-    {"type": "media", "title": "Documents", "empty": "No documents yet: its agents write them, or ask Deki in the chat", "span": "full", "source": {"from": "deck.documents_list", "input": {"with_deleted": true}, "sort": "name"}, "filter": ["kind"],
-      "item": {"title": "name",
-        "icon": "deleted ? 'trash' : kind == 'skill' ? 'sparkles' : kind == 'script' ? 'code' : kind == 'manifest' ? 'settings' : kind == 'prompt' ? 'message' : 'file-text'"},
+    {"type": "media", "span": "full", "path": "param.path ?? ''",
+      "source": {"from": "deck.files_folder", "input": {"path": "=param.path ?? ''"}, "rows": "entries", "sort": "-dir"},
+      "empty": "The folder is empty",
+      "item": {"file": "file ?? ''", "title": "name", "meta": "meta ?? ''", "icon": "icon ?? 'folder'"},
       "actions": [
-        {"verb": "open", "primary": true, "screen": "document", "record": "=id", "when": "!deleted"},
-        {"verb": "restore", "command": "deck.document_restore", "params": {"document": "=id"}, "when": "deleted"},
-        {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=id"}, "when": "!deleted && kind != 'manifest' && !(kind == 'prompt' && owner_kind == '')"}
+        {"verb": "open", "primary": true, "screen": "documents", "params": {"path": "=path"}, "when": "dir"},
+        {"verb": "open", "primary": true, "screen": "document", "record": "=id", "when": "kind == 'document' && !deleted"},
+        {"verb": "restore", "command": "deck.document_restore", "params": {"document": "=id"}, "when": "kind == 'document' && deleted"},
+        {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=id"}, "when": "kind == 'document' && !deleted && doc_kind != 'manifest' && !(doc_kind == 'prompt' && owner_kind == '')"},
+        {"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"}, "when": "kind == 'file' && (id ?? 0) != 0",
+         "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}
       ]}
   ]
 }

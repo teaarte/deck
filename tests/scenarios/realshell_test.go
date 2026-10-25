@@ -83,15 +83,12 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the tiles again", `document.querySelector('[data-module="web"]')`)
 	b.eval(`(document.querySelector('[data-app="web"]').click(), '')`)
 	b.until("a tile opens its module with its screens as tabs", `location.hash === '#/p/web/main' && document.querySelector('[data-places] a[href="#/p/web/more"]') && document.querySelector('[data-places] a[aria-current=page]')?.getAttribute('href') === '#/p/web/main'`)
-	b.until("what the module does now under the title of its screen", `document.querySelector('[data-module-lead] [data-doing]')?.innerText.includes('Score') && document.querySelector('[data-module-lead] [data-assign]')`)
-	if got := b.eval(`(() => { const h = document.querySelector('[data-screen-head]').getBoundingClientRect(), l = document.querySelector('[data-module-lead]').getBoundingClientRect(); return String(l.top >= h.bottom - 1) })()`); got != "true" {
-		t.Fatalf("the line of the module stands under the title of the screen: %s", got)
+	b.until("what the module does now in the head of its screen", `document.querySelector('[data-screen-head] [data-module-lead] [data-doing]')?.innerText.includes('Score')`)
+	if got := b.eval(`(() => { const tab = document.querySelector('[data-places] a[aria-current=page]').innerText.trim();
+		return [document.querySelector('[data-screen-head] h2')?.innerText.trim() === tab, !!document.querySelector('[data-assign]')].join(' ') })()`); got != "false false" {
+		t.Fatalf("the screen does not repeat its tab as its title, and no button only opens the chat: %s", got)
 	}
 	b.shot("shell-module")
-	b.eval(`(document.querySelector('[data-module-lead] [data-assign]').click(), '')`)
-	b.until("Assign opens a new topic of the chat", `document.querySelector('[data-chat-panel] [data-chat-input]')`)
-	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
-	b.until("the chat closed", `!document.querySelector('[data-chat-panel]')`)
 	b.until("the rows of the notes", `[...document.querySelectorAll('[data-block] tr button')].some((x) => x.innerText.includes('Open'))`)
 	if got := b.eval(`String(!document.querySelector('[data-back]'))`); got != "true" {
 		t.Fatalf("no way back on a screen of tabs: %s", got)
@@ -113,9 +110,9 @@ func TestRealBrowserShell(t *testing.T) {
 	b.shot("shell-light")
 
 	b.open(e.URL + "/#/deck/spend?tab=30 days")
-	b.until("the stats and the chart of the spend", `[...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).length === 4 && [...document.querySelectorAll('[data-chart-block] svg')].some((x) => x.getBoundingClientRect().width > 0)`)
+	b.until("the stats and the chart of the spend", `[...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).length === 2 && [...document.querySelectorAll('[data-chart-block] svg')].some((x) => x.getBoundingClientRect().width > 0)`)
 	if got := b.eval(`String(new Set([...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).map((x) => Math.round(x.closest('[data-block]').getBoundingClientRect().top))).size)`); got != "1" {
-		t.Fatalf("the four numbers of the spend stand in one row: %s", got)
+		t.Fatalf("the two numbers of the spend stand in one row: %s", got)
 	}
 	b.shot("shell-spend")
 	if got := b.eval(`(() => { const g = [...document.querySelectorAll('[data-grid]')].find((x) => x.offsetParent).getBoundingClientRect(); const cells = [...[...document.querySelectorAll('[data-grid]')].find((x) => x.offsetParent).children].map((c) => c.getBoundingClientRect());
@@ -128,7 +125,7 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("no schedule shows as cron: %s", got)
 	}
 	b.shot("shell-schedule")
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Models')`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Models').click(), '')`)
 	b.until("the providers table", `[...document.querySelectorAll('[data-block] table')].some((x) => x.offsetParent)`)
@@ -167,12 +164,12 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-full]').click(), '')`)
 	b.until("the screen back beside the chat", `document.querySelector('[data-main]').offsetParent`)
 
-	b.open(e.URL + "/#/deck/settings?tab=Interface")
+	b.open(e.URL + "/#/deck/settings?tab=Look")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "glass")
 	b.look("scheme", "dark")
 	b.until("the dark glass", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'dark'`)
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
+	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Look').click(), '')`)
 	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"]')`)
 	b.until("the glass of the theme document on the tabs", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
 	if got := b.eval(`document.querySelectorAll('[data-backdrop] > div').length`); got != "2" {
@@ -193,7 +190,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.open(e.URL + "/#/deck/cockpit")
 	b.until("the dark cockpit", `document.querySelector('[data-today-line]') && document.querySelector('[data-grid] [data-block]')`)
 	b.shot("shell-glass-dark-cockpit")
-	b.open(e.URL + "/#/deck/settings?tab=Interface")
+	b.open(e.URL + "/#/deck/settings?tab=Look")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
 	b.look("scheme", "light")
 	b.eval(`(document.querySelector('[data-accent="grape"]').click(), '')`)
@@ -253,9 +250,9 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("a block on the screen keeps its own background: %s", got)
 	}
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.look("theme", "pixel")
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the projects of settings in pixels", `document.documentElement.dataset.deckTheme === 'pixel' && document.querySelector('[data-item] [data-actions]')`)
 	if got := b.eval(`(() => { const bs = [...document.querySelector('[data-item] [data-actions]').children].map((x) => x.getBoundingClientRect());
 		return String(bs.every((r, i) => i === 0 || r.left - bs[i - 1].right >= 6)) })()`); got != "true" {

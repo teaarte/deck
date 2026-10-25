@@ -9,6 +9,8 @@ import (
 	"slices"
 	"time"
 
+	"deck2/internal/docs"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -18,6 +20,8 @@ import (
 type Service struct {
 	St  *store.Store
 	Now func() time.Time
+	// Words are deck's phrases in a language.
+	Words func(lang string) map[string]string
 }
 
 type callsListIn struct {
@@ -112,14 +116,17 @@ func (s *Service) spendList(ctx context.Context, act registry.Actor, in spendLis
 type spendDailyIn struct {
 	Days int64  `opt:"" desc:"Days back from today, 1 to 366; 30 by default"`
 	By   string `opt:"" enum:"day|provider|project|project_provider" desc:"day: a row for every day, the empty ones too; provider, project or each provider of each project: their totals over the days"`
+	Lang string `opt:"" desc:"Language of the titles of the projects, such as ru; English without one"`
 }
 
 // spendDailyRow is the model calls of a day, a provider or a project; Age is how many days back the day is.
 type spendDailyRow struct {
-	Day          string  `json:"day,omitempty"`
-	Age          int64   `json:"age"`
-	Provider     string  `json:"provider,omitempty"`
-	Project      string  `json:"project,omitempty"`
+	Day      string `json:"day,omitempty"`
+	Age      int64  `json:"age"`
+	Provider string `json:"provider,omitempty"`
+	Project  string `json:"project,omitempty"`
+	// Title is the project in the owner's words, deck's own work as Deki and deck.
+	Title        string  `json:"title,omitempty"`
 	Calls        int64   `json:"calls"`
 	InputTokens  int64   `json:"input_tokens"`
 	OutputTokens int64   `json:"output_tokens"`
@@ -222,9 +229,13 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 			row.Runs, row.Scheduled = row.Runs+r.Runs, row.Scheduled+r.Scheduled
 		}
 	}
+	titles := s.titles(ctx, act, in)
 	out := make([]spendDailyRow, 0, len(order))
 	for _, k := range order {
 		row := *by[k]
+		if in.By == "project" || in.By == "project_provider" {
+			row.Title = titles(row.Project)
+		}
 		if total > 0 {
 			row.Share = math.Round(float64(row.Tokens)*1000/float64(total)) / 1000
 		}
@@ -236,6 +247,28 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		})
 	}
 	return out, nil
+}
+
+// titles give the title of a project by its name in the owner's words; deck's own work is Deki and deck.
+func (s *Service) titles(ctx context.Context, act registry.Actor, in spendDailyIn) func(string) string {
+	ws := s.Words(in.Lang)
+	seen := map[string]string{}
+	return func(name string) string {
+		if name == "" {
+			return manifest.Tr(ws, "Deki and deck")
+		}
+		if t, ok := seen[name]; ok {
+			return t
+		}
+		t := name
+		if p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
+			if m, err := docs.Manifest(ctx, s.St.Q, p); err == nil {
+				t, _, _ = manifest.Nav(name, m, docs.Words(ws, m, in.Lang))
+			}
+		}
+		seen[name] = t
+		return t
+	}
 }
 
 // Commands are the commands of the journal.

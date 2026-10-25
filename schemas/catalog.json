@@ -20,7 +20,7 @@
     "tabs": {
       "description": "Blocks in tabs.",
       "drawn": "Tabs",
-      "block": {"description": "Holds its tabs in tabs, each with a title and at least one block; nothing else.", "required": ["tabs"], "properties": {"tabs": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["title", "blocks"], "properties": {"title": {"type": "string", "minLength": 1}, "icon": {"$ref": "#/$defs/icon"}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}}}}}
+      "block": {"description": "Holds its tabs in tabs, each with a title and at least one block; nothing else.", "required": ["tabs"], "properties": {"tabs": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["title", "blocks"], "properties": {"title": {"type": "string", "minLength": 1}, "icon": {"$ref": "#/$defs/icon"}, "count": {"enum": ["failures"], "description": "On deck's own screens: a count of deck shown beside the title, such as the open failures."}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}}}}}
     }
   },
   "components": {
@@ -35,7 +35,7 @@
         "description": {"type": "string"},
         "children": {"$ref": "common_types.json#/$defs/ChildList"},
         "dialogs": {"$ref": "common_types.json#/$defs/ChildList", "description": "The dialogs of the screen, Modals whose buttons stand beside its title."},
-        "key": {"type": "string", "description": "Of a tab of Tabs: its title as written, its name in the address in every language."},
+        "key": {"type": "string", "description": "Of a tab of Tabs: its title as written, its name in the address in every language."}, "count": {"enum": ["failures"], "description": "Of a tab of Tabs: a count of deck the client shows beside its title, kept fresh, such as the open failures."},
         "name": {"type": "string", "description": "Of the window of a Modal: the name of its dialog, ?dialog=<name> in the address opens it."},
         "spans": {"type": "object", "additionalProperties": {"enum": [1, 2]}, "description": "The cells of the grid a standard child narrower than the screen takes, by its id."},
         "topics": {"type": "array", "items": {"type": "string"}, "description": "Of the root screen: the event topics after which the client reads it again; it ignores the others."}
@@ -43,7 +43,7 @@
     },
     "table": {
       "description": "Rows of a source.",
-      "block": {"description": "Needs source and columns (each a label and bind, an expression over the row); filter and actions are optional. The first columns are the main ones: a line shows four (two on a phone), the rest, and the details of a column, open in the row under it; a column every row leaves empty is not drawn; a tag column takes its details as the hint of its badge.", "required": ["source", "columns"], "properties": {"source": {"$ref": "#/$defs/source"}, "columns": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/bind"}}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source and columns (each a label and bind, an expression over the row); filter and actions are optional. The first columns are the main ones: a line shows four (two on a phone), the rest, and the details of a column, open in the row under it; a column every row leaves empty is not drawn; a tag column takes its details as the hint of its badge.", "required": ["source", "columns"], "properties": {"source": {"$ref": "#/$defs/source"}, "columns": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/bind"}}, "filter": {"$ref": "#/$defs/filter"}, "search": {"$ref": "#/$defs/search"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["columns", "data"],
@@ -59,7 +59,7 @@
     },
     "list": {
       "description": "Lines of a source.",
-      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "since": {"type": "string", "description": "Expression giving an ISO 8601 time the line counts from, such as started_at; shown beside meta as how long ago, kept fresh."}, "icon": {"type": "string", "description": "Expression giving the name of a Tabler icon of the line."}, "details": {"type": "string"}, "questions": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}, "kind": {"type": "string", "description": "Expression giving what a line is, such as a question or a new right, said in the head of its card in a focus list."}}}, "board": {"type": "string", "description": "An enum field of the module's collection the list reads: the list is a board with a lane for each value of the enum, in order and in the owner's language; dragging an item to a lane presses its button whose input is that field with the value of the lane, and on a phone that button picks the lane."}, "cards": {"type": "boolean", "description": "The items stand side by side as cards instead of lines, such as the modules of a workspace; not with board."}, "focus": {"type": "boolean", "description": "The items go one at a time: the first a big card with its kind and its place among them, the next two behind it, and a button Later that puts the one shown last on this device; for a queue the owner goes through, such as decisions. Not with cards or board."}, "head": {"$ref": "#/$defs/actions", "description": "Buttons in the head of the list, such as one that reads all its notes; their when and their label of an expression read rows, the items of its source."}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "since": {"type": "string", "description": "Expression giving an ISO 8601 time the line counts from, such as started_at; shown beside meta as how long ago, kept fresh."}, "icon": {"type": "string", "description": "Expression giving the name of a Tabler icon of the line."}, "details": {"type": "string"}, "questions": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}, "kind": {"type": "string", "description": "Expression giving what a line is, such as a question or a new right, said in the head of its card in a focus list."}, "cover": {"$ref": "#/$defs/cover"}, "actions": {"type": "string", "description": "On deck's own screens: expression giving the buttons a read of deck wrote for the item, after those of actions, so the buttons of a kind of thing are said in one place."}}}, "board": {"type": "string", "description": "An enum field of the module's collection the list reads: the list is a board with a lane for each value of the enum, in order and in the owner's language; dragging an item to a lane presses its button whose input is that field with the value of the lane, and on a phone that button picks the lane."}, "cards": {"type": "boolean", "description": "The items stand side by side as cards instead of lines, such as the modules of a workspace; not with board."}, "focus": {"type": "boolean", "description": "The items go one at a time: the first a big card with its kind and its place among them, the next two behind it, and a button Later that puts the one shown last on this device; for a queue the owner goes through, such as decisions. Not with cards or board."}, "head": {"$ref": "#/$defs/actions", "description": "Buttons in the head of the list, such as one that reads all its notes; their when and their label of an expression read rows, the items of its source."}, "filter": {"$ref": "#/$defs/filter"}, "search": {"$ref": "#/$defs/search"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -70,7 +70,7 @@
         "description": {"type": "string"},
         "cards": {"type": "boolean"},
         "focus": {"type": "boolean"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "items: [{id, title, text, meta, image, details, questions, lane, kind, actions}], board: {field, lanes}, head: the buttons of its head"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "items: [{id, title, text, meta, cover, details, questions, lane, kind, actions}], board: {field, lanes}, head: the buttons of its head"}
       }
     },
     "card": {
@@ -129,8 +129,8 @@
       "description": "Files of the items of a source of any format: one in place (a picture that opens in full, a PDF, a video or a sound in the browser's own player, the start of a text, an HTML or SVG page in a frame that runs nothing, any other file by its type, name and size with a download); several as tiles or a list the owner switches on the device, which open in a lightbox one after another.",
       "block": {"description": "Needs item.file, an expression over an item of its source, or on a record page without a source over the record itself: the id of a stored file of the project (a result of its process, an attachment of its record) or a path in the data folder of the project; item.title is the caption. A line whose item.file is empty or null is a tile of its item.icon, such as a folder or a document, that presses its primary button; with folders and files of a folder together, the block is a file manager. A file of another project or a path that is no file of the data folder is an error of its line, not of the block. A player with marks on its timeline is a custom block (MCP Apps) that reads the file through resources/read of deck://data/<path>. A single picture takes the width of the block.", "required": ["item"], "properties": {
         "source": {"$ref": "#/$defs/source"},
-        "item": {"type": "object", "additionalProperties": false, "properties": {"file": {"type": "string"}, "title": {"type": "string"}, "icon": {"type": "string", "description": "Expression giving the Tabler icon of a line that names no file, such as a folder or a document: its tile presses the primary button of the line."}}},
-        "path": {"type": "string", "description": "An expression over the params of the screen giving the folder a file manager shows, such as param.path: the block shows it as steps from the root of the folder, each opening its folder by the primary button of a folder line with that path, and a step up."},
+        "item": {"type": "object", "additionalProperties": false, "properties": {"file": {"type": "string"}, "title": {"type": "string"}, "meta": {"type": "string", "description": "Expression giving a short line under the title, such as how many files a folder holds."}, "cover": {"$ref": "#/$defs/cover"}, "icon": {"type": "string", "description": "Expression giving the Tabler icon of a line that names no file, such as a folder or a document: its tile presses the primary button of the line."}}},
+        "path": {"type": "string", "description": "An expression over the params of the screen giving the folder a file manager shows, such as param.path: the block shows it as steps from the root of the folder, each opening its folder by the primary button of a folder line with that path, and a step up; a step is labeled by the name its read gives that path in names beside its rows, else by its folder."}, "search": {"$ref": "#/$defs/search"},
         "actions": {"$ref": "#/$defs/actions", "description": "Buttons of each file, over its item, as the buttons of a row of a table."},
         "filter": {"$ref": "#/$defs/filter"},
         "empty": {"$ref": "#/$defs/empty"}}},
@@ -142,7 +142,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": 1},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, name, type, size, url, actions}, {id, title, icon, actions} or {id, title, error}]"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, meta, cover, name, type, size, url, actions}, {id, title, meta, cover, icon, actions} or {id, title, error}]"}
       }
     },
     "actions": {
@@ -248,6 +248,8 @@
     }
   },
   "$defs": {
+    "picture": {"type": "object", "additionalProperties": false, "required": ["light"], "description": "a picture on a card or a folder tile: where the client reads its light copy in the light and the dark scheme, and its main color in each, shown while it loads",
+      "properties": {"light": {"type": "string"}, "dark": {"type": "string"}, "color": {"type": "string"}, "dark_color": {"type": "string"}}},
     "tone": {"enum": ["ok", "warn", "error", "muted"], "description": "How a value stands: ok, warn, error or muted."},
     "action": {
       "type": "object",
@@ -273,7 +275,7 @@
         "options": {"type": "array", "items": {"type": "string"}, "description": "Values the owner picks the input from."},
         "labels": {"type": "array", "items": {"type": "string"}, "description": "Each option in the owner's language, when one differs from its value."},
         "pick": {"type": "string", "description": "The table column with the same pick draws the button as a picker of its options in the cell."},
-        "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic."},
+        "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it."},
         "download": {"type": "boolean", "description": "With a command, the result names a stored file (file), which the client downloads."},
         "undo": {"$ref": "#/$defs/action", "description": "The call that takes this one back; the client offers it for a moment after the call went through."}
       }
@@ -332,7 +334,7 @@
             "id": {"type": "string"}, "title": {"type": "string"}, "status": {"type": "string"}, "text": {"type": "string"}}}},
           "stop": {"$ref": "#/$defs/action"}, "open": {"$ref": "#/$defs/action"}}},
         "send": {"$ref": "#/$defs/action"}, "archive": {"$ref": "#/$defs/action"}, "delete": {"$ref": "#/$defs/action"},
-        "models": {"type": "array", "items": {"type": "string"}, "description": "the models the master's replies may go on"},
+        "models": {"type": "array", "items": {"type": "string"}, "description": "the models the master's replies may go on"}, "prices": {"type": "object", "additionalProperties": {"type": "string"}, "description": "the price of each model in words, such as subscription or free"},
         "model": {"type": "string", "description": "the master's own model, which a topic without one takes"},
         "choose": {"$ref": "#/$defs/action"},
         "suggest": {"type": "array", "description": "of a topic without messages: commands of the module of the owner's screen, as texts to put in the field", "items": {"type": "object", "additionalProperties": false, "required": ["icon", "text"], "properties": {
@@ -366,7 +368,7 @@
         "tone": {"$ref": "#/$defs/tone"},
         "filters": {"type": "array", "description": "Choices the owner narrows the block by; the client sends the picked ones back to deck.screen.", "items": {
           "type": "object", "required": ["field", "options"], "additionalProperties": false,
-          "properties": {"field": {"type": "string"}, "label": {"type": "string", "description": "the field in the owner's language"}, "value": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}, "labels": {"type": "array", "description": "each option in the owner's language, when one differs", "items": {"type": "string"}}}
+          "properties": {"field": {"type": "string"}, "search": {"type": "boolean", "description": "the words the owner looks for in the fields of search, sent as the value of the field ~"}, "label": {"type": "string", "description": "the field in the owner's language"}, "value": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}, "labels": {"type": "array", "description": "each option in the owner's language, when one differs", "items": {"type": "string"}}}
         }},
         "rows": {"type": "array", "items": {
           "type": "object", "required": ["id", "cells"], "additionalProperties": false,
@@ -382,7 +384,7 @@
           "properties": {
             "id": {}, "title": {"type": "string"}, "lane": {"type": "string", "description": "the value of the board field of the item"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string"},
             "since": {"type": "string", "description": "the time the line counts from, shown as how long ago"},
-            "details": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}, "kind": {"type": "string", "description": "what the item is, said in the head of its card in a focus list"},
+            "details": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}, "kind": {"type": "string", "description": "what the item is, said in the head of its card in a focus list"}, "cover": {"$ref": "#/$defs/picture"},
             "questions": {"type": "array", "items": {
               "type": "object", "required": ["question"],
               "properties": {"question": {"type": "string"}, "multiSelect": {"type": "boolean"},
@@ -397,7 +399,7 @@
         "files": {"type": "array", "items": {
           "type": "object", "required": ["id"], "additionalProperties": false,
           "properties": {"id": {}, "title": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"},
-            "url": {"type": "string", "description": "where the client reads the file, with its token"}, "thumb": {"type": "string", "description": "the light copy of a picture, shown small; the file itself only in a viewer"}, "width": {"type": "integer"}, "height": {"type": "integer"}, "color": {"type": "string", "description": "the main color of the picture, shown while it loads"}, "icon": {"type": "string", "description": "the icon of a line that is no file; its tile presses the primary button"}, "error": {"type": "string"},
+            "url": {"type": "string", "description": "where the client reads the file, with its token"}, "thumb": {"type": "string", "description": "the light copy of a picture, shown small; the file itself only in a viewer"}, "width": {"type": "integer"}, "height": {"type": "integer"}, "color": {"type": "string", "description": "the main color of the picture, shown while it loads"}, "icon": {"type": "string", "description": "the icon of a line that is no file; its tile presses the primary button"}, "meta": {"type": "string", "description": "a short line under the title"}, "cover": {"$ref": "#/$defs/picture"}, "error": {"type": "string"},
             "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
         }},
         "crumbs": {"type": "array", "description": "the steps of the folder a file manager shows, its root first, each with the button that opens it", "items": {

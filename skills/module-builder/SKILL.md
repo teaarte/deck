@@ -223,7 +223,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "rate", "params": {"id": "=_id"}}]}` — `where` and `bind` are expressions over record fields (`_id` is the id
   of the record, `record.<field>` the record of a record page),
   `sort` is a field with `-` for descending, `limit` is a page (the owner asks for the next one), `filter` lists
-  fields the owner narrows by; the blocks of a dialog are read only once it opens, so a long history goes there. Put the columns in the order
+  fields the owner narrows by, `search` the fields the words the owner types are looked for in (`"search": ["title",
+  "author"]`, each word in one of them); the blocks of a dialog are read only once it opens, so a long history goes there. Put the columns in the order
   that matters: a line shows the first four (two on a phone) and the rest open in the row under it; a status is a
   `tag` column whose `details` (why it failed) is the hint of its badge, not a column of its own. A column, a `card`
   field and a `stat` take `format`, and the client shows the raw value in the owner's locale and time zone:
@@ -252,7 +253,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "media", "source": {"collection": "scans"}, "item": {"file": "file", "title": "name"}}`, where `file` is the
   id of a stored file of the project (a result file of its run, an attachment of its record; a result names the
   files it kept by that id, in `files[].file` and in place of a `file` field), its digits, or a path in its data
-  folder (`"charts/today.png"`); a name is not a file; a picture is a thumbnail, a PDF shows in place, a video or a sound plays in
+  folder (`"charts/today.png"`); a name is not a file; `item.meta` is a short line under its title, and `item.cover`
+  a picture on a folder tile or a `list` card (a file as `file` names it), shown by its light copy; a picture is a thumbnail, a PDF shows in place, a video or a sound plays in
   the browser's own player, anything else is a name with a download. A player with marks is a `custom` block
   (MCP Apps) reading the file via `resources/read` of `deck://data/<path>`; its buttons send the second and a note
   to a command of the module.
@@ -265,8 +267,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   it back, `"undo": {"command": "unrate", "params": {"id": "=_id"}}`, offered for a moment after it went
   through. A row of the module's own collection or its record page may carry the one deck command a button calls,
   `{"label": "Delete", "command": "deck.record_delete"}`, with no other params and no undo: the owner deletes that
-  record with what belongs to it, always seeing the list first (not on a `custom` block). `{"label": "New task", "chat": true}` alone opens the master's chat beside the screen in a new
-  topic, ready for the owner's voice; a link with `?chat=new` does the same. A list of stages is a board:
+  record with what belongs to it, always seeing the list first (not on a `custom` block). No button only opens the
+  chat: the button of Deki is on every screen and opens the chat with that screen and record in its context, so
+  `{"chat": true}` alone is refused on save; `chat` with a command opens the topic its result names. A list of stages is a board:
   `"board": "status"` on a `list` of the module's collection lays its items in a lane for each value of that enum
   field, and dragging a card to a lane presses its button whose `input` is `status` — a command of the module that
   takes the record id and `status` (a small script setting the field), `{"label": "Move", "command": "move",
@@ -497,7 +500,7 @@ without one. A connection of another API, such as Google's own, is reached only 
 
 Anything else — editing a picture by a sample (`images/edits`, a form), a service with its own API (fal,
 Replicate, ElevenLabs, Google Veo's own API) — is a script that calls the API through `$DECK_MODELS`, so the key stays with
-deck and the call is in its journal. The owner adds the service as a connection (Settings → Connections: `raw` for a
+deck and the call is in its journal. The owner adds the service as a connection (Settings → Models → Connections: `raw` for a
 service with its own paths, such as Veo's long jobs, fal or Replicate; `google` only for `models/<m>:generateContent`)
 and a model with its price per call; the manifest
 names the connection in `models`, and the request names the model. One call, the answer a file:
@@ -612,13 +615,19 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    in step. Send only what changes: for the manifest and for a document `old` (parts of the current text, each
    found exactly once) and `new` (what replaces each); the whole text only for a new one or a rewrite. The answer of `manifest_save`
    lists in `screens` each block that fails on the records there are now (a column that breaks on a record
-   without a field, a missing custom document): fix them before the owner opens the screen.
+   without a field, a missing custom document): fix them before the owner opens the screen. `manifest_check`
+   runs the same checks and saves nothing: what a save refuses, its warnings, what it widens and whether that
+   waits for the owner, `screens`, `untranslated`; of a project with the whole text or `old`/`new`, or of a
+   manifest alone (an old `.zip`). Check before you save, and fix a module from a `.zip` before its import.
+   `project_needs` is what the module needs to work, which deck counts from the manifest: rights that enabling
+   grants, secrets and whether they are set, programs its scripts miss, roles without a model and work no model
+   takes; a connection it names that deck lacks is `optional`. Build on it, not on your own list: tell the owner
+   what is not `done`, and hand over a module whose needs are only rights.
 3. `command_try` runs a command as a trial: everything that is not internal is declined, and a call of an HTTP
    or MCP tool waits for the owner's yes on that one call; the commands that run `after` it are tried too,
    unless `only` asks for this command alone. Try in a draft. Until the owner enables a draft it
    has none of the rights its manifest asks for: its tools ask the owner on every call, its scripts reach only
-   package registries, its `domains` do nothing; its `reads` work for reading only (a project with
-   `no_network` stays closed to a trial). To try a change of an enabled module (a new command, one that waits for the owner's
+   package registries, its `domains` do nothing, and it reads no other project: its `reads` come with "enable". To try a change of an enabled module (a new command, one that waits for the owner's
    button), import its folder as a draft copy under another name, try there, then save the change to the
    module and tell the owner the copy can be deleted: a trial in the enabled module itself writes real
    records beside its own runs, so it takes `live` and is refused while a real run of the command
@@ -660,7 +669,10 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 
 ## 9. Rights
 
-Ask only for what the module needs. `allowed_external`, domains, secrets, `models`, milder classes
+Ask only for what the module needs. A module asks for roles (`@text`, `@image`, `@tts`, `@stt`) for its own work,
+not for the owner's connections or model names: another owner has their own, and a module that moves works on their
+assignments. A connection it names (a source whose models it tries) is optional; a model named in `provider` is a
+suggestion. `allowed_external`, domains, secrets, `models`, milder classes
 of tools, `reads` of other projects, `writes` of its own documents and removing `no_network` are rights: in a draft they are part of what the owner enables; in an
 enabled project a change that widens them waits for the owner's button, with only what it widens; check
 `projects_list` first, since a project you were told is a draft may be enabled. Go on with other changes

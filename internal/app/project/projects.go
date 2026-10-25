@@ -4,6 +4,7 @@ import (
 	"context"
 	"deck2/internal/app/folders"
 	"deck2/internal/docs"
+	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -38,6 +39,8 @@ type projectView struct {
 	// Icon and Title are the icon and the name the owner sees that its manifest gives; Title is the name without one.
 	Icon  string `json:"icon,omitempty"`
 	Title string `json:"title"`
+	// Cover is the picture of its card in the theme in use.
+	Cover *files.Cover `json:"cover,omitempty"`
 	// Meta is one line of its state, folders and what enabling a draft grants, in the language asked for.
 	Meta string `json:"meta"`
 }
@@ -56,9 +59,13 @@ func (pj *Service) projectsList(ctx context.Context, act registry.Actor, in proj
 		ps = slices.DeleteFunc(ps, func(p db.Project) bool { return p.Name != in.Project })
 	}
 	ms, failed := docs.All(ctx, pj.St.Q, ps)
+	pics, _ := pj.St.Q.ListWorkspacePictures(ctx, db.ListWorkspacePicturesParams{WorkspaceID: act.Workspace, Slot: files.CoverSlot})
+	theme := pj.Theme(ctx, act.Workspace)
 	out := make([]projectView, 0, len(ps))
 	for _, p := range ps {
-		out = append(out, pj.viewProject(ctx, p, ms[p.ID], failed[p.ID], in.Lang))
+		v := pj.viewProject(ctx, p, ms[p.ID], failed[p.ID], in.Lang)
+		v.Cover = files.CoverOf(pics, p.ID, theme)
+		out = append(out, v)
 	}
 	return out, nil
 }
@@ -150,7 +157,7 @@ func (pj *Service) projectsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("projects_list", "List projects",
 			"Lists projects with their description (the first line of the md prompt), screens, folders and what enabling a draft grants.",
-			registry.OwnerSide, pj.projectsList).On("projects", "folders", "documents", "files"),
+			registry.OwnerSide, pj.projectsList).On("projects", "folders", "documents", "files", "settings"),
 		registry.Def("project_create", "Create project",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it is empty.",
 			registry.OwnerSide, pj.projectCreate),

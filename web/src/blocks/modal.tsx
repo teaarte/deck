@@ -5,6 +5,7 @@ import s from './blocks.module.css';
 import { DialogClose } from '../screen/dialogContext';
 import { dropParam, setParam, useRoute } from '../app/router';
 import { NamedIcon } from '../ui/NamedIcon';
+import { Around } from './around';
 
 // modal is a dialog: its trigger, a button of a text, opens its content in a window; the open one is in the address
 // by the name of its content.
@@ -20,12 +21,12 @@ export const modal = createComponentImplementation(ModalApi, ({ props, buildChil
   const close = () => dropParam('dialog');
   return (
     <>
-      <Button variant={trigger.variant === 'primary' ? 'filled' : 'default'} radius="xl" data-dialog-open={name} onClick={() => setParam('dialog', name)}
+      <Button variant={trigger.variant === 'primary' ? 'filled' : 'default'} data-dialog-open={name} onClick={() => setParam('dialog', name)}
         leftSection={icon ? <NamedIcon name={icon} fallback={title} size={16} /> : undefined}>{title}</Button>
-      <Modal opened={open} onClose={close} size="lg" radius="lg" data-dialog={name} className={s.dialog}
+      <Modal opened={open} onClose={close} size="lg" data-dialog={name} className={s.dialog} classNames={{ content: s.dialogWindow }}
         title={<Group gap={8}>{icon && <NamedIcon name={icon} fallback={title} size={20} />}<Text fw={700} size="lg">{title}</Text></Group>}>
         <DialogClose.Provider value={close}>
-          {open && <Stack gap="md">{buildChild(props.content)}</Stack>}
+          {open && <Around.Provider value={title}><Stack gap="md">{buildChild(props.content)}</Stack></Around.Provider>}
         </DialogClose.Provider>
       </Modal>
     </>

@@ -10,7 +10,6 @@ import (
 	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
 	"sync"
@@ -125,12 +124,8 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 		}
 		ws := words(in.Lang, m)
 		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name]}
-		own := slices.DeleteFunc(slices.Clone(pics), func(x db.Picture) bool { return x.ProjectID != p.ID })
-		if x := files.Pick(own, theme, "light"); x != nil {
-			e.Cover, e.CoverColor = fmt.Sprintf("/api/files/%d", files.Shown(*x)), x.Color
-		}
-		if x := files.Pick(own, theme, "dark"); x != nil {
-			e.CoverDark, e.CoverDarkColor = fmt.Sprintf("/api/files/%d", files.Shown(*x)), x.Color
+		if c := files.CoverOf(pics, p.ID, theme); c != nil {
+			e.Cover, e.CoverColor, e.CoverDark, e.CoverDarkColor = c.Light, c.Color, c.Dark, c.DarkColor
 		}
 		e.Doing, e.Next = doing(p, m, ws, open, triggers)
 		e.Title, e.Icon, e.Screens = manifest.Nav(p.Name, m, ws)
@@ -257,7 +252,7 @@ func (ss *Service) menuOrderSet(ctx context.Context, act registry.Actor, in menu
 }
 
 // foot are the groups at the foot of the menu: deck's work, the master's screens but its documents, which are a
-// tab of Files, and deck's settings; an empty group is left out.
+// folder of Files, and deck's settings; an empty group is left out.
 func (ss *Service) foot(m menuOut, lang string) []menuGroup {
 	work := menuGroup{Key: "work", Title: manifest.Tr(Phrases(lang), "Work")}
 	settings := menuGroup{Key: "settings"}

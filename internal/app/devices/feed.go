@@ -42,7 +42,7 @@ func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Acto
 
 type feedListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; every project without one"`
-	Kind    string `opt:"" enum:"note|change" desc:"Only notes written with notify, or only changes made without the owner"`
+	Kind    string `opt:"" enum:"note|change|failure" desc:"Only notes written with notify, only changes made without the owner, or only the open failures"`
 	Limit   int64  `opt:"" desc:"At most this many, newest first"`
 	Unread  bool   `opt:"" desc:"Only the notes the owner has not marked read"`
 	Lang    string `opt:"" desc:"Language of the sentences of deck, such as ru; English without one"`
@@ -86,6 +86,14 @@ type feedRow struct {
 	ErrorType string `json:"error_type,omitempty"`
 	Retry     bool   `json:"retry,omitempty"`
 	Check     string `json:"check,omitempty"`
+	// A failing check gives what its buttons need: whether it checks itself again, the model of its work with the
+	// models that could do it, and the trigger of its command.
+	SelfCheck bool     `json:"self_check,omitempty"`
+	Role      string   `json:"role,omitempty"`
+	Command   string   `json:"command,omitempty"`
+	Model     string   `json:"model,omitempty"`
+	Choices   []string `json:"choices,omitempty"`
+	Trigger   int64    `json:"trigger,omitempty"`
 }
 
 // FeedFailure is the kind of a failure among the lines of the feed.
@@ -130,6 +138,11 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 	pid, err := access.Filter(ctx, dv.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
+	}
+	if in.Kind == FeedFailure {
+		fails, err := dv.failures(ctx, act, in)
+		slices.SortStableFunc(fails, func(a, b feedRow) int { return strings.Compare(b.CreatedAt, a.CreatedAt) })
+		return append([]feedRow{}, fails...), err
 	}
 	unread := int64(0)
 	if in.Unread {
@@ -206,14 +219,21 @@ func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedList
 		return nil, err
 	}
 	var checks []struct {
-		Subject   string `json:"subject"`
-		Project   string `json:"project"`
-		Status    string `json:"status"`
-		Error     string `json:"error"`
-		UpdatedAt string `json:"updated_at"`
-		Seen      bool   `json:"seen"`
+		Subject   string   `json:"subject"`
+		Kind      string   `json:"kind"`
+		Project   string   `json:"project"`
+		Status    string   `json:"status"`
+		Error     string   `json:"error"`
+		UpdatedAt string   `json:"updated_at"`
+		Seen      bool     `json:"seen"`
+		SelfCheck bool     `json:"self_check"`
+		Role      string   `json:"role"`
+		Command   string   `json:"command"`
+		Model     string   `json:"model"`
+		Choices   []string `json:"choices"`
+		Trigger   int64    `json:"trigger"`
 	}
-	if err := dv.read(ctx, act, "health_list", map[string]any{"project": in.Project}, &checks); err != nil {
+	if err := dv.read(ctx, act, "health_list", map[string]any{"project": in.Project, "lang": in.Lang}, &checks); err != nil {
 		return nil, err
 	}
 	var out []feedRow
@@ -234,11 +254,30 @@ func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedList
 		h := fnv.New32a()
 		h.Write([]byte(c.Project + "\x00" + c.Subject))
 		out = append(out, feedRow{ID: -(int64(1)<<40 + int64(h.Sum32())), Kind: FeedFailure, Project: c.Project, Author: "deck",
-			Text: manifest.TrText(ws, fmt.Sprintf("The check %s fails", c.Subject)), Buttons: []Button{}, CreatedAt: c.UpdatedAt,
-			Error: c.Error, Check: c.Subject, DeckScreen: true,
+			Text: manifest.TrText(ws, failingCheck(c.Kind, c.Subject)), Buttons: []Button{}, CreatedAt: c.UpdatedAt,
+			Error: c.Error, Check: c.Subject, DeckScreen: true, SelfCheck: c.SelfCheck, Role: c.Role, Command: c.Command,
+			Model: c.Model, Choices: c.Choices, Trigger: c.Trigger,
 			Open: map[string]any{"verb": "open", "screen": "settings", "params": map[string]any{"tab": "Health"}}})
 	}
 	return out, nil
+}
+
+// failingCheck says what a failing check means for the owner by its kind, naming what it checks.
+func failingCheck(kind, subject string) string {
+	_, name, _ := strings.Cut(subject, ":")
+	switch kind {
+	case "provider", "model":
+		return fmt.Sprintf("The model %s does not answer", name)
+	case "agent":
+		return fmt.Sprintf("The agent %s does not work", name)
+	case "command":
+		return fmt.Sprintf("%s cannot run", name)
+	case "trigger":
+		return fmt.Sprintf("The schedule of %s did not start", name)
+	case "secret":
+		return fmt.Sprintf("The secret %s is not set", name)
+	}
+	return fmt.Sprintf("The check %s fails", subject)
 }
 
 // read calls a read of deck as the caller and takes its rows.

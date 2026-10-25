@@ -21,6 +21,9 @@ const RecordDelete = "deck.record_delete"
 // RecordParts lists what RecordDelete takes, before the owner says yes.
 const RecordParts = "deck.record_parts"
 
+// SearchKey is the key of the words the owner looks for among the filters a block's search sends.
+const SearchKey = "~"
+
 // DeckRecord is the record of a page among the screens deck ships: a process; DocumentRecord is a document
 // of the project a screen deck ships for every project shows.
 const (
@@ -133,6 +136,9 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s tab %q: duplicate; the tabs of a screen have their own titles, the names of the address", where, t.Title)
 		}
 		c.tabs[t.Title] = true
+		if t.Count != "" && !c.deck {
+			c.fail("%s tab %q count: a count of deck, only on deck's own screens", where, t.Title)
+		}
 	}
 	var fields []string
 	switch b.Type {
@@ -243,13 +249,16 @@ func (c *screenCheck) block(where string, b Block) {
 		if b.Item != nil {
 			for _, p := range []struct{ name, e string }{{"title", b.Item.Title}, {"text", b.Item.Text}, {"meta", b.Item.Meta},
 				{"since", b.Item.Since}, {"icon", b.Item.Icon}, {"details", b.Item.Details}, {"questions", b.Item.Questions},
-				{"tone", b.Item.Tone}, {"file", b.Item.File}} {
+				{"tone", b.Item.Tone}, {"file", b.Item.File}, {"kind", b.Item.Kind}, {"cover", b.Item.Cover}, {"actions", b.Item.Actions}} {
 				if _, err := compileField(p.e, fields); p.e != "" && err != nil {
 					c.fail("%s item %s: %v", where, p.name, err)
 				}
 			}
 			if b.Type == "media" && b.Item.File == "" && b.Item.Icon == "" {
 				c.fail("%s item: a media line needs file, or icon for a line that is no file", where)
+			}
+			if b.Item.Actions != "" && !c.deck {
+				c.fail("%s item actions: the buttons a read of deck gives its items are only on deck's own screens; a module names its buttons in actions", where)
 			}
 		}
 		if b.Value != "" {
@@ -283,7 +292,7 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail(`%s board: a board moves an item by its button with input %q; add {"label": "Move", "command": "<command>", "params": {"id": "=_id"}, "input": %q}`, where, b.Board, b.Board)
 		}
 	}
-	for _, f := range b.Filter {
+	for _, f := range append(slices.Clone(b.Filter), b.Search...) {
 		if fields != nil && !slices.Contains(fields, f) {
 			c.fail("%s filter: unknown field %q; the fields are %s", where, f, strings.Join(slices.Sorted(slices.Values(fields)), ", "))
 		}
@@ -295,11 +304,13 @@ func (c *screenCheck) block(where string, b Block) {
 		if err := c.action(b, a, fields); err != nil {
 			c.fail("%s/actions/%d %q: %v", where, i, cmp.Or(a.Label, a.Verb), err)
 		}
+		c.chatOnly(fmt.Sprintf("%s/actions/%d", where, i), a)
 	}
 	for i, a := range b.Head {
 		if err := c.action(b, a, []string{"rows"}); err != nil {
 			c.fail("%s/head/%d %q: %v", where, i, cmp.Or(a.Label, a.Verb), err)
 		}
+		c.chatOnly(fmt.Sprintf("%s/head/%d", where, i), a)
 	}
 }
 
@@ -343,4 +354,11 @@ func btoi(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// chatOnly warns of a button that only opens the chat, which the button of Deki does on every screen.
+func (c *screenCheck) chatOnly(where string, a Action) {
+	if a.Chat && a.Command == "" && a.Screen == "" {
+		c.warn("%s %q: a button that only opens the chat repeats the button of Deki, which opens it with this screen in its context; remove it", where, cmp.Or(a.Label, a.Verb))
+	}
 }

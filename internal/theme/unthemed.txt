@@ -1,15 +1,3 @@
 # Files of the client with values a theme cannot change: <count> <file> <why it waits>. The list only goes down;
 # a session that rewrites a file takes its values from the theme and lowers or drops its line.
 1 web/src/blocks/custom/Custom.tsx blocks of screens: session D8
-1 web/src/blocks/media/Crumbs.tsx blocks of screens: session D8
-1 web/src/blocks/media/Picture.tsx blocks of screens: session D8
-1 web/src/blocks/media/Place.tsx blocks of screens: session D8
-1 web/src/blocks/media/TypeIcon.tsx blocks of screens: session D8
-1 web/src/blocks/media/Viewer.tsx blocks of screens: session D8
-2 web/src/blocks/modal.tsx blocks of screens: session D8
-7 web/src/blocks/stat.module.css blocks of screens: session D8
-2 web/src/blocks/table/DataTable.tsx blocks of screens: session D8
-3 web/src/ui/actions/ActionsMenu.tsx buttons of blocks: session D8
-1 web/src/ui/actions/Failed.tsx buttons of blocks: session D8
-9 web/src/ui/chip.module.css parts of blocks: session D8
-2 web/src/ui/details.module.css parts of blocks: session D8

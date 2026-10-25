@@ -5,7 +5,7 @@ import { IconAlertTriangle } from '@tabler/icons-react';
 // Failed holds why the press of a button failed under the button, until a click elsewhere or the next press.
 export function Failed({ error, onClose, children }: { error: string; onClose: () => void; children: ReactNode }) {
   return (
-    <Popover opened={!!error} onClose={onClose} position="bottom-start" withArrow shadow="md" radius="md" withinPortal>
+    <Popover opened={!!error} onClose={onClose} position="bottom-start" withArrow shadow="md" withinPortal>
       <Popover.Target>{children}</Popover.Target>
       <Popover.Dropdown p="xs" maw={360} data-failed-press>
         <Group gap={6} wrap="nowrap" align="flex-start">

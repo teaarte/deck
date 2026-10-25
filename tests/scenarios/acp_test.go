@@ -403,7 +403,7 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 			if i := slices.IndexFunc(pl.Models, func(p struct{ Agent, Verdict string }) bool { return p.Agent == "goose" }); i < 0 || pl.Models[i].Verdict != verdict {
 				t.Fatalf("the models list shows the agent and the verdict %q: %+v", verdict, pl.Models)
 			}
-			for _, r := range blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"]) {
+			for _, r := range blockData[[]screenRow](t, e.settingsBlock("All models", nil)["rows"]) {
 				if r.Cells[0] == "acp" && !hasVerb(r.Actions, "check") {
 					t.Fatalf("a provider with a self-check can run it again: %+v", r.Actions)
 				}

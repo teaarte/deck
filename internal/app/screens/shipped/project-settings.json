@@ -100,12 +100,12 @@
               {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
               {"verb": "check", "command": "deck.programs_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}
             ]},
-          {"type": "table", "title": "Failed runs", "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(last_tone ?? '') == 'error'", "sort": "command"},
+          {"type": "table", "title": "Failed runs", "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(failure ?? '') != ''", "sort": "command"},
             "description": "What runs by itself and failed its last run; change its model and run it again.",
             "columns": [
-              {"label": "Command", "bind": "command"},
+              {"label": "Command", "bind": "title"},
               {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-              {"label": "Last result", "bind": "last_word ?? ''", "format": "tag", "tone": "last_tone ?? ''"}
+              {"label": "Last result", "bind": "last_word ?? ''", "format": "tag", "tone": "last_tone ?? ''", "details": "failure"}
             ],
             "actions": [
               {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
@@ -113,7 +113,6 @@
               {"verb": "open", "screen": "process", "project": "", "record": "=last_process", "when": "last_process != 0"}
             ]}
       ]},
-      {"title": "Files", "icon": "files", "blocks": [{"type": "media", "title": "Files", "span": "full", "source": {"from": "deck.files_list", "sort": "-created_at"}, "description": "What the module made and keeps: pictures, video, sound, documents of its runs and records.", "empty": "The module has no files yet", "item": {"file": "id", "title": "name"}, "actions": [{"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"}, "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}]}]},
       {"title": "Advanced", "icon": "adjustments", "blocks": [
           {"type": "table", "title": "Model calls", "when": "len(rows) > 0", "source": {"from": "deck.spend_list", "sort": "-last_at"},
             "description": "Which model each command called, how often and what it cost.",

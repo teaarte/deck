@@ -57,6 +57,8 @@ type Service struct {
 	Words func(lang string) map[string]string
 	// Secret reports whether a secret of a workspace is set.
 	Secret func(workspace int64, name string) bool
+	// Theme is the theme a workspace wears.
+	Theme func(ctx context.Context, workspace int64) string
 
 	// preparedCmds are the registry commands of each manifest revision.
 	preparedMu   sync.Mutex

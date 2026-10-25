@@ -13,7 +13,6 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/master"
 )
@@ -125,18 +124,9 @@ func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Projec
 	if p.Builtin == 1 || strings.HasPrefix(document, docs.MemoryDir) {
 		return registry.Refuse("deck: the memory of a project and project %s are for its own agents and the master only", master.Name)
 	}
-	collections, documents, listed, trial, err := reads(ctx, q, act, p.Name)
+	collections, documents, listed, err := reads(ctx, q, act, p.Name)
 	if err != nil {
 		return err
-	}
-	if listed && trial {
-		m, err := docs.For(ctx, q, registry.Actor{}, p.ID)
-		if err != nil {
-			return err
-		}
-		if m.NoNetwork {
-			return registry.Refuse("deck: a trial of a draft does not read project %s: it has no_network; enable the draft to read it", p.Name)
-		}
 	}
 	switch {
 	case !listed:
@@ -154,24 +144,19 @@ func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Projec
 	return registry.Refuse("deck: this project does not read %s; reads in its manifest lists what it may read, and it never writes to another project", what)
 }
 
-// reads is the reads entry of the actor's project manifest for another project; listed is false without one. A
-// trial of a draft reads by its current manifest, and trial says so.
-func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string) (collections, documents []string, listed, trial bool, err error) {
-	own, err := q.GetProject(ctx, act.ProjectID)
+// reads is the reads entry of the manifest in force of the actor's project for another project; listed is false
+// without one.
+func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string) (collections, documents []string, listed bool, err error) {
+	m, err := docs.For(ctx, q, act, act.ProjectID)
 	if err != nil {
-		return nil, nil, false, false, err
+		return nil, nil, false, err
 	}
-	m, err := docs.For(ctx, q, act, own.ID)
-	if err != nil {
-		return nil, nil, false, false, err
-	}
-	trial = act.Trial && own.Status == store.ProjectDraft
 	for _, r := range m.Reads {
 		if r.Project == other && r.Data() {
-			return r.Collections, r.Documents, true, trial, nil
+			return r.Collections, r.Documents, true, nil
 		}
 	}
-	return nil, nil, false, false, nil
+	return nil, nil, false, nil
 }
 
 // ReadModels resolves a project whose models' work a call reads, the caller's own when the name is empty: a confined

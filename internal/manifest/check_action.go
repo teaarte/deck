@@ -82,13 +82,13 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	}
 	switch n := btoi(a.Command != "") + btoi(a.Screen != ""); {
 	case a.Chat && (a.Screen != "" || n == 0 && len(a.Params) > 0):
-		return errors.New("chat opens the chat of the master in a new topic, alone, or in the topic its command made")
+		return errors.New("chat opens the topic its command made; a screen opens without it")
 	case n == 0 && a.Chat:
 		return nil
 	case a.Download && a.Command == "":
 		return errors.New("download takes the file the result of a command names; the button calls a command")
 	case n != 1:
-		return errors.New("a button has a command or a screen, or chat alone")
+		return errors.New("a button has a command or a screen")
 	case a.Command != "" && c.deck:
 		if !strings.HasPrefix(a.Command, "deck.") {
 			return errors.New("a button of a deck screen calls a deck command")

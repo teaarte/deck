@@ -8,7 +8,7 @@ import { entryOf, MenuContext, useMenu } from '../hooks/useMenu';
 import { usePhone } from '../hooks/usePhone';
 import { setLanguage } from '../lib/i18n';
 import { Apps } from '../apps/Apps';
-import { preload } from '../apps/covers';
+import { preload } from '../lib/covers';
 import { ScreenLead } from '../screen/lead';
 import { ScreenView } from '../screen/ScreenView';
 import { PressAsks } from '../ui/actions/PressAsks';
@@ -63,8 +63,9 @@ export function Shell() {
   const toggle = () => { moveFocus(chat ? '[data-chat-toggle]' : '[data-chat-close]'); setChat(!chat); };
   const side = !phone && chat;
   const heading = apps ? t('nav.deck') : route.project ? entry?.title : undefined;
-  const lead = route.project && entry && !route.record ? { under: <ModuleLead entry={entry} /> }
-    : !route.project && route.screen === 'cockpit' ? { beside: <TodayDate />, under: <TodayLine /> } : {};
+  const place = route.record ? undefined : screen;
+  const lead = route.project && entry && !route.record ? { under: <ModuleLead entry={entry} />, place }
+    : !route.project && route.screen === 'cockpit' ? { beside: <TodayDate />, under: <TodayLine />, place } : { place };
   return (
     <MenuContext.Provider value={menu}>
       <Backdrop />

@@ -3,6 +3,7 @@ package scenarios
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -104,20 +105,39 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 	}
 }
 
-// TestAButtonOpensTheChatOfTheMaster: a button with chat and nothing else opens the chat panel in a new topic; it calls
-// no command.
+// TestAButtonOpensTheChatOfTheMaster: a button with chat and a command opens the topic its command made; one with chat
+// alone repeats the button of Deki, a warning on read and refused on save, and a chat button opens no screen.
 func TestAButtonOpensTheChatOfTheMaster(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	m := strings.Replace(boardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "New task", "chat": true}, {"label": "Move"`, 1)
-	e.createProject("work", m)
+	m := strings.Replace(boardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "Talk it over", "command": "move", "params": {"id": "=_id"}, "chat": true}, {"label": "Move"`, 1)
+	pid := e.createProject("work", m)
 	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	raw, _ := json.Marshal(e.screenData("work", "board", nil))
-	if !strings.Contains(string(raw), `{"chat":true,"label":"New task"}`) {
-		t.Fatalf("the chat button is drawn with chat alone: %s", raw)
+	if !strings.Contains(string(raw), `"chat":true`) || !strings.Contains(string(raw), `"label":"Talk it over"`) {
+		t.Fatalf("a chat button with a command is drawn with chat: %s", raw)
+	}
+	alone := strings.Replace(boardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "New task", "chat": true}, {"label": "Move"`, 1)
+	for _, cmd := range []string{"deck.manifest_save", "deck.project_create"} {
+		in := map[string]any{"project": "work", "manifest": alone}
+		if cmd == "deck.project_create" {
+			in = map[string]any{"name": "other", "manifest": alone}
+		}
+		if code, out := e.call(cmd, in); code != 422 || !strings.Contains(string(out), "repeats the button of Deki") {
+			t.Fatalf("%s refuses a button that only opens the chat: %d %s", cmd, code, out)
+		}
+	}
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = ?
+		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, alone, pid); err != nil {
+		t.Fatal(err)
+	}
+	var read struct{ Warnings []string }
+	e.must("deck.manifest_get", map[string]any{"project": "work"}, &read)
+	if !slices.ContainsFunc(read.Warnings, func(w string) bool { return strings.Contains(w, "repeats the button of Deki") }) {
+		t.Fatalf("a stored button that only opens the chat is a warning on read: %v", read.Warnings)
 	}
 	if code, out := e.call("deck.manifest_save", map[string]any{"project": "work", "manifest": strings.Replace(m, `"chat": true}`, `"chat": true, "screen": "board"}`, 1)}); code != 422 || !strings.Contains(string(out), "chat") {
-		t.Fatalf("a chat button opens the chat and nothing else: %d %s", code, out)
+		t.Fatalf("a chat button opens no screen: %d %s", code, out)
 	}
 }
 

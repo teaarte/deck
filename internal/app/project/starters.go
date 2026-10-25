@@ -110,6 +110,8 @@ type needRow struct {
 	What   string `json:"what"`
 	Detail string `json:"detail"`
 	Done   bool   `json:"done"`
+	// Optional is a connection or a model it can call besides its roles, which it works without.
+	Optional bool `json:"optional,omitempty"`
 }
 
 // projectNeeds sums up what a module needs to work: the rights enabling grants, the secrets it names, the programs
@@ -166,7 +168,8 @@ func (pj *Service) startersCommands() []*registry.Command {
 	}
 }
 
-// missingModels are the connections, models and @roles a module calls models through that deck lacks.
+// missingModels are the connections, models and @roles a module calls models through that deck lacks: a role it needs,
+// a connection or a model it works without, as another owner has their own.
 func (pj *Service) missingModels(ctx context.Context, workspace int64, m *manifest.Manifest, ws map[string]string) []needRow {
 	have := map[string]bool{}
 	if cs, err := pj.St.Q.ListConnections(ctx, workspace); err == nil {
@@ -192,10 +195,10 @@ func (pj *Service) missingModels(ctx context.Context, workspace int64, m *manife
 		case strings.HasPrefix(u, "@"):
 			out = append(out, needRow{Kind: "model", What: u, Detail: manifest.Tr(ws, "Assign a model to the role in Settings → Models.")})
 		default:
-			out = append(out, needRow{Kind: "model", What: u, Detail: fmt.Sprintf(cmp.Or(ws[addConnection], addConnection), conn)})
+			out = append(out, needRow{Kind: "model", What: u, Detail: fmt.Sprintf(cmp.Or(ws[addConnection], addConnection), conn), Optional: true})
 		}
 	}
 	return out
 }
 
-const addConnection = "Add the connection %s in Settings → Models → Connections, or a model of that name."
+const addConnection = "Optional: add the connection %s in Settings → Models → Connections, or a model of that name, and it calls its models too."

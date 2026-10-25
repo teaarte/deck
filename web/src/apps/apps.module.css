@@ -162,51 +162,6 @@
   gap: 4px;
 }
 
-.add {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: var(--mantine-spacing-sm);
-  min-height: var(--deck-tile-height);
-  padding: var(--mantine-spacing-md);
-  border: 2px dashed var(--mantine-color-default-border);
-  border-radius: var(--deck-block-radius);
-  color: var(--mantine-color-text);
-  text-decoration: none;
-  background: color-mix(in srgb, var(--deck-island-bg) 50%, transparent);
-}
-
-.add:hover {
-  border-color: var(--mantine-primary-color-filled);
-}
-
-.add:focus-visible {
-  outline: 3px solid var(--mantine-primary-color-filled);
-  outline-offset: 3px;
-}
-
-.addIcon {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--mantine-radius-default);
-  background: var(--mantine-color-default);
-  box-shadow: inset 0 0 0 1px var(--mantine-color-default-border);
-}
-
-.addWords {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-@media (max-width: 36em) {
-  .add {
-    min-height: calc(var(--deck-tile-height) * 0.8);
-  }
-}
-
 .links {
   display: flex;
   flex-wrap: wrap;

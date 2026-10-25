@@ -37,7 +37,7 @@ function Texty({ it, framed }: { it: Item; framed: boolean }) {
   return (
     <Stack gap={4}>
       {framed
-        ? <iframe sandbox="" srcDoc={got.text} title={it.title || it.name} style={{ width: '100%', height: '70vh', border: 0, background: '#fff' }} data-media="frame" />
+        ? <iframe sandbox="" srcDoc={got.text} title={it.title || it.name} style={{ width: '100%', height: '70vh', border: 0, background: 'var(--mantine-color-white)' }} data-media="frame" />
         : <Code block style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '70vh', overflow: 'auto' }} data-media="text">{got.text}</Code>}
       {got.cut && <Text size="xs" c="dimmed">{t('files.cut')}</Text>}
     </Stack>

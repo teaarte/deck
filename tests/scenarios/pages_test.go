@@ -43,7 +43,7 @@ func TestATabNotShownIsReadWhenShown(t *testing.T) {
 	all := dataOf(t, e.screenMessages("", "spend", nil))
 	whole := e.screenData("", "spend", nil)
 	for id := range whole {
-		if strings.HasPrefix(id, "b4-") {
+		if strings.HasPrefix(id, "b2-") {
 			tabs++
 		}
 	}

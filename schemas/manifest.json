@@ -259,6 +259,8 @@
       }
     },
     "filter": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Fields of an item the owner narrows the block by."},
+    "search": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "minItems": 1, "description": "Fields of an item the words the owner types in the search of the block are looked for in, each word in one of them."},
+    "cover": {"type": "string", "description": "Expression giving a picture on a card or a folder tile: a stored file id, a path in the data folder, or a cover as deck's reads give one ({light, dark, color, dark_color}); the client shows its light copy."},
     "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
     "bind": {
       "type": "object",
@@ -293,7 +295,7 @@
         "until": {"type": "string", "description": "Time after which the button is gone."},
         "input": {"type": "string", "description": "The param the owner types before the call; on a board, the button whose input is the board field moves an item to a lane."},
         "options": {"type": "string", "description": "The values the owner picks the input from: a list."},
-        "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which opens; alone, without command or screen, the button opens the chat of the master beside the screen in a new topic, ready for the owner's voice; the address param chat=new does the same from a link."},
+        "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which opens. Alone, without command or screen, it would only open the chat, which the button of Deki does on every screen with the screen in its context: a save refuses it, a read warns."},
         "download": {"type": "boolean", "description": "With a command, the result names a stored file (file), which the browser downloads, such as an export."},
         "confirm": {"type": "boolean", "description": "The owner says yes before the call."},
         "hold": {"type": "boolean", "description": "The call goes a few seconds after the press, while a note offers to take it back: for an answer the owner may change their mind about."},

@@ -180,7 +180,7 @@ func TestTheListOfProjectsFollowsTheirFolders(t *testing.T) {
 	e.createProject("web", webNotes)
 	dir := t.TempDir()
 	e.must("deck.folder_add", map[string]any{"project": "web", "path": dir}, nil)
-	drawn, _ := json.Marshal(e.screenMessages("", "settings", map[string]any{"topic": "folders", "changed": "web"}))
+	drawn, _ := json.Marshal(e.screenMessages("", "settings", map[string]any{"topic": "folders", "changed": "web", "tab": "Modules"}))
 	if !strings.Contains(string(drawn), filepath.Base(dir)) {
 		t.Fatalf("the list of projects is read again with the new folder: %s", drawn)
 	}

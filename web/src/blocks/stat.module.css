@@ -4,7 +4,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border-radius: 18px;
+  border-radius: var(--deck-block-radius);
 }
 
 .stat[data-opens] {
@@ -29,38 +29,24 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 12px;
+  border-radius: var(--mantine-radius-md);
   color: var(--mantine-color-dimmed);
   background: var(--deck-fill, var(--mantine-color-default-hover));
 }
 
 .stat[data-tone='warn'] .icon {
-  color: var(--mantine-color-coral-6);
-  background: var(--mantine-color-coral-1);
+  color: var(--mantine-color-coral-light-color);
+  background: var(--mantine-color-coral-light);
 }
 
 .stat[data-tone='ok'] .icon {
-  color: #2e9e6b;
-  background: #e7f5ee;
+  color: var(--mantine-color-green-light-color);
+  background: var(--mantine-color-green-light);
 }
 
 .stat[data-tone='error'] .icon {
-  color: var(--mantine-color-red-6);
-  background: var(--mantine-color-red-0);
-}
-
-:global(:root[data-mantine-color-scheme='dark']) .stat {
-  &[data-tone='warn'] .icon {
-    background: rgb(216 90 48 / 0.18);
-  }
-
-  &[data-tone='ok'] .icon {
-    background: rgb(46 158 107 / 0.18);
-  }
-
-  &[data-tone='error'] .icon {
-    background: rgb(232 28 46 / 0.16);
-  }
+  color: var(--mantine-color-red-light-color);
+  background: var(--mantine-color-red-light);
 }
 
 .body {

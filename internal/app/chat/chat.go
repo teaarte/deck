@@ -50,6 +50,8 @@ type Service struct {
 	Fits  func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
 	// Able are the providers that have what a command requires, the models a topic may keep.
 	Able func(ctx context.Context, workspace int64, cmd *manifest.Command) []string
+	// Prices say the price of each model in a language.
+	Prices func(ctx context.Context, workspace int64, lang string) func(model string) string
 	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next start.
 	Go func(func()) bool
 	// Words are deck's phrases in a language.

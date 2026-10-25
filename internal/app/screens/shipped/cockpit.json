@@ -10,22 +10,7 @@
         "icon": "kind == 'question' ? 'message-question' : kind in ['sign_in', 'login'] ? 'key' : kind == 'unknown' ? 'help-triangle' : kind == 'grant' ? 'shield-check' : 'send'",
         "meta": "join(filter([(why ?? '') != '' ? where : '', project, who], # != ''), ' · ')", "since": "created_at", "tone": "expired ? 'muted' : 'warn'",
         "details": "join(filter([by ?? '', command ?? '', kind in ['call', 'unknown', 'confirm', 'grant'] ? toJSON(payload) : ''], # != ''), '\\n')",
-        "questions": "kind == 'question' && len(payload?.questions ?? []) > 0 ? payload.questions : nil"},
-      "actions": [
-        {"verb": "answer", "primary": true, "hold": true, "command": "deck.ask_answer", "params": {"ask": "=id"}, "input": "answer", "when": "kind == 'question' && !expired"},
-        {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "retry"}, "when": "kind == 'unknown' && !expired"},
-        {"verb": "mark_done", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "done"}, "when": "kind == 'unknown' && !expired"},
-        {"label": "=(allow ?? '') != '' ? allow : 'Allow'", "icon": "check", "primary": true, "hold": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow"}, "until": "=expires_at", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
-        {"verb": "deny", "hold": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
-        {"label": "=always", "hold": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow_always"}, "until": "=expires_at", "when": "kind == 'call' && (always ?? '') != '' && !expired"},
-        {"verb": "deny_because", "hold": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "input": "reason", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
-        {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "retry"}, "when": "kind == 'login' && !expired"},
-        {"verb": "new_session", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "new_session"}, "when": "kind == 'login' && !expired"},
-        {"verb": "sign_in", "primary": true, "command": "deck.browser_login", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
-        {"verb": "signed_in", "command": "deck.browser_login_done", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
-        {"verb": "sign_in", "primary": true, "command": "deck.oauth_start", "params": {"tool": "=payload?.tool ?? ''"}, "when": "kind == 'sign_in' && (payload?.site ?? '') == '' && !expired"},
-        {"verb": "deny", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "expired"}
-      ]},
+        "questions": "kind == 'question' && len(payload?.questions ?? []) > 0 ? payload.questions : nil", "actions": "actions"}},
     {"type": "list", "title": "Running", "span": "full", "icon": "activity", "source": {"from": "deck.processes_list", "input": {"open": true}},
       "empty": "nothing, all waits for the schedule",
       "item": {"title": "((topic ?? '') != '' ? topic : (title ?? '') != '' ? title : command) + ((record_title ?? '') != '' ? ' · ' + record_title : '')",
@@ -52,7 +37,7 @@
         {"verb": "open", "screen": "process", "record": "=process", "when": "kind == 'failure' && (process ?? 0) != 0"},
         {"verb": "open", "screen": "deck/settings", "params": {"tab": "Health"}, "when": "kind == 'failure' && (check ?? '') != ''"},
         {"verb": "close", "command": "deck.process_dismiss", "params": {"process": "=process"}, "when": "kind == 'failure' && (process ?? 0) != 0"},
-        {"verb": "mark_read", "command": "deck.health_seen", "params": {"subject": "=check", "project": "=project"}, "when": "kind == 'failure' && (check ?? '') != ''"},
+        {"verb": "mark_read", "command": "deck.health_seen", "params": {"subject": "=check", "project": "=project != '' ? project : nil"}, "when": "kind == 'failure' && (check ?? '') != ''"},
         {"verb": "mark_read", "command": "deck.feed_read", "params": {"entry": "=id"}, "when": "can_read"}
       ]},
     {"type": "dialog", "name": "changes", "title": "History", "icon": "history", "blocks": [

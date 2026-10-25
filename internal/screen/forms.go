@@ -56,7 +56,7 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 			}
 		}
 	default:
-		items, _, _, err := r.filtered(*b.Source, nil, nil)
+		items, _, _, err := r.filtered(*b.Source, nil, nil, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -208,7 +208,7 @@ func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any
 		}
 	}
 	for field, ch := range b.Choices {
-		items, _, _, err := r.filtered(ch.Source, nil, nil)
+		items, _, _, err := r.filtered(ch.Source, nil, nil, nil)
 		if err != nil {
 			return nil, fmt.Errorf("choices %q: %w", field, err)
 		}
@@ -284,7 +284,7 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 		v["name"] = b.Document
 	}
 	if b.Source != nil {
-		items, _, _, err := r.filtered(*b.Source, nil, nil)
+		items, _, _, err := r.filtered(*b.Source, nil, nil, nil)
 		if err != nil {
 			return nil, err
 		}

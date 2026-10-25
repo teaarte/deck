@@ -431,7 +431,7 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	if machine != 0 {
 		t.Fatal("the devices are of a workspace, and so is the health of their pushes")
 	}
-	if a := e.rowAction("", "settings", "", map[string]any{"tab": "Interface"}); a["screen"] != "settings" {
+	if a := e.button("", "settings", map[string]any{"dialog": "checks"}, "", map[string]any{"tab": "Look"}); a["screen"] != "settings" {
 		t.Fatalf("the row of the health opens the tab with the pushes: %+v", a)
 	}
 }

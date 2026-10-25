@@ -136,6 +136,8 @@ type topicsView struct {
 	Archived []topicView `json:"archived"`
 	Models   []string    `json:"models"`
 	Model    string      `json:"model,omitempty"`
+	// Prices are the price of each model in words, such as subscription or free.
+	Prices map[string]string `json:"prices"`
 }
 
 // turnPart is the turn going on in the topic picked: its lines, the questions of its reply and what it and the
@@ -311,6 +313,13 @@ func (ch *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTo
 		return v, err
 	}
 	v.Models, v.Model = ch.models(ctx, act.Workspace)
+	price := ch.Prices(ctx, act.Workspace, in.Lang)
+	v.Prices = map[string]string{}
+	for _, m := range append([]string{v.Model}, v.Models...) {
+		if p := price(m); m != "" && p != "" {
+			v.Prices[m] = p
+		}
+	}
 	return v, nil
 }
 

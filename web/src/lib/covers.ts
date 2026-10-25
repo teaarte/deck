@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Menu } from '../hooks/useMenu';
-import { fetchFile } from '../lib/api';
+import { fetchFile } from './api';
 
 // The covers read in this tab, by their address: a file of an id never changes, so each is read once.
 const read = new Map<string, Promise<string>>();
@@ -27,8 +27,13 @@ export function preload(menu: Menu) {
   }
 }
 
+// FILE is the address of a file of deck, a stored one or one of a data folder: a cover is read with the token from
+// nowhere else.
+const FILE = /^\/api\/files\/(\d+|data\/[^?#]+(\?thumb=1)?)$/;
+
 // useCover is the address of a cover for the page once it is read.
-export function useCover(url?: string): string | undefined {
+export function useCover(at?: string): string | undefined {
+  const url = at && FILE.test(at) ? at : undefined;
   const [src, setSrc] = useState(() => (url ? ready.get(url) : undefined));
   useEffect(() => {
     if (!url) return;

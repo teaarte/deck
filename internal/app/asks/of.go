@@ -2,6 +2,7 @@ package asks
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 
 	"deck2/internal/ask"
@@ -10,39 +11,38 @@ import (
 )
 
 // Decision is what a process waits for the owner to decide, as asks_list gives it, with the buttons that decide it.
-type Decision struct {
-	askRow
-	Actions []map[string]any `json:"actions"`
-}
+type Decision = askRow
 
 // Of are what the processes wait for the owner to decide but their questions, oldest first, each with its buttons;
 // an answer the owner may take back holds a few seconds, as on Today.
 func (s *Service) Of(ctx context.Context, act registry.Actor, processes []int64, lang string) ([]Decision, error) {
-	rows, err := s.rows(ctx, act, lang, func(q db.Ask) bool {
+	return s.rows(ctx, act, lang, func(q db.Ask) bool {
 		return q.Kind != ask.KindQuestion && slices.Contains(processes, q.ProcessID.Int64)
 	})
-	out := make([]Decision, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, Decision{askRow: r, Actions: buttons(r)})
-	}
-	return out, err
 }
 
-// buttons are those of a decision by its kind; one deck answers elsewhere opens Today.
+// buttons are those of a decision by its kind, the one place they are said for Today and the chat.
 func buttons(r askRow) []map[string]any {
 	held := func(verb, answer string) map[string]any {
 		a := button(r.ID, verb, answer)
 		a["hold"] = true
 		return a
 	}
+	primary := func(a map[string]any) map[string]any {
+		a["primary"] = true
+		return a
+	}
 	switch {
 	case r.Expired:
-		a := button(r.ID, "deny", "deny")
-		a["primary"] = true
+		return []map[string]any{primary(button(r.ID, "deny", "deny"))}
+	case r.Kind == ask.KindQuestion:
+		a := primary(held("answer", ""))
+		delete(a["params"].(map[string]any), "answer")
+		a["input"] = "answer"
 		return []map[string]any{a}
 	case r.Kind == ask.KindCall || r.Kind == ask.KindConfirm || r.Kind == ask.KindGrant:
-		yes := held("allow", "allow")
-		yes["primary"], yes["icon"] = true, "check"
+		yes := primary(held("allow", "allow"))
+		yes["icon"] = "check"
 		if r.Allow != "" {
 			yes["label"] = r.Allow
 		}
@@ -53,17 +53,30 @@ func buttons(r askRow) []map[string]any {
 		if r.Kind == ask.KindCall && r.Always != "" {
 			always := held("allow_always", "allow_always")
 			always["label"] = r.Always
+			if r.ExpiresAt != "" {
+				always["until"] = r.ExpiresAt
+			}
 			out = append(out, always)
 		}
-		return out
+		because := held("deny_because", "deny")
+		because["input"] = "reason"
+		return append(out, because)
 	case r.Kind == ask.KindLogin:
-		retry := button(r.ID, "retry", "retry")
-		retry["primary"] = true
-		return []map[string]any{retry, button(r.ID, "new_session", "new_session")}
+		return []map[string]any{primary(button(r.ID, "retry", "retry")), button(r.ID, "new_session", "new_session")}
 	case r.Kind == ask.KindUnknown:
-		retry := button(r.ID, "retry", "retry")
-		retry["primary"] = true
-		return []map[string]any{retry, button(r.ID, "mark_done", "done")}
+		return []map[string]any{primary(button(r.ID, "retry", "retry")), button(r.ID, "mark_done", "done")}
+	case r.Kind == ask.KindSignIn:
+		var pl struct{ Site, Tool string }
+		_ = json.Unmarshal(r.Payload, &pl)
+		if pl.Site != "" {
+			url := map[string]any{"url": "https://" + pl.Site}
+			return []map[string]any{
+				primary(map[string]any{"verb": "sign_in", "command": registry.Builtin + ".browser_login", "params": url}),
+				{"verb": "signed_in", "command": registry.Builtin + ".browser_login_done", "params": url},
+			}
+		}
+		return []map[string]any{primary(map[string]any{"verb": "sign_in", "command": registry.Builtin + ".oauth_start",
+			"params": map[string]any{"tool": pl.Tool}})}
 	}
 	return []map[string]any{{"verb": "open", "screen": "cockpit"}}
 }

@@ -94,7 +94,7 @@ func (e *Env) screenBlock(project, screen, title string, extra map[string]any) m
 	return nil
 }
 
-// findBlock is the id of the block of a screen with this title and the tabs that show it: a block shown by a when in
+// findBlock is the id of the block of a screen with this title and the tabs and dialog that show it: a block shown by a when in
 // a tab is drawn only with its tab shown.
 func (e *Env) findBlock(project, screen, title string) (string, map[string]any) {
 	e.T.Helper()
@@ -109,32 +109,47 @@ func (e *Env) findBlock(project, screen, title string) (string, map[string]any) 
 		return out
 	}
 	all := comps(nil)
-	shown := func(id string) map[string]any {
+	shown := func(drawn []map[string]any, id string) map[string]any {
 		out := map[string]any{}
 		n := 0
-		for _, c := range all {
-			if p, _ := c["id"].(string); c["component"] == "screen" && c["key"] != nil && (id == p || strings.HasPrefix(id, p+"-")) {
+		for _, c := range drawn {
+			p, _ := c["id"].(string)
+			if name, _ := c["name"].(string); name != "" {
+				p = strings.TrimSuffix(p, "-in")
+			}
+			if c["component"] != "screen" || id != p && !strings.HasPrefix(id, p+"-") {
+				continue
+			}
+			if c["key"] != nil {
 				out[[]string{"tab", "sub"}[min(n, 1)]] = c["key"]
 				n++
+			} else if name, _ := c["name"].(string); name != "" {
+				out["dialog"] = name
 			}
 		}
 		return out
 	}
 	find := func(cs []map[string]any) string {
 		for _, c := range cs {
-			if c["title"] == title || c["component"] == "Text" && c["text"] == title {
+			if c["title"] == title {
+				return c["id"].(string)
+			}
+		}
+		for _, c := range cs {
+			if c["component"] == "Text" && c["text"] == title {
 				return c["id"].(string)
 			}
 		}
 		return ""
 	}
 	if id := find(all); id != "" {
-		return id, shown(id)
+		return id, shown(all, id)
 	}
 	for _, c := range all {
 		if p, _ := c["id"].(string); c["component"] == "screen" && c["key"] != nil {
-			if id := find(comps(shown(p))); id != "" {
-				return id, shown(p)
+			drawn := comps(shown(all, p))
+			if id := find(drawn); id != "" {
+				return id, shown(drawn, id)
 			}
 		}
 	}
@@ -322,7 +337,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": "http://127.0.0.1:1/v1", "local": true}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "small", "name": "ollama-small", "agent": "goose"}, nil)
 	waitTopic(t, events, "health")
-	rows := blockData[[]screenRow](t, e.settingsBlock("Models", map[string]any{"topic": "health"})["rows"])
+	rows := blockData[[]screenRow](t, e.settingsBlock("All models", map[string]any{"topic": "health"})["rows"])
 	var added screenRow
 	for _, r := range rows {
 		if r.Cells[0] == "ollama-small" {
@@ -353,7 +368,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	})
 	e.must(remove["command"].(string), remove["params"], nil)
 	waitTopic(t, events, "models")
-	for _, r := range blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"]) {
+	for _, r := range blockData[[]screenRow](t, e.settingsBlock("All models", nil)["rows"]) {
 		if r.Cells[0] == "ollama-small" {
 			t.Fatalf("the removed model is gone: %+v", r)
 		}
@@ -363,8 +378,8 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	}
 }
 
-// TestSettingsHealthShowsWhatIsRedFirstWithWhy: health is a table of subjects with their state and error,
-// the worst first, narrowed by state.
+// TestSettingsHealthShowsWhatIsRedFirstWithWhy: health lists what is broken now with why, and every check in a table
+// of subjects with their state and error, the worst first, narrowed by state.
 func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -396,13 +411,13 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	failing := blockData[[]screenRow](t, e.settingsBlock("Failing checks", nil)["rows"])
-	var subjects []any
-	for _, r := range failing {
-		subjects = append(subjects, r.Cells[0])
+	failing := blockData[[]listItem](t, e.settingsBlock("Broken now", nil)["items"])
+	var why []string
+	for _, it := range failing {
+		why = append(why, it.Text)
 	}
-	if len(failing) != 2 || !slices.Contains(subjects, "tool:web.fetch") || !slices.Contains(subjects, "command:web.digest") {
-		t.Fatalf("the failing checks come apart with why, each once, the rest not: %+v", failing)
+	if len(failing) != 2 || !slices.Contains(why, "the server exited: 1") || !slices.Contains(why, "no python3") {
+		t.Fatalf("what is broken now comes apart with why, each once, the rest not: %+v", failing)
 	}
 	webErrors := func() int64 {
 		var menu []struct {
@@ -449,18 +464,16 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	if webErrors() != 1 || unread() != 2 {
 		t.Fatalf("a read check counts again once its error changes: menu %d, unread %d", webErrors(), unread())
 	}
-	block = e.settingsBlock("Everything deck checks", nil)
-	id := ""
-	for k, v := range e.screenData("", "settings", nil) {
-		if string(v["rows"]) == string(block["rows"]) {
-			id = k
-		}
-	}
-	picked := e.screenData("", "settings", map[string]any{"filter": `{"` + id + `": {"status": "ok"}}`})[id]
-	for _, r := range blockData[[]screenRow](t, picked["rows"]) {
+	id, shown := e.findBlock("", "settings", "Everything deck checks")
+	picked := e.screenData("", "settings", merge(shown, map[string]any{"filter": `{"` + id + `": {"status": "ok"}}`}))[id]
+	okRows := blockData[[]screenRow](t, picked["rows"])
+	for _, r := range okRows {
 		if r.Cells[1] != "ok" {
 			t.Fatalf("the filter keeps one state: %+v", r)
 		}
+	}
+	if len(okRows) == 0 {
+		t.Fatal("the filter keeps the checks of that state")
 	}
 }
 
@@ -670,12 +683,29 @@ func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	rows := blockData[[]screenRow](t, e.settingsBlock("Failing checks", nil)["rows"])
-	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[0] == "trigger:daily.work" })
-	if i < 0 || rows[i].Cells[2] != "fake" || !hasVerb(rows[i].Actions, "run_now") || verb(t, rows[i].Actions, "model")["pick"] != "model" {
-		t.Fatalf("a failing schedule shows its model to change and runs again: %+v", rows)
+	var feed []struct{ Check, Model string }
+	e.must("deck.feed_list", map[string]any{"kind": "failure"}, &feed)
+	if !slices.Contains(feed, struct{ Check, Model string }{"trigger:daily.work", "fake"}) {
+		t.Fatalf("a failing schedule says the model it runs on: %+v", feed)
 	}
-	pick := verb(t, rows[i].Actions, "model")
+	items := blockData[[]listItem](t, e.settingsBlock("Broken now", nil)["items"])
+	i := slices.IndexFunc(items, func(it listItem) bool { return it.Title == "The schedule of daily.work did not start" })
+	button := func(command string) map[string]any {
+		if i >= 0 {
+			for _, a := range items[i].Actions {
+				if a["command"] == command {
+					return a
+				}
+			}
+		}
+		t.Fatalf("a failing schedule has a button of %s: %+v", command, items)
+		return nil
+	}
+	button("deck.trigger_run")
+	pick := button("deck.assignment_set")
+	if pick["input"] != "model" || !strings.Contains(fmt.Sprint(pick["options"]), "quiet") {
+		t.Fatalf("a failing schedule changes its model among those it could run on: %+v", pick)
+	}
 	params := pick["params"].(map[string]any)
 	params["model"] = "quiet"
 	e.must("deck.assignment_set", params, nil)

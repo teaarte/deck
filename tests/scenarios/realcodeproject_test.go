@@ -19,7 +19,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
-	b.open(e.URL + "/?token=" + token + "#/deck/settings")
+	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Modules")
 	form := func(cmd, field string) string {
 		return `document.querySelector('[data-form="` + cmd + `"] [data-field="` + field + `"]')`
 	}
@@ -43,7 +43,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.until("the imported draft", itemOf("code", "draft"))
 	b.reviewAndEnable("code")
 	e.waitFor("the enabled project", func() bool { return e.project("code").Status == "enabled" })
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the enabled project", itemOf("code", "enabled"))
 
 	tab := func(name string) {

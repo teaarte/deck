@@ -54,3 +54,27 @@
 audio.media {
   background: none;
 }
+
+.placeCover {
+  width: var(--place-size, 120px);
+  height: var(--place-size, 120px);
+  flex-shrink: 0;
+}
+
+.row .placeCover {
+  --place-size: 32px;
+}
+
+.placeName {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.placeText {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}

@@ -352,8 +352,8 @@ func TestTheMasterReadsTheDataFolderOfAProject(t *testing.T) {
 	}
 }
 
-// TestAFolderOfTheDataFolderShowsItsSteps: the file manager of a data folder shows the steps from its root, each
-// opening its folder, the last being where it is.
+// TestAFolderOfTheDataFolderShowsItsSteps: the file manager shows the steps of a folder of a data folder from its
+// root, each opening its folder, the last being where it is.
 func TestAFolderOfTheDataFolderShowsItsSteps(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -363,17 +363,21 @@ func TestAFolderOfTheDataFolderShowsItsSteps(t *testing.T) {
 		Label  string
 		Action map[string]any
 	}
-	for _, d := range e.screenData("", "data", map[string]any{"params": `{"project": "notes", "path": "cache/pages"}`, "lang": "ru"}) {
+	for _, d := range e.screenData("", "files", map[string]any{"params": `{"path": "notes/data/cache/pages"}`, "lang": "ru"}) {
 		if raw, ok := d["crumbs"]; ok {
 			_ = json.Unmarshal(raw, &crumbs)
 		}
 	}
-	if len(crumbs) != 3 || crumbs[0].Label != "Папка данных" || crumbs[1].Label != "cache" || crumbs[2].Label != "pages" || crumbs[2].Action != nil {
-		t.Fatalf("the steps of the folder from its root: %+v", crumbs)
+	var labels []string
+	for _, c := range crumbs {
+		labels = append(labels, c.Label)
 	}
-	for i, want := range []string{"", "cache"} {
+	if strings.Join(labels, "/") != "Модули/notes/Папка данных/cache/pages" || crumbs[4].Action != nil {
+		t.Fatalf("the steps of the folder from the root of the files, named by the read: %+v", crumbs)
+	}
+	for i, want := range []string{"", "notes", "notes/data", "notes/data/cache"} {
 		params, _ := crumbs[i].Action["params"].(map[string]any)
-		if crumbs[i].Action["screen"] != "data" || params["path"] != want || params["project"] != "notes" {
+		if crumbs[i].Action["screen"] != "files" || params["path"] != want {
 			t.Fatalf("a step opens its folder: %+v", crumbs[i].Action)
 		}
 	}

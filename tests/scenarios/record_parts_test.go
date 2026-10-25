@@ -87,8 +87,8 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 	}
 }
 
-// TestTheDataFolderOfAProjectShowsByItsFolders: a data folder is a file manager, the way up and folders first as
-// tiles that open them, then files; the data folders of projects and the files of a project are tiles too.
+// TestTheDataFolderOfAProjectShowsByItsFolders: a data folder is a file manager, the way up in its steps and folders
+// first as tiles that open them, then files; the modules at the root and the files of a module are tiles too.
 func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -101,26 +101,34 @@ func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 		Title, Icon, URL, Error string
 		Actions                 []map[string]any
 	}
-	tiles := blockData[[]tile](t, e.screenData("", "data", map[string]any{"params": `{"project": "shorts", "path": "cache"}`})["b1"]["files"])
-	if len(tiles) != 3 || tiles[0].Title != ".." || tiles[0].Icon != "arrow-up" || tiles[1].Title != "zz" || tiles[1].Icon != "folder" ||
-		tiles[2].Title != "tiles.bin" || tiles[2].Icon != "" || !strings.Contains(tiles[2].URL, "/api/files/data/shorts/cache/tiles.bin") {
-		t.Fatalf("the way up and the folders come first as tiles, then the files: %+v", tiles)
+	block := e.screenBlock("", "files", "Modules", map[string]any{"params": `{"path": "shorts/data/cache"}`})
+	tiles := blockData[[]tile](t, block["files"])
+	if len(tiles) != 2 || tiles[0].Title != "zz" || tiles[0].Icon != "folder" ||
+		tiles[1].Title != "tiles.bin" || tiles[1].Icon != "" || !strings.Contains(tiles[1].URL, "/api/files/data/shorts/cache/tiles.bin") {
+		t.Fatalf("the folders come first as tiles, then the files: %+v", tiles)
 	}
-	params, _ := verb(t, tiles[1].Actions, "open")["params"].(map[string]any)
-	if open := verb(t, tiles[1].Actions, "open"); open["primary"] != true || open["screen"] != "data" || params["path"] != "cache/zz" {
+	if crumbs := string(block["crumbs"]); !strings.Contains(crumbs, `"path":"shorts/data"`) {
+		t.Fatalf("the way up is in the steps of the folder: %s", crumbs)
+	}
+	params, _ := verb(t, tiles[0].Actions, "open")["params"].(map[string]any)
+	if open := verb(t, tiles[0].Actions, "open"); open["primary"] != true || open["screen"] != "files" || params["path"] != "shorts/data/cache/zz" {
 		t.Fatalf("a folder tile opens the folder: %+v", open)
 	}
-	if len(tiles[2].Actions) != 0 {
-		t.Fatalf("a file has no button to open a folder: %+v", tiles[2].Actions)
+	if len(tiles[1].Actions) != 0 {
+		t.Fatalf("a file has no button to open a folder: %+v", tiles[1].Actions)
+	}
+	own := blockData[[]tile](t, e.screenData("shorts", "documents", map[string]any{"params": `{"path": "data/cache"}`})["b0"]["files"])
+	if len(own) != 2 || own[1].Error != "" || !strings.Contains(own[1].URL, "/api/files/data/shorts/cache/tiles.bin") {
+		t.Fatalf("the files screen of a module shows its data folder inside it: %+v", own)
 	}
 
-	raw, _ := json.Marshal(e.screenData("", "files", nil))
-	if s := string(raw); !strings.Contains(s, `"icon":"folder"`) || !strings.Contains(s, `"title":"Shorts"`) && !strings.Contains(s, `"title":"shorts"`) {
-		t.Fatalf("the data folders of the projects are folder tiles: %s", s)
+	raw, _ := json.Marshal(e.screenBlock("", "files", "Modules", nil))
+	if s := string(raw); !strings.Contains(s, `"path":"shorts"`) || !strings.Contains(s, `"title":"Shorts"`) && !strings.Contains(s, `"title":"shorts"`) {
+		t.Fatalf("the modules are folder tiles at the root: %s", s)
 	}
 	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "frame.png", "content": base64.StdEncoding.EncodeToString([]byte("png"))}, nil)
-	raw, _ = json.Marshal(e.screenData("shorts", "settings", nil))
+	raw, _ = json.Marshal(e.screenData("shorts", "documents", map[string]any{"params": `{"path": "files"}`}))
 	if s := string(raw); !strings.Contains(s, `"name":"frame.png"`) {
-		t.Fatalf("the settings of a module show its files: %s", s)
+		t.Fatalf("the files screen of a module shows its files: %s", s)
 	}
 }

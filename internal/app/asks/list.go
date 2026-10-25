@@ -50,6 +50,8 @@ type askRow struct {
 	Expired bool `json:"expired"`
 	// Link is the address of the screen where the owner answers it.
 	Link string `json:"link"`
+	// Actions are the buttons that decide it, the same on Today and in the chat.
+	Actions []map[string]any `json:"actions"`
 }
 
 // answerLink is the screen where the owner answers what waits.
@@ -101,6 +103,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 		if slices.Contains([]string{ask.KindCall, ask.KindConfirm, ask.KindGrant}, q.Kind) && r.What != "" {
 			r.Allow = tr(fmt.Sprintf("Allow: %s", r.What))
 		}
+		r.Actions = buttons(r)
 		out = append(out, r)
 	}
 	return out, nil

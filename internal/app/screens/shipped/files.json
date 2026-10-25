@@ -2,47 +2,42 @@
   "name": "files",
   "icon": "files",
   "title": "Files",
+  "params": {"path": "string"},
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Files", "icon": "files", "blocks": [
-        {"type": "media", "title": "By module", "empty": "No modules yet: tell Deki what to do, or import a module", "span": "full", "source": {"from": "deck.projects_list", "sort": "name"},
-          "description": "The files each module made or took, such as the pictures of a video, on the page of the module.",
-          "item": {"title": "title", "icon": "(icon ?? '') != '' ? icon : 'box'"},
-          "actions": [{"verb": "open", "primary": true, "screen": "settings", "project": "=name", "params": {"tab": "Files"}}]},
-        {"type": "media", "title": "All files", "empty": "No files yet: modules keep here what they make", "span": "full", "source": {"from": "deck.files_list", "sort": "-created_at"}, "filter": ["project"],
+        {"type": "media", "title": "Modules", "span": "full", "path": "param.path ?? ''",
+          "source": {"from": "deck.files_folder", "input": {"path": "=param.path ?? ''"}, "rows": "entries", "sort": "-dir"},
+          "description": "The folders of the modules: what each made and took, what it works by and what it keeps on disk; master is Deki's.",
+          "empty": "The folder is empty",
+          "item": {"file": "file ?? ''", "title": "name", "meta": "meta ?? ''", "cover": "cover", "icon": "icon ?? 'folder'"},
+          "actions": [
+            {"verb": "open", "primary": true, "screen": "files", "params": {"path": "=path"}, "when": "dir"},
+            {"verb": "open", "primary": true, "screen": "document", "project": "=project", "record": "=id", "when": "kind == 'document' && !deleted"},
+            {"verb": "restore", "command": "deck.document_restore", "params": {"document": "=id"}, "when": "kind == 'document' && deleted"},
+            {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=id"}, "when": "kind == 'document' && !deleted && doc_kind != 'manifest' && !(doc_kind == 'prompt' && owner_kind == '')"},
+            {"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"}, "when": "kind == 'file' && (id ?? 0) != 0",
+             "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}
+          ]},
+        {"type": "media", "title": "All files", "span": "full", "when": "(param.path ?? '') == ''", "source": {"from": "deck.files_list", "sort": "-created_at"},
+          "filter": ["project", "type"], "search": ["name", "project", "type"],
+          "empty": "No files yet: modules keep here what they make",
           "item": {"file": "id", "title": "name"},
           "actions": [
             {"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"},
              "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}
           ]}
       ]},
-      {"title": "Data folders", "icon": "folders", "blocks": [
-        {"type": "media", "title": "Data folders", "span": "full", "source": {"from": "deck.projects_list", "sort": "name"},
-          "description": "The data folder of each module, by its real folders.",
-          "item": {"title": "title", "icon": "'folder'"},
-          "actions": [{"verb": "open", "primary": true, "screen": "data", "params": {"project": "=name"}}]}
-      ]},
-      {"title": "Documents", "icon": "file-text", "blocks": [
-        {"type": "media", "title": "Documents of the master", "span": "full", "source": {"from": "deck.documents_list", "input": {"project": "master", "with_deleted": true}, "sort": "name"}, "filter": ["kind"],
-          "description": "The memory, prompts and skills of the master.",
-          "item": {"title": "name",
-            "icon": "deleted ? 'trash' : kind == 'skill' ? 'sparkles' : kind == 'script' ? 'code' : kind == 'manifest' ? 'settings' : kind == 'prompt' ? 'message' : 'file-text'"},
-          "actions": [
-            {"verb": "open", "primary": true, "screen": "document", "project": "master", "record": "=id", "when": "!deleted"},
-            {"verb": "restore", "command": "deck.document_restore", "params": {"document": "=id"}, "when": "deleted"},
-            {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=id"}, "when": "!deleted && kind != 'manifest' && !(kind == 'prompt' && owner_kind == '')"}
-          ]}
-      ]},
       {"title": "Snapshots", "icon": "camera", "blocks": [
+        {"type": "actions", "title": "Take a snapshot now", "icon": "camera-plus", "actions": [{"label": "Take a snapshot", "icon": "camera-plus", "primary": true, "command": "deck.snapshot_create"}]},
         {"type": "table", "title": "Snapshots", "source": {"from": "deck.snapshots_list"},
           "description": "Copies of deck's base, files and the data folders of modules, without secrets: deck takes one a day and before a module is deleted, and keeps the newest. They lie in backups of deck's state folder.",
-          "empty": "No snapshot yet: deck takes the first one today, or take one now below",
+          "empty": "No snapshot yet: deck takes the first one today, or take one now",
           "columns": [
             {"label": "Snapshot", "bind": "name"},
             {"label": "Taken", "bind": "taken_at", "format": "relative"},
             {"label": "Size", "bind": "size", "format": "bytes"}
-          ]},
-        {"type": "form", "title": "Take a snapshot now", "command": "deck.snapshot_create"}
+          ]}
       ]}
     ]}
   ]

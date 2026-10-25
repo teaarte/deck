@@ -86,3 +86,8 @@ ORDER BY id DESC LIMIT 20;
 -- name: SetFileThumb :exec
 UPDATE file SET thumb_id = sqlc.narg(thumb_id), width = sqlc.arg(width), height = sqlc.arg(height), color = sqlc.arg(color)
 WHERE id = sqlc.arg(id);
+
+-- name: CountWorkspaceFiles :many
+SELECT project_id, count(*) AS files, CAST(coalesce(sum(size), 0) AS INTEGER) AS size FROM file
+WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id)) AND owner_kind NOT IN ('trash', 'keeping', 'model', 'thumb')
+GROUP BY project_id;

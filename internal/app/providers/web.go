@@ -27,7 +27,7 @@ const SearXNGInstall = `mkdir -p ~/searxng && printf 'use_default_settings: true
 	`docker run -d --name searxng --restart always -p 127.0.0.1:8888:8080 -v ~/searxng:/etc/searxng searxng/searxng`
 
 // noSearch is what the owner does when no search is assigned, with SearXNGInstall.
-var noSearch = fmt.Sprintf("no search is set up, so agents without their own web only read pages; run SearXNG (%s), add it in Settings → Connections (api raw, url http://127.0.0.1:8888, local), as a model of kind search in Settings → Models, and assign it to search in Settings → Commands", SearXNGInstall)
+var noSearch = fmt.Sprintf("no search is set up, so agents without their own web only read pages; run SearXNG (%s), add it in Settings → Models → Connections (api raw, url http://127.0.0.1:8888, local), as a model of kind search in Settings → Models, and assign it to search in Settings → Models", SearXNGInstall)
 
 const (
 	maxPage     = 4 << 20

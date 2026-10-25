@@ -17,6 +17,9 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
   const lead = useContext(ScreenLead);
   const inTab = useContext(InTab);
   const heads = dialogs && children(p.dialogs).map((c) => <span key={String(c)}>{buildChild(String(c))}</span>);
+  // A title the tab of the frame already says is not said again; the lead takes its place.
+  const titled = !!p.title && !(root && lead.place === p.title);
+  const under = root && lead.under;
   // The window of a dialog asks for its blocks once it is open, a tab once it is shown.
   useEffect(() => {
     if (p.name) readBlock(context, 'dialog', { dialog: p.name });
@@ -26,13 +29,13 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
     <InTab.Provider value={inTab || !!p.key}>
     <BlockContext.Provider value={context}>
     <Stack gap="lg" data-screen data-span="full">
-      {(p.title || dialogs) && (
+      {(titled || dialogs || under || (root && lead.beside)) && (
         <Group justify="space-between" align="center" gap="sm" data-screen-head>
-          {p.title ? <IconTitle order={2} className={s.screenTitle} title={p.title} icon={p.icon} size={24} /> : <span />}
+          {titled ? <IconTitle order={2} className={s.screenTitle} title={String(p.title)} icon={p.icon} size={24} /> : under || <span />}
           {(dialogs || (root && lead.beside)) && <Group gap="sm">{root && lead.beside}{heads}</Group>}
         </Group>
       )}
-      {root && lead.under}
+      {titled && under}
       <div className={s.grid} data-grid>
         {children(p.children).map((c) => {
           const id = String(c);

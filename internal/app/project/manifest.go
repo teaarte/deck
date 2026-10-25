@@ -65,30 +65,39 @@ func (pj *Service) manifestSave(ctx context.Context, act registry.Actor, in mani
 	if err != nil {
 		return nil, err
 	}
+	if err := pj.edited(ctx, p, &in); err != nil {
+		return nil, err
+	}
+	return pj.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
+}
+
+// edited puts the whole manifest a save gives in in.Manifest: as it came, or the current one with its old parts
+// replaced by the new, pinned to the revision it was read at.
+func (pj *Service) edited(ctx context.Context, p db.Project, in *manifestSaveIn) error {
 	if len(in.Old) > 0 || len(in.New) > 0 {
 		if in.Manifest != "" {
-			return nil, registry.Invalid("deck: give the whole manifest or old and new parts, not both")
+			return registry.Invalid("deck: give the whole manifest or old and new parts, not both")
 		}
 		d, err := docs.Find(ctx, pj.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if in.IfRevision != 0 && d.Current != in.IfRevision {
-			return nil, registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, d.Current, in.IfRevision)
+			return registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, d.Current, in.IfRevision)
 		}
 		r, err := docs.Revision(ctx, pj.St.Q, d, 0)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if in.Manifest, err = docs.Edit(r.Text, in.Old, in.New, true); err != nil {
-			return nil, err
+			return err
 		}
 		in.IfRevision = d.Current
 	}
 	if strings.TrimSpace(in.Manifest) == "" {
-		return nil, registry.Invalid("deck: give the whole manifest JSON, or old and new parts of the current one")
+		return registry.Invalid("deck: give the whole manifest JSON, or old and new parts of the current one")
 	}
-	return pj.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
+	return nil
 }
 
 // Commands are the commands of manifests.
@@ -100,6 +109,9 @@ func (pj *Service) manifestCommands() []*registry.Command {
 		registry.Def("manifest_save", "Save manifest",
 			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current one replaced with new ones.",
 			registry.OwnerSide, pj.manifestSave),
+		registry.Read("manifest_check", "Check manifest",
+			"Checks a manifest without saving it, as a save would: what a save refuses, what it warns of, what it widens and whether that waits for the owner, the screens that fail on the data there is now and the texts without a translation; of a project, or alone, such as one from an old .zip.",
+			registry.OwnerSide, pj.check).On(registry.Static),
 	}
 }
 
@@ -212,7 +224,7 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 	if err != nil {
 		return Saved{}, err
 	}
-	plan, err := pj.migrate(ctx, p, pm.m, revertTo)
+	plan, err := pj.migrate(ctx, p, pm.m, revertTo, false)
 	if err != nil {
 		return Saved{}, err
 	}

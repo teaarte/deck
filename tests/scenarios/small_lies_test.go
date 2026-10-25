@@ -23,7 +23,7 @@ func TestADraftsScheduleSaysItDoesNotRun(t *testing.T) {
 	e.must("deck.project_import", map[string]any{"folder": dir, "name": "bench"}, nil)
 	var ts []struct {
 		Project   string
-		NextRunAt string `json:"next_run_at"`
+		NextRunAt string `json:"next_at"`
 		Draft     bool
 	}
 	e.must("deck.triggers_list", map[string]any{"project": "bench"}, &ts)

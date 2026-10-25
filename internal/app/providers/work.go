@@ -97,6 +97,12 @@ func (s *Service) Works(ctx context.Context, workspace int64, lang string) func(
 	return func(projectID int64, command string) provider.Work { return s.commandWork(ctx, b, projectID, command) }
 }
 
+// Prices say the price of each model of a workspace in a language, such as subscription or free.
+func (s *Service) Prices(ctx context.Context, workspace int64, lang string) func(model string) string {
+	ws := s.Words(lang)
+	return s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) }).Price
+}
+
 // Agents are the models of the book that run agent turns: the built-in providers and the models in an agent.
 func (b *Book) Agents() []string {
 	var out []string

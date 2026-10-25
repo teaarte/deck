@@ -306,6 +306,8 @@ type Block struct {
 	Primary bool   `json:"primary,omitempty"`
 	// Filter names the fields of a table or list the owner narrows it by.
 	Filter []string `json:"filter,omitempty"`
+	// Search names the fields the words the owner types are looked for in.
+	Search []string `json:"search,omitempty"`
 	// Board is the enum field of a list whose values are the lanes its items stand in.
 	Board string `json:"board,omitempty"`
 	// Cards lays the items of a list side by side as cards; Focus shows them one at a time, the next ones behind.
@@ -396,11 +398,18 @@ type Item struct {
 	Kind string `json:"kind,omitempty"`
 	// File is the file of a line of a media block: a stored file id or a path in the data folder.
 	File string `json:"file,omitempty"`
+	// Cover is a picture shown on a card or a folder tile: a stored file id, a path in the data folder or a cover
+	// as deck's reads give one.
+	Cover string `json:"cover,omitempty"`
+	// Actions are the buttons a read of deck gives an item, after those of the block; only on deck's screens.
+	Actions string `json:"actions,omitempty"`
 }
 
 type Tab struct {
-	Title  string  `json:"title"`
-	Icon   string  `json:"icon,omitempty"`
+	Title string `json:"title"`
+	Icon  string `json:"icon,omitempty"`
+	// Count names a count of deck the tab shows beside its title; only on deck's screens.
+	Count  string  `json:"count,omitempty" enum:"failures"`
 	Blocks []Block `json:"blocks"`
 }
 

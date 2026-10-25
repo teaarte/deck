@@ -11,6 +11,7 @@ import { Holding } from '../ui/actions/undo';
 import { verbIcon } from '../ui/actions/verbIcons';
 import { useVisibleActions } from '../ui/actions/useVisibleActions';
 import { Deki, useMascot } from '../ui/deki/Deki';
+import { Cover } from '../ui/Cover';
 import { Deadline } from '../ui/Deadline';
 import { Details } from '../ui/Details';
 import { NamedIcon } from '../ui/NamedIcon';
@@ -172,6 +173,7 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
   return (
     <div className={s.item} data-item data-tone={it.tone} data-big={big || undefined} data-marked={mark ? true : undefined}
       title={it.since ? when(it.since)?.toLocaleString() : undefined} {...opens}>
+      {it.cover && <Cover cover={it.cover} className={s.cover} />}
       <Group gap={12} wrap="nowrap" align="flex-start">
         {mark}
         <Stack gap={2} miw={0} style={{ flex: 1 }}>

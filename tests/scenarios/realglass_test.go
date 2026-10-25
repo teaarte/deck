@@ -51,7 +51,7 @@ func TestRealBrowserGlass(t *testing.T) {
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Interface")
+	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Look")
 	b.until("the appearance tab with juce for a new device", `document.querySelector('[data-look="theme"][data-value="juce"]')`)
 	style := func(sel, prop string) string {
 		return b.eval(`getComputedStyle(document.querySelector('` + sel + `')).` + prop)
@@ -62,7 +62,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	b.look("theme", "glass")
 	b.look("scheme", "light")
 	b.until("the light glass theme", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'light'`)
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
+	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Look').click(), '')`)
 	b.until("the interface tab", `document.querySelector('[data-appearance]').offsetParent`)
 	b.shot("glass-settings")
 	if got := style(".mantine-Tabs-list", "backdropFilter"); got == "none" {
@@ -98,7 +98,7 @@ func TestRealBrowserGlass(t *testing.T) {
 		t.Fatalf("the dropdown of a select is glass: %s", got)
 	}
 
-	b.open(e.URL + "/#/deck/settings?tab=Interface")
+	b.open(e.URL + "/#/deck/settings?tab=Look")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
 	b.look("scheme", "dark")
 	b.until("the dark scheme", `document.documentElement.dataset.mantineColorScheme === 'dark'`)
@@ -162,7 +162,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	}
 	media("prefers-contrast", "no-preference")
 
-	b.open(e.URL + "/#/deck/settings?tab=Interface")
+	b.open(e.URL + "/#/deck/settings?tab=Look")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "default")
 	b.until("the default theme back", `document.documentElement.dataset.deckTheme === 'default' && getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter === 'none'`)

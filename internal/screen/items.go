@@ -90,6 +90,15 @@ func (r *renderer) load(src manifest.Source, input map[string]any, picked map[st
 		if src.Rows != "" {
 			obj, _ := got.(map[string]any)
 			got = obj[src.Rows]
+			// The steps of a folder a read names are those of a file manager on its screen.
+			if names, ok := obj["names"].(map[string]any); ok {
+				for k, v := range names {
+					if r.names == nil {
+						r.names = map[string]string{}
+					}
+					r.names[k] = fmt.Sprint(v)
+				}
+			}
 		}
 		list, ok := got.([]any)
 		if !ok {
@@ -129,14 +138,17 @@ func (r *renderer) input(in map[string]any) (map[string]any, error) {
 	return out, nil
 }
 
-// filtered are the items of a source narrowed by the values the owner picked, then sorted and cut, with how many
-// the cut left out; each filter offers the values its field has among the items the where keeps.
-func (r *renderer) filtered(src manifest.Source, fields []string, picked map[string]string) ([]map[string]any, []map[string]any, int, error) {
+// filtered are the items of a source narrowed by the values picked and the words looked for in the fields of search,
+// sorted and cut, with how many the cut left out; a filter offers the values its field has among the items kept.
+func (r *renderer) filtered(src manifest.Source, fields, search []string, picked map[string]string) ([]map[string]any, []map[string]any, int, error) {
 	items, err := r.items(src, nil)
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	filters := make([]map[string]any, 0, len(fields))
+	filters := make([]map[string]any, 0, len(fields)+1)
+	if len(search) > 0 {
+		filters = append(filters, map[string]any{"field": manifest.SearchKey, "search": true, "value": picked[manifest.SearchKey], "options": []string{}})
+	}
 	chosen := map[string]string{}
 	for _, f := range fields {
 		seen := map[string]bool{}
@@ -164,8 +176,12 @@ func (r *renderer) filtered(src manifest.Source, fields []string, picked map[str
 		}
 		filters = append(filters, fl)
 	}
-	if len(chosen) > 0 && src.From != "" && src.From != "collection" {
-		if items, err = r.items(src, chosen); err != nil {
+	again := maps.Clone(chosen)
+	if q := picked[manifest.SearchKey]; q != "" && len(search) > 0 {
+		again[manifest.SearchKey] = q
+	}
+	if len(again) > 0 && src.From != "" && src.From != "collection" {
+		if items, err = r.items(src, again); err != nil {
 			return nil, nil, 0, err
 		}
 	}
@@ -177,6 +193,15 @@ func (r *renderer) filtered(src manifest.Source, fields []string, picked map[str
 			}
 		}
 		items = kept
+	}
+	if words := strings.Fields(strings.ToLower(picked[manifest.SearchKey])); len(search) > 0 && len(words) > 0 {
+		items = slices.DeleteFunc(items, func(it map[string]any) bool {
+			var text strings.Builder
+			for _, f := range search {
+				text.WriteString(strings.ToLower(strings.Join(values(it[f]), " ")) + " ")
+			}
+			return slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(text.String(), w) })
+		})
 	}
 	items, more := sortAndCut(items, src)
 	return items, filters, more, nil

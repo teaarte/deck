@@ -55,8 +55,8 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	}
 }
 
-// TestTheModelsAndConnectionsTabsShowWhatRunsTheModels: Models lists the assignments, the models with an error in a
-// line and in full on demand, and the agents; Connections the connections and the other secrets.
+// TestTheModelsAndConnectionsTabsShowWhatRunsTheModels: Models lists who does what, the models with an error in a
+// line and in full on demand, and its dialog the connections; Advanced the agents and the other secrets.
 func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	t.Parallel()
 	f := newACP(t)
@@ -85,13 +85,13 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("a model changed without its kind and price keeps them: %+v", kept)
 	}
 
-	rows := blockData[[]screenRow](t, e.settingsBlock("Everywhere else", nil)["rows"])
+	rows := blockData[[]screenRow](t, e.settingsBlock("Who does what", nil)["rows"])
 	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[0] == "image" })
-	if i < 0 || fmt.Sprint(rows[i].Cells...) != "imagerouter/x/picrouter/x/pic$0.04 a call" {
+	if i < 0 || rows[i].Cells[1] != "" || rows[i].Cells[2] != "router/x/pic" || rows[i].Cells[3] != "$0.04 a call" || !hasVerb(rows[i].Actions, "remove") {
 		t.Fatalf("the assignments show which models do which work and which one does it now: %+v", rows)
 	}
 	var acp *screenRow
-	models := blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"])
+	models := blockData[[]screenRow](t, e.settingsBlock("All models", nil)["rows"])
 	for i, r := range models {
 		if r.Cells[0] == "acp" {
 			acp = &models[i]

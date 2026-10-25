@@ -219,3 +219,9 @@ func (s *Service) startedSince(ctx context.Context, id int64, at string) bool {
 	p, err := s.St.Q.GetProcess(ctx, id)
 	return err == nil && p.StartedAt >= at
 }
+
+// IsFailure says whether a process is among the failed ones the cockpit counts.
+func (s *Service) IsFailure(ctx context.Context, act registry.Actor, id int64) (bool, error) {
+	ps, err := s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, 0, id, 1))
+	return len(ps) > 0, err
+}

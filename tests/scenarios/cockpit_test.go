@@ -44,7 +44,7 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	verbs := func(it listItem) []string {
 		var out []string
 		for _, a := range it.Actions {
-			out = append(out, fmt.Sprint(cmp.Or(a["verb"], a["label"])))
+			out = append(out, fmt.Sprint(cmp.Or(a["label"], a["verb"])))
 		}
 		return out
 	}

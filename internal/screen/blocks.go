@@ -66,14 +66,14 @@ func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) (
 		src.Limit *= n
 	}
 	if len(picked) > 0 {
-		items, filters, more, err := r.filtered(src, b.Filter, picked)
+		items, filters, more, err := r.filtered(src, b.Filter, b.Search, picked)
 		r.labeled(b, filters)
 		return items, filters, more, err
 	}
 	if got, ok := r.read[id]; ok {
 		return got.items, got.filters, got.more, got.err
 	}
-	items, filters, more, err := r.filtered(src, b.Filter, nil)
+	items, filters, more, err := r.filtered(src, b.Filter, b.Search, nil)
 	r.labeled(b, filters)
 	r.read[id] = readOf{items, filters, more, err}
 	return items, filters, more, err
@@ -148,6 +148,9 @@ func (r *renderer) block(id string, b manifest.Block) {
 			panel := map[string]any{"id": tid, "component": "screen", "key": keys[j]}
 			if t.Icon != "" {
 				panel["icon"] = t.Icon
+			}
+			if t.Count != "" {
+				panel["count"] = t.Count
 			}
 			r.comps = append(r.comps, panel)
 			row, hidden := r.inRow, r.hidden

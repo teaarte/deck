@@ -1,7 +1,6 @@
 package providers
 
 import (
-	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -71,7 +70,7 @@ type modelsOut struct {
 	// their scripts, with the model each goes to.
 	Uses []useView `json:"uses"`
 	// Work is every command of a project that runs on a model and every kind of work of its scripts, with the model
-	// each runs on; given only for one project.
+	// each runs on; without a project, of every project and then the defaults of each kind of work.
 	Work []workView `json:"work"`
 }
 
@@ -83,10 +82,13 @@ type useView struct {
 // workView is a command or a kind of work of scripts of a project with its model; Own says the project or the
 // command has an assignment of its own, else the model is the default.
 type workView struct {
-	Project string `json:"project"`
-	Command string `json:"command,omitempty"`
-	Title   string `json:"title"`
-	Own     bool   `json:"own"`
+	// Kind is a command, the work of scripts or the default of a kind of work where nothing has its own.
+	Kind         string `json:"kind" enum:"command|script|default"`
+	Project      string `json:"project"`
+	ProjectTitle string `json:"project_title,omitempty"`
+	Command      string `json:"command,omitempty"`
+	Title        string `json:"title"`
+	Own          bool   `json:"own"`
 	provider.Work
 }
 
@@ -226,13 +228,12 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 		for _, w := range roles {
 			out.Uses = append(out.Uses, useView{Project: p.Name, Work: w})
 		}
-		if pid == 0 {
-			continue
-		}
 		m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
 		if err != nil {
 			continue
 		}
+		mws := docs.Words(ws, m, lang)
+		title, _, _ := manifest.Nav(p.Name, m, mws)
 		own := func(command, role string) bool {
 			return slices.ContainsFunc(out.Assignments, func(a assignmentView) bool {
 				return a.Project == p.Name && a.Role == role && (a.Command == command || a.Command == "") && len(a.Models) > 0
@@ -241,12 +242,28 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 		for _, c := range m.Commands {
 			if c.Executor.Type == "agent" || c.Executor.Type == "model" {
 				w := s.commandWork(ctx, b, p.ID, c.Name)
-				title := cmp.Or(m.I18n[lang][c.Title], manifest.Tr(ws, c.Title))
-				out.Work = append(out.Work, workView{Project: p.Name, Command: c.Name, Title: title, Own: own(c.Name, w.Role), Work: w})
+				out.Work = append(out.Work, workView{Kind: "command", Project: p.Name, ProjectTitle: title, Command: c.Name,
+					Title: manifest.Tr(mws, c.Title), Own: own(c.Name, w.Role), Work: w})
 			}
 		}
 		for _, w := range roles {
-			out.Work = append(out.Work, workView{Project: p.Name, Title: manifest.Tr(ws, w.Role), Own: own("", w.Role), Work: w})
+			out.Work = append(out.Work, workView{Kind: "script", Project: p.Name, ProjectTitle: title, Title: manifest.Tr(ws, w.Role),
+				Own: own("", w.Role), Work: w})
+		}
+	}
+	if pid == 0 {
+		for _, a := range out.Assignments {
+			if a.Project != "" {
+				continue
+			}
+			w := provider.Work{Role: a.Role, Models: a.Models, Model: a.Using, Why: a.Why}
+			if len(a.Models) > 0 {
+				w.Model, w.Price = a.Models[0], b.Price(a.Models[0])
+			}
+			if w.Choices = b.Of(a.Role); a.Role == RoleAgent {
+				w.Choices = b.Agents()
+			}
+			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, a.Role), Own: true, Work: w})
 		}
 	}
 	for name := range s.Places(ctx, act.Workspace) {

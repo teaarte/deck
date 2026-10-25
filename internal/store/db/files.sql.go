@@ -39,6 +39,41 @@ func (q *Queries) BindFile(ctx context.Context, arg BindFileParams) (int64, erro
 	return result.RowsAffected()
 }
 
+const countWorkspaceFiles = `-- name: CountWorkspaceFiles :many
+SELECT project_id, count(*) AS files, CAST(coalesce(sum(size), 0) AS INTEGER) AS size FROM file
+WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1) AND owner_kind NOT IN ('trash', 'keeping', 'model', 'thumb')
+GROUP BY project_id
+`
+
+type CountWorkspaceFilesRow struct {
+	ProjectID int64
+	Files     int64
+	Size      int64
+}
+
+func (q *Queries) CountWorkspaceFiles(ctx context.Context, workspaceID int64) ([]CountWorkspaceFilesRow, error) {
+	rows, err := q.db.QueryContext(ctx, countWorkspaceFiles, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountWorkspaceFilesRow
+	for rows.Next() {
+		var i CountWorkspaceFilesRow
+		if err := rows.Scan(&i.ProjectID, &i.Files, &i.Size); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createFile = `-- name: CreateFile :one
 INSERT INTO file (project_id, owner_kind, owner_id, name, type, size, created_at, process_id)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,

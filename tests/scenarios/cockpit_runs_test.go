@@ -336,9 +336,9 @@ func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 	}
 }
 
-// TestFailedRunsAreAListOfTheirOwnInTheSchedule: the schedule has the failed runs apart from the history, with why;
+// TestFailedRunsStayInTheHistoryOfTheSchedule: the history of the schedule finds a failed run by its state, in red;
 // a run closed on the cockpit stays there.
-func TestFailedRunsAreAListOfTheirOwnInTheSchedule(t *testing.T) {
+func TestFailedRunsStayInTheHistoryOfTheSchedule(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
@@ -350,9 +350,12 @@ func TestFailedRunsAreAListOfTheirOwnInTheSchedule(t *testing.T) {
 	id := e.start("shorts", "voice", map[string]any{"record": recs[0].ID})
 	e.waitState(id, "done", "error")
 	e.must("deck.process_dismiss", map[string]any{"process": id}, nil)
-	failed := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-1-0"]["rows"])
-	if len(failed) != 1 || failed[0].Cells[0] != "voice" || failed[0].Cells[4] != float64(id) || !strings.Contains(fmt.Sprint(failed[0].Cells[2]), "voice server is down") {
-		t.Fatalf("the failed run is in its own list with why, closed on the cockpit or not: %+v", failed)
+	failed := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
+	if len(failed) != 1 || failed[0].Cells[0] != "Voice" || failed[0].ID != float64(id) || failed[0].Tones[2] != "error" || failed[0].Cells[4] != "by a button" {
+		t.Fatalf("the failed run is in the history by its state, closed on the cockpit or not: %+v", failed)
+	}
+	if page, _ := json.Marshal(e.screenData("", "process", map[string]any{"record": id})); !strings.Contains(string(page), "voice server is down") {
+		t.Fatalf("the page of the failed run says why: %s", page)
 	}
 }
 
@@ -456,8 +459,8 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	if feed := e.screenData("", "cockpit", nil)["b2"]; feed["head"] != nil || len(blockData[[]listItem](t, feed["items"])) != 3 {
 		t.Fatalf("the notes stay in the feed, read, without the failure: %s %s", feed["head"], feed["items"])
 	}
-	if runs := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-1-0"]["rows"]); len(runs) != 2 {
-		t.Fatalf("the failed runs of the schedule keep both: %+v", runs)
+	if runs := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(runs) != 2 {
+		t.Fatalf("the history of the schedule keeps both failed runs: %+v", runs)
 	}
 	notes := blockData[[]screenRow](t, e.screenData("", "cockpit", map[string]any{"dialog": "changes"})["b3-1"]["rows"])
 	if len(notes) != 3 || notes[0].Cells[2] != "read" {
@@ -467,7 +470,7 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	e.refused("deck.process_dismiss", map[string]any{"all": true, "process": 1}, 422, "give one process, or all")
 }
 
-// TestTheOpenFailuresAreThoseNotClosedNorMadeGood: the Failed tab of the Schedule lists every failed run, and
+// TestTheOpenFailuresAreThoseNotClosedNorMadeGood: the history of the Schedule finds every failed run, and
 // processes_list with failed only those still open: not closed, not made good.
 func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 	t.Parallel()
@@ -494,8 +497,8 @@ func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 
 	var open []struct{ ID int64 }
 	e.must("deck.processes_list", map[string]any{"failed": true}, &open)
-	failed := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-1-0"]["rows"])
+	failed := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
 	if len(open) != 1 || open[0].ID != ids[0] || len(failed) != 3 {
-		t.Fatalf("3 failed as the Failed tab lists them, 1 open as processes_list gives it: %+v, %d rows", open, len(failed))
+		t.Fatalf("3 failed as the history finds them, 1 open as processes_list gives it: %+v, %d rows", open, len(failed))
 	}
 }

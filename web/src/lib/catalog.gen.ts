@@ -19,6 +19,7 @@ export type ActionsValue = Action[];
 export type StatValue = number | string | boolean | null;
 
 export interface Catalog {
+  picture?: Picture;
   tone?: Tone;
   action?: Action;
   topic?: Topic;
@@ -46,6 +47,18 @@ export interface Catalog {
   DocumentProps?: DocumentProps;
   CustomProps?: CustomProps;
   ChatProps?: ChatProps;
+}
+/**
+ * a picture on a card or a folder tile: where the client reads its light copy in the light and the dark scheme, and its main color in each, shown while it loads
+ *
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "picture".
+ */
+export interface Picture {
+  light: string;
+  dark?: string;
+  color?: string;
+  dark_color?: string;
 }
 /**
  * A button: a command call or a move to a screen. verb names a built-in label the client translates.
@@ -111,7 +124,7 @@ export interface Action {
    */
   pick?: string;
   /**
-   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   * With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it.
    */
   chat?: boolean;
   /**
@@ -181,7 +194,7 @@ export interface Action1 {
    */
   pick?: string;
   /**
-   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   * With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it.
    */
   chat?: boolean;
   /**
@@ -284,6 +297,10 @@ export interface Data {
   filters?: {
     field: string;
     /**
+     * the words the owner looks for in the fields of search, sent as the value of the field ~
+     */
+    search?: boolean;
+    /**
      * the field in the owner's language
      */
     label?: string;
@@ -341,6 +358,7 @@ export interface Data {
      * what the item is, said in the head of its card in a focus list
      */
     kind?: string;
+    cover?: Picture;
     questions?: {
       question: string;
       multiSelect?: boolean;
@@ -384,6 +402,11 @@ export interface Data {
      * the icon of a line that is no file; its tile presses the primary button
      */
     icon?: string;
+    /**
+     * a short line under the title
+     */
+    meta?: string;
+    cover?: Picture;
     error?: string;
     actions?: Action[];
   }[];
@@ -473,7 +496,7 @@ export interface Action2 {
    */
   pick?: string;
   /**
-   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   * With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it.
    */
   chat?: boolean;
   /**
@@ -543,7 +566,7 @@ export interface Action3 {
    */
   pick?: string;
   /**
-   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   * With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it.
    */
   chat?: boolean;
   /**
@@ -673,7 +696,7 @@ export interface Action4 {
    */
   pick?: string;
   /**
-   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   * With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it.
    */
   chat?: boolean;
   /**
@@ -772,7 +795,7 @@ export interface Action5 {
    */
   pick?: string;
   /**
-   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   * With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it.
    */
   chat?: boolean;
   /**
@@ -842,7 +865,7 @@ export interface Action6 {
    */
   pick?: string;
   /**
-   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   * With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it.
    */
   chat?: boolean;
   /**
@@ -1012,6 +1035,12 @@ export interface ChatValue {
    */
   models?: string[];
   /**
+   * the price of each model in words, such as subscription or free
+   */
+  prices?: {
+    [k: string]: string;
+  };
+  /**
    * the master's own model, which a topic without one takes
    */
   model?: string;
@@ -1104,7 +1133,7 @@ export interface Action7 {
    */
   pick?: string;
   /**
-   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   * With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it.
    */
   chat?: boolean;
   /**
@@ -1131,6 +1160,10 @@ export interface ScreenProps {
    * Of a tab of Tabs: its title as written, its name in the address in every language.
    */
   key?: string;
+  /**
+   * Of a tab of Tabs: a count of deck the client shows beside its title, kept fresh, such as the open failures.
+   */
+  count?: "failures";
   /**
    * Of the window of a Modal: the name of its dialog, ?dialog=<name> in the address opens it.
    */

@@ -171,6 +171,8 @@ func resolve(ctx context.Context, src Sources, req Request, every bool) (*render
 }
 
 type renderer struct {
+	// names are the labels of the steps of folders the reads of a file manager named.
+	names       map[string]string
 	ctx         context.Context
 	src         Sources
 	req         Request

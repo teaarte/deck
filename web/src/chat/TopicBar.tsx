@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Group, Menu, Select, Tooltip } from '@mantine/core';
+import { ActionIcon, Button, Group, Menu, Select, Text, Tooltip } from '@mantine/core';
 import { IconActivity, IconCheck, IconCpu, IconPlus, IconStack2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatData } from './chatData';
@@ -20,6 +20,8 @@ export function TopicBar({ value, topics, model, setModel }: {
   const own = topic ? topic.model ?? '' : model;
   const shown = own || value.model || '';
   const ctx = useBlockContext();
+  // price is how a model is paid for, in words, beside its name.
+  const price = (m?: string) => (m && value.prices?.[m] ? <Text size="xs" c="dimmed" data-model-price>{value.prices[m]}</Text> : undefined);
   const choose = (m: string) => {
     if (!topic) return setModel(m);
     if (value.choose) void press(ctx, value.choose, { model: m }).then((r) => { if (r.error) notifyError(new Error(r.error), t('chat.model_failed')); });
@@ -42,9 +44,9 @@ export function TopicBar({ value, topics, model, setModel }: {
           </Tooltip>
           <Menu.Dropdown data-topic-models>
             <Menu.Label>{t('chat.model')}</Menu.Label>
-            <Menu.Item leftSection={check(!own)} onClick={() => choose('')} data-model="">{t('chat.master_model', { model: value.model ?? '' })}</Menu.Item>
+            <Menu.Item leftSection={check(!own)} onClick={() => choose('')} data-model="" rightSection={price(value.model)}>{t('chat.master_model', { model: value.model ?? '' })}</Menu.Item>
             {value.models!.filter((m) => m !== value.model || own === m).map((m) => (
-              <Menu.Item key={m} leftSection={check(own === m)} onClick={() => choose(m)} data-model={m}>{m}</Menu.Item>
+              <Menu.Item key={m} leftSection={check(own === m)} onClick={() => choose(m)} data-model={m} rightSection={price(m)}>{m}</Menu.Item>
             ))}
           </Menu.Dropdown>
         </Menu>

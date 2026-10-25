@@ -1,6 +1,7 @@
 package files
 
 import (
+	"fmt"
 	"slices"
 
 	"deck2/internal/store/db"
@@ -35,4 +36,28 @@ func Shown(p db.Picture) int64 {
 		return p.ThumbID.Int64
 	}
 	return p.FileID
+}
+
+// Cover is the picture of a project's card in the theme in use, by scheme: where the light copy is read and its main
+// color; Theme is the theme it is for, empty for every theme.
+type Cover struct {
+	Light     string `json:"light,omitempty"`
+	Dark      string `json:"dark,omitempty"`
+	Color     string `json:"color,omitempty"`
+	DarkColor string `json:"dark_color,omitempty"`
+	Theme     string `json:"theme"`
+}
+
+// CoverOf is the cover of a project in a theme among the pictures of a workspace, nil without one.
+func CoverOf(pics []db.Picture, project int64, theme string) *Cover {
+	own := slices.DeleteFunc(slices.Clone(pics), func(x db.Picture) bool { return x.ProjectID != project })
+	light, dark := Pick(own, theme, "light"), Pick(own, theme, "dark")
+	if light == nil {
+		return nil
+	}
+	c := &Cover{Light: fmt.Sprintf("/api/files/%d", Shown(*light)), Color: light.Color, Theme: light.Theme}
+	if dark != nil {
+		c.Dark, c.DarkColor = fmt.Sprintf("/api/files/%d", Shown(*dark)), dark.Color
+	}
+	return c
 }

@@ -71,7 +71,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		t.Fatalf("the key of a connection is picked from the secrets: %+v", add.Choices)
 	}
 	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1", "key_secret": "or-key"}, nil)
-	if a := e.rowAction("", "settings", "", map[string]any{"dialog": "connection", "name": "router"}); a["params"].(map[string]any)["key_secret"] != "or-key" {
+	if a := e.button("", "settings", map[string]any{"dialog": "connections"}, "", map[string]any{"dialog": "connections", "name": "router"}); a["params"].(map[string]any)["key_secret"] != "or-key" {
 		t.Fatalf("the edit of a connection starts from the secret of its key: %+v", a)
 	}
 	rows := blockData[[]screenRow](t, e.screenBlock("web", "settings", "Models", nil)["rows"])

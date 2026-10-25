@@ -17,8 +17,8 @@ export function Picture({ it, wide }: { it: Item; wide?: boolean }) {
   return (
     <>
       <UnstyledButton onClick={() => setOpen(true)} data-media="image">
-        <Image src={shown} alt={it.title || it.name} h={wide ? 'auto' : 160} mah={wide ? '70vh' : undefined} fit={wide ? 'contain' : 'cover'} radius="sm"
-          style={{ aspectRatio: wide ? ratio : undefined, background: it.color }} />
+        <Image src={shown} alt={it.title || it.name} h={wide ? 'auto' : 160} mah={wide ? '70vh' : undefined} fit={wide ? 'contain' : 'cover'}
+          style={{ aspectRatio: wide ? ratio : undefined, background: it.color, borderRadius: 'var(--mantine-radius-sm)' }} />
       </UnstyledButton>
       <Modal opened={open} onClose={() => setOpen(false)} size="auto" title={it.title || it.name} centered>
         <Stack gap="xs">

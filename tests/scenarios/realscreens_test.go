@@ -79,7 +79,7 @@ func TestRealBrowserSettings(t *testing.T) {
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Interface")
+	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Look")
 	b.until("the appearance tab", `document.querySelector('[data-appearance]')`)
 	root := func(v string) string {
 		return `getComputedStyle(document.documentElement).getPropertyValue('` + v + `').trim()`
@@ -100,7 +100,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	b.shot("settings-interface")
 
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the look kept on the device", `document.documentElement.dataset.mantineColorScheme === 'dark' && `+
 		root("--mantine-primary-color-filled")+` === `+root("--mantine-color-grape-filled")+` && `+root("--mantine-spacing-md")+`.includes('0.75')`)
 
@@ -114,7 +114,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 
 	b.call("browser_tabs", map[string]any{"action": "new"})
-	b.open(e.URL + "/#/deck/settings?tab=Interface")
+	b.open(e.URL + "/#/deck/settings?tab=Look")
 	b.until("the appearance tab in the second tab", `document.querySelector('[data-appearance]')`)
 	b.look("scheme", "light")
 	b.until("the light scheme", `document.documentElement.dataset.mantineColorScheme === 'light'`)
@@ -137,12 +137,12 @@ func TestRealBrowserSettings(t *testing.T) {
 		b.until("the tab "+name, find)
 		b.eval(`(` + find + `.click(), '')`)
 	}
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the projects tab", itemOf("notes", "enabling grants"))
 	b.reviewAndEnable("notes")
 	e.waitFor("the enabled draft", func() bool { return e.project("notes").Status == "enabled" })
 	b.shot("settings-draft")
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the enabled draft", itemOf("notes", "enabled"))
 	if p := e.project("notes"); p.Status != "enabled" {
 		t.Fatalf("enable on the projects tab turns the draft on: %+v", p)
@@ -150,7 +150,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.shot("settings-projects")
 
 	tab("Health")
-	b.until("the failing checks alone on Health", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Failing checks')) && ![...document.querySelectorAll('[data-block]')].some((x) => x.offsetParent && x.innerText.includes('Everything deck checks'))`)
+	b.until("what is broken first on Health, every check behind a button", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Broken now')) && document.querySelector('[data-dialog-open="checks"]') && ![...document.querySelectorAll('[data-block]')].some((x) => x.offsetParent && x.innerText.includes('Everything deck checks'))`)
 	b.shot("settings-health")
 	tab("Advanced")
 	agent := `[...document.querySelectorAll('tr')].find((r) => [...r.querySelectorAll('td')].some((d) => d.innerText.trim() === 'goose'))`
@@ -206,12 +206,12 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
 	b.until("the revoked token", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.toLowerCase().includes('revoked'))`)
 	b.shot("settings-tokens")
-	for _, name := range []string{"Models", "Commands", "Connections"} {
+	for _, name := range []string{"Health", "Models", "Advanced"} {
 		tab(name)
 		b.until("the tab "+name+" drawn", `document.querySelector('[role=tabpanel]:not([hidden]) [data-block]')`)
 		b.shot("settings-" + strings.ToLower(name))
 	}
-	for name, at := range map[string]string{"schedule-failed": "schedule?tab=Failed", "spend": "spend", "files": "files"} {
+	for name, at := range map[string]string{"schedule-runs": "schedule?tab=Runs", "spend": "spend", "files": "files", "settings-connections": "settings?tab=Models&dialog=connections"} {
 		b.open(e.URL + "/#/deck/" + at)
 		b.until("the screen "+at, `document.querySelector('[data-block]')`)
 		b.shot(name)
@@ -240,14 +240,14 @@ func TestRealBrowserSettings(t *testing.T) {
 	e.waitFor("the model picked in the row of the command", func() bool { return strings.HasPrefix(assigned(), "quiet,") })
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	tab("Modules")
 	b.until("the projects tab on a phone", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('enabled'))`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the projects tab fits the width of a phone: %s", got)
 	}
 	b.shot("settings-projects-phone")
-	tab("Interface")
+	tab("Look")
 	b.until("the appearance tab on a phone", `document.querySelector('[data-appearance]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("settings fit the width of a phone: %s", got)
@@ -391,27 +391,30 @@ func TestRealBrowserJournal(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/?token=" + token + "#/deck/schedule")
-	b.until("the schedule tabs", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Schedule Failed Runs'`)
+	b.until("the schedule tabs", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Schedule Runs'`)
 	b.open(e.URL + "/?token=" + token + "#/deck/files")
-	b.until("the tabs of files", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Files Data folders Documents Snapshots'`)
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Data folders').click(), '')`)
+	b.until("the tabs of files", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Files Snapshots'`)
 	const visible = `[...document.querySelectorAll('[data-place]')].filter((x) => x.offsetParent)`
-	b.until("the data folders of the projects as folder tiles", visible+`.some((x) => x.dataset.place === 'folder' && x.innerText.toLowerCase().includes('web'))`)
+	b.until("the folders of the modules as folder tiles", visible+`.some((x) => x.innerText.toLowerCase().includes('web'))`)
 	if got := b.eval(`String([...document.querySelectorAll('button')].some((x) => x.offsetParent && x.innerText.trim() === 'Open'))`); got != "false" {
 		t.Fatalf("a folder opens by its tile, without an Open button: %s", got)
 	}
 	b.eval(`(` + visible + `.find((x) => x.innerText.toLowerCase().includes('web')).click(), '')`)
-	b.until("the data folder of web with its folder", `location.hash.includes('/deck/data') && `+visible+`.some((x) => x.dataset.place === 'folder' && x.innerText.trim() === 'sub')`)
+	b.until("the folders of web, the screen the same", `location.hash.includes('/deck/files') && `+visible+`.some((x) => x.innerText.includes('Data folder'))`)
+	b.eval(`(` + visible + `.find((x) => x.innerText.includes('Data folder')).click(), '')`)
+	b.until("its data folder with its folder", visible+`.some((x) => x.dataset.place === 'folder' && x.innerText.trim() === 'sub')`)
 	b.eval(`(` + visible + `.find((x) => x.innerText.trim() === 'sub').click(), '')`)
-	b.until("the folder with the way up and its file", visible+`.some((x) => x.dataset.place === 'arrow-up') && [...document.querySelectorAll('[data-tile]')].some((x) => x.offsetParent && x.innerText.includes('a.txt'))`)
+	b.until("the folder with the way up and its file", `document.querySelector('[data-crumb-up]')?.offsetParent && [...document.querySelectorAll('[data-tile]')].some((x) => x.offsetParent && x.innerText.includes('a.txt'))`)
 	b.shot("data-folder-phone")
-	b.open(e.URL + "/?token=" + token + "#/deck/files")
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Snapshots').click(), '')`)
-	b.until("the snapshot form", `document.querySelector('[data-form="deck.snapshot_create"] [data-submit]')?.offsetParent`)
-	b.eval(`(document.querySelector('[data-form="deck.snapshot_create"] [data-submit]').click(), '')`)
+	b.eval(`(document.querySelector('[data-crumb-up]').click(), '')`)
+	b.until("one step up", visible+`.some((x) => x.innerText.trim() === 'sub')`)
+	b.open(e.URL + "/?token=" + token + "#/deck/files?tab=Snapshots")
+	take := `[...document.querySelectorAll('button')].find((x) => x.offsetParent && x.innerText.trim() === 'Take a snapshot')`
+	b.until("the snapshot button", take)
+	b.eval(`(` + take + `.click(), '')`)
 	b.until("the new snapshot in the list", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.includes('deck-'))`)
+	b.open(e.URL + "/?token=" + token + "#/deck/files?path=web%2Ffiles")
 	b.eval(`(window.saved = [], HTMLAnchorElement.prototype.click = function () { fetch(this.href).then((r) => r.blob()).then(async (b) => { window.saved.push(b.type + ' ' + this.download + '=' + await b.text()); }); }, '')`)
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Files').click(), '')`)
 	b.until("the switch of the view of files", `[...document.querySelectorAll('[data-files-mode] input')].some((x) => x.value === 'list')`)
 	b.eval(`([...document.querySelectorAll('[data-files-mode] input')].find((x) => x.value === 'list').click(), '')`)
 	b.until("the download buttons of the files", `[...document.querySelectorAll('[data-row] [data-download]')].filter((x) => x.offsetParent).length === 3`)
@@ -677,26 +680,26 @@ func customPictureIn(t *testing.T, browser ...string) {
 	}
 }
 
-// TestRealBrowserAButtonOpensTheChatInANewTopic: a chat button, or the address with chat=new, opens the chat of the
-// master beside the screen in a new topic with the microphone at hand.
-func TestRealBrowserAButtonOpensTheChatInANewTopic(t *testing.T) {
+// TestRealBrowserTheChatOpensBesideTheScreenInANewTopic: the button of Deki opens the chat beside the screen, and the
+// address with chat=new opens it in a new topic with the microphone at hand; no button of a module only opens it.
+func TestRealBrowserTheChatOpensBesideTheScreenInANewTopic(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, ok)
-	e.createProject("work", strings.Replace(boardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "New task", "chat": true}, {"label": "Move"`, 1))
+	e.createProject("work", boardManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/p/work/board")
 	b.until("the board", `document.querySelector('[data-board] [data-card]')`)
-	b.eval(`([...document.querySelectorAll('[data-card] button')].find((x) => x.innerText.includes('New task')).click(), '')`)
-	b.until("the chat beside the board in a new topic, the microphone at hand", `document.querySelector('[data-chat-panel] [data-chat-input]') && document.querySelector('[data-board]') && !document.querySelector('[data-chat-panel] [data-message]') && document.activeElement?.matches('[data-mic]')`)
+	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
+	b.until("the chat beside the board", `document.querySelector('[data-chat-panel] [data-chat-input]') && document.querySelector('[data-board]')`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.until("the chat closed", `!document.querySelector('[data-chat-panel]')`)
 	b.open(e.URL + "/#/p/work/board?chat=new")
-	b.until("the chat from the address", `document.querySelector('[data-chat-panel] [data-chat-input]') && !location.hash.includes('chat=')`)
+	b.until("the chat from the address in a new topic, the microphone at hand", `document.querySelector('[data-chat-panel] [data-chat-input]') && !location.hash.includes('chat=') && !document.querySelector('[data-chat-panel] [data-message]') && document.activeElement?.matches('[data-mic]')`)
 }
 
 // TestRealBrowserCustomBlockSendsNothingByWebRTC: a custom block sends nothing by WebRTC past its CSP, from its window

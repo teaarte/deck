@@ -21,12 +21,14 @@ const TILE = 120;
 
 // Browser shows many files as tiles or as a list, kept per device, and opens each in a lightbox; a line that is no
 // file, such as a folder, opens by its button; crumbs are the steps of the folder it shows.
-export function Browser({ items, crumbs }: { items: Item[]; crumbs?: Crumb[] }) {
+export function Browser({ items, crumbs, empty }: { items: Item[]; crumbs?: Crumb[]; empty?: string }) {
   const { t } = useTranslation();
   const [view, setView] = useLocalStorage<View>({ key: 'deck-files-view', defaultValue: { mode: 'grid' } });
   const [at, setAt] = useState<number | null>(null);
   const files = items.filter((it) => !it.icon);
   const open = (it: Item) => setAt(files.indexOf(it));
+  // A line under the names makes the tiles taller.
+  const tile = TILE + (items.some((it) => it.meta) ? 66 : 48);
   return (
     <Stack gap="sm" data-files={view.mode}>
       <Group gap="xs" justify="flex-end" wrap="nowrap">
@@ -34,8 +36,9 @@ export function Browser({ items, crumbs }: { items: Item[]; crumbs?: Crumb[] }) 
         <SegmentedControl size="xs" value={view.mode} onChange={(v) => setView({ mode: v as View['mode'] })} data-files-mode
           data={[{ value: 'grid', label: <IconLayoutGrid size={14} aria-label={t('files.grid')} /> }, { value: 'list', label: <IconList size={14} aria-label={t('files.list')} /> }]} />
       </Group>
+      {!items.length && <Text size="sm" c="dimmed" data-empty>{empty || t('state.empty')}</Text>}
       {view.mode === 'grid' ? (
-        <Virtual items={items} row={TILE + 48} width={TILE + 16} className={s.grid} render={(it, i) => it.icon ? <Place key={String(it.id) + i} it={it} size={TILE} /> : (
+        <Virtual items={items} row={tile} width={TILE + 16} className={s.grid} render={(it, i) => it.icon ? <Place key={String(it.id) + i} it={it} size={TILE} /> : (
           <UnstyledButton key={String(it.id) + i} className={s.tile} onClick={() => open(it)} data-item data-tile>
             <Thumb it={it} size={TILE} />
             <Text size="xs" lineClamp={2} ta="center" style={{ overflowWrap: 'anywhere' }}>{it.title || it.name}</Text>

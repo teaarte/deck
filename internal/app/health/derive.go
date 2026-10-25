@@ -64,7 +64,7 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 	missing := s.Missing(ctx, ws)
 	for name, places := range missing {
 		want[health.Model(name)] = derived{health.Of{Workspace: ws}, health.Warning,
-			fmt.Sprintf("deck has no such model, and the assignments of %s name it; pick another in Settings → Commands", strings.Join(places, ", "))}
+			fmt.Sprintf("deck has no such model, and the assignments of %s name it; pick another in Settings → Models", strings.Join(places, ", "))}
 	}
 	for _, p := range ps {
 		m, err := docs.Manifest(ctx, s.St.Q, p)

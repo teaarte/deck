@@ -8,10 +8,10 @@ import { Viewer } from './Viewer';
 
 export type { Item } from './kinds';
 
-// Media shows the files of a source: one in place, a picture as a thumbnail that opens in full; several as tiles or
-// a list that open in a lightbox, folders and other lines that are no file among them.
-export function Media({ items, crumbs }: { items: Item[]; crumbs?: Crumb[] }) {
-  if (items.length > 1 || items.some((it) => it.icon) || crumbs) return <Browser items={items} crumbs={crumbs} />;
+// Media shows the files of a source: one in place, a picture as a thumbnail that opens in full; several, or what the
+// owner narrows, as tiles or a list that open in a lightbox, folders and other lines that are no file among them.
+export function Media({ items, crumbs, empty, browse }: { items: Item[]; crumbs?: Crumb[]; empty?: string; browse?: boolean }) {
+  if (browse || items.length > 1 || items.some((it) => it.icon) || crumbs) return <Browser items={items} crumbs={crumbs} empty={empty} />;
   return (
     <Stack gap="sm">
       {items.map((it, i) => {

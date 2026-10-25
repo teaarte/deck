@@ -32,6 +32,8 @@ type envelope struct {
 type migration struct {
 	input string
 	rows  []envelope
+	// checked is a migration a check of the manifest names without running its script.
+	checked bool
 }
 
 func envelopes(recs []db.Record) string {
@@ -61,8 +63,8 @@ func parseEnvelopes(jsonl string) ([]envelope, error) {
 }
 
 // migrate prepares, outside any transaction, the collections whose schema or key changes: from the snapshot
-// a revert returns to, or by the migration script when the records no longer fit.
-func (pj *Service) migrate(ctx context.Context, p db.Project, next *manifest.Manifest, revertTo int64) (map[string]*migration, error) {
+// a revert returns to, or by the migration script when the records no longer fit; a check runs no script.
+func (pj *Service) migrate(ctx context.Context, p db.Project, next *manifest.Manifest, revertTo int64, check bool) (map[string]*migration, error) {
 	old, err := docs.Manifest(ctx, pj.St.Q, p)
 	if err != nil {
 		return nil, nil
@@ -94,6 +96,10 @@ func (pj *Service) migrate(ctx context.Context, p db.Project, next *manifest.Man
 			continue
 		}
 		if len(recs) == 0 || c.Migration == "" || misfitsOf(c, storedRows(recs), true, "") == "" {
+			continue
+		}
+		if check {
+			out[c.Name] = &migration{input: input, checked: true}
 			continue
 		}
 		stdout, err := pj.runMigration(ctx, p, next, c, input)

@@ -32,7 +32,7 @@ and the owner's.
 6. `deck.theme_check` with the text names every problem; fix them all, then `deck.theme_save`. Its answer
    gives two preview addresses, light and dark: give them to the owner as links, and `unreached`, the parts of
    deck no theme changes yet: do not chase them with CSS.
-7. Only the owner puts a theme on: tell them it is in Settings → Interface → Theme.
+7. Only the owner puts a theme on: tell them it is in Settings → Look.
 
 ## Deleting
 

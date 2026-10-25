@@ -76,7 +76,7 @@
     "label": "Access token",
     "save": "Open deck"
   },
-  "filter": { "any": "Any {{field}}" },
+  "filter": { "any": "Any {{field}}", "search": "Search" },
   "confirm": { "title": "{{action}}?", "parts": "This is deleted for good:",
     "part": { "record": "Record", "file": "File", "folder": "Folder", "process": "Process it stops" } },
   "custom": { "ask": "A custom block wants to run a command that goes outside deck", "inline": "Back into the screen", "failed": "The block did not work: {{why}}" },
@@ -207,8 +207,7 @@
   },
   "press": {"title": "Your yes is needed", "yes": "Yes", "no": "No", "later": "Later, in the cockpit", "lost": "deck did not answer the press; look at what it changed before pressing again"},
   "today": { "one": "One decision waits for you", "many": "Decisions waiting: {{n}}", "none": "All decided" },
-  "apps": { "new": "New module", "new_text": "Tell Deki what to do" },
-  "lead": { "doing": "Now: {{what}}", "next": "Next: {{what}} {{when}}", "assign": "Assign", "assign_to": "Assign to the module “{{name}}”" },
+  "lead": { "doing": "Now: {{what}}", "next": "Next: {{what}} {{when}}" },
   "list": { "one_of": "{{n}} of {{of}}", "later": "Later" },
   "hold": { "goes": "“{{label}}” goes in 5 s" }
 }

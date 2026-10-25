@@ -35,9 +35,9 @@ func TestRealBrowserRouter(t *testing.T) {
 	b.until("the dialog closed after its form ran", `!document.querySelector('[data-dialog="rescore"] input') && !location.hash.includes('dialog')`)
 
 	b.open(e.URL + "/#/deck/settings")
-	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Health')`)
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Health').click(), '')`)
-	b.until("the tab in the address", `decodeURIComponent(location.hash).includes('tab=Health')`)
+	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Models')`)
+	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Models').click(), '')`)
+	b.until("the tab in the address", `decodeURIComponent(location.hash).includes('tab=Models')`)
 	b.open(e.URL + "/#/deck/schedule")
 	b.until("the journal", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Runs')`)
 	b.eval(`(history.back(), '')`)

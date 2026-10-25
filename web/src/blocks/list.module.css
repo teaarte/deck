@@ -252,3 +252,9 @@
 .chip[data-tone='error'] .chipIcon {
   color: var(--mantine-color-red-6);
 }
+
+.cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 10px;
+}

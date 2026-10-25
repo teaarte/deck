@@ -165,6 +165,10 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 	if _, ok := types["lang"]; ok && sc.Lang != "" && in["lang"] == nil {
 		in["lang"] = sc.Lang
 	}
+	// The words of a block's search reach a read that looks for them itself, past the newest of what it gives.
+	if _, ok := types["search"]; ok && sc.Filter[manifest.SearchKey] != "" {
+		in["search"] = sc.Filter[manifest.SearchKey]
+	}
 	for k, v := range sc.Filter {
 		if types[k] != "" {
 			in[k] = manifest.Typed(v, types[k])

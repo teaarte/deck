@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { ActionIcon, Button, Group, Text, Title, useComputedColorScheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconArrowLeft, IconArrowRight, IconArrowsSort, IconCheck, IconPlus, IconSun } from '@tabler/icons-react';
+import { IconArrowLeft, IconArrowRight, IconArrowsSort, IconCheck, IconSun } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { NavStatus } from '../app/NavStatus';
 import { href } from '../app/router';
@@ -11,7 +11,7 @@ import { notifyError } from '../lib/notify';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './apps.module.css';
 import { CardDeki } from './CardDeki';
-import { useCover } from './covers';
+import { useCover } from '../lib/covers';
 
 // hue is a color of a tile without a picture, the same for a name on every device.
 function hue(name: string) {
@@ -98,13 +98,6 @@ export function Apps() {
             </Tile>
           );
         })}
-        <a href={href({ screen: 'apps', params: { chat: 'new' } })} className={s.add} data-new-module>
-          <span className={s.addIcon}><IconPlus size={20} /></span>
-          <span className={s.addWords}>
-            <Text fw={700} size="lg">{t('apps.new')}</Text>
-            <Text size="sm" c="dimmed">{t('apps.new_text')}</Text>
-          </span>
-        </a>
       </div>
       {menu.projects.length > 1 && (
         <Group justify="center">

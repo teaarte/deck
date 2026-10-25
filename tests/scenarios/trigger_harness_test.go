@@ -15,7 +15,7 @@ type triggerV struct {
 	Project   string `json:"project"`
 	Command   string `json:"command"`
 	Kind      string `json:"kind"`
-	NextRunAt string `json:"next_run_at"`
+	NextRunAt string `json:"next_at"`
 	Paused    bool   `json:"paused"`
 	Last      int64  `json:"last_process"`
 }

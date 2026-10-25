@@ -34,12 +34,15 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 		t.Fatalf("the spend keeps the estimate out of the money: %+v", days)
 	}
 	page := e.screenData("", "spend", nil)
-	rows := blockData[[]screenRow](t, page["b4-0-0"]["rows"])
-	if len(rows) != 1 || rows[0].Cells[0] != "plain" || rows[0].Cells[1] != nil || rows[0].Cells[4].(float64) < 0.04 {
+	rows := blockData[[]screenRow](t, page["b2-0-0"]["rows"])
+	if len(rows) != 1 || rows[0].Cells[0] != "plain" || rows[0].Cells[1] != nil || rows[0].Cells[2].(float64) < 0.04 {
 		t.Fatalf("the spend of a project shows a model on a subscription apart from the money paid: %+v", rows)
 	}
-	if paid := string(page["b2"]["value"]); paid != "0" {
-		t.Fatalf("what is paid leaves the subscription out: %s", page["b2"])
+	if paid := string(page["b0"]["value"]); paid != "0" {
+		t.Fatalf("what is paid leaves the subscription out: %s", page["b0"])
+	}
+	if covered := string(page["b1"]["value"]); covered == "0" || covered == "" {
+		t.Fatalf("what a subscription covers is shown apart: %s", page["b1"])
 	}
 	var models struct {
 		Models []struct {
@@ -116,7 +119,7 @@ func TestAModelNeverCalledSaysSo(t *testing.T) {
 	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "zai", "api": "openai", "url": "http://127.0.0.1:1/v1", "key": "k"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "zai", "model": "glm-5", "kind": "text"}, nil)
-	rows := blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"])
+	rows := blockData[[]screenRow](t, e.settingsBlock("All models", nil)["rows"])
 	for _, r := range rows {
 		if r.Cells[0] == "zai/glm-5" {
 			if r.Cells[2] != "unchecked" || r.Details[2] != "No work has gone to it yet" {

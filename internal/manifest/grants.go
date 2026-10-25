@@ -298,11 +298,11 @@ func Clip(granted, m *Manifest) *Manifest {
 	return &c
 }
 
-// Trial is the manifest in force of a trial of a draft: in, what the owner granted, with the reads, writes and models
-// of its current manifest m; each call of a model that is not free waits for the owner.
+// Trial is the manifest in force of a trial of a draft: what the owner granted, with the writes and models of its
+// current manifest m but none of its reads; each call of a model that is not free waits for the owner.
 func Trial(in, m *Manifest) *Manifest {
 	c := *in
-	c.Reads, c.Writes = slices.Clone(m.Reads), slices.Clone(m.Writes)
+	c.Writes = slices.Clone(m.Writes)
 	uses := m.Uses()
 	c.granted = &uses
 	return &c

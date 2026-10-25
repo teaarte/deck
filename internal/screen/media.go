@@ -26,6 +26,14 @@ func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 		}
 		ref = v
 	}
+	if b.Item.Meta != "" {
+		if v, err := r.eval(b.Item.Meta, it); err == nil && v != nil && v != "" {
+			line["meta"] = fmt.Sprint(r.phrased(b.Item.Meta, r.word(r.worded(b.Source, b.Item.Meta, b.Filter), v)))
+		}
+	}
+	if c := r.cover(b, it); c != nil {
+		line["cover"] = c
+	}
 	if ref == nil || ref == "" {
 		icon, err := r.eval(b.Item.Icon, it)
 		if b.Item.Icon == "" || err != nil || icon == nil || icon == "" {
@@ -50,6 +58,40 @@ func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 	return line
 }
 
+// cover is the picture of a card or a folder tile of an item: where its light copy is read, for each scheme, and its
+// main color; nil without one.
+func (r *renderer) cover(b manifest.Block, it map[string]any) map[string]any {
+	if b.Item == nil || b.Item.Cover == "" {
+		return nil
+	}
+	v, err := r.eval(b.Item.Cover, it)
+	if err != nil || v == nil || v == "" {
+		return nil
+	}
+	// A cover as deck's reads give it names where the client reads it, so only deck's own screens take one.
+	if m, ok := v.(map[string]any); ok && r.deck() {
+		out := map[string]any{}
+		for _, k := range []string{"light", "dark", "color", "dark_color"} {
+			if x, ok := m[k].(string); ok && x != "" {
+				out[k] = x
+			}
+		}
+		if out["light"] == nil {
+			return nil
+		}
+		return out
+	}
+	f, err := r.src.File(r.ctx, r.req.Project, v)
+	if err != nil {
+		return nil
+	}
+	out := map[string]any{"light": cmp.Or(f["thumb"], f["url"])}
+	if c, ok := f["color"].(string); ok && c != "" {
+		out["color"] = c
+	}
+	return out
+}
+
 // crumbs are the steps of the folder of a file manager, its root first, each with the primary button of a folder
 // line of that path; none when the block names no path or has no such button.
 func (r *renderer) crumbs(b manifest.Block) []map[string]any {
@@ -71,9 +113,9 @@ func (r *renderer) crumbs(b manifest.Block) []map[string]any {
 	}
 	out := make([]map[string]any, 0, len(steps))
 	for i, step := range steps {
-		label := r.tr(cmp.Or(b.Title, "Folder"))
+		label := r.tr(cmp.Or(b.Title, r.req.Screen.Title, "Folder"))
 		if i > 0 {
-			label = at[i-1]
+			label = cmp.Or(r.names[step], at[i-1])
 		}
 		c := map[string]any{"label": label}
 		if i < len(steps)-1 {

@@ -247,14 +247,14 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 		Field, Label string
 		Labels       []string
 	}
-	_ = json.Unmarshal(schedule["b0-2-0"]["filters"], &filters)
+	_ = json.Unmarshal(schedule["b0-1-0"]["filters"], &filters)
 	if len(filters) != 2 || filters[0].Label != "Модуль" || filters[1].Label != "Состояние" || !slices.Contains(filters[1].Labels, "готово") {
 		t.Fatalf("a filter is named like its column and offers deck's values in words: %+v", filters)
 	}
-	if rows := string(schedule["b0-0-0"]["rows"]); !strings.Contains(rows, "после «work»") {
+	if rows := string(schedule["b0-0-1"]["rows"]); !strings.Contains(rows, "после «work»") {
 		t.Fatalf("a trigger after another command says so in words: %s", rows)
 	}
-	if rows := string(schedule["b0-0-0"]["rows"]); !strings.Contains(rows, `"video"`) || !strings.Contains(rows, `"search"`) || strings.Contains(rows, "видео") {
+	if rows := string(schedule["b0-0-1"]["rows"]); !strings.Contains(rows, `"video"`) || !strings.Contains(rows, `"search"`) || strings.Contains(rows, "видео") {
 		t.Fatalf("names of modules and commands stay names though deck has words like them: %s", rows)
 	}
 }
@@ -477,18 +477,24 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		}
 	}
 	var all strings.Builder
-	for _, s := range []struct{ project, screen string }{{"", "settings"}, {"", "schedule"}, {"", "spend"}, {"", "files"}, {"", "cockpit"},
-		{"notes", "settings"}, {"notes", "documents"}, {"", "data"}} {
+	for _, s := range []struct{ project, screen, path string }{{"", "settings", ""}, {"", "schedule", ""}, {"", "spend", ""}, {"", "files", ""},
+		{"", "cockpit", ""}, {"notes", "settings", ""}, {"notes", "documents", ""}, {"", "files", "notes/data"}, {"", "files", "notes"}} {
 		in := map[string]any{"lang": "ru"}
-		if s.screen == "data" {
-			in["params"] = `{"project": "notes"}`
+		if s.path != "" {
+			in["params"] = `{"path": "` + s.path + `"}`
 		}
-		for _, msgs := range e.everyTab(s.project, s.screen, in) {
-			raw, _ := json.Marshal(msgs)
-			var v any
-			_ = json.Unmarshal(raw, &v)
-			walk(v, false)
-			all.Write(raw)
+		for _, d := range append([]map[string]any{nil}, e.dialogsOf(s.project, s.screen)...) {
+			for _, msgs := range e.everyTab(s.project, s.screen, merge(in, d)) {
+				raw, _ := json.Marshal(msgs)
+				var v any
+				_ = json.Unmarshal(raw, &v)
+				// The forms of a dialog name the values of their commands as they are.
+				if d != nil {
+					v = withoutForms(v)
+				}
+				walk(v, false)
+				all.Write(raw)
+			}
 		}
 	}
 	for _, want := range []string{"модель отвечала со скоростью 142 токенов/с", "модель не закончила самопроверку goose 1.53.0", "gate-key",
@@ -500,4 +506,25 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 	for _, s := range slices.Sorted(maps.Keys(english)) {
 		t.Errorf("English in Russian: %q", s)
 	}
+}
+
+// withoutForms is the messages of a screen without the values of its forms.
+func withoutForms(v any) any {
+	switch v := v.(type) {
+	case map[string]any:
+		out := map[string]any{}
+		for k, x := range v {
+			if m, ok := x.(map[string]any); !ok || k != "value" || m["commands"] == nil {
+				out[k] = withoutForms(x)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(v))
+		for i, x := range v {
+			out[i] = withoutForms(x)
+		}
+		return out
+	}
+	return v
 }

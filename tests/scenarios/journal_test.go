@@ -78,8 +78,8 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 
 	check.messages(t, e.screenMessages("", "spend", nil))
 	data := e.screenData("", "spend", nil)
-	spend := blockData[[]screenRow](t, data["b4-2-1"]["rows"])
-	if len(spend) != 1 || spend[0].Cells[0] != "web" || spend[0].Cells[2] != float64(2) || spend[0].Cells[3] != float64(2400) {
+	spend := blockData[[]screenRow](t, data["b2-2-1"]["rows"])
+	if len(spend) != 1 || spend[0].Cells[0] != "web" || spend[0].Cells[3] != float64(2) || spend[0].Cells[4] != float64(2400) {
 		t.Fatalf("spend sums the calls and tokens of each project: %+v", spend)
 	}
 	var by []struct {
@@ -106,7 +106,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	if len(files) != 1 || files[0]["name"] != "scan.txt" || files[0]["title"] != "scan.txt" {
 		t.Fatalf("files lists the files of the workspace: %+v", files)
 	}
-	snaps := blockData[[]screenRow](t, kept["b0-3-0"]["rows"])
+	snaps := blockData[[]screenRow](t, kept["b0-1-1"]["rows"])
 	if len(snaps) != 2 || !strings.HasPrefix(snaps[0].Cells[0].(string), "deck-2026") || snaps[1].Cells[1] != "2020-01-01T00:00:00Z" {
 		t.Fatalf("snapshots lists what backups holds: %+v", snaps)
 	}

@@ -5,74 +5,9 @@
   "blocks": [
     {
       "type": "stat",
-      "title": "Tokens today",
-      "icon": "bolt",
-      "source": {
-        "from": "deck.spend_daily",
-        "input": {
-          "days": 1
-        }
-      },
-      "value": "sum(map(rows, .tokens))",
-      "actions": [
-        {
-          "verb": "open",
-          "screen": "spend",
-          "params": {
-            "tab": "Today"
-          }
-        }
-      ],
-      "format": "compact"
-    },
-    {
-      "type": "stat",
-      "title": "Model calls today",
-      "icon": "message-chatbot",
-      "source": {
-        "from": "deck.spend_daily",
-        "input": {
-          "days": 1
-        }
-      },
-      "value": "sum(map(rows, .calls))",
-      "actions": [
-        {
-          "verb": "open",
-          "screen": "spend",
-          "params": {
-            "tab": "Today"
-          }
-        }
-      ]
-    },
-    {
-      "type": "stat",
-      "title": "Paid, 7 days",
+      "title": "Paid in 30 days",
       "icon": "coin",
-      "source": {
-        "from": "deck.spend_daily",
-        "input": {
-          "days": 7
-        }
-      },
-      "value": "sum(map(rows, .cost_usd))",
-      "actions": [
-        {
-          "verb": "open",
-          "screen": "spend",
-          "params": {
-            "tab": "7 days"
-          }
-        }
-      ],
-      "format": "money",
-      "currency": "USD"
-    },
-    {
-      "type": "stat",
-      "title": "Paid, 30 days",
-      "icon": "coin",
+      "span": 1,
       "source": {
         "from": "deck.spend_daily",
         "input": {
@@ -80,6 +15,8 @@
         }
       },
       "value": "sum(map(rows, .cost_usd))",
+      "format": "money",
+      "currency": "USD",
       "actions": [
         {
           "verb": "open",
@@ -88,9 +25,33 @@
             "tab": "30 days"
           }
         }
-      ],
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Covered by subscriptions, about",
+      "icon": "rosette-discount-check",
+      "span": 1,
+      "tone": "'ok'",
+      "source": {
+        "from": "deck.spend_daily",
+        "input": {
+          "days": 30
+        }
+      },
+      "value": "sum(map(rows, .subscription_usd))",
       "format": "money",
-      "currency": "USD"
+      "currency": "USD",
+      "description": "What the work on the subscriptions of Claude Code and Codex would cost by the prices of their models.",
+      "actions": [
+        {
+          "verb": "open",
+          "screen": "spend",
+          "params": {
+            "tab": "30 days"
+          }
+        }
+      ]
     },
     {
       "type": "tabs",
@@ -102,6 +63,7 @@
             {
               "type": "table",
               "title": "By module",
+              "span": 1,
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
@@ -115,12 +77,18 @@
               "columns": [
                 {
                   "label": "Module",
-                  "bind": "(project ?? '') != '' ? project : 'deck'",
+                  "bind": "title",
                   "format": "tag"
                 },
                 {
                   "label": "Paid",
                   "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+                  "format": "money",
+                  "currency": "USD"
+                },
+                {
+                  "label": "Subscription ≈",
+                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
                 },
@@ -132,18 +100,13 @@
                   "label": "Tokens",
                   "bind": "tokens",
                   "format": "compact"
-                },
-                {
-                  "label": "On subscription",
-                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
-                  "format": "money",
-                  "currency": "USD"
                 }
               ]
             },
             {
               "type": "table",
               "title": "By model",
+              "span": 1,
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
@@ -180,7 +143,7 @@
                   "format": "compact"
                 },
                 {
-                  "label": "On subscription",
+                  "label": "Subscription ≈",
                   "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
@@ -194,8 +157,30 @@
           "icon": "calendar-week",
           "blocks": [
             {
+              "type": "chart",
+              "title": "Paid by day",
+              "kind": "bar",
+              "span": "full",
+              "source": {
+                "from": "deck.spend_daily",
+                "input": {
+                  "days": 7
+                }
+              },
+              "x": "day",
+              "format": "money",
+              "currency": "USD",
+              "series": [
+                {
+                  "label": "Paid",
+                  "y": "cost_usd"
+                }
+              ]
+            },
+            {
               "type": "table",
               "title": "By module",
+              "span": 1,
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
@@ -209,12 +194,18 @@
               "columns": [
                 {
                   "label": "Module",
-                  "bind": "(project ?? '') != '' ? project : 'deck'",
+                  "bind": "title",
                   "format": "tag"
                 },
                 {
                   "label": "Paid",
                   "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+                  "format": "money",
+                  "currency": "USD"
+                },
+                {
+                  "label": "Subscription ≈",
+                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
                 },
@@ -226,18 +217,13 @@
                   "label": "Tokens",
                   "bind": "tokens",
                   "format": "compact"
-                },
-                {
-                  "label": "On subscription",
-                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
-                  "format": "money",
-                  "currency": "USD"
                 }
               ]
             },
             {
               "type": "table",
               "title": "By model",
+              "span": 1,
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
@@ -274,7 +260,7 @@
                   "format": "compact"
                 },
                 {
-                  "label": "On subscription",
+                  "label": "Subscription ≈",
                   "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
@@ -311,6 +297,7 @@
             {
               "type": "table",
               "title": "By module",
+              "span": 1,
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
@@ -324,12 +311,18 @@
               "columns": [
                 {
                   "label": "Module",
-                  "bind": "(project ?? '') != '' ? project : 'deck'",
+                  "bind": "title",
                   "format": "tag"
                 },
                 {
                   "label": "Paid",
                   "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+                  "format": "money",
+                  "currency": "USD"
+                },
+                {
+                  "label": "Subscription ≈",
+                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
                 },
@@ -341,18 +334,13 @@
                   "label": "Tokens",
                   "bind": "tokens",
                   "format": "compact"
-                },
-                {
-                  "label": "On subscription",
-                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
-                  "format": "money",
-                  "currency": "USD"
                 }
               ]
             },
             {
               "type": "table",
               "title": "By model",
+              "span": 1,
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
@@ -389,7 +377,7 @@
                   "format": "compact"
                 },
                 {
-                  "label": "On subscription",
+                  "label": "Subscription ≈",
                   "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"

@@ -143,11 +143,14 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
 	a.Folders = folders.Service{St: st, Home: h}
 	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx,
-		Themed: a.Themes.Exists, Current: a.Themes.Current}
-	a.Journal = journal.Service{St: st, Now: cfg.Now}
+		Themed: a.Themes.Exists, Current: a.Themes.Current, Invoke: a.Registry.Invoke, Words: screens.Phrases}
+	a.Journal = journal.Service{St: st, Now: cfg.Now, Words: screens.Phrases}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake, Words: screens.Phrases}
 	a.Themes = themes.Service{St: st, Now: cfg.Now, Invoke: a.Registry.Invoke, Words: screens.Phrases, Language: a.Settings.Language}
-	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Providers.Works, Words: screens.Phrases}
+	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Providers.Works, Words: screens.Phrases,
+		IsFailure: func(ctx context.Context, act registry.Actor, id int64) (bool, error) {
+			return a.Processes.IsFailure(ctx, act, id)
+		}}
 	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Changed: a.Devices.Changed}
 	a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
@@ -162,7 +165,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Words: screens.Phrases, Said: a.Runner.Said}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
-		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Go: a.bg.Go, Words: screens.Phrases,
+		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Prices: a.Providers.Prices, Go: a.bg.Go, Words: screens.Phrases,
 		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
@@ -183,7 +186,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.Screens.CheckScreens,
-		Unassigned: a.Providers.Unassigned, Words: screens.Phrases, Secret: a.Secrets.Has}
+		Unassigned: a.Providers.Unassigned, Words: screens.Phrases, Secret: a.Secrets.Has,
+		Theme: func(ctx context.Context, ws int64) string { return a.Themes.Current(ctx, ws) }}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)

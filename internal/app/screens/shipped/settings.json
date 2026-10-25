@@ -5,21 +5,62 @@
   "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string", "tpm": "number", "context": "number"},
   "blocks": [
     {"type": "tabs", "tabs": [
+      {"title": "Health", "icon": "heartbeat", "count": "failures", "blocks": [
+        {"type": "list", "title": "Broken now", "span": "full", "source": {"from": "deck.feed_list", "input": {"kind": "failure"}},
+          "empty": "Everything works",
+          "item": {"title": "text", "text": "error", "since": "created_at", "tone": "'error'",
+            "icon": "(process ?? 0) != 0 ? 'player-play' : 'heartbeat'",
+            "meta": "join(filter([project, (repeats ?? 0) > 1 ? '×' + string(repeats) : ''], # != ''), ' · ')",
+            "details": "(process ?? 0) != 0 ? '#' + string(process) + ((error_type ?? '') != '' ? ' · ' + error_type : '') : check"},
+          "actions": [
+            {"label": "Check again", "icon": "refresh", "primary": true, "command": "deck.provider_check", "params": {"provider": "=trimPrefix(check, 'provider:')"}, "when": "self_check ?? false"},
+            {"label": "Run again", "icon": "player-play", "primary": true, "command": "deck.process_retry", "params": {"process": "=process"}, "when": "retry ?? false"},
+            {"label": "Run again", "icon": "player-play", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0 && (process ?? 0) == 0"},
+            {"label": "Change the model", "icon": "cpu", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project != '' ? project : nil", "command": "=command ?? nil"},
+              "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
+            {"verb": "open", "screen": "process", "record": "=process", "when": "(process ?? 0) != 0"},
+            {"label": "Got it", "icon": "check", "command": "deck.process_dismiss", "params": {"process": "=process"}, "when": "(process ?? 0) != 0"},
+            {"verb": "open", "screen": "settings", "params": {"tab": "Look"}, "when": "check == 'push'"},
+            {"label": "Got it", "icon": "check", "command": "deck.health_seen", "params": {"subject": "=check", "project": "=project != '' ? project : nil"}, "when": "(check ?? '') != ''"}
+          ]},
+        {"type": "stat", "title": "Checks that pass", "icon": "circle-check", "span": 2, "tone": "'ok'",
+          "description": "Models, agents, scripts, connections, pushes and the disk: what deck checks by itself.",
+          "source": {"from": "deck.health_list", "where": "status == 'ok'"},
+          "actions": [{"label": "All checks", "screen": "settings", "params": {"tab": "Health", "dialog": "checks"}}]},
+        {"type": "dialog", "name": "checks", "title": "All checks", "icon": "list-check", "blocks": [
+          {"type": "table", "title": "Everything deck checks", "source": {"from": "deck.health_list"}, "filter": ["kind", "status", "project"],
+            "columns": [
+              {"label": "What", "bind": "subject == kind ? kind : subject"},
+              {"label": "Status", "bind": "status", "format": "tag", "details": "error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
+              {"label": "Since", "bind": "updated_at", "format": "relative"},
+              {"label": "Does", "bind": "join(places ?? [], ', ')"}
+            ],
+            "actions": [
+              {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"},
+              {"verb": "open", "screen": "settings", "params": {"tab": "Look"}, "when": "subject == 'push' && status != 'ok'"}
+            ]}]}
+      ]},
       {"title": "Modules", "icon": "folders", "blocks": [
         {"type": "dialog", "name": "create-project", "title": "Create module", "icon": "plus", "primary": true, "blocks": [
           {"type": "form", "command": "deck.project_create", "values": {"name": "=param.name"}}]},
         {"type": "dialog", "name": "import-project", "title": "Import module", "icon": "file-import", "blocks": [
           {"type": "form", "command": "deck.project_import", "description": "A .zip of a module or a folder of this machine; it comes as a draft, and deck shows what it may do before you enable it."}]},
+        {"type": "dialog", "name": "draw-cover", "title": "Draw covers", "icon": "sparkles", "blocks": [
+          {"type": "form", "command": "deck.covers_draw", "values": {"project": "=param.project"},
+            "description": "Deki draws the cover of the module in the mood of the theme in use, for its schemes; without a module, of every module that has none in this theme.",
+            "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + ' · ' + price"}}}]},
         {"type": "list", "title": "Modules", "empty": "No modules yet: tell Deki what to do, or import a module", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
-          "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
+          "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "cover": "cover", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
             "meta": "meta",
             "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
           "actions": [
             {"verb": "settings", "primary": true, "screen": "settings", "project": "=name", "when": "status != 'draft' || manifest_error != ''"},
             {"verb": "review", "primary": true, "screen": "draft", "params": {"project": "=name", "revision": "=revision"}, "when": "manifest_error == '' && status == 'draft'"},
-            {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!builtin && manifest_error == ''"},
             {"verb": "pause", "command": "deck.project_pause", "params": {"project": "=name", "paused": "true"}, "when": "!paused"},
             {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
+            {"label": "Draw a cover", "icon": "sparkles", "screen": "settings", "params": {"tab": "Modules", "dialog": "draw-cover", "project": "=name"}, "when": "!builtin"},
+            {"label": "Take off the cover", "icon": "photo-off", "confirm": true, "command": "deck.project_cover", "params": {"project": "=name", "theme": "=cover.theme", "remove": "true"}, "when": "cover != nil"},
+            {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!builtin && manifest_error == ''"},
             {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
           ]}
       ]},
@@ -31,7 +72,47 @@
               "tpm": "=param.tpm", "context": "=param.context"},
             "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
               "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing'"}, "value": "name"}}}]},
-        {"type": "table", "title": "Models", "empty": "No models yet: add a connection, then its models; Deki can propose them in the chat", "source": {"from": "deck.models_list", "rows": "models", "sort": "-used"}, "filter": ["kind", "connection", "status"],
+        {"type": "dialog", "name": "connections", "title": "Connections", "icon": "plug", "blocks": [
+          {"type": "table", "title": "Connections", "source": {"from": "deck.models_list", "rows": "connections"},
+            "description": "Where deck reaches models: an API or a server of this machine, with its address and key.",
+            "empty": "No connections yet: add one with the address of a model API and its key",
+            "columns": [
+              {"label": "Name", "bind": "name"},
+              {"label": "API", "bind": "api", "format": "tag"},
+              {"label": "Models", "bind": "models"},
+              {"label": "Address", "bind": "url", "format": "copy"},
+              {"label": "Key", "bind": "key_secret ?? key"}
+            ],
+            "actions": [
+              {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}, "when": "api != 'cli'"},
+              {"verb": "remove", "confirm": true, "command": "deck.connection_remove", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
+            ]},
+          {"type": "form", "title": "Add or change a connection", "command": "deck.connection_set", "description": "Where models are reached: the API, its address and key; deck keeps the key in a secret.",
+            "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "key_secret": "=param.key_secret", "local": "=param.local"},
+            "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}]},
+        {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
+          {"type": "form", "command": "deck.assignment_set", "description": "The first model does the work; the next ones take it while the first is down or refuses.",
+            "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
+            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models"}, "value": "name"}}}]},
+        {"type": "table", "title": "Who does what", "source": {"from": "deck.models_list", "rows": "work"}, "filter": ["kind", "project"],
+          "description": "The model each command and each kind of work runs on; the one picked here comes first.",
+          "empty": "Nothing of deck runs on a model yet",
+          "columns": [
+            {"label": "What", "bind": "title"},
+            {"label": "Module", "bind": "project_title ?? ''", "format": "tag"},
+            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
+            {"label": "Price", "bind": "price ?? ''"},
+            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"},
+            {"label": "Then", "bind": "len(models ?? []) > 1 ? join(models[1:], ' → ') : ''"}
+          ],
+          "actions": [
+            {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
+            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project != '' ? project : nil", "command": "=command ?? nil"},
+              "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
+            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=command ?? ''", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"},
+            {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}, "when": "kind == 'default'"}
+          ]},
+        {"type": "table", "title": "All models", "empty": "No models yet: add a connection, then its models; Deki can propose them in the chat", "source": {"from": "deck.models_list", "rows": "models", "sort": "-used"}, "filter": ["kind", "connection", "status"],
           "description": "Every model deck reaches, those that work goes to first; the others are dimmed.",
           "columns": [
             {"label": "Name", "bind": "name", "format": "copy", "tone": "used ? '' : 'muted'"},
@@ -48,101 +129,9 @@
             {"verb": "remove", "confirm": true, "command": "deck.model_remove", "params": {"name": "=name"}, "when": "!builtin"}
           ]}
       ]},
-      {"title": "Commands", "icon": "route", "blocks": [
-        {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
-          {"type": "form", "command": "deck.assignment_set", "description": "The first model does the work; the next ones take it while the first is down or refuses.",
-            "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
-            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models"}, "value": "name"}}}]},
-        {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "(role ?? '') != ''", "sort": "name"}, "filter": ["project"],
-          "description": "The model each command of a module runs on; the one picked here comes first.",
-          "empty": "No command of a module calls a model",
-          "columns": [
-            {"label": "Module", "bind": "project", "format": "tag"},
-            {"label": "Command", "bind": "title"},
-            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-            {"label": "When", "bind": "cron ?? ''", "format": "cron"},
-            {"label": "Price", "bind": "price ?? ''"},
-            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"}
-          ],
-          "actions": [
-            {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
-            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=trimPrefix(name, project + '.')"},
-              "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
-            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Commands", "dialog": "assign", "role": "=role", "project": "=project", "command": "=trimPrefix(name, project + '.')", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"}
-          ]},
-        {"type": "table", "title": "Models of scripts", "source": {"from": "deck.models_list", "rows": "uses"}, "filter": ["project"],
-          "description": "The model each kind of work of the scripts of a module goes to.",
-          "empty": "No script of a module calls a model",
-          "columns": [
-            {"label": "Module", "bind": "project", "format": "tag"},
-            {"label": "Kind of work", "bind": "role", "format": "tag"},
-            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-            {"label": "Price", "bind": "price ?? ''"},
-            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"}
-          ],
-          "actions": [
-            {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
-            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"}
-          ]},
-        {"type": "table", "title": "Everywhere else", "source": {"from": "deck.models_list", "rows": "assignments", "where": "(project ?? '') == ''"},
-          "description": "The model of each kind of work where a module or command has none of its own.",
-          "empty": "Nothing is assigned; agent commands run on the model their manifest suggests",
-          "columns": [
-            {"label": "Kind of work", "bind": "role", "format": "tag"},
-            {"label": "Model", "bind": "len(models) > 0 ? models[0] : ''", "pick": "model"},
-            {"label": "Now", "bind": "using ?? 'none is up'", "format": "tag", "tone": "using == nil ? 'error' : using != models[0] ? 'warn' : 'ok'"},
-            {"label": "Then", "bind": "join(models[1:], ' → ')"},
-            {"label": "Price", "bind": "price"},
-            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"}
-          ],
-          "actions": [
-            {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
-            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role"}, "input": "model", "options": "=choices ?? []", "when": "len(choices ?? []) > 0"},
-            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Commands", "dialog": "assign", "role": "=role", "project": "", "command": "", "models": "=join(models, ',')"}},
-            {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}}
-          ]}
-      ]},
-      {"title": "Connections", "icon": "plug", "blocks": [
-        {"type": "dialog", "name": "connection", "title": "Add a connection", "icon": "plus", "primary": true, "blocks": [
-          {"type": "form", "command": "deck.connection_set", "description": "Where models are reached: the API, its address and key; deck keeps the key in a secret.",
-            "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "key_secret": "=param.key_secret", "local": "=param.local"},
-            "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}]},
-        {"type": "table", "title": "Connections", "source": {"from": "deck.models_list", "rows": "connections"},
-          "description": "Where deck reaches models: an API or a server of this machine, with its address and key.",
-          "empty": "No connections yet: add one with the address of a model API and its key",
-          "columns": [
-            {"label": "Name", "bind": "name"},
-            {"label": "API", "bind": "api", "format": "tag"},
-            {"label": "Models", "bind": "models"},
-            {"label": "Address", "bind": "url", "format": "copy"},
-            {"label": "Key", "bind": "key_secret ?? key"}
-          ],
-          "actions": [
-            {"verb": "edit", "screen": "settings", "params": {"tab": "Connections", "dialog": "connection", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}, "when": "api != 'cli'"},
-            {"verb": "remove", "confirm": true, "command": "deck.connection_remove", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
-          ]}
-      ]},
-      {"title": "Interface", "icon": "palette", "blocks": [{"type": "appearance", "title": "Appearance", "icon": "palette"},
+      {"title": "Look", "icon": "palette", "blocks": [{"type": "appearance"},
         {"type": "appearance", "title": "Pushes", "icon": "bell-ringing", "part": "pushes", "span": 2,
-          "description": "deck sends a push when something waits for you or a module tells you; each device turns them on for itself."},
-        {"type": "actions", "title": "Push key", "icon": "key", "description": "A new key stops the pushes of every device until each turns them on again.",
-          "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
-      {"title": "Health", "icon": "heartbeat", "blocks": [
-        {"type": "table", "title": "Failing checks", "empty": "No check fails", "source": {"from": "deck.health_list", "where": "status == 'error'"}, "filter": ["kind", "project"],
-          "description": "What fails now, with why; marked read, it stops counting on the cockpit until it changes.",
-          "columns": [
-            {"label": "What", "bind": "subject == kind ? kind : subject", "format": "tag", "tone": "seen ? 'muted' : 'error'"},
-            {"label": "Why", "bind": "error", "details": "error", "format": "copy"},
-            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-            {"label": "Since", "bind": "updated_at", "format": "relative"}
-          ],
-          "actions": [
-            {"verb": "mark_read", "primary": true, "command": "deck.health_seen", "params": {"subject": "=subject", "project": "=project"}, "when": "!seen"},
-            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
-            {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
-            {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"}
-          ]}
-      ]},
+          "description": "deck sends a push when something waits for you or a module tells you; each device turns them on for itself."}]},
       {"title": "Advanced", "icon": "adjustments", "blocks": [
         {"type": "dialog", "name": "secret", "title": "Add a secret", "icon": "key", "blocks": [
           {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
@@ -166,18 +155,6 @@
             {"label": "Version", "bind": "version"},
             {"label": "Status", "bind": "status == 'missing' ? 'not installed' : status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' ? 'muted' : 'warn'", "details": "error"}
           ]},
-        {"type": "table", "title": "Everything deck checks", "source": {"from": "deck.health_list"}, "filter": ["kind", "status", "project"],
-          "description": "Every check deck runs, the working ones too; what fails is on the Health tab.",
-          "columns": [
-            {"label": "What", "bind": "subject == kind ? kind : subject"},
-            {"label": "Status", "bind": "status", "format": "tag", "details": "error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
-            {"label": "Since", "bind": "updated_at", "format": "relative"},
-            {"label": "Does", "bind": "join(places ?? [], ', ')"}
-          ],
-          "actions": [
-            {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"},
-            {"verb": "open", "screen": "settings", "params": {"tab": "Interface"}, "when": "subject == 'push' && status != 'ok'"}
-          ]},
         {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
           "description": "Keys and passwords of connections and tools; agents and scripts never see them.",
           "empty": "No secrets yet: a module names the ones it needs",
@@ -187,17 +164,19 @@
             {"verb": "delete", "confirm": true, "command": "deck.secret_delete", "params": {"name": "=name"}}
           ]},
         {"type": "table", "title": "Automation tokens", "source": {"from": "deck.tokens_list", "sort": "-id"},
-          "description": "A way in for Shortcuts or your scripts: POST /api/commands/<command> with Authorization: Bearer <token>, only the commands it lists.",
+          "description": "A way in for Shortcuts or your scripts, to the commands it lists.",
           "empty": "No tokens yet: make one for a script or a service outside deck that calls its commands",
           "columns": [
             {"label": "Name", "bind": "name"},
-            {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'"},
+            {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'", "details": "'POST /api/commands/<command> with Authorization: Bearer <token>'"},
             {"label": "Commands", "bind": "join(commands, ', ')"},
             {"label": "Created", "bind": "created_at", "format": "relative"}
           ],
           "actions": [
             {"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "=id"}, "when": "!revoked"}
-          ]}
+          ]},
+        {"type": "actions", "title": "Push key", "icon": "key", "description": "A new key stops the pushes of every device until each turns them on again.",
+          "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}
       ]}
     ]}
   ]

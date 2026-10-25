@@ -22,8 +22,8 @@ const MAIN = { desktop: 4, phone: 2 };
 const empty = (v: unknown) => text(v).trim() === '' || (Array.isArray(v) && v.length === 0);
 
 // DataTable is a table block: the first columns in each line, the rest and the long texts in the row opened under
-// it, no column every row leaves empty, search over its rows, sort by a column, pages, and the buttons of each row.
-export function DataTable({ columns, rows }: { columns: Column[]; rows: Row[] }) {
+// it, no column every row leaves empty, its own search unless deck searches it, sort, pages, the buttons of each row.
+export function DataTable({ columns, rows, searched }: { columns: Column[]; rows: Row[]; searched?: boolean }) {
   const { t } = useTranslation();
   const phone = usePhone();
   const v = useTableView(rows);
@@ -44,8 +44,8 @@ export function DataTable({ columns, rows }: { columns: Column[]; rows: Row[] })
   };
   return (
     <div data-table>
-      {rows.length > 10 && (
-        <TextInput size="xs" radius="xl" mb="sm" maw={280} leftSection={<IconSearch size={14} />} placeholder={t('table.search')}
+      {rows.length > 10 && !searched && (
+        <TextInput size="xs" mb="sm" maw={280} leftSection={<IconSearch size={14} />} placeholder={t('table.search')}
           value={v.query} onChange={(e) => v.search(e.currentTarget.value)} data-table-search />
       )}
       <Table.ScrollContainer minWidth={Math.min(720, 150 * main.length + (acts ? 140 : 0))}>
@@ -115,7 +115,7 @@ export function DataTable({ columns, rows }: { columns: Column[]; rows: Row[] })
           <Text size="xs" c="dimmed">{t('table.range', { from: (v.at - 1) * v.per + 1, to: Math.min(v.at * v.per, v.shown.length), of: v.shown.length })}</Text>
           <Group gap="xs">
             <Select size="xs" w={76} data={SIZES} value={v.size} onChange={(x) => v.resize(x ?? '25')} aria-label={t('table.size')} allowDeselect={false} />
-            <Pagination size="sm" radius="xl" total={v.pages} value={v.at} onChange={v.setPage} />
+            <Pagination size="sm" total={v.pages} value={v.at} onChange={v.setPage} />
           </Group>
         </Group>
       )}

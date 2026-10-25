@@ -4,7 +4,7 @@
   gap: 4px;
   height: 20px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: var(--mantine-radius-xl);
   color: var(--mantine-color-dimmed);
   background: var(--deck-fill, var(--mantine-color-default-hover));
   font-size: 12px;
@@ -13,24 +13,12 @@
   white-space: nowrap;
 
   &[data-tone='warn'] {
-    color: #a75001;
-    background: #fff5eb;
+    color: var(--mantine-color-coral-light-color);
+    background: var(--mantine-color-coral-light);
   }
 
   &[data-tone='error'] {
-    color: #c50220;
-    background: #fff4f3;
-  }
-}
-
-:global(:root[data-mantine-color-scheme='dark']) .chip {
-  &[data-tone='warn'] {
-    color: #ffbb92;
-    background: rgb(255 149 80 / 0.15);
-  }
-
-  &[data-tone='error'] {
-    color: #ff7e77;
-    background: rgb(232 28 46 / 0.16);
+    color: var(--mantine-color-red-light-color);
+    background: var(--mantine-color-red-light);
   }
 }

@@ -148,6 +148,10 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		out["more"] = more
 	}
 	if len(items) == 0 && (b.Type != "stat" || b.Empty != "") && b.Board == "" {
+		// An empty folder of a file manager keeps its steps back.
+		if c := r.crumbs(b); b.Type == "media" && len(c) > 1 {
+			out["crumbs"] = c
+		}
 		return empty(out, b), nil
 	}
 	switch b.Type {
@@ -257,7 +261,15 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					a["options"], a["labels"] = values, labels
 				}
 			}
+			if b.Item.Actions != "" && r.deck() {
+				if v, err := r.eval(b.Item.Actions, it); err == nil {
+					acts = append(acts, given(v)...)
+				}
+			}
 			line := map[string]any{"id": it["_id"], "actions": acts}
+			if c := r.cover(b, it); c != nil {
+				line["cover"] = c
+			}
 			if v, ok := it[b.Board]; b.Board != "" && ok && v != nil {
 				line["lane"] = fmt.Sprint(v)
 			}
@@ -287,6 +299,18 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		out["items"] = lines
 	}
 	return out, nil
+}
+
+// given are the buttons a read of deck wrote for an item, as they go to the client.
+func given(v any) []map[string]any {
+	list, _ := v.([]any)
+	out := make([]map[string]any, 0, len(list))
+	for _, x := range list {
+		if a, ok := x.(map[string]any); ok && (a["command"] != nil || a["screen"] != nil) {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // lanes are the values a board offers: the options of its move button when it names them, else the enum of its field.

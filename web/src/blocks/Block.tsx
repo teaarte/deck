@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Alert, Anchor, Badge, Card, Group, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,7 @@ import { useLive } from '../lib/events';
 import { tally } from '../lib/tally';
 import { readBlock } from '../screen/press';
 import { Actions } from '../ui/actions/Actions';
+import { Around } from './around';
 import { Filters } from './Filters';
 
 export type Span = 1 | 2 | 'full';
@@ -26,6 +27,8 @@ export function Block({ title, icon, span, description, data, context, empty, ba
 }) {
   const { t } = useTranslation();
   const old = !useLive();
+  // A title the tab or the dialog around says already is not said again.
+  const named = title !== useContext(Around) ? title : undefined;
   tally('block');
   let body: ReactNode;
   const own = data?.state === 'empty' ? empty?.(data) : undefined;
@@ -45,7 +48,7 @@ export function Block({ title, icon, span, description, data, context, empty, ba
   if (bare === 'row') {
     return (
       <section className={s.bareRow} aria-label={title} data-block data-bare="row" data-span={String(span ?? 1)}>
-        {title && <Text size="sm" fw={700} c="dimmed" className={s.bareTitle}>{title}</Text>}
+        {named && <Text size="sm" fw={700} c="dimmed" className={s.bareTitle}>{named}</Text>}
         {body}
       </section>
     );
@@ -53,10 +56,10 @@ export function Block({ title, icon, span, description, data, context, empty, ba
   return (
     <Card padding="lg" className={s.block} data-block data-span={String(span ?? 1)}>
       <Stack gap="sm">
-        {(title || old || !!data?.head?.length) && (
+        {(named || old || !!data?.head?.length) && (
           <Group justify="space-between">
-            {title ? (
-              <IconTitle order={3} className={s.blockTitle} title={title} icon={icon} size={18} block />
+            {named ? (
+              <IconTitle order={3} className={s.blockTitle} title={named} icon={icon} size={18} block />
             ) : <span />}
             <Group gap="xs">
               {!!data?.head?.length && <Actions actions={data.head} quiet />}

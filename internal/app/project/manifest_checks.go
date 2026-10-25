@@ -176,6 +176,9 @@ func checkRecords(ctx context.Context, q *db.Queries, p db.Project, next *manife
 			continue
 		}
 		if mg := plan[c.Name]; mg != nil {
+			if mg.checked {
+				continue
+			}
 			if msg := misfitsOf(c, migratedRows(mg), false, "the migrated records do not fit; fix the migration script"); msg != "" {
 				msgs = append(msgs, msg)
 			}

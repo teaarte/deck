@@ -12,14 +12,14 @@ export function TodayLine() {
   if (!pulse.line) return null;
   const Mark = MARKS[pulse.mark as keyof typeof MARKS] ?? IconCheck;
   return (
-    <Group gap={10} wrap="nowrap" mt={-6} data-today-line={pulse.mark}>
+    <Group gap={10} wrap="nowrap" data-today-line={pulse.mark}>
       <span className={s.todayMark} data-mark={pulse.mark}><Mark size={16} /></span>
       <Text size="md" c="var(--deck-text-2)">{pulse.line}</Text>
     </Group>
   );
 }
 
-// TodayDate is the day of Today beside its title, as the language of the interface says it.
+// TodayDate is the day of Today beside its first line, as the language of the interface says it.
 export function TodayDate() {
   const { i18n } = useTranslation();
   const day = new Date().toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' });

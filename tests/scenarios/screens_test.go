@@ -255,11 +255,13 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, webAgent())
 	e.createProject("notes", webManifest("http://127.0.0.1:1"))
-	// paths are the blocks a topic reads, with the tab of extra shown, or with each tab shown in turn.
+	// paths are the blocks a topic reads, with the tab and dialog of extra shown, or with each tab shown in turn.
 	paths := func(project, screen, topic string, extra ...string) []string {
 		var out []string
 		var msgs []map[string]json.RawMessage
 		switch {
+		case len(extra) > 1:
+			msgs = e.screenMessages(project, screen, map[string]any{"topic": topic, "tab": extra[0], "dialog": extra[1]})
 		case len(extra) > 0:
 			msgs = e.screenMessages(project, screen, map[string]any{"topic": topic, "tab": extra[0]})
 		default:
@@ -297,13 +299,18 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 			t.Fatalf("%s reads the lists of Today that show it, which stay on it while empty: %v", topic, got)
 		}
 	}
-	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-1", "/b0-2-1", "/b0-2-2", "/b0-2-3", "/b0-3-1", "/b0-5-0", "/b0-6-3", "/b0-6-4"}) {
-		t.Fatalf("health reads the models, the agents, the connections and the health: %v", got)
+	for _, topic := range []string{"health", "models"} {
+		if got := paths("", "settings", topic); !slices.Equal(got, []string{"/b0-0-0", "/b0-0-1", "/b0-2-3", "/b0-2-4", "/b0-4-3"}) {
+			t.Fatalf("%s reads what is broken and passes, the work and the models, and the agents: %v", topic, got)
+		}
+		if got := paths("", "settings", topic, "Health", "checks"); !slices.Contains(got, "/b0-0-2-0") {
+			t.Fatalf("%s reads every check in its open dialog: %v", topic, got)
+		}
+		if got := paths("", "settings", topic, "Models", "connections"); !slices.Contains(got, "/b0-2-1-0") {
+			t.Fatalf("%s reads the connections in their open dialog: %v", topic, got)
+		}
 	}
-	if got := paths("", "settings", "models"); !slices.Equal(got, []string{"/b0-1-1", "/b0-2-1", "/b0-2-2", "/b0-2-3", "/b0-3-1", "/b0-5-0", "/b0-6-3", "/b0-6-4"}) {
-		t.Fatalf("models reads the blocks of models and connections and the health, where a command no model fits is red: %v", got)
-	}
-	if got := paths("", "settings", "documents"); !slices.Contains(got, "/b0-0-2") {
+	if got := paths("", "settings", "documents"); !slices.Contains(got, "/b0-1-3") {
 		t.Fatalf("documents reads the projects, whose descriptions are their prompts: %v", got)
 	}
 	for _, topic := range []string{"projects", "spaceship"} {
@@ -543,7 +550,7 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 }
 
 // TestTheMasterSettingsShowWhatItDoesOnSchedule: the settings of a project list what its commands do by themselves
-// and leave out the empty tools, secrets and tokens; the documents of the master are a tab of files.
+// and leave out the empty tools, secrets and tokens; the documents of the master are a folder of files.
 func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -565,9 +572,9 @@ func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 			t.Fatalf("an empty block is left out of the settings of the master: %s", gone)
 		}
 	}
-	docs := blockData[[]map[string]any](t, e.screenData("", "files", nil)["b0-2-0"]["files"])
+	docs := blockData[[]map[string]any](t, e.screenBlock("", "files", "Modules", map[string]any{"params": `{"path": "master/documents"}`})["files"])
 	if len(docs) == 0 {
-		t.Fatalf("the documents of the master are a tab of files")
+		t.Fatalf("the documents of the master are a folder of files")
 	}
 }
 

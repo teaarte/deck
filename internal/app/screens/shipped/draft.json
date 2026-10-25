@@ -10,7 +10,7 @@
       "columns": [
         {"label": "What", "bind": "kind == 'secret' ? 'Secret ' + what : kind == 'program' ? 'Script ' + what : what"},
         {"label": "How", "bind": "detail"},
-        {"label": "State", "bind": "done ? 'ready' : 'needed'", "format": "tag", "tone": "done ? 'ok' : 'warn'"}
+        {"label": "State", "bind": "done ? 'ready' : (optional ?? false) ? 'optional' : 'needed'", "format": "tag", "tone": "done ? 'ok' : (optional ?? false) ? 'muted' : 'warn'"}
       ],
       "actions": [
         {"label": "Secrets", "icon": "key", "screen": "settings", "params": {"tab": "Advanced"}, "when": "kind == 'secret' && !done"},

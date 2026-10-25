@@ -133,16 +133,13 @@ func TestRealBrowserCards(t *testing.T) {
 		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && notes.dataset.cover === 'true' && notes.querySelector('[data-cover-img][data-shown]') })()`)
 	if got := b.eval(`(() => { const notes = document.querySelector('[data-module=notes]'), plain = document.querySelector('[data-module=plain]');
 		return [!notes.querySelector('[data-app-tile-icon]'), !!plain.querySelector('[data-app-tile-icon]'), !document.querySelector('[data-card-places], [data-card-more]'),
-			!!document.querySelector('[data-new-module]'), getComputedStyle(document.querySelector('[data-app-tile][data-big]')).gridColumnStart].join(' ') })()`); got != "true true true true span 2" {
-		t.Fatalf("a tile with a cover has no icon, one without has, no menu on a tile, a new module, Today on two columns: %s", got)
+			!document.querySelector('[data-new-module]'), getComputedStyle(document.querySelector('[data-app-tile][data-big]')).gridColumnStart].join(' ') })()`); got != "true true true true span 2" {
+		t.Fatalf("a tile with a cover has no icon, one without has, no menu on a tile, no tile that only opens the chat, Today on two columns: %s", got)
 	}
 	b.shot("cards")
 	b.until("Deki on Today's tile in the pose of the pulse", `document.querySelector('[data-app=cockpit] ~ [data-card-deki] [data-deki]')`)
 	b.eval(`(document.querySelector('[data-card-deki]').click(), '')`)
 	b.until("Deki opens the chat with the master", `document.querySelector('[data-chat-close]') && (location.hash === '' || location.hash === '#/')`)
-	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
-	b.eval(`(document.querySelector('[data-new-module]').click(), '')`)
-	b.until("a new module is a new topic of the chat", `document.querySelector('[data-chat-panel] [data-chat-input]') && location.hash === '#/deck/apps'`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.eval(`(document.querySelector('[data-app=plain]').click(), '')`)
 	b.until("a tile opens its module", `location.hash.startsWith('#/p/plain/') && document.querySelector('[data-apps-home]')`)

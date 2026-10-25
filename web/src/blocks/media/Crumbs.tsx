@@ -18,7 +18,7 @@ function Up({ c }: { c: Crumb }) {
   const { t } = useTranslation();
   const { send, busy } = usePress(c.action ?? none);
   return (
-    <ActionIcon variant="default" size={30} radius="md" disabled={busy} onClick={() => void send()} aria-label={t('files.up')} data-crumb-up>
+    <ActionIcon variant="default" size={30} disabled={busy} onClick={() => void send()} aria-label={t('files.up')} data-crumb-up>
       <IconArrowLeft size={16} />
     </ActionIcon>
   );

@@ -78,19 +78,24 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 		t.Fatalf("each project menu has its own screens, its files and settings apart: %+v", menu)
 	}
 	check.messages(t, e.screenMessages("web", "documents", nil))
-	list := e.screenData("web", "documents", nil)["b0"]
-	tiles := blockData[[]struct {
+	type tileV struct {
 		ID               any
 		Title, Icon, Url string
 		Actions          []map[string]any
-	}](t, list["files"])
+	}
+	root := blockData[[]tileV](t, e.screenData("web", "documents", nil)["b0"]["files"])
+	if len(root) != 3 || verb(t, root[1].Actions, "open")["params"].(map[string]any)["path"] != "documents" {
+		t.Fatalf("the files screen of a module holds its files, documents and data folder: %+v", root)
+	}
+	list := e.screenData("web", "documents", map[string]any{"params": `{"path": "documents"}`})["b0"]
+	tiles := blockData[[]tileV](t, list["files"])
 	byName := map[string]int{}
 	for i, f := range tiles {
 		byName[f.Title] = i
 	}
 	if len(tiles) != 4 || tiles[byName["manifest.json"]].Icon != "settings" || tiles[byName["notes/criteria.md"]].Icon != "file-text" ||
-		tiles[byName["report.md"]].Url != "" || !strings.Contains(string(list["filters"]), `"custom"`) {
-		t.Fatalf("the documents screen is a file manager of every document of the project, a tile of its kind each: %+v %s", tiles, list["filters"])
+		tiles[byName["report.md"]].Url != "" || tiles[byName["custom/chart.html"]].Icon != "file-text" {
+		t.Fatalf("the documents folder is a file manager of every document of the project, a tile of its kind each: %+v", tiles)
 	}
 	open := verb(t, tiles[byName["notes/criteria.md"]].Actions, "open")
 	if open["screen"] != "document" || open["project"] != "web" || open["record"] != float64(crit.ID) || open["primary"] != true {

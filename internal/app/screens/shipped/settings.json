@@ -131,7 +131,7 @@
         {"type": "table", "title": "Failing checks", "empty": "No check fails", "source": {"from": "deck.health_list", "where": "status == 'error'"}, "filter": ["kind", "project"],
           "description": "What fails now, with why; marked read, it stops counting on the cockpit until it changes.",
           "columns": [
-            {"label": "What", "bind": "subject", "format": "tag", "tone": "seen ? 'muted' : 'error'"},
+            {"label": "What", "bind": "subject == kind ? kind : subject", "format": "tag", "tone": "seen ? 'muted' : 'error'"},
             {"label": "Why", "bind": "error", "details": "error", "format": "copy"},
             {"label": "Model", "bind": "model ?? ''", "pick": "model"},
             {"label": "Since", "bind": "updated_at", "format": "relative"}
@@ -169,7 +169,7 @@
         {"type": "table", "title": "Everything deck checks", "source": {"from": "deck.health_list"}, "filter": ["kind", "status", "project"],
           "description": "Every check deck runs, the working ones too; what fails is on the Health tab.",
           "columns": [
-            {"label": "What", "bind": "subject"},
+            {"label": "What", "bind": "subject == kind ? kind : subject"},
             {"label": "Status", "bind": "status", "format": "tag", "details": "error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
             {"label": "Since", "bind": "updated_at", "format": "relative"},
             {"label": "Does", "bind": "join(places ?? [], ', ')"}

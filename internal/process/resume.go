@@ -148,7 +148,8 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	var failed []error
 	for _, p := range ps {
 		if p.Kind == KindTool || p.Kind == KindModel {
-			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.New(fault.DeckRestart, "deck restarted while the "+p.Kind+" call ran"))
+			text := map[string]string{KindTool: "deck restarted while the tool call ran", KindModel: "deck restarted while the model call ran"}[p.Kind]
+			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.New(fault.DeckRestart, text))
 			_ = os.RemoveAll(r.runDir(p.ID))
 			continue
 		}

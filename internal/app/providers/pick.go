@@ -149,15 +149,15 @@ func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
 		h.Status != health.NeedsLogin
 }
 
-// why is one line of why the work does not go to the first of models: the health of the first one down up to using;
-// empty when the first does the work.
-func (s *Service) why(ctx context.Context, workspace int64, models []string, using string) string {
+// why is one line of why the work does not go to the first of models, in words tr gives: the health of the first one
+// down up to using; empty when the first does the work.
+func (s *Service) why(ctx context.Context, workspace int64, models []string, using string, tr func(string) string) string {
 	for _, name := range models {
 		if !s.exists(ctx, workspace, name) {
-			return name + ": " + noModel
+			return name + ": " + tr(noModel)
 		}
 		if h, err := s.healthOf(ctx, workspace, name); err == nil && !s.Up(ctx, workspace, name) {
-			return name + ": " + untrusted.Flat(cmp.Or(h.Error, h.Status), 200)
+			return name + ": " + untrusted.Flat(tr(cmp.Or(h.Error, h.Status)), 200)
 		}
 		if name == using {
 			return ""

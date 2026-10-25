@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -34,7 +35,7 @@ type modelView struct {
 	InputUSD  *float64 `json:"input_usd,omitempty"`
 	OutputUSD *float64 `json:"output_usd,omitempty"`
 	CallUSD   *float64 `json:"call_usd,omitempty"`
-	Unit      string   `json:"unit"`
+	Unit      string   `json:"unit" enum:"token|char|second"`
 	Free      bool     `json:"free"`
 	// Local is a model of the owner's own hardware: without a price it is free.
 	Local bool `json:"-"`
@@ -119,7 +120,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		}
 		switch {
 		case c.KeySecret != "" && act.OwnerSide():
-			v.Key, v.KeySecret = "secret "+c.KeySecret, c.KeySecret
+			v.Key, v.KeySecret = fmt.Sprintf("secret %s", c.KeySecret), c.KeySecret
 		case c.KeySecret != "":
 			v.Key = "secret"
 		}
@@ -144,6 +145,8 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}
+	ws := s.Words(in.Lang)
+	tr := func(p string) string { return manifest.TrText(ws, p) }
 	rows, err := s.St.Q.ListAssignments(ctx, act.Workspace)
 	if err != nil {
 		return out, err
@@ -174,15 +177,14 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 				break
 			}
 		}
-		v.Why = s.why(ctx, act.Workspace, v.Models, v.Using)
+		v.Why = s.why(ctx, act.Workspace, v.Models, v.Using, tr)
 		out.Assignments = append(out.Assignments, v)
 	}
 	used, err := s.uses(ctx, act, pid, in.Lang, &out)
 	if err != nil {
 		return out, err
 	}
-	ws := s.Words(in.Lang)
-	b := s.book(ctx, act.Workspace, func(p string) string { return manifest.Tr(ws, p) })
+	b := s.book(ctx, act.Workspace, tr)
 	for i, a := range out.Assignments {
 		out.Assignments[i].Choices = b.Of(a.Role)
 		if a.Role == RoleAgent {
@@ -193,7 +195,14 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		}
 	}
 	for i := range out.Models {
-		out.Models[i].Price, out.Models[i].Used = Price(out.Models[i], func(p string) string { return manifest.Tr(ws, p) }), used[out.Models[i].Name]
+		out.Models[i].Price, out.Models[i].Used = Price(out.Models[i], tr), used[out.Models[i].Name]
+		out.Models[i].Error = tr(out.Models[i].Error)
+	}
+	for i := range out.Agents {
+		out.Agents[i].Error = tr(out.Agents[i].Error)
+	}
+	for i := range out.Connections {
+		out.Connections[i].Key = tr(out.Connections[i].Key)
 	}
 	return out, nil
 }
@@ -212,7 +221,7 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 		return nil, err
 	}
 	ws := s.Words(lang)
-	b := s.book(ctx, act.Workspace, func(p string) string { return manifest.Tr(ws, p) })
+	b := s.book(ctx, act.Workspace, func(p string) string { return manifest.TrText(ws, p) })
 	for _, p := range projects {
 		if pid != 0 && p.ID != pid {
 			continue
@@ -241,7 +250,7 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 			}
 		}
 		for _, w := range roles {
-			out.Work = append(out.Work, workView{Project: p.Name, Title: w.Role, Own: own("", w.Role), Work: w})
+			out.Work = append(out.Work, workView{Project: p.Name, Title: manifest.Tr(ws, w.Role), Own: own("", w.Role), Work: w})
 		}
 	}
 	for name := range s.Places(ctx, act.Workspace) {

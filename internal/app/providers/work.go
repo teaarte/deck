@@ -93,7 +93,7 @@ func (b *Book) Of(kind string) []string {
 // Works looks up the work of commands of a workspace on one book of its models, its prices in a language.
 func (s *Service) Works(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work {
 	ws := s.Words(lang)
-	b := s.book(ctx, workspace, func(p string) string { return manifest.Tr(ws, p) })
+	b := s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
 	return func(projectID int64, command string) provider.Work { return s.commandWork(ctx, b, projectID, command) }
 }
 
@@ -130,7 +130,7 @@ func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, com
 		if pv, err := s.For(ctx, projectID, cmd); err == nil {
 			w.Model = pv.Name()
 		}
-		w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model)
+		w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model, b.tr)
 		w.Price = b.Price(w.Model)
 		return w
 	case "model":
@@ -203,7 +203,7 @@ func (s *Service) roleWork(ctx context.Context, b *Book, p db.Project, command, 
 	if w.Model == "" && len(w.Models) > 0 {
 		w.Model = w.Models[0]
 	}
-	w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model)
+	w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model, b.tr)
 	w.Price = b.Price(w.Model)
 	return w
 }

@@ -1,8 +1,11 @@
 package scenarios
 
 import (
+	"context"
+	"deck2/internal/app/providers"
 	"deck2/internal/manifest"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -11,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestScreensAndTheMenuSpeakTheLanguageOfTheOwner: the texts of deck's screens and of a manifest come in the
@@ -119,6 +123,12 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 		}
 		return nil
 	})
+	// A value of an enum of a result of deck is a word of it too.
+	for _, m := range regexp.MustCompile(`enum:"([^"]+)"`).FindAllStringSubmatch(code.String(), -1) {
+		for _, v := range strings.Split(m[1], "|") {
+			texts[v] = true
+		}
+	}
 	for k := range ru {
 		if !texts[k] && !titles[k] && !strings.Contains(code.String(), strconv.Quote(k)) && !strings.Contains(screens.String(), "'"+k+"'") {
 			t.Errorf("ru translates %q, which is no text", k)
@@ -374,5 +384,122 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 	if len(saved.Unused) != 0 || !slices.Contains(saved.Untranslated, "ru: paper") || !slices.Contains(saved.Untranslated, "ru: note") ||
 		slices.Contains(saved.Untranslated, "ru: web") || slices.Contains(saved.Untranslated, "ru: Work") {
 		t.Fatalf("a save names the texts ru lacks, deck's words and the values filtered by known: %+v", saved)
+	}
+}
+
+// TestTheReadsOfDeckScreensSayNoEnglishInRussian: deck's screens read in Russian say each phrase of deck in Russian,
+// failures, health, kinds of models, units of prices, keys and sizes; names of models, modules, commands,
+// connections and secrets stay as they are.
+func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	p := e.createProject("notes", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	e.must("deck.secret_set", map[string]any{"name": "gate-key", "value": "k"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "gate", "api": "openai", "url": "http://127.0.0.1:9/v1", "key_secret": "gate-key"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "plain", "api": "raw", "url": "http://127.0.0.1:9/raw"}, nil)
+	for i, kind := range []string{"text", "image", "tts", "stt", "music", "video", "search"} {
+		in := map[string]any{"connection": "gate", "model": "m-" + kind, "name": "m-" + kind, "kind": kind, "input_usd": 1}
+		switch i % 3 {
+		case 1:
+			in["unit"] = "char"
+		case 2:
+			in["unit"] = "second"
+		}
+		e.must("deck.model_set", in, nil)
+	}
+	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"m-tts"}}, nil)
+	for _, q := range []string{
+		`INSERT INTO health (workspace_id, subject, status, error) VALUES (1, 'model:m-text', 'ok', 'the model answered at 142 tokens/s')`,
+		`INSERT INTO health (workspace_id, subject, status, error) VALUES (1, 'model:m-image', 'warning', 'the model did not finish the self-check of goose 1.53.0 within 2m0s: first turn: not one model call finished within the ceiling: the model may be slow to start (a cold start, the queue of a free tier), or its url or model id may be wrong')`,
+		fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at) VALUES (%d, 'work', 'script', 'running', '2026-10-25T08:00:00.000Z')`, p),
+		fmt.Sprintf(`INSERT INTO feed (workspace_id, project_id, kind, author, text) VALUES (1, %d, 'change', 'master', 'master changed the manifest of notes')`, p),
+	} {
+		if _, err := e.App.Store.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.App.Snapshots.CheckDisk(context.Background(), time.Now())
+	if err := e.App.Runner.ResumeInterrupted(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// Names are as they are: of models, agents, connections, secrets, modules and commands, of files and addresses.
+	names := map[string]bool{"gate-key": true}
+	var models struct {
+		Agents      []struct{ Name string }
+		Connections []struct{ Name string }
+		Models      []struct{ Name, Model, Agent string }
+	}
+	e.must("deck.models_list", nil, &models)
+	for _, a := range models.Agents {
+		names[a.Name] = true
+	}
+	for _, c := range models.Connections {
+		names[c.Name] = true
+	}
+	for _, m := range models.Models {
+		names[m.Name], names[m.Model], names[m.Agent] = true, true, true
+	}
+	var cmds []struct{ Name string }
+	e.must("deck.commands_list", nil, &cmds)
+	for _, c := range cmds {
+		names[c.Name] = true
+		project, command, _ := strings.Cut(c.Name, ".")
+		names[project], names[command] = true, true
+	}
+	for _, n := range []string{"openai", "google", "anthropic", "deck", "Deki", "API", "CLI", "JSON", "MCP", "URL", "USD", "Claude", "Code",
+		"Codex", "POST", "Authorization", "Bearer", "effort", "options", "python", "node", "backups", "zip", "SearXNG"} {
+		names[n] = true
+	}
+	shownKeys := []string{"cells", "details", "title", "text", "meta", "label", "labels", "description", "empty", "price", "why", "question", "line", "say"}
+	word := regexp.MustCompile(`[^\s,;()«»"']*[A-Za-z][^\s,;()«»"']*`)
+	technical := regexp.MustCompile(`[/.:@<>{}=_]|\d`)
+	object := regexp.MustCompile(`\{[^{}]*\}`)
+	english := map[string]bool{}
+	var walk func(v any, shown bool)
+	walk = func(v any, shown bool) {
+		switch v := v.(type) {
+		case map[string]any:
+			for k, x := range v {
+				if k != "params" {
+					walk(x, shown || slices.Contains(shownKeys, k))
+				}
+			}
+		case []any:
+			for _, x := range v {
+				walk(x, shown)
+			}
+		case string:
+			text := strings.ReplaceAll(v, providers.SearXNGInstall, "")
+			for _, w := range word.FindAllString(object.ReplaceAllString(text, ""), -1) {
+				if shown && !names[strings.Trim(w, ".:—-")] && !technical.MatchString(strings.Trim(w, ".:—-")) {
+					english[w+" in "+v] = true
+				}
+			}
+		}
+	}
+	var all strings.Builder
+	for _, s := range []struct{ project, screen string }{{"", "settings"}, {"", "schedule"}, {"", "spend"}, {"", "files"}, {"", "cockpit"},
+		{"notes", "settings"}, {"notes", "documents"}, {"", "data"}} {
+		var msgs any
+		in := map[string]any{"screen": s.screen, "lang": "ru"}
+		if s.project != "" {
+			in["project"] = s.project
+		}
+		if s.screen == "data" {
+			in["params"] = `{"project": "notes"}`
+		}
+		e.must("deck.screen", in, &msgs)
+		walk(msgs, false)
+		raw, _ := json.Marshal(msgs)
+		all.Write(raw)
+	}
+	for _, want := range []string{"модель отвечала со скоростью 142 токенов/с", "модель не закончила самопроверку goose 1.53.0", "секрет gate-key",
+		"файлы: ", "deck перезапустился, пока шёл скрипт", "Работы ей ещё не давали", "озвучка", "$1 за 1M символов", "сделано без вас"} {
+		if !strings.Contains(all.String(), want) {
+			t.Errorf("no %q in the screens read in Russian", want)
+		}
+	}
+	for _, s := range slices.Sorted(maps.Keys(english)) {
+		t.Errorf("English in Russian: %q", s)
 	}
 }

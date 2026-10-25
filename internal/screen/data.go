@@ -199,7 +199,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					return nil, fmt.Errorf("column %q: %w", c.Label, err)
 				}
 				if c.Pick == "" {
-					v = r.word(r.worded(b.Source, c.Bind, b.Filter), v)
+					v = r.phrased(c.Bind, r.word(r.worded(b.Source, c.Bind, b.Filter), v))
 				}
 				cells = append(cells, v)
 				cell := map[string]any{}
@@ -214,6 +214,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				if err != nil {
 					return nil, fmt.Errorf("column %q details: %w", c.Label, err)
 				}
+				d = r.phrased(c.Details, r.word(r.worded(b.Source, c.Details, b.Filter), d))
 				if d != nil && d != "" {
 					details[j], detailed = fmt.Sprint(d), true
 				}
@@ -275,7 +276,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				case key == "details", key == "questions":
 					line[key] = v
 				default:
-					line[key] = fmt.Sprint(r.word(r.worded(b.Source, e, b.Filter), v))
+					line[key] = fmt.Sprint(r.phrased(e, r.word(r.worded(b.Source, e, b.Filter), v)))
 				}
 			}
 			if _, ok := line["title"]; !ok {
@@ -347,6 +348,21 @@ func (r *renderer) worded(src *manifest.Source, expr string, filters []string) f
 		}
 	}
 	return func(s string) bool { return slices.Contains(values, s) || own[s] != "" }
+}
+
+// phrased is v with each phrase the expression writes itself, a text of more than one word, in the owner's language
+// where v holds it among other parts.
+func (r *renderer) phrased(expr string, v any) any {
+	s, ok := v.(string)
+	if !ok {
+		return v
+	}
+	for _, l := range literal(expr) {
+		if t := r.tr(l); strings.Contains(l, " ") && t != l {
+			s = strings.ReplaceAll(s, l, t)
+		}
+	}
+	return s
 }
 
 // quoted are the texts an expression writes, in single quotes.

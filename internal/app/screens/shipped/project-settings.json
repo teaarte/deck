@@ -90,7 +90,7 @@
           {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["kind", "status"],
             "description": "What deck checks of the module, with why one fails.",
             "columns": [
-              {"label": "What", "bind": "subject"},
+              {"label": "What", "bind": "subject == kind ? kind : subject"},
               {"label": "Status", "bind": "status", "format": "tag", "details": "error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
               {"label": "Model", "bind": "model ?? ''", "pick": "model"},
               {"label": "Since", "bind": "updated_at", "format": "relative"}

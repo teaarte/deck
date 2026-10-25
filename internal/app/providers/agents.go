@@ -17,7 +17,7 @@ import (
 type agentView struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
-	Status  string `json:"status"`
+	Status  string `json:"status" enum:"ok|warning|error|checking|paused|needs_login|missing"`
 	Error   string `json:"error"`
 }
 

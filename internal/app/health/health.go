@@ -33,7 +33,7 @@ type healthRow struct {
 	// Seen marks a failing check the owner read since it last changed.
 	Seen bool `json:"seen"`
 	// Kind is what the row is of, the start of its subject: provider, model, command, trigger, secret, ….
-	Kind string `json:"kind"`
+	Kind string `json:"kind" enum:"provider|agent|model|command|trigger|tool|mcp|secret|screen|project|retention|site|scripts|sandbox|tailscale|snapshot|disk|outbox|push|search|master|browser"`
 }
 
 // shownRow is a row of health with the work it stands for: the model of the command of a row of a command or of its

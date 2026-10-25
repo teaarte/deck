@@ -89,7 +89,7 @@ export function useScreen(route: Route, shownNow = true) {
         case 'tab':
           // A tab shown with what the last wide read gave it is not read again.
           const ids = (c.children as string[] | undefined) ?? [];
-          if (ids.length > 0 && ids.every((id) => feed.since(id) >= wide)) return;
+          if (wide > 0 && ids.length > 0 && ids.every((id) => feed.since(id) >= wide)) return;
           return readBlock(block, { [String(c.param)]: String(c.key ?? '') });
       }
       const { reply, ...pressed } = c as Action & { reply?: string };

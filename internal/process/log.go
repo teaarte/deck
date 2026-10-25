@@ -73,10 +73,12 @@ func (r *Runner) clearRun(dir string) {
 	}
 }
 
-// tailCache holds the lines Tail read of logs by what it was asked, each with the size and time of the log then.
+// tailCache holds the lines Tail read of logs by what it was asked, each with the size and time of the log then, and
+// how many bytes it holds.
 type tailCache struct {
 	mu    sync.Mutex
 	lines map[tailKey]tailLines
+	bytes int
 }
 
 type tailKey struct {
@@ -91,10 +93,11 @@ type tailLines struct {
 	lines []json.RawMessage
 }
 
-// tailsKept is how many reads of logs the cache holds before it starts again; a read of more lines than tailCached
-// is not kept.
+// tailsKept and tailBytes are how many reads of logs and how many bytes the cache holds before it starts again; a
+// read of more lines than tailCached is not kept.
 const (
 	tailsKept  = 512
+	tailBytes  = 32 << 20
 	tailCached = 1000
 )
 
@@ -136,11 +139,16 @@ func (r *Runner) Tail(processID int64, n int, kinds ...string) ([]json.RawMessag
 	if err := sc.Err(); err != nil || n > tailCached {
 		return out, err
 	}
+	size := 0
+	for _, l := range out {
+		size += len(l)
+	}
 	c.mu.Lock()
-	if c.lines == nil || len(c.lines) >= tailsKept {
-		c.lines = map[tailKey]tailLines{}
+	if c.lines == nil || len(c.lines) >= tailsKept || c.bytes+size > tailBytes {
+		c.lines, c.bytes = map[tailKey]tailLines{}, 0
 	}
 	c.lines[key] = tailLines{fi.Size(), fi.ModTime(), out}
+	c.bytes += size
 	c.mu.Unlock()
 	return out, nil
 }

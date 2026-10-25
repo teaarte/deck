@@ -30,8 +30,3 @@ export function remember(key: string, msgs: Message[], whole: boolean) {
   kept.set(key, all);
   while (kept.size > KEPT) kept.delete(kept.keys().next().value!);
 }
-
-// forget drops what was kept, as when the language changes.
-export function forget() {
-  kept.clear();
-}

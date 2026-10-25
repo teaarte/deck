@@ -183,7 +183,8 @@ func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]Fil
 }
 
 const listImagesWithoutThumb = `-- name: ListImagesWithoutThumb :many
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id, thumb_id, width, height, color FROM file WHERE thumb_id IS NULL AND type LIKE 'image/%' AND owner_kind NOT IN ('thumb', 'trash', 'keeping') ORDER BY id DESC LIMIT 20
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id, thumb_id, width, height, color FROM file WHERE thumb_id IS NULL AND type LIKE 'image/%' AND owner_kind NOT IN ('thumb', 'trash', 'keeping', 'picture', 'model')
+ORDER BY id DESC LIMIT 20
 `
 
 // The stored pictures deck has not tried a light copy of yet.

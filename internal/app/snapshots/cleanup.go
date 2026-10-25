@@ -46,6 +46,8 @@ const (
 	journalKept = 180 * 24 * time.Hour
 	notesKept   = 90 * 24 * time.Hour
 	topicsKept  = 30 * 24 * time.Hour
+	// thumbsKept is how long a light copy of a picture of a data folder stays; one asked for again is made again.
+	thumbsKept = 30 * 24 * time.Hour
 )
 
 // cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
@@ -79,6 +81,12 @@ func (s *Service) cleanup(ctx context.Context, now time.Time) {
 	left, _ := filepath.Glob(filepath.Join(s.Home.Files(), ".upload-*"))
 	for _, f := range left {
 		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {
+			_ = os.Remove(f)
+		}
+	}
+	thumbs, _ := filepath.Glob(filepath.Join(s.Home.Thumbs(), "*"))
+	for _, f := range thumbs {
+		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > thumbsKept {
 			_ = os.Remove(f)
 		}
 	}

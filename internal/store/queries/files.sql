@@ -79,7 +79,8 @@ SELECT * FROM file WHERE owner_kind = ? AND owner_id = ? ORDER BY id;
 
 -- name: ListImagesWithoutThumb :many
 -- The stored pictures deck has not tried a light copy of yet.
-SELECT * FROM file WHERE thumb_id IS NULL AND type LIKE 'image/%' AND owner_kind NOT IN ('thumb', 'trash', 'keeping') ORDER BY id DESC LIMIT 20;
+SELECT * FROM file WHERE thumb_id IS NULL AND type LIKE 'image/%' AND owner_kind NOT IN ('thumb', 'trash', 'keeping', 'picture', 'model')
+ORDER BY id DESC LIMIT 20;
 
 
 -- name: SetFileThumb :exec

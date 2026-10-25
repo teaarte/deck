@@ -133,7 +133,7 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	tab := func(name string) {
-		find := `[...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === '` + name + `')`
+		find := `[...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim().split('\n')[0] === '` + name + `')`
 		b.until("the tab "+name, find)
 		b.eval(`(` + find + `.click(), '')`)
 	}
@@ -310,6 +310,8 @@ func TestRealBrowserDocuments(t *testing.T) {
 	}
 
 	b.eval(`(document.querySelector('[data-places] a[href="#/p/web/documents"]').click(), '')`)
+	b.until("the folders of the module", `[...document.querySelectorAll('[data-place]')].some((x) => x.offsetParent && x.innerText.startsWith('Documents'))`)
+	b.eval(`([...document.querySelectorAll('[data-place]')].find((x) => x.offsetParent && x.innerText.startsWith('Documents')).click(), '')`)
 	b.until("the documents screen as tiles", `[...document.querySelectorAll('[data-place]')].some((x) => x.offsetParent && x.innerText.includes('criteria.md'))`)
 	b.eval(`([...document.querySelectorAll('[data-place]')].find((x) => x.offsetParent && x.innerText.includes('criteria.md')).click(), '')`)
 	b.until("the document page", `location.hash === '#/p/web/document/`+fmt.Sprint(d.ID)+`' && document.querySelector('[data-edit]')`)

@@ -22,6 +22,6 @@ func TestRealBrowserFirstRun(t *testing.T) {
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Add as a draft').click(), '')`)
 	b.until("its review offered", `[...document.querySelectorAll('button')].some((x) => x.innerText.trim() === 'What it can do')`)
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'What it can do').click(), '')`)
-	b.until("the review names what it needs and what it may do", `location.hash.startsWith('#/deck/draft') && document.body.innerText.includes('What it needs to work') && document.body.innerText.includes('Add the connection nvidia') && document.body.innerText.includes('What it may do once enabled')`)
+	b.until("the review names what it needs and what it may do", `location.hash.startsWith('#/deck/draft') && document.body.innerText.includes('What it needs to work') && document.body.innerText.includes('Optional: add the connection nvidia') && document.body.innerText.includes('What it may do once enabled')`)
 	b.shot("first-run-draft")
 }

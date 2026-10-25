@@ -87,8 +87,8 @@ func TestRealBrowserStaysQuick(t *testing.T) {
 	steps := []struct{ name, hash, ready string }{
 		{"a module", "#/p/notes/main", drawn + ` && document.body.innerText.includes('notes note 0')`},
 		{"its record", fmt.Sprintf("#/p/notes/note/%d", recs[0].ID), drawn + ` && document.body.innerText.includes('Note: ')`},
-		{"Spend", "#/deck/spend", drawn + ` && document.body.innerText.includes('Tokens today')`},
-		{"Schedule", "#/deck/schedule", drawn + ` && [...document.querySelectorAll('[role="tab"]')].some((x) => x.innerText.includes('Failed'))`},
+		{"Spend", "#/deck/spend", drawn + ` && document.body.innerText.includes('Paid in 30 days')`},
+		{"Schedule", "#/deck/schedule", drawn + ` && [...document.querySelectorAll('[role="tab"]')].some((x) => x.innerText.includes('Runs'))`},
 		{"the module again", "#/p/notes/main", `document.body.innerText.includes('notes note 0')`},
 	}
 	for _, s := range steps {

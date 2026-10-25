@@ -41,7 +41,7 @@ func TestRealBrowserRouter(t *testing.T) {
 	b.open(e.URL + "/#/deck/schedule")
 	b.until("the journal", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Runs')`)
 	b.eval(`(history.back(), '')`)
-	b.until("back on the tab picked before", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Health')`)
+	b.until("back on the tab picked before", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Models')`)
 	b.eval(`(location.reload(), '')`)
-	b.until("the tab kept over a reload", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Health')`)
+	b.until("the tab kept over a reload", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Models')`)
 }

@@ -105,7 +105,9 @@ export function Apps() {
   const phone = useMediaQuery('(max-width: 36em)') ?? false;
   const dark = useComputedColorScheme('light') === 'dark';
   const { width, containerRef, mounted } = useContainerWidth();
-  const cell = useCell(containerRef);
+  const measured = useCell(containerRef);
+  // A phone keeps half the gap between its cards.
+  const cell = phone ? { ...measured, gap: measured.gap / 2 } : measured;
   const cols = Math.max(1, Math.floor((width + cell.gap) / (cell.min + cell.gap)));
   const me = device();
   const saved = useLiveRead<Saved>('deck.layout', { device: me, columns: cols }, ['settings', 'projects'], EMPTY, !mounted);
@@ -194,7 +196,7 @@ export function Apps() {
       <div ref={containerRef} className={s.room} data-cols={cols}>
         {mounted && (
           <GridLayout width={width} layout={cells.map((c) => ({ ...c, minW: least(c.i, cols).w, minH: 1, maxW: cols }))} compactor={noCompactor}
-            gridConfig={{ cols, rowHeight: phone ? cell.height * 0.8 : cell.height, margin: [cell.gap, cell.gap], containerPadding: [0, 0] }}
+            gridConfig={{ cols, rowHeight: cell.height, margin: [cell.gap, cell.gap], containerPadding: [0, 0] }}
             dragConfig={{ enabled: placing, threshold: 4 }} resizeConfig={{ enabled: placing, handles: ['se'] }}
             onDragStop={(layout) => keep(layout)} onResizeStop={(layout) => keep(layout)}>
             {cells.map((c) => {

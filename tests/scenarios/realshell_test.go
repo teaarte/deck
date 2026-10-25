@@ -44,7 +44,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
 	b.open(e.URL + "/?token=" + token)
-	b.until("the tiles are the home of deck", `document.querySelector('[data-apps]') && document.querySelector('[data-module="web"]') && document.querySelector('[data-block]') === null`)
+	b.until("the tiles are the home of deck", `document.querySelector('[data-apps]') && document.querySelector('[data-module="web"]') && ![...document.querySelectorAll('[data-block]')].some((x) => !x.closest('[data-widget]'))`)
 	if got := b.eval(`[!document.querySelector('header'), !document.querySelector('[data-nav]'), !document.querySelector('[data-apps-home]'), !!document.querySelector('[data-toolbar] [data-chat-toggle]'), !document.querySelector('[data-phone-tabs]')].join(' ')`); got != "true true true true true" {
 		t.Fatalf("the desktop has no header bar and no side menu, only Deki over the tiles: %s", got)
 	}

@@ -36,8 +36,10 @@ func TestRealBrowserThemeStylesTheCards(t *testing.T) {
 		b.open(e.URL + "/#/deck/apps")
 		b.until("the cards theme worn", `document.documentElement.dataset.deckTheme === 'cards' && document.querySelector('[data-app-tile]:not([data-big])')`)
 		got := b.eval(`(() => { const c = document.querySelector('[data-app-tile]:not([data-big])'), big = document.querySelector('[data-app-tile][data-big]'), s = getComputedStyle(c);
-			const grid = getComputedStyle(c.parentElement), meadow = document.querySelector('[data-meadow]');
-			return [s.backgroundColor, s.color, s.borderTopLeftRadius, getComputedStyle(big).backgroundImage.includes('rgb(242, 246, 238)'), grid.columnGap,
+			const cells = [...document.querySelectorAll('[data-cell]')].map((x) => x.getBoundingClientRect()), meadow = document.querySelector('[data-meadow]');
+			const gaps = cells.flatMap((a) => cells.flatMap((b) => Math.abs(b.left - a.left) < 1 && b.top > a.bottom ? [b.top - a.bottom]
+				: Math.abs(b.top - a.top) < 1 && b.left > a.right ? [b.left - a.right] : [])).map(Math.round);
+			return [s.backgroundColor, s.color, s.borderTopLeftRadius, getComputedStyle(big).backgroundImage.includes('rgb(242, 246, 238)'), Math.min(...gaps) + 'px',
 				getComputedStyle(c.querySelector('[data-app-tile-icon]')).backgroundColor, !!meadow && getComputedStyle(meadow).backgroundImage.includes('radial-gradient')].join(' ') })()`)
 		gap := map[string]string{"desktop": "24px", "phone": "12px"}[size.name]
 		if want := "rgb(255, 255, 255) rgb(14, 17, 22) 24px true " + gap + " rgb(250, 236, 231) true"; got != want {

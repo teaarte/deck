@@ -35,7 +35,7 @@ export function TopicBar({ value, topics, model, setModel }: {
           <Tooltip label={t('chat.model')}>
             <Menu.Target>
               <Button size="compact-xs" variant="light" maw={150}
-                leftSection={<IconCpu size={13} />} aria-label={`${t('chat.model')}: ${shown}`} data-topic-model={shown}>
+                leftSection={<IconCpu size={13} />} aria-label={`${t('chat.model')}: ${shown}`} data-topic-model={shown} data-own={own ? true : undefined}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{shown}</span>
               </Button>
             </Menu.Target>

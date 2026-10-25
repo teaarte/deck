@@ -24,10 +24,12 @@ export async function authed(url: string, init: RequestInit = {}): Promise<Respo
   return r;
 }
 
-// call invokes a registry command and returns its JSON result; a refusal throws the server's text.
+// call invokes a registry command and returns its JSON result; a refusal throws the server's text. A small call
+// outlives the page, so a press made as the page leaves still goes.
 export async function call<T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<T> {
+  const body = JSON.stringify(input);
   const r = await authed('/api/commands/' + encodeURIComponent(command), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000,
   });
   const text = await r.text();
   if (!r.ok) throw new CommandError(text.trim() || r.statusText);

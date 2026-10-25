@@ -2,6 +2,7 @@ import { useContext, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Action } from '../../lib/catalog.gen';
 import { press, useBlockContext, type Reply } from '../../screen/press';
+import { notifyError } from '../../lib/notify';
 import { Holding } from './undo';
 
 // usePress presses a button once at a time with what the owner gave it; busy is while its press goes, error why the
@@ -24,6 +25,7 @@ export function usePress(act: Action) {
       const r = await press(ctx, act, input);
       setError(r.error ?? '');
       if (act.hold && (r.taken || r.error)) holding?.(false);
+      if (act.hold && r.error) notifyError(r.error, label);
       return r;
     } finally {
       running.current = false;

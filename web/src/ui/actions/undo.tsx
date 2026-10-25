@@ -18,21 +18,30 @@ const drop = (id: number) => {
   if (offer.get()?.id === id) offer.set(undefined);
 };
 
-// holdPress offers for a moment to take back a press before it goes; true once it may go: the moment passed, or the
-// page is leaving.
+// held sends the press that waits now, so a new one does not take away the Undo of one still to go.
+let held: (() => void) | undefined;
+
+// holdPress offers for a moment to take back a press before it goes; true once it may go: the moment passed, a new
+// press came, or the page is hidden or leaving.
 export function holdPress(label: string): Promise<boolean> {
+  held?.();
   return new Promise((resolve) => {
     const id = ++offers;
     let timer = 0;
     const finish = (go: boolean) => {
       clearTimeout(timer);
-      removeEventListener('pagehide', leave);
+      removeEventListener('pagehide', send);
+      document.removeEventListener('visibilitychange', hide);
+      if (held === send) held = undefined;
       drop(id);
       resolve(go);
     };
-    const leave = () => finish(true);
-    timer = window.setTimeout(leave, SHOWN);
-    addEventListener('pagehide', leave);
+    const send = () => finish(true);
+    const hide = () => { if (document.visibilityState === 'hidden') send(); };
+    held = send;
+    timer = window.setTimeout(send, SHOWN);
+    addEventListener('pagehide', send);
+    document.addEventListener('visibilitychange', hide);
     offer.set({ id, label: i18n.t('hold.goes', { label }), undo: () => finish(false) });
   });
 }

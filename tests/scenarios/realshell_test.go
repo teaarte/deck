@@ -277,7 +277,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Сколько агентских процессов')`)
 	e.must("deck.notify", map[string]any{"project": "web", "text": "one more note"}, nil)
 	b.open(e.URL + "/#/deck/cockpit")
-	readAll := `[...document.querySelectorAll('[data-block] button')].find((x) => x.innerText.startsWith('Прочитать всё ('))`
+	readAll := `document.querySelector('[data-block] [data-verb="read_all"]')`
 	b.until("the button that reads every note in the head of the feed", readAll)
 	b.eval(`(` + readAll + `.click(), '')`)
 	b.until("the owner asked before every note is read", `document.querySelector('[data-confirm-yes]')`)

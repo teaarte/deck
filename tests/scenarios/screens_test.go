@@ -268,9 +268,9 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("notes", "main", "asks"); !slices.Equal(got, []string{"/b2"}) {
 		t.Fatalf("asks reads the asks block: %v", got)
 	}
-	for _, topic := range []string{"feed", "asks", "processes"} {
-		if msgs := e.screenMessages("", "cockpit", map[string]any{"topic": topic}); len(msgs) < 2 || msgs[0]["createSurface"] == nil {
-			t.Fatalf("%s draws the cockpit whole: its lists are there only while they have lines: %v", topic, msgs)
+	for topic, want := range map[string][]string{"feed": {"/b2"}, "asks": {"/b0", "/b1", "/b2"}, "processes": {"/b1", "/b2"}} {
+		if got := paths("", "cockpit", topic); !slices.Equal(got, want) {
+			t.Fatalf("%s reads the lists of Today that show it, which stay on it while empty: %v", topic, got)
 		}
 	}
 	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-1", "/b0-2-1", "/b0-2-2", "/b0-2-3", "/b0-3-1", "/b0-5-0", "/b0-6-3", "/b0-6-4"}) {
@@ -344,7 +344,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		t.Fatalf("a message the agent did not take is deleted: %v", first)
 	}
 	running := e.cockpitRunning()
-	if len(running) != 1 || running[0].Title != "job" || running[0].Meta != "quiet" || running[0].Actions[0]["screen"] != "process" {
+	if len(running) != 1 || running[0].Title != "job" || !strings.Contains(running[0].Details, "quiet.job") || running[0].Actions[0]["screen"] != "process" {
 		t.Fatalf("the cockpit lists the running process with a move to its page: %+v", running)
 	}
 	e.must("deck.process_stop", map[string]any{"process": id}, nil)

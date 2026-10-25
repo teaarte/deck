@@ -7,6 +7,7 @@ import (
 	"deck2/internal/manifest"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"slices"
 	"strings"
 
@@ -79,7 +80,7 @@ type feedRow struct {
 	Open     map[string]any `json:"open,omitempty"`
 	MarkRead map[string]any `json:"mark_read,omitempty"`
 	// A failure is no entry of the feed, its id below zero: a failed run with its Process, Error and whether the
-	// owner may Retry it, or a failing Check.
+	// owner may Retry it, or a failing Check, its id by its project and subject.
 	Process   int64  `json:"process,omitempty"`
 	Error     string `json:"error,omitempty"`
 	ErrorType string `json:"error_type,omitempty"`
@@ -226,11 +227,13 @@ func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedList
 			Open: map[string]any{"verb": "open", "screen": "process", "record": p.ID}})
 	}
 	ws := dv.Words(in.Lang)
-	for i, c := range checks {
+	for _, c := range checks {
 		if c.Status != "error" || c.Seen {
 			continue
 		}
-		out = append(out, feedRow{ID: -(int64(1)<<40 + int64(i)), Kind: FeedFailure, Project: c.Project, Author: "deck",
+		h := fnv.New32a()
+		h.Write([]byte(c.Project + "\x00" + c.Subject))
+		out = append(out, feedRow{ID: -(int64(1)<<40 + int64(h.Sum32())), Kind: FeedFailure, Project: c.Project, Author: "deck",
 			Text: manifest.TrText(ws, fmt.Sprintf("The check %s fails", c.Subject)), Buttons: []Button{}, CreatedAt: c.UpdatedAt,
 			Error: c.Error, Check: c.Subject, DeckScreen: true,
 			Open: map[string]any{"verb": "open", "screen": "settings", "params": map[string]any{"tab": "Health"}}})
@@ -322,7 +325,7 @@ func (dv *Service) feedCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("feed_list", "Feed",
 			"Lists the owner's feed, newest first: notes written with notify, with the screen each opens and its buttons, changes made without the owner, with whether they can be undone, and with failures the open failures.",
-			registry.OwnerSide, dv.feedList).On("feed", "processes", "health", "secrets", "models", "assignments", "triggers"),
+			registry.OwnerSide, dv.feedList).On("feed", "processes", "asks", "projects", "documents", "health", "secrets", "models", "assignments", "triggers"),
 		registry.Def("feed_undo", "Undo",
 			"Undoes a change made without the owner, unless the document changed since.",
 			registry.OwnerOnly, dv.feedUndo),

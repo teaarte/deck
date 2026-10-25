@@ -34,8 +34,10 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	e.waitFor("the question", func() bool { return len(e.cockpitItems()) == 3 })
 
 	check.messages(t, e.screenMessages("", "cockpit", nil))
-	if got := string(e.screenData("", "cockpit", nil)["b1"]["state"]); got != "" {
-		t.Fatalf("no failing check, no counter of them: %s", got)
+	var feed []struct{ Kind string }
+	e.must("deck.feed_list", map[string]any{"failures": true}, &feed)
+	if slices.ContainsFunc(feed, func(f struct{ Kind string }) bool { return f.Kind == "failure" }) {
+		t.Fatalf("no failing check, no failure in the feed: %+v", feed)
 	}
 	items := e.cockpitItems()
 	old, fresh, q := items[0], items[1], items[2]
@@ -47,17 +49,17 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		return out
 	}
 	by := fmt.Sprintf("#%d work", second)
-	if fresh.Title != "post" || !strings.HasSuffix(fresh.Text, "POST "+svc.URL+"/items/n2") || fresh.Meta != "Work · notes" ||
+	if fresh.Title != "post" || !strings.HasSuffix(fresh.Text, "POST "+svc.URL+"/items/n2") || fresh.Meta != "notes · Work" ||
 		!strings.HasPrefix(fresh.Details, by+"\nnotes.post\n") {
-		t.Fatalf("a confirmation says what, where, who asks in words and its module; the process and the command under its details: %+v", fresh)
+		t.Fatalf("a confirmation says what, where, its module and who asks in words; the process and the command under its details: %+v", fresh)
 	}
 	if !strings.Contains(fresh.Details, `"id": "n2"`) || !strings.Contains(fresh.Details, `"text": "hi"`) || strings.Contains(fresh.Details, `"process": `) ||
 		strings.Contains(fresh.Details, `"caller"`) {
 		t.Fatalf("the call and only the call is in the details: %s", fresh.Details)
 	}
-	if got := verbs(fresh); !slices.Equal(got, []string{"allow", "Always let notes run post", "deny", "deny_because"}) ||
+	if got := verbs(fresh); !slices.Equal(got, []string{"Allow: post", "deny", "Always let notes run post", "deny_because"}) ||
 		fresh.Actions[0]["primary"] != true || fresh.Actions[0]["until"] == nil || fresh.Actions[3]["input"] != "reason" {
-		t.Fatalf("a confirmation offers allow first until it expires, then deny with a reason: %v", fresh.Actions)
+		t.Fatalf("a confirmation offers what its yes allows first until it expires, then deny with a reason: %v", fresh.Actions)
 	}
 	if got := verbs(old); !slices.Equal(got, []string{"deny"}) || !strings.Contains(old.Details, `"id": "n1"`) {
 		t.Fatalf("an expired confirmation keeps only deny: %+v", old)

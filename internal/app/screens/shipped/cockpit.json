@@ -38,7 +38,7 @@
     {"type": "list", "title": "What was", "span": "full", "source": {"from": "deck.feed_list", "input": {"failures": true}, "limit": 20},
       "empty": "Nothing happened yet today",
       "head": [
-        {"label": "='Read all' + ' (' + string(len(filter(rows, #.can_read))) + ')'", "command": "deck.feed_read", "params": {"all": "true"}, "confirm": true, "when": "len(filter(rows, #.can_read)) > 0"}
+        {"verb": "read_all", "command": "deck.feed_read", "params": {"all": "true"}, "confirm": true, "when": "len(filter(rows, #.can_read)) > 0"}
       ],
       "item": {"title": "text", "since": "created_at",
         "icon": "kind == 'failure' ? 'alert-circle' : kind == 'change' ? 'checks' : 'news'",

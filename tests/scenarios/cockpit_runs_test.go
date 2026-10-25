@@ -434,7 +434,7 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 			fails = append(fails, it)
 		}
 	}
-	if len(items) != 4 || len(fails) != 1 || items[0].Title != "three" || len(head) != 1 || head[0]["label"] != "Read all (3)" {
+	if len(items) != 4 || len(fails) != 1 || items[0].Title != "three" || len(head) != 1 || head[0]["verb"] != "read_all" {
 		t.Fatalf("three notes and the failure of two runs as one line, newest first, read all counting the notes: %+v %+v", items, head)
 	}
 	verbs := []string{}

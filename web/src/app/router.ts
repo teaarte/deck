@@ -8,9 +8,9 @@ export interface Route {
   params?: Record<string, string>;
 }
 
-// LOCAL are the parameters only the client reads: the tab picked, the tab picked inside it, the dialog open and a
-// new topic of the chat asked for.
-const LOCAL = ['tab', 'sub', 'dialog', 'chat'];
+// LOCAL are the parameters only the client reads: the tab picked, the tab picked inside it, the dialog open, a new
+// topic of the chat asked for, the size of a card a widget fills and the tiles opened to be placed.
+const LOCAL = ['tab', 'sub', 'dialog', 'chat', 'widget', 'edit'];
 
 export function parse(hash: string): Route {
   const [path, query = ''] = hash.replace(/^#\/?/, '').split('?');
@@ -34,8 +34,9 @@ export function serverParams(r: Route): Record<string, string> | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-// screenKey names the screen as the server draws it: a change of a tab or a dialog does not draw it again.
-export const screenKey = (r: Route) => href({ ...r, params: serverParams(r) });
+// screenKey names the screen as the server draws it: a change of a tab or a dialog does not draw it again, a card of
+// another size does.
+export const screenKey = (r: Route) => href({ ...r, params: { ...serverParams(r), ...(r.params?.widget ? { widget: r.params.widget } : {}) } });
 
 // The trail holds the addresses visited in this tab, so the back button shows only where there is a way back.
 let trail: string[] = [location.hash || '#/'];

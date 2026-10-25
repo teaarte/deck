@@ -11,7 +11,7 @@ import { useLive } from '../lib/events';
 import { tally } from '../lib/tally';
 import { readBlock } from '../screen/press';
 import { Actions } from '../ui/actions/Actions';
-import { Around } from './around';
+import { Around, Small } from './around';
 import { Filters } from './Filters';
 
 export type Span = 1 | 2 | 'full';
@@ -29,6 +29,7 @@ export function Block({ title, icon, span, description, data, context, empty, ba
   const old = !useLive();
   // A title the tab or the dialog around says already is not said again.
   const named = title !== useContext(Around) ? title : undefined;
+  const small = useContext(Small);
   tally('block');
   let body: ReactNode;
   const own = data?.state === 'empty' ? empty?.(data) : undefined;
@@ -44,6 +45,14 @@ export function Block({ title, icon, span, description, data, context, empty, ba
     );
   }
   else body = children(data);
+  if (small) {
+    return (
+      <section className={s.small} aria-label={title} data-block data-small data-span={String(span ?? 1)}>
+        {named && <Text size="xs" fw={700} c="dimmed" className={s.bareTitle}>{named}</Text>}
+        {body}
+      </section>
+    );
+  }
   if (bare === 'plain') return <section className={s.bare} aria-label={title} data-block data-bare="plain" data-span={String(span ?? 1)}>{body}</section>;
   if (bare === 'row') {
     return (

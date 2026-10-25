@@ -21,9 +21,11 @@ type Manifest struct {
 	AllowedExternal []string     `json:"allowed_external,omitempty"`
 	Domains         Domains      `json:"domains,omitzero"`
 	Screens         []Screen     `json:"screens,omitempty"`
-	Menu            []string     `json:"menu,omitempty"`
-	Icon            string       `json:"icon,omitempty"`
-	Title           string       `json:"title,omitempty"`
+	// Widgets are the views of the card of the project on the tiles, each from the least size it fits.
+	Widgets []Widget `json:"widgets,omitempty"`
+	Menu    []string `json:"menu,omitempty"`
+	Icon    string   `json:"icon,omitempty"`
+	Title   string   `json:"title,omitempty"`
 	// I18n translates the texts the owner sees, by language and then by the text as the manifest writes it.
 	I18n      map[string]map[string]string `json:"i18n,omitempty"`
 	Reads     []Read                       `json:"reads,omitempty"`
@@ -475,4 +477,34 @@ type Action struct {
 	Hold bool `json:"hold,omitempty"`
 	// Undo is the call that takes the button's call back, offered for a moment after it went through.
 	Undo *Action `json:"undo,omitempty"`
+}
+
+// Widget is a view of the card of a project on the tiles: the blocks it shows from the least size it fits.
+type Widget struct {
+	Min    string  `json:"min"`
+	Blocks []Block `json:"blocks"`
+}
+
+// Size is the columns and rows of cells of a size written as 2x1; false for none.
+func Size(s string) (w, h int, ok bool) {
+	if _, err := fmt.Sscanf(s, "%dx%d", &w, &h); err != nil || w < 1 || h < 1 {
+		return 0, 0, false
+	}
+	return w, h, true
+}
+
+// WidgetFor is the largest view of the widgets of m a card of a size fits, as a screen; nil when it fits none.
+func (m *Manifest) WidgetFor(w, h int) *Screen {
+	var best *Widget
+	area := 0
+	for i := range m.Widgets {
+		x := &m.Widgets[i]
+		if mw, mh, ok := Size(x.Min); ok && mw <= w && mh <= h && mw*mh > area {
+			best, area = x, mw*mh
+		}
+	}
+	if best == nil {
+		return nil
+	}
+	return &Screen{Name: "widget", Title: "", Blocks: best.Blocks}
 }

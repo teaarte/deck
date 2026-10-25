@@ -28,6 +28,7 @@ type screenGetIn struct {
 	Sub     string `opt:"" desc:"Key of the tab shown inside a tab; the first without one"`
 	Block   string `opt:"" desc:"Id of a block: only the data of it and of the blocks inside it"`
 	Pages   string `type:"json" opt:"" desc:"How many pages of its limit a block shows, as JSON: block id to a number"`
+	Widget  string `opt:"" desc:"The size of a card of the tiles, such as 2x1: of a project the largest view of its widgets it fits, of deck its screen, each filling the card"`
 }
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
@@ -53,9 +54,22 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 			req.Params[k] = fmt.Sprint(v)
 		}
 	}
+	w, h, sized := manifest.Size(in.Widget)
+	if in.Widget != "" && !sized {
+		return nil, registry.Invalid("deck: widget: a size of cells such as 2x1, not %q", in.Widget)
+	}
+	if sized {
+		req.Size = [2]int{w, h}
+	}
 	if in.Project == "" {
 		req.Screen = DeckScreen(in.Screen)
 		req.Project.WorkspaceID = act.Workspace
+		// A screen of deck in a card says no title: the card says it.
+		if sized && req.Screen != nil {
+			untitled := *req.Screen
+			untitled.Title = ""
+			req.Screen = &untitled
+		}
 	} else {
 		p, err := access.Project(ctx, ss.St.Q, act, in.Project)
 		if err != nil {
@@ -66,7 +80,10 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 			return nil, err
 		}
 		req.Project, req.Manifest, req.Screen = p, m, m.Screen(in.Screen)
-		if req.Screen == nil {
+		if sized {
+			req.Screen = m.WidgetFor(w, h)
+		}
+		if req.Screen == nil && !sized {
 			req.Screen = projectScreen(in.Screen)
 		}
 	}

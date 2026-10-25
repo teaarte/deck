@@ -26,9 +26,14 @@ const (
 	RoleVideo = "video"
 	// RoleSearch is web search for the agents that have none of their own.
 	RoleSearch = "search"
+	// RoleWidget is the agent that draws a view of the card of a module for a size; the master's model without one.
+	RoleWidget = "widget"
 )
 
-var roles = []string{RoleAgent, RoleText, RoleImage, RoleTTS, RoleSTT, RoleMusic, RoleVideo, RoleSearch}
+var roles = []string{RoleAgent, RoleText, RoleImage, RoleTTS, RoleSTT, RoleMusic, RoleVideo, RoleSearch, RoleWidget}
+
+// agentic says whether the models of a role run agent turns.
+func agentic(role string) bool { return role == RoleAgent || role == RoleWidget }
 
 // Assigned are the models of a role for a command, in order: its own assignment, else its project's, else the
 // workspace's; none when nothing is assigned.
@@ -63,7 +68,7 @@ func Assigned(ctx context.Context, q *db.Queries, workspace, project int64, comm
 type assignmentView struct {
 	Project string   `json:"project,omitempty"`
 	Command string   `json:"command,omitempty"`
-	Role    string   `json:"role" enum:"agent|text|image|tts|stt|music|video|search"`
+	Role    string   `json:"role" enum:"agent|text|image|tts|stt|music|video|search|widget"`
 	Models  []string `json:"models"`
 	// Using is the model that takes the work now: the first that is up, a fallback when the first is down.
 	Using string `json:"using,omitempty"`
@@ -75,7 +80,7 @@ type assignmentView struct {
 }
 
 type assignmentSetIn struct {
-	Role    string   `enum:"agent|text|image|tts|stt|music|video|search" desc:"The work: agent turns, direct calls of text, image, tts (speech), stt (speech to text), music or video, or web search for agents without their own"`
+	Role    string   `enum:"agent|text|image|tts|stt|music|video|search|widget" desc:"The work: agent turns, direct calls of text, image, tts (speech), stt (speech to text), music or video, web search for agents without their own, or the agent that draws views of the cards of modules"`
 	Project string   `type:"project" opt:"" desc:"Project the assignment is for; the whole workspace without it"`
 	Command string   `opt:"" desc:"Command of the project the assignment is for; the whole project without it"`
 	Models  []string `opt:"" desc:"Names of models or built-in providers in order: the first, then the fallbacks; empty removes the assignment"`
@@ -142,7 +147,7 @@ func (s *Service) planned(ctx context.Context, workspace int64, in assignmentSet
 		in.Models = picked(in.Model, before)
 	}
 	for _, name := range in.Models {
-		if in.Role == RoleAgent {
+		if agentic(in.Role) {
 			pv, err := s.Provider(ctx, workspace, name)
 			if err != nil {
 				return 0, nil, err

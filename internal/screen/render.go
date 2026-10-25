@@ -68,6 +68,9 @@ type Request struct {
 	Brief bool
 	// Dialog is the dialog open on the screen: the blocks of any other dialog are read only when it opens.
 	Dialog string
+	// Size is the cells of the card of the tiles a widget fills, columns and rows; a list without a limit shows what
+	// fits in it.
+	Size [2]int
 	// Tab and Sub are the keys of the tabs shown, of the screen and inside a tab; the first without one. The blocks
 	// of another tab are read when it is shown, by a read of its block.
 	Tab, Sub string

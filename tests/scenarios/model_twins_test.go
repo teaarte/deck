@@ -26,7 +26,7 @@ func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 		`INSERT INTO chat_session (topic_id, provider, session_id) SELECT id, 'google-flash', 's1' FROM chat_topic`,
 		`INSERT INTO project (workspace_id, name) VALUES (1, 'work')`,
 		`INSERT INTO process (project_id, command, state, provider) SELECT id, 'run', 'paused', 'google-flash' FROM project WHERE name = 'work'`,
-		`DROP TABLE picture`,
+		`DROP TABLE picture`, `DROP TABLE layout`,
 		`ALTER TABLE file DROP COLUMN thumb_id`, `ALTER TABLE file DROP COLUMN width`, `ALTER TABLE file DROP COLUMN height`,
 		`ALTER TABLE file DROP COLUMN color`,
 		`DELETE FROM goose_db_version WHERE version_id >= 46`,

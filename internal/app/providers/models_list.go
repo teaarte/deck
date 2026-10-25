@@ -188,7 +188,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	b := s.book(ctx, act.Workspace, tr)
 	for i, a := range out.Assignments {
 		out.Assignments[i].Choices = b.Of(a.Role)
-		if a.Role == RoleAgent {
+		if agentic(a.Role) {
 			out.Assignments[i].Choices = b.Agents()
 		}
 		if len(a.Models) > 0 {
@@ -260,10 +260,14 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 			if len(a.Models) > 0 {
 				w.Model, w.Price = a.Models[0], b.Price(a.Models[0])
 			}
-			if w.Choices = b.Of(a.Role); a.Role == RoleAgent {
+			if w.Choices = b.Of(a.Role); agentic(a.Role) {
 				w.Choices = b.Agents()
 			}
 			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, a.Role), Own: true, Work: w})
+		}
+		// The views of cards go to the master's model until the owner picks one.
+		if !slices.ContainsFunc(out.Assignments, func(a assignmentView) bool { return a.Project == "" && a.Role == RoleWidget }) {
+			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, RoleWidget), Work: provider.Work{Role: RoleWidget, Choices: b.Agents()}})
 		}
 	}
 	for name := range s.Places(ctx, act.Workspace) {

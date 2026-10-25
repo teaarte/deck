@@ -1,0 +1,9 @@
+{
+  "name": "today",
+  "icon": "sun",
+  "title": "Today in brief",
+  "blocks": [
+    {"type": "list", "span": "full", "source": {"from": "deck.today"},
+      "item": {"title": "title", "text": "text ?? ''", "icon": "icon", "tone": "tone ?? ''", "since": "since ?? ''"}}
+  ]
+}

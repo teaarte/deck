@@ -210,6 +210,11 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   right the owner grants, so name only what that work changes; the agent is told what it may write before it
   starts, and each change shows to the owner with an undo. A command that changes documents without `writes` is
   refused at its first save. `document_save` of a document that exists needs no `kind`.
+- **Widgets** are the views of the card of the module on the tiles: `"widgets": [{"min": "2x1", "blocks": [...]}]`,
+  each a small screen of one to four `stat`, `list` and `chart` blocks from the least size it fits, columns by rows
+  of cells; the card shows the largest view it fits, a list without `limit` as many lines as the card holds. Give a
+  `1x1` or `2x1` view with what needs the owner; without one the card is the cover. The master's skill `widgets` says
+  what to show on what size.
 - **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type
   has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
   schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):

@@ -2,15 +2,11 @@ package screens
 
 import (
 	"context"
-	"database/sql"
 	"deck2/internal/docs"
 	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
-	"encoding/json"
-	"errors"
-	"log/slog"
 	"slices"
 	"sync"
 )
@@ -35,6 +31,8 @@ type menuEntry struct {
 	CoverDark      string `json:"cover_dark,omitempty"`
 	CoverColor     string `json:"cover_color,omitempty"`
 	CoverDarkColor string `json:"cover_dark_color,omitempty"`
+	// Widgets are the least sizes of the views of the card of the project, such as 2x1.
+	Widgets []string `json:"widgets,omitempty"`
 	// Doing is the title of the command the newest open process of the project runs; Next the next run of its
 	// schedule.
 	Doing string   `json:"doing,omitempty"`
@@ -107,10 +105,7 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 	if out.Pulse.State == "calm" && !slices.ContainsFunc(ps, func(p db.Project) bool { return p.Builtin == 0 }) {
 		out.Pulse.Line = manifest.Tr(deckWords, "Tell Deki what to do: say a task in the chat and Deki builds a module for it, or start with a module below.")
 	}
-	order, err := ss.menuOrder(ctx, ss.St.Q, act.Workspace)
-	if err != nil {
-		return nil, err
-	}
+	order := ss.order(ctx, ss.St.Q, act.Workspace)
 	slices.SortStableFunc(ps, func(x, y db.Project) int { return rank(order, x.ID) - rank(order, y.ID) })
 	ms, _ := docs.All(ctx, ss.St.Q, ps)
 	pics, _ := ss.St.Q.ListWorkspacePictures(ctx, db.ListWorkspacePicturesParams{WorkspaceID: act.Workspace, Slot: files.CoverSlot})
@@ -128,6 +123,9 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 			e.Cover, e.CoverColor, e.CoverDark, e.CoverDarkColor = c.Light, c.Color, c.Dark, c.DarkColor
 		}
 		e.Doing, e.Next = doing(p, m, ws, open, triggers)
+		for _, w := range m.Widgets {
+			e.Widgets = append(e.Widgets, w.Min)
+		}
 		e.Title, e.Icon, e.Screens = manifest.Nav(p.Name, m, ws)
 		for _, s := range shipped().Project {
 			if s.Record == "" && m.Screen(s.Name) == nil {
@@ -171,84 +169,12 @@ func doing(p db.Project, m *manifest.Manifest, ws map[string]string, open []db.P
 	return now, next
 }
 
-// menuOrderKey is the setting of the order of the side list of the menu: a JSON list of ids of projects, so a new
-// project of the name of a deleted one goes last.
-const menuOrderKey = "menu_order"
-
-type menuOrderIn struct {
-	Projects []string `desc:"Names of the projects of the side list in the order to show them; a project not named keeps its place after the one before it, a new one goes last"`
-}
-
-// menuOrder is the order of the side list the owner set, ids of projects; none when not set.
-func (ss *Service) menuOrder(ctx context.Context, q *db.Queries, workspace int64) ([]int64, error) {
-	v, err := q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: menuOrderKey})
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var order []int64
-	if err := json.Unmarshal([]byte(v), &order); err != nil {
-		slog.Error("menu: order", "err", err)
-		return nil, nil
-	}
-	return order, nil
-}
-
 // rank is the place of a project in the order; one not in it goes after all that are.
 func rank(order []int64, id int64) int {
 	if i := slices.Index(order, id); i >= 0 {
 		return i
 	}
 	return len(order)
-}
-
-// menuOrderSet keeps the order of the side list: the projects named, and each one the menu had but not named, such
-// as a paused one, after the one it followed; names of no project are dropped.
-func (ss *Service) menuOrderSet(ctx context.Context, act registry.Actor, in menuOrderIn) (any, error) {
-	out := []string{}
-	err := ss.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		ps, err := q.ListWorkspaceProjects(ctx, act.Workspace)
-		if err != nil {
-			return err
-		}
-		ps = slices.DeleteFunc(ps, func(p db.Project) bool { return p.Builtin != 0 })
-		saved, err := ss.menuOrder(ctx, q, act.Workspace)
-		if err != nil {
-			return err
-		}
-		slices.SortStableFunc(ps, func(x, y db.Project) int { return rank(saved, x.ID) - rank(saved, y.ID) })
-		var order []db.Project
-		for _, n := range in.Projects {
-			if k := slices.IndexFunc(ps, func(p db.Project) bool { return p.Name == n }); k >= 0 && !slices.Contains(order, ps[k]) {
-				order = append(order, ps[k])
-			}
-		}
-		for i, p := range ps {
-			if slices.Contains(order, p) {
-				continue
-			}
-			at := 0
-			for j := i - 1; j >= 0; j-- {
-				if k := slices.Index(order, ps[j]); k >= 0 {
-					at = k + 1
-					break
-				}
-			}
-			order = slices.Insert(order, at, p)
-		}
-		ids := []int64{}
-		for _, p := range order {
-			ids, out = append(ids, p.ID), append(out, p.Name)
-		}
-		v, _ := json.Marshal(ids)
-		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: menuOrderKey, Value: string(v)})
-	})
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"projects": out}, nil
 }
 
 // foot are the groups at the foot of the menu: deck's work, the master's screens but its documents, which are a

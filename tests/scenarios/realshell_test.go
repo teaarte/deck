@@ -52,12 +52,12 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("the tiles of the modules without deck and the master: %s", got)
 	}
 	b.until("the icon of a module without a cover on its tile", `document.querySelector('[data-module="web"] [data-app-tile-icon] [data-icon="rocket"]')`)
-	if got := b.eval(`String([...document.querySelectorAll('[data-apps-links] a')].some((a) => a.getAttribute('href').startsWith('#/p/master/') && a.getAttribute('href').split('?')[0].endsWith('/settings')))`); got != "false" {
-		t.Fatalf("the settings of the master are not a quiet link of the tiles: %s", got)
-	}
 	b.shot("shell-tiles")
-	b.eval(`(document.querySelector('[data-apps-links] a[href="#/deck/schedule"]').click(), '')`)
-	b.until("the schedule from the quiet links", `location.hash === '#/deck/schedule'`)
+	if got := b.eval(`String(!document.querySelector('[data-apps-links]'))`); got != "true" {
+		t.Fatalf("no links under the tiles: %s", got)
+	}
+	b.open(e.URL + "/#/deck/schedule")
+	b.until("the schedule", `location.hash === '#/deck/schedule'`)
 	b.until("the tab named after its screen, with Deki for its icon", `/^(\(\d+\) )?Schedule · deck$/.test(document.title) && document.querySelector('link[rel=icon]').getAttribute('href') === '/favicon.png'`)
 	if got := b.eval(`(() => { const home = document.querySelector('[data-apps-home]').getBoundingClientRect(), deki = document.querySelector('[data-chat-toggle]').getBoundingClientRect();
 		const tabs = [...document.querySelectorAll('[data-places] a')].map((a) => a.getAttribute('href'));

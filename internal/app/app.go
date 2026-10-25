@@ -176,7 +176,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Words: screens.Phrases}
 	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch, Missing: a.Providers.Missing,
 		Works: a.Providers.Works, Places: a.Providers.Places, Words: screens.Phrases}
-	a.Screens = screens.Service{St: st, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
+	a.Screens = screens.Service{St: st, Now: cfg.Now, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Devices.Unread, Works: a.Providers.Works,
 		ScreenFailed: a.Failures.Screen, ScreenDrawn: a.Failures.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
 		Theme: a.Themes.Current}

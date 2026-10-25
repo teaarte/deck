@@ -6,16 +6,11 @@
   padding: var(--mantine-spacing-md) 0 var(--mantine-spacing-xs);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(var(--deck-tile-min), 100%), 1fr));
-  gap: var(--deck-tile-gap);
-}
 
 .card {
   position: relative;
   display: block;
-  min-height: var(--deck-tile-height);
+  height: 100%;
   border-radius: var(--deck-block-radius);
   overflow: hidden;
   color: var(--deck-tile-text);
@@ -33,9 +28,6 @@
   background: var(--deck-cockpit);
 }
 
-.card[data-big] {
-  grid-column: span 2;
-}
 
 .card:has(.open:focus-visible) {
   outline: 3px solid var(--mantine-primary-color-filled);
@@ -84,16 +76,6 @@
   }
 }
 
-@media (max-width: 36em) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: calc(var(--deck-tile-gap) / 2);
-  }
-
-  .card {
-    min-height: calc(var(--deck-tile-height) * 0.8);
-  }
-}
 
 .shade {
   position: absolute;
@@ -153,38 +135,9 @@
   color: color-mix(in srgb, currentColor 90%, transparent);
 }
 
-.order {
-  position: absolute;
-  top: var(--mantine-spacing-sm);
-  right: var(--mantine-spacing-sm);
-  z-index: 3;
-  display: flex;
-  gap: 4px;
-}
 
-.links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--mantine-spacing-xs);
-  margin-top: auto;
-}
 
-.link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: var(--mantine-radius-default);
-  color: var(--mantine-color-dimmed);
-  text-decoration: none;
-  font-size: var(--mantine-font-size-sm);
-}
 
-.link:hover {
-  color: var(--mantine-color-text);
-  background: var(--mantine-color-default-hover);
-}
 
 .deki {
   position: absolute;
@@ -217,12 +170,117 @@
   scale: none;
 }
 
-@media (max-width: 36em) {
-  .links {
-    gap: 0;
+
+.room {
+  position: relative;
+}
+
+.probe {
+  position: absolute;
+  visibility: hidden;
+  height: 0;
+}
+
+.card[data-plain] {
+  color: var(--mantine-color-text);
+  background: var(--deck-island-bg, var(--mantine-color-body));
+}
+
+.card[data-plain] .body {
+  justify-content: flex-start;
+}
+
+.widgetHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* A widget fills the card under its head; only its buttons take a press, the rest opens the card. */
+.widget {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.widget :is(button, a, input, [role='button']) {
+  pointer-events: auto;
+}
+
+.card[data-big] .widget {
+  color: inherit;
+}
+
+.draw {
+  position: absolute;
+  right: var(--mantine-spacing-sm);
+  bottom: var(--mantine-spacing-sm);
+  z-index: 3;
+}
+
+.placingBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-sm);
+}
+
+.apps[data-placing] .open,
+.apps[data-placing] .widget :is(button, a, input, [role='button']) {
+  pointer-events: none;
+}
+
+.apps[data-placing] .card {
+  cursor: grab;
+  touch-action: none;
+  animation: wiggle 320ms ease-in-out infinite alternate;
+}
+
+.apps[data-placing] :global(.react-grid-item:nth-child(2n)) .card {
+  animation-delay: -160ms;
+}
+
+@keyframes wiggle {
+  from {
+    rotate: -0.6deg;
   }
 
-  .link {
-    padding: 6px 8px;
+  to {
+    rotate: 0.6deg;
   }
+}
+
+:root[data-deck-motion='off'] .apps[data-placing] .card {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apps[data-placing] .card {
+    animation: none;
+  }
+}
+
+.room :global(.react-grid-placeholder) {
+  border-radius: var(--deck-block-radius);
+  background: var(--mantine-primary-color-light);
+  opacity: 1;
+}
+
+.room :global(.react-resizable-handle) {
+  z-index: 4;
+}
+
+.apps:not([data-placing]) .room :global(.react-resizable-handle) {
+  display: none;
+}
+
+.card[data-plain] .body {
+  z-index: 2;
+}
+
+.card,
+.open {
+  -webkit-touch-callout: none;
+  user-select: none;
 }

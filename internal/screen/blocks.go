@@ -61,6 +61,10 @@ func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) (
 	src := *b.Source
 	if src.Limit == 0 && b.Paged() {
 		src.Limit = manifest.Page
+		// A list of a widget shows the lines its card holds, three a row of cells.
+		if h := r.req.Size[1]; h > 0 && b.Type == "list" {
+			src.Limit = 3*h - 1
+		}
 	}
 	if n := min(r.req.Pages[id], maxPages); n > 1 && src.Limit > 0 {
 		src.Limit *= n

@@ -17,6 +17,10 @@
       "description": "External tools and commands that run without the owner's confirmation. Only the owner widens this list."},
     "domains": {"$ref": "#/$defs/domains"},
     "screens": {"type": "array", "items": {"$ref": "#/$defs/screen"}},
+    "widgets": {"type": "array", "maxItems": 8, "description": "Views of the card of the module on the tiles, a small screen each: the card shows the largest view whose min it fits, and the view fills what is left, a list longer, a chart wider; a press on the card opens the module, its buttons press as on a screen. Without one the card is its cover with its title.",
+      "items": {"type": "object", "additionalProperties": false, "required": ["min", "blocks"], "properties": {
+        "min": {"type": "string", "pattern": "^[1-9]x[1-9]$", "description": "The least size of the card it fits, columns x rows of cells, such as 2x1."},
+        "blocks": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"$ref": "#/$defs/block"}, "description": "stat, list and chart blocks, read and drawn as on a screen."}}}},
     "menu": {"type": "array", "items": {"$ref": "#/$defs/name"}, "uniqueItems": true, "description": "Screen names in menu order."},
     "icon": {"$ref": "#/$defs/icon", "description": "Icon of the project in the menu."},
     "title": {"type": "string", "minLength": 1, "maxLength": 60, "description": "Name of the project the owner sees in the menu, such as Weekly reading; the project name by default. i18n translates it."},

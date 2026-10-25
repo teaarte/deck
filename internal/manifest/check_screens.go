@@ -33,6 +33,7 @@ const (
 
 func (m *Manifest) checkScreens(fail func(string, ...any)) {
 	m.checkScreenList(false, fail)
+	m.checkWidgets(fail)
 	for _, name := range m.Menu {
 		switch s := m.Screen(name); {
 		case s == nil:
@@ -360,5 +361,27 @@ func btoi(b bool) int {
 func (c *screenCheck) chatOnly(where string, a Action) {
 	if a.Chat && a.Command == "" && a.Screen == "" {
 		c.warn("%s %q: a button that only opens the chat repeats the button of Deki, which opens it with this screen in its context; remove it", where, cmp.Or(a.Label, a.Verb))
+	}
+}
+
+// checkWidgets checks the views of the card of a project: each of its own least size, of stat, list and chart blocks.
+func (m *Manifest) checkWidgets(fail func(string, ...any)) {
+	seen := map[string]bool{}
+	for i, w := range m.Widgets {
+		if seen[w.Min] {
+			fail("widgets/%d: a second view from %s", i, w.Min)
+		}
+		seen[w.Min] = true
+		s := &Screen{Name: "widget", Blocks: w.Blocks}
+		c := &screenCheck{m: m, screen: s, fail: fail, dialogs: map[string]bool{}, tabs: map[string]bool{}}
+		c.warn = func(format string, a ...any) { m.warnings = append(m.warnings, fmt.Sprintf(format, a...)) }
+		for j, b := range w.Blocks {
+			where := fmt.Sprintf("widgets/%d/blocks/%d", i, j)
+			if !slices.Contains([]string{"stat", "list", "chart"}, b.Type) {
+				fail("%s: a widget shows stat, list and chart blocks, not %s", where, b.Type)
+				continue
+			}
+			c.block(where, b)
+		}
 	}
 }

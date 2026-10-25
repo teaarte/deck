@@ -51,6 +51,7 @@ export function useScreen(route: Route, shownNow = true) {
         ...(r.params?.dialog ? { dialog: r.params.dialog } : {}),
         ...(r.params?.tab ? { tab: r.params.tab } : {}),
         ...(r.params?.sub ? { sub: r.params.sub } : {}),
+        ...(r.params?.widget ? { widget: r.params.widget } : {}),
         ...(Object.keys(picked).length ? { filter: JSON.stringify(picked) } : {}),
         ...(Object.keys(pages).length ? { pages: JSON.stringify(pages) } : {}),
         ...extra,

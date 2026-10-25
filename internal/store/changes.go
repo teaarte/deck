@@ -86,6 +86,7 @@ var tables = map[string]table{
 	"feed":              {"feed", ofProject, nil},
 	"setting":           {"settings", ofWorkspace, nil},
 	"push_subscription": {"settings", ofWorkspace, nil},
+	"layout":            {"settings", ofWorkspace, nil},
 	"automation_token":  {"tokens", ofWorkspace, nil},
 	"chat_topic":        {"chat", ofWorkspace, nil},
 	"chat_message":      {"chat", ofTopic, nil},

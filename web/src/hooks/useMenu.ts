@@ -22,6 +22,8 @@ export interface MenuEntry {
   cover_color?: string;
   cover_dark_color?: string;
   // doing is the title of the command the project runs now, next the next run of its schedule.
+  // widgets are the least sizes of the views of the card of the module, such as 2x1.
+  widgets?: string[];
   doing?: string;
   next?: { title: string; at: string };
 }

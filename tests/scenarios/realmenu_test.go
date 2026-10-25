@@ -3,7 +3,6 @@ package scenarios
 import (
 	"context"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -63,56 +62,6 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 	}
 }
 
-// TestRealBrowserTilesOrder: the arrows of the order move a module among the tiles on a desktop and a phone, and the
-// order stays after a reload: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserTilesOrder -v.
-func TestRealBrowserTilesOrder(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	for _, name := range []string{"alpha", "beta", "gamma"} {
-		e.createProject(name, plainManifest)
-	}
-	b := newPlaywright(t)
-	order := func(want string) string {
-		return `[...document.querySelectorAll('[data-module]')].map((x) => x.dataset.module).join(' ') === '` + want + `'`
-	}
-	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token)
-	b.until("the modules by name", order("alpha beta gamma"))
-	if got := b.eval(`String(!document.querySelector('[data-move]'))`); got != "true" {
-		t.Fatalf("no arrows until the owner orders the tiles: %s", got)
-	}
-	b.eval(`(document.querySelector('[data-apps-order]').click(), '')`)
-	b.until("the arrows of the order", `document.querySelector('[data-module="alpha"] [data-move="up"]')?.disabled`)
-	b.shot("tiles-order")
-	b.eval(`(document.querySelector('[data-module="alpha"] [data-move="down"]').click(), '')`)
-	b.until("alpha moved later", order("beta alpha gamma"))
-	b.open(e.URL + "/?reload=1")
-	b.until("the order after a reload", order("beta alpha gamma"))
-	if names, _ := e.side(); !slices.Equal(names, []string{"beta", "alpha", "gamma"}) {
-		t.Fatalf("deck keeps the order of the browser: %v", names)
-	}
-	b.eval(`(document.querySelector('[data-apps-order]').click(), '')`)
-	for _, want := range []string{"beta gamma alpha", "gamma beta alpha"} {
-		b.until("the arrow of gamma ready", `document.querySelector('[data-module="gamma"] [data-move="up"]')?.disabled === false`)
-		b.eval(`(document.querySelector('[data-module="gamma"] [data-move="up"]').click(), '')`)
-		b.until("gamma earlier to "+want, order(want))
-	}
-
-	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/?reload=2")
-	b.until("the order on a phone", `document.querySelector('[data-phone-tabs]') && `+order("gamma beta alpha"))
-	b.eval(`(document.querySelector('[data-apps-order]').click(), '')`)
-	b.until("the arrows on a phone", `document.querySelector('[data-module="alpha"] [data-move="up"]')`)
-	b.eval(`(document.querySelector('[data-module="alpha"] [data-move="up"]').click(), '')`)
-	b.until("alpha earlier on a phone", order("gamma alpha beta"))
-	b.shot("tiles-order-phone")
-	b.open(e.URL + "/?reload=3")
-	b.until("the order of the phone after a reload", order("gamma alpha beta"))
-}
-
 // TestRealBrowserCards: deck opens on its tiles, Today first, a module with its cover and no icon, one without with
 // its icon, no menu on a tile; a tile opens its module and the way home goes back.
 func TestRealBrowserCards(t *testing.T) {
@@ -133,7 +82,7 @@ func TestRealBrowserCards(t *testing.T) {
 		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && notes.dataset.cover === 'true' && notes.querySelector('[data-cover-img][data-shown]') })()`)
 	if got := b.eval(`(() => { const notes = document.querySelector('[data-module=notes]'), plain = document.querySelector('[data-module=plain]');
 		return [!notes.querySelector('[data-app-tile-icon]'), !!plain.querySelector('[data-app-tile-icon]'), !document.querySelector('[data-card-places], [data-card-more]'),
-			!document.querySelector('[data-new-module]'), getComputedStyle(document.querySelector('[data-app-tile][data-big]')).gridColumnStart].join(' ') })()`); got != "true true true true span 2" {
+			!document.querySelector('[data-new-module]'), document.querySelector('[data-app-tile][data-big]').getBoundingClientRect().width > 1.9 * plain.getBoundingClientRect().width].join(' ') })()`); got != "true true true true true" {
 		t.Fatalf("a tile with a cover has no icon, one without has, no menu on a tile, no tile that only opens the chat, Today on two columns: %s", got)
 	}
 	b.shot("cards")

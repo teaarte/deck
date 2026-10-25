@@ -165,6 +165,14 @@ type Health struct {
 	SeenAt      sql.NullString
 }
 
+type Layout struct {
+	WorkspaceID int64
+	Device      string
+	Columns     int64
+	Cards       string
+	UpdatedAt   string
+}
+
 type LlmCall struct {
 	ID                                 int64
 	WorkspaceID                        int64

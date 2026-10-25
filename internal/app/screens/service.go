@@ -6,6 +6,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"time"
 )
 
 // Service draws deck's screens and the menu: it reads as the viewer through the registry and counts through the
@@ -31,6 +32,7 @@ type Service struct {
 	Language func(ctx context.Context, workspace int64) string
 	// Theme is the name of the theme the workspace wears.
 	Theme func(ctx context.Context, workspace int64) string
+	Now   func() time.Time
 }
 
 // Commands are the commands of screens and the menu.
@@ -39,9 +41,18 @@ func (ss *Service) Commands() []*registry.Command {
 		registry.Def("menu", "Menu",
 			"Lists the screens to navigate: deck's own, then each project's menu.",
 			registry.OwnerSide, ss.menu),
-		registry.Def("menu_order", "Order the menu",
-			"Sets the order of the projects of the side list of the menu, the same on every device.",
-			registry.OwnerSide, ss.menuOrderSet),
+		registry.Read("today", "Today in brief",
+			"Lists the lines of the card of Today, the most pressing first: what waits for the owner, what failed, what runs, what the day cost and what runs next.",
+			registry.OwnerSide, ss.today).On("asks", "feed", "processes", "health", "usage", "triggers", "projects", "secrets", "models", "assignments", "documents"),
+		registry.Def("widget_draw", "Draw a widget",
+			"Asks the master to make a view of the card of a module on the tiles for a size, as a widget of its manifest, on the model of the role widget, the master's own without one.",
+			registry.OwnerOnly, ss.widgetDraw),
+		registry.Read("layout", "Layout of the tiles",
+			"Gives where the cards of the tiles stand on a device for its columns: its own, else the one they are derived from; columns 0 gives the order alone.",
+			registry.OwnerSide, ss.layout).On("settings", "projects"),
+		registry.Def("layout_set", "Place the tiles",
+			"Keeps where the cards of the tiles stand on a device for a number of columns, in cells.",
+			registry.OwnerSide, ss.layoutSet),
 		registry.Def("screen", "Screen",
 			"Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes, with a block only that of the block; the blocks of a dialog get data only while it is open. Anyone but the owner gets the text of a document and the HTML of a custom block by size, and whole by a read of that block.",
 			registry.OwnerSide, ss.screenGet),

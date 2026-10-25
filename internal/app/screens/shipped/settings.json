@@ -50,6 +50,7 @@
             "description": "Deki draws the cover of the module in the mood of the theme in use, for its schemes; without a module, of every module that has none in this theme.",
             "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + ' · ' + price"}}}]},
         {"type": "list", "title": "Modules", "empty": "No modules yet: tell Deki what to do, or import a module", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
+          "head": [{"label": "Arrange the tiles", "icon": "layout-grid", "screen": "apps", "params": {"edit": "1"}}],
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "cover": "cover", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
             "meta": "meta",
             "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
@@ -110,7 +111,7 @@
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project != '' ? project : nil", "command": "=command ?? nil"},
               "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
             {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=command ?? ''", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"},
-            {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}, "when": "kind == 'default'"}
+            {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}, "when": "kind == 'default' && own"}
           ]},
         {"type": "table", "title": "All models", "empty": "No models yet: add a connection, then its models; Deki can propose them in the chat", "source": {"from": "deck.models_list", "rows": "models", "sort": "-used"}, "filter": ["kind", "connection", "status"],
           "description": "Every model deck reaches, those that work goes to first; the others are dimmed.",

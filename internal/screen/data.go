@@ -57,7 +57,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	case "form":
 		return r.form(b)
 	case "custom":
-		return r.custom(b)
+		return r.briefed(id, "html")(r.custom(b))
 	case "actions":
 		acts, err := r.actions(b.Actions, r.req.Record, r.record)
 		if err != nil {
@@ -96,19 +96,19 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		}
 		return out, nil
 	case "document":
-		var record, id int64
+		var record, doc int64
 		switch r.req.Screen.Record {
 		case manifest.DocumentRecord:
-			id = r.req.Record
+			doc = r.req.Record
 		case "":
 		default:
 			record = r.req.Record
 		}
-		v, err := r.document(record, id, b.Document)
+		v, err := r.document(record, doc, b.Document)
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"state": "ready", "value": v}, nil
+		return r.briefed(id, "text")(map[string]any{"state": "ready", "value": v}, nil)
 	}
 	if b.Type == "media" && b.Source == nil {
 		return map[string]any{"state": "ready", "files": []map[string]any{r.file(b, r.record)}}, nil

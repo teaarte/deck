@@ -43,7 +43,7 @@ func (ss *Service) Commands() []*registry.Command {
 			"Sets the order of the projects of the side list of the menu, the same on every device.",
 			registry.OwnerSide, ss.menuOrderSet),
 		registry.Def("screen", "Screen",
-			"Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes, with a block only that of the block; the blocks of a dialog get data only while it is open.",
+			"Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes, with a block only that of the block; the blocks of a dialog get data only while it is open. Anyone but the owner gets the text of a document and the HTML of a custom block by size, and whole by a read of that block.",
 			registry.OwnerSide, ss.screenGet),
 		registry.Read("commands_list", "Commands",
 			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. command_describe gives a description.",

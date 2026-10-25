@@ -274,7 +274,7 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 	}
 	v := map[string]any{"html": html, "actions": acts, "project": r.req.Project.Name}
 	if r.req.Brief {
-		v["html"], v["name"], v["size"] = "", b.Document, len(html)
+		v["name"] = b.Document
 	}
 	if b.Source != nil {
 		items, _, _, err := r.filtered(*b.Source, nil, nil)

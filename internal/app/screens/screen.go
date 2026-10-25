@@ -30,7 +30,7 @@ type screenGetIn struct {
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
 func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenGetIn) (any, error) {
-	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Brief: act.Kind != registry.Owner, Dialog: in.Dialog, Block: in.Block}
+	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Brief: act.Kind != registry.Owner && in.Block == "", Dialog: in.Dialog, Block: in.Block}
 	if strings.TrimSpace(in.Pages) != "" {
 		if err := json.Unmarshal([]byte(in.Pages), &req.Pages); err != nil {
 			return nil, registry.Invalid("deck: pages: a JSON object of block id to a number: %v", err)

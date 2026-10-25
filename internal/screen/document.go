@@ -53,10 +53,22 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 	if owner, _ := d["owner_kind"].(string); owner != "" {
 		v[owner] = d["owner_id"]
 	}
-	if text, _ := v["text"].(string); r.req.Brief {
-		v["text"], v["size"] = "", len(text)
-	}
 	return withSave(v), nil
+}
+
+// briefed leaves the body of a block, under key in its value, out of a read by anyone but the owner: its size stays,
+// and whole names the block a read of which alone gives it whole.
+func (r *renderer) briefed(id, key string) func(map[string]any, error) (map[string]any, error) {
+	return func(out map[string]any, err error) (map[string]any, error) {
+		v, _ := out["value"].(map[string]any)
+		if err != nil || !r.req.Brief || v == nil {
+			return out, err
+		}
+		body, _ := v[key].(string)
+		delete(v, key)
+		v["size"], v["whole"] = len(body), map[string]any{"command": "deck.screen", "block": id}
+		return out, nil
+	}
 }
 
 // withSave gives an editable document the button that saves its text as a new revision; the owner fills in the

@@ -64,7 +64,7 @@ type Request struct {
 	// Words translate the texts of the screen into Lang, the owner's language.
 	Words map[string]string
 	Lang  string
-	// Brief gives the HTML of custom blocks and the text of documents by name and size, not whole.
+	// Brief gives the HTML of custom blocks and the text of documents by name and size, with the block that gives it whole.
 	Brief bool
 	// Dialog is the dialog open on the screen: the blocks of any other dialog are read only when it opens.
 	Dialog string

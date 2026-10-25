@@ -1,9 +1,17 @@
 -- name: PutPicture :one
-INSERT INTO picture (project_id, slot, theme, scheme, file_id, thumb_id, color)
-VALUES (sqlc.arg(project_id), sqlc.arg(slot), sqlc.arg(theme), sqlc.arg(scheme), sqlc.arg(file_id), sqlc.narg(thumb_id), sqlc.arg(color))
+INSERT INTO picture (project_id, slot, theme, scheme, file_id, thumb_id, color, drawn_in)
+VALUES (sqlc.arg(project_id), sqlc.arg(slot), sqlc.arg(theme), sqlc.arg(scheme), sqlc.arg(file_id), sqlc.narg(thumb_id), sqlc.arg(color), sqlc.arg(drawn_in))
 ON CONFLICT (project_id, slot, theme, scheme) DO UPDATE SET file_id = excluded.file_id, thumb_id = excluded.thumb_id,
-    color = excluded.color, created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    color = excluded.color, drawn_in = excluded.drawn_in, created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 RETURNING *;
+
+
+-- name: GetPicture :one
+SELECT * FROM picture WHERE project_id = ? AND slot = ? AND theme = ? AND scheme = ?;
+
+
+-- name: SetPictureTheme :exec
+UPDATE picture SET theme = sqlc.arg(theme) WHERE id = sqlc.arg(id);
 
 
 -- name: ListPictures :many

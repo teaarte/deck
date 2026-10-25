@@ -143,7 +143,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
 	a.Folders = folders.Service{St: st, Home: h}
 	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx,
-		Themed: a.Themes.Exists}
+		Themed: a.Themes.Exists, Current: a.Themes.Current}
 	a.Journal = journal.Service{St: st, Now: cfg.Now}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake, Words: screens.Phrases}
 	a.Themes = themes.Service{St: st, Now: cfg.Now, Invoke: a.Registry.Invoke, Words: screens.Phrases, Language: a.Settings.Language}

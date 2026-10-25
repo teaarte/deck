@@ -243,6 +243,7 @@ type Picture struct {
 	ThumbID   sql.NullInt64
 	Color     string
 	CreatedAt string
+	DrawnIn   string
 }
 
 type Process struct {

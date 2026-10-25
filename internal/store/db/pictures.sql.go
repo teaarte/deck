@@ -31,8 +31,42 @@ func (q *Queries) DeletePicture(ctx context.Context, arg DeletePictureParams) er
 	return err
 }
 
+const getPicture = `-- name: GetPicture :one
+SELECT id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at, drawn_in FROM picture WHERE project_id = ? AND slot = ? AND theme = ? AND scheme = ?
+`
+
+type GetPictureParams struct {
+	ProjectID int64
+	Slot      string
+	Theme     string
+	Scheme    string
+}
+
+func (q *Queries) GetPicture(ctx context.Context, arg GetPictureParams) (Picture, error) {
+	row := q.db.QueryRowContext(ctx, getPicture,
+		arg.ProjectID,
+		arg.Slot,
+		arg.Theme,
+		arg.Scheme,
+	)
+	var i Picture
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Slot,
+		&i.Theme,
+		&i.Scheme,
+		&i.FileID,
+		&i.ThumbID,
+		&i.Color,
+		&i.CreatedAt,
+		&i.DrawnIn,
+	)
+	return i, err
+}
+
 const listPictures = `-- name: ListPictures :many
-SELECT id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at FROM picture WHERE project_id = ? AND slot = ? ORDER BY theme, scheme
+SELECT id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at, drawn_in FROM picture WHERE project_id = ? AND slot = ? ORDER BY theme, scheme
 `
 
 type ListPicturesParams struct {
@@ -59,6 +93,7 @@ func (q *Queries) ListPictures(ctx context.Context, arg ListPicturesParams) ([]P
 			&i.ThumbID,
 			&i.Color,
 			&i.CreatedAt,
+			&i.DrawnIn,
 		); err != nil {
 			return nil, err
 		}
@@ -74,7 +109,7 @@ func (q *Queries) ListPictures(ctx context.Context, arg ListPicturesParams) ([]P
 }
 
 const listPicturesWithoutThumb = `-- name: ListPicturesWithoutThumb :many
-SELECT id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at FROM picture WHERE thumb_id IS NULL ORDER BY id LIMIT 20
+SELECT id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at, drawn_in FROM picture WHERE thumb_id IS NULL ORDER BY id LIMIT 20
 `
 
 func (q *Queries) ListPicturesWithoutThumb(ctx context.Context) ([]Picture, error) {
@@ -96,6 +131,7 @@ func (q *Queries) ListPicturesWithoutThumb(ctx context.Context) ([]Picture, erro
 			&i.ThumbID,
 			&i.Color,
 			&i.CreatedAt,
+			&i.DrawnIn,
 		); err != nil {
 			return nil, err
 		}
@@ -111,7 +147,7 @@ func (q *Queries) ListPicturesWithoutThumb(ctx context.Context) ([]Picture, erro
 }
 
 const listWorkspacePictures = `-- name: ListWorkspacePictures :many
-SELECT pc.id, pc.project_id, pc.slot, pc.theme, pc.scheme, pc.file_id, pc.thumb_id, pc.color, pc.created_at FROM picture pc JOIN project p ON p.id = pc.project_id
+SELECT pc.id, pc.project_id, pc.slot, pc.theme, pc.scheme, pc.file_id, pc.thumb_id, pc.color, pc.created_at, pc.drawn_in FROM picture pc JOIN project p ON p.id = pc.project_id
 WHERE p.workspace_id = ?1 AND pc.slot = ?2 ORDER BY pc.id
 `
 
@@ -139,6 +175,7 @@ func (q *Queries) ListWorkspacePictures(ctx context.Context, arg ListWorkspacePi
 			&i.ThumbID,
 			&i.Color,
 			&i.CreatedAt,
+			&i.DrawnIn,
 		); err != nil {
 			return nil, err
 		}
@@ -154,11 +191,11 @@ func (q *Queries) ListWorkspacePictures(ctx context.Context, arg ListWorkspacePi
 }
 
 const putPicture = `-- name: PutPicture :one
-INSERT INTO picture (project_id, slot, theme, scheme, file_id, thumb_id, color)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+INSERT INTO picture (project_id, slot, theme, scheme, file_id, thumb_id, color, drawn_in)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
 ON CONFLICT (project_id, slot, theme, scheme) DO UPDATE SET file_id = excluded.file_id, thumb_id = excluded.thumb_id,
-    color = excluded.color, created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-RETURNING id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at
+    color = excluded.color, drawn_in = excluded.drawn_in, created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+RETURNING id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at, drawn_in
 `
 
 type PutPictureParams struct {
@@ -169,6 +206,7 @@ type PutPictureParams struct {
 	FileID    int64
 	ThumbID   sql.NullInt64
 	Color     string
+	DrawnIn   string
 }
 
 func (q *Queries) PutPicture(ctx context.Context, arg PutPictureParams) (Picture, error) {
@@ -180,6 +218,7 @@ func (q *Queries) PutPicture(ctx context.Context, arg PutPictureParams) (Picture
 		arg.FileID,
 		arg.ThumbID,
 		arg.Color,
+		arg.DrawnIn,
 	)
 	var i Picture
 	err := row.Scan(
@@ -192,8 +231,23 @@ func (q *Queries) PutPicture(ctx context.Context, arg PutPictureParams) (Picture
 		&i.ThumbID,
 		&i.Color,
 		&i.CreatedAt,
+		&i.DrawnIn,
 	)
 	return i, err
+}
+
+const setPictureTheme = `-- name: SetPictureTheme :exec
+UPDATE picture SET theme = ?1 WHERE id = ?2
+`
+
+type SetPictureThemeParams struct {
+	Theme string
+	ID    int64
+}
+
+func (q *Queries) SetPictureTheme(ctx context.Context, arg SetPictureThemeParams) error {
+	_, err := q.db.ExecContext(ctx, setPictureTheme, arg.Theme, arg.ID)
+	return err
 }
 
 const setPictureThumb = `-- name: SetPictureThumb :exec

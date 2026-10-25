@@ -500,7 +500,7 @@
   "Draw the cover for this theme": "Нарисовать обложку для этой темы",
   "The master draws the pictures of the schemes of the theme in use in its mood. Without a model it takes a free one of deck.": "Мастер нарисует картинки схем текущей темы в её настроении. Без модели возьмёт бесплатную модель deck.",
   "Set cover": "Обложка модуля",
-  "Sets the picture of the card of a project for a theme, or for every theme, and the light or the dark scheme, or takes it off; deck keeps a light copy for the cards.": "Ставит картинку карточки модуля для темы или для всех тем, для светлой или тёмной схемы, или убирает её; для плиток deck хранит лёгкую копию.",
+  "Sets the picture of the card of a project for a theme, or for every theme, and the light or the dark scheme, or takes it off; deck keeps a light copy for the cards. A cover for every theme it replaces stays the cover of the theme it was set in; one with no place left goes to the trash.": "Ставит картинку карточки модуля для темы или для всех тем, для светлой или тёмной схемы, или убирает её; для плиток deck хранит лёгкую копию. Заменённая обложка для всех тем остаётся обложкой темы, в которой её поставили; если места ей нет, она уходит в корзину.",
   "The picture: an upload, a stored file of the project or the master, or results/<name> of the calling process": "Картинка",
   "Take the cover of the theme and scheme off instead; without a scheme both of the theme": "Убрать обложку темы и схемы; без схемы — обе обложки темы",
   "The theme the picture is drawn for, by name; for every theme without one. A card shows the cover of the theme in use, else one for every theme, else any": "Тема, для которой картинка; без неё — для всех тем. Карточка показывает обложку текущей темы, иначе общую, иначе любую",

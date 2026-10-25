@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"os"
 	"strings"
@@ -74,13 +75,13 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 		return nil, err
 	}
 	thumb, color := s.thumbOf(ctx, owner, p.Name, v.ID)
-	scheme := cmp.Or(in.Scheme, "light")
+	scheme, cur := cmp.Or(in.Scheme, "light"), s.Current(ctx, act.Workspace)
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.DeletePicture(ctx, db.DeletePictureParams{ProjectID: p.ID, Slot: files.CoverSlot, Theme: in.Theme, Scheme: scheme}); err != nil {
+		if err := s.keep(ctx, q, p.ID, in.Theme, scheme, cur); err != nil {
 			return err
 		}
 		pic, err := q.PutPicture(ctx, db.PutPictureParams{ProjectID: p.ID, Slot: files.CoverSlot, Theme: in.Theme, Scheme: scheme,
-			FileID: v.ID, ThumbID: thumb, Color: color})
+			FileID: v.ID, ThumbID: thumb, Color: color, DrawnIn: cur})
 		if err != nil {
 			return err
 		}
@@ -99,6 +100,32 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 		return nil, err
 	}
 	return map[string]any{"project": p.Name, "cover": v.ID, "theme": in.Theme, "scheme": scheme}, nil
+}
+
+// keep moves the cover a new one replaces out of its place: one for every theme becomes the cover of the theme in use
+// when it was set, cur for an older one, where that theme has none of the scheme; else it goes to the trash.
+func (s *Service) keep(ctx context.Context, q *db.Queries, project int64, theme, scheme, cur string) error {
+	old, err := q.GetPicture(ctx, db.GetPictureParams{ProjectID: project, Slot: files.CoverSlot, Theme: theme, Scheme: scheme})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if to := cmp.Or(old.DrawnIn, cur); theme == "" && to != "" {
+		_, err := q.GetPicture(ctx, db.GetPictureParams{ProjectID: project, Slot: files.CoverSlot, Theme: to, Scheme: scheme})
+		if errors.Is(err, sql.ErrNoRows) {
+			return q.SetPictureTheme(ctx, db.SetPictureThemeParams{Theme: to, ID: old.ID})
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if _, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: trash, OwnerID: s.Now().Unix(), ID: old.FileID, ProjectID: project,
+		FromKind: files.PictureKind, FromID: old.ID}); err != nil {
+		return err
+	}
+	return q.DeletePicture(ctx, db.DeletePictureParams{ProjectID: project, Slot: files.CoverSlot, Theme: theme, Scheme: scheme})
 }
 
 // thumbOf stores the light copy of a stored picture as an upload of the project and gives it with the main color;
@@ -171,6 +198,6 @@ func (s *Service) dropUploads(ctx context.Context, ids ...int64) {
 
 func (s *Service) coverCommand() *registry.Command {
 	return registry.Def("project_cover", "Set cover",
-		"Sets the picture of the card of a project for a theme, or for every theme, and the light or the dark scheme, or takes it off; deck keeps a light copy for the cards.",
+		"Sets the picture of the card of a project for a theme, or for every theme, and the light or the dark scheme, or takes it off; deck keeps a light copy for the cards. A cover for every theme it replaces stays the cover of the theme it was set in; one with no place left goes to the trash.",
 		registry.OwnerSide, s.projectCover)
 }

@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	deckhome "deck2/internal/home"
@@ -467,6 +468,82 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 	if files != 2 {
 		t.Fatalf("a picture taken off takes its files with it: %d", files)
 	}
+}
+
+// TestAReplacedCoverStaysTheCoverOfItsTheme: a cover for every theme that a new one replaces becomes the cover of the
+// theme in use when it was set; one that has no place left, or a theme's own replaced, waits in the trash.
+func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("notes", plainManifest)
+	picture := func(c color.RGBA) string {
+		img := image.NewRGBA(image.Rect(0, 0, 64, 36))
+		draw.Draw(img, img.Bounds(), &image.Uniform{c}, image.Point{}, draw.Src)
+		var b bytes.Buffer
+		_ = png.Encode(&b, img)
+		return b.String()
+	}
+	type row struct {
+		Theme string
+		File  int64
+	}
+	shown := func() []row {
+		var rows []row
+		e.must("deck.project_covers", map[string]any{"project": "notes"}, &rows)
+		return rows
+	}
+	// set gives the light copy a card shows and the picture itself.
+	set := func(name string, c color.RGBA, in map[string]any) (int64, int64) {
+		var out struct{ Cover int64 }
+		in["project"], in["file"] = "notes", fmt.Sprint(e.upload("notes", name, "image/png", picture(c)))
+		e.must("deck.project_cover", in, &out)
+		for _, r := range shown() {
+			if r.Theme == fmt.Sprint(cmp.Or(in["theme"], any(""))) {
+				return r.File, out.Cover
+			}
+		}
+		return 0, out.Cover
+	}
+	covers := func() string {
+		var out []string
+		for _, r := range shown() {
+			out = append(out, fmt.Sprintf("%s=%d", r.Theme, r.File))
+		}
+		slices.Sort(out)
+		return strings.Join(out, " ")
+	}
+	trashed := func() []int64 {
+		var ids []int64
+		rows, _ := e.App.Store.DB.Query(`SELECT id FROM file WHERE owner_kind = 'trash' ORDER BY id`)
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			_ = rows.Scan(&id)
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	first := themeLook{}
+	e.must("deck.theme", map[string]any{}, &first)
+	red, _ := set("red.png", color.RGBA{220, 30, 30, 255}, map[string]any{})
+	e.must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
+	green, greenFile := set("green.png", color.RGBA{30, 220, 30, 255}, map[string]any{})
+	if got, want := covers(), fmt.Sprintf("=%d %s=%d", green, first.Name, red); got != want {
+		t.Fatalf("the cover replaced stays the cover of the theme it was set in: %s, want %s", got, want)
+	}
+	blue, blueFile := set("blue.png", color.RGBA{30, 30, 220, 255}, map[string]any{})
+	if got, want := covers(), fmt.Sprintf("=%d %s=%d pixel=%d", blue, first.Name, red, green); got != want {
+		t.Fatalf("each replaced cover keeps to its theme: %s, want %s", got, want)
+	}
+	gray, _ := set("gray.png", color.RGBA{90, 90, 90, 255}, map[string]any{})
+	if got, want := covers(), fmt.Sprintf("=%d %s=%d pixel=%d", gray, first.Name, red, green); got != want || !slices.Equal(trashed(), []int64{blueFile}) {
+		t.Fatalf("a replaced cover whose theme has its own waits in the trash: %s, want %s; trash %v", got, want, trashed())
+	}
+	set("white.png", color.RGBA{250, 250, 250, 255}, map[string]any{"theme": "pixel"})
+	if !slices.Equal(trashed(), []int64{min(blueFile, greenFile), max(blueFile, greenFile)}) {
+		t.Fatalf("a theme's own cover replaced waits in the trash too: %v", trashed())
+	}
+	e.must("deck.file_restore", map[string]any{"file": greenFile, "owner_kind": "upload"}, nil)
 }
 
 // TestAPictureWithoutALightCopyGetsOne: a cover deck kept before light copies gets one in the sweep, transparent

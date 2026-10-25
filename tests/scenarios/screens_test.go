@@ -215,7 +215,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	e.createProject("notes", good)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}`, `{"type": "hologram"}`,
-			`value must be one of 'actions', 'appearance', 'card', 'chart', 'chat', 'columns', 'custom', 'dialog', 'document', 'form', 'list', 'log', 'media', 'stat', 'table', 'tabs'`},
+			`value must be one of 'actions', 'appearance', 'card', 'chart', 'chat', 'columns', 'custom', 'dialog', 'document', 'filter', 'form', 'list', 'log', 'media', 'stat', 'table', 'tabs'`},
 		{`"value": "sum(rows, .score)"`, `"value": "sum(items, .score)"`, `value: unknown field "items"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "list", "source": {"from": "deck.asks_list"}, "item": {"title": "whom"}}`, `unknown field "whom"`},

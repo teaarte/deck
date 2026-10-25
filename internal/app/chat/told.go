@@ -23,19 +23,21 @@ import (
 // roleDeck is a message deck writes itself: how a work started from the topic ended or what it waits for.
 const roleDeck = "deck"
 
-// toldState is what a message of deck keeps in its context: the state of the work it tells of.
+// toldState is what a message of deck keeps in its context: the state of the work it tells of and why it failed.
 type toldState struct {
-	State string `json:"state"`
+	State     string `json:"state"`
+	ErrorType string `json:"error_type,omitempty"`
 }
 
-// workTopic is the topic a process other than a reply was started from, or 0.
+// workTopic is the topic a process of the built-in master other than a reply was started from, or 0; only the
+// master's topic is a topic of the chat.
 func (ch *Service) workTopic(ctx context.Context, p db.Process) (int64, int64) {
 	var in struct{ Topic int64 }
 	if json.Unmarshal([]byte(p.Input), &in) != nil || in.Topic == 0 || ch.replyOf(ctx, p) != 0 {
 		return 0, 0
 	}
 	proj, err := ch.St.Q.GetProject(ctx, p.ProjectID)
-	if err != nil {
+	if err != nil || proj.Builtin == 0 {
 		return 0, 0
 	}
 	t, err := ch.St.Q.GetTopic(ctx, in.Topic)
@@ -52,7 +54,8 @@ func (ch *Service) tell(ctx context.Context, p db.Process) {
 	if topic == 0 {
 		return
 	}
-	text, key := untrusted.Cut(p.Result, 4000), fmt.Sprintf("deck:%d:end", p.ID)
+	// A continued work tells again how its run ended; a wait is told once for each thing it asks.
+	text, key := untrusted.Cut(p.Result, 4000), fmt.Sprintf("deck:%d:end:%s", p.ID, cmp.Or(p.ReopenedAt.String, p.StartedAt))
 	switch {
 	case !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer:
 		return
@@ -60,12 +63,16 @@ func (ch *Service) tell(ctx context.Context, p db.Process) {
 		text = p.Error
 	case !p.FinishedAt.Valid:
 		asks, _ := ch.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
-		text, key = "", fmt.Sprintf("deck:%d:wait:%s", p.ID, cmp.Or(p.ReopenedAt.String, p.StartedAt))
-		if i := slices.IndexFunc(asks, func(a db.Ask) bool { return a.Kind == ask.KindQuestion || a.Kind == ask.KindConfirm }); i >= 0 {
-			text, key = untrusted.Cut(asks[i].Text, 500), fmt.Sprintf("deck:%d:ask:%d", p.ID, asks[i].ID)
+		if len(asks) == 0 {
+			return
+		}
+		last := slices.MaxFunc(asks, func(a, b db.Ask) int { return cmp.Compare(a.ID, b.ID) })
+		text, key = "", fmt.Sprintf("deck:%d:ask:%d", p.ID, last.ID)
+		if last.Kind == ask.KindQuestion || last.Kind == ask.KindConfirm {
+			text = untrusted.Cut(last.Text, 500)
 		}
 	}
-	state, _ := json.Marshal(toldState{State: p.State})
+	state, _ := json.Marshal(toldState{State: p.State, ErrorType: p.ErrorType})
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: ws, RetryKey: key}); !errors.Is(err, sql.ErrNoRows) {
 			return err
@@ -115,7 +122,7 @@ func (ch *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]str
 	v := &toldView{procView: procView{ID: p.ID, Project: proj.Name, Command: p.Command, State: at.State, Open: openProcess(p.ID),
 		Shown: process.Show(at, question, false, tr)}}
 	if at.State == process.StateError || at.State == process.StateInterrupted {
-		why := p.ErrorType
+		why := s.ErrorType
 		if at.State == process.StateInterrupted {
 			why = cmp.Or(why, fault.DeckRestart)
 		}
@@ -123,7 +130,7 @@ func (ch *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]str
 			v.Reason = tr(why)
 		}
 		v.Error = m.Text
-		if !(p.Kind == process.KindScript && slices.Contains(fault.ByScript, p.ErrorType)) {
+		if !(p.Kind == process.KindScript && slices.Contains(fault.ByScript, s.ErrorType)) {
 			v.Error = manifest.TrText(ws, m.Text)
 		}
 	}

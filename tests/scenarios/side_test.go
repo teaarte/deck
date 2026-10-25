@@ -76,6 +76,7 @@ func TestTheSidePanelHoldsFiltersButtonsAndSmallBlocks(t *testing.T) {
 		{`"options": ["long", "short"]}`, `"options": ["long", "short"], "field": "side"}`, "not both"},
 		{`"blocks": [{"type": "table"`, `"blocks": [{"type": "filter", "param": "coin", "options": ["BTC"]}, {"type": "table"`, "a filter stands in side of its screen"},
 		{`"field": "coin"}`, `"field": "price"}`, `"price" is no field of its source`},
+		{`"param": "side", "options"`, `"param": "tab", "options"`, "tab is a param only the client reads"},
 	} {
 		bad := strings.Replace(sideManifest, c.from, c.to, 1)
 		if bad == sideManifest {

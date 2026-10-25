@@ -273,6 +273,9 @@ type Screen struct {
 	Side []Block `json:"side,omitempty"`
 }
 
+// ClientParams are the params of an address only the client reads: tabs, a dialog, the chat, a widget, placing.
+var ClientParams = []string{"tab", "sub", "dialog", "chat", "widget", "edit"}
+
 // SideBlocks are the types of blocks the side panel of a screen holds.
 var SideBlocks = []string{"filter", "actions", "stat", "list"}
 

@@ -36,8 +36,11 @@ export function useScreen(route: Route, shownNow = true) {
   // missedHidden is set by a change heard while the screen was not shown; again reads it whole.
   const missedHidden = useRef(false);
   const again = useRef<() => void>(() => undefined);
-  // A pick of the side panel reads the screen again into the same surface; another key draws another screen.
-  const key = placeKey(route);
+  // A pick of the side panel reads the screen again into the same surface; another key draws another screen. A
+  // screen whose picks became known after its first read keeps its key.
+  const place = useRef<{ key: string; route: Route }>(undefined);
+  const key = place.current && placeKey(place.current.route) === placeKey(route) ? place.current.key : placeKey(route);
+  place.current = { key, route };
   const whole = screenKey(route);
 
   useEffect(() => {

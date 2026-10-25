@@ -94,6 +94,9 @@ func (c *screenCheck) side(where string, b Block) {
 	if b.When != "" {
 		c.when(where, b)
 	}
+	if slices.Contains(ClientParams, b.Param) {
+		c.fail("%s: %s is a param only the client reads; name the param of the filter otherwise", where, b.Param)
+	}
 	if _, ok := c.screen.Params[b.Param]; !ok {
 		c.fail("%s: the filter sets param %q; declare it in params of the screen", where, b.Param)
 	}

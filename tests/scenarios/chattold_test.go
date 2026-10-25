@@ -138,3 +138,32 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 		t.Fatalf("a work that waits for the owner says what it waits for: %+v", waits.Told)
 	}
 }
+
+// A work sent back for rework tells its topic again how the new run ended.
+func TestAWorkSentBackTellsItsTopicAgain(t *testing.T) {
+	t.Parallel()
+	var from atomic.Int64
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		switch {
+		case strings.Contains(c.Req.Prompt, "count the drafts too"):
+			return provider.Result{Text: "Recounted: 4 records."}
+		case c.command() == "work":
+			return provider.Result{Text: "Counted: 3 records."}
+		}
+		return handOver(ctx, c, &from)
+	})
+	topic := e.say(0, "count the records")
+	done := e.told(topic, "done", "")
+	e.must("deck.process_rework", map[string]any{"process": done.Process, "remark": "count the drafts too"}, nil)
+	e.waitFor("the new result in the topic", func() bool {
+		var view struct{ Messages []toldMessage }
+		e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+		var said []string
+		for _, m := range view.Messages {
+			if m.Role == "deck" {
+				said = append(said, m.Text)
+			}
+		}
+		return strings.Join(said, " | ") == "Counted: 3 records. | Recounted: 4 records."
+	})
+}

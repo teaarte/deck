@@ -7,6 +7,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"deck2/internal/manifest"
@@ -225,8 +226,12 @@ func values(v any) []string {
 }
 
 func text(v any) string {
-	if v == nil {
+	switch v := v.(type) {
+	case nil:
 		return ""
+	case float64:
+		// A number of a record reads back as the param it picks: 1000000, not 1e+06.
+		return strconv.FormatFloat(v, 'f', -1, 64)
 	}
 	return fmt.Sprint(v)
 }

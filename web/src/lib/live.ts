@@ -1,9 +1,8 @@
 import { call } from './api';
 import { events } from './events';
 
-// liveRead reads a command now, again 400 ms after a change of a topic its last answer follows and on return to the
-// page; an answer that says something new goes to onData, a failed read to onError and keeps what was read. It returns
-// its stop.
+// liveRead reads a command now, again 400 ms after a change of a topic it follows and on return to the page; a new
+// answer goes to onData, a failed read to onError, keeping what was read. It returns its stop.
 export function liveRead<T>(command: string, input: Record<string, unknown>, topics: (data: T | undefined) => string[],
   onData: (data: T) => void, onError?: (e: unknown) => void): () => void {
   let last: T | undefined;

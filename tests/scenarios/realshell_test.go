@@ -167,7 +167,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-full]').click(), '')`)
 	b.until("the screen back beside the chat", `document.querySelector('[data-main]').offsetParent`)
 
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Interface")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "glass")
 	b.look("scheme", "dark")
@@ -193,7 +193,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.open(e.URL + "/#/deck/cockpit")
 	b.until("the dark cockpit", `document.querySelector('[data-today-line]') && document.querySelector('[data-grid] [data-block]')`)
 	b.shot("shell-glass-dark-cockpit")
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Interface")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
 	b.look("scheme", "light")
 	b.eval(`(document.querySelector('[data-accent="grape"]').click(), '')`)

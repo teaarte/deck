@@ -79,7 +79,7 @@ func TestRealBrowserSettings(t *testing.T) {
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/settings")
+	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Interface")
 	b.until("the appearance tab", `document.querySelector('[data-appearance]')`)
 	root := func(v string) string {
 		return `getComputedStyle(document.documentElement).getPropertyValue('` + v + `').trim()`
@@ -114,7 +114,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 
 	b.call("browser_tabs", map[string]any{"action": "new"})
-	b.open(e.URL + "/#/deck/settings")
+	b.open(e.URL + "/#/deck/settings?tab=Interface")
 	b.until("the appearance tab in the second tab", `document.querySelector('[data-appearance]')`)
 	b.look("scheme", "light")
 	b.until("the light scheme", `document.documentElement.dataset.mantineColorScheme === 'light'`)

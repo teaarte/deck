@@ -70,25 +70,14 @@ func (e *Env) settingsBlock(title string, extra map[string]any) map[string]json.
 	return e.screenBlock("", "settings", title, extra)
 }
 
-// screenBlock is the data of the block of a screen with this title, found by its component.
+// screenBlock is the data of the block of a screen with this title, found by its component in the tab it is in.
 func (e *Env) screenBlock(project, screen, title string, extra map[string]any) map[string]json.RawMessage {
 	e.T.Helper()
-	msgs := e.screenMessages(project, screen, nil)
-	id := ""
-	for _, m := range msgs {
-		if raw, ok := m["updateComponents"]; ok {
-			var uc struct{ Components []map[string]any }
-			_ = json.Unmarshal(raw, &uc)
-			for _, c := range uc.Components {
-				if c["title"] == title || c["component"] == "Text" && c["text"] == title {
-					id = c["id"].(string)
-				}
-			}
-		}
-	}
+	id, shown := e.findBlock(project, screen, title)
 	if id == "" {
 		e.T.Fatalf("%s has no block %q", screen, title)
 	}
+	extra = merge(extra, shown)
 	if extra["topic"] == nil {
 		return e.screenData(project, screen, extra)[id]
 	}
@@ -103,6 +92,53 @@ func (e *Env) screenBlock(project, screen, title string, extra map[string]any) m
 	}
 	e.T.Fatalf("topic %v does not read block %q", extra["topic"], title)
 	return nil
+}
+
+// findBlock is the id of the block of a screen with this title and the tabs that show it: a block shown by a when in
+// a tab is drawn only with its tab shown.
+func (e *Env) findBlock(project, screen, title string) (string, map[string]any) {
+	e.T.Helper()
+	comps := func(extra map[string]any) []map[string]any {
+		var out []map[string]any
+		for _, m := range e.screenMessages(project, screen, extra) {
+			var uc struct{ Components []map[string]any }
+			if json.Unmarshal(m["updateComponents"], &uc) == nil {
+				out = append(out, uc.Components...)
+			}
+		}
+		return out
+	}
+	all := comps(nil)
+	shown := func(id string) map[string]any {
+		out := map[string]any{}
+		n := 0
+		for _, c := range all {
+			if p, _ := c["id"].(string); c["component"] == "screen" && c["key"] != nil && (id == p || strings.HasPrefix(id, p+"-")) {
+				out[[]string{"tab", "sub"}[min(n, 1)]] = c["key"]
+				n++
+			}
+		}
+		return out
+	}
+	find := func(cs []map[string]any) string {
+		for _, c := range cs {
+			if c["title"] == title || c["component"] == "Text" && c["text"] == title {
+				return c["id"].(string)
+			}
+		}
+		return ""
+	}
+	if id := find(all); id != "" {
+		return id, shown(id)
+	}
+	for _, c := range all {
+		if p, _ := c["id"].(string); c["component"] == "screen" && c["key"] != nil {
+			if id := find(comps(shown(p))); id != "" {
+				return id, shown(p)
+			}
+		}
+	}
+	return "", nil
 }
 
 // formID is the block id of the deck settings form of a command.
@@ -595,7 +631,7 @@ func TestTheNamesOfSettingsFollowTheLanguageOfTheScreen(t *testing.T) {
 	if got := title(map[string]any{"lang": "ru"}); !strings.HasPrefix(got, "Сколько агентских процессов") {
 		t.Fatalf("the names follow the language asked for: %q", got)
 	}
-	drawn, _ := json.Marshal(e.screenMessages("", "settings", map[string]any{"lang": "ru"}))
+	drawn, _ := json.Marshal(e.screenMessages("", "settings", map[string]any{"lang": "ru", "tab": "Advanced"}))
 	if !strings.Contains(string(drawn), "Сколько агентских процессов") {
 		t.Fatalf("the settings screen in Russian shows the names in Russian: %s", drawn)
 	}

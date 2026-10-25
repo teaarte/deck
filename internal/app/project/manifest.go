@@ -302,7 +302,7 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 	also := append(pj.filterValues(ctx, p.ID, pm.m), docs.Description(prompt))
 	saved.Unused = pm.m.UnusedWords(also...)
 	saved.Untranslated = pm.m.Untranslated(func(lang, text string) bool { return pj.Words(lang)[text] != "" }, also...)
-	saved.Warnings = pj.unassigned(ctx, p, pm.m)
+	saved.Warnings = append(pj.unassigned(ctx, p, pm.m), pj.unpaged(ctx, p, pm.m)...)
 	return saved, nil
 }
 

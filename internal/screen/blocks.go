@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	"deck2/internal/manifest"
@@ -30,7 +31,11 @@ func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
 // holds reports whether the block is on the screen by its when; a when that fails shows the block with its error.
 // A read of some blocks after an event reads no source for it: one whose when it may change draws the screen whole.
 func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
-	if b.When == "" || r.req.Topic != "" && b.Source != nil || r.req.Block != "" || r.closed() {
+	// A block of a tab not shown that shows by a when waits for its tab, which draws the screen again.
+	if b.When != "" && len(r.dialogs) == 0 && r.closed(id) {
+		return false, nil
+	}
+	if b.When == "" || r.req.Topic != "" && b.Source != nil || r.req.Block != "" || r.closed(id) {
 		return true, nil
 	}
 	env := map[string]any{}
@@ -54,6 +59,9 @@ const maxPages = 100
 // and how many its limit left out.
 func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) ([]map[string]any, []map[string]any, int, error) {
 	src := *b.Source
+	if src.Limit == 0 && b.Paged() {
+		src.Limit = manifest.Page
+	}
 	if n := min(r.req.Pages[id], maxPages); n > 1 && src.Limit > 0 {
 		src.Limit *= n
 	}
@@ -131,6 +139,9 @@ func (r *renderer) block(id string, b manifest.Block) {
 		return
 	case "tabs":
 		tabs := []map[string]any{}
+		shown := max(0, slices.Index(keys, []string{r.req.Tab, r.req.Sub}[min(r.tabs, 1)]))
+		r.tabs++
+		defer func() { r.tabs-- }()
 		for j, t := range b.Tabs {
 			tid := fmt.Sprintf("%s-%d", id, j)
 			tabs = append(tabs, map[string]any{"title": t.Title, "child": tid})
@@ -139,10 +150,13 @@ func (r *renderer) block(id string, b manifest.Block) {
 				panel["icon"] = t.Icon
 			}
 			r.comps = append(r.comps, panel)
-			row := r.inRow
+			row, hidden := r.inRow, r.hidden
 			r.inRow = 0
+			if j != shown {
+				r.hidden++
+			}
 			r.grid(panel, r.blocks(tid+"-", t.Blocks))
-			r.inRow = row
+			r.inRow, r.hidden = row, hidden
 		}
 		r.standard(id, b, map[string]any{"component": "Tabs", "tabs": tabs})
 		return
@@ -244,19 +258,31 @@ func (r *renderer) split(ids []string) (blocks, dialogs []string) {
 	return blocks, dialogs
 }
 
-// closed says whether the block being drawn is inside a dialog that is not open.
-func (r *renderer) closed() bool {
-	return !r.every && len(r.dialogs) > 0 && r.dialogs[len(r.dialogs)-1] != r.req.Dialog
+// closed says whether the block of id is inside a dialog that is not open or, but for a read of its own block, in a
+// tab not shown; an open dialog is read in any tab.
+func (r *renderer) closed(id string) bool {
+	switch {
+	case r.every:
+		return false
+	case len(r.dialogs) > 0:
+		return r.dialogs[len(r.dialogs)-1] != r.req.Dialog
+	}
+	return r.hidden > 0 && !r.within(id)
 }
 
-// wanted says whether the data of the block of id is read now: it is in no closed dialog and, when the read is of
-// one block, it is that block or inside it.
+// within says whether the read is of one block and id is that block or inside it.
+func (r *renderer) within(id string) bool {
+	return r.req.Block != "" && (id == r.req.Block || strings.HasPrefix(id, r.req.Block+"-"))
+}
+
+// wanted says whether the data of the block of id is read now: it is in no closed dialog or hidden tab and, when the
+// read is of one block, it is that block or inside it.
 func (r *renderer) wanted(id string) bool {
-	if r.closed() {
+	if r.closed(id) {
 		r.skipped = true
 		return false
 	}
-	return r.req.Block == "" || id == r.req.Block || strings.HasPrefix(id, r.req.Block+"-")
+	return r.req.Block == "" || r.within(id)
 }
 
 // whenUnder says whether a block of id or inside it shows by a when, which may change what the screen holds.

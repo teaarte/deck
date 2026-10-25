@@ -68,6 +68,9 @@ type Request struct {
 	Brief bool
 	// Dialog is the dialog open on the screen: the blocks of any other dialog are read only when it opens.
 	Dialog string
+	// Tab and Sub are the keys of the tabs shown, of the screen and inside a tab; the first without one. The blocks
+	// of another tab are read when it is shown, by a read of its block.
+	Tab, Sub string
 	// Block, when set, resolves only the data of the block of this id and of the blocks inside it.
 	Block string
 	// Pages are how many times its limit a block shows, by block id; the owner asks for more a page at a time.
@@ -190,6 +193,8 @@ type renderer struct {
 	spans map[string]any
 	// dialogs are the names of the dialogs a block is inside, the innermost last; every reads them all as open.
 	dialogs []string
+	// tabs counts the tabs a block is inside, hidden those of them not shown.
+	tabs, hidden int
 	every   bool
 	// skipped is set once a block of a closed dialog was left unread; good names the blocks that drew.
 	skipped bool

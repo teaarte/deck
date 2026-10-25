@@ -250,20 +250,39 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, webAgent())
 	e.createProject("notes", webManifest("http://127.0.0.1:1"))
-	paths := func(project, screen, topic string) []string {
+	// paths are the blocks a topic reads, with the tab of extra shown, or with each tab shown in turn.
+	paths := func(project, screen, topic string, extra ...string) []string {
 		var out []string
-		for _, m := range e.screenMessages(project, screen, map[string]any{"topic": topic}) {
+		var msgs []map[string]json.RawMessage
+		switch {
+		case len(extra) > 0:
+			msgs = e.screenMessages(project, screen, map[string]any{"topic": topic, "tab": extra[0]})
+		default:
+			for _, p := range tabPanels(e.screenMessages(project, screen, nil)) {
+				msgs = append(msgs, e.screenMessages(project, screen, map[string]any{"topic": topic, "tab": p[1]})...)
+			}
+			if len(msgs) == 0 {
+				msgs = e.screenMessages(project, screen, map[string]any{"topic": topic})
+			}
+		}
+		for _, m := range msgs {
 			if len(m) != 2 || m["updateDataModel"] == nil {
 				t.Fatalf("a topic gives only data: %v", m)
 			}
 			var dm struct{ Path string }
 			_ = json.Unmarshal(m["updateDataModel"], &dm)
-			out = append(out, dm.Path)
+			if !slices.Contains(out, dm.Path) {
+				out = append(out, dm.Path)
+			}
 		}
+		slices.Sort(out)
 		return out
 	}
-	if got := paths("notes", "main", "collection"); !slices.Equal(got, []string{"/b0-0", "/b0-1", "/b1-0-0", "/b1-1-0", "/b3"}) {
-		t.Fatalf("collection reads the blocks of collections: %v", got)
+	if got := paths("notes", "main", "collection", ""); !slices.Equal(got, []string{"/b0-0", "/b0-1", "/b1-0-0", "/b3"}) {
+		t.Fatalf("collection reads the blocks of collections, of the tab shown: %v", got)
+	}
+	if got := paths("notes", "main", "collection", "Top"); !slices.Equal(got, []string{"/b0-0", "/b0-1", "/b1-1-0", "/b3"}) {
+		t.Fatalf("the tab shown is the one asked for: %v", got)
 	}
 	if got := paths("notes", "main", "asks"); !slices.Equal(got, []string{"/b2"}) {
 		t.Fatalf("asks reads the asks block: %v", got)
@@ -283,8 +302,8 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		t.Fatalf("documents reads the projects, whose descriptions are their prompts: %v", got)
 	}
 	for _, topic := range []string{"projects", "spaceship"} {
-		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 8 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 6 {
-			t.Fatalf("a topic no block reads gives the whole screen with its data: %s, %d messages", topic, n)
+		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 7 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 5 {
+			t.Fatalf("a topic no block reads gives the whole screen with its data but of the tab not shown: %s, %d messages", topic, n)
 		}
 	}
 }

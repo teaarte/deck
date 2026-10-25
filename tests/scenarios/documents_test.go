@@ -467,7 +467,7 @@ func TestAScreenReadByAnotherShowsWhatItMayAndSaysWhatIsTheOwners(t *testing.T) 
 			t.Fatalf("a screen the master reads has no failed blocks: %s %v %v", in, out, err)
 		}
 	}
-	out, _ := e.App.Registry.Invoke(context.Background(), master, "deck.screen", []byte(`{"screen": "files"}`))
+	out, _ := e.App.Registry.Invoke(context.Background(), master, "deck.screen", []byte(`{"screen": "files", "tab": "Snapshots"}`))
 	if !strings.Contains(fmt.Sprint(out), "only the owner sees this") {
 		t.Fatalf("the snapshots of the owner say whose they are: %v", out)
 	}

@@ -215,7 +215,8 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					return nil, fmt.Errorf("column %q details: %w", c.Label, err)
 				}
 				d = r.phrased(c.Details, r.word(r.worded(b.Source, c.Details, b.Filter), d))
-				if d != nil && d != "" {
+				// Details that say what the cell says are left out.
+				if d != nil && d != "" && fmt.Sprint(d) != fmt.Sprint(v) {
 					details[j], detailed = fmt.Sprint(d), true
 				}
 			}

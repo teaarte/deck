@@ -6,7 +6,9 @@ import (
 	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -36,10 +38,49 @@ func (e *Env) screenMessages(project, screen string, extra map[string]any) []map
 	return msgs
 }
 
-// screenData is the data model of a resolved screen, by block id.
+// screenData is the data model of a resolved screen, by block id; a whole read reads the tabs not shown too, each
+// by its block, as the client does when the owner shows it.
 func (e *Env) screenData(project, screen string, extra map[string]any) map[string]map[string]json.RawMessage {
 	e.T.Helper()
-	return dataOf(e.T, e.screenMessages(project, screen, extra))
+	msgs := e.screenMessages(project, screen, extra)
+	out := dataOf(e.T, msgs)
+	if extra["topic"] != nil || extra["block"] != nil {
+		return out
+	}
+	for _, panel := range tabPanels(msgs) {
+		maps.Copy(out, dataOf(e.T, e.screenMessages(project, screen, merge(extra, map[string]any{"block": panel[0], "tab": panel[1]}))))
+	}
+	return out
+}
+
+// everyTab are the messages of a screen read with each of its outermost tabs shown, the first as it is.
+func (e *Env) everyTab(project, screen string, extra map[string]any) [][]map[string]json.RawMessage {
+	e.T.Helper()
+	first := e.screenMessages(project, screen, extra)
+	out := [][]map[string]json.RawMessage{first}
+	for _, panel := range tabPanels(first)[min(1, len(tabPanels(first))):] {
+		out = append(out, e.screenMessages(project, screen, merge(extra, map[string]any{"tab": panel[1]})))
+	}
+	return out
+}
+
+// tabPanels are the ids and keys of the panels of the outermost tabs of a screen.
+func tabPanels(msgs []map[string]json.RawMessage) [][2]string {
+	var out [][2]string
+	for _, m := range msgs {
+		var uc struct{ Components []map[string]any }
+		if json.Unmarshal(m["updateComponents"], &uc) != nil {
+			continue
+		}
+		for _, c := range uc.Components {
+			id, _ := c["id"].(string)
+			key, _ := c["key"].(string)
+			if c["component"] == "screen" && key != "" && !slices.ContainsFunc(out, func(p [2]string) bool { return strings.HasPrefix(id, p[0]+"-") }) {
+				out = append(out, [2]string{id, key})
+			}
+		}
+	}
+	return out
 }
 
 // dataOf merges the data messages of a screen, one per block path, by block id.

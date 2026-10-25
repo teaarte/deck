@@ -479,18 +479,17 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 	var all strings.Builder
 	for _, s := range []struct{ project, screen string }{{"", "settings"}, {"", "schedule"}, {"", "spend"}, {"", "files"}, {"", "cockpit"},
 		{"notes", "settings"}, {"notes", "documents"}, {"", "data"}} {
-		var msgs any
-		in := map[string]any{"screen": s.screen, "lang": "ru"}
-		if s.project != "" {
-			in["project"] = s.project
-		}
+		in := map[string]any{"lang": "ru"}
 		if s.screen == "data" {
 			in["params"] = `{"project": "notes"}`
 		}
-		e.must("deck.screen", in, &msgs)
-		walk(msgs, false)
-		raw, _ := json.Marshal(msgs)
-		all.Write(raw)
+		for _, msgs := range e.everyTab(s.project, s.screen, in) {
+			raw, _ := json.Marshal(msgs)
+			var v any
+			_ = json.Unmarshal(raw, &v)
+			walk(v, false)
+			all.Write(raw)
+		}
 	}
 	for _, want := range []string{"модель отвечала со скоростью 142 токенов/с", "модель не закончила самопроверку goose 1.53.0", "gate-key",
 		"файлы: ", "deck перезапустился, пока шёл скрипт", "deck перезапустился до начала сессии", "Работы ей ещё не давали", "озвучка", "$1 за 1M символов", "сделано без вас"} {

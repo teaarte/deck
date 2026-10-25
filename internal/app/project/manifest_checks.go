@@ -65,6 +65,26 @@ func (pj *Service) unassigned(ctx context.Context, p db.Project, m *manifest.Man
 	return out
 }
 
+// unpaged are the blocks without a limit on a collection that holds more records than a page: each shows a page and
+// more by a button.
+func (pj *Service) unpaged(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
+	counts, err := pj.St.Q.CountRecords(ctx, p.ID)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	blocks := m.Unpaged()
+	for _, c := range counts {
+		for _, b := range blocks[c.Collection] {
+			if c.N > manifest.Page {
+				out = append(out, fmt.Sprintf("%s has no limit and %s holds %d records: it shows %d at a time; give its source a limit", b, c.Collection, c.N, manifest.Page))
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // heldKeys are the problems of a manifest whose tools or MCP servers get the key of a connection: a module reaches
 // models only through deck, by a model of its settings.
 func heldKeys(ctx context.Context, q *db.Queries, workspace int64, m *manifest.Manifest) ([]string, error) {

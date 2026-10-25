@@ -104,7 +104,7 @@ func Render(ctx context.Context, src Sources, req Request) (Drawn, error) {
 	if !slices.Contains(Topics, req.Topic) {
 		req.Topic = ""
 	}
-	if req.Topic != "" && changesWhen(req.Screen.Blocks, req.Screen.Record, req.Project.ID == 0, req.Project.Name, req.Changed, req.Topic) {
+	if req.Topic != "" && changesWhen(req.Screen.All(), req.Screen.Record, req.Project.ID == 0, req.Project.Name, req.Changed, req.Topic) {
 		req.Topic = ""
 	}
 	if req.Topic == "projects" && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {
@@ -112,7 +112,7 @@ func Render(ctx context.Context, src Sources, req Request) (Drawn, error) {
 	}
 	// The window of a dialog is read as its dialog.
 	req.Block = strings.TrimSuffix(req.Block, "-in")
-	if req.Block != "" && whenUnder(req.Screen.Blocks, "b", req.Block) {
+	if req.Block != "" && (whenUnder(req.Screen.Blocks, "b", req.Block) || whenUnder(req.Screen.Side, "s", req.Block)) {
 		req.Block = ""
 	}
 	r, err := resolve(ctx, src, req, false)
@@ -164,12 +164,15 @@ func resolve(ctx context.Context, src Sources, req Request, every bool) (*render
 		}
 	}
 	root := map[string]any{"id": "root", "component": "screen", "title": r.tr(req.Screen.Title),
-		"topics": screenTopics(req.Screen.Blocks, req.Screen.Record, r.deck())}
+		"topics": screenTopics(req.Screen.All(), req.Screen.Record, r.deck())}
 	if req.Screen.Icon != "" {
 		root["icon"] = req.Screen.Icon
 	}
 	r.comps = []map[string]any{root}
 	r.grid(root, r.blocks("b", req.Screen.Blocks))
+	if len(req.Screen.Side) > 0 {
+		root["side"] = r.blocks("s", req.Screen.Side)
+	}
 	return r, nil
 }
 

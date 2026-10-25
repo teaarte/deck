@@ -21,15 +21,15 @@
     "tokens": {"$ref": "#/$defs/tokens", "description": "Tokens of both schemes."},
     "light": {"$ref": "#/$defs/tokens", "description": "Tokens of the light scheme over tokens."},
     "dark": {"$ref": "#/$defs/tokens", "description": "Tokens of the dark scheme over tokens."},
-    "parts": {"type": "object", "additionalProperties": false, "description": "The look of the parts of deck: card is a block of a screen, and its radius that of the cards of modules too unless tile has its own; tile a card of a module in the grid (the cockpit's card is the token cockpit and the class today); notification a notification or a toast; menu a dropdown; dialog a dialog or a sheet; tabs a tab of a screen or of the screens of a module; bubble a message of the owner in the chat.",
+    "parts": {"type": "object", "additionalProperties": false, "description": "The look of the parts of deck: card is a block of a screen, and its radius that of the cards of modules too unless tile has its own; tile a card of a module in the grid (the cockpit's card is the token cockpit and the class today); notification a notification or a toast; menu a dropdown; dialog a dialog or a sheet; tabs a tab of a screen or of the screens of a module; bubble a message of the owner in the chat; side the side panel of a screen of a module.",
       "properties": {"button": {"$ref": "#/$defs/part"}, "card": {"$ref": "#/$defs/part"}, "island": {"$ref": "#/$defs/part"},
         "field": {"$ref": "#/$defs/part"}, "badge": {"$ref": "#/$defs/part"}, "tile": {"$ref": "#/$defs/part"},
         "notification": {"$ref": "#/$defs/part"}, "menu": {"$ref": "#/$defs/part"}, "dialog": {"$ref": "#/$defs/part"},
-        "tabs": {"$ref": "#/$defs/part"}, "bubble": {"$ref": "#/$defs/part"}}},
+        "tabs": {"$ref": "#/$defs/part"}, "bubble": {"$ref": "#/$defs/part"}, "side": {"$ref": "#/$defs/part"}}},
     "css": {"type": "string", "maxLength": 20000, "description": "More CSS. A selector is made of the classes of the catalog alone (.button, .nav .asks, .tab[data-active], .h2:hover), states [data-variant=…], [data-active], [data-disabled], [data-checked], [data-expanded], [data-cover] and [data-big] of a card, :hover, :active, :focus, :focus-visible, :focus-within, :disabled, :first-child, :last-child, :not(…), ::before, ::after, ::placeholder, and the combinators space, >, +, ~. .root, .light and .dark are the page in both schemes, the light and the dark one, and only start a selector. At-rules: @media of prefers-*, forced-colors, hover, pointer, min-width, max-width; @supports. Custom properties: the tokens, the accent and the radii by their names above, and --theme-<name>."}
   },
   "$defs": {
-    "tokenNames": {"enum": ["canvas", "body", "island", "block", "text", "text-2", "dimmed", "line", "divider", "hover", "fill", "fill-hover", "ring", "shadow", "pattern", "pattern-alt", "sky", "meadow", "cockpit", "tile", "tile-shade", "tile-text", "tile-icon", "tile-shadow", "tile-lift", "tile-min", "tile-height", "tile-gap", "toast", "toast-text"]},
+    "tokenNames": {"enum": ["canvas", "body", "island", "block", "text", "text-2", "dimmed", "line", "divider", "hover", "fill", "fill-hover", "ring", "shadow", "pattern", "pattern-alt", "sky", "meadow", "cockpit", "tile", "tile-shade", "tile-text", "tile-icon", "tile-shadow", "tile-lift", "tile-min", "tile-height", "tile-gap", "toast", "toast-text", "side", "side-width"]},
     "tokens": {"type": "object", "additionalProperties": false, "propertyNames": {"$ref": "#/$defs/tokenNames"},
       "patternProperties": {"": {"type": "string", "minLength": 1, "maxLength": 400}}},
     "part": {"type": "object", "additionalProperties": false,
@@ -70,7 +70,9 @@
       "tile-height": {"var": "--deck-tile-height", "desc": "The height of a card on a wide screen; a phone takes four fifths of it", "light": "180px", "dark": "180px"},
       "tile-gap": {"var": "--deck-tile-gap", "desc": "The space between cards; a phone takes half of it", "light": "var(--spacing-xl)", "dark": "var(--spacing-xl)"},
       "toast": {"var": "--deck-toast", "desc": "A toast, the short note with Undo after a press", "light": "#0e1116", "dark": "#2b2d33"},
-      "toast-text": {"var": "--deck-toast-text", "desc": "The text of a toast", "light": "#ffffff", "dark": "#ffffff"}
+      "toast-text": {"var": "--deck-toast-text", "desc": "The text of a toast", "light": "#ffffff", "dark": "#ffffff"},
+      "side": {"var": "--deck-side", "desc": "The side panel of a screen of a module, beside its blocks; a color", "light": "var(--fill)", "dark": "var(--fill)"},
+      "side-width": {"var": "--deck-side-width", "desc": "The width of the side panel on a computer", "light": "240px", "dark": "240px"}
     },
     "vars": {"accent": "--mantine-primary-color-filled", "accent-light": "--mantine-primary-color-light", "accent-contrast": "--mantine-primary-color-contrast",
       "radius": "--mantine-radius-default", "island-radius": "--deck-island-radius", "card-radius": "--deck-block-radius",
@@ -83,6 +85,7 @@
       "composer": "[data-composer]", "message": "[data-message]", "bubble": "[data-bubble]", "chat-link": "[data-message='master'] a[href^='#/']",
       "turn": "[data-turn]", "turn-head": "[data-turn-head]", "turn-step": "[data-turn-step]", "turn-log": "[data-turn-log]",
       "suggest": "[data-suggest]", "chat-ask": "[data-chat-ask]", "question": "[data-question]", "cut": "[data-reply-cut]", "told": "[data-told]", "hearing": "[data-hearing]",
+      "side": "[data-side]", "side-sheet": "[data-side-sheet]", "side-open": "[data-side-open]",
       "backdrop": "[data-backdrop] > div",
       "asks": "[data-asks]", "running": "[data-running]",
       "button": ".mantine-Button-root", "icon-button": ".mantine-ActionIcon-root", "field": ".mantine-Input-input",
@@ -103,7 +106,8 @@
       "menu": {"selector": ":is(.mantine-Popover-dropdown, .mantine-Menu-dropdown, .mantine-Combobox-dropdown)"},
       "dialog": {"selector": ":is(.mantine-Modal-content, .mantine-Drawer-content)"},
       "tabs": {"selector": ":is(.mantine-Tabs-tab, [data-places] > a)"},
-      "bubble": {"selector": "[data-bubble]"}
+      "bubble": {"selector": "[data-bubble]"},
+      "side": {"selector": "[data-side]"}
     }
   }
 }

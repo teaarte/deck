@@ -345,6 +345,13 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   as `param.<name>`: `"values": {"title": "=param.title"}` fills a form, `"input": {"days": "=param.n ?? 7"}` a
   source, `"when": "param.n > 1"` a block. An input that gives nothing or fails is an error on its block, not a read
   without it, so give an optional param a default with `??`.
+- **The side panel** of a screen is `side`, beside its blocks on a computer and in a sheet on a phone: `filter`
+  blocks, each setting a param of the screen (`{"type": "filter", "title": "Coin", "param": "coin", "source":
+  {"collection": "trades"}, "field": "coin"}` offers the values the field has; `"options": ["long", "short"]` fixed
+  ones, said by `i18n`), `actions` with buttons to screens and records, small `stat` and `list` blocks. A pick goes
+  into the address, so it stays on reload and in a link, and every block that reads it narrows at once: `"where":
+  "param.coin == nil || coin == param.coin"`. Give a screen a panel only when a pick serves all its blocks or its
+  tabs (a coin, a source, a status); one table's own narrowing stays its `filter`. A filter stands only in `side`.
 - **Changing a manifest**: send `manifest_save` `old` (parts of the text `manifest_get` gives, each found exactly
   once, a run of spaces and line breaks counted as one; take enough around a part to make it unique) and `new`
   (what replaces each). deck stores every manifest in one form, indented by two spaces with each array item on its

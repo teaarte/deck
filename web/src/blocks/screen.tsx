@@ -7,6 +7,7 @@ import type { ScreenProps } from '../lib/catalog.gen';
 import { ScreenLead } from '../screen/lead';
 import { BlockContext, readBlock } from '../screen/press';
 import { api, children } from './blockImpl';
+import { Side } from './side';
 
 // screen is the root of a screen, a tab or the window of a dialog: its title with what the frame puts beside it and
 // its dialogs' buttons, the frame's lead under it, and a grid of its blocks.
@@ -25,9 +26,8 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
     if (p.name) readBlock(context, 'dialog', { dialog: p.name });
     else if (p.key) readBlock(context, 'tab', { param: inTab ? 'sub' : 'tab', key: p.key, children: children(p.children).map(String) });
   }, [p.name, p.key, context]);
-  return (
-    <InTab.Provider value={inTab || !!p.key}>
-    <BlockContext.Provider value={context}>
+  const side = children(p.side);
+  const body = (
     <Stack gap="lg" data-screen data-span="full">
       {(titled || dialogs || under || (root && lead.beside)) && (
         <Group justify="space-between" align="center" gap="sm" data-screen-head>
@@ -43,6 +43,11 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
         })}
       </div>
     </Stack>
+  );
+  return (
+    <InTab.Provider value={inTab || !!p.key}>
+    <BlockContext.Provider value={context}>
+      {side.length > 0 ? <Side slot={lead.slot} blocks={side.map((c) => <div key={String(c)}>{buildChild(String(c))}</div>)}>{body}</Side> : body}
     </BlockContext.Provider>
     </InTab.Provider>
   );

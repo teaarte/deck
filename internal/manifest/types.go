@@ -269,6 +269,16 @@ type Screen struct {
 	// Params are the parameters of its address by name and JSON type, param.<name> in its expressions.
 	Params map[string]string `json:"params,omitempty"`
 	Blocks []Block           `json:"blocks"`
+	// Side are the blocks of the panel beside the screen: filters of its params, buttons, small blocks.
+	Side []Block `json:"side,omitempty"`
+}
+
+// SideBlocks are the types of blocks the side panel of a screen holds.
+var SideBlocks = []string{"filter", "actions", "stat", "list"}
+
+// All are the blocks of the screen and of its side panel.
+func (s Screen) All() []Block {
+	return append(slices.Clone(s.Blocks), s.Side...)
 }
 
 type Block struct {
@@ -333,6 +343,10 @@ type Block struct {
 	Params map[string]string `json:"params,omitempty"`
 	// Path is the folder a media block that is a file manager shows, an expression over the params of the screen.
 	Path string `json:"path,omitempty"`
+	// Param is the param of the screen a filter sets; its options are the values of Field in its source, or Options.
+	Param   string   `json:"param,omitempty"`
+	Field   string   `json:"field,omitempty"`
+	Options []string `json:"options,omitempty"`
 }
 
 // Span is the cells of the grid a block takes: N of them, or the whole width.

@@ -40,6 +40,7 @@ export interface Catalog {
   StatProps?: StatProps;
   ChartProps?: ChartProps;
   MediaProps?: MediaProps;
+  FilterProps?: FilterProps;
   ActionsProps?: ActionsProps;
   LogProps?: LogProps;
   FormProps?: FormProps;
@@ -1205,6 +1206,10 @@ export interface ScreenProps {
    * Of the root screen: the event topics after which the client reads it again; it ignores the others.
    */
   topics?: string[];
+  /**
+   * Of the root screen: the blocks of its side panel, beside its blocks on a computer, in a sheet on a phone.
+   */
+  side?: string[];
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema
@@ -1286,6 +1291,21 @@ export interface MediaProps {
   icon?: string;
   span?: 1 | 2 | "full";
   description?: string;
+  data?: Data;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "FilterProps".
+ */
+export interface FilterProps {
+  title?: string;
+  icon?: string;
+  span?: 1 | 2 | "full";
+  description?: string;
+  /**
+   * the param of the screen the pick sets
+   */
+  param: string;
   data?: Data;
 }
 /**

@@ -129,7 +129,10 @@ func (m *Manifest) Filtered() map[string][]string {
 	walk = func(blocks []Block) {
 		for _, b := range blocks {
 			if b.Source != nil && b.Source.Collection != "" {
-				for _, f := range b.Filter {
+				for _, f := range append(slices.Clone(b.Filter), b.Field) {
+					if f == "" {
+						continue
+					}
 					if !slices.Contains(out[b.Source.Collection], f) {
 						out[b.Source.Collection] = append(out[b.Source.Collection], f)
 					}
@@ -142,7 +145,7 @@ func (m *Manifest) Filtered() map[string][]string {
 		}
 	}
 	for _, s := range m.Screens {
-		walk(s.Blocks)
+		walk(s.All())
 	}
 	return out
 }

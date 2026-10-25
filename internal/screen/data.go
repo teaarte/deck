@@ -68,6 +68,8 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		return map[string]any{"state": "ready", "value": acts}, nil
 	case "appearance":
 		return map[string]any{"state": "ready"}, nil
+	case "filter":
+		return r.filter(b)
 	case "log":
 		scope := r.scope
 		scope.Filter = r.req.Filter[id]

@@ -30,7 +30,7 @@ func (m *Manifest) Unpaged() map[string][]string {
 		}
 	}
 	for _, s := range m.Screens {
-		walk(s.Name, s.Blocks)
+		walk(s.Name, s.All())
 	}
 	return out
 }

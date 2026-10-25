@@ -8,6 +8,7 @@ import { chart } from '../blocks/chart';
 import { chat } from '../blocks/chat';
 import { custom } from '../blocks/custom';
 import { documentBlock } from '../blocks/document';
+import { filter } from '../blocks/filter';
 import { form } from '../blocks/form';
 import { list } from '../blocks/list';
 import { log } from '../blocks/log';
@@ -27,7 +28,7 @@ export type { Action } from '../lib/catalog.gen';
 // The standard components are A2UI's; deck draws its containers in its own look, a button and a text as A2UI does.
 const impls: ReactComponentImplementation[] = [
   row, column, tabs, modal, Button, Text,
-  screen, table, list, card, stat, chart, media, actions, log, form, custom, documentBlock, chat, appearance, unknown,
+  screen, table, list, card, stat, chart, media, actions, filter, log, form, custom, documentBlock, chat, appearance, unknown,
 ];
 
 export const catalog = new Catalog<ReactComponentImplementation>(CATALOG_ID, impls);

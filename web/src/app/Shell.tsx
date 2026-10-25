@@ -44,6 +44,7 @@ export function Shell() {
   const { chat, setChat, full } = layout;
   const phone = usePhone();
   const [dragging, setDragging] = useState(false);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   const apps = !route.project && route.screen === 'apps';
   const moveFocus = useFocusHandoff([chat]);
   useEffect(() => setChatScreen(route), [route.project, route.screen, route.record]);
@@ -64,8 +65,8 @@ export function Shell() {
   const side = !phone && chat;
   const heading = apps ? t('nav.deck') : route.project ? entry?.title : undefined;
   const place = route.record ? undefined : screen;
-  const lead = route.project && entry && !route.record ? { under: <ModuleLead entry={entry} />, place }
-    : !route.project && route.screen === 'cockpit' ? { beside: <TodayDate />, under: <TodayLine />, place } : { place };
+  const lead = { slot, ...(route.project && entry && !route.record ? { under: <ModuleLead entry={entry} />, place }
+    : !route.project && route.screen === 'cockpit' ? { beside: <TodayDate />, under: <TodayLine />, place } : { place }) };
   return (
     <MenuContext.Provider value={menu}>
       <Backdrop />
@@ -80,7 +81,7 @@ export function Shell() {
               </header>
             )
           ) : <Toolbar master={!chat && <MasterButton m={menu.master} open={chat} onClick={toggle} />} />}
-          {!apps && <Places />}
+          {!apps && <Places slot={setSlot} />}
           {apps ? <Apps /> : (
             <ScreenLead.Provider value={lead}>
               <ScreenView route={route} />

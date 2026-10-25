@@ -364,3 +364,30 @@
   color: var(--mantine-color-green-7);
   background: var(--mantine-color-green-light);
 }
+
+.placesRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+
+  & > .places {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.slot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 34px;
+  margin: -2px 0 12px auto;
+
+  &:empty {
+    display: none;
+  }
+
+  &[data-alone] {
+    justify-content: flex-end;
+  }
+}

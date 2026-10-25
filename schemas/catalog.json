@@ -38,7 +38,8 @@
         "key": {"type": "string", "description": "Of a tab of Tabs: its title as written, its name in the address in every language."}, "count": {"enum": ["failures"], "description": "Of a tab of Tabs: a count of deck the client shows beside its title, kept fresh, such as the open failures."},
         "name": {"type": "string", "description": "Of the window of a Modal: the name of its dialog, ?dialog=<name> in the address opens it."},
         "spans": {"type": "object", "additionalProperties": {"enum": [1, 2]}, "description": "The cells of the grid a standard child narrower than the screen takes, by its id."},
-        "topics": {"type": "array", "items": {"type": "string"}, "description": "Of the root screen: the event topics after which the client reads it again; it ignores the others."}
+        "topics": {"type": "array", "items": {"type": "string"}, "description": "Of the root screen: the event topics after which the client reads it again; it ignores the others."},
+        "side": {"$ref": "common_types.json#/$defs/ChildList", "description": "Of the root screen: the blocks of its side panel, beside its blocks on a computer, in a sheet on a phone."}
       }
     },
     "table": {
@@ -143,6 +144,21 @@
         "span": {"enum": [1, 2, "full"], "default": 1},
         "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, meta, cover, name, type, size, url, actions}, {id, title, meta, cover, icon, actions} or {id, title, error}]"}
+      }
+    },
+    "filter": {
+      "description": "A pick of the owner in the side panel of a screen that sets a param of the screen, param.<name> in the address; the blocks read it in their where, such as param.coin == nil || coin == param.coin, so the pick narrows them all and stays in a link.",
+      "block": {"description": "Only in side. Needs param, declared in params of the screen, and its options: the values of field in the items of source, or options as they are; title is its label. A value of a module's i18n shows translated.", "required": ["param"], "properties": {"param": {"$ref": "#/$defs/name"}, "source": {"$ref": "#/$defs/source"}, "field": {"type": "string", "minLength": 1}, "options": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}}},
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["param", "data"],
+      "properties": {
+        "title": {"type": "string"},
+        "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"], "default": "full"},
+        "description": {"type": "string"},
+        "param": {"type": "string", "description": "the param of the screen the pick sets"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "filters: the one pick, its field the param, its value the param now"}
       }
     },
     "actions": {

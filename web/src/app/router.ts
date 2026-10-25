@@ -38,6 +38,17 @@ export function serverParams(r: Route): Record<string, string> | undefined {
 // another size does.
 export const screenKey = (r: Route) => href({ ...r, params: { ...serverParams(r), ...(r.params?.widget ? { widget: r.params.widget } : {}) } });
 
+// picks are the params the filters of the side panel of a screen set, by the screen; a pick reads it again in place.
+const picks = new Map<string, Set<string>>();
+const screenOf = (r: Route) => href({ project: r.project, screen: r.screen, record: r.record });
+export const pickParams = (r: Route, params: string[]) => picks.set(screenOf(r), new Set(params));
+
+// placeKey is the key of a screen but for the picks of its side panel: the screen stays drawn while they change.
+export const placeKey = (r: Route) => {
+  const own = picks.get(screenOf(r));
+  return screenKey(own ? { ...r, params: Object.fromEntries(Object.entries(r.params ?? {}).filter(([k]) => !own.has(k))) } : r);
+};
+
 // The trail holds the addresses visited in this tab, so the back button shows only where there is a way back.
 let trail: string[] = [location.hash || '#/'];
 const route = createStore(parse(location.hash));

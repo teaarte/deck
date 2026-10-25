@@ -19,11 +19,12 @@ import { log } from '../src/blocks/log';
 import { media } from '../src/blocks/media';
 import { screen } from '../src/blocks/screen';
 import { stat } from '../src/blocks/stat';
+import { filter } from '../src/blocks/filter';
 import { table } from '../src/blocks/table';
 
 // The stock components of A2UI for the basic part of the catalog, deck's blocks for the rest; nothing of deck's host.
 const basic = catalogSchema.basic.components.map((name: string) => basicCatalog.components.get(name)!);
-const catalog = new Catalog(catalogSchema.catalogId, [...basic, screen, table, list, card, stat, chart, media, actions, log, form, appearance, documentBlock, custom, chat]);
+const catalog = new Catalog(catalogSchema.catalogId, [...basic, screen, table, list, card, stat, chart, media, actions, filter, log, form, appearance, documentBlock, custom, chat]);
 
 const q = new URLSearchParams(location.search);
 const heard: A2uiClientAction[] = [];

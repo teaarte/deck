@@ -75,6 +75,37 @@ func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
 		for j, b := range s.Blocks {
 			c.block(fmt.Sprintf("screen %q /screens/%d/blocks/%d", s.Name, i, j), b)
 		}
+		for j, b := range s.Side {
+			c.side(fmt.Sprintf("screen %q /screens/%d/side/%d", s.Name, i, j), b)
+		}
+	}
+}
+
+// side checks a block of the side panel: a filter of a param of the screen, buttons or a small block.
+func (c *screenCheck) side(where string, b Block) {
+	if !slices.Contains(SideBlocks, b.Type) {
+		c.fail("%s: the side panel holds %s blocks, not %s", where, strings.Join(SideBlocks, ", "), b.Type)
+		return
+	}
+	if b.Type != "filter" {
+		c.block(where, b)
+		return
+	}
+	if b.When != "" {
+		c.when(where, b)
+	}
+	if _, ok := c.screen.Params[b.Param]; !ok {
+		c.fail("%s: the filter sets param %q; declare it in params of the screen", where, b.Param)
+	}
+	switch {
+	case len(b.Options) > 0 && (b.Source != nil || b.Field != ""):
+		c.fail("%s: a filter offers options or the values of field in source, not both", where)
+	case len(b.Options) == 0 && (b.Source == nil || b.Field == ""):
+		c.fail("%s: a filter needs options, or source and field whose values it offers", where)
+	case b.Source != nil:
+		if fields, ok := c.source(where, b.Type, *b.Source); ok && fields != nil && !slices.Contains(fields, b.Field) {
+			c.fail("%s field: %q is no field of its source", where, b.Field)
+		}
 	}
 }
 
@@ -85,7 +116,7 @@ var (
 
 // params checks that the expressions of a screen read only the parameters it declares, as param.<name>.
 func (c *screenCheck) params() {
-	raw, _ := json.Marshal(c.screen.Blocks)
+	raw, _ := json.Marshal(c.screen.All())
 	text := string(raw)
 	for _, m := range oldParam.FindAllStringSubmatch(text, -1) {
 		c.fail("screen %q: $param.%s is now =param.%s, with %s declared in params of the screen", c.screen.Name, m[1], m[1], m[1])
@@ -143,6 +174,9 @@ func (c *screenCheck) block(where string, b Block) {
 	}
 	var fields []string
 	switch b.Type {
+	case "filter":
+		c.fail("%s: a filter stands in side of its screen", where)
+		return
 	case "columns", "tabs", "dialog":
 		for j, x := range b.Blocks {
 			c.block(fmt.Sprintf("%s/blocks/%d", where, j), x)

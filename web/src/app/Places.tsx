@@ -5,12 +5,14 @@ import { href, useRoute } from './router';
 import s from './shell.module.css';
 
 // Places are the tabs of the screens of the project or of deck the owner is in, when the cards stand for the menu.
-export function Places() {
+// slot is where a screen puts the button of its side panel on a phone, at the end of the row.
+export function Places({ slot }: { slot?: (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
   const route = useRoute();
   const places = placesOf(useMenuData(), route.project);
-  if (places.length < 2) return null;
+  if (places.length < 2) return <div ref={slot} className={s.slot} data-side-slot data-alone />;
   return (
+    <div className={s.placesRow}>
     <nav className={s.places} aria-label={t('nav.screens')} data-places>
       {places.map((p) => (
         <a key={p.name} href={href({ project: p.project, screen: p.name })} className={s.place}
@@ -20,5 +22,7 @@ export function Places() {
         </a>
       ))}
     </nav>
+    <div ref={slot} className={s.slot} data-side-slot />
+    </div>
   );
 }

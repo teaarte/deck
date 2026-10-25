@@ -15,6 +15,8 @@
   --deck-cockpit: var(--mantine-primary-color-filled);
   --deck-toast: #0e1116;
   --deck-toast-text: #fff;
+  --deck-side: var(--deck-fill, var(--mantine-color-default-hover));
+  --deck-side-width: 240px;
 }
 
 [data-mantine-color-scheme='dark'] {

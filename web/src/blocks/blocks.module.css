@@ -151,3 +151,34 @@
   gap: 4px;
   min-width: 0;
 }
+
+.withSide {
+  display: grid;
+  grid-template-columns: var(--deck-side-width) minmax(0, 1fr);
+  gap: var(--mantine-spacing-lg);
+  align-items: start;
+}
+
+.side {
+  position: sticky;
+  top: var(--mantine-spacing-md);
+  padding: var(--mantine-spacing-md);
+  border-radius: var(--deck-block-radius);
+  background: var(--deck-side);
+}
+
+.sideMain {
+  min-width: 0;
+}
+
+.sideSheet {
+  height: auto;
+  max-height: 85dvh;
+  border-top-left-radius: var(--deck-island-radius);
+  border-top-right-radius: var(--deck-island-radius);
+}
+
+.sideButton {
+  display: flex;
+  justify-content: flex-end;
+}

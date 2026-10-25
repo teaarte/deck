@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { notifyError } from '../lib/notify';
 import catalogSchema from '../lib/catalogSchema';
 import type { Action } from '../lib/catalog.gen';
-import { screenKey, serverParams, type Route } from '../app/router';
+import { pickParams, placeKey, screenKey, serverParams, type Route } from '../app/router';
 import { catalog } from './catalog';
 import { remember, remembered } from './cache';
 import { Feed, type Message } from './feed';
@@ -36,7 +36,9 @@ export function useScreen(route: Route, shownNow = true) {
   // missedHidden is set by a change heard while the screen was not shown; again reads it whole.
   const missedHidden = useRef(false);
   const again = useRef<() => void>(() => undefined);
-  const key = screenKey(route);
+  // A pick of the side panel reads the screen again into the same surface; another key draws another screen.
+  const key = placeKey(route);
+  const whole = screenKey(route);
 
   useEffect(() => {
     let gone = false;
@@ -98,7 +100,7 @@ export function useScreen(route: Route, shownNow = true) {
       // The reply goes to the surface pressed, also one still shown while the next screen loads.
       if (reply) p.model.getSurface(a.surfaceId)?.dataModel.set(PRESS + reply, r);
     };
-    const kept = () => key + ' ' + i18n.language;
+    const kept = () => screenKey(routeRef.current) + ' ' + i18n.language;
     // draw feeds a whole read to the processor of the screen, made by the first.
     const draw = (msgs: Message[], ticket: number) => {
       if (!proc.current) {
@@ -111,6 +113,8 @@ export function useScreen(route: Route, shownNow = true) {
         feed.reset();
       }
       topics = rootTopics(msgs) ?? topics;
+      pickParams(routeRef.current, msgs.flatMap((m) => (m.updateComponents?.components ?? []) as Message[])
+        .filter((c) => c.component === 'filter').map((c) => String(c.param)));
       feed.whole(msgs, ticket);
     };
     const load = async () => {
@@ -202,6 +206,12 @@ export function useScreen(route: Route, shownNow = true) {
       again.current();
     }
   }, [shownNow]);
+  const picked = useRef({ key, whole });
+  useEffect(() => {
+    const was = picked.current;
+    picked.current = { key, whole };
+    if (was.key === key && was.whole !== whole) again.current();
+  }, [key, whole]);
   // Another language reads the screen again into the same surface, so what is open and typed stays.
   const first = useRef(true);
   useEffect(() => {

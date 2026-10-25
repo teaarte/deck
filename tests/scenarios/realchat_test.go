@@ -139,7 +139,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the chat over the screen again", `document.querySelector('[data-chat-phone] [data-message="master"] a')`)
 	b.eval(link)
-	b.until("a link to the screen under the chat shows that screen", `!document.querySelector('[data-chat-phone] [data-chat-input]')`)
+	b.until("a link to the screen under the chat shows that screen", `!document.querySelector('[data-chat-phone] [data-chat-input]')?.offsetParent`)
 	var ts []chatTopic
 	e.chatTopics(false, &ts)
 	if len(ts) != 2 || ts[0].Title != "from the phone" {

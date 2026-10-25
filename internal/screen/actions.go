@@ -102,6 +102,9 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 	if a.Confirm {
 		act["confirm"] = true
 	}
+	if a.Hold {
+		act["hold"] = true
+	}
 	if a.Chat {
 		act["chat"] = true
 	}

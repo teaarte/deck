@@ -32,7 +32,7 @@ func TestRealBrowserOneAccent(t *testing.T) {
 	}{{"desktop", 1400, 900}, {"phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
 		b.open(e.URL + "/?token=" + token + "&theme=juce&scheme=light#/deck/cockpit")
-		b.until("two decisions on the cockpit", `document.querySelectorAll('[data-verb="allow"]').length >= 2`)
+		b.until("two decisions on the cockpit, one at a time", `document.querySelector('[data-focus]')?.dataset.left === '2'`)
 		if got := b.eval(filledShown); got != "1" {
 			t.Fatalf("the cockpit fills its first decision alone on a %s: %s", size.name, got)
 		}

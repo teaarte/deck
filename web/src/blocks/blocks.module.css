@@ -124,3 +124,19 @@
 .grid > .cell[data-span='2'] {
   flex: 2 1 calc(var(--deck-cell) * 2);
 }
+
+.bare {
+  min-width: 0;
+}
+
+.bareRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mantine-spacing-sm);
+  min-width: 0;
+}
+
+.bareTitle {
+  flex: none;
+}

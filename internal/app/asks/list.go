@@ -38,7 +38,9 @@ type askRow struct {
 	// Why is the last thing the agent said before it asked, its reason in its own words.
 	Why string `json:"why,omitempty"`
 	// Always says what a yes for always would allow from now on; empty where a call is allowed only once.
-	Always    string          `json:"always,omitempty"`
+	Always string `json:"always,omitempty"`
+	// Allow is the label of the yes with what it lets happen, for a call, a confirmation or a grant.
+	Allow     string          `json:"allow,omitempty"`
 	Where     string          `json:"where"`
 	Text      string          `json:"text"`
 	Payload   json.RawMessage `json:"payload"`
@@ -90,6 +92,9 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 			r.What, r.Text = tr(r.What), tr(r.Text)
 		case strings.HasPrefix(r.Command, registry.Builtin+"."):
 			r.Where = tr(r.Where)
+		}
+		if slices.Contains([]string{ask.KindCall, ask.KindConfirm, ask.KindGrant}, q.Kind) && r.What != "" {
+			r.Allow = tr(fmt.Sprintf("Allow: %s", r.What))
 		}
 		out = append(out, r)
 	}

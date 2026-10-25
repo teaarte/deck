@@ -343,3 +343,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.todayMark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--mantine-radius-xl);
+  color: var(--mantine-primary-color-light-color);
+  background: var(--mantine-primary-color-light);
+}
+
+.todayMark[data-mark='alert-circle'] {
+  color: var(--mantine-color-red-6);
+  background: var(--mantine-color-red-light);
+}
+
+.todayMark[data-mark='check'] {
+  color: var(--mantine-color-green-7);
+  background: var(--mantine-color-green-light);
+}

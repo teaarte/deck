@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { createContext, useEffect } from 'react';
 import { Portal, UnstyledButton } from '@mantine/core';
 import { IconArrowBackUp, IconCheck } from '@tabler/icons-react';
 import i18n from '../../lib/i18n';
@@ -17,6 +17,28 @@ let offers = 0;
 const drop = (id: number) => {
   if (offer.get()?.id === id) offer.set(undefined);
 };
+
+// holdPress offers for a moment to take back a press before it goes; true once it may go: the moment passed, or the
+// page is leaving.
+export function holdPress(label: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const id = ++offers;
+    let timer = 0;
+    const finish = (go: boolean) => {
+      clearTimeout(timer);
+      removeEventListener('pagehide', leave);
+      drop(id);
+      resolve(go);
+    };
+    const leave = () => finish(true);
+    timer = window.setTimeout(leave, SHOWN);
+    addEventListener('pagehide', leave);
+    offer.set({ id, label: i18n.t('hold.goes', { label }), undo: () => finish(false) });
+  });
+}
+
+// Holding is what a press that waits tells the part of the screen it was made in: the press waits, or it is back.
+export const Holding = createContext<((held: boolean) => void) | undefined>(undefined);
 
 // offerUndo shows for a moment the call that takes back the one that just went through; a new offer takes its place.
 export function offerUndo(undo: Action, label: string) {

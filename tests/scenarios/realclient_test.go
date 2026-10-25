@@ -53,53 +53,64 @@ func TestRealBrowserWebClient(t *testing.T) {
 	front := newFront(t, e.URL)
 	b := newPlaywright(t)
 	b.open(front.URL + "/?token=" + token + "#/deck/cockpit")
-	b.until("the cockpit with three items", `[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].length === 3`)
+	card := `document.querySelector('[data-focus-card]')`
+	buttons := `[...` + card + `.querySelectorAll('button')].map(x => x.innerText.trim())`
+	press := func(label string) string {
+		return `([...` + card + `.querySelectorAll('button')].find(x => x.innerText.trim() === '` + label + `').click(), '')`
+	}
+	b.until("the decisions one at a time, three of them", `document.querySelector('[data-focus]')?.dataset.left === '3' && document.querySelector('[data-of]')?.innerText === '1 of 3'`)
 	b.shot("cockpit")
-
-	items := b.eval(`JSON.stringify([...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].map(el => [...el.querySelectorAll('button')].map(x => x.innerText.trim())))`)
-	if items != `[["Details","Deny"],["Details","Allow","Deny","Deny because…"],["Details","Answer"]]` {
-		t.Fatalf("an expired confirmation shows only deny, a fresh one allow first and hides a button past its end, a question its answer: %s", items)
+	if got := b.eval(`JSON.stringify(` + buttons + `)`); got != `["Details","Deny","Later"]` {
+		t.Fatalf("an expired confirmation shows only deny: %s", got)
 	}
 	if got := b.eval(`document.querySelector('[data-unknown="hologram"]')?.innerText ?? ''`); !strings.Contains(got, "Open in web") {
 		t.Fatalf("a block the client does not know is drawn as open in web: %q", got)
 	}
-	if got := b.eval(`[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].innerText`); !strings.Contains(got, "post") ||
-		!strings.Contains(got, "POST "+svc.URL+"/items/n2") || !strings.Contains(got, "notes") || strings.Contains(got, "notes.post") {
+	b.eval(`(document.querySelector('[data-later]').click(), '')`)
+	b.until("Later shows the next one", `document.querySelector('[data-kind]')?.innerText === 'Action' && `+card+`.innerText.includes('POST')`)
+	if got := b.eval(`JSON.stringify(` + buttons + `)`); got != `["Details","Allow: post","Deny","Deny because…","Later"]` {
+		t.Fatalf("a fresh confirmation says what its yes allows first: %s", got)
+	}
+	if got := b.eval(card + `.innerText`); !strings.Contains(got, "post") || !strings.Contains(got, "POST "+svc.URL+"/items/n2") || !strings.Contains(got, "notes") || strings.Contains(got, "notes.post") {
 		t.Fatalf("a confirmation says what by its title, where and its module, the command under its details: %q", got)
 	}
-	b.eval(`[...[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelectorAll('button')].find(x => x.innerText.includes('Details')).click(), ''`)
-	b.until("the frozen call", `[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelector('pre')?.innerText.includes('"id": "n2"')`)
-
-	b.eval(`[...[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelectorAll('button')].find(x => x.innerText === 'Deny because…').click(), ''`)
-	b.until("the reason field", `[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelector('input')`)
-	b.eval(`(() => { const i = [...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelector('input');
+	b.eval(press("Details"))
+	b.until("the frozen call", card+`.querySelector('pre')?.innerText.includes('"id": "n2"')`)
+	b.eval(press("Deny because…"))
+	b.until("the reason field", card+`.querySelector('input')`)
+	b.eval(`(() => { const i = ` + card + `.querySelector('input');
 		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'keep me');
 		i.dispatchEvent(new Event('input', { bubbles: true })); return '' })()`)
-	b.eval(`[...[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelectorAll('button')].find(x => x.innerText === 'Send').click(), ''`)
-	b.until("the refusal of the reason", `document.body.innerText.includes('deck: refused by the test')`)
-	if got := b.eval(`[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelector('input')?.value ?? ''`); got != "keep me" {
-		t.Fatalf("what the owner typed stays after a refusal: %q", got)
+	b.eval(press("Send"))
+	b.until("the toast that offers to take the answer back", `document.querySelector('[data-toast]')?.innerText.includes('Deny because')`)
+	b.eval(`(document.querySelector('[data-undo-button]').click(), '')`)
+	b.until("the decision back after Undo", `document.querySelector('[data-of]')?.innerText === '1 of 3' && `+card+`.innerText.includes('POST')`)
+	if n := front.answers.Load(); n != 0 {
+		t.Fatalf("an answer taken back is never sent: %d", n)
 	}
-	b.eval(`[...[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelectorAll('button')].find(x => x.innerText === 'Cancel').click(), ''`)
 
 	full := front.full.Load()
-	b.eval(`(() => { const x = [...[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelectorAll('button')].find(x => x.innerText === 'Allow'); x.click(); x.click(); return '' })()`)
-	b.until("the allowed item to leave", `[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].length === 2`)
+	b.eval(`(() => { const x = [...` + card + `.querySelectorAll('button')].find(x => x.innerText === 'Allow: post'); x.click(); x.click(); return '' })()`)
+	b.until("the allowed one steps aside at once", `document.querySelector('[data-of]')?.innerText === '1 of 2'`)
+	b.shot("cockpit-hold")
+	e.waitFor("the answer once its moment passed", func() bool { return front.answers.Load() == 1 })
+	b.until("the allowed one gone", `document.querySelector('[data-focus]')?.dataset.left === '2'`)
 	if n, calls := front.answers.Load(), len(svc.requests()); n != 1 || calls != 1 {
-		t.Fatalf("a second press while the call runs sends nothing: %d answers, %d calls", n, calls)
+		t.Fatalf("a second press while the call waits sends nothing: %d answers, %d calls", n, calls)
 	}
 	if front.topics.Load() == 0 || front.full.Load() != full {
 		t.Fatalf("after an event only the blocks of its topic are read again: %d topic reads, %d full", front.topics.Load(), front.full.Load()-full)
 	}
 
-	b.eval(`[...[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][0].querySelectorAll('button')].find(x => x.innerText === 'Deny').click(), ''`)
-	b.until("the expired item to clear", `[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].length === 1`)
-
-	b.eval(`[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].flatMap((x) => [...x.querySelectorAll('label')]).find(x => x.innerText === 'go').click(), ''`)
-	b.until("answer to unlock", `!([...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].flatMap((x) => [...x.querySelectorAll('button')]).find(x => x.innerText === 'Answer')?.disabled ?? true)`)
-	b.eval(`[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].flatMap((x) => [...x.querySelectorAll('button')]).find(x => x.innerText === 'Answer').click(), ''`)
-	b.until("the answered question to leave", `[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].length === 0`)
+	b.until("the question, the expired one put last", `document.querySelector('[data-kind]')?.innerText === 'Question'`)
+	b.eval(`([...` + card + `.querySelectorAll('label')].find(x => x.innerText === 'go').click(), '')`)
+	b.until("answer to unlock", `!([...`+card+`.querySelectorAll('button')].find(x => x.innerText === 'Answer')?.disabled ?? true)`)
+	b.eval(press("Answer"))
+	b.until("the expired one last", `document.querySelector('[data-of]')?.innerText === '1 of 1' && `+card+`.innerText.includes('Deny')`)
+	b.eval(press("Deny"))
+	b.until("all decided, Deki at rest", `document.querySelector('[data-focus-done] [data-deki="chill"]')`)
 	e.waitState(asking, "done")
+	e.waitFor("every answer sent", func() bool { return len(e.cockpitItems()) == 0 })
 
 	front.slow.Store(true)
 	late := e.run(p, "work")
@@ -109,8 +120,8 @@ func TestRealBrowserWebClient(t *testing.T) {
 	}
 	e.waitState(late, "done", "error")
 	time.Sleep(3 * time.Second)
-	if n := b.eval(`String([...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].length)`); n != "0" {
-		t.Fatalf("a late read does not bring back what a newer one cleared: %s items", n)
+	if got := b.eval(`String(!!document.querySelector('[data-focus-done]') && !document.querySelector('[data-focus-card]'))`); got != "true" {
+		t.Fatalf("a late read does not bring back what a newer one cleared: %s", got)
 	}
 
 	b.open(front.URL + "/#/p/notes/main")

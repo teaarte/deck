@@ -9,31 +9,22 @@ import (
 	"log/slog"
 )
 
-// pulse is what waits for the owner, runs and fails in the workspace, State which the cockpit says first (asks, errors,
-// talking, running or calm), and the top of the cockpit in the owner's language.
+// pulse is what waits for the owner, runs and fails in the workspace, State which Today says first (asks, errors,
+// talking, running or calm), and the first line of Today in the owner's language with the mark beside it.
 type pulse struct {
-	Asks    int64      `json:"asks"`
-	Running int64      `json:"running"`
-	Errors  int64      `json:"errors"`
-	Failed  int64      `json:"failed"`
-	Notes   int64      `json:"notes"`
-	State   string     `json:"state"`
-	Title   string     `json:"title"`
-	Text    string     `json:"text"`
-	Lines   []heroLine `json:"lines"`
+	Asks    int64  `json:"asks"`
+	Running int64  `json:"running"`
+	Errors  int64  `json:"errors"`
+	Failed  int64  `json:"failed"`
+	Notes   int64  `json:"notes"`
+	State   string `json:"state"`
+	Line    string `json:"line"`
+	// Mark is the icon of the line: hand-finger while decisions wait, alert-circle for failures alone, check else.
+	Mark string `json:"mark"`
 }
 
-// heroLine is one count of the top of the cockpit: its words, tone, the screen it opens and the button that clears
-// it at once.
-type heroLine struct {
-	Text   string         `json:"text"`
-	Tone   string         `json:"tone,omitempty"`
-	Link   string         `json:"link,omitempty"`
-	Action map[string]any `json:"action,omitempty"`
-}
-
-// pulse counts what waits for the owner, runs and fails in the workspace, by project too, and writes the top of the
-// cockpit from it.
+// pulse counts what waits for the owner, runs and fails in the workspace, by project too, and writes the first line
+// of Today from it.
 func (ss *Service) pulse(ctx context.Context, act registry.Actor, lang string) (p pulse, asks, running, failing map[string]int64) {
 	asks, running, failing = ss.count(ctx, "asks", act, ss.Waiting), ss.count(ctx, "running", act, ss.Open),
 		ss.count(ctx, "failing", act, ss.Failing)
@@ -51,7 +42,7 @@ func (ss *Service) pulse(ctx context.Context, act registry.Actor, lang string) (
 	default:
 		p.State = "calm"
 	}
-	hero(&p, Phrases(lang))
+	firstLine(&p, Phrases(lang))
 	return p, asks, running, failing
 }
 
@@ -74,33 +65,25 @@ func (ss *Service) number(ctx context.Context, what string, act registry.Actor, 
 	return n
 }
 
-// heroWords are the title and text of the top of the cockpit for each state of the pulse.
-var heroWords = map[string][2]string{
-	"asks":    {"Your answer is needed", "The rest is done without you; much of it can be undone."},
-	"errors":  {"Something did not work", "Open it to see why; close what you will not repeat."},
-	"talking": {"Working on it", "Nothing waits for you; the answer comes in the chat."},
-	"running": {"At work", "Nothing waits for you."},
-	"calm":    {"All is calm", "Nothing waits for you."},
-}
-
-// hero writes the top of the cockpit from the pulse: what waits, what failed, what runs and the notes not read,
-// each with the screen that shows it; failed runs and notes have a button that clears them, kept in the history.
-func hero(p *pulse, ws map[string]string) {
+// firstLine says what Today does not show below it: the rest when decisions wait, the failures in the feed, or that
+// all is well; failures are the failed runs not closed and the failing checks not read, both in the feed.
+func firstLine(p *pulse, ws map[string]string) {
 	tr := func(s string) string { return manifest.Tr(ws, s) }
-	w := heroWords[p.State]
-	p.Title, p.Text, p.Lines = tr(w[0]), tr(w[1]), []heroLine{}
-	line := func(n int64, format, tone, link string, action map[string]any) {
-		if n > 0 {
-			p.Lines = append(p.Lines, heroLine{Text: fmt.Sprintf(tr(format), n), Tone: tone, Link: link, Action: action})
-		}
+	fails := p.Failed + p.Errors
+	switch {
+	case p.Asks > 0 && fails == 0:
+		p.Line, p.Mark = tr("The rest goes by itself."), "hand-finger"
+	case p.Asks > 0 && fails == 1:
+		p.Line, p.Mark = tr("The rest goes by itself, but for one failure in the feed."), "hand-finger"
+	case p.Asks > 0:
+		p.Line, p.Mark = fmt.Sprintf(tr("The rest goes by itself, but for failures in the feed: %d."), fails), "hand-finger"
+	case fails == 1:
+		p.Line, p.Mark = tr("Nothing to decide. One failure is in the feed below."), "alert-circle"
+	case fails > 1:
+		p.Line, p.Mark = fmt.Sprintf(tr("Nothing to decide. Failures in the feed below: %d."), fails), "alert-circle"
+	default:
+		p.Line, p.Mark = tr("All is well: nothing to decide, no failures."), "check"
 	}
-	line(p.Asks, "Waiting for you: %d", "warn", "", nil)
-	line(p.Failed, "Did not work: %d", "error", "#/deck/schedule?tab=Failed",
-		map[string]any{"verb": "close_all", "label": tr("Close all"), "command": registry.Builtin + ".process_dismiss", "params": map[string]any{"all": true}, "confirm": true})
-	line(p.Errors, "Failing checks: %d", "error", "#/deck/settings?tab=Health", nil)
-	line(p.Running, "Running: %d", "ok", "#/deck/schedule?tab=Runs", nil)
-	line(p.Notes, "Unread notes: %d", "", "",
-		map[string]any{"verb": "read_all", "label": tr("Read all"), "command": registry.Builtin + ".feed_read", "params": map[string]any{"all": true}, "confirm": true})
 }
 
 // total is the sum of counts by project.

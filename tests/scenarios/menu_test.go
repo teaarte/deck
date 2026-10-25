@@ -94,8 +94,8 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 	}
 }
 
-// TestTheCockpitTheHeroAndTheMenuCountAlike: what waits, runs and fails is one count for the tiles of the cockpit,
-// the pulse the hero says and the badges of the menu, a check deck works out and a run that waits included.
+// TestTheCockpitTheHeroAndTheMenuCountAlike: what waits, runs and fails is one count for the line and the feed of
+// Today and the badges of the tiles, a check deck works out and a run that waits included.
 func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
@@ -118,14 +118,12 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 		Projects []menuView
 	}
 	e.must("deck.menu", nil, &m)
-	h := e.hero("")
-	lines := []string{}
-	for _, l := range h.Lines {
-		lines = append(lines, l.Text)
-	}
-	if m.Pulse.Running != 1 || m.Pulse.Errors != 1 || m.Pulse.Asks != 0 || m.Pulse.State != "errors" ||
-		!slices.Equal(lines, []string{"Failing checks: 1", "Running: 1"}) || len(m.Projects) != 1 || m.Projects[0].Running != 1 || m.Projects[0].Errors != 1 {
-		t.Fatalf("the pulse, the top of the cockpit and the menu count one run and one unset secret: %+v; %v", m, lines)
+	h := e.today("")
+	var feed []struct{ Kind, Check string }
+	e.must("deck.feed_list", map[string]any{"failures": true}, &feed)
+	if m.Pulse.Running != 1 || m.Pulse.Errors != 1 || m.Pulse.Asks != 0 || m.Pulse.State != "errors" || h.Line != "Nothing to decide. One failure is in the feed below." ||
+		len(feed) != 1 || feed[0].Kind != "failure" || feed[0].Check == "" || len(m.Projects) != 1 || m.Projects[0].Running != 1 || m.Projects[0].Errors != 1 {
+		t.Fatalf("the pulse, the line and the feed of Today and the menu count one run and one unset secret: %+v; %+v; %+v", m, h, feed)
 	}
 }
 

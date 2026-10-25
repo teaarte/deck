@@ -14,7 +14,7 @@ export function ActionIconButton({ act, icon, color = 'gray', variant = 'subtle'
     <>
       <Failed error={error} onClose={clear}>
         <Tooltip label={label}>
-          <ActionIcon size={28} radius="xl" color={color} variant={variant} loading={busy} aria-label={label} data-verb={act.verb}
+          <ActionIcon size={28} color={color} variant={variant} loading={busy} aria-label={label} data-verb={act.verb}
             onClick={(e) => { e.stopPropagation(); if (act.confirm) setAsking(true); else void send(); }}>
             {icon}
           </ActionIcon>

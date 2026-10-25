@@ -266,6 +266,9 @@ func (c *screenCheck) block(where string, b Block) {
 	if b.Cards && b.Board != "" {
 		c.fail("%s cards: lays out the items of a list that is no board", where)
 	}
+	if b.Focus && (b.Cards || b.Board != "") {
+		c.fail("%s focus: shows the items one at a time, not as cards or a board", where)
+	}
 	if b.Board != "" {
 		var col *Collection
 		if b.Source != nil && b.Source.From == "" {
@@ -291,6 +294,11 @@ func (c *screenCheck) block(where string, b Block) {
 	for i, a := range b.Actions {
 		if err := c.action(b, a, fields); err != nil {
 			c.fail("%s/actions/%d %q: %v", where, i, cmp.Or(a.Label, a.Verb), err)
+		}
+	}
+	for i, a := range b.Head {
+		if err := c.action(b, a, []string{"rows"}); err != nil {
+			c.fail("%s/head/%d %q: %v", where, i, cmp.Or(a.Label, a.Verb), err)
 		}
 	}
 }

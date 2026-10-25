@@ -439,9 +439,9 @@ func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
 	}
 }
 
-// TestTheCockpitHidesRunningNowWhenNothingRuns: the list of running processes is on the cockpit only while one
-// runs.
-func TestTheCockpitHidesRunningNowWhenNothingRuns(t *testing.T) {
+// TestTodaySaysWhatRunsEvenWhenNothingDoes: the running list of Today stays on the screen with its words while
+// nothing runs, and a running process is a line with no words under its title, which the client draws as a chip.
+func TestTodaySaysWhatRunsEvenWhenNothingDoes(t *testing.T) {
 	t.Parallel()
 	hold := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -451,16 +451,15 @@ func TestTheCockpitHidesRunningNowWhenNothingRuns(t *testing.T) {
 		}
 		return provider.Result{Text: "{}"}
 	})
-	comps := func() string { return string(e.screenMessages("", "cockpit", nil)[1]["updateComponents"]) }
-	if strings.Contains(comps(), `"title":"Running now"`) {
-		t.Fatalf("nothing runs, so no list of what runs: %s", comps())
+	defer close(hold)
+	if got := e.screenData("", "cockpit", nil)["b1"]; string(got["state"]) != `"empty"` || string(got["empty"]) != `"nothing, all waits for the schedule"` {
+		t.Fatalf("nothing runs, and the list says so: %v", got)
 	}
 	e.createProject("web", webNotes)
 	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "running")
-	if !strings.Contains(comps(), `"title":"Running now"`) {
-		t.Fatalf("a running process shows the list: %s", comps())
+	if running := e.cockpitRunning(); len(running) != 1 || running[0].Title != "Score" || running[0].Text != "" || running[0].Meta != "" {
+		t.Fatalf("a running process is a line with its title alone: %+v", running)
 	}
-	close(hold)
 }
 
 // TestTheCatalogKnowsTheStatesAProcessEndsIn: the client reads the final states from the catalog.
@@ -472,4 +471,30 @@ func TestTheCatalogKnowsTheStatesAProcessEndsIn(t *testing.T) {
 	if err := json.Unmarshal(schemas.Catalog, &c); err != nil || !slices.Equal(c.Final, process.Final) {
 		t.Fatalf("the catalog lists the states a process ends in: %v %v", c.Final, err)
 	}
+}
+
+// TestAListGoesOneAtATimeWithButtonsInItsHead: a list of a module with focus says what each item is, its head has
+// buttons over its rows, and a button that holds says so to the client; focus with cards is refused.
+func TestAListGoesOneAtATimeWithButtonsInItsHead(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	m := strings.Replace(webNotes, `{"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},`,
+		`{"type": "list", "title": "Work", "focus": true, "source": {"collection": "notes"}, "item": {"title": "title", "kind": "'Note'"},
+        "head": [{"label": "='Touch all (' + string(len(rows)) + ')'", "command": "touch", "when": "len(rows) > 1"}],
+        "actions": [{"label": "Touch", "command": "touch", "params": {"note": "=_id"}, "hold": true}]},`, 1)
+	e.createProject("web", m)
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+		"records": jsonl(map[string]any{"title": "alpha"}, map[string]any{"title": "beta"})}, nil)
+	data := e.screenData("web", "main", nil)["b0"]
+	var items []struct {
+		Kind    string
+		Actions []map[string]any
+	}
+	_ = json.Unmarshal(data["items"], &items)
+	head := blockData[[]map[string]any](t, data["head"])
+	if len(items) != 2 || items[0].Kind != "Note" || items[0].Actions[0]["hold"] != true || len(head) != 1 || head[0]["label"] != "Touch all (2)" {
+		t.Fatalf("each item says its kind, its button holds and the head counts the rows: %+v %s", items, data["head"])
+	}
+	cards := strings.Replace(m, `"focus": true,`, `"focus": true, "cards": true,`, 1)
+	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": cards}, 422, "focus")
 }

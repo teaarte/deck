@@ -106,8 +106,7 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 	var asks, running, failing map[string]int64
 	out.Pulse, asks, running, failing = ss.pulse(ctx, act, in.Lang)
 	if out.Pulse.State == "calm" && !slices.ContainsFunc(ps, func(p db.Project) bool { return p.Builtin == 0 }) {
-		out.Pulse.Title, out.Pulse.Text = manifest.Tr(deckWords, "Tell Deki what to do"),
-			manifest.Tr(deckWords, "Say a task in the chat: Deki builds a module for it. Or start with a module below.")
+		out.Pulse.Line = manifest.Tr(deckWords, "Tell Deki what to do: say a task in the chat and Deki builds a module for it, or start with a module below.")
 	}
 	order, err := ss.menuOrder(ctx, ss.St.Q, act.Workspace)
 	if err != nil {

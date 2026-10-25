@@ -66,20 +66,16 @@ func TestRealBrowserShell(t *testing.T) {
 	}
 	b.eval(`(document.querySelector('[data-places] a[href="#/deck/cockpit"]').click(), '')`)
 	b.until("Today from its tab", `location.hash === '#/deck/cockpit'`)
-	b.until("the counts of the cockpit in its top", `[...document.querySelectorAll('[data-hero-line]')].some((x) => x.innerText.includes('Running: 1'))`)
+	b.until("what runs as a chip and the first line of Today", `document.querySelector('[data-chips] [data-chip]')?.innerText.includes('Score') && document.querySelector('[data-today-line]') && document.querySelector('[data-today-date]')`)
 	if got := b.eval(`String(document.querySelectorAll('[data-stat]').length)`); got != "0" {
 		t.Fatalf("the cockpit counts once, in its top, with no tiles that say it again: %s", got)
 	}
-	if got := b.eval(`(() => { const cells = [...document.querySelectorAll('[data-grid] > *')].map((x) => x.getBoundingClientRect()), grid = document.querySelector('[data-grid]').getBoundingClientRect();
-		const history = document.querySelector('[data-hero] [data-hero-dialogs] [data-dialog-open="changes"]')?.getBoundingClientRect();
-		return [cells.length < 2 || new Set(cells.map((r) => Math.round(r.top))).size < cells.length, !!history && history.bottom <= grid.top].join(' ') })()`); got != "true true" {
-		t.Fatalf("the lists of the cockpit share rows and its history is in its top: %s %s", got, b.eval(`JSON.stringify([...document.querySelectorAll('[data-grid] > *')].map((x) => { const r = x.getBoundingClientRect(); return [x.innerText.slice(0, 20), Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] }))`))
-	}
-	if got := b.eval(`String([...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Nothing')))`); got != "false" {
-		t.Fatalf("the cockpit hides its empty lists: %s", got)
+	if got := b.eval(`(() => { const grid = document.querySelector('[data-grid]').getBoundingClientRect();
+		const history = document.querySelector('[data-screen-head] [data-dialog-open="changes"]')?.getBoundingClientRect();
+		return String(!!history && history.bottom <= grid.top) })()`); got != "true" {
+		t.Fatalf("the history of Today is in its head: %s", got)
 	}
 	b.until("the sky of juce behind the shell", `document.documentElement.dataset.deckTheme === 'juce' && document.querySelectorAll('[data-backdrop] [data-cloud]').length === 2`)
-	b.until("Deki at work while a process runs", `document.querySelector('[data-hero="full"] [data-deki="work"]')`)
 	b.shot("shell-cockpit")
 	b.until("the count of new notifications ahead of the tab's name", `/^\(1\) .+ · deck$/.test(document.title)`)
 
@@ -104,7 +100,6 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("an open record has the way back", `/^#\/p\/web\/note\/\d+/.test(location.hash) && document.querySelector('[data-back]')`)
 	b.eval(`(document.querySelector('[data-back]').click(), '')`)
 	b.until("back to the list", `location.hash === '#/p/web/main'`)
-
 
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the project screen", `document.querySelector('[data-block] table')`)
@@ -196,7 +191,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.shot("shell-glass-dark")
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.open(e.URL + "/#/deck/cockpit")
-	b.until("the dark cockpit", `document.querySelector('[data-hero]') && document.querySelector('[data-grid] [data-block]')`)
+	b.until("the dark cockpit", `document.querySelector('[data-today-line]') && document.querySelector('[data-grid] [data-block]')`)
 	b.shot("shell-glass-dark-cockpit")
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
@@ -228,7 +223,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("Deki opens the chat as a sheet", `document.querySelector('[data-chat-phone] [data-chat-input]')`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.open(e.URL + "/#/deck/cockpit")
-	b.until("the cockpit on a phone", `document.querySelector('[data-hero="slim"] [data-hero-line]') && document.querySelector('[data-grid] [data-block]')`)
+	b.until("the cockpit on a phone", `document.querySelector('[data-today-line]') && document.querySelector('[data-grid] [data-block]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the cockpit fits the width of a phone: %s", got)
 	}
@@ -282,9 +277,10 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Сколько агентских процессов')`)
 	e.must("deck.notify", map[string]any{"project": "web", "text": "one more note"}, nil)
 	b.open(e.URL + "/#/deck/cockpit")
-	b.until("the button that reads every note", `document.querySelector('[data-hero-line] [data-verb="read_all"]')`)
-	b.eval(`(document.querySelector('[data-hero-line] [data-verb="read_all"]').click(), '')`)
+	readAll := `[...document.querySelectorAll('[data-block] button')].find((x) => x.innerText.startsWith('Прочитать всё ('))`
+	b.until("the button that reads every note in the head of the feed", readAll)
+	b.eval(`(` + readAll + `.click(), '')`)
 	b.until("the owner asked before every note is read", `document.querySelector('[data-confirm-yes]')`)
 	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
-	b.until("no note left to read", `!document.querySelector('[data-hero-line] [data-verb="read_all"]')`)
+	b.until("no note left to read", `!`+readAll)
 }

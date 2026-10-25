@@ -1,11 +1,16 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react';
-import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { Group, Stack, Text } from '@mantine/core';
-import { IconAlertCircle, IconAlertTriangle, IconCheck } from '@tabler/icons-react';
+import { useEffect, useState, type DragEvent } from 'react';
+import { Group, Stack, Text, UnstyledButton } from '@mantine/core';
+import { IconAlertCircle, IconAlertTriangle, IconArrowRight, IconCheck } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import s from './list.module.css';
 import { relative, show, when } from '../lib/format';
 import { useClock } from '../hooks/useClock';
+import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import { Actions } from '../ui/actions/Actions';
+import { Holding } from '../ui/actions/undo';
+import { verbIcon } from '../ui/actions/verbIcons';
+import { useVisibleActions } from '../ui/actions/useVisibleActions';
+import { Deki, useMascot } from '../ui/deki/Deki';
 import { Deadline } from '../ui/Deadline';
 import { Details } from '../ui/Details';
 import { NamedIcon } from '../ui/NamedIcon';
@@ -13,15 +18,22 @@ import { QuestionPicker } from '../ui/QuestionPicker';
 import { opener, rowOpen } from '../ui/rowOpen';
 import type { Data } from '../lib/catalog.gen';
 import { press, useBlockContext } from '../screen/press';
-import { dropList, keepList } from '../cockpit/decisions';
 import { blockImpl } from './blockImpl';
 
 export type Item = NonNullable<Data['items']>[number];
 
-// list draws items: a title with its icon in the color of its tone, text, meta with the time its buttons have left
-// and how long ago it started, details, the questions of an agent and buttons; with cards side by side.
-export const list = blockImpl<{ cards?: boolean }>('list', (p, d, context) => d.board
-  ? <Board board={d.board} items={d.items ?? []} /> : <Items items={d.items ?? []} context={context} cards={p.cards} />);
+// list draws items: a title with its icon in the color of its tone, text, meta, time, details, questions and buttons;
+// as cards, a board, one at a time with focus, or chips when no item has words under its title and each one button.
+export const list = blockImpl<{ cards?: boolean; focus?: boolean }>('list', (p, d) => {
+  const items = d.items ?? [];
+  if (d.board) return <Board board={d.board} items={items} />;
+  if (p.focus) return <Focus items={items} empty={d.empty} />;
+  if (!p.cards && items.every(chip)) return <Chips items={items} />;
+  return <Items items={items} cards={p.cards} />;
+}, {
+  empty: (p, d) => (p.focus ? <Done text={d.empty} /> : undefined),
+  bare: (p, d) => (p.focus ? 'plain' : !p.cards && !d?.board && !!d?.items?.length && d.items.every(chip) ? 'row' : undefined),
+});
 
 type BoardData = NonNullable<Data['board']>;
 
@@ -69,19 +81,81 @@ function Board({ board, items }: { board: BoardData; items: Item[] }) {
   );
 }
 
-function Items({ items, context, cards }: { items: Item[]; context: ComponentContext; cards?: boolean }) {
-  const id = context.componentModel.id;
-  const at = useRef<HTMLDivElement>(null);
-  useEffect(() => keepList(id, items, at.current!), [id, items]);
-  useEffect(() => () => dropList(id), [id]);
-  return <div ref={at} className={cards ? s.cards : s.items} data-cards={cards || undefined}>{items.map((it, i) => <Line key={show(it.id) || i} it={it} quiet={i > 0} />)}</div>;
+function Items({ items, cards }: { items: Item[]; cards?: boolean }) {
+  return <div className={cards ? s.cards : s.items} data-cards={cards || undefined}>{items.map((it, i) => <Line key={show(it.id) || i} it={it} quiet={i > 0} />)}</div>;
+}
+
+const key = (it: Item) => show(it.id);
+
+// Focus shows the items one at a time, the next two edges behind it: Later puts the one shown last on this device,
+// and one whose press waits to go steps aside until it goes or is taken back.
+function Focus({ items, empty }: { items: Item[]; empty?: string }) {
+  const { t } = useTranslation();
+  const [later, setLater] = useState<string[]>([]);
+  const [held, setHeld] = useState<string[]>([]);
+  useEffect(() => setHeld((h) => h.filter((k) => items.some((it) => key(it) === k))), [items]);
+  const live = items.filter((it) => !held.includes(key(it)));
+  const order = [...live.filter((it) => !later.includes(key(it))), ...later.flatMap((k) => live.filter((it) => key(it) === k))];
+  const it = order[0];
+  if (!it) return <Done text={empty} />;
+  const hold = (k: string) => (on: boolean) => setHeld((h) => (on ? [...h, k] : h.filter((x) => x !== k)));
+  const next = order.length > 1 ? () => setLater([...later.filter((k) => k !== key(it)), key(it)]) : undefined;
+  return (
+    <div className={s.stack} data-focus data-left={order.length}>
+      <div className={s.focusCard} key={key(it)} data-focus-card={key(it)}>
+        <Group justify="space-between" gap="xs" className={s.focusHead}>
+          <Text size="xs" fw={700} className={s.kind} data-kind>{it.kind}</Text>
+          <Text size="xs" fw={600} c="dimmed" data-of>{t('list.one_of', { n: 1, of: order.length })}</Text>
+        </Group>
+        <Holding.Provider value={hold(key(it))}>
+          <Line it={it} big max={3} later={next} />
+        </Holding.Provider>
+      </div>
+      {order.length > 1 && <div className={s.edge} data-edge="1" />}
+      {order.length > 2 && <div className={s.edge} data-edge="2" />}
+    </div>
+  );
+}
+
+// Done is a focus list with nothing left: Deki at rest and its empty text.
+function Done({ text }: { text?: string }) {
+  const { t } = useTranslation();
+  const mascot = useMascot();
+  return (
+    <Stack align="center" gap="xs" className={s.done} data-focus-done>
+      {mascot && <Deki mood="chill" size={150} still />}
+      <Text fz={20} fw={700} ta="center">{text || t('state.empty')}</Text>
+    </Stack>
+  );
+}
+
+// chip is an item drawn as a chip: no words under its title and one button beside its way to open.
+const chip = (it: Item) => !it.text && !it.meta && !it.questions && (it.actions ?? []).filter((a) => !(a.verb === 'open' && a.screen)).length === 1;
+
+// Chips are items in a row: what runs, each with its icon, how long and its one button, such as Stop.
+function Chips({ items }: { items: Item[] }) {
+  return <div className={s.chips} data-chips>{items.map((it, i) => <Chip key={key(it) || i} it={it} />)}</div>;
+}
+
+function Chip({ it }: { it: Item }) {
+  const ctx = useBlockContext();
+  const [act] = useVisibleActions((it.actions ?? []).filter((a) => !(a.verb === 'open' && a.screen)));
+  return (
+    <div className={s.chip} data-chip data-tone={it.tone} title={it.details} {...rowOpen(it.actions, ctx)}>
+      {it.icon && <span className={s.chipIcon}><NamedIcon name={it.icon} fallback={it.title} size={15} /></span>}
+      <Text size="sm" fw={600} truncate>{it.title}</Text>
+      {it.since && <Since at={it.since} />}
+      {act && <ActionIconButton act={act} icon={verbIcon(act)} variant="default" />}
+    </div>
+  );
 }
 
 // TONES are the icons of a tone for a line without its own icon, so a tone is not color alone.
 const TONES: Record<string, typeof IconCheck> = { ok: IconCheck, warn: IconAlertTriangle, error: IconAlertCircle };
 
-// Line is one item of a list.
-export function Line({ it, big, quiet }: { it: Item; big?: boolean; quiet?: boolean }) {
+// Line is one item of a list; later is the way to put it last, in a focus list.
+export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; quiet?: boolean; max?: number; later?: () => void }) {
+  const { t } = useTranslation();
   const ctx = useBlockContext();
   const answer = it.questions ? it.actions?.find((a) => a.input) : undefined;
   const open = opener(it.actions);
@@ -110,9 +184,14 @@ export function Line({ it, big, quiet }: { it: Item; big?: boolean; quiet?: bool
         </Stack>
       </Group>
       <div className={s.under}>
-        {it.details && <Details text={it.details} open={big} />}
+        {it.details && <Details text={it.details} />}
         {it.questions && <QuestionPicker questions={it.questions} act={answer} quiet={quiet} />}
-        <Actions actions={rest} max={big ? 4 : 3} quiet={quiet} />
+        {later ? (
+          <Group gap={6} wrap="wrap">
+            <Actions actions={rest} max={max ?? 4} quiet={quiet} />
+            <UnstyledButton className={s.later} onClick={later} data-later>{t('list.later')}<IconArrowRight size={14} /></UnstyledButton>
+          </Group>
+        ) : <Actions actions={rest} max={max ?? (big ? 4 : 3)} quiet={quiet} />}
       </div>
     </div>
   );

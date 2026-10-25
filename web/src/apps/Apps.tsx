@@ -84,7 +84,7 @@ export function Apps() {
         <Tile to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big art={<CardDeki size={phone ? 104 : 150} />}>
           <span className={s.today}><IconSun size={15} aria-hidden />{t('nav.cockpit')}</span>
           <Title order={2} className={s.title} data-today-title>{head}</Title>
-          <Text size="sm" className={s.text} lineClamp={2} data-today-line>{asks > 0 ? menu.pulse.text : menu.pulse.title}</Text>
+          <Text size="sm" className={s.text} lineClamp={2} data-today-line>{menu.pulse.line}</Text>
         </Tile>
         {menu.projects.map((p, i) => {
           const cover = dark ? p.cover_dark || p.cover : p.cover || p.cover_dark;

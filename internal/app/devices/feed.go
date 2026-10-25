@@ -1,10 +1,12 @@
 package devices
 
 import (
+	"cmp"
 	"context"
 	"deck2/internal/app/access"
 	"deck2/internal/manifest"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -43,6 +45,8 @@ type feedListIn struct {
 	Limit   int64  `opt:"" desc:"At most this many, newest first"`
 	Unread  bool   `opt:"" desc:"Only the notes the owner has not marked read"`
 	Lang    string `opt:"" desc:"Language of the sentences of deck, such as ru; English without one"`
+	// Failures puts the open failures among the lines.
+	Failures bool `opt:"" desc:"With the open failures among the lines by their time: failed runs not closed and failing checks not read"`
 }
 
 // feedRow is a line of the owner's feed: a note with the screen it opens and its buttons, whose commands carry
@@ -74,7 +78,17 @@ type feedRow struct {
 	// Open is the button that opens the screen of a note, MarkRead the one that marks it read.
 	Open     map[string]any `json:"open,omitempty"`
 	MarkRead map[string]any `json:"mark_read,omitempty"`
+	// A failure is no entry of the feed, its id below zero: a failed run with its Process, Error and whether the
+	// owner may Retry it, or a failing Check.
+	Process   int64  `json:"process,omitempty"`
+	Error     string `json:"error,omitempty"`
+	ErrorType string `json:"error_type,omitempty"`
+	Retry     bool   `json:"retry,omitempty"`
+	Check     string `json:"check,omitempty"`
 }
+
+// FeedFailure is the kind of a failure among the lines of the feed.
+const FeedFailure = "failure"
 
 // deckText is the text of a line of the feed in the owner's words when deck wrote it: a change made without the owner
 // or a note of deck; a note of a module or the master is theirs as they wrote it.
@@ -158,7 +172,84 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 		}
 		out = append(out, r)
 	}
+	if in.Failures {
+		fails, err := dv.failures(ctx, act, in)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, fails...)
+		slices.SortStableFunc(out, func(a, b feedRow) int { return strings.Compare(b.CreatedAt, a.CreatedAt) })
+		if lim := int(registry.Limit(in.Limit, 50, 500)); len(out) > lim {
+			out = out[:lim]
+		}
+	}
 	return out, nil
+}
+
+// failures are the open failures as lines of the feed: the failed runs as the schedule lists them and the failing
+// checks of health not read.
+func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
+	var runs []struct {
+		ID          int64  `json:"id"`
+		Project     string `json:"project"`
+		Command     string `json:"command"`
+		Title       string `json:"title"`
+		RecordTitle string `json:"record_title"`
+		Error       string `json:"error"`
+		ErrorType   string `json:"error_type"`
+		FinishedAt  string `json:"finished_at"`
+		Retry       bool   `json:"retry"`
+		Repeats     int64  `json:"repeats"`
+	}
+	if err := dv.read(ctx, act, "processes_list", map[string]any{"project": in.Project, "failed": true, "brief": true, "lang": in.Lang}, &runs); err != nil {
+		return nil, err
+	}
+	var checks []struct {
+		Subject   string `json:"subject"`
+		Project   string `json:"project"`
+		Status    string `json:"status"`
+		Error     string `json:"error"`
+		UpdatedAt string `json:"updated_at"`
+		Seen      bool   `json:"seen"`
+	}
+	if err := dv.read(ctx, act, "health_list", map[string]any{"project": in.Project}, &checks); err != nil {
+		return nil, err
+	}
+	var out []feedRow
+	for _, p := range runs {
+		text := cmp.Or(p.Title, p.Command)
+		if p.RecordTitle != "" {
+			text += " · " + p.RecordTitle
+		}
+		out = append(out, feedRow{ID: -p.ID, Kind: FeedFailure, Project: p.Project, Author: "deck", Text: text, Buttons: []Button{},
+			CreatedAt: p.FinishedAt, Process: p.ID, Error: p.Error, ErrorType: p.ErrorType, Retry: p.Retry, Repeats: p.Repeats,
+			Open: map[string]any{"verb": "open", "screen": "process", "record": p.ID}})
+	}
+	ws := dv.Words(in.Lang)
+	for i, c := range checks {
+		if c.Status != "error" || c.Seen {
+			continue
+		}
+		out = append(out, feedRow{ID: -(int64(1)<<40 + int64(i)), Kind: FeedFailure, Project: c.Project, Author: "deck",
+			Text: manifest.TrText(ws, fmt.Sprintf("The check %s fails", c.Subject)), Buttons: []Button{}, CreatedAt: c.UpdatedAt,
+			Error: c.Error, Check: c.Subject, DeckScreen: true,
+			Open: map[string]any{"verb": "open", "screen": "settings", "params": map[string]any{"tab": "Health"}}})
+	}
+	return out, nil
+}
+
+// read calls a read of deck as the caller and takes its rows.
+func (dv *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
+	raw, _ := json.Marshal(input)
+	got, err := dv.Invoke(ctx, act, registry.Builtin+"."+name, raw)
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(got)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, out)
 }
 
 type feedUndoIn struct {
@@ -230,8 +321,8 @@ func (dv *Service) Unread(ctx context.Context, act registry.Actor) (int64, error
 func (dv *Service) feedCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("feed_list", "Feed",
-			"Lists the owner's feed, newest first: notes written with notify, with the screen each opens and its buttons, and changes made without the owner, with whether they can be undone.",
-			registry.OwnerSide, dv.feedList).On("feed"),
+			"Lists the owner's feed, newest first: notes written with notify, with the screen each opens and its buttons, changes made without the owner, with whether they can be undone, and with failures the open failures.",
+			registry.OwnerSide, dv.feedList).On("feed", "processes", "health", "secrets", "models", "assignments", "triggers"),
 		registry.Def("feed_undo", "Undo",
 			"Undoes a change made without the owner, unless the document changed since.",
 			registry.OwnerOnly, dv.feedUndo),

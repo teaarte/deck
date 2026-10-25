@@ -3,12 +3,12 @@ import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import type { Action } from '../lib/catalog.gen';
 import i18n from '../lib/i18n';
 import { errorText } from '../lib/notify';
-import { offerUndo } from '../ui/actions/undo';
+import { holdPress, offerUndo } from '../ui/actions/undo';
 import { act } from './act';
 
 // Reply is what the handler of a screen says of a press, at /press/<reply> of the data of its surface: why the call
 // failed, or its answer.
-export interface Reply { error?: string; result?: unknown }
+export interface Reply { error?: string; result?: unknown; taken?: boolean }
 
 export const PRESS = '/press/';
 
@@ -23,9 +23,10 @@ let presses = 0;
 const name = (a: Action) => a.command ?? (a.screen ? 'open' : 'chat');
 
 // press sends a button with what the owner gave it as an action of the surface of its block and reads the reply;
-// a button outside a screen, such as one of the bell, acts by itself.
+// a button outside a screen acts by itself. One that holds waits while the owner may take it back first.
 export async function press(ctx: ComponentContext | undefined, a: Action, input?: Record<string, unknown>): Promise<Reply> {
   const action = input ? { ...a, params: { ...a.params, ...input } } : a;
+  if (a.hold && !(await holdPress(a.label || (a.verb ? i18n.t('verb.' + a.verb) : '')))) return { taken: true };
   if (!ctx) return run(action);
   const reply = 'r' + ++presses;
   await ctx.dispatchAction({ event: { name: name(action), context: { ...action, reply } } });

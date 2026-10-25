@@ -17,6 +17,7 @@ import { ChatPanel } from './ChatPanel';
 import { MasterButton } from './MasterButton';
 import { ModuleLead } from './ModuleLead';
 import { PhoneTabs } from './PhoneTabs';
+import { TodayDate, TodayLine } from './TodayLead';
 import { Places } from './Places';
 import { BackButton, Toolbar } from './Toolbar';
 import { dropParam, onMove, useRoute } from './router';
@@ -60,6 +61,8 @@ export function Shell() {
   const toggle = () => { moveFocus(chat ? '[data-chat-toggle]' : '[data-chat-close]'); setChat(!chat); };
   const side = !phone && chat;
   const heading = apps ? t('nav.deck') : route.project ? entry?.title : undefined;
+  const lead = route.project && entry && !route.record ? { under: <ModuleLead entry={entry} /> }
+    : !route.project && route.screen === 'cockpit' ? { beside: <TodayDate />, under: <TodayLine /> } : {};
   return (
     <MenuContext.Provider value={menu}>
       <Backdrop />
@@ -76,7 +79,7 @@ export function Shell() {
           ) : <Toolbar master={!chat && <MasterButton m={menu.master} open={chat} onClick={toggle} />} />}
           {!apps && <Places />}
           {apps ? <Apps /> : (
-            <ScreenLead.Provider value={route.project && entry && !route.record ? <ModuleLead entry={entry} /> : null}>
+            <ScreenLead.Provider value={lead}>
               <ScreenView route={route} />
             </ScreenLead.Provider>
           )}

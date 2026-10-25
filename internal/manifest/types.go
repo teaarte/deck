@@ -308,8 +308,11 @@ type Block struct {
 	Filter []string `json:"filter,omitempty"`
 	// Board is the enum field of a list whose values are the lanes its items stand in.
 	Board string `json:"board,omitempty"`
-	// Cards lays the items of a list side by side as cards.
+	// Cards lays the items of a list side by side as cards; Focus shows them one at a time, the next ones behind.
 	Cards bool `json:"cards,omitempty"`
+	Focus bool `json:"focus,omitempty"`
+	// Head are the buttons in the head of a list, their when and label expressions over its rows.
+	Head []Action `json:"head,omitempty"`
 	// Command is the command of a form.
 	Command string `json:"command,omitempty"`
 	// Choices offer the values of fields of a form from a source.
@@ -389,6 +392,8 @@ type Item struct {
 	Questions string `json:"questions,omitempty"`
 	// Tone is an expression over the line: ok, warn, error or muted.
 	Tone string `json:"tone,omitempty"`
+	// Kind is an expression giving what a line is, said in the head of its card in a focus list.
+	Kind string `json:"kind,omitempty"`
 	// File is the file of a line of a media block: a stored file id or a path in the data folder.
 	File string `json:"file,omitempty"`
 }
@@ -457,6 +462,8 @@ type Action struct {
 	Download bool `json:"download,omitempty"`
 	Confirm  bool `json:"confirm,omitempty"`
 	Primary  bool `json:"primary,omitempty"`
+	// Hold sends the call a few seconds after the press, while the owner may still take it back.
+	Hold bool `json:"hold,omitempty"`
 	// Undo is the call that takes the button's call back, offered for a moment after it went through.
 	Undo *Action `json:"undo,omitempty"`
 }

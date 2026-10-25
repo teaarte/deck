@@ -13,6 +13,12 @@
   --deck-tile-shadow: var(--mantine-shadow-md);
   --deck-tile-lift: scale(1.015);
   --deck-cockpit: var(--mantine-primary-color-filled);
+  --deck-toast: #0e1116;
+  --deck-toast-text: #fff;
+}
+
+[data-mantine-color-scheme='dark'] {
+  --deck-toast: #2b2d33;
 }
 
 /* A tile without a picture or a color of the theme takes a color of its name. */

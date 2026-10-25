@@ -91,6 +91,10 @@ export interface Action {
    */
   confirm?: boolean;
   /**
+   * The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision.
+   */
+  hold?: boolean;
+  /**
    * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
    */
   parts?: string;
@@ -156,6 +160,10 @@ export interface Action1 {
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
+  /**
+   * The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision.
+   */
+  hold?: boolean;
   /**
    * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
    */
@@ -284,6 +292,10 @@ export interface Data {
     actions?: Action[];
   }[];
   /**
+   * the buttons in the head of a list
+   */
+  head?: Action[];
+  /**
    * the lanes of a board: the field of its items and the values of its enum with their labels
    */
   board?: {
@@ -309,6 +321,10 @@ export interface Data {
     since?: string;
     details?: string;
     tone?: Tone;
+    /**
+     * what the item is, said in the head of its card in a focus list
+     */
+    kind?: string;
     questions?: {
       question: string;
       multiSelect?: boolean;
@@ -411,6 +427,10 @@ export interface Action2 {
    */
   confirm?: boolean;
   /**
+   * The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision.
+   */
+  hold?: boolean;
+  /**
    * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
    */
   parts?: string;
@@ -476,6 +496,10 @@ export interface Action3 {
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
+  /**
+   * The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision.
+   */
+  hold?: boolean;
   /**
    * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
    */
@@ -603,6 +627,10 @@ export interface Action4 {
    */
   confirm?: boolean;
   /**
+   * The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision.
+   */
+  hold?: boolean;
+  /**
    * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
    */
   parts?: string;
@@ -698,6 +726,10 @@ export interface Action5 {
    */
   confirm?: boolean;
   /**
+   * The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision.
+   */
+  hold?: boolean;
+  /**
    * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
    */
   parts?: string;
@@ -763,6 +795,10 @@ export interface Action6 {
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
+  /**
+   * The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision.
+   */
+  hold?: boolean;
   /**
    * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
    */
@@ -984,6 +1020,10 @@ export interface Action7 {
    */
   confirm?: boolean;
   /**
+   * The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision.
+   */
+  hold?: boolean;
+  /**
    * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
    */
   parts?: string;
@@ -1072,6 +1112,7 @@ export interface ListProps {
   span?: 1 | 2 | "full";
   description?: string;
   cards?: boolean;
+  focus?: boolean;
   data?: Data;
 }
 /**

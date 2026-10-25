@@ -146,7 +146,7 @@ func TestRealBrowserPressAnswersItsAsk(t *testing.T) {
 	}{{"desktop", 1400, 900}, {"phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
 		b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
-		b.until("the cockpit", `document.querySelector('[data-hero]')`)
+		b.until("the cockpit", `document.querySelector('[data-today-line]')`)
 		b.open(e.URL + "/?size=" + size.name + "#/p/picker/main")
 		b.until("the Apply button", `[...document.querySelectorAll('button')].some((x) => x.innerText === 'Apply')`)
 		b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Apply').click(), '')`)

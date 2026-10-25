@@ -29,9 +29,9 @@ type needView struct {
 func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	var menu struct{ Pulse struct{ Title, Text string } }
+	var menu struct{ Pulse struct{ Line string } }
 	e.must("deck.menu", map[string]any{"lang": "ru"}, &menu)
-	if menu.Pulse.Title != "Скажи Деки, что делать" || !strings.Contains(menu.Pulse.Text, "модуля ниже") {
+	if !strings.HasPrefix(menu.Pulse.Line, "Скажи Деки, что делать") || !strings.Contains(menu.Pulse.Line, "модуля ниже") {
 		t.Fatalf("an empty deck says what to do: %+v", menu.Pulse)
 	}
 	ss := e.starters()
@@ -74,7 +74,7 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 		t.Fatalf("a connection deck has is no need: %+v", needs)
 	}
 	e.must("deck.menu", map[string]any{"lang": "ru"}, &menu)
-	if menu.Pulse.Title == "Скажи Деки, что делать" {
+	if strings.HasPrefix(menu.Pulse.Line, "Скажи Деки, что делать") {
 		t.Fatal("a deck with a module is no empty deck")
 	}
 	data := e.screenData("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "free-models", "revision": "%d"}`, ss[0].Revision)})

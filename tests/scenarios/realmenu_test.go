@@ -11,8 +11,8 @@ import (
 	"deck2/internal/provider"
 )
 
-// TestRealBrowserCockpitHistory: History stands in the top of the cockpit clear of Deki and keeps its place:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCockpitHistory -v.
+// TestRealBrowserCockpitHistory: History stands in the head of Today and keeps its place while what runs and what
+// waits come in: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCockpitHistory -v.
 func TestRealBrowserCockpitHistory(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
@@ -31,23 +31,19 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 	})
 	e.createProject("web", webNotes)
 	b := newPlaywright(t)
-	at := `JSON.stringify(document.querySelector('[data-hero] [data-dialog-open="changes"]')?.getBoundingClientRect())`
+	at := `JSON.stringify(document.querySelector('[data-screen-head] [data-dialog-open="changes"]')?.getBoundingClientRect())`
 	for _, size := range []struct {
 		name          string
 		width, height int
 	}{{"desktop", 1400, 900}, {"phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
 		b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
-		b.until("History in the top of the cockpit", `document.querySelector('[data-hero] [data-dialog-open="changes"]') && !document.querySelector('[data-grid] [data-dialog-open]')`)
+		b.until("History in the head of Today", `document.querySelector('[data-screen-head] [data-dialog-open="changes"]') && !document.querySelector('[data-grid] [data-dialog-open]')`)
 		before := b.eval(at)
-		if got := b.eval(`(() => { const h = document.querySelector('[data-hero] [data-dialog-open="changes"]').getBoundingClientRect(), d = document.querySelector('[data-hero] [data-deki]')?.getBoundingClientRect();
-			return [!document.querySelector('[data-hero-talk]'), !d || h.right <= d.left || h.left >= d.right || h.bottom <= d.top || h.top >= d.bottom].join(' ') })()`); got != "true true" {
-			t.Fatalf("History stands where Tell Deki stood, clear of Deki, on a %s: %s", size.name, got)
-		}
 		b.shot("cockpit-history-" + size.name)
 		id := e.start("web", "score", map[string]any{"title": "x"})
 		e.waitState(id, "running")
-		b.until("the running list on the cockpit", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Running now'))`)
+		b.until("the running chip on Today", `document.querySelector('[data-chips] [data-chip]')`)
 		if after := b.eval(at); after != before {
 			t.Fatalf("History keeps its place on a %s when a list comes in: %s, then %s", size.name, before, after)
 		}
@@ -57,11 +53,12 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 		if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "none", "model": size.name}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 			t.Fatalf("a token's model waits for the owner: %d %s", code, out)
 		}
-		b.until("the decision on the cockpit", `document.querySelector('[data-triage-open]')`)
+		b.until("the decision on Today", `document.querySelector('[data-focus-card]')`)
 		if after := b.eval(at); after != before {
 			t.Fatalf("History keeps its place on a %s when a decision comes in: %s, then %s", size.name, before, after)
 		}
-		b.eval(`(document.querySelector('[data-hero] [data-dialog-open="changes"]').click(), '')`)
+		b.shot("cockpit-decision-" + size.name)
+		b.eval(`(document.querySelector('[data-screen-head] [data-dialog-open="changes"]').click(), '')`)
 		b.until("the history open", `document.querySelector('[data-dialog="changes"]') && location.hash.includes('dialog=changes')`)
 	}
 }

@@ -21,9 +21,9 @@ export function Actions({ actions, max = 3, quiet }: { actions?: Action[]; max?:
     <Group gap={6} wrap="wrap" data-actions>
       {sorted.slice(0, cut).map((a, i) => <ActionButton key={keys[i]} act={a} quiet={quiet} />)}
       {rest.length > 0 && (
-        <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md" radius="md">
+        <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md">
           <Menu.Target>
-            <ActionIcon variant="default" size={30} radius="md" aria-label={t('actions.more')} data-more={more}><IconDots size={16} /></ActionIcon>
+            <ActionIcon variant="default" size={30} aria-label={t('actions.more')} data-more={more}><IconDots size={16} /></ActionIcon>
           </Menu.Target>
           <Menu.Dropdown p={4} miw={180} data-more-menu={more}>
             <Stack gap={2}>

@@ -59,7 +59,7 @@
     },
     "list": {
       "description": "Lines of a source.",
-      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "since": {"type": "string", "description": "Expression giving an ISO 8601 time the line counts from, such as started_at; shown beside meta as how long ago, kept fresh."}, "icon": {"type": "string", "description": "Expression giving the name of a Tabler icon of the line."}, "details": {"type": "string"}, "questions": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}}}, "board": {"type": "string", "description": "An enum field of the module's collection the list reads: the list is a board with a lane for each value of the enum, in order and in the owner's language; dragging an item to a lane presses its button whose input is that field with the value of the lane, and on a phone that button picks the lane."}, "cards": {"type": "boolean", "description": "The items stand side by side as cards instead of lines, such as the modules of a workspace; not with board."}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "since": {"type": "string", "description": "Expression giving an ISO 8601 time the line counts from, such as started_at; shown beside meta as how long ago, kept fresh."}, "icon": {"type": "string", "description": "Expression giving the name of a Tabler icon of the line."}, "details": {"type": "string"}, "questions": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}, "kind": {"type": "string", "description": "Expression giving what a line is, such as a question or a new right, said in the head of its card in a focus list."}}}, "board": {"type": "string", "description": "An enum field of the module's collection the list reads: the list is a board with a lane for each value of the enum, in order and in the owner's language; dragging an item to a lane presses its button whose input is that field with the value of the lane, and on a phone that button picks the lane."}, "cards": {"type": "boolean", "description": "The items stand side by side as cards instead of lines, such as the modules of a workspace; not with board."}, "focus": {"type": "boolean", "description": "The items go one at a time: the first a big card with its kind and its place among them, the next two behind it, and a button Later that puts the one shown last on this device; for a queue the owner goes through, such as decisions. Not with cards or board."}, "head": {"$ref": "#/$defs/actions", "description": "Buttons in the head of the list, such as one that reads all its notes; their when and their label of an expression read rows, the items of its source."}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -69,7 +69,8 @@
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
         "cards": {"type": "boolean"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "items: [{id, title, text, meta, image, details, questions, lane, actions}], board: {field, lanes}"}
+        "focus": {"type": "boolean"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "items: [{id, title, text, meta, image, details, questions, lane, kind, actions}], board: {field, lanes}, head: the buttons of its head"}
       }
     },
     "card": {
@@ -265,7 +266,7 @@
         "class": {"type": "string", "description": "Class of the command of a custom block's button; the host asks the owner before one that is not internal."},
         "from_block": {"type": "array", "items": {"type": "string"}, "description": "The fields a custom block's call fills beside params; the host refuses any other."},
         "from_items": {"type": "array", "items": {"type": "string"}, "description": "The fields of from_block that name a record: the host takes only the id of an item of the block or of the record of its page."},
-        "confirm": {"type": "boolean", "description": "The client asks the owner before the call: a button of deck that deletes or revokes."},
+        "confirm": {"type": "boolean", "description": "The client asks the owner before the call: a button of deck that deletes or revokes."}, "hold": {"type": "boolean", "description": "The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision."},
         "parts": {"type": "string", "description": "With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came."},
         "options": {"type": "array", "items": {"type": "string"}, "description": "Values the owner picks the input from."},
         "labels": {"type": "array", "items": {"type": "string"}, "description": "Each option in the owner's language, when one differs from its value."},
@@ -360,6 +361,7 @@
           "type": "object", "required": ["id", "cells"], "additionalProperties": false,
           "properties": {"id": {}, "cells": {"type": "array"}, "tones": {"type": "array", "description": "the tone of each cell, null for none", "items": {"oneOf": [{"$ref": "#/$defs/tone"}, {"type": "null"}]}}, "details": {"type": "array", "description": "the text of each cell shown in full on demand, null for none; such a cell shows its value in one line", "items": {"type": ["string", "null"]}}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
         }},
+        "head": {"type": "array", "description": "the buttons in the head of a list", "items": {"$ref": "#/$defs/action"}},
         "board": {"type": "object", "required": ["field", "lanes"], "additionalProperties": false,
           "description": "the lanes of a board: the field of its items and the values of its enum with their labels",
           "properties": {"field": {"type": "string"}, "lanes": {"type": "array", "items": {"type": "object", "required": ["value", "label"],
@@ -369,7 +371,7 @@
           "properties": {
             "id": {}, "title": {"type": "string"}, "lane": {"type": "string", "description": "the value of the board field of the item"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string"},
             "since": {"type": "string", "description": "the time the line counts from, shown as how long ago"},
-            "details": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"},
+            "details": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}, "kind": {"type": "string", "description": "what the item is, said in the head of its card in a focus list"},
             "questions": {"type": "array", "items": {
               "type": "object", "required": ["question"],
               "properties": {"question": {"type": "string"}, "multiSelect": {"type": "boolean"},

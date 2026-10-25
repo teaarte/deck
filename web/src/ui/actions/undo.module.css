@@ -9,18 +9,18 @@
   max-width: calc(100vw - 32px);
   padding: 10px 10px 10px 14px;
   overflow: hidden;
-  border-radius: 14px;
-  color: var(--deck-toast-text, #fff);
-  background: var(--deck-toast, #0e1116);
-  box-shadow: 0 20px 40px -12px rgb(0 0 0 / 0.5);
-  font-size: 13px;
+  border-radius: var(--deck-block-radius);
+  color: var(--deck-toast-text);
+  background: var(--deck-toast);
+  box-shadow: var(--mantine-shadow-xl);
+  font-size: 14px;
   font-weight: 500;
   transform: translateX(-50%);
 }
 
 .icon {
   flex: none;
-  color: #7fe0a8;
+  color: var(--mantine-color-green-4);
 }
 
 .text {
@@ -36,14 +36,14 @@
   align-items: center;
   gap: 4px;
   padding: 5px 10px;
-  border-radius: 9px;
-  color: #ffbb92;
-  background: rgb(255 255 255 / 0.08);
+  border-radius: var(--mantine-radius-default);
+  color: var(--mantine-primary-color-3);
+  background: color-mix(in srgb, var(--deck-toast-text) 8%, transparent);
   font-size: 13px;
   font-weight: 700;
 
   &:hover {
-    background: rgb(255 255 255 / 0.14);
+    background: color-mix(in srgb, var(--deck-toast-text) 14%, transparent);
   }
 }
 

@@ -16,7 +16,7 @@ func TestRealBrowserFirstRun(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
-	b.until("an empty deck says what to do", `document.querySelector('[data-hero-title]')?.innerText.includes('Tell Deki what to do')`)
+	b.until("an empty deck says what to do", `document.querySelector('[data-today-line]')?.innerText.includes('Tell Deki what to do')`)
 	b.until("the starter module as a card", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Start with a module') && x.innerText.includes('Free models'))`)
 	b.shot("first-run")
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Add as a draft').click(), '')`)

@@ -229,6 +229,15 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		}
 		out["rows"] = rows
 	case "list":
+		if len(b.Head) > 0 {
+			head, err := r.actions(b.Head, 0, map[string]any{"rows": items})
+			if err != nil {
+				return nil, fmt.Errorf("head: %w", err)
+			}
+			if len(head) > 0 {
+				out["head"] = head
+			}
+		}
 		lines := make([]map[string]any, 0, len(items))
 		var values, labels []string
 		if b.Board != "" {
@@ -253,7 +262,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			}
 			r.setTone(line, b.Item.Tone, it)
 			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta, "since": b.Item.Since,
-				"icon": b.Item.Icon, "details": b.Item.Details, "questions": b.Item.Questions} {
+				"icon": b.Item.Icon, "details": b.Item.Details, "questions": b.Item.Questions, "kind": b.Item.Kind} {
 				if e == "" {
 					continue
 				}

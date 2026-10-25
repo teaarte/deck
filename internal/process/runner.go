@@ -88,6 +88,8 @@ type Runner struct {
 	Hooks []Hook
 	// lost counts the turns of a process that started without deck's tools; past lostTries it fails.
 	lost map[int64]int
+	// tails keeps the lines Tail read of a log while the log stays as it was.
+	tails tailCache
 
 	ctx     context.Context
 	cancel  context.CancelFunc

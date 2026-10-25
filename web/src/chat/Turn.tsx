@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Button, Group, Text } from '@mantine/core';
 import { IconArrowUpRight, IconCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { Action, ChatValue } from '../lib/catalog.gen';
+import type { Action } from '../lib/catalog.gen';
+import type { ChatData } from './chatData';
 import { useClock } from '../hooks/useClock';
 import { toneColor } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
@@ -11,7 +12,7 @@ import { Glyph } from '../ui/Glyph';
 import { usePress } from '../ui/actions/usePress';
 import s from './chat.module.css';
 
-type TurnValue = NonNullable<ChatValue['turn']>;
+type TurnValue = NonNullable<ChatData['turn']>;
 type Proc = NonNullable<TurnValue['processes']>[number];
 
 const SHOWN = 6;

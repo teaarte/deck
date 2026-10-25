@@ -6,9 +6,9 @@ const { $defs, components } = JSON.parse(readFileSync(new URL('../../schemas/cat
 const { values, ...defs } = $defs;
 delete values.description;
 for (const [name, v] of Object.entries(values)) defs[name[0].toUpperCase() + name.slice(1) + 'Value'] = v;
-// A prop as a block draws it: children are ids, the data is the value at its path.
+// A prop as a block draws it: children are ids, the data and the other data a block reads are the value at their path.
 const drawn = (p, key) => {
-  if (key === 'data') return { $ref: '#/$defs/data' };
+  if (key === 'data' || p.$ref?.endsWith('/DynamicValue') && p.description?.startsWith('value:')) return { $ref: '#/$defs/data' };
   if (p.$ref?.endsWith('/ChildList')) return { type: 'array', items: { type: 'string' }, description: p.description };
   return p;
 };

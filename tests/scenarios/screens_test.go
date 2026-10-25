@@ -91,6 +91,11 @@ func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage)
 					if key != "id" && key != "component" {
 						props[key] = v
 					}
+					// A block that reads data at other paths too, as a chat its parts, has its value at each.
+					if m, ok := v.(map[string]any); ok && key != "data" && m["path"] != nil {
+						at, _ := m["path"].(string)
+						k.comps[strings.TrimPrefix(at, "/")] = name
+					}
 				}
 				if err := s.Validate(roundTrip(props)); err != nil {
 					t.Fatalf("component %s does not match the catalog: %v", comp["id"], err)

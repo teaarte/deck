@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"deck2/internal/provider"
@@ -72,8 +73,33 @@ func (r *Runner) clearRun(dir string) {
 	}
 }
 
+// tailCache holds the lines Tail read of logs by what it was asked, each with the size and time of the log then.
+type tailCache struct {
+	mu    sync.Mutex
+	lines map[tailKey]tailLines
+}
+
+type tailKey struct {
+	process int64
+	n       int
+	kinds   string
+}
+
+type tailLines struct {
+	size  int64
+	mod   time.Time
+	lines []json.RawMessage
+}
+
+// tailsKept is how many reads of logs the cache holds before it starts again; a read of more lines than tailCached
+// is not kept.
+const (
+	tailsKept  = 512
+	tailCached = 1000
+)
+
 // Tail is the last n lines of the log of a process, only those of the kinds given when any are; a process
-// without a log has none.
+// without a log has none. A log that did not change since is not read again.
 func (r *Runner) Tail(processID int64, n int, kinds ...string) ([]json.RawMessage, error) {
 	out := []json.RawMessage{}
 	f, err := os.Open(r.LogPath(processID))
@@ -84,6 +110,18 @@ func (r *Runner) Tail(processID int64, n int, kinds ...string) ([]json.RawMessag
 		return nil, err
 	}
 	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	key := tailKey{processID, n, strings.Join(kinds, ",")}
+	c := &r.tails
+	c.mu.Lock()
+	if got, ok := c.lines[key]; ok && n <= tailCached && got.size == fi.Size() && got.mod.Equal(fi.ModTime()) {
+		c.mu.Unlock()
+		return got.lines, nil
+	}
+	c.mu.Unlock()
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
 	for sc.Scan() {
@@ -95,7 +133,16 @@ func (r *Runner) Tail(processID int64, n int, kinds ...string) ([]json.RawMessag
 			out = out[1:]
 		}
 	}
-	return out, sc.Err()
+	if err := sc.Err(); err != nil || n > tailCached {
+		return out, err
+	}
+	c.mu.Lock()
+	if c.lines == nil || len(c.lines) >= tailsKept {
+		c.lines = map[tailKey]tailLines{}
+	}
+	c.lines[key] = tailLines{fi.Size(), fi.ModTime(), out}
+	c.mu.Unlock()
+	return out, nil
 }
 
 // Said is the last message the agent of a process said, on one line; empty when it said none.

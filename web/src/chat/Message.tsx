@@ -3,7 +3,7 @@ import { ActionIcon, Badge, CopyButton, Group, Stack, Text, Tooltip } from '@man
 import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { formatted } from '../lib/format';
-import type { ChatValue } from '../lib/catalog.gen';
+import type { ChatData } from './chatData';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import { DekiHead, useMascot } from '../ui/deki/Deki';
@@ -14,7 +14,7 @@ import { Processes } from './Turn';
 
 const Media = lazy(() => import('../blocks/media/Media').then((m) => ({ default: m.Media })));
 
-type ChatMessage = ChatValue['messages'][number];
+type ChatMessage = ChatData['messages'][number];
 type WorkValue = NonNullable<ChatMessage['work']>;
 
 // cost is a price in dollars, exact to its cents or, below a cent, to two digits.

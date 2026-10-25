@@ -44,7 +44,7 @@ type chatD5 struct {
 
 func (e *Env) chatBlock(filter string) chatD5 {
 	e.T.Helper()
-	return blockData[chatD5](e.T, e.screenData("", "chat", map[string]any{"filter": filter})["b0"]["value"])
+	return blockData[chatD5](e.T, chatData(e.T, e.screenData("", "chat", map[string]any{"filter": filter})))
 }
 
 // TestAnEmptyTopicSuggestsWhatTheModuleOfTheScreenDoes: a topic without messages suggests the commands of the module

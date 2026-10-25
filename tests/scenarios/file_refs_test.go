@@ -85,7 +85,7 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 			}
 		}
 	}
-	e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 	m := view.Messages[len(view.Messages)-1]
 	if m.Role != "master" || len(m.Files) != 1 || m.Files[0].Name != "voice-1.wav" {
 		t.Fatalf("the reply shows the file it made, not the one it links to: %+v", m)

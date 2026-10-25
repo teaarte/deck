@@ -1,6 +1,7 @@
 package screen
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -49,6 +50,12 @@ func topicsOf(b manifest.Block, deck bool) []string {
 		return readTopics(documentRead)
 	case b.Source == nil:
 		return readTopics(pageRead(deck && b.Type != "form", ""))
+	case b.Type == "chat":
+		out := sourceTopics(*b.Source)
+		for _, part := range slices.Sorted(maps.Values(manifest.ChatParts)) {
+			out = union(out, readTopics(part))
+		}
+		return out
 	}
 	return sourceTopics(*b.Source)
 }

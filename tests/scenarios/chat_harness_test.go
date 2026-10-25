@@ -2,8 +2,10 @@ package scenarios
 
 import (
 	"encoding/json"
+	"maps"
 	"strconv"
 	"strings"
+	"testing"
 )
 
 // tasksManifest is a project that keeps its tasks in a collection, as the master puts them there.
@@ -83,7 +85,7 @@ func (e *Env) chatMessages(topic int64) []chatMessage {
 	var out struct {
 		Messages []chatMessage `json:"messages"`
 	}
-	e.must("deck.chat", map[string]any{"topic": strconv.FormatInt(topic, 10)}, &out)
+	e.chatRead(map[string]any{"topic": strconv.FormatInt(topic, 10)}, &out)
 	return out.Messages
 }
 
@@ -94,7 +96,7 @@ func (e *Env) chatTopics(archived bool, out any) {
 		Topics   json.RawMessage `json:"topics"`
 		Archived json.RawMessage `json:"archived"`
 	}
-	e.must("deck.chat", map[string]any{"topic": "new"}, &view)
+	e.must("deck.chat_topics", nil, &view)
 	raw := view.Topics
 	if archived {
 		raw = view.Archived
@@ -166,4 +168,36 @@ func (e *Env) menuList(in map[string]any, master bool, out any) {
 	if err := json.Unmarshal(b, out); err != nil {
 		e.T.Fatal(err)
 	}
+}
+
+// chatRead reads the chat as its block does, the topic picked with its messages, the topics and the turn, into out.
+func (e *Env) chatRead(in map[string]any, out any) {
+	e.T.Helper()
+	all := map[string]json.RawMessage{}
+	for _, read := range []string{"deck.chat_topics", "deck.chat_turn", "deck.chat"} {
+		var part map[string]json.RawMessage
+		if lang, _ := in["lang"].(string); read == "deck.chat_topics" {
+			e.must(read, map[string]any{"lang": lang}, &part)
+		} else {
+			e.must(read, in, &part)
+		}
+		maps.Copy(all, part)
+	}
+	raw, _ := json.Marshal(all)
+	if err := json.Unmarshal(raw, out); err != nil {
+		e.T.Fatal(err)
+	}
+}
+
+// chatData is the value of the chat block of the chat screen read with filter, its parts as one.
+func chatData(t testing.TB, data map[string]map[string]json.RawMessage) json.RawMessage {
+	t.Helper()
+	all := map[string]json.RawMessage{}
+	for _, id := range []string{"b0-topics", "b0-turn", "b0"} {
+		var part map[string]json.RawMessage
+		_ = json.Unmarshal(data[id]["value"], &part)
+		maps.Copy(all, part)
+	}
+	raw, _ := json.Marshal(all)
+	return raw
 }

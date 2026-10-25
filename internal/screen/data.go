@@ -3,11 +3,13 @@ package screen
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
 
 	"deck2/internal/manifest"
+	"deck2/master"
 )
 
 // empty is the data of a block without items, with the text it shows then.
@@ -66,7 +68,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		return map[string]any{"state": "ready", "value": acts}, nil
 	case "appearance":
 		return map[string]any{"state": "ready"}, nil
-	case "chat", "log":
+	case "log":
 		scope := r.scope
 		scope.Filter = r.req.Filter[id]
 		input, err := r.input(b.Source.Input)
@@ -76,9 +78,6 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		v, err := r.src.Read(r.ctx, b.Source.From, input, scope)
 		if err != nil {
 			return nil, err
-		}
-		if b.Type == "chat" {
-			return map[string]any{"state": "ready", "value": v}, nil
 		}
 		var page map[string]any
 		raw, _ := json.Marshal(v)
@@ -454,4 +453,32 @@ func (r *renderer) word(known func(string) bool, v any) any {
 		return out
 	}
 	return one(v)
+}
+
+// chat reads the parts of a chat block, each by its own topics: the topic picked with its messages, the topics, and
+// the turn going on, which a line of a log changes only when it is of the master.
+func (r *renderer) chat(id string, b manifest.Block) {
+	parts := map[string]string{"": b.Source.From}
+	maps.Copy(parts, manifest.ChatParts)
+	for _, part := range slices.Sorted(maps.Keys(parts)) {
+		from := parts[part]
+		if t := r.req.Topic; t != "" && (!slices.Contains(readTopics(from), t) || t == "log" && r.req.Changed != "" && r.req.Changed != master.Name) {
+			continue
+		}
+		path := strings.TrimSuffix(id+"-"+part, "-")
+		scope := r.scope
+		scope.Filter = r.req.Filter[id]
+		input, err := r.input(b.Source.Input)
+		var v any
+		if err == nil {
+			v, err = r.src.Read(r.ctx, from, input, scope)
+		}
+		if err != nil {
+			r.data[path] = map[string]any{"state": "error", "error": err.Error()}
+			r.errs = append(r.errs, fmt.Sprintf("chat block %q: %v", id, err))
+			continue
+		}
+		r.data[path] = map[string]any{"state": "ready", "value": v}
+	}
+	r.good = append(r.good, fmt.Sprintf("chat block %q", id))
 }

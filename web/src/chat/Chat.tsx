@@ -4,7 +4,7 @@ import { Group, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconArrowUpRight, IconHandStop, IconPlayerPlay, IconSparkles } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useRoute } from '../app/router';
-import type { ChatValue } from '../lib/catalog.gen';
+import type { ChatData } from './chatData';
 import { readBlock } from '../screen/press';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { Holding } from '../ui/actions/undo';
@@ -25,12 +25,12 @@ import { useChatSend } from './useChatSend';
 import { useStickToBottom } from './useStickToBottom';
 import { useTopics } from './useTopics';
 
-type Decision = ChatValue['asks'][number];
+type Decision = ChatData['asks'][number];
 
 const ICONS: Record<string, typeof IconSparkles> = { sparkles: IconSparkles, 'player-play': IconPlayerPlay };
 
 // Empty is a topic without messages: Deki at rest, what to do, and what the module of the screen can be asked.
-function Empty({ suggest, put }: { suggest: ChatValue['suggest']; put: (text: string) => void }) {
+function Empty({ suggest, put }: { suggest: ChatData['suggest']; put: (text: string) => void }) {
   const { t } = useTranslation();
   const mascot = useMascot();
   const name = useMasterName();
@@ -87,7 +87,7 @@ function DecisionCard({ d }: { d: Decision }) {
 }
 
 // Chat is the chat with the master: topics, the feed of one with what its turn asks and does, and the input.
-export function Chat({ value, context }: { value: ChatValue; context: ComponentContext }) {
+export function Chat({ value, context }: { value: ChatData; context: ComponentContext }) {
   const [text, setText] = useState('');
   // model is the one picked for a new topic before its first message.
   const [model, setModel] = useState('');

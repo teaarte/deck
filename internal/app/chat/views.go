@@ -116,26 +116,34 @@ type turnView struct {
 	process.Shown
 }
 
-// chatView is what a chat block shows: the topics, and of the topic picked its messages, the questions of its
-// reply and the lines of the turn going on.
+// chatView is the topic picked of a chat block with its messages and buttons; a topic without messages suggests
+// what to ask.
 type chatView struct {
-	Topics    []topicView    `json:"topics"`
-	Archived  []topicView    `json:"archived"`
-	Topic     *topicView     `json:"topic,omitempty"`
-	Messages  []messageView  `json:"messages"`
-	Questions []questionView `json:"questions"`
-	Turn      *turnView      `json:"turn,omitempty"`
-	Send      action         `json:"send"`
-	Archive   action         `json:"archive,omitempty"`
-	Delete    action         `json:"delete,omitempty"`
-	// Models are those the master's replies may go on; Model is the master's own, which a topic without one takes.
-	Models []string `json:"models"`
-	Model  string   `json:"model,omitempty"`
-	Choose action   `json:"choose,omitempty"`
-	// Suggest are what a new topic may ask of the module of the owner's screen; Asks what the turn going on waits
-	// for the owner to decide, its questions apart.
+	Topic    *topicView    `json:"topic,omitempty"`
+	Messages []messageView `json:"messages"`
+	Send     action        `json:"send"`
+	Archive  action        `json:"archive,omitempty"`
+	Delete   action        `json:"delete,omitempty"`
+	Choose   action        `json:"choose,omitempty"`
+	// Suggest are what a new topic may ask of the module of the owner's screen.
 	Suggest []suggestView `json:"suggest"`
-	Asks    any           `json:"asks"`
+}
+
+// topicsView are the topics of a chat block, and the models the master's replies may go on with its own, which a
+// topic without one takes.
+type topicsView struct {
+	Topics   []topicView `json:"topics"`
+	Archived []topicView `json:"archived"`
+	Models   []string    `json:"models"`
+	Model    string      `json:"model,omitempty"`
+}
+
+// turnPart is the turn going on in the topic picked: its lines, the questions of its reply and what it and the
+// processes it started wait for the owner to decide.
+type turnPart struct {
+	Turn      *turnView      `json:"turn,omitempty"`
+	Questions []questionView `json:"questions"`
+	Asks      any            `json:"asks"`
 }
 
 // suggestView is a command of a module as a text to put in the field.
@@ -230,21 +238,72 @@ type chatIn struct {
 	Lang    string `opt:"" desc:"Language of the words of the states of replies, such as ru; English without one"`
 }
 
-// chat is the chat with the master as a chat block shows it; a topic without messages suggests what to ask.
-func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
-	v, err := ch.view(ctx, act, in)
-	if err == nil && len(v.Messages) == 0 {
-		v.Suggest = ch.suggest(ctx, act.Workspace, in.Project, in.Lang)
-	}
-	return v, err
+// words put the phrases of the chat in the owner's language.
+func (ch *Service) words(lang string) func(string) string {
+	ws := ch.Words(lang)
+	return func(phrase string) string { return manifest.Tr(ws, phrase) }
 }
 
-func (ch *Service) view(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
-	v := chatView{Messages: []messageView{}, Questions: []questionView{}, Suggest: []suggestView{}, Asks: []any{},
-		Send: chatAction("send", registry.Builtin+".chat_send", map[string]any{})}
+// picked is the topic a read of the chat is of: the one named, none for new, else the newest.
+func (ch *Service) picked(ctx context.Context, workspace int64, topic string, tr func(string) string) (*topicView, error) {
+	var id int64
+	switch {
+	case topic == "new":
+		return nil, nil
+	case topic != "":
+		n, err := strconv.ParseInt(topic, 10, 64)
+		if err != nil {
+			return nil, nil
+		}
+		id = n
+	}
+	ts, err := ch.topics(ctx, workspace, false, id, 1, tr)
+	if err != nil || len(ts) == 0 {
+		return nil, err
+	}
+	return &ts[0], nil
+}
+
+// chat is the topic picked with its messages as a chat block shows it.
+func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
+	v := chatView{Messages: []messageView{}, Suggest: []suggestView{}, Send: chatAction("send", registry.Builtin+".chat_send", map[string]any{})}
+	tr := ch.words(in.Lang)
+	t, err := ch.picked(ctx, act.Workspace, in.Topic, tr)
+	if err != nil {
+		return v, err
+	}
+	if t != nil {
+		v.Topic = t
+		v.Send = chatAction("send", registry.Builtin+".chat_send", map[string]any{"topic": t.ID})
+		v.Archive = chatAction("archive", registry.Builtin+".chat_topic_archive", map[string]any{"topic": t.ID, "archived": !t.Archived})
+		if t.Archived {
+			v.Archive["verb"] = "unarchive"
+		}
+		v.Choose = chatAction("model", registry.Builtin+".chat_topic_model", map[string]any{"topic": t.ID})
+		v.Choose["input"] = "model"
+		v.Delete = chatAction("delete", registry.Builtin+".chat_topic_delete", map[string]any{"topic": t.ID})
+		v.Delete["confirm"] = true
+		rows, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 100})
+		if err != nil {
+			return v, err
+		}
+		v.Messages = ch.messages(ctx, t.ID, rows, tr)
+	}
+	if len(v.Messages) == 0 {
+		v.Suggest = ch.suggest(ctx, act.Workspace, in.Project, in.Lang)
+	}
+	return v, nil
+}
+
+type chatTopicsIn struct {
+	Lang string `opt:"" desc:"Language of the words of the states of replies, such as ru; English without one"`
+}
+
+// chatTopics are the topics of the chat with the models of the master.
+func (ch *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) (topicsView, error) {
+	var v topicsView
 	var err error
-	ws := ch.Words(in.Lang)
-	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
+	tr := ch.words(in.Lang)
 	if v.Topics, err = ch.topics(ctx, act.Workspace, false, 0, 50, tr); err != nil {
 		return v, err
 	}
@@ -252,41 +311,16 @@ func (ch *Service) view(ctx context.Context, act registry.Actor, in chatIn) (cha
 		return v, err
 	}
 	v.Models, v.Model = ch.models(ctx, act.Workspace)
-	var id int64
-	switch {
-	case in.Topic == "new":
-		return v, nil
-	case in.Topic != "":
-		if id, err = strconv.ParseInt(in.Topic, 10, 64); err != nil {
-			return v, nil
-		}
-	case len(v.Topics) > 0:
-		id = v.Topics[0].ID
-	default:
-		return v, nil
-	}
-	picked, err := ch.topics(ctx, act.Workspace, false, id, 1, tr)
-	if err != nil || len(picked) == 0 {
+	return v, nil
+}
+
+// chatTurn is the turn going on in the topic picked.
+func (ch *Service) chatTurn(ctx context.Context, act registry.Actor, in chatIn) (turnPart, error) {
+	v := turnPart{Questions: []questionView{}, Asks: []any{}}
+	tr := ch.words(in.Lang)
+	t, err := ch.picked(ctx, act.Workspace, in.Topic, tr)
+	if err != nil || t == nil || t.Reply == nil {
 		return v, err
-	}
-	t := picked[0]
-	v.Topic = &t
-	v.Send = chatAction("send", registry.Builtin+".chat_send", map[string]any{"topic": t.ID})
-	v.Archive = chatAction("archive", registry.Builtin+".chat_topic_archive", map[string]any{"topic": t.ID, "archived": !t.Archived})
-	if t.Archived {
-		v.Archive["verb"] = "unarchive"
-	}
-	v.Choose = chatAction("model", registry.Builtin+".chat_topic_model", map[string]any{"topic": t.ID})
-	v.Choose["input"] = "model"
-	v.Delete = chatAction("delete", registry.Builtin+".chat_topic_delete", map[string]any{"topic": t.ID})
-	v.Delete["confirm"] = true
-	rows, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 100})
-	if err != nil {
-		return v, err
-	}
-	v.Messages = ch.messages(ctx, t.ID, rows, tr)
-	if t.Reply == nil {
-		return v, nil
 	}
 	open := t.Reply
 	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: ch.children(ctx, open.Process, false, tr),

@@ -27,6 +27,10 @@ const (
 	ChatSource     = "deck.chat"
 )
 
+// ChatParts are the reads a chat block makes beside its source, by the prop that names the path of their data: the
+// topics and the turn going on, each read again by its own topics.
+var ChatParts = map[string]string{"topics": "deck.chat_topics", "turn": "deck.chat_turn"}
+
 // Reads is a command a screen block may read: a builtin read of deck.
 func Reads(command string) (ReadCommand, bool) {
 	c := registry.Reads(command)

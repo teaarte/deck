@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocalStorage } from '@mantine/hooks';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { useTranslation } from 'react-i18next';
-import type { ChatValue } from '../lib/catalog.gen';
+import type { ChatData } from './chatData';
 import { useMenuData } from '../hooks/useMenu';
 import { readBlock } from '../screen/press';
 import { onTopicOpen } from './chatStore';
@@ -12,7 +12,7 @@ const NONE = '-';
 
 // useTopics picks the topic the chat shows: the one the owner or another screen picked, else the one the server
 // offers; the topics on offer narrow to a module, which opens its last topic. The modules opened last come first.
-export function useTopics(value: ChatValue, context: ComponentContext) {
+export function useTopics(value: ChatData, context: ComponentContext) {
   const { t } = useTranslation();
   const menu = useMenuData();
   const pinned = useRef(false);

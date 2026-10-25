@@ -182,7 +182,16 @@ func (r *renderer) block(id string, b manifest.Block) {
 		comp["kind"] = cmp.Or(b.Kind, "line")
 	}
 	comp["data"] = map[string]any{"path": "/" + id}
+	if b.Type == "chat" {
+		for part := range manifest.ChatParts {
+			comp[part] = map[string]any{"path": "/" + id + "-" + part}
+		}
+	}
 	if r.req.Topic != "" && (!follows(b, r.deck(), r.req.Topic) || !r.reads(b, r.req.Changed)) || !r.wanted(id) {
+		return
+	}
+	if b.Type == "chat" {
+		r.chat(id, b)
 		return
 	}
 	value, err := r.resolve(id, b)

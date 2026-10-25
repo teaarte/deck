@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { press, useBlockContext } from '../screen/press';
 import { notifyError } from '../lib/notify';
-import type { ChatValue } from '../lib/catalog.gen';
+import type { ChatData } from './chatData';
 import { chatScreen } from './chatStore';
 
 // newKey is a retry key of a draft; it works on plain http, where randomUUID does not.
@@ -12,7 +12,7 @@ function newKey(): string {
 
 // useChatSend sends a message once at a time with the screen of the owner unless detached; a retry of the same draft
 // keeps its key, so the server takes it once.
-export function useChatSend(value: ChatValue, { before, files, model, sent }: {
+export function useChatSend(value: ChatData, { before, files, model, sent }: {
   before: () => void; files: () => Promise<string[] | undefined>; model: () => string; sent: (topic: number) => void;
 }) {
   const { t } = useTranslation();

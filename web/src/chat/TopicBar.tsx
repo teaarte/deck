@@ -1,7 +1,7 @@
 import { ActionIcon, Button, Group, Menu, Select, Tooltip } from '@mantine/core';
 import { IconActivity, IconCheck, IconCpu, IconPlus, IconStack2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { ChatValue } from '../lib/catalog.gen';
+import type { ChatData } from './chatData';
 import { notifyError } from '../lib/notify';
 import { ActionsMenu } from '../ui/actions/ActionsMenu';
 import { press, useBlockContext } from '../screen/press';
@@ -12,7 +12,7 @@ const check = (on: boolean) => (on ? <IconCheck size={14} /> : <span style={{ wi
 // TopicBar picks the topic of the chat and the model it answers on, narrows the topics to a module, starts a new one,
 // and holds its buttons; it shrinks to the width it has. A pulsing dot marks the modules whose own work goes on.
 export function TopicBar({ value, topics, model, setModel }: {
-  value: ChatValue; topics: ReturnType<typeof useTopics>; model: string; setModel: (m: string) => void;
+  value: ChatData; topics: ReturnType<typeof useTopics>; model: string; setModel: (m: string) => void;
 }) {
   const { t } = useTranslation();
   const topic = value.topic;

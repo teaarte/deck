@@ -232,7 +232,7 @@
     },
     "chat": {
       "description": "The chat with the master: the topics, the messages of one, the master's questions in it and the turn going on, with send, stop, archive and delete.",
-      "block": {"description": "Needs source deck.chat and no other field; the client picks the topic as the filter topic of the block: a topic id, new for a new one, empty for the newest.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}}},
+      "block": {"description": "Needs source deck.chat and no other field; it reads deck.chat_topics and deck.chat_turn beside it. The client picks the topic as the filter topic of the block: a topic id, new for a new one, empty for the newest.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -241,7 +241,9 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: chat"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: chat; the topic picked with its messages"},
+        "topics": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: chat; the topics and the models, read again by their own topics"},
+        "turn": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: chat; the turn going on with its questions and asks, read again by the lines of its log"}
       }
     }
   },
@@ -307,7 +309,7 @@
         "html": {"type": "string"}, "items": {"type": "array", "items": {"type": "object"}}, "record": {"type": "object"}, "params": {"type": "object", "description": "The params of the block, resolved"},
         "project": {"type": "string", "description": "The module whose files the block reads; none on a screen of deck"}, "name": {"type": "string"}, "size": {"type": "integer", "description": "Bytes of the HTML, given in its place to a viewer other than the owner"},
         "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}},
-      "chat": {"type": "object", "additionalProperties": false, "required": ["topics", "archived", "messages", "questions", "send", "suggest", "asks"], "properties": {
+      "chat": {"type": "object", "additionalProperties": false, "description": "a part of the chat: the topic picked with its messages, the topics, or the turn", "properties": {
         "topic": {"$ref": "#/$defs/topic"}, "topics": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
         "archived": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
         "messages": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "role", "text", "created_at"], "properties": {

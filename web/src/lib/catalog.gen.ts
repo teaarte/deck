@@ -875,14 +875,16 @@ export interface CustomValue {
   actions: Action[];
 }
 /**
+ * a part of the chat: the topic picked with its messages, the topics, or the turn
+ *
  * This interface was referenced by `Catalog`'s JSON-Schema
  * via the `definition` "ChatValue".
  */
 export interface ChatValue {
   topic?: Topic;
-  topics: Topic[];
-  archived: Topic[];
-  messages: {
+  topics?: Topic[];
+  archived?: Topic[];
+  messages?: {
     id: number;
     role: "owner" | "master";
     text: string;
@@ -945,7 +947,7 @@ export interface ChatValue {
       }[];
     };
   }[];
-  questions: {
+  questions?: {
     ask: number;
     text: string;
     questions: {
@@ -1002,7 +1004,7 @@ export interface ChatValue {
     stop?: Action;
     open?: Action;
   };
-  send: Action;
+  send?: Action;
   archive?: Action;
   delete?: Action;
   /**
@@ -1017,14 +1019,14 @@ export interface ChatValue {
   /**
    * of a topic without messages: commands of the module of the owner's screen, as texts to put in the field
    */
-  suggest: {
+  suggest?: {
     icon: string;
     text: string;
   }[];
   /**
    * what the turn going on and the processes it started wait for the owner to decide, its questions apart: items of deck.asks_list with their buttons
    */
-  asks: {
+  asks?: {
     id: number;
     kind: string;
     project?: string;
@@ -1303,4 +1305,6 @@ export interface ChatProps {
   span?: 1 | 2 | "full";
   description?: string;
   data?: Data;
+  topics?: Data;
+  turn?: Data;
 }

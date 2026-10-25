@@ -404,7 +404,7 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 	chat := func(v string) ChatV {
 		t.Helper()
 		check.messages(t, e.screenMessages("", "chat", pick(v)))
-		return blockData[ChatV](t, e.screenData("", "chat", pick(v))["b0"]["value"])
+		return blockData[ChatV](t, chatData(t, e.screenData("", "chat", pick(v))))
 	}
 	if c := chat(""); c.Topic == nil || c.Topic.ID != topic || len(c.Messages) != 2 || c.Messages[1].Text != "Hello **there**" ||
 		c.Send.Params["topic"] != float64(topic) || len(c.Topics) != 1 {
@@ -520,7 +520,7 @@ func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 				Reply *struct{ State, Error string }
 			}
 		}
-		e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &v)
+		e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &v)
 		return len(v.Messages) == 1 && v.Messages[0].Reply != nil && v.Messages[0].Reply.State == "error" &&
 			strings.Contains(v.Messages[0].Reply.Error, "gone")
 	})
@@ -668,7 +668,7 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 		}
 	}
 	e.waitFor("the work of both replies", func() bool {
-		e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &view)
+		e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 		n := 0
 		for _, m := range view.Messages {
 			if m.Work != nil {
@@ -689,7 +689,7 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 		}
 	}
 	e.waitFor("the second job to fail", func() bool {
-		e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &view)
+		e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 		last := view.Messages[len(view.Messages)-1].Work
 		return last != nil && len(last.Processes) == 1 && last.Processes[0].State == "error"
 	})
@@ -720,7 +720,7 @@ func TestATopicKeepsTheModelTheOwnerPicked(t *testing.T) {
 			Input   string         `json:"input"`
 		} `json:"choose"`
 	}
-	e.must("deck.chat", map[string]any{"topic": "new"}, &view)
+	e.chatRead(map[string]any{"topic": "new"}, &view)
 	if !slices.Contains(view.Models, "fake") || !slices.Contains(view.Models, "other") || view.Model != "fake" {
 		t.Fatalf("the chat lists the models of the master's replies and its own: %+v", view)
 	}
@@ -731,7 +731,7 @@ func TestATopicKeepsTheModelTheOwnerPicked(t *testing.T) {
 	if said := e.masterSaid(topic, 1); said[0].Text != "on other" {
 		t.Fatalf("a new topic sent with a model answers on it: %+v", said)
 	}
-	e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 	if view.Topic == nil || view.Topic.Model != "other" || view.Choose.Command != "deck.chat_topic_model" || view.Choose.Input != "model" {
 		t.Fatalf("the topic shows its model and the button that changes it: %+v", view)
 	}

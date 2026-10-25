@@ -145,3 +145,36 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		t.Fatalf("the light copy of a picture of a data folder is a JPEG as wide as a light copy: %+v %v", cfg, err)
 	}
 }
+
+// TestAChatReadsItsPartsByTheirOwnTopics: a chat block reads the topic picked with its messages, the topics and the
+// turn apart; a line of a log reads the turn alone, and only a line of the master's.
+func TestAChatReadsItsPartsByTheirOwnTopics(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	paths := func(extra map[string]any) []string {
+		var out []string
+		for _, m := range e.screenMessages("", "chat", extra) {
+			var dm struct{ Path string }
+			if json.Unmarshal(m["updateDataModel"], &dm) == nil && dm.Path != "" {
+				out = append(out, dm.Path)
+			}
+		}
+		slices.Sort(out)
+		return out
+	}
+	for _, c := range []struct {
+		in   map[string]any
+		want []string
+	}{
+		{nil, []string{"/b0", "/b0-topics", "/b0-turn"}},
+		{map[string]any{"topic": "log", "changed": "master"}, []string{"/b0-turn"}},
+		{map[string]any{"topic": "log", "changed": "notes"}, nil},
+		{map[string]any{"topic": "chat"}, []string{"/b0", "/b0-topics"}},
+		{map[string]any{"topic": "asks"}, []string{"/b0-turn"}},
+		{map[string]any{"topic": "assignments"}, []string{"/b0-topics"}},
+	} {
+		if got := paths(c.in); !slices.Equal(got, c.want) {
+			t.Errorf("%v reads %v, want %v", c.in, got, c.want)
+		}
+	}
+}

@@ -20,7 +20,7 @@ type connectionView struct {
 	API  string `json:"api" enum:"openai|google|anthropic|raw|cli"`
 	URL  string `json:"url"`
 	// Key says where the API key is kept: in a secret, or none; KeySecret is the name of that secret.
-	Key       string `json:"key"`
+	Key       string `json:"key" enum:"secret|none"`
 	KeySecret string `json:"key_secret,omitempty"`
 	Local     bool   `json:"local"`
 	Models    int64  `json:"models"`

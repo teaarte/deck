@@ -544,6 +544,19 @@ func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
 		t.Fatalf("a theme's own cover replaced waits in the trash too: %v", trashed())
 	}
 	e.must("deck.file_restore", map[string]any{"file": greenFile, "owner_kind": "upload"}, nil)
+
+	e.createProject("old", plainManifest)
+	old := e.upload("old", "old.png", "image/png", picture(color.RGBA{10, 10, 10, 255}))
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'old'`, old); err != nil {
+		t.Fatal(err)
+	}
+	var out struct{ Cover int64 }
+	e.must("deck.project_cover", map[string]any{"project": "old", "file": fmt.Sprint(e.upload("old", "new.png", "image/png", picture(color.RGBA{200, 200, 10, 255})))}, &out)
+	var theme string
+	_ = e.App.Store.DB.QueryRow(`SELECT theme FROM picture WHERE file_id = ?`, old).Scan(&theme)
+	if theme != "pixel" {
+		t.Fatalf("a cover kept before deck knew its theme goes to the theme in use: %q", theme)
+	}
 }
 
 // TestAPictureWithoutALightCopyGetsOne: a cover deck kept before light copies gets one in the sweep, transparent

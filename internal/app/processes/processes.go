@@ -50,7 +50,7 @@ type processView struct {
 	ID      int64           `json:"id"`
 	Project string          `json:"project"`
 	Command string          `json:"command"`
-	Kind    string          `json:"kind"`
+	Kind    string          `json:"kind" enum:"agent|script|tool|model"`
 	State   string          `json:"state" enum:"running|waiting_answer|needs_login|rate_limited|waiting_provider|waiting_slot|waiting_folder|done|error|interrupted|stopped"`
 	Result  json.RawMessage `json:"result,omitempty"`
 	// Input is what the process was started with; only process_get gives it.

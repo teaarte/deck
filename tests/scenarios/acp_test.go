@@ -354,7 +354,7 @@ func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
 			}
 			var pl struct{ Connections []struct{ Name, Key string } }
 			e.must("deck.models_list", nil, &pl)
-			if i := slices.IndexFunc(pl.Connections, func(p struct{ Name, Key string }) bool { return p.Name == "acp" }); i < 0 || pl.Connections[i].Key != "secret model_key" {
+			if i := slices.IndexFunc(pl.Connections, func(p struct{ Name, Key string }) bool { return p.Name == "acp" }); i < 0 || pl.Connections[i].Key != "secret" {
 				t.Fatalf("the models list tells how the key of a connection is passed: %+v", pl.Connections)
 			}
 		})

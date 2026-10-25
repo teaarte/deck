@@ -109,7 +109,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	t.folder = p.Folder
 	if t.folder != "" {
 		if real, err := filepath.EvalSymlinks(t.folder); err != nil || real != t.folder {
-			fail(fault.New(fault.ProgramMissing, "deck: the project folder "+t.folder+" is gone or moved"))
+			fail(fault.New(fault.ProgramMissing, fmt.Sprintf("deck: the project folder %s is gone or moved", t.folder)))
 			return nil, false
 		}
 		if !r.holdFolder(ctx, *t, t.folder) {

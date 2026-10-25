@@ -85,13 +85,13 @@ func (q *Queries) DeleteRecord(ctx context.Context, id int64) error {
 
 const fieldValues = `-- name: FieldValues :many
 SELECT DISTINCT CAST(coalesce(j.value, '') AS TEXT) AS value
-FROM record r, json_each(CASE json_type(r.data, ?1) WHEN 'array' THEN json_extract(r.data, ?1) ELSE json_array(json_extract(r.data, ?1)) END) j
+FROM record r, json_each(CASE json_type(r.data, CAST(?1 AS TEXT)) WHEN 'array' THEN json_extract(r.data, CAST(?1 AS TEXT)) ELSE json_array(json_extract(r.data, CAST(?1 AS TEXT))) END) j
 WHERE r.project_id = ?2 AND r.collection = ?3 AND j.type = 'text'
 LIMIT ?4
 `
 
 type FieldValuesParams struct {
-	Path       interface{}
+	Path       string
 	ProjectID  int64
 	Collection string
 	Lim        int64

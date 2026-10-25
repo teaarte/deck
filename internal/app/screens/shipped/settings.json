@@ -115,7 +115,7 @@
             {"label": "API", "bind": "api", "format": "tag"},
             {"label": "Models", "bind": "models"},
             {"label": "Address", "bind": "url", "format": "copy"},
-            {"label": "Key", "bind": "key"}
+            {"label": "Key", "bind": "key_secret ?? key"}
           ],
           "actions": [
             {"verb": "edit", "screen": "settings", "params": {"tab": "Connections", "dialog": "connection", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}, "when": "api != 'cli'"},

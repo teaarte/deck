@@ -75,6 +75,6 @@ AND created_at < CAST(sqlc.arg(before) AS TEXT) ORDER BY id;
 -- name: FieldValues :many
 -- The texts a field of the records of a collection holds, a value or the items of a list, at most lim of them.
 SELECT DISTINCT CAST(coalesce(j.value, '') AS TEXT) AS value
-FROM record r, json_each(CASE json_type(r.data, sqlc.arg(path)) WHEN 'array' THEN json_extract(r.data, sqlc.arg(path)) ELSE json_array(json_extract(r.data, sqlc.arg(path))) END) j
+FROM record r, json_each(CASE json_type(r.data, CAST(sqlc.arg(path) AS TEXT)) WHEN 'array' THEN json_extract(r.data, CAST(sqlc.arg(path) AS TEXT)) ELSE json_array(json_extract(r.data, CAST(sqlc.arg(path) AS TEXT))) END) j
 WHERE r.project_id = sqlc.arg(project_id) AND r.collection = sqlc.arg(collection) AND j.type = 'text'
 LIMIT sqlc.arg(lim);

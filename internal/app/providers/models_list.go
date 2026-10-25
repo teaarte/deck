@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -120,7 +119,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		}
 		switch {
 		case c.KeySecret != "" && act.OwnerSide():
-			v.Key, v.KeySecret = fmt.Sprintf("secret %s", c.KeySecret), c.KeySecret
+			v.Key, v.KeySecret = "secret", c.KeySecret
 		case c.KeySecret != "":
 			v.Key = "secret"
 		}
@@ -200,9 +199,6 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	}
 	for i := range out.Agents {
 		out.Agents[i].Error = tr(out.Agents[i].Error)
-	}
-	for i := range out.Connections {
-		out.Connections[i].Key = tr(out.Connections[i].Key)
 	}
 	return out, nil
 }

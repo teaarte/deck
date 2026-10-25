@@ -334,9 +334,8 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 	}
 }
 
-// TestTheModulesWordsNameItsFieldsAndFilteredValues: the edit of a record says what it does in the owner's language,
-// names a field by the module's words and offers no empty value; a value of a field without an enum a block filters
-// by shows in the module's words in the filter and in that block; a save names what a language lacks.
+// TestTheModulesWordsNameItsFieldsAndFilteredValues: a record's edit and a filtered field without an enum speak the
+// module's words, no empty choice; a save names the texts a language lacks.
 func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -387,9 +386,8 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 	}
 }
 
-// TestTheReadsOfDeckScreensSayNoEnglishInRussian: deck's screens read in Russian say each phrase of deck in Russian,
-// failures, health, kinds of models, units of prices, keys and sizes; names of models, modules, commands,
-// connections and secrets stay as they are.
+// TestTheReadsOfDeckScreensSayNoEnglishInRussian: deck's screens read in Russian say failures, health, kinds, units,
+// keys and sizes in Russian; names stay as they are.
 func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -412,6 +410,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		`INSERT INTO health (workspace_id, subject, status, error) VALUES (1, 'model:m-text', 'ok', 'the model answered at 142 tokens/s')`,
 		`INSERT INTO health (workspace_id, subject, status, error) VALUES (1, 'model:m-image', 'warning', 'the model did not finish the self-check of goose 1.53.0 within 2m0s: first turn: not one model call finished within the ceiling: the model may be slow to start (a cold start, the queue of a free tier), or its url or model id may be wrong')`,
 		fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at) VALUES (%d, 'work', 'script', 'running', '2026-10-25T08:00:00.000Z')`, p),
+		fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at) VALUES (%d, 'work', 'agent', 'running', '2026-10-25T08:01:00.000Z')`, p),
 		fmt.Sprintf(`INSERT INTO feed (workspace_id, project_id, kind, author, text) VALUES (1, %d, 'change', 'master', 'master changed the manifest of notes')`, p),
 	} {
 		if _, err := e.App.Store.DB.Exec(q); err != nil {
@@ -493,8 +492,8 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		raw, _ := json.Marshal(msgs)
 		all.Write(raw)
 	}
-	for _, want := range []string{"модель отвечала со скоростью 142 токенов/с", "модель не закончила самопроверку goose 1.53.0", "секрет gate-key",
-		"файлы: ", "deck перезапустился, пока шёл скрипт", "Работы ей ещё не давали", "озвучка", "$1 за 1M символов", "сделано без вас"} {
+	for _, want := range []string{"модель отвечала со скоростью 142 токенов/с", "модель не закончила самопроверку goose 1.53.0", "gate-key",
+		"файлы: ", "deck перезапустился, пока шёл скрипт", "deck перезапустился до начала сессии", "Работы ей ещё не давали", "озвучка", "$1 за 1M символов", "сделано без вас"} {
 		if !strings.Contains(all.String(), want) {
 			t.Errorf("no %q in the screens read in Russian", want)
 		}

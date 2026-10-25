@@ -329,9 +329,8 @@ func (r *renderer) fieldEnum(collection, expr string) []string {
 	return nil
 }
 
-// worded says which values of an expression are words to put in the owner's language: those of the enum of a field
-// it reads, of the module's collection or of the result of the command it reads, the texts the expression writes
-// itself, and those the module translates of a field of a collection its block filters by.
+// worded says which values of an expression are words of the owner's language: of the enums of the fields it reads,
+// the texts it writes, and the module's words for a field of a collection its block filters by.
 func (r *renderer) worded(src *manifest.Source, expr string, filters []string) func(string) bool {
 	values := literal(expr)
 	var own map[string]string
@@ -351,19 +350,44 @@ func (r *renderer) worded(src *manifest.Source, expr string, filters []string) f
 }
 
 // phrased is v with each phrase the expression writes itself, a text of more than one word, in the owner's language
-// where v holds it among other parts.
+// where it stands between the separators the expression writes, or at an end.
 func (r *renderer) phrased(expr string, v any) any {
 	s, ok := v.(string)
 	if !ok {
 		return v
 	}
-	for _, l := range literal(expr) {
-		if t := r.tr(l); strings.Contains(l, " ") && t != l {
-			s = strings.ReplaceAll(s, l, t)
+	lits := literal(expr)
+	bound := func(rest string, at func(string, string) bool) bool {
+		return rest == "" || slices.ContainsFunc(lits, func(l string) bool { return l != "" && !letter.MatchString(l) && at(rest, l) })
+	}
+	for _, l := range lits {
+		t := r.tr(l)
+		if !strings.Contains(l, " ") || t == l {
+			continue
 		}
+		var b strings.Builder
+		for rest := s; ; {
+			i := strings.Index(rest, l)
+			if i < 0 {
+				b.WriteString(rest)
+				break
+			}
+			before, after := s[:len(s)-len(rest)+i], rest[i+len(l):]
+			b.WriteString(rest[:i])
+			if bound(before, strings.HasSuffix) && bound(after, strings.HasPrefix) {
+				b.WriteString(t)
+			} else {
+				b.WriteString(l)
+			}
+			rest = after
+		}
+		s = b.String()
 	}
 	return s
 }
+
+// letter is a letter of any language.
+var letter = regexp.MustCompile(`\pL`)
 
 // quoted are the texts an expression writes, in single quotes.
 var quoted = regexp.MustCompile(`'([^'\\]*)'`)

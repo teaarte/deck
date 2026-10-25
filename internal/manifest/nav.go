@@ -126,8 +126,8 @@ func TrText(ws map[string]string, s string) string {
 	return s
 }
 
-// verb is a verb of a phrase, %s, %v, %d or %f, with its index and precision when it has them.
-var verb = regexp.MustCompile(`%(\[\d+\])?(\.\d+)?[sdvf]`)
+// verb is a verb of a phrase, %s, %q, %v, %d or %f, with its index and precision when it has them.
+var verb = regexp.MustCompile(`%(\[\d+\])?(\.\d+)?[sqdvf]`)
 
 // phraseFormat is the pattern of phrase k: its verbs take any text, %d a number.
 func phraseFormat(k string) *regexp.Regexp {

@@ -25,7 +25,11 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 			return nil, err
 		}
 		col := r.req.Manifest.Collection(r.req.Screen.Record)
-		c["input"], c["order"] = col.Schema, manifest.PropertyOrder(col.Schema)
+		var schema map[string]any
+		if err := json.Unmarshal(col.Schema, &schema); err != nil {
+			return nil, err
+		}
+		c["input"], c["order"] = schema, manifest.PropertyOrder(col.Schema)
 		cmds = []map[string]any{c}
 		v["values"], v["record"] = plain(r.record), r.req.Record
 		// The edit sends the fields of the form as the JSON of one field.
@@ -229,8 +233,8 @@ func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any
 	return out, nil
 }
 
-// enum are the values of an enum field, or of the items of a list field, with their translations; none when no
-// value has one.
+// enum are the values of an enum field, or of the items of a list field, with their translations, but for the empty
+// one, which is no choice; none when no value has one.
 func (r *renderer) enum(p any) []map[string]any {
 	s, _ := p.(map[string]any)
 	values, _ := s["enum"].([]any)
@@ -240,6 +244,9 @@ func (r *renderer) enum(p any) []map[string]any {
 	var out []map[string]any
 	said := false
 	for _, v := range values {
+		if v == "" {
+			continue
+		}
 		label := r.tr(fmt.Sprint(v))
 		said = said || label != fmt.Sprint(v)
 		out = append(out, map[string]any{"value": v, "label": label})

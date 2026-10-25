@@ -36,7 +36,8 @@ export function Field({ name, schema, value, files, readOnly, required, choices,
       : <FileInput {...common} clearable value={files[0] ?? null} onChange={(f) => onFiles(f ? [f] : [])} />;
   }
   if (schema.enum) {
-    return <Select {...common} clearable data={schema.enum.map(String)} value={value === undefined ? null : String(value)}
+    // The empty value of an enum is no choice; a cleared field has none.
+    return <Select {...common} clearable data={schema.enum.map(String).filter((e) => e !== '')} value={value === undefined || value === '' ? null : String(value)}
       onChange={(v) => onValue(v === null ? undefined : schema.enum!.find((e) => String(e) === v))} />;
   }
   switch (t) {

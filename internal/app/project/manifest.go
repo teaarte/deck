@@ -198,8 +198,9 @@ type Saved struct {
 	Widens   []string `json:"widens,omitempty"`
 	// Screens name the blocks of the project's screens that fail on the data there is now.
 	Screens []string `json:"screens,omitempty"`
-	// Unused are the keys of its i18n that are no text of the manifest.
-	Unused []string `json:"unused_i18n,omitempty"`
+	// Unused are the keys of its i18n that are no text of the manifest; Untranslated the texts a language of it lacks.
+	Unused       []string `json:"unused_i18n,omitempty"`
+	Untranslated []string `json:"untranslated,omitempty"`
 	// Warnings are what keeps the saved manifest from working, such as a model command no model takes.
 	Warnings []string `json:"warnings,omitempty"`
 }
@@ -298,7 +299,9 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 	}
 	saved.Screens = pj.CheckScreens(ctx, act, p, pm.m)
 	prompt, _ := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
-	saved.Unused = pm.m.UnusedWords(docs.Description(prompt))
+	also := append(pj.filterValues(ctx, p.ID, pm.m), docs.Description(prompt))
+	saved.Unused = pm.m.UnusedWords(also...)
+	saved.Untranslated = pm.m.Untranslated(func(lang, text string) bool { return pj.Words(lang)[text] != "" }, also...)
 	saved.Warnings = pj.unassigned(ctx, p, pm.m)
 	return saved, nil
 }
@@ -349,4 +352,19 @@ func (pj *Service) Reconcile(ctx context.Context) error {
 // Save is SaveManifest for a service that takes any result.
 func (pj *Service) Save(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error) {
 	return pj.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision)
+}
+
+// filterValues are the values the records of a project hold in the fields its screens filter by, each a text the
+// owner sees in a filter.
+func (pj *Service) filterValues(ctx context.Context, project int64, m *manifest.Manifest) []string {
+	var out []string
+	for col, fields := range m.Filtered() {
+		for _, f := range fields {
+			vs, err := pj.St.Q.FieldValues(ctx, db.FieldValuesParams{Path: `$."` + f + `"`, ProjectID: project, Collection: col, Lim: 100})
+			if err == nil {
+				out = append(out, vs...)
+			}
+		}
+	}
+	return out
 }

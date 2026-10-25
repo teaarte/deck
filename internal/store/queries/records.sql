@@ -70,3 +70,11 @@ SELECT CAST(coalesce((SELECT n FROM record_mark WHERE project_id = ?), 0) AS INT
 -- name: ListExpiredRecords :many
 SELECT * FROM record WHERE project_id = sqlc.arg(project_id) AND collection = sqlc.arg(collection)
 AND created_at < CAST(sqlc.arg(before) AS TEXT) ORDER BY id;
+
+
+-- name: FieldValues :many
+-- The texts a field of the records of a collection holds, a value or the items of a list, at most lim of them.
+SELECT DISTINCT CAST(coalesce(j.value, '') AS TEXT) AS value
+FROM record r, json_each(CASE json_type(r.data, sqlc.arg(path)) WHEN 'array' THEN json_extract(r.data, sqlc.arg(path)) ELSE json_array(json_extract(r.data, sqlc.arg(path))) END) j
+WHERE r.project_id = sqlc.arg(project_id) AND r.collection = sqlc.arg(collection) AND j.type = 'text'
+LIMIT sqlc.arg(lim);

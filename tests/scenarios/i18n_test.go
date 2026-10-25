@@ -276,6 +276,8 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 			forms[string(m[1])] = true
 		}
 	}
+	// The edit of a record shows on the record pages of modules.
+	forms["deck.record_update"] = true
 	missing := map[string]bool{}
 	for _, c := range cmds {
 		words := ru
@@ -319,5 +321,58 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 	if i := slices.IndexFunc(projects, func(p struct{ Name, Description string }) bool { return p.Name == "master" }); i < 0 ||
 		!strings.HasPrefix(projects[i].Description, "Мастер:") {
 		t.Errorf("the description of a module comes in its words too: %+v", projects)
+	}
+}
+
+// TestTheModulesWordsNameItsFieldsAndFilteredValues: the edit of a record says what it does in the owner's language,
+// names a field by the module's words and offers no empty value; a value of a field without an enum a block filters
+// by shows in the module's words in the filter and in that block; a save names what a language lacks.
+func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	m := strings.NewReplacer(`{"version": 13,`, `{"version": 13, "i18n": {"ru": {"source": "Источник", "web": "веб", "mail": "почта", "Source": "Источник", "a": "один"}},`,
+		`"note": {"type": "string"}}, "required": ["title"]}`, `"note": {"type": "string"}, "kind": {"type": "string", "enum": ["a", "b", ""]}}, "required": ["title"]}`,
+		`"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Source", "bind": "source"}]`).Replace(webNotes)
+	e.createProject("web", m)
+	var recs struct{ IDs []int64 }
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(
+		map[string]any{"title": "alpha", "source": "web"}, map[string]any{"title": "beta", "source": "mail"}, map[string]any{"title": "gamma", "source": "paper"})}, &recs)
+	main := e.screenData("web", "main", map[string]any{"lang": "ru"})
+	var filters []struct {
+		Field, Label    string
+		Options, Labels []string
+	}
+	_ = json.Unmarshal(main["b3"]["filters"], &filters)
+	if len(filters) != 1 || !slices.Equal(filters[0].Options, []string{"mail", "paper", "web"}) || !slices.Equal(filters[0].Labels, []string{"почта", "paper", "веб"}) {
+		t.Fatalf("a filter names the values of a field without an enum by the module's words: %+v", filters)
+	}
+	if rows := string(main["b3"]["rows"]); !strings.Contains(rows, `["alpha","веб"]`) || !strings.Contains(rows, `["gamma","paper"]`) {
+		t.Fatalf("the column of the field filtered by says its values the same way: %s", rows)
+	}
+	var form struct {
+		Commands []struct {
+			Description string
+			Input       struct {
+				Properties map[string]struct{ Title string }
+			}
+		}
+		Choices map[string][]struct{ Label, Value string }
+	}
+	_ = json.Unmarshal(e.screenData("web", "note", map[string]any{"lang": "ru", "record": recs.IDs[0]})["b0"]["value"], &form)
+	if len(form.Commands) != 1 || form.Commands[0].Description != "Заменяет данные записи; ключевые поля не меняются." ||
+		form.Commands[0].Input.Properties["source"].Title != "Источник" {
+		t.Fatalf("the edit of a record says what it does and names a field in the owner's language: %+v", form.Commands)
+	}
+	if kinds := form.Choices["kind"]; len(kinds) != 2 || slices.ContainsFunc(kinds, func(c struct{ Label, Value string }) bool { return c.Value == "" }) {
+		t.Fatalf("the empty value of an enum is no choice: %+v", kinds)
+	}
+	var saved struct {
+		Unused       []string `json:"unused_i18n"`
+		Untranslated []string `json:"untranslated"`
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": m}, &saved)
+	if len(saved.Unused) != 0 || !slices.Contains(saved.Untranslated, "ru: paper") || !slices.Contains(saved.Untranslated, "ru: note") ||
+		slices.Contains(saved.Untranslated, "ru: web") || slices.Contains(saved.Untranslated, "ru: Work") {
+		t.Fatalf("a save names the texts ru lacks, deck's words and the values filtered by known: %+v", saved)
 	}
 }

@@ -83,6 +83,49 @@ func (q *Queries) DeleteRecord(ctx context.Context, id int64) error {
 	return err
 }
 
+const fieldValues = `-- name: FieldValues :many
+SELECT DISTINCT CAST(coalesce(j.value, '') AS TEXT) AS value
+FROM record r, json_each(CASE json_type(r.data, ?1) WHEN 'array' THEN json_extract(r.data, ?1) ELSE json_array(json_extract(r.data, ?1)) END) j
+WHERE r.project_id = ?2 AND r.collection = ?3 AND j.type = 'text'
+LIMIT ?4
+`
+
+type FieldValuesParams struct {
+	Path       interface{}
+	ProjectID  int64
+	Collection string
+	Lim        int64
+}
+
+// The texts a field of the records of a collection holds, a value or the items of a list, at most lim of them.
+func (q *Queries) FieldValues(ctx context.Context, arg FieldValuesParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, fieldValues,
+		arg.Path,
+		arg.ProjectID,
+		arg.Collection,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		items = append(items, value)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findRecordSnapshot = `-- name: FindRecordSnapshot :one
 SELECT id, project_id, collection, from_revision, revision, records, created_at FROM record_snapshot
 WHERE project_id = ?1 AND collection = ?2

@@ -119,6 +119,9 @@ func OneField(src string) string {
 	return ""
 }
 
+// Fields are the names an expression reads, the fields of its item among them.
+func Fields(src string) []string { return exprFields(src, nil) }
+
 // exprFields lists the fields an expression reads, out of the given ones; any name when fields is nil.
 func exprFields(src string, fields []string) []string {
 	tree, err := parser.Parse(src)

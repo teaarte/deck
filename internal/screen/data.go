@@ -199,7 +199,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					return nil, fmt.Errorf("column %q: %w", c.Label, err)
 				}
 				if c.Pick == "" {
-					v = r.word(r.worded(b.Source, c.Bind), v)
+					v = r.word(r.worded(b.Source, c.Bind, b.Filter), v)
 				}
 				cells = append(cells, v)
 				cell := map[string]any{}
@@ -275,7 +275,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				case key == "details", key == "questions":
 					line[key] = v
 				default:
-					line[key] = fmt.Sprint(r.word(r.worded(b.Source, e), v))
+					line[key] = fmt.Sprint(r.word(r.worded(b.Source, e, b.Filter), v))
 				}
 			}
 			if _, ok := line["title"]; !ok {
@@ -328,14 +328,25 @@ func (r *renderer) fieldEnum(collection, expr string) []string {
 	return nil
 }
 
-// worded says which values of an expression are words to put in the owner's language: those of the enum of its field,
-// of the module's collection or of the result of the command it reads, and the texts the expression writes itself.
-func (r *renderer) worded(src *manifest.Source, expr string) func(string) bool {
-	values := slices.Concat(literal(expr))
+// worded says which values of an expression are words to put in the owner's language: those of the enum of a field
+// it reads, of the module's collection or of the result of the command it reads, the texts the expression writes
+// itself, and those the module translates of a field of a collection its block filters by.
+func (r *renderer) worded(src *manifest.Source, expr string, filters []string) func(string) bool {
+	values := literal(expr)
+	var own map[string]string
 	if src != nil {
-		values = slices.Concat(values, r.fieldEnum(src.Collection, expr), r.resultEnum(*src, expr))
+		fields := []string{expr}
+		if !bare.MatchString(expr) {
+			fields = manifest.Fields(expr)
+		}
+		for _, f := range fields {
+			values = slices.Concat(values, r.fieldEnum(src.Collection, f), r.resultEnum(*src, f))
+			if src.Collection != "" && r.req.Manifest != nil && slices.Contains(filters, f) {
+				own = r.req.Manifest.I18n[r.req.Lang]
+			}
+		}
 	}
-	return func(s string) bool { return slices.Contains(values, s) }
+	return func(s string) bool { return slices.Contains(values, s) || own[s] != "" }
 }
 
 // quoted are the texts an expression writes, in single quotes.

@@ -76,18 +76,7 @@ func Translate(v any, tr func(string) string) any {
 
 // UnusedWords are the keys of the i18n of a manifest that no text of it or of also is, by language.
 func (m *Manifest) UnusedWords(also ...string) []string {
-	texts := Texts(m.text)
-	for _, t := range also {
-		texts[t] = true
-	}
-	// The values of an enum of a collection show in the owner's language too.
-	for _, c := range m.Collections {
-		for _, f := range schemaFields(c.Schema) {
-			for _, v := range Enum(c.Schema, f) {
-				texts[v] = true
-			}
-		}
-	}
+	texts := m.shown(also)
 	var out []string
 	for lang, words := range m.I18n {
 		for k := range words {
@@ -97,5 +86,63 @@ func (m *Manifest) UnusedWords(also ...string) []string {
 		}
 	}
 	sort.Strings(out)
+	return out
+}
+
+// Untranslated are the texts of a manifest and also that a language of its i18n has no word for, nor known, by
+// language.
+func (m *Manifest) Untranslated(known func(lang, text string) bool, also ...string) []string {
+	texts := m.shown(also)
+	var out []string
+	for lang, words := range m.I18n {
+		for t := range texts {
+			if words[t] == "" && !known(lang, t) {
+				out = append(out, lang+": "+t)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// shown are the texts of a manifest the owner sees, with also and the values of the enums of its collections.
+func (m *Manifest) shown(also []string) map[string]bool {
+	texts := Texts(m.text)
+	for _, t := range also {
+		texts[t] = true
+	}
+	for _, c := range m.Collections {
+		for _, f := range schemaFields(c.Schema) {
+			for _, v := range Enum(c.Schema, f) {
+				texts[v] = true
+			}
+		}
+	}
+	delete(texts, "")
+	return texts
+}
+
+// Filtered are the fields of each collection a block of a screen filters by.
+func (m *Manifest) Filtered() map[string][]string {
+	out := map[string][]string{}
+	var walk func(blocks []Block)
+	walk = func(blocks []Block) {
+		for _, b := range blocks {
+			if b.Source != nil && b.Source.Collection != "" {
+				for _, f := range b.Filter {
+					if !slices.Contains(out[b.Source.Collection], f) {
+						out[b.Source.Collection] = append(out[b.Source.Collection], f)
+					}
+				}
+			}
+			walk(b.Blocks)
+			for _, t := range b.Tabs {
+				walk(t.Blocks)
+			}
+		}
+	}
+	for _, s := range m.Screens {
+		walk(s.Blocks)
+	}
 	return out
 }

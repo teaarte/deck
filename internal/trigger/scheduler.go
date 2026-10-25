@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/robfig/cron/v3"
+
 	"deck2/internal/health"
 
 	"deck2/internal/manifest"
@@ -112,14 +114,24 @@ func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m 
 }
 
 // Next is the slot of a cron spec after a time by the owner's wall clock: one in an hour the clocks skip runs at the
-// first minute after it, and an hour they repeat holds each slot once.
-func Next(cron string, after time.Time) (string, error) {
-	sched, err := manifest.CronParser.Parse(cron)
+// first minute after it; in an hour they repeat, a spec of every hour holds its slots in both passes, another once.
+func Next(spec string, after time.Time) (string, error) {
+	sched, err := manifest.CronParser.Parse(spec)
 	if err != nil {
 		return "", err
 	}
+	s, ok := sched.(*cron.SpecSchedule)
+	hourly := ok && s.Hour&(1<<24-1) == 1<<24-1
 	a := after.In(time.Local)
-	w := time.Date(a.Year(), a.Month(), a.Day(), a.Hour(), a.Minute(), a.Second(), a.Nanosecond(), time.UTC)
+	// From the first pass of a repeated hour a spec of every hour goes on minute by minute into the second.
+	if ps := wallPasses(a); hourly && len(ps) == 2 && !a.After(ps[0]) {
+		for m := a.Truncate(time.Minute).Add(time.Minute); !m.After(ps[1]); m = m.Add(time.Minute) {
+			if w := wall(m); sched.Next(w.Add(-time.Second)).Equal(w) {
+				return store.Time(m), nil
+			}
+		}
+	}
+	w := wall(a)
 	for {
 		w = sched.Next(w)
 		t := time.Date(w.Year(), w.Month(), w.Day(), w.Hour(), w.Minute(), w.Second(), 0, time.Local)
@@ -130,11 +142,39 @@ func Next(cron string, after time.Time) (string, error) {
 				t = t.Add(-time.Minute)
 			}
 		}
-		// The second pass of a repeated hour has had its slot already.
-		if t.After(after) {
-			return store.Time(t), nil
+		passes := wallPasses(t)
+		if !hourly {
+			passes = passes[len(passes)-1:]
+		}
+		for _, p := range passes {
+			if p.After(after) {
+				return store.Time(p), nil
+			}
 		}
 	}
+}
+
+// wall is the reading of the owner's clock at t, as a time in UTC.
+func wall(t time.Time) time.Time {
+	t = t.In(time.Local)
+	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
+}
+
+// wallPasses are the instants that read the wall time of t: two in an hour the clocks repeat, earlier first.
+func wallPasses(t time.Time) []time.Time {
+	_, before := t.Add(-3 * time.Hour).Zone()
+	_, later := t.Add(3 * time.Hour).Zone()
+	d := time.Duration(before-later) * time.Second
+	if d <= 0 {
+		return []time.Time{t}
+	}
+	var out []time.Time
+	for _, p := range []time.Time{t.Add(-d), t, t.Add(d)} {
+		if p.Hour() == t.Hour() && p.Minute() == t.Minute() && p.Day() == t.Day() {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // Rewind moves a cron trigger whose next run has passed to its next slot after now, so a paused period is

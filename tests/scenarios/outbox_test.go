@@ -114,9 +114,9 @@ func TestACronLaunchMovesItsSlotWithIt(t *testing.T) {
 	}
 }
 
-// TestADailyCronAcrossTheClockShifts: a daily slot in the hour the clocks skip runs at the first minute after it,
-// and one in the hour they repeat runs once.
-func TestADailyCronAcrossTheClockShifts(t *testing.T) {
+// TestACronAcrossTheClockShifts: a daily slot in the hour the clocks skip runs at the first minute after it, and one
+// in the hour they repeat runs once; a slot of every hour runs in both passes of the repeated hour.
+func TestACronAcrossTheClockShifts(t *testing.T) {
 	oslo, err := time.LoadLocation("Europe/Oslo")
 	if err != nil {
 		t.Skip("no zone data:", err)
@@ -125,30 +125,37 @@ func TestADailyCronAcrossTheClockShifts(t *testing.T) {
 	time.Local = oslo
 	t.Cleanup(func() { time.Local = local })
 	for _, c := range []struct {
+		cron string
 		from time.Time
 		want []string
 	}{
-		{time.Date(2026, 3, 27, 12, 0, 0, 0, oslo), []string{"03-28 02:30", "03-29 03:00", "03-30 02:30"}},
-		{time.Date(2026, 10, 23, 12, 0, 0, 0, oslo), []string{"10-24 02:30", "10-25 02:30", "10-26 02:30"}},
-		{time.Date(2026, 10, 25, 1, 20, 0, 0, time.UTC), []string{"10-25 02:30", "10-26 02:30", "10-27 02:30"}},
+		{"30 2 * * *", time.Date(2026, 3, 27, 12, 0, 0, 0, oslo), []string{"03-28 02:30 CET", "03-29 03:00 CEST", "03-30 02:30 CEST"}},
+		{"30 2 * * *", time.Date(2026, 10, 23, 12, 0, 0, 0, oslo), []string{"10-24 02:30 CEST", "10-25 02:30 CET", "10-26 02:30 CET"}},
+		{"30 2 * * *", time.Date(2026, 10, 25, 1, 20, 0, 0, time.UTC), []string{"10-25 02:30 CET", "10-26 02:30 CET", "10-27 02:30 CET"}},
+		{"*/15 * * * *", time.Date(2026, 10, 25, 0, 35, 0, 0, time.UTC), []string{"10-25 02:45 CEST", "10-25 02:00 CET", "10-25 02:15 CET"}},
+		{"*/15 * * * *", time.Date(2026, 10, 25, 1, 35, 0, 0, time.UTC), []string{"10-25 02:45 CET", "10-25 03:00 CET", "10-25 03:15 CET"}},
+		{"*/15 * * * *", time.Date(2026, 3, 29, 0, 35, 0, 0, time.UTC), []string{"03-29 01:45 CET", "03-29 03:00 CEST", "03-29 03:15 CEST"}},
 	} {
 		clock := &Clock{now: c.from}
 		e := newEnv(t, ok, withClock(clock))
 		e.Clock = clock
-		e.createProject("night", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "30 2 * * *"}`}))
+		e.createProject("night", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "` + c.cron + `"}`}))
 		var got []string
-		for range 3 {
+		for i := range 3 {
 			next, err := time.Parse(time.RFC3339Nano, e.triggers()[0].NextRunAt)
 			if err != nil {
 				t.Fatal(err)
 			}
-			got = append(got, next.In(oslo).Format("01-02 15:04"))
+			got = append(got, next.In(oslo).Format("01-02 15:04 MST"))
 			clock.Add(next.Sub(clock.Now()))
 			e.tick()
 			e.settle()
+			if n := e.countOf("job"); n != i+1 {
+				t.Fatalf("%s from %s: the slot %s starts one run, %d in all", c.cron, c.from, got[i], n)
+			}
 		}
 		if fmt.Sprint(got) != fmt.Sprint(c.want) {
-			t.Fatalf("the slots of a daily cron across a shift of the clocks: %v, want %v", got, c.want)
+			t.Fatalf("the slots of %s across a shift of the clocks: %v, want %v", c.cron, got, c.want)
 		}
 	}
 }

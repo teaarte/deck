@@ -43,7 +43,7 @@ const createFile = `-- name: CreateFile :one
 INSERT INTO file (project_id, owner_kind, owner_id, name, type, size, created_at, process_id)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
         ?8)
-RETURNING id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id
+RETURNING id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id, thumb_id, width, height, color
 `
 
 type CreateFileParams struct {
@@ -79,6 +79,10 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		&i.Size,
 		&i.CreatedAt,
 		&i.ProcessID,
+		&i.ThumbID,
+		&i.Width,
+		&i.Height,
+		&i.Color,
 	)
 	return i, err
 }
@@ -107,7 +111,7 @@ func (q *Queries) DeleteFilesOf(ctx context.Context, arg DeleteFilesOfParams) er
 }
 
 const getFile = `-- name: GetFile :one
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id FROM file WHERE id = ?
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id, thumb_id, width, height, color FROM file WHERE id = ?
 `
 
 func (q *Queries) GetFile(ctx context.Context, id int64) (File, error) {
@@ -123,12 +127,16 @@ func (q *Queries) GetFile(ctx context.Context, id int64) (File, error) {
 		&i.Size,
 		&i.CreatedAt,
 		&i.ProcessID,
+		&i.ThumbID,
+		&i.Width,
+		&i.Height,
+		&i.Color,
 	)
 	return i, err
 }
 
 const listFilesOf = `-- name: ListFilesOf :many
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id FROM file WHERE project_id = ? AND owner_kind = ? AND owner_id = ? ORDER BY id
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id, thumb_id, width, height, color FROM file WHERE project_id = ? AND owner_kind = ? AND owner_id = ? ORDER BY id
 `
 
 type ListFilesOfParams struct {
@@ -156,6 +164,52 @@ func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]Fil
 			&i.Size,
 			&i.CreatedAt,
 			&i.ProcessID,
+			&i.ThumbID,
+			&i.Width,
+			&i.Height,
+			&i.Color,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listImagesWithoutThumb = `-- name: ListImagesWithoutThumb :many
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id, thumb_id, width, height, color FROM file WHERE thumb_id IS NULL AND type LIKE 'image/%' AND owner_kind NOT IN ('thumb', 'trash', 'keeping') ORDER BY id DESC LIMIT 20
+`
+
+// The stored pictures deck has not tried a light copy of yet.
+func (q *Queries) ListImagesWithoutThumb(ctx context.Context) ([]File, error) {
+	rows, err := q.db.QueryContext(ctx, listImagesWithoutThumb)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []File
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.Name,
+			&i.Type,
+			&i.Size,
+			&i.CreatedAt,
+			&i.ProcessID,
+			&i.ThumbID,
+			&i.Width,
+			&i.Height,
+			&i.Color,
 		); err != nil {
 			return nil, err
 		}
@@ -171,7 +225,7 @@ func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]Fil
 }
 
 const listMadeFiles = `-- name: ListMadeFiles :many
-SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at, f.process_id FROM file f WHERE f.owner_kind = 'process'
+SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at, f.process_id, f.thumb_id, f.width, f.height, f.color FROM file f WHERE f.owner_kind = 'process'
     AND (f.owner_id = ?1 OR f.owner_id IN (SELECT p.id FROM process p WHERE p.parent_id = ?1))
 ORDER BY f.id
 `
@@ -196,6 +250,10 @@ func (q *Queries) ListMadeFiles(ctx context.Context, processID int64) ([]File, e
 			&i.Size,
 			&i.CreatedAt,
 			&i.ProcessID,
+			&i.ThumbID,
+			&i.Width,
+			&i.Height,
+			&i.Color,
 		); err != nil {
 			return nil, err
 		}
@@ -211,7 +269,7 @@ func (q *Queries) ListMadeFiles(ctx context.Context, processID int64) ([]File, e
 }
 
 const listMessageFiles = `-- name: ListMessageFiles :many
-SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at, f.process_id FROM file f JOIN chat_message m ON m.id = f.owner_id
+SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at, f.process_id, f.thumb_id, f.width, f.height, f.color FROM file f JOIN chat_message m ON m.id = f.owner_id
 WHERE f.owner_kind = 'chat_message' AND m.topic_id = ? ORDER BY f.id
 `
 
@@ -234,6 +292,10 @@ func (q *Queries) ListMessageFiles(ctx context.Context, topicID int64) ([]File, 
 			&i.Size,
 			&i.CreatedAt,
 			&i.ProcessID,
+			&i.ThumbID,
+			&i.Width,
+			&i.Height,
+			&i.Color,
 		); err != nil {
 			return nil, err
 		}
@@ -249,7 +311,7 @@ func (q *Queries) ListMessageFiles(ctx context.Context, topicID int64) ([]File, 
 }
 
 const listOwnedFiles = `-- name: ListOwnedFiles :many
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id FROM file WHERE owner_kind = ? AND owner_id = ? ORDER BY id
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id, thumb_id, width, height, color FROM file WHERE owner_kind = ? AND owner_id = ? ORDER BY id
 `
 
 type ListOwnedFilesParams struct {
@@ -276,6 +338,10 @@ func (q *Queries) ListOwnedFiles(ctx context.Context, arg ListOwnedFilesParams) 
 			&i.Size,
 			&i.CreatedAt,
 			&i.ProcessID,
+			&i.ThumbID,
+			&i.Width,
+			&i.Height,
+			&i.Color,
 		); err != nil {
 			return nil, err
 		}
@@ -318,8 +384,8 @@ func (q *Queries) ListProjectFileIDs(ctx context.Context, projectID int64) ([]in
 }
 
 const listWorkspaceFiles = `-- name: ListWorkspaceFiles :many
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
-  AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER)) AND owner_kind NOT IN ('trash', 'keeping', 'model')
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id, thumb_id, width, height, color FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
+  AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER)) AND owner_kind NOT IN ('trash', 'keeping', 'model', 'thumb')
 ORDER BY id DESC LIMIT ?3
 `
 
@@ -348,6 +414,10 @@ func (q *Queries) ListWorkspaceFiles(ctx context.Context, arg ListWorkspaceFiles
 			&i.Size,
 			&i.CreatedAt,
 			&i.ProcessID,
+			&i.ThumbID,
+			&i.Width,
+			&i.Height,
+			&i.Color,
 		); err != nil {
 			return nil, err
 		}
@@ -369,6 +439,7 @@ WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
    OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message))
    OR (owner_kind = 'model' AND owner_id NOT IN (SELECT id FROM model))
    OR (owner_kind = 'picture' AND owner_id NOT IN (SELECT id FROM picture))
+   OR (owner_kind = 'thumb' AND owner_id NOT IN (SELECT id FROM file))
 `
 
 func (q *Queries) PurgeOrphanFiles(ctx context.Context) error {
@@ -392,6 +463,30 @@ DELETE FROM file WHERE owner_kind = 'trash' AND owner_id < ?1
 // A deleted file waits in the trash with the second it went there as its owner.
 func (q *Queries) PurgeTrash(ctx context.Context, before int64) error {
 	_, err := q.db.ExecContext(ctx, purgeTrash, before)
+	return err
+}
+
+const setFileThumb = `-- name: SetFileThumb :exec
+UPDATE file SET thumb_id = ?1, width = ?2, height = ?3, color = ?4
+WHERE id = ?5
+`
+
+type SetFileThumbParams struct {
+	ThumbID sql.NullInt64
+	Width   int64
+	Height  int64
+	Color   string
+	ID      int64
+}
+
+func (q *Queries) SetFileThumb(ctx context.Context, arg SetFileThumbParams) error {
+	_, err := q.db.ExecContext(ctx, setFileThumb,
+		arg.ThumbID,
+		arg.Width,
+		arg.Height,
+		arg.Color,
+		arg.ID,
+	)
 	return err
 }
 

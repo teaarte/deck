@@ -195,7 +195,7 @@ type renderer struct {
 	dialogs []string
 	// tabs counts the tabs a block is inside, hidden those of them not shown.
 	tabs, hidden int
-	every   bool
+	every        bool
 	// skipped is set once a block of a closed dialog was left unread; good names the blocks that drew.
 	skipped bool
 	good    []string

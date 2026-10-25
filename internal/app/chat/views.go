@@ -13,6 +13,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
+	"deck2/internal/files"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -79,10 +80,11 @@ type fileView struct {
 	Type string `json:"type"`
 	Size int64  `json:"size"`
 	URL  string `json:"url"`
+	files.Seen
 }
 
 func viewFile(f db.File) fileView {
-	return fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, URL: fmt.Sprintf("/api/files/%d", f.ID)}
+	return fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, URL: fmt.Sprintf("/api/files/%d", f.ID), Seen: files.SeenOf(f)}
 }
 
 // made are the files a reply and the processes it started kept, in order.

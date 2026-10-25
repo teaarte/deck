@@ -312,7 +312,7 @@
         "archived": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
         "messages": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "role", "text", "created_at"], "properties": {
           "id": {"type": "integer"}, "role": {"enum": ["owner", "master"]}, "text": {"type": "string"}, "process": {"type": "integer"},
-          "files": {"type": "array", "description": "the files the owner attached, or that the reply and the processes it started made", "items": {"type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"}, "url": {"type": "string"}}}},
+          "files": {"type": "array", "description": "the files the owner attached, or that the reply and the processes it started made", "items": {"type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"}, "url": {"type": "string"}, "thumb": {"type": "string", "description": "the light copy of a picture, shown small; the file itself only in a viewer"}, "width": {"type": "integer"}, "height": {"type": "integer"}, "color": {"type": "string", "description": "the main color of the picture, shown while it loads"}}}},
           "screen": {"type": "object", "description": "the screen the owner wrote it on: project, screen, record, process"},
           "reply": {"$ref": "#/$defs/reply"}, "created_at": {"type": "string"}, "delete": {"$ref": "#/$defs/action", "description": "takes back a message of the owner no reply took yet"},
           "work": {"type": "object", "additionalProperties": false, "required": ["provider", "seconds", "steps", "processes"], "description": "how a reply of the master went",
@@ -395,7 +395,7 @@
         "files": {"type": "array", "items": {
           "type": "object", "required": ["id"], "additionalProperties": false,
           "properties": {"id": {}, "title": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"},
-            "url": {"type": "string", "description": "where the client reads the file, with its token"}, "icon": {"type": "string", "description": "the icon of a line that is no file; its tile presses the primary button"}, "error": {"type": "string"},
+            "url": {"type": "string", "description": "where the client reads the file, with its token"}, "thumb": {"type": "string", "description": "the light copy of a picture, shown small; the file itself only in a viewer"}, "width": {"type": "integer"}, "height": {"type": "integer"}, "color": {"type": "string", "description": "the main color of the picture, shown while it loads"}, "icon": {"type": "string", "description": "the icon of a line that is no file; its tile presses the primary button"}, "error": {"type": "string"},
             "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
         }},
         "crumbs": {"type": "array", "description": "the steps of the folder a file manager shows, its root first, each with the button that opens it", "items": {

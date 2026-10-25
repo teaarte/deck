@@ -34,6 +34,9 @@ func (l Layout) Files() string { return l.state("files") }
 func (l Layout) File(id int64) string { return l.state("files", fmt.Sprint(id)) }
 func (l Layout) Backups() string      { return l.state("backups") }
 
+// Thumbs holds the light copies of the pictures of data folders.
+func (l Layout) Thumbs() string { return l.state("thumbs") }
+
 // SnapshotLayout is the time in the name of a snapshot in backups/, <kind>-<time>.tar.gz: SnapshotDaily for the
 // daily and hand ones, SnapshotDelete for those before a project is deleted.
 const (

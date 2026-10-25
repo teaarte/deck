@@ -15,6 +15,7 @@ import (
 
 	"deck2/internal/app/access"
 	"deck2/internal/paths"
+	"deck2/internal/files"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -40,10 +41,14 @@ func (s *Service) File(ctx context.Context, p db.Project, ref any) (map[string]a
 		if err != nil {
 			return nil, fmt.Errorf("no file %q in the data folder of %s; a stored file is named by its id", path, p.Name)
 		}
+		defer f.Close()
 		fi, _ := f.Stat()
-		_ = f.Close()
-		return map[string]any{"name": fi.Name(), "type": fileType(fi.Name()), "size": fi.Size(),
-			"url": "/api/files/data/" + url.PathEscape(p.Name) + "/" + escapePath(path)}, nil
+		at := "/api/files/data/" + url.PathEscape(p.Name) + "/" + escapePath(path)
+		out := map[string]any{"name": fi.Name(), "type": fileType(fi.Name()), "size": fi.Size(), "url": at}
+		if w, h := lightOf(f); w > 0 {
+			out["thumb"], out["width"], out["height"] = at+"?thumb=1", w, h
+		}
+		return out, nil
 	}
 	id, ok := fileID(ref)
 	if !ok {
@@ -59,7 +64,11 @@ func (s *Service) File(ctx context.Context, p db.Project, ref any) (map[string]a
 	if err != nil || f.ProjectID != p.ID {
 		return nil, fmt.Errorf("no file %d in %s", id, cmp.Or(p.Name, "this workspace"))
 	}
-	return map[string]any{"name": f.Name, "type": f.Type, "size": f.Size, "url": fmt.Sprintf("/api/files/%d", f.ID)}, nil
+	out := map[string]any{"name": f.Name, "type": f.Type, "size": f.Size, "url": fmt.Sprintf("/api/files/%d", f.ID)}
+	if seen := files.SeenOf(f); seen.Thumb != "" {
+		out["thumb"], out["width"], out["height"], out["color"] = seen.Thumb, seen.Width, seen.Height, seen.Color
+	}
+	return out, nil
 }
 
 func fileID(ref any) (int64, bool) {

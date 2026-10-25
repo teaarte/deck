@@ -19,6 +19,7 @@ import (
 
 	"deck2/internal/app/access"
 	"deck2/internal/home"
+	"deck2/internal/files"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -54,6 +55,7 @@ type View struct {
 	OwnerKind string `json:"owner_kind"`
 	OwnerID   int64  `json:"owner_id"`
 	CreatedAt string `json:"created_at"`
+	files.Seen
 }
 
 type filesListIn struct {
@@ -100,7 +102,7 @@ func (s *Service) filesList(ctx context.Context, act registry.Actor, in filesLis
 	name := access.Name(ctx, s.St.Q, projectID)
 	for _, f := range fs {
 		out = append(out, View{ID: f.ID, Project: name, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, OwnerID: f.OwnerID,
-			CreatedAt: f.CreatedAt})
+			CreatedAt: f.CreatedAt, Seen: files.SeenOf(f)})
 	}
 	return out, nil
 }
@@ -122,7 +124,7 @@ func (s *Service) newestFiles(ctx context.Context, act registry.Actor, project s
 	out := []View{}
 	for _, f := range fs {
 		out = append(out, View{ID: f.ID, Project: names[f.ProjectID], Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind,
-			OwnerID: f.OwnerID, CreatedAt: f.CreatedAt})
+			OwnerID: f.OwnerID, CreatedAt: f.CreatedAt, Seen: files.SeenOf(f)})
 	}
 	return out, nil
 }

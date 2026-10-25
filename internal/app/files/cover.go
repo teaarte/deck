@@ -74,14 +74,14 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 	if err != nil {
 		return nil, err
 	}
-	thumb, color := s.thumbOf(ctx, owner, p.Name, v.ID)
+	thumb, light := s.thumbOf(ctx, owner, p.Name, v.ID)
 	scheme, cur := cmp.Or(in.Scheme, "light"), s.Current(ctx, act.Workspace)
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := s.keep(ctx, q, p.ID, in.Theme, scheme, cur); err != nil {
 			return err
 		}
 		pic, err := q.PutPicture(ctx, db.PutPictureParams{ProjectID: p.ID, Slot: files.CoverSlot, Theme: in.Theme, Scheme: scheme,
-			FileID: v.ID, ThumbID: thumb, Color: color, DrawnIn: cur})
+			FileID: v.ID, ThumbID: thumb, Color: light.Color, DrawnIn: cur})
 		if err != nil {
 			return err
 		}
@@ -128,30 +128,31 @@ func (s *Service) keep(ctx context.Context, q *db.Queries, project int64, theme,
 	return q.DeletePicture(ctx, db.DeletePictureParams{ProjectID: project, Slot: files.CoverSlot, Theme: theme, Scheme: scheme})
 }
 
-// thumbOf stores the light copy of a stored picture as an upload of the project and gives it with the main color;
-// zero when the picture cannot be read, so a card shows the picture itself.
-func (s *Service) thumbOf(ctx context.Context, owner registry.Actor, project string, file int64) (sql.NullInt64, string) {
+// thumbOf stores the light copy of a stored picture as an upload of the project and gives it with the size and main
+// color of the picture; zero when the picture cannot be read, so it shows itself.
+func (s *Service) thumbOf(ctx context.Context, owner registry.Actor, project string, file int64) (sql.NullInt64, files.Light) {
 	none := sql.NullInt64{Valid: true}
 	f, err := os.Open(s.Home.File(file))
 	if err != nil {
-		return none, ""
+		return none, files.Light{}
 	}
 	defer f.Close()
-	b, color, err := files.Thumb(f)
+	l, err := files.Thumb(f)
 	if err != nil {
 		slog.Info("files: no light copy of a picture", "file", file, "err", err)
-		return none, ""
+		return none, files.Light{}
 	}
-	v, err := s.Upload(ctx, owner, project, "thumb.jpg", "image/jpeg", bytes.NewReader(b))
+	v, err := s.Upload(ctx, owner, project, "thumb.jpg", "image/jpeg", bytes.NewReader(l.JPEG))
 	if err != nil {
 		slog.Error("files: light copy of a picture", "file", file, "err", err)
-		return none, color
+		return none, l
 	}
-	return sql.NullInt64{Int64: v.ID, Valid: true}, color
+	return sql.NullInt64{Int64: v.ID, Valid: true}, l
 }
 
-// Thumbs makes the light copies of the pictures that have none yet, a few at a time.
+// Thumbs makes the light copies of the cover pictures and the stored pictures that have none yet, a few at a time.
 func (s *Service) Thumbs(ctx context.Context) {
+	defer s.fileThumbs(ctx)
 	pics, err := s.St.Q.ListPicturesWithoutThumb(ctx)
 	if err != nil {
 		return
@@ -161,9 +162,9 @@ func (s *Service) Thumbs(ctx context.Context) {
 		if err != nil {
 			continue
 		}
-		thumb, color := s.thumbOf(ctx, registry.Actor{Kind: registry.Owner, Workspace: p.WorkspaceID}, p.Name, pic.FileID)
+		thumb, light := s.thumbOf(ctx, registry.Actor{Kind: registry.Owner, Workspace: p.WorkspaceID}, p.Name, pic.FileID)
 		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			if err := q.SetPictureThumb(ctx, db.SetPictureThumbParams{ThumbID: thumb, Color: color, ID: pic.ID, FileID: pic.FileID}); err != nil {
+			if err := q.SetPictureThumb(ctx, db.SetPictureThumbParams{ThumbID: thumb, Color: light.Color, ID: pic.ID, FileID: pic.FileID}); err != nil {
 				return err
 			}
 			if thumb.Int64 == 0 {

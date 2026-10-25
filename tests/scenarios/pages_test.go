@@ -1,9 +1,20 @@
 package scenarios
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/jpeg"
+	gopng "image/png"
 	"maps"
+	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -74,5 +85,63 @@ func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 	raw, _ := json.Marshal(saved)
 	if strings.Contains(string(raw), "Chart") {
 		t.Fatalf("a custom block keeps every row: %s", raw)
+	}
+}
+
+// TestAPictureShowsSmallByItsLightCopy: a stored picture gets a light copy with the size and main color of the
+// picture, a small one is its own; a picture of a data folder has one made when asked; the copies are no files.
+func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	p := e.createProject("shorts", videosManifest)
+	png := func(w, h int) string {
+		img := image.NewRGBA(image.Rect(0, 0, w, h))
+		draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{20, 120, 220, 255}}, image.Point{}, draw.Src)
+		for i := range img.Pix {
+			img.Pix[i] ^= byte(i * 7)
+		}
+		var b bytes.Buffer
+		_ = gopng.Encode(&b, img)
+		return b.String()
+	}
+	big := e.upload("shorts", "big.png", "image/png", png(1600, 900))
+	small := e.upload("shorts", "small.png", "image/png", png(64, 36))
+	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "wide.png"), []byte(png(1500, 500)), 0o600)); err != nil {
+		t.Fatal(err)
+	}
+	e.App.Files.Thumbs(context.Background())
+	var list []struct {
+		ID            int64
+		Thumb, Color  string
+		Width, Height int
+	}
+	e.must("deck.files_list", map[string]any{"project": "shorts"}, &list)
+	seen := map[int64]string{}
+	for _, f := range list {
+		seen[f.ID] = fmt.Sprintf("%s %dx%d %t", f.Thumb, f.Width, f.Height, f.Color != "")
+	}
+	if len(list) != 2 || seen[small] != fmt.Sprintf("/api/files/%d 64x36 true", small) || !strings.HasSuffix(seen[big], " 1600x900 true") ||
+		strings.Contains(seen[big], fmt.Sprintf("/api/files/%d ", big)) {
+		t.Fatalf("a picture has its light copy with its size, a small one is its own, and the copies are no files: %v", seen)
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+		map[string]any{"slug": "a", "file": fmt.Sprint(big)}, map[string]any{"slug": "b", "file": "wide.png"})}, nil)
+	var files []struct {
+		URL, Thumb    string
+		Width, Height int
+	}
+	_ = json.Unmarshal(e.screenData("shorts", "watch", nil)["b0"]["files"], &files)
+	if len(files) != 2 || files[0].Thumb == "" || files[0].Thumb == files[0].URL || files[1].Thumb != files[1].URL+"?thumb=1" || files[1].Width != 1500 {
+		t.Fatalf("a media block gives the light copy and the size of each picture: %+v", files)
+	}
+	req, _ := http.NewRequest("GET", e.URL+files[1].Thumb, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if cfg, err := jpeg.DecodeConfig(resp.Body); err != nil || cfg.Width != 720 {
+		t.Fatalf("the light copy of a picture of a data folder is a JPEG as wide as a light copy: %+v %v", cfg, err)
 	}
 }

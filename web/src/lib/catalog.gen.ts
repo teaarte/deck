@@ -371,6 +371,16 @@ export interface Data {
      */
     url?: string;
     /**
+     * the light copy of a picture, shown small; the file itself only in a viewer
+     */
+    thumb?: string;
+    width?: number;
+    height?: number;
+    /**
+     * the main color of the picture, shown while it loads
+     */
+    color?: string;
+    /**
      * the icon of a line that is no file; its tile presses the primary button
      */
     icon?: string;
@@ -886,6 +896,16 @@ export interface ChatValue {
       type?: string;
       size?: number;
       url?: string;
+      /**
+       * the light copy of a picture, shown small; the file itself only in a viewer
+       */
+      thumb?: string;
+      width?: number;
+      height?: number;
+      /**
+       * the main color of the picture, shown while it loads
+       */
+      color?: string;
     }[];
     /**
      * the screen the owner wrote it on: project, screen, record, process

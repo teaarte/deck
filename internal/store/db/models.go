@@ -141,6 +141,10 @@ type File struct {
 	Size      int64
 	CreatedAt string
 	ProcessID sql.NullInt64
+	ThumbID   sql.NullInt64
+	Width     int64
+	Height    int64
+	Color     string
 }
 
 type FolderLock struct {

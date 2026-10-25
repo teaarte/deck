@@ -174,7 +174,11 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 
 // downloadData gives a file of the data folder of a project, which a media block shows.
 func (s *Server) downloadData(w http.ResponseWriter, r *http.Request) {
-	f, file, err := s.app.Files.OpenDataFile(r.Context(), actor(r), r.PathValue("project"), r.PathValue("path"))
+	open := s.app.Files.OpenDataFile
+	if r.URL.Query().Get("thumb") != "" {
+		open = s.app.Files.OpenDataThumb
+	}
+	f, file, err := open(r.Context(), actor(r), r.PathValue("project"), r.PathValue("path"))
 	serveFile(w, r, f.Name, f.Type, file, err)
 }
 

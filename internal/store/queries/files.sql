@@ -27,7 +27,8 @@ WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
    OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
    OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message))
    OR (owner_kind = 'model' AND owner_id NOT IN (SELECT id FROM model))
-   OR (owner_kind = 'picture' AND owner_id NOT IN (SELECT id FROM picture));
+   OR (owner_kind = 'picture' AND owner_id NOT IN (SELECT id FROM picture))
+   OR (owner_kind = 'thumb' AND owner_id NOT IN (SELECT id FROM file));
 
 
 -- name: PurgeTrash :exec
@@ -48,7 +49,7 @@ WHERE id = sqlc.arg(id) AND project_id = sqlc.arg(project_id) AND owner_kind = s
 
 -- name: ListWorkspaceFiles :many
 SELECT * FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
-  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER)) AND owner_kind NOT IN ('trash', 'keeping', 'model')
+  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER)) AND owner_kind NOT IN ('trash', 'keeping', 'model', 'thumb')
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 
@@ -74,3 +75,13 @@ ORDER BY f.id;
 
 -- name: ListOwnedFiles :many
 SELECT * FROM file WHERE owner_kind = ? AND owner_id = ? ORDER BY id;
+
+
+-- name: ListImagesWithoutThumb :many
+-- The stored pictures deck has not tried a light copy of yet.
+SELECT * FROM file WHERE thumb_id IS NULL AND type LIKE 'image/%' AND owner_kind NOT IN ('thumb', 'trash', 'keeping') ORDER BY id DESC LIMIT 20;
+
+
+-- name: SetFileThumb :exec
+UPDATE file SET thumb_id = sqlc.narg(thumb_id), width = sqlc.arg(width), height = sqlc.arg(height), color = sqlc.arg(color)
+WHERE id = sqlc.arg(id);

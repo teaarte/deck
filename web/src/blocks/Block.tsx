@@ -8,6 +8,7 @@ import s from './blocks.module.css';
 import { IconTitle } from '../ui/IconTitle';
 import { Pending } from '../ui/Pending';
 import { useLive } from '../lib/events';
+import { tally } from '../lib/tally';
 import { readBlock } from '../screen/press';
 import { Actions } from '../ui/actions/Actions';
 import { Filters } from './Filters';
@@ -25,6 +26,7 @@ export function Block({ title, icon, span, description, data, context, empty, ba
 }) {
   const { t } = useTranslation();
   const old = !useLive();
+  tally('block');
   let body: ReactNode;
   const own = data?.state === 'empty' ? empty?.(data) : undefined;
   if (!data) body = <Pending text={t('state.loading')} />;

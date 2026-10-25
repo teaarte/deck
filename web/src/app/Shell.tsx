@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
+import { tally } from '../lib/tally';
 import { openTopic, setChatScreen } from '../chat/chatStore';
 import { useFocusHandoff } from '../hooks/useFocusHandoff';
 import { entryOf, MenuContext, useMenu } from '../hooks/useMenu';
@@ -30,6 +31,7 @@ export function Shell() {
   const { t } = useTranslation();
   const route = useRoute();
   const menu = useMenu();
+  tally('shell');
   const asks = menu.pulse.asks;
   useEffect(() => {
     if (!('setAppBadge' in navigator)) return;

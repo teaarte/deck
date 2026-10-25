@@ -39,6 +39,11 @@ DELETE FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND for_master = 1 
 INSERT INTO feed (workspace_id, project_id, kind, author, text, created_at, cause)
 SELECT j.workspace_id, j.id, 'note', 'deck', sqlc.arg(text), sqlc.arg(created_at), sqlc.arg(cause) FROM project j WHERE j.id = sqlc.arg(project_id);
 
+-- name: ReadNotesOfProcess :exec
+UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE process_id = sqlc.arg(process_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;
+
+
 -- name: MarkFeedRead :execrows
 UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;

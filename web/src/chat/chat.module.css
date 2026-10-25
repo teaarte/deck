@@ -258,6 +258,19 @@
   }
 }
 
+.told {
+  max-width: min(100%, 560px);
+  padding: 10px 12px;
+  border-radius: var(--deck-block-radius);
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--mantine-color-default-hover);
+
+  &[data-tone='error'] {
+    border-color: color-mix(in srgb, var(--mantine-color-red-6) 30%, transparent);
+    background: color-mix(in srgb, var(--mantine-color-red-6) 6%, transparent);
+  }
+}
+
 .left {
   padding: 6px 6px 6px 10px;
   border-radius: var(--mantine-radius-default);

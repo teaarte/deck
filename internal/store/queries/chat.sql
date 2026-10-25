@@ -62,7 +62,7 @@ LIMIT 1;
 
 -- name: OpenTopicProcess :one
 SELECT p.* FROM process p
-WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = ? AND process_id != 0)
+WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = ? AND process_id != 0 AND role != 'deck')
   AND p.finished_at IS NULL
 ORDER BY p.id DESC
 LIMIT 1;
@@ -120,7 +120,7 @@ SELECT t.id, t.title, t.archived, t.updated_at, t.model,
         '') AS TEXT) AS project
 FROM chat_topic t
 LEFT JOIN process op ON op.id = (SELECT p.id FROM process p
-    WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = t.id AND process_id != 0) AND p.finished_at IS NULL
+    WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = t.id AND process_id != 0 AND role != 'deck') AND p.finished_at IS NULL
     ORDER BY p.id DESC LIMIT 1)
 WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL
     AND (CAST(sqlc.arg(topic) AS INTEGER) = 0 AND t.archived = sqlc.arg(archived) OR t.id = CAST(sqlc.arg(topic) AS INTEGER))

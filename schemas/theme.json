@@ -82,7 +82,7 @@
       "board-card": "[data-lane] [data-card]", "toast": "[data-toast]", "meadow": "[data-meadow]", "places": "[data-places]", "place": "[data-places] > a", "hero": "[data-hero]", "screen-head": "[data-screen-head]", "actions": "[data-actions]",
       "composer": "[data-composer]", "message": "[data-message]", "bubble": "[data-bubble]", "chat-link": "[data-message='master'] a[href^='#/']",
       "turn": "[data-turn]", "turn-head": "[data-turn-head]", "turn-step": "[data-turn-step]", "turn-log": "[data-turn-log]",
-      "suggest": "[data-suggest]", "chat-ask": "[data-chat-ask]", "question": "[data-question]", "cut": "[data-reply-cut]", "hearing": "[data-hearing]",
+      "suggest": "[data-suggest]", "chat-ask": "[data-chat-ask]", "question": "[data-question]", "cut": "[data-reply-cut]", "told": "[data-told]", "hearing": "[data-hearing]",
       "backdrop": "[data-backdrop] > div",
       "asks": "[data-asks]", "running": "[data-running]",
       "button": ".mantine-Button-root", "icon-button": ".mantine-ActionIcon-root", "field": ".mantine-Input-input",

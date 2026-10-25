@@ -2,7 +2,7 @@ import { lazy, memo, Suspense } from 'react';
 import { ActionIcon, Badge, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { formatted } from '../lib/format';
+import { formatted, toneColor } from '../lib/format';
 import type { ChatData } from './chatData';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
@@ -36,6 +36,28 @@ function Meta({ w }: { w: WorkValue }) {
     w.subscription_usd !== undefined ? t('chat.subscription', { cost: cost(w.subscription_usd) }) : '',
     t('chat.worked', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('chat.steps', { count: w.steps }) : ''].filter(Boolean);
   return <Text size="xs" c="dimmed" data-work-meta>{parts.join(' · ')}</Text>;
+}
+
+type Told = NonNullable<ChatMessage['told']>;
+
+// Told is a line deck wrote itself: how a work started from the topic ended, with its result, why it failed or what
+// it waits for, and the button that opens its process.
+function Told({ m, told }: { m: ChatMessage; told: Told }) {
+  const { t } = useTranslation();
+  const failed = told.tone === 'error';
+  return (
+    <Stack gap={6} className={s.told} data-message="deck" data-told={told.state} data-tone={told.tone}>
+      <Group gap={6} wrap="nowrap" justify="space-between">
+        <Text size="sm" fw={650} data-told-head>
+          {t('chat.told', { work: `${told.project}.${told.command}` })} <Text span c={toneColor(told.tone) ?? 'dimmed'} inherit>{told.word}</Text>
+        </Text>
+        <ActionButton act={{ ...told.open, label: t('chat.told_open'), verb: undefined }} />
+      </Group>
+      {failed && told.reason && <Text size="sm">{told.reason}</Text>}
+      {failed && told.error && <Details text={told.error} />}
+      {told.state === 'done' && m.text && <Markdown text={m.text} />}
+    </Stack>
+  );
 }
 
 type Reply = NonNullable<ChatMessage['reply']>;
@@ -96,6 +118,7 @@ function ReplyState({ reply, latest }: { reply: Reply; latest: boolean }) {
 export const Message = memo(function Message({ m, latest }: { m: ChatMessage; latest: boolean }) {
   const { t } = useTranslation();
   const mascot = useMascot();
+  if (m.role === 'deck') return m.told ? <Told m={m} told={m.told} /> : null;
   if (m.role === 'owner') {
     // A picture attached shows as its light copy, another file by its name.
     const pictures = (m.files ?? []).filter((f) => f.thumb);

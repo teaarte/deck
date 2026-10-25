@@ -53,9 +53,9 @@ func (h Hook) Turn(ctx context.Context, p db.Process, text string) {
 // reply ran, once the reply closes or parks.
 type Hook struct{ ch *Service }
 
-func (h Hook) Closed(ctx context.Context, p db.Process) { h.goOn(ctx, p) }
+func (h Hook) Closed(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.ch.tell(ctx, p) }
 
-func (h Hook) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p) }
+func (h Hook) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.ch.tell(ctx, p) }
 
 func (h Hook) goOn(ctx context.Context, p db.Process) {
 	if topic := h.ch.replyOf(ctx, p); topic != 0 {

@@ -29,7 +29,8 @@ and the owner's.
    `.place` are the tabs of the screens under the head, `.nav` the tabs at the foot of a phone, `.nav-item` one.
    The chat: `.message` (`.bubble` the owner's, `.chat-link` a link of a reply), `.turn` with `.turn-head`,
    `.turn-step` and `.turn-log`, `.suggest`, `.chat-ask` (a yes it waits for), `.question`, `.cut` (a reply that
-   broke off), `.composer` and `.hearing` (the voice being recorded). Radius `0` squares all of them already.
+   broke off), `.told` (deck's line of how a work from the topic went), `.composer` and `.hearing` (the voice
+   being recorded). Radius `0` squares all of them already.
 6. `deck.theme_check` with the text names every problem; fix them all, then `deck.theme_save`. Its answer
    gives two preview addresses, light and dark: give them to the owner as links, and `unreached`, the parts of
    deck no theme changes yet: do not chase them with CSS.

@@ -368,3 +368,13 @@ func (q *Queries) PurgeOldNotes(ctx context.Context, before string) error {
 	_, err := q.db.ExecContext(ctx, purgeOldNotes, before)
 	return err
 }
+
+const readNotesOfProcess = `-- name: ReadNotesOfProcess :exec
+UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE process_id = ?1 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+`
+
+func (q *Queries) ReadNotesOfProcess(ctx context.Context, processID sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, readNotesOfProcess, processID)
+	return err
+}

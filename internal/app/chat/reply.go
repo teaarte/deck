@@ -397,6 +397,12 @@ func (ch *Service) topicProcesses(ctx context.Context, t db.ChatTopic) string {
 func transcript(ms []db.ChatMessage) string {
 	var b strings.Builder
 	for _, m := range ms {
+		if m.Role == roleDeck {
+			var s toldState
+			_ = json.Unmarshal([]byte(m.Context), &s)
+			fmt.Fprintf(&b, "deck: process #%d %s: %s\n", m.ProcessID, s.State, strings.TrimSpace(m.Text))
+			continue
+		}
 		fmt.Fprintf(&b, "%s: %s\n", m.Role, strings.TrimSpace(m.Text))
 	}
 	return b.String()

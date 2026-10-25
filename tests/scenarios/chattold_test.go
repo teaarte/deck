@@ -1,0 +1,140 @@
+package scenarios
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync/atomic"
+	"testing"
+
+	"deck2/internal/provider"
+)
+
+type toldMessage struct {
+	Role    string `json:"role"`
+	Text    string `json:"text"`
+	Process int64  `json:"process"`
+	Told    *struct {
+		ID      int64  `json:"id"`
+		Project string `json:"project"`
+		Command string `json:"command"`
+		State   string `json:"state"`
+		Word    string `json:"word"`
+		Tone    string `json:"tone"`
+		Reason  string `json:"reason"`
+		Error   string `json:"error"`
+		Open    struct {
+			Screen string `json:"screen"`
+			Record int64  `json:"record"`
+		} `json:"open"`
+	} `json:"told"`
+}
+
+// told waits for the message deck writes into topic of a work in state, read in lang.
+func (e *Env) told(topic int64, state, lang string) toldMessage {
+	e.T.Helper()
+	var got toldMessage
+	e.waitFor("deck tells the topic of a work "+state, func() bool {
+		var view struct{ Messages []toldMessage }
+		e.chatRead(map[string]any{"topic": fmt.Sprint(topic), "lang": lang}, &view)
+		for _, m := range view.Messages {
+			if m.Role == "deck" && m.Told != nil && m.Told.State == state {
+				got = m
+				return true
+			}
+		}
+		return false
+	})
+	return got
+}
+
+// handOver is a reply of the master that hands the owner's task to master.work with its topic; a resumed reply
+// names no command, and its topic is the one the first named.
+func handOver(ctx context.Context, c *Call, topic *atomic.Int64) provider.Result {
+	var in struct{ Topic int64 }
+	if m := inputOf.FindStringSubmatch(c.Req.Prompt); m != nil && json.Unmarshal([]byte(m[1]), &in) == nil && in.Topic != 0 {
+		topic.Store(in.Topic)
+	}
+	if out, bad := c.Tool(ctx, "master__work", map[string]any{"task": "count the records", "topic": topic.Load()}); bad {
+		return provider.Result{Text: "refused: " + out}
+	}
+	return provider.Result{Text: "Handed it over."}
+}
+
+// A work the master started from a chat topic tells that topic how it ended: its result when done, why in the
+// owner's words when it failed, and the note it left in the feed is read then.
+func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
+	t.Parallel()
+	var works atomic.Int32
+	var replies atomic.Int64
+	var from atomic.Int64
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() != "work" {
+			if replies.Add(1) == 3 {
+				return provider.Result{Text: "ok"}
+			}
+			return handOver(ctx, c, &from)
+		}
+		switch works.Add(1) {
+		case 2:
+			return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
+		case 3:
+			c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{
+				{"question": "Which collection?", "options": []map[string]any{{"label": "tasks"}, {"label": "notes"}}}}})
+			return provider.Result{Text: "Waiting for the owner."}
+		}
+		c.Tool(ctx, "notify", map[string]any{"project": "master", "text": "Counted: 3 records."})
+		return provider.Result{Text: "Counted: **3 records**."}
+	})
+	topic := e.say(0, "count the records")
+	done := e.told(topic, "done", "ru")
+	if done.Text != "Counted: **3 records**." || done.Told.Command != "work" || done.Told.Word != "готово" || done.Told.Tone != "ok" {
+		t.Fatalf("a work done tells its result and its state in the owner's words: %+v %+v", done, done.Told)
+	}
+	if done.Told.Open.Screen != "process" || done.Told.Open.Record != done.Process || done.Process == 0 {
+		t.Fatalf("the message opens the process of the work: %+v", done.Told)
+	}
+	e.waitFor("the note of the work is read", func() bool {
+		for _, n := range e.notes() {
+			if strings.Contains(n.Text, "Counted: 3 records.") {
+				return n.Read
+			}
+		}
+		return false
+	})
+	var view struct{ Messages []toldMessage }
+	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	deck := 0
+	for _, m := range view.Messages {
+		if m.Role == "deck" {
+			deck++
+		}
+	}
+	if deck != 1 {
+		t.Fatalf("one message of deck for one work: %+v", view.Messages)
+	}
+
+	e.say(topic, "count again")
+	failed := e.told(topic, "error", "ru")
+	if failed.Told.Reason != "агент сообщил об ошибке" || !strings.Contains(failed.Told.Error, "the site is down") || failed.Told.Tone != "error" {
+		t.Fatalf("a work that failed says why in the owner's words: %+v", failed.Told)
+	}
+	e.say(topic, "and now?")
+	e.masterSaid(topic, 3)
+	var after struct {
+		Topic struct {
+			Reply *topicReply `json:"reply"`
+		} `json:"topic"`
+	}
+	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &after)
+	if after.Topic.Reply != nil && after.Topic.Reply.State != "done" {
+		t.Fatalf("a message of deck does not make its work the reply of the topic: %+v", after.Topic.Reply)
+	}
+
+	e.say(topic, "count the notes")
+	waits := e.told(topic, "waiting_answer", "ru")
+	if !strings.HasPrefix(waits.Told.Word, "ждёт вашего ответа") || !strings.Contains(waits.Told.Word, "Which collection?") || waits.Told.Tone != "warn" {
+		t.Fatalf("a work that waits for the owner says what it waits for: %+v", waits.Told)
+	}
+}

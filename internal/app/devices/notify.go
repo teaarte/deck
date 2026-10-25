@@ -96,7 +96,8 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 	at := store.Time(dv.Now())
 	err = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		n, err := q.AddFeed(ctx, db.AddFeedParams{CreatedAt: at, WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedNote, Author: act.Author(),
-			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw), Params: "{}", Cause: strings.TrimSpace(in.Cause)})
+			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw), Params: "{}", Cause: strings.TrimSpace(in.Cause),
+			ProcessID: store.ID(act.ProcessID)})
 		if errors.Is(err, sql.ErrNoRows) && in.Cause != "" {
 			// The note became a part of the unread one of its cause.
 			id, err = q.CauseNote(ctx, db.CauseNoteParams{WorkspaceID: p.WorkspaceID, Cause: strings.TrimSpace(in.Cause), CreatedAt: at})

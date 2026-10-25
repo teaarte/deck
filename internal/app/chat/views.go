@@ -67,7 +67,9 @@ type messageView struct {
 	Reply   *replyView      `json:"reply,omitempty"`
 	Files   []fileView      `json:"files,omitempty"`
 	// Work is how the reply went, on the last message of the master of each reply.
-	Work      *workView `json:"work,omitempty"`
+	Work *workView `json:"work,omitempty"`
+	// Told is how a work started from the topic went, on a message of deck.
+	Told      *toldView `json:"told,omitempty"`
 	CreatedAt string    `json:"created_at"`
 	// Delete takes back a message of the owner no reply took yet.
 	Delete action `json:"delete,omitempty"`
@@ -164,7 +166,7 @@ func viewMessage(m db.ChatMessage) messageView {
 	if m.Role == roleOwner && m.ProcessID == 0 {
 		v.Delete = chatAction("delete", registry.Builtin+".chat_message_delete", map[string]any{"message": m.ID})
 	}
-	if m.Context != "" {
+	if m.Context != "" && m.Role != roleDeck {
 		v.Screen = json.RawMessage(m.Context)
 	}
 	return v
@@ -193,7 +195,7 @@ func (ch *Service) topics(ctx context.Context, workspace int64, archived bool, t
 }
 
 // messages are messages of a topic with the reply each message of the owner got and the files it has.
-func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMessage, tr func(string) string) []messageView {
+func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMessage, ws map[string]string, tr func(string) string) []messageView {
 	replies := map[int64]*replyView{}
 	files := map[int64][]fileView{}
 	if fs, err := ch.St.Q.ListMessageFiles(ctx, topic); err == nil {
@@ -213,6 +215,9 @@ func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMess
 				m.Work = ch.work(ctx, p, tr)
 				files[r.ID] = append(files[r.ID], ch.made(ctx, p)...)
 			}
+		}
+		if r.Role == roleDeck {
+			m.Told = ch.told(ctx, r, ws, tr)
 		}
 		m.Files = files[r.ID]
 		if r.Role == roleOwner && r.ProcessID == 0 && unstarted != "" {
@@ -289,7 +294,7 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 		if err != nil {
 			return v, err
 		}
-		v.Messages = ch.messages(ctx, t.ID, rows, tr)
+		v.Messages = ch.messages(ctx, t.ID, rows, ch.Words(in.Lang), tr)
 	}
 	if len(v.Messages) == 0 {
 		v.Suggest = ch.suggest(ctx, act.Workspace, in.Project, in.Lang)

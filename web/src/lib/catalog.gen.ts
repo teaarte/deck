@@ -909,7 +909,10 @@ export interface ChatValue {
   archived?: Topic[];
   messages?: {
     id: number;
-    role: "owner" | "master";
+    /**
+     * deck: a message deck wrote itself, how a work started from the topic went
+     */
+    role: "owner" | "master" | "deck";
     text: string;
     process?: number;
     /**
@@ -939,6 +942,30 @@ export interface ChatValue {
     reply?: Reply;
     created_at: string;
     delete?: Action7;
+    /**
+     * on a message of deck: the work it tells of, in the state it was in; its text is the result, or what it waits for
+     */
+    told?: {
+      id: number;
+      project: string;
+      command: string;
+      state: string;
+      open: Action;
+      /**
+       * the state in the owner's words
+       */
+      word?: string;
+      tone?: Tone;
+      waits?: boolean;
+      /**
+       * why a failed work failed, in the owner's words
+       */
+      reason?: string;
+      /**
+       * what deck wrote of the failure
+       */
+      error?: string;
+    };
     /**
      * how a reply of the master went
      */

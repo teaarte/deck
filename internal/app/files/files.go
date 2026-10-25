@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"deck2/internal/app/access"
-	"deck2/internal/home"
 	"deck2/internal/files"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"

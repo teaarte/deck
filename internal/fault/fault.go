@@ -162,3 +162,14 @@ func FromScript(t string) string {
 	}
 	return ScriptFailed
 }
+
+// said is a failure by its type in the owner's words, a phrase of deck to translate.
+var said = map[string]string{
+	ModelLimit: "the model's usage limit", ModelUnavailable: "the model did not answer", ModelLogin: "the model wants a login",
+	AgentLoop: "the agent went round in circles", DeckTools: "deck's tools failed", DeckRestart: "deck restarted",
+	DeckInternal: "an error of deck", DeckStopped: "deck stopped it", Timeout: "it ran out of time", Network: "the network failed",
+	RightsDenied: "a right was refused", Stopped: "you stopped it", TaskFailed: "the agent reported an error",
+}
+
+// Said is a failure of type t in words, a phrase of deck; empty for a type the text says better.
+func Said(t string) string { return said[t] }

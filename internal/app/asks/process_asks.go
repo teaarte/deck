@@ -74,9 +74,7 @@ type pressAsk struct {
 	Deny  map[string]any `json:"deny"`
 }
 
-func answer(id int64, verb string) map[string]any {
-	return map[string]any{"verb": verb, "command": registry.Builtin + ".ask_answer", "params": map[string]any{"ask": id, "answer": verb}}
-}
+func answer(id int64, verb string) map[string]any { return button(id, verb, verb) }
 
 // asksOf are the open calls of a process and of its result, and whether it ended.
 func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project int64, lang string) ([]pressAsk, bool, error) {

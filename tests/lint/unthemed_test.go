@@ -14,14 +14,14 @@ func TestTheClientTakesItsLookFromTheTheme(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := lint.ReadRatchet("unthemed.txt")
+	r, err := lint.ReadRatchet("../../internal/theme/unthemed.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range r.Against(vs) {
 		t.Error(f)
 	}
-	for _, clean := range []string{"web/src/app/", "web/src/apps/"} {
+	for _, clean := range []string{"web/src/app/", "web/src/apps/", "web/src/chat/", "web/src/ui/actions/PressAsks.tsx"} {
 		for f := range r {
 			if strings.HasPrefix(f, clean) {
 				t.Errorf("%s is to be clean, not on the ratchet", f)

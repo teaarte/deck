@@ -1,4 +1,4 @@
-import { createTheme, DEFAULT_THEME, type MantineThemeOverride } from '@mantine/core';
+import { Avatar, Badge, createTheme, DEFAULT_THEME, Switch, type MantineThemeOverride } from '@mantine/core';
 import { colors, palette } from './palette';
 import type { Worn } from './worn';
 import { createStore, useStore } from '../lib/store';
@@ -61,6 +61,12 @@ const scaled = (sizes: Record<string, string>, by: number) =>
 const SYSTEM = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 const SPACE = { compact: 0.75, default: 1, comfortable: 1.25 };
+// SQUARE are the parts Mantine rounds by its own pill radius, squared in a theme of radius 0.
+const SQUARE = {
+  Avatar: Avatar.extend({ defaultProps: { radius: 0 } }),
+  Badge: Badge.extend({ defaultProps: { radius: 0 } }),
+  Switch: Switch.extend({ defaultProps: { radius: 0 } }),
+};
 
 // theme is the Mantine theme of the worn theme and this device: the accent is the primary color, the density of the
 // device scales the theme's, font the text.
@@ -76,6 +82,8 @@ export function theme(l: Look, w: Worn): MantineThemeOverride {
     autoContrast: true,
     respectReducedMotion: true,
     defaultRadius: w.radius === '0' ? 0 : w.radius,
+    // A theme of radius 0 squares every radius of deck, the round ones too.
+    ...(w.radius === '0' ? { radius: { xs: '0', sm: '0', md: '0', lg: '0', xl: '0' }, components: SQUARE } : {}),
     spacing: scaled(DEFAULT_THEME.spacing, space),
     fontSizes: scaled(DEFAULT_THEME.fontSizes, text),
     fontFamily: w.font.text || SYSTEM,

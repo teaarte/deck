@@ -72,3 +72,8 @@ export function useChatPanel() {
   const isOpen = useStore(open);
   return { open: isOpen, setOpen: setChatOpen };
 }
+
+// The turn of the topic shown works; the head of the chat panel says so.
+const live = createStore(false);
+export const setTurnLive = (v: boolean) => live.set(v);
+export const useTurnLive = () => useStore(live);

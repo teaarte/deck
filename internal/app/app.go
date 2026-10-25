@@ -162,7 +162,10 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Words: screens.Phrases, Said: a.Runner.Said}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
-		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Go: a.bg.Go, Words: screens.Phrases}
+		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Go: a.bg.Go, Words: screens.Phrases,
+		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
+			return a.Answers.Of(ctx, act, ps, lang)
+		}}
 	a.Devices = devices.Service{St: st, Now: cfg.Now,
 		Home: h, Invoke: a.Registry.Invoke, DeckScreen: screens.DeckScreen, Waiting: a.Answers.Waiting, Words: screens.Phrases}
 	a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}

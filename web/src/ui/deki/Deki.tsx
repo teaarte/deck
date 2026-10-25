@@ -36,7 +36,7 @@ export function Deki({ mood, size, still }: { mood: Mood; size: number; still?: 
 export function DekiHead({ size, square }: { size: number; square?: boolean }) {
   if (!useMascot()) return null;
   return (
-    <span className={s.head} style={{ width: size, height: size, borderRadius: square ? Math.round(size / 3) : '50%' }} data-deki="head">
+    <span className={s.head} style={{ width: size, height: size, borderRadius: `min(${square ? Math.round(size / 3) + 'px' : '50%'}, calc(var(--mantine-radius-default) * 100))` }} data-deki="head">
       <img src="/deki/head.webp" alt="" />
     </span>
   );

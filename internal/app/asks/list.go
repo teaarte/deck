@@ -61,6 +61,11 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 	if err != nil {
 		return nil, err
 	}
+	return s.rows(ctx, act, in.Lang, func(q db.Ask) bool { return pid == 0 || q.ProjectID.Int64 == pid })
+}
+
+// rows are the open asks and expired confirmations keep holds for, oldest first, in the owner's words.
+func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, keep func(db.Ask) bool) ([]askRow, error) {
 	open, err := s.St.Q.ListWorkspaceOpenAsks(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -76,14 +81,14 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 	}
 	all := append(open, expired...)
 	slices.SortFunc(all, func(x, y db.Ask) int { return cmp.Compare(x.ID, y.ID) })
-	ws := s.Words(in.Lang)
+	ws := s.Words(lang)
 	tr := func(text string) string { return manifest.TrText(ws, text) }
 	out := make([]askRow, 0, len(all))
 	for _, q := range all {
-		if pid != 0 && q.ProjectID.Int64 != pid {
+		if !keep(q) {
 			continue
 		}
-		r := s.askRow(ctx, q, names, in.Lang)
+		r := s.askRow(ctx, q, names, lang)
 		r.Who, r.Always = tr(r.Who), tr(r.Always)
 		switch {
 		case q.Kind == ask.KindGrant:

@@ -29,7 +29,7 @@
   display: inline-flex;
   flex: none;
   overflow: hidden;
-  background: var(--deck-sky, #eaf4fc);
+  background: var(--deck-sky, var(--mantine-color-default-hover));
 
   & img {
     width: 100%;

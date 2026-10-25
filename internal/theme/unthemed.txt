@@ -9,15 +9,7 @@
 2 web/src/blocks/modal.tsx blocks of screens: session D8
 7 web/src/blocks/stat.module.css blocks of screens: session D8
 2 web/src/blocks/table/DataTable.tsx blocks of screens: session D8
-7 web/src/chat/chat.module.css the chat: session D5
-1 web/src/chat/Chat.tsx the chat: session D5
-8 web/src/chat/Composer.tsx the chat: session D5
-1 web/src/chat/Message.tsx the chat: session D5
-6 web/src/chat/TopicBar.tsx the chat: session D5
-1 web/src/chat/Turn.tsx the chat: session D5
 3 web/src/ui/actions/ActionsMenu.tsx buttons of blocks: session D8
 1 web/src/ui/actions/Failed.tsx buttons of blocks: session D8
-1 web/src/ui/actions/PressAsks.tsx the dialog of asks: session D5 moves them into the chat
 9 web/src/ui/chip.module.css parts of blocks: session D8
-1 web/src/ui/deki/deki.module.css Deki: session D8
 2 web/src/ui/details.module.css parts of blocks: session D8

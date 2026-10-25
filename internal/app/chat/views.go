@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"deck2/internal/app/access"
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -128,6 +130,16 @@ type chatView struct {
 	Models []string `json:"models"`
 	Model  string   `json:"model,omitempty"`
 	Choose action   `json:"choose,omitempty"`
+	// Suggest are what a new topic may ask of the module of the owner's screen; Asks what the turn going on waits
+	// for the owner to decide, its questions apart.
+	Suggest []suggestView `json:"suggest"`
+	Asks    any           `json:"asks"`
+}
+
+// suggestView is a command of a module as a text to put in the field.
+type suggestView struct {
+	Icon string `json:"icon"`
+	Text string `json:"text"`
 }
 
 func viewReply(p db.Process, tr func(string) string) *replyView {
@@ -200,7 +212,7 @@ func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMess
 				replies[r.ProcessID] = nil
 				if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
 					replies[r.ProcessID] = viewReply(p, tr)
-					replies[r.ProcessID].Cut = ch.cut(ctx, p, r.ID)
+					replies[r.ProcessID].Cut = ch.cut(ctx, p, r.ID, tr)
 				}
 			}
 			m.Reply = replies[r.ProcessID]
@@ -211,13 +223,23 @@ func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMess
 }
 
 type chatIn struct {
-	Topic string `opt:"" desc:"Topic id; new for none, the newest without one"`
-	Lang  string `opt:"" desc:"Language of the words of the states of replies, such as ru; English without one"`
+	Topic   string `opt:"" desc:"Topic id; new for none, the newest without one"`
+	Project string `opt:"" desc:"The module of the screen the owner is on, whose commands a new topic suggests"`
+	Lang    string `opt:"" desc:"Language of the words of the states of replies, such as ru; English without one"`
 }
 
-// chat is the chat with the master as a chat block shows it.
+// chat is the chat with the master as a chat block shows it; a topic without messages suggests what to ask.
 func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
-	v := chatView{Messages: []messageView{}, Questions: []questionView{}, Send: chatAction("send", registry.Builtin+".chat_send", map[string]any{})}
+	v, err := ch.view(ctx, act, in)
+	if err == nil && len(v.Messages) == 0 {
+		v.Suggest = ch.suggest(ctx, act.Workspace, in.Project, in.Lang)
+	}
+	return v, err
+}
+
+func (ch *Service) view(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
+	v := chatView{Messages: []messageView{}, Questions: []questionView{}, Suggest: []suggestView{}, Asks: []any{},
+		Send: chatAction("send", registry.Builtin+".chat_send", map[string]any{})}
 	var err error
 	ws := ch.Words(in.Lang)
 	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
@@ -270,6 +292,13 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 		Open: openProcess(open.Process), Shown: open.Shown}
 	if p, err := ch.St.Q.GetProcess(ctx, open.Process); err == nil {
 		v.Turn.StartedAt = cmp.Or(p.ReopenedAt.String, p.StartedAt)
+	}
+	turn := []int64{open.Process}
+	for _, c := range v.Turn.Processes {
+		turn = append(turn, c.ID)
+	}
+	if v.Asks, err = ch.Decisions(ctx, act, turn, in.Lang); err != nil {
+		return v, err
 	}
 	asks, err := ch.St.Q.ListOpenAsksOfProcess(ctx, open.Process)
 	if err != nil {
@@ -327,4 +356,43 @@ func (ch *Service) turnLines(processID int64) []map[string]any {
 		out = append(out, l)
 	}
 	return out
+}
+
+// suggestions is how many commands a new topic suggests.
+const suggestions = 3
+
+// suggest are the commands of a module the owner may give without input, its agents' first, by their titles in the
+// owner's language; none without a module.
+func (ch *Service) suggest(ctx context.Context, workspace int64, project, lang string) []suggestView {
+	out := []suggestView{}
+	if project == "" {
+		return out
+	}
+	p, err := ch.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: project})
+	if err != nil {
+		return out
+	}
+	m, err := docs.Manifest(ctx, ch.St.Q, p)
+	if err != nil {
+		return out
+	}
+	var agents, rest []suggestView
+	for _, c := range m.Commands {
+		var in struct {
+			Required []string `json:"required"`
+		}
+		_ = json.Unmarshal(c.Input, &in)
+		if c.Title == "" || len(in.Required) > 0 || !slices.Contains(c.Callable(), "owner") {
+			continue
+		}
+		s := suggestView{Icon: "player-play", Text: manifest.Tr(m.I18n[lang], c.Title)}
+		if c.Executor.Type == "agent" {
+			s.Icon = "sparkles"
+			agents = append(agents, s)
+		} else {
+			rest = append(rest, s)
+		}
+	}
+	out = append(append(out, agents...), rest...)
+	return out[:min(len(out), suggestions)]
 }

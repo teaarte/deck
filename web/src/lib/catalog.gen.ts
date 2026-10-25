@@ -233,11 +233,27 @@ export interface Reply {
   waits?: boolean;
   open?: Action;
   /**
-   * what a reply that broke off left
+   * what a reply that broke off or the owner stopped left
    */
   cut?: {
     /**
-     * the calls it made, in order
+     * the owner stopped it; its one retry goes on on its own provider
+     */
+    stopped?: boolean;
+    /**
+     * why it broke off, in words
+     */
+    reason?: string;
+    /**
+     * the calls of tools it made
+     */
+    steps: number;
+    /**
+     * the last thing it said
+     */
+    said?: string;
+    /**
+     * the calls it made that act, in order
      */
     did: string[];
     undo: {
@@ -978,6 +994,32 @@ export interface ChatValue {
    */
   model?: string;
   choose?: Action;
+  /**
+   * of a topic without messages: commands of the module of the owner's screen, as texts to put in the field
+   */
+  suggest: {
+    icon: string;
+    text: string;
+  }[];
+  /**
+   * what the turn going on and the processes it started wait for the owner to decide, its questions apart: items of deck.asks_list with their buttons
+   */
+  asks: {
+    id: number;
+    kind: string;
+    project?: string;
+    who?: string;
+    what: string;
+    why?: string;
+    where?: string;
+    text?: string;
+    command?: string;
+    by?: string;
+    payload?: unknown;
+    expires_at?: string;
+    expired?: boolean;
+    actions: Action[];
+  }[];
 }
 /**
  * A button: a command call or a move to a screen. verb names a built-in label the client translates.

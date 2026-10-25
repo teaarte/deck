@@ -1,12 +1,12 @@
-import { ActionIcon, Group, Text, Tooltip } from '@mantine/core';
-import { useLocalStorage } from '@mantine/hooks';
-import { IconArrowUpRight, IconChevronDown, IconChevronUp, IconPlayerStopFilled } from '@tabler/icons-react';
+import { useState } from 'react';
+import { Button, Group, Text } from '@mantine/core';
+import { IconArrowUpRight, IconCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { ChatValue } from '../lib/catalog.gen';
+import type { Action, ChatValue } from '../lib/catalog.gen';
 import { useClock } from '../hooks/useClock';
-import { formatted, toneColor } from '../lib/format';
+import { toneColor } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
-import { Deki, useMascot } from '../ui/deki/Deki';
+import { DekiHead, useMascot } from '../ui/deki/Deki';
 import { Glyph } from '../ui/Glyph';
 import { usePress } from '../ui/actions/usePress';
 import s from './chat.module.css';
@@ -16,15 +16,22 @@ type Proc = NonNullable<TurnValue['processes']>[number];
 
 const SHOWN = 6;
 
-// logLines are the calls and messages of the log as lines, a call marked by how it ended.
+const firstLine = (text?: string) => (text ?? '').split('\n').find((x) => x.trim())?.trim() ?? '';
+
+// logLines are the calls of the log as lines, each marked by how it ended.
 export function logLines(lines: TurnValue['lines'], shown = SHOWN): { key: string; text: string; failed?: boolean }[] {
   const ended = new Map(lines.filter((l) => l.kind === 'tool_update' && l.id).map((l) => [l.id!, l.status]));
-  return lines.filter((l) => l.kind !== 'tool_update').map((l, i) => {
-    if (l.kind !== 'tool') return { key: String(i), text: (l.text ?? '').split('\n').find((x) => x.trim()) ?? '' };
+  return lines.map((l, i) => ({ l, i })).filter(({ l }) => l.kind === 'tool').map(({ l, i }) => {
     const status = l.id ? ended.get(l.id) : undefined;
     return { key: String(i), text: `${status === 'failed' ? '✗' : status ? '✓' : '›'} ${l.title ?? ''}`, failed: status === 'failed' };
   }).filter((l) => l.text.trim()).slice(-shown);
 }
+
+// said are the first lines of what the agent said on the way, its steps in words.
+const said = (lines: TurnValue['lines']) => lines.filter((l) => l.kind === 'message').map((l) => firstLine(l.text)).filter(Boolean);
+
+// clock is seconds as m:ss.
+const clock = (secs: number) => `${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
 
 // Processes are the processes a reply started, each with its state in the color of its tone, and the button that
 // opens its log.
@@ -43,57 +50,64 @@ export function Processes({ list }: { list: Proc[] }) {
   );
 }
 
-// Turn is the reply going on: what it does or waits for over a soft drift, the tail of its log that opens the whole,
-// and its buttons; folded, only the line that says what it does.
+// Stop is the red word that stops the reply.
+function Stop({ act }: { act: Action }) {
+  const { t } = useTranslation();
+  const { busy, send } = usePress(act);
+  return <Button size="compact-xs" color="red" variant="light" loading={busy} onClick={() => void send()} data-verb="stop">{t('chat.stop')}</Button>;
+}
+
+// Turn is the reply going on: what it does now in its own words with a timer and Stop, the steps it said before,
+// and its raw calls folded under Log.
 export function Turn({ turn }: { turn: TurnValue }) {
   const { t } = useTranslation();
-  const [folded, setFolded] = useLocalStorage({ key: 'deck-chat-turn-folded', defaultValue: false });
+  const [log, setLog] = useState(false);
   const open = usePress(turn.open ?? {});
   const running = turn.state === 'running';
   const mascot = useMascot();
-  const lines = logLines(turn.lines);
+  const steps = said(turn.lines);
+  const calls = logLines(turn.lines);
   const now = useClock(1000, running);
   const started = turn.started_at ? Date.parse(turn.started_at) : NaN;
-  const steps = turn.lines.filter((l) => l.kind === 'tool').length;
-  const buttons = (
-    <>
-      {turn.stop && <ActionIconButton act={turn.stop} color="red" variant="light" icon={<IconPlayerStopFilled size={13} />} />}
-      {turn.open && <ActionIconButton act={turn.open} variant="default" icon={<IconArrowUpRight size={15} />} />}
-    </>
-  );
+  const head = running ? steps[steps.length - 1] ?? t(mascot ? 'chat.working_deki' : 'chat.working_master') : turn.word;
   return (
-    <div className={s.turn} data-turn={turn.state} data-folded={folded || undefined}>
-      <div className={s.turnHead} data-live={running || undefined}>
-        <span className={s.turnMark}>{mascot ? <Deki mood={running ? 'dots' : 'wait'} size={26} still /> : <Glyph busy={running} />}</span>
-        <Text size="xs" fw={500} truncate style={{ flex: 1 }}>
-          {running ? t(mascot ? 'chat.replying_deki' : 'chat.replying', { provider: turn.provider ?? '' }) : turn.word}
-        </Text>
-        {!Number.isNaN(started) && (
-          <Text size="xs" c="dimmed" data-turn-timer>
-            {formatted(Math.max(0, (now - started) / 1000), { format: 'duration' })}{steps > 0 ? ' · ' + t('chat.steps', { count: steps }) : ''}
-          </Text>
-        )}
-        {folded && buttons}
-        <Tooltip label={folded ? t('chat.unfold') : t('chat.fold')}>
-          <ActionIcon size={28} radius="xl" variant="subtle" color="gray" onClick={() => setFolded(!folded)}
-            aria-label={folded ? t('chat.unfold') : t('chat.fold')} aria-expanded={!folded} data-turn-fold>
-            {folded ? <IconChevronUp size={15} /> : <IconChevronDown size={15} />}
-          </ActionIcon>
-        </Tooltip>
+    <div className={s.turn} data-turn={turn.state}>
+      <div className={s.turnHead} data-turn-head data-live={running || undefined}>
+        <span className={s.turnMark}>{mascot ? <DekiHead size={24} /> : <Glyph busy={running} />}</span>
+        <Text size="sm" fw={600} truncate style={{ flex: 1 }} c={running ? undefined : toneColor(turn.tone)} data-turn-now>{head}</Text>
+        {running && !Number.isNaN(started) && <Text size="xs" c="dimmed" data-turn-timer>{clock(Math.max(0, (now - started) / 1000))}</Text>}
+        {turn.stop && <Stop act={turn.stop} />}
       </div>
-      {!folded && (
+      {steps.length > 1 && (
+        <div className={s.steps} data-turn-steps>
+          {steps.slice(-SHOWN).map((x, i, all) => {
+            const last = i === all.length - 1;
+            return (
+              <div key={i} className={s.step} data-now={last || undefined} data-turn-step>
+                <span className={s.stepMark}>{last ? '•' : <IconCheck size={11} />}</span>
+                <span>{x}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {calls.length > 0 && (
+        <Button size="compact-xs" variant="subtle" color="gray" className={s.logToggle} onClick={() => setLog(!log)}
+          rightSection={log ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />} aria-expanded={log} data-turn-fold>
+          {log ? t('chat.hide_log') : t('chat.log')}
+        </Button>
+      )}
+      {log && (
         <div className={s.log} data-turn-log>
           <div className={s.logLines} role={turn.open ? 'button' : undefined} tabIndex={turn.open ? 0 : undefined}
             aria-label={turn.open ? t('chat.full_log') : undefined} title={turn.open ? t('chat.full_log') : undefined}
             onClick={() => turn.open && void open.send()} onKeyDown={(e) => { if (turn.open && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void open.send(); } }}>
-            {lines.length ? lines.map((l) => (
-              <div key={l.key} className={s.logLine} data-failed={l.failed || undefined} data-turn-line>{l.text}</div>
-            )) : <div className={s.logLine} data-empty>…</div>}
+            {calls.map((l) => <div key={l.key} className={s.logLine} data-failed={l.failed || undefined} data-turn-line>{l.text}</div>)}
           </div>
-          <div className={s.logButtons}>{buttons}</div>
+          {turn.open && <div className={s.logButtons}><ActionIconButton act={turn.open} variant="default" icon={<IconArrowUpRight size={15} />} /></div>}
         </div>
       )}
-      {!folded && <Processes list={turn.processes ?? []} />}
+      <Processes list={turn.processes ?? []} />
     </div>
   );
 }

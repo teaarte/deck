@@ -307,7 +307,7 @@
         "html": {"type": "string"}, "items": {"type": "array", "items": {"type": "object"}}, "record": {"type": "object"}, "params": {"type": "object", "description": "The params of the block, resolved"},
         "project": {"type": "string", "description": "The module whose files the block reads; none on a screen of deck"}, "name": {"type": "string"}, "size": {"type": "integer", "description": "Bytes of the HTML, given in its place to a viewer other than the owner"},
         "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}},
-      "chat": {"type": "object", "additionalProperties": false, "required": ["topics", "archived", "messages", "questions", "send"], "properties": {
+      "chat": {"type": "object", "additionalProperties": false, "required": ["topics", "archived", "messages", "questions", "send", "suggest", "asks"], "properties": {
         "topic": {"$ref": "#/$defs/topic"}, "topics": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
         "archived": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
         "messages": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "role", "text", "created_at"], "properties": {
@@ -332,7 +332,13 @@
         "send": {"$ref": "#/$defs/action"}, "archive": {"$ref": "#/$defs/action"}, "delete": {"$ref": "#/$defs/action"},
         "models": {"type": "array", "items": {"type": "string"}, "description": "the models the master's replies may go on"},
         "model": {"type": "string", "description": "the master's own model, which a topic without one takes"},
-        "choose": {"$ref": "#/$defs/action"}}}
+        "choose": {"$ref": "#/$defs/action"},
+        "suggest": {"type": "array", "description": "of a topic without messages: commands of the module of the owner's screen, as texts to put in the field", "items": {"type": "object", "additionalProperties": false, "required": ["icon", "text"], "properties": {
+          "icon": {"type": "string"}, "text": {"type": "string"}}}},
+        "asks": {"type": "array", "description": "what the turn going on and the processes it started wait for the owner to decide, its questions apart: items of deck.asks_list with their buttons", "items": {"type": "object", "required": ["id", "kind", "what", "actions"], "properties": {
+          "id": {"type": "integer"}, "kind": {"type": "string"}, "project": {"type": "string"}, "who": {"type": "string"}, "what": {"type": "string"}, "why": {"type": "string"}, "where": {"type": "string"},
+          "text": {"type": "string"}, "command": {"type": "string"}, "by": {"type": "string"}, "payload": {}, "expires_at": {"type": "string"}, "expired": {"type": "boolean"},
+          "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}}}}}
     },
     "topic": {"type": "object", "additionalProperties": false, "required": ["id", "title", "archived", "updated_at"], "properties": {
       "id": {"type": "integer"}, "title": {"type": "string"}, "project": {"type": "string", "description": "the project of the screen of its first message"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
@@ -340,8 +346,11 @@
     "reply": {"type": "object", "additionalProperties": false, "required": ["process", "state"], "properties": {
       "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "error": {"type": "string"}, "word": {"type": "string", "description": "the state in the owner's words"}, "tone": {"$ref": "#/$defs/tone"}, "waits": {"type": "boolean", "description": "it waits for the owner or its provider rather than works"},
       "open": {"$ref": "#/$defs/action"},
-      "cut": {"type": "object", "additionalProperties": false, "required": ["did", "undo", "retry"], "description": "what a reply that broke off left",
-        "properties": {"did": {"type": "array", "items": {"type": "string"}, "description": "the calls it made, in order"},
+      "cut": {"type": "object", "additionalProperties": false, "required": ["steps", "did", "undo", "retry"], "description": "what a reply that broke off or the owner stopped left",
+        "properties": {"stopped": {"type": "boolean", "description": "the owner stopped it; its one retry goes on on its own provider"},
+          "reason": {"type": "string", "description": "why it broke off, in words"}, "steps": {"type": "integer", "description": "the calls of tools it made"},
+          "said": {"type": "string", "description": "the last thing it said"},
+          "did": {"type": "array", "items": {"type": "string"}, "description": "the calls it made that act, in order"},
           "undo": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["text", "action"], "properties": {
             "text": {"type": "string"}, "action": {"$ref": "#/$defs/action"}}}},
           "retry": {"type": "array", "items": {"$ref": "#/$defs/action"}, "description": "a button per provider it can go again on"}}}}},

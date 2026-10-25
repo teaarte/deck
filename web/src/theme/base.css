@@ -1,7 +1,7 @@
 :root {
   --deck-gap: 12px;
-  --deck-island-radius: min(calc(var(--mantine-radius-default) * 2 + 4px), 28px);
-  --deck-block-radius: min(calc(var(--mantine-radius-default) * 1.5 + 2px), 22px);
+  --deck-island-radius: min(calc(var(--mantine-radius-default) * 2 + min(var(--mantine-radius-default) * 100, 4px)), 28px);
+  --deck-block-radius: min(calc(var(--mantine-radius-default) * 1.5 + min(var(--mantine-radius-default) * 100, 2px)), 22px);
   --deck-cell: 240px;
   --deck-tile-min: 200px;
   --deck-tile-height: 180px;

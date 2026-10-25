@@ -33,14 +33,22 @@ func TestRealBrowserMasterChat(t *testing.T) {
 				"options": []any{map[string]any{"label": "shop"}, map[string]any{"label": "market"}}}}})
 			answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
 			return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
+		case strings.Contains(c.Req.Prompt, "post it") && !strings.Contains(c.Req.Prompt, "This continues"):
+			out, _ := c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "milk"})
+			return provider.Result{Text: "Asked: " + out}
 		case strings.Contains(c.Req.Prompt, "think long"):
+			c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Reading the list"})
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t2", Title: "records_list", Text: "{}"})
+			c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Weighing the shops"})
 			<-ctx.Done()
 			return provider.Result{}
 		}
 		return provider.Result{Text: "Put it into **groceries** as task #1. [Open](#/p/groceries/tasks)"}
-	}, func(c *app.Config) { c.QuestionWait = 2 * time.Minute })
+	}, func(c *app.Config) { c.QuestionWait = 2 * time.Minute; c.ConfirmTTL = time.Hour })
 	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": tasksManifest}, nil)
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "x"}`) })
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.createProject("notes", postManifest(svc.URL, ""))
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
@@ -48,6 +56,8 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.until("the tasks", `document.querySelector('[data-block]')`)
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the chat beside the screen", `document.querySelector('[data-chat-panel] [data-chat-input]') && document.querySelector('[data-block]')`)
+	b.until("an empty topic says what to do", `document.querySelector('[data-chat-empty]')?.innerText.includes('?')`)
+	b.shot("chat-empty")
 	say := func(text string) {
 		b.type_(`document.querySelector('[data-chat-input]')`, text)
 		b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
@@ -55,7 +65,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	say("we are out of milk")
 	b.until("the master's reply in the feed", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.querySelector('strong')?.innerText === 'groceries')`)
 	b.shot("chat-reply")
-	b.until("the screen the message goes with", `document.querySelector('[data-context]')?.innerText.includes('groceries')`)
+	b.until("the screen the message goes with, by its titles", `document.querySelector('[data-context]')?.innerText.includes('groceries · Tasks')`)
 	b.eval(`(document.querySelector('[data-context] button').click(), '')`)
 	b.until("a message without the screen", `document.querySelector('[data-context-off]')`)
 	b.eval(`(document.querySelector('[data-context-off]').click(), '')`)
@@ -67,21 +77,24 @@ func TestRealBrowserMasterChat(t *testing.T) {
 
 	say("which list then?")
 	b.until("the question in the feed", `document.querySelector('[data-question]')?.innerText.includes('Which list?')`)
-	b.until("the turn with its calls", `document.querySelector('[data-turn] [data-turn-line]')?.innerText.includes('records_list')`)
+	b.until("the turn with its calls folded", `document.querySelector('[data-turn] [data-turn-fold]') && !document.querySelector('[data-turn-log]')`)
+	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
+	b.until("the calls under Log", `document.querySelector('[data-turn] [data-turn-line]')?.innerText.includes('records_list')`)
 	b.eval(`([...document.querySelectorAll('[data-question] input[type=checkbox], [data-question] input[type=radio]')].find((i) => i.value === 'market').click(), '')`)
 	b.eval(`([...document.querySelectorAll('[data-question] button')].find((x) => !x.disabled && x.innerText.trim() !== '').click(), '')`)
 	b.until("the reply after the answer", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('Picked market'))`)
 	b.until("the question gone", `!document.querySelector('[data-question]')`)
 
 	say("think long about it")
-	b.until("the running turn with stop", `document.querySelector('[data-turn="running"] [data-verb="stop"]')`)
+	b.until("the running turn says its work in words, with a timer and stop", `(() => { const t = document.querySelector('[data-turn="running"]'); return t && t.querySelector('[data-turn-now]')?.innerText === 'Weighing the shops' &&
+		/^\d+:\d\d$/.test(t.querySelector('[data-turn-timer]')?.innerText ?? '') && t.querySelector('[data-verb="stop"]') && t.querySelectorAll('[data-turn-step]').length === 2 && !t.querySelector('[data-turn-log]') })()`)
+	b.until("the head of the panel says it works", `document.querySelector('[data-chat-panel] [data-chat-live]')`)
 	b.shot("chat-turn")
-	b.until("the tail of the log in a window of its own", `document.querySelector('[data-turn-log] [data-turn-line]')?.innerText.includes('records_list') && document.querySelector('[data-turn-log] [data-verb="open"]')`)
 	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
-	b.until("the folded turn, its buttons kept", `!document.querySelector('[data-turn-log]') && document.querySelector('[data-turn][data-folded] [data-verb="stop"]')`)
-	b.shot("chat-turn-folded")
+	b.until("the raw calls under Log", `document.querySelector('[data-turn-log] [data-turn-line]')?.innerText.includes('records_list') && document.querySelector('[data-turn-log] [data-verb="open"]')`)
+	b.shot("chat-turn-log")
 	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
-	b.until("the log back", `document.querySelector('[data-turn-log]')`)
+	b.until("the log folded again", `!document.querySelector('[data-turn-log]')`)
 	for _, w := range []int{1000, 800, 360, 300} {
 		b.call("browser_resize", map[string]any{"width": w, "height": 800})
 		b.until(fmt.Sprintf("the chat within its panel at %d", w), `(() => { const box = document.querySelector('[data-chat-panel]') ?? document.querySelector('[data-chat-phone] .mantine-Drawer-content'); if (!box) return false;
@@ -91,7 +104,24 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.until("the turn back in the side panel", `document.querySelector('[data-chat-panel] [data-turn] [data-verb="stop"]')`)
 	b.eval(`(document.querySelector('[data-turn] [data-verb="stop"]').click(), '')`)
-	b.until("the stopped reply", `document.querySelector('[data-reply-state="stopped"]') && !document.querySelector('[data-turn]')`)
+	b.until("the stopped reply says how far it got and goes on", `document.querySelector('[data-reply-cut][data-stopped] [data-verb="continue"]') && !document.querySelector('[data-turn]') && !document.querySelector('[data-chat-live]')`)
+	b.shot("chat-stopped")
+
+	say("post it to the notes")
+	b.until("the yes it waits for, in the topic", `document.querySelector('[data-chat-ask] [data-verb="allow"]')?.innerText.includes('notes.post') || document.querySelector('[data-chat-ask] [data-verb="allow"]')?.innerText.includes('post')`)
+	b.shot("chat-ask")
+	b.eval(`(document.querySelector('[data-chat-ask] [data-verb="allow"]').click(), '')`)
+	b.until("the card steps aside while the yes holds", `!document.querySelector('[data-chat-ask]') && document.querySelector('[data-toast]')`)
+	b.until("the call made after the hold", `document.querySelector('[data-toast]') === null`)
+	e.waitFor("the call made", func() bool { return len(svc.requests()) == 1 })
+
+	e.must("deck.theme_save", map[string]any{"name": "square", "text": `{"version": 1, "title": {"en": "Square"}, "mood": "flat", "radius": "0"}`}, nil)
+	e.must("deck.theme_use", map[string]any{"name": "square"}, nil)
+	b.until("a theme of radius 0 squares the whole chat", `(() => { const p = document.querySelector('[data-chat-panel]'); if (!p || !document.querySelector('[data-bubble]') || !document.querySelector('[data-reply-cut]')) return false;
+		const round = [p, ...p.querySelectorAll('*')].filter((x) => x.getBoundingClientRect().width > 0 && ['TopLeft', 'TopRight', 'BottomLeft', 'BottomRight'].some((c) => parseFloat(getComputedStyle(x)['border' + c + 'Radius']) > 0));
+		return round.length === 0 })()`)
+	b.shot("chat-square")
+	e.must("deck.theme_use", map[string]any{"name": "juce"}, nil)
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/cockpit")
@@ -152,7 +182,9 @@ func TestRealBrowserVoice(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the mic", `document.querySelector('[data-mic]')`)
 	b.eval(`(document.querySelector('[data-mic]').click(), '')`)
-	b.until("the recording", `document.querySelector('[data-mic-stop]')`)
+	b.until("the recording in place of the field, nothing blinking", `document.querySelector('[data-mic-stop]') && document.querySelector('[data-hearing]') && !document.querySelector('[data-chat-input]') &&
+		document.querySelector('[data-composer]').getAnimations({ subtree: true }).filter((a) => a.playState === 'running' && a.effect?.getTiming().iterations === Infinity).length === 0`)
+	b.shot("chat-voice")
 	time.Sleep(1500 * time.Millisecond)
 	b.eval(`(document.querySelector('[data-mic-stop]').click(), '')`)
 	b.until("the text in the input", `document.querySelector('[data-chat-input]').value === 'buy oat milk'`)

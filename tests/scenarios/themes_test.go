@@ -132,10 +132,16 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 	if l.Name != "night" || len(l.Problems) != 2 || strings.Contains(l.CSS, "url(") || !strings.Contains(l.CSS, "[data-phone-tabs] [data-asks]") {
 		t.Fatalf("an old theme is worn without what a check refuses: %+v", l)
 	}
-	var c struct{ OK bool }
+	var c struct {
+		OK        bool
+		Unreached []string
+	}
 	e.must("deck.theme_check", map[string]any{"name": "night"}, &c)
 	if c.OK {
 		t.Fatal("the check names the problems of a stored theme")
+	}
+	if all := strings.Join(c.Unreached, "\n"); !strings.Contains(all, "blocks of screens: ") || !strings.Contains(all, "a theme cannot change yet (session D8)") || strings.Contains(all, "chat") {
+		t.Fatalf("the check names the parts no theme reaches yet, the chat no more: %+v", c.Unreached)
 	}
 
 	e.must("deck.theme_delete", map[string]any{"name": "night"}, nil)

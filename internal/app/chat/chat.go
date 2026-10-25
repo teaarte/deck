@@ -54,6 +54,8 @@ type Service struct {
 	Go func(func()) bool
 	// Words are deck's phrases in a language.
 	Words func(lang string) map[string]string
+	// Decisions are what processes wait for the owner to decide but their questions, each with its buttons.
+	Decisions func(ctx context.Context, act registry.Actor, processes []int64, lang string) (any, error)
 
 	mu    sync.Mutex
 	queue chatQueue

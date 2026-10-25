@@ -21,7 +21,7 @@
     "tokens": {"$ref": "#/$defs/tokens", "description": "Tokens of both schemes."},
     "light": {"$ref": "#/$defs/tokens", "description": "Tokens of the light scheme over tokens."},
     "dark": {"$ref": "#/$defs/tokens", "description": "Tokens of the dark scheme over tokens."},
-    "parts": {"type": "object", "additionalProperties": false, "description": "The look of the parts of deck: card is a block of a screen, and its radius that of the cards of modules too unless tile has its own; tile a card of a module in the grid (the cockpit's card is the token cockpit and the class today); notification a notification or a toast; menu a dropdown; dialog a dialog or a sheet; tabs a tab of a screen or of the screens of a module; bubble a message of the chat.",
+    "parts": {"type": "object", "additionalProperties": false, "description": "The look of the parts of deck: card is a block of a screen, and its radius that of the cards of modules too unless tile has its own; tile a card of a module in the grid (the cockpit's card is the token cockpit and the class today); notification a notification or a toast; menu a dropdown; dialog a dialog or a sheet; tabs a tab of a screen or of the screens of a module; bubble a message of the owner in the chat.",
       "properties": {"button": {"$ref": "#/$defs/part"}, "card": {"$ref": "#/$defs/part"}, "island": {"$ref": "#/$defs/part"},
         "field": {"$ref": "#/$defs/part"}, "badge": {"$ref": "#/$defs/part"}, "tile": {"$ref": "#/$defs/part"},
         "notification": {"$ref": "#/$defs/part"}, "menu": {"$ref": "#/$defs/part"}, "dialog": {"$ref": "#/$defs/part"},
@@ -80,7 +80,10 @@
       "chat": "[data-chat-panel]", "chat-phone": "[data-chat-phone]", "phone-bar": "[data-phone-tabs]", "block": "[data-block]",
       "card": "[data-card]", "tile": "[data-app-tile]", "today": "[data-app-tile][data-big]", "tile-icon": "[data-app-tile-icon]",
       "board-card": "[data-lane] [data-card]", "toast": "[data-toast]", "meadow": "[data-meadow]", "places": "[data-places]", "place": "[data-places] > a", "hero": "[data-hero]", "screen-head": "[data-screen-head]", "actions": "[data-actions]",
-      "composer": "[data-composer]", "message": "[data-message] > div", "turn": "[data-turn]", "backdrop": "[data-backdrop] > div",
+      "composer": "[data-composer]", "message": "[data-message]", "bubble": "[data-bubble]", "chat-link": "[data-message='master'] a[href^='#/']",
+      "turn": "[data-turn]", "turn-head": "[data-turn-head]", "turn-step": "[data-turn-step]", "turn-log": "[data-turn-log]",
+      "suggest": "[data-suggest]", "chat-ask": "[data-chat-ask]", "question": "[data-question]", "cut": "[data-reply-cut]", "hearing": "[data-hearing]",
+      "backdrop": "[data-backdrop] > div",
       "asks": "[data-asks]", "running": "[data-running]",
       "button": ".mantine-Button-root", "icon-button": ".mantine-ActionIcon-root", "field": ".mantine-Input-input",
       "badge": ".mantine-Badge-root", "paper": ".mantine-Paper-root", "group": ".mantine-Group-root",
@@ -100,7 +103,7 @@
       "menu": {"selector": ":is(.mantine-Popover-dropdown, .mantine-Menu-dropdown, .mantine-Combobox-dropdown)"},
       "dialog": {"selector": ":is(.mantine-Modal-content, .mantine-Drawer-content)"},
       "tabs": {"selector": ":is(.mantine-Tabs-tab, [data-places] > a)"},
-      "bubble": {"selector": "[data-message] > div"}
+      "bubble": {"selector": "[data-bubble]"}
     }
   }
 }

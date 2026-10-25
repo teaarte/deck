@@ -168,6 +168,8 @@ type checkOut struct {
 	Problems []string `json:"problems"`
 	// Preview are the addresses of deck in the theme, the light and the dark scheme, for a saved theme.
 	Preview []string `json:"preview,omitempty"`
+	// Unreached are the parts of deck whose values no theme changes yet.
+	Unreached []string `json:"unreached"`
 }
 
 func preview(name string) []string {
@@ -197,7 +199,7 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in checkIn) (an
 			return nil, registry.NotFound("deck: no theme %q", in.Name)
 		}
 	}
-	out := checkOut{Problems: check(in.Name, raw)}
+	out := checkOut{Problems: check(in.Name, raw), Unreached: theme.Unreached()}
 	out.OK = len(out.Problems) == 0
 	if in.Text == "" {
 		out.Preview = preview(in.Name)
@@ -309,7 +311,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Returns the JSON Schema of a theme with the catalog of its tokens, variables and classes.",
 			registry.Everyone, func(context.Context, registry.Actor, struct{}) (any, error) { return Format(), nil }),
 		registry.Def("theme_check", "Check theme",
-			"Checks a theme without saving it: its schema, its CSS and the contrast of its text in both schemes with every accent; for a saved theme also the addresses of deck in it, light and dark.",
+			"Checks a theme without saving it: its schema, its CSS and the contrast of its text in both schemes with every accent; for a saved theme also the addresses of deck in it, light and dark; and the parts of deck whose values no theme changes yet.",
 			registry.OwnerSide, s.check),
 		registry.Def("theme_save", "Save theme",
 			"Creates or changes a theme; one a check refuses is not saved. The name of a shipped theme puts this one over it.",

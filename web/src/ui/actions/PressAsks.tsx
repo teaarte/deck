@@ -35,7 +35,7 @@ export function PressAsks() {
   const [error, setError] = useState('');
   const a = asks[0];
   return (
-    <Modal opened={!!a} onClose={() => a && dropAsk(a.id)} title={<Text fw={700}>{t('press.title')}</Text>} radius="lg" data-press-ask={a?.id}>
+    <Modal opened={!!a} onClose={() => a && dropAsk(a.id)} title={<Text fw={700}>{t('press.title')}</Text>} data-press-ask={a?.id}>
       {a && (
         <Stack gap="sm">
           <Text fw={650}>{a.what}</Text>

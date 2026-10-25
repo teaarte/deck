@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense } from 'react';
-import { ActionIcon, Badge, Button, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { formatted } from '../lib/format';
@@ -7,6 +7,7 @@ import type { ChatValue } from '../lib/catalog.gen';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import { DekiHead, useMascot } from '../ui/deki/Deki';
+import { Details } from '../ui/Details';
 import { Markdown } from '../ui/Markdown';
 import s from './chat.module.css';
 import { Processes } from './Turn';
@@ -26,7 +27,7 @@ function Work({ w }: { w: WorkValue }) {
   return <div className={s.work} data-work><Processes list={w.processes} /></div>;
 }
 
-// Meta is how a reply went in one line, the model, cost, time and steps; it shows with the tools of the line.
+// Meta is how a reply went in one line, the model, cost, time and steps; a phone has no hover, so it always shows.
 function Meta({ w }: { w: WorkValue }) {
   const { t } = useTranslation();
   const parts = [w.model || w.provider, w.cost_usd !== undefined ? cost(w.cost_usd) : '',
@@ -35,25 +36,31 @@ function Meta({ w }: { w: WorkValue }) {
   return <Text size="xs" c="dimmed" data-work-meta>{parts.join(' · ')}</Text>;
 }
 
-type Cut = NonNullable<NonNullable<ChatMessage['reply']>['cut']>;
+type Reply = NonNullable<ChatMessage['reply']>;
+type Cut = NonNullable<Reply['cut']>;
 
-// Broken is what a reply that broke off did and left, each change with its undo, and the providers it can go again on.
-function Broken({ cut, provider }: { cut: Cut; provider?: string }) {
+// Broken is a reply that broke off or the owner stopped: why in words, how far it got, what it left with its undo,
+// and the providers it can go again on, the first the main action of the latest one.
+function Broken({ cut, reply, latest }: { cut: Cut; reply: Reply; latest: boolean }) {
   const { t } = useTranslation();
+  const head = cut.stopped ? t('chat.stopped_by_you') : t('chat.cut_by', { provider: reply.provider || '?' }) + (cut.reason ? ': ' + cut.reason : '');
   return (
-    <Stack gap={6} className={s.cut} data-reply-cut>
-      <Text size="xs" fw={600}>{t('chat.cut_by', { provider: provider || '?' })}</Text>
-      {cut.did.length > 0 && (
-        <Stack gap={2}>
-          <Text size="xs" c="dimmed">{t('chat.cut_did')}</Text>
-          {cut.did.map((d, i) => <Text key={i} size="xs" ff="monospace" lineClamp={1} title={d}>{d}</Text>)}
-        </Stack>
+    <Stack gap={8} className={s.cut} data-reply-cut data-stopped={cut.stopped || undefined}>
+      <Stack gap={2}>
+        <Text size="sm" fw={650}>{head}</Text>
+        <Text size="xs" c="dimmed" data-cut-steps>
+          {cut.steps > 0 ? t('chat.cut_steps', { count: cut.steps }) : t('chat.cut_nothing')}{cut.said ? ' ' + t('chat.cut_said', { said: cut.said }) : ''}
+        </Text>
+        {!cut.stopped && !cut.reason && reply.error && <Text size="xs" c="dimmed" lineClamp={2} title={reply.error}>{reply.error}</Text>}
+      </Stack>
+      {(cut.did.length > 0 || (cut.reason && reply.error)) && (
+        <Details text={[...(cut.reason && reply.error ? [reply.error, ''] : []), ...cut.did].join('\n')} />
       )}
       {cut.undo.length > 0 && (
         <Stack gap={4}>
-          <Text size="xs" c="dimmed">{t('chat.cut_left')}</Text>
+          <Text size="xs" fw={600}>{t('chat.cut_left')}</Text>
           {cut.undo.map((u, i) => (
-            <Group key={i} gap={6} wrap="nowrap" justify="space-between">
+            <Group key={i} gap={6} wrap="nowrap" justify="space-between" className={s.left}>
               <Text size="xs" lineClamp={2}>{u.text}</Text>
               <ActionButton act={u.action} />
             </Group>
@@ -61,42 +68,47 @@ function Broken({ cut, provider }: { cut: Cut; provider?: string }) {
         </Stack>
       )}
       {cut.retry.length > 0 && (
-        <Group gap={4}>
-          {cut.retry.map((r) => <ActionButton key={r.label} act={{ ...r, label: t('chat.retry_on', { provider: r.label }) }} />)}
+        <Group gap={6}>
+          {cut.retry.map((r, i) => (
+            <ActionButton key={r.label ?? r.verb} act={{ ...r, primary: latest && i === 0 && !cut.stopped, label: r.label ? t('chat.retry_on', { provider: r.label }) : undefined }} />
+          ))}
         </Group>
       )}
     </Stack>
   );
 }
 
-// ReplyState tells that the reply to a message of the owner failed, and why, with what a broken one left.
-function ReplyState({ reply }: { reply: NonNullable<ChatMessage['reply']> }) {
+// ReplyState tells that the reply to a message of the owner failed, and why, or what a broken one left.
+function ReplyState({ reply, latest }: { reply: Reply; latest: boolean }) {
+  if (reply.cut) return <Broken cut={reply.cut} reply={reply} latest={latest} />;
   return (
-    <Stack gap={4} align="flex-end">
-      <Group gap={4} justify="flex-end">
-        <Badge size="xs" color={reply.tone === 'error' ? 'red' : 'gray'} variant="light" data-reply-state={reply.state}>{reply.word}</Badge>
-        {reply.error && <Text size="xs" c="dimmed" lineClamp={2}>{reply.error}</Text>}
-      </Group>
-      {reply.cut && <Broken cut={reply.cut} provider={reply.provider} />}
-    </Stack>
+    <Group gap={4} justify="flex-end">
+      <Badge size="xs" color={reply.tone === 'error' ? 'red' : 'gray'} variant="light" data-reply-state={reply.state}>{reply.word}</Badge>
+      {reply.error && <Text size="xs" c="dimmed" lineClamp={2}>{reply.error}</Text>}
+    </Group>
   );
 }
 
 // Message is a message of the owner as a bubble with its files, or a line of the master in markdown with its tools and
-// the face of Deki.
-export const Message = memo(function Message({ m }: { m: ChatMessage }) {
+// the face of Deki; latest marks the last one of the topic.
+export const Message = memo(function Message({ m, latest }: { m: ChatMessage; latest: boolean }) {
   const { t } = useTranslation();
   const mascot = useMascot();
   if (m.role === 'owner') {
     const files = (m.files ?? []).map((f) => f.name);
     return (
       <Stack gap={4} align="flex-end" data-message="owner">
-        <div className={s.ownerBubble}>
-          {files.length > 0 && <Group gap={4} mb={6}>{files.map((f) => <Badge key={f} size="sm" variant="white" radius="sm" leftSection={<IconPaperclip size={11} />}>{f}</Badge>)}</Group>}
+        <div className={s.ownerBubble} data-bubble>
+          {files.length > 0 && <Group gap={4} mb={6}>{files.map((f) => <Badge key={f} size="sm" variant="white" leftSection={<IconPaperclip size={11} />}>{f}</Badge>)}</Group>}
           <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</Text>
         </div>
-        {(m.reply?.tone === 'error' || m.reply?.tone === 'muted') && <ReplyState reply={m.reply} />}
-        {m.delete && <ActionIconButton act={m.delete} icon={<IconTrash size={14} />} />}
+        {(m.reply?.tone === 'error' || m.reply?.tone === 'muted') && <ReplyState reply={m.reply} latest={latest} />}
+        {m.delete && (
+          <Group gap={2} data-not-taken>
+            <Text size="xs" c="dimmed">{t('chat.not_taken')}</Text>
+            <ActionIconButton act={m.delete} icon={<IconTrash size={14} />} />
+          </Group>
+        )}
       </Stack>
     );
   }
@@ -109,7 +121,7 @@ export const Message = memo(function Message({ m }: { m: ChatMessage }) {
       <Group gap={4} className={s.lineTools}>
         <CopyButton value={m.text}>{({ copied, copy }) => (
           <Tooltip label={copied ? t('chat.copied') : t('chat.copy')}>
-            <ActionIcon variant="subtle" color="gray" size="sm" onClick={copy} aria-label={t('chat.copy')}>{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}</ActionIcon>
+            <ActionIcon variant="subtle" color="gray" size="sm" className={s.copy} onClick={copy} aria-label={t('chat.copy')}>{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}</ActionIcon>
           </Tooltip>
         )}</CopyButton>
         {m.work && <Meta w={m.work} />}

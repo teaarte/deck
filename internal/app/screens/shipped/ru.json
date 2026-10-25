@@ -622,5 +622,18 @@
   "Upload file": "Загрузить файл",
   "What a record takes along": "Что запись берёт с собой",
   "What the token is for": "Для чего токен",
-  "Write records": "Записать записи"
+  "Write records": "Записать записи",
+  "the model's usage limit": "лимит запросов модели",
+  "the model did not answer": "модель не ответила",
+  "the model wants a login": "модель просит войти",
+  "the agent went round in circles": "агент ходил по кругу",
+  "deck's tools failed": "инструменты deck не сработали",
+  "deck restarted": "deck перезапустился",
+  "an error of deck": "ошибка deck",
+  "deck stopped it": "deck остановил его",
+  "it ran out of time": "кончилось время",
+  "the network failed": "сбой сети",
+  "a right was refused": "не хватило прав",
+  "you stopped it": "остановлено вами",
+  "the agent reported an error": "агент сообщил об ошибке"
 }

@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -10,6 +11,7 @@ import (
 
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -17,12 +19,16 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// cutView is what a reply that broke off left: the calls it made, what of them the owner can undo, and the
-// providers it can go again on, for this reply only.
+// cutView is what a broken or stopped reply left: why, its steps and last words, its calls, what of them the owner can
+// undo, and the providers it can go again on for this reply only; a stopped one goes on on its own.
 type cutView struct {
-	Did   []string   `json:"did"`
-	Undo  []undoView `json:"undo"`
-	Retry []action   `json:"retry"`
+	Stopped bool       `json:"stopped,omitempty"`
+	Reason  string     `json:"reason,omitempty"`
+	Steps   int        `json:"steps"`
+	Said    string     `json:"said,omitempty"`
+	Did     []string   `json:"did"`
+	Undo    []undoView `json:"undo"`
+	Retry   []action   `json:"retry"`
 }
 
 // undoView is a change a broken reply left, with the button that takes it back.
@@ -36,12 +42,26 @@ func broke(p db.Process) bool {
 	return p.State == process.StateError || p.State == process.StateInterrupted
 }
 
-// cut is what a broken reply left and how it can go again; nil for one that did not break.
-func (ch *Service) cut(ctx context.Context, p db.Process, message int64) *cutView {
-	if !broke(p) {
+// stopped reports whether the owner stopped a reply.
+func stopped(p db.Process) bool {
+	return p.State == process.StateStopped && p.ErrorType == fault.Stopped
+}
+
+// cut is what a broken or stopped reply left and how it can go again; nil for one that ended by itself.
+func (ch *Service) cut(ctx context.Context, p db.Process, message int64, tr func(string) string) *cutView {
+	if !broke(p) && !stopped(p) {
 		return nil
 	}
-	v := &cutView{Did: process.Did(ctx, ch.St.Q, p.ID), Undo: []undoView{}, Retry: []action{}}
+	tools, _ := ch.Runner.Tail(p.ID, workLines, "tool")
+	v := &cutView{Stopped: stopped(p), Steps: len(tools), Said: ch.Runner.Said(p.ID), Did: process.Did(ctx, ch.St.Q, p.ID),
+		Undo: []undoView{}, Retry: []action{}}
+	why := p.ErrorType
+	if p.State == process.StateInterrupted {
+		why = cmp.Or(why, fault.DeckRestart)
+	}
+	if why = fault.Said(why); why != "" && !v.Stopped {
+		v.Reason = tr(why)
+	}
 	left, err := process.LeftBy(ctx, ch.St.Q, p.ID)
 	if err != nil {
 		slog.Error("what a broken reply left", "process", p.ID, "err", err)
@@ -61,6 +81,10 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64) *cutVie
 			continue
 		}
 		v.Undo = append(v.Undo, undoView{Text: l.Text, Action: a})
+	}
+	if v.Stopped {
+		v.Retry = append(v.Retry, chatAction("continue", registry.Builtin+".chat_retry", map[string]any{"message": message, "provider": p.Provider}))
+		return v
 	}
 	for _, name := range ch.others(ctx, p) {
 		a := chatAction("retry", registry.Builtin+".chat_retry", map[string]any{"message": message, "provider": name})
@@ -123,10 +147,13 @@ func (ch *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRet
 	if err != nil {
 		return nil, err
 	}
-	if mp, err := access.Master(ctx, ch.St.Q, t.WorkspaceID); err != nil || mp.ID != p.ProjectID || !broke(p) {
-		return nil, registry.Conflict("deck: the reply of message %d did not break off", in.Message)
+	if mp, err := access.Master(ctx, ch.St.Q, t.WorkspaceID); err != nil || mp.ID != p.ProjectID || !broke(p) && !stopped(p) {
+		return nil, registry.Conflict("deck: the reply of message %d did not break off and was not stopped", in.Message)
 	}
-	if !slices.Contains(ch.others(ctx, p), in.Provider) {
+	switch {
+	case stopped(p) && in.Provider != p.Provider:
+		return nil, registry.Invalid("deck: a stopped reply goes on on its own provider %s", p.Provider)
+	case broke(p) && !slices.Contains(ch.others(ctx, p), in.Provider):
 		return nil, registry.Invalid("deck: %s is not another provider the master may answer on now", in.Provider)
 	}
 	note := ch.Runner.HandOnNote(ctx, p, p.Provider, untrusted.Line(p.Error, 300))

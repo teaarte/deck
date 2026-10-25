@@ -1,6 +1,7 @@
-import { ActionIcon, Drawer, Group, Tooltip } from '@mantine/core';
-import { IconArrowsMaximize, IconArrowsMinimize, IconSparkles, IconX } from '@tabler/icons-react';
+import { ActionIcon, Drawer, Group, Text, Tooltip } from '@mantine/core';
+import { IconActivity, IconArrowsMaximize, IconArrowsMinimize, IconSparkles, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { useTurnLive } from '../chat/chatStore';
 import { useResizable } from '../hooks/useResizable';
 import { ScreenView } from '../screen/ScreenView';
 import { DekiHead, useMascot, useMasterName } from '../ui/deki/Deki';
@@ -21,9 +22,15 @@ export function ChatPanel({ phone, layout, onClose, onDragging }: {
   const grip = useResizable({ min: 280, maxRatio: 0.7, value: layout.width, onCommit: layout.setWidth, onDragging });
   const mascot = useMascot();
   const name = useMasterName();
+  const live = useTurnLive();
   const panel = <ScreenView route={CHAT} />;
   const mark = mascot ? <DekiHead size={30} square /> : <span className={s.mark}><IconSparkles size={15} stroke={2} /></span>;
-  const title = <Group gap={8} wrap="nowrap" miw={0} fw={700}>{mark}<span className={s.asideTitle}>{name}</span></Group>;
+  const title = (
+    <Group gap={8} wrap="nowrap" miw={0} fw={700}>
+      {mark}<span className={s.asideTitle}>{name}</span>
+      {live && <Group gap={3} wrap="nowrap" c="var(--mantine-color-green-text)" data-chat-live><IconActivity size={14} /><Text size="xs" fw={600} c="inherit">{t('chat.live')}</Text></Group>}
+    </Group>
+  );
   if (phone) {
     return (
       <Drawer opened={layout.chat} onClose={() => layout.setChat(false)} size="100%" position="right" withCloseButton={false} padding="xs" data-chat-phone

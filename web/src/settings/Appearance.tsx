@@ -4,7 +4,7 @@ import { IconSparkles } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { openTopic } from '../chat/chatStore';
 import { ACCENTS, DENSITIES, FONTS, setLook, useLook, type Look } from '../theme/look';
-import { useWorn } from '../theme/worn';
+import { useWorn, endPreview } from '../theme/worn';
 import { useLiveRead } from '../hooks/useLiveRead';
 import { call } from '../lib/api';
 import { Pushes } from './Pushes';
@@ -39,7 +39,7 @@ export function Appearance({ part }: { part?: string }) {
           <Text size="sm" c="dimmed" data-look-note="scheme">{t(worn.schemes[0] === 'dark' ? 'look.dark_only' : 'look.light_only', { theme: worn.title })}</Text>
         ) : (
           <Choice label={t('look.scheme')} name="scheme" value={colorScheme} options={['auto', 'light', 'dark'] as MantineColorScheme[]}
-            onChange={setColorScheme} />
+            onChange={(v: MantineColorScheme) => { setColorScheme(v); endPreview(); }} />
         )}
         <Choice label={t('look.density')} name="density" value={look.density} options={DENSITIES} onChange={(v: Look['density']) => setLook({ density: v })} />
         <Choice label={t('look.font')} name="font" value={look.font} options={FONTS} onChange={(v: Look['font']) => setLook({ font: v })} />
@@ -76,6 +76,7 @@ function Theme() {
     try {
       const got = await call<{ accent?: string }>('deck.theme', { name });
       await call('deck.theme_use', { name });
+      endPreview();
       if (got.accent) setLook({ accent: got.accent });
     } catch (e) {
       notifyError(e, t('look.theme'));

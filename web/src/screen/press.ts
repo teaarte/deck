@@ -36,8 +36,9 @@ export async function press(ctx: ComponentContext | undefined, a: Action, input?
   return got ?? { error: i18n.t('press.lost') };
 }
 
-// readBlock asks the screen for the data of a block again: by a filter picked, the next page, a dialog opened.
-export function readBlock(ctx: ComponentContext, kind: 'filter' | 'more' | 'dialog', context: Record<string, unknown> = {}) {
+// readBlock asks the screen for the data of a block again: by a filter picked, the next page, a dialog opened, a tab
+// shown.
+export function readBlock(ctx: ComponentContext, kind: 'filter' | 'more' | 'dialog' | 'tab', context: Record<string, unknown> = {}) {
   void ctx.dispatchAction({ event: { name: kind, context: { block: ctx.componentModel.id, ...context } } });
 }
 

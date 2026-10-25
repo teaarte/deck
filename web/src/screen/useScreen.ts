@@ -4,11 +4,13 @@ import type { ReactComponentImplementation } from '@a2ui/react/v0_9';
 import { call } from '../lib/api';
 import { events, type LiveEvent } from '../lib/events';
 import i18n from '../lib/i18n';
+import { useTranslation } from 'react-i18next';
 import { notifyError } from '../lib/notify';
 import catalogSchema from '../lib/catalogSchema';
 import type { Action } from '../lib/catalog.gen';
 import { screenKey, serverParams, type Route } from '../app/router';
 import { catalog } from './catalog';
+import { remember, remembered } from './cache';
 import { Feed, type Message } from './feed';
 import { PRESS, run } from './press';
 
@@ -20,14 +22,20 @@ const rootTopics = (msgs: Message[]): string[] | undefined =>
 
 type Processor = MessageProcessor<ReactComponentImplementation>;
 
-// useScreen reads a screen and keeps it fresh by the topics it names; its one handler of actions replies to a press in
-// the data of the surface and reads the block of a filter, a next page or an opened dialog.
-export function useScreen(route: Route) {
+// useScreen reads a screen and keeps it fresh by its topics, read again once shown when hidden; its one handler of
+// actions replies to a press and reads the block of a filter, a next page, an opened dialog or a tab shown.
+export function useScreen(route: Route, shownNow = true) {
   const [drawn, setDrawn] = useState<{ surface: SurfaceModel<ReactComponentImplementation>; key: string }>();
   const [error, setError] = useState('');
   const proc = useRef<Processor>(undefined);
   const routeRef = useRef(route);
   routeRef.current = route;
+  const lang = useTranslation().i18n.language;
+  const shownRef = useRef(shownNow);
+  shownRef.current = shownNow;
+  // missedHidden is set by a change heard while the screen was not shown; again reads it whole.
+  const missedHidden = useRef(false);
+  const again = useRef<() => void>(() => undefined);
   const key = screenKey(route);
 
   useEffect(() => {
@@ -41,6 +49,8 @@ export function useScreen(route: Route) {
         project: route.project, screen: route.screen, record: route.record, lang: i18n.language,
         ...(params ? { params: JSON.stringify(params) } : {}),
         ...(r.params?.dialog ? { dialog: r.params.dialog } : {}),
+        ...(r.params?.tab ? { tab: r.params.tab } : {}),
+        ...(r.params?.sub ? { sub: r.params.sub } : {}),
         ...(Object.keys(picked).length ? { filter: JSON.stringify(picked) } : {}),
         ...(Object.keys(pages).length ? { pages: JSON.stringify(pages) } : {}),
         ...extra,
@@ -74,11 +84,28 @@ export function useScreen(route: Route) {
           return readBlock(block);
         case 'dialog':
           return readBlock(block, { dialog: String(c.dialog ?? '') });
+        case 'tab':
+          return readBlock(block, { [String(c.param)]: String(c.key ?? '') });
       }
       const { reply, ...pressed } = c as Action & { reply?: string };
       const r = await run(pressed);
       // The reply goes to the surface pressed, also one still shown while the next screen loads.
       if (reply) p.model.getSurface(a.surfaceId)?.dataModel.set(PRESS + reply, r);
+    };
+    const kept = () => key + ' ' + i18n.language;
+    // draw feeds a whole read to the processor of the screen, made by the first.
+    const draw = (msgs: Message[], ticket: number) => {
+      if (!proc.current) {
+        const p: Processor = new MessageProcessor<ReactComponentImplementation>([catalog], (a) => handle(p, a));
+        p.onSurfaceCreated((s) => {
+          shown = true;
+          setDrawn({ surface: s, key });
+        });
+        proc.current = p;
+        feed.reset();
+      }
+      topics = rootTopics(msgs) ?? topics;
+      feed.whole(msgs, ticket);
     };
     const load = async () => {
       const mine = ++generation;
@@ -86,18 +113,9 @@ export function useScreen(route: Route) {
       try {
         const msgs = await call<Message[]>('deck.screen', input());
         if (gone || mine !== generation) return;
-        if (!proc.current) {
-          const p: Processor = new MessageProcessor<ReactComponentImplementation>([catalog], (a) => handle(p, a));
-          p.onSurfaceCreated((s) => {
-            shown = true;
-            setDrawn({ surface: s, key });
-          });
-          proc.current = p;
-          feed.reset();
-        }
         setError('');
-        topics = rootTopics(msgs) ?? topics;
-        feed.whole(msgs, ticket);
+        draw(msgs, ticket);
+        remember(kept(), msgs, true);
         // A change heard while the screen was first read is read again now that it is drawn.
         missed.splice(0).forEach((x) => void reread(x));
       } catch (e) {
@@ -115,6 +133,7 @@ export function useScreen(route: Route) {
         if (gone || mine !== generation) return;
         topics = rootTopics(msgs) ?? topics;
         feed.feed(msgs, ticket);
+        remember(kept(), msgs, false);
       } catch (e) {
         if (!gone) notifyError(e);
       }
@@ -134,12 +153,17 @@ export function useScreen(route: Route) {
         if (gone || mine !== generation) return;
         topics = rootTopics(msgs) ?? topics;
         feed.feed(msgs, ticket);
+        remember(kept(), msgs, false);
       } catch (e) {
         if (!gone) notifyError(e);
       }
     };
     const onEvent = (e: LiveEvent) => {
       if (!(topics ?? TOPICS).includes(e.topic)) return;
+      if (!shownRef.current) {
+        missedHidden.current = true;
+        return;
+      }
       pending.set(e.topic + ' ' + (e.project ?? ''), e);
       if (timer) return;
       timer = setTimeout(() => {
@@ -150,8 +174,12 @@ export function useScreen(route: Route) {
       }, 200);
     };
     const stop = events(onEvent, () => void load());
+    again.current = () => void load();
     proc.current = undefined;
     setDrawn(undefined);
+    // A screen read before shows at once and is read again.
+    const before = remembered(kept());
+    if (before) draw(before, feed.ticket());
     void load();
     return () => {
       gone = true;
@@ -159,6 +187,20 @@ export function useScreen(route: Route) {
       stop();
     };
   }, [key]);
+
+  useEffect(() => {
+    if (shownNow && missedHidden.current) {
+      missedHidden.current = false;
+      again.current();
+    }
+  }, [shownNow]);
+  // Another language reads the screen again into the same surface, so what is open and typed stays.
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) first.current = false;
+    else if (shownRef.current) again.current();
+    else missedHidden.current = true;
+  }, [lang]);
 
   // A surface of the screen before is not drawn again under the key of the next one.
   const surface = drawn?.key === key ? drawn.surface : undefined;

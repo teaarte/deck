@@ -5,7 +5,8 @@ import { token } from '../lib/api';
 import { theme, useLook } from '../theme/look';
 import '../theme/base.css';
 import { resolver } from '../theme/palette';
-import { forced, useWear, useWorn } from '../theme/worn';
+import { PreviewBar } from '../theme/PreviewBar';
+import { forced, usePreview, useWear, useWorn } from '../theme/worn';
 import { UndoToast } from '../ui/actions/undo';
 import { Shell } from './Shell';
 import { TokenPrompt } from './TokenPrompt';
@@ -17,10 +18,12 @@ export function Themed() {
   const signed = !!token();
   useWear(signed);
   const worn = useWorn();
+  const preview = usePreview();
   const themed = useMemo(() => theme(look, worn), [look.accent, look.density, look.font, worn]);
   return (
-    <MantineProvider theme={themed} defaultColorScheme="auto" cssVariablesResolver={resolver} forceColorScheme={forced(worn)}>
+    <MantineProvider theme={themed} defaultColorScheme="auto" cssVariablesResolver={resolver} forceColorScheme={forced(worn, preview)}>
       <Notifications position="top-center" />
+      {signed && <PreviewBar />}
       <UndoToast />
       {signed ? <Shell /> : <TokenPrompt />}
     </MantineProvider>

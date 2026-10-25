@@ -22,10 +22,14 @@ void i18n.use(initReactI18next).init({
 });
 document.documentElement.lang = i18n.language;
 
-// setLanguage keeps the language the workspace picked; a change draws deck again in it.
+// setLanguage keeps the language the workspace picked; a change puts the words of the client in it at once, and the
+// screens and reads that take a language read again in it, the page and the chat staying where they are.
 export function setLanguage(setting: string) {
   localStorage.setItem(KEY, setting);
-  if (resolve(setting) !== i18n.language) location.reload();
+  const lang = resolve(setting);
+  if (lang === i18n.language) return;
+  void i18n.changeLanguage(lang);
+  document.documentElement.lang = lang;
 }
 
 export default i18n;

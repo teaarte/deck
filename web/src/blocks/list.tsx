@@ -19,6 +19,7 @@ import { opener, rowOpen } from '../ui/rowOpen';
 import type { Data } from '../lib/catalog.gen';
 import { press, useBlockContext } from '../screen/press';
 import { blockImpl } from './blockImpl';
+import { Virtual } from '../ui/Virtual';
 
 export type Item = NonNullable<Data['items']>[number];
 
@@ -82,7 +83,9 @@ function Board({ board, items }: { board: BoardData; items: Item[] }) {
 }
 
 function Items({ items, cards }: { items: Item[]; cards?: boolean }) {
-  return <div className={cards ? s.cards : s.items} data-cards={cards || undefined}>{items.map((it, i) => <Line key={show(it.id) || i} it={it} quiet={i > 0} />)}</div>;
+  const line = (it: Item, i: number) => <Line key={show(it.id) || i} it={it} quiet={i > 0} />;
+  if (cards) return <div className={s.cards} data-cards>{items.map(line)}</div>;
+  return <Virtual items={items} row={56} gap={0} className={s.items} render={line} />;
 }
 
 const key = (it: Item) => show(it.id);

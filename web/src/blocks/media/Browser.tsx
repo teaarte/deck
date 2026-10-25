@@ -11,6 +11,7 @@ import type { Item } from './kinds';
 import { Lightbox } from './Lightbox';
 import { Place } from './Place';
 import { Thumb } from './Thumb';
+import { Virtual } from '../../ui/Virtual';
 import s from './files.module.css';
 
 type View = { mode: 'grid' | 'list' };
@@ -34,18 +35,15 @@ export function Browser({ items, crumbs }: { items: Item[]; crumbs?: Crumb[] }) 
           data={[{ value: 'grid', label: <IconLayoutGrid size={14} aria-label={t('files.grid')} /> }, { value: 'list', label: <IconList size={14} aria-label={t('files.list')} /> }]} />
       </Group>
       {view.mode === 'grid' ? (
-        <div className={s.grid} style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${TILE + 16}px, 1fr))` }}>
-          {items.map((it, i) => it.icon ? <Place key={String(it.id) + i} it={it} size={TILE} /> : (
-            <UnstyledButton key={String(it.id) + i} className={s.tile} onClick={() => open(it)} data-item data-tile>
-              <Thumb it={it} size={TILE} />
-              <Text size="xs" lineClamp={2} ta="center" style={{ overflowWrap: 'anywhere' }}>{it.title || it.name}</Text>
-              {it.error && <Text size="xs" c="red" lineClamp={2} ta="center" data-media="error">{it.error}</Text>}
-            </UnstyledButton>
-          ))}
-        </div>
+        <Virtual items={items} row={TILE + 48} width={TILE + 16} className={s.grid} render={(it, i) => it.icon ? <Place key={String(it.id) + i} it={it} size={TILE} /> : (
+          <UnstyledButton key={String(it.id) + i} className={s.tile} onClick={() => open(it)} data-item data-tile>
+            <Thumb it={it} size={TILE} />
+            <Text size="xs" lineClamp={2} ta="center" style={{ overflowWrap: 'anywhere' }}>{it.title || it.name}</Text>
+            {it.error && <Text size="xs" c="red" lineClamp={2} ta="center" data-media="error">{it.error}</Text>}
+          </UnstyledButton>
+        )} />
       ) : (
-        <Stack gap={2}>
-          {items.map((it, i) => (
+        <Virtual items={items} row={40} gap={2} style={{ display: 'flex', flexDirection: 'column', gap: 2 }} render={(it, i) => (
             <Group key={String(it.id) + i} gap={6} wrap="nowrap" data-item data-row>
               {it.icon ? <Place it={it} size={32} row /> : <UnstyledButton className={s.row} style={{ flex: 1, minWidth: 0 }} onClick={() => open(it)}>
                 <Thumb it={it} size={32} />
@@ -56,8 +54,7 @@ export function Browser({ items, crumbs }: { items: Item[]; crumbs?: Crumb[] }) 
               {!it.error && !it.icon && <Download it={it} />}
               <Actions actions={it.icon ? it.actions?.filter((x) => !x.primary) : it.actions} max={2} quiet={i > 0} />
             </Group>
-          ))}
-        </Stack>
+        )} />
       )}
       <Lightbox items={files} at={at} onAt={setAt} />
     </Stack>

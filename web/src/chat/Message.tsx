@@ -12,6 +12,8 @@ import { Markdown } from '../ui/Markdown';
 import s from './chat.module.css';
 import { Processes } from './Turn';
 
+import { Thumb } from '../blocks/media/Thumb';
+
 const Media = lazy(() => import('../blocks/media/Media').then((m) => ({ default: m.Media })));
 
 type ChatMessage = ChatData['messages'][number];
@@ -95,10 +97,13 @@ export const Message = memo(function Message({ m, latest }: { m: ChatMessage; la
   const { t } = useTranslation();
   const mascot = useMascot();
   if (m.role === 'owner') {
-    const files = (m.files ?? []).map((f) => f.name);
+    // A picture attached shows as its light copy, another file by its name.
+    const pictures = (m.files ?? []).filter((f) => f.thumb);
+    const files = (m.files ?? []).filter((f) => !f.thumb).map((f) => f.name);
     return (
       <Stack gap={4} align="flex-end" data-message="owner">
         <div className={s.ownerBubble} data-bubble>
+          {pictures.length > 0 && <Group gap={4} mb={6}>{pictures.map((f) => <Thumb key={f.id} it={f} size={72} />)}</Group>}
           {files.length > 0 && <Group gap={4} mb={6}>{files.map((f) => <Badge key={f} size="sm" variant="white" leftSection={<IconPaperclip size={11} />}>{f}</Badge>)}</Group>}
           <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</Text>
         </div>

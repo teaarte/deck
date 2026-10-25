@@ -20,6 +20,7 @@
     "@modelcontextprotocol/ext-apps": "2.0.3",
     "@tabler/icons": "3.48.0",
     "@tabler/icons-react": "3.48.0",
+    "@tanstack/react-virtual": "^3.14.22",
     "cronstrue": "3.30.0",
     "i18next": "26.4.2",
     "pdfjs-dist": "6.3.289",

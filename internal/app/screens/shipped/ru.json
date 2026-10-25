@@ -526,7 +526,7 @@
   "Theme format": "Формат темы",
   "Returns the JSON Schema of a theme with the catalog of its tokens, variables and classes.": "JSON Schema темы с каталогом токенов, переменных и классов.",
   "Check theme": "Проверить тему",
-  "Checks a theme without saving it: its schema, its CSS and the contrast of its text in both schemes with every accent; for a saved theme also the addresses of deck in it, light and dark.": "Проверяет тему без сохранения: схему, CSS и контраст текста в обеих схемах с каждым акцентом; для сохранённой темы ещё адреса deck в ней, светлый и тёмный.",
+  "Checks a theme without saving it: its schema, its CSS and the contrast of its text in both schemes with every accent; for a saved theme also the addresses of deck in it, light and dark; and the parts of deck whose values no theme changes yet.": "Проверяет тему без сохранения: схему, CSS и контраст текста в обеих схемах с каждым акцентом; для сохранённой темы ещё адреса deck в ней, светлый и тёмный; и части deck, значения которых пока не меняет ни одна тема.",
   "A saved theme to check": "Сохранённая тема для проверки",
   "The JSON text of a theme to check without saving it": "JSON темы для проверки без сохранения",
   "Save theme": "Сохранить тему",

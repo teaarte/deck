@@ -30,9 +30,8 @@ func SecretURL(t HTTPTool) (name, query string, ok bool) {
 	return m[1], m[2], true
 }
 
-// checkTemplate keeps an HTTP tool on its host and its secrets in headers: input fields may fill the path,
-// query, headers and body, never the scheme or host, and $secret.<name> is allowed only in headers or as the whole
-// URL with its hosts.
+// checkTemplate keeps an HTTP tool on its host: input fields fill the path, query, headers and body, never the host,
+// and $secret.<name> stands only in headers or as the whole URL with its hosts.
 func checkTemplate(t HTTPTool) []error {
 	var errs []error
 	fail := func(format string, a ...any) { errs = append(errs, fmt.Errorf(format, a...)) }

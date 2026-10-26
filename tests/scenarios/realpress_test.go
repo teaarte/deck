@@ -47,14 +47,20 @@ func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
 		b.open(e.URL + "/?token=" + token + "#/p/picker/main")
 		b.until("ten Apply buttons", applies+`.length === 10`)
-		b.eval(`(() => { const bs = ` + applies + `; bs.forEach((x) => x.click()); bs[0].click(); return '' })()`)
-		b.until("every pressed button busy at once", applies+`.filter((x) => x.dataset.loading !== undefined).length === 10`)
+		// A busy button hides its label, so the busy ones are counted as they go, from the press on.
+		b.eval(`(() => { window.most = 0; const t0 = performance.now(); (function watch() {
+			window.most = Math.max(window.most, document.querySelectorAll('button[data-loading]').length);
+			if (performance.now() - t0 < 1000) requestAnimationFrame(watch) })();
+			const bs = ` + applies + `; bs.forEach((x) => x.click()); bs[0].click(); return '' })()`)
+		b.until("every pressed button busy at once", `window.most === 10`)
 		b.until("the second press of a busy button said to be running already",
 			`[...document.querySelectorAll('.mantine-Notification-root')].some((x) => x.innerText.includes('already running'))`)
 		b.shot("ten-presses-" + size.name)
 		want := 10 * (i + 1)
 		e.waitFor("a run of every press", func() bool { return runs() == want })
-		b.until("every press told how it went, nothing to answer over the screen", applies+`.every((x) => x.dataset.loading === undefined) && !document.querySelector('[data-press-ask]')`)
+		b.until("every press told how it went, nothing to answer over the screen", applies+`.length === 10 && `+applies+`.every((x) => x.dataset.loading === undefined) && !document.querySelector('[data-press-ask]')`)
+		b.until("the ends of the runs told in one note", `[...document.querySelectorAll('.mantine-Notification-root')].some((x) => x.innerText.includes('Apply: done ×'))`)
+		b.shot("ten-presses-done-" + size.name)
 		var open int
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM ask WHERE state = 'open'`).Scan(&open)
 		var unfinished int

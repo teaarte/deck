@@ -43,7 +43,7 @@ export function PressAsks() {
   if (!a) return null;
   return (
     <Portal>
-      <Paper key={a.id} className={s.card} shadow="xl" withBorder role="dialog" aria-label={t('press.title')} data-press-ask={a.id} data-toast>
+      <Paper key={a.id} className={s.card} p="md" shadow="xl" withBorder role="dialog" aria-label={t('press.title')} data-press-ask={a.id} data-toast>
         <Stack gap="xs">
           <Group justify="space-between" wrap="nowrap" gap="xs">
             <Text size="sm" fw={700}>{t('press.title')}</Text>

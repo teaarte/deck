@@ -9,6 +9,11 @@
   transform: translateX(-50%);
 }
 
+/* On a phone the card stands over the tabs at the foot, not on them. */
+:global(body:has([data-phone])) .card {
+  bottom: calc(56px + 22px + env(safe-area-inset-bottom));
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .card {
     animation: rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -103,4 +104,38 @@ esac
 		t.Fatal(err)
 	}
 	opens(t, &Deck{Runner: WSL{Exe: fake, Distro: "deck"}, Addr: freeAddr(t)})
+}
+
+// TestTheLauncherSendsTheTokenOnlyToDeck: another program on deck's port is not taken for deck, and a deck of
+// another home that does not take the owner's token is said to be another.
+func TestTheLauncherSendsTheTokenOnlyToDeck(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "state"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(home, "state", "token"), []byte("owner"), 0o600)
+	var tokens []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			_, _ = w.Write([]byte("<title>deck</title>"))
+			return
+		}
+		tokens = append(tokens, r.Header.Get("Authorization"))
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	d := &Deck{Runner: Local{Bin: "/nonexistent", Home: home}, Addr: strings.TrimPrefix(srv.URL, "http://")}
+	ctx := context.Background()
+	if !d.Up(ctx) {
+		t.Fatal("a server that answers as deck is up")
+	}
+	if _, err := d.URL(ctx); err == nil || !strings.Contains(err.Error(), "another deck") {
+		t.Fatalf("a deck that does not take the token is another: %v", err)
+	}
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("<title>deck</title>")) }))
+	defer other.Close()
+	if (&Deck{Addr: strings.TrimPrefix(other.URL, "http://")}).Up(ctx) {
+		t.Fatal("a page alone, without deck's API, is not deck")
+	}
 }

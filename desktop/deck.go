@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,50 +23,82 @@ type Runner interface {
 	Command(addr string) *exec.Cmd
 	// Token is the access token of the owner deck keeps in its home.
 	Token(ctx context.Context) (string, error)
-	// Stop asks the deck it started to stop.
+	// Stop asks the deck it started to stop; Kill ends it when it does not.
 	Stop(cmd *exec.Cmd) error
+	Kill(cmd *exec.Cmd)
 }
 
 // Deck is the deck the launcher opens: one that already answers, or one it starts and stops on quit.
 type Deck struct {
 	Runner Runner
 	Addr   string
+	mu     sync.Mutex
 	cmd    *exec.Cmd
-	exited chan error
+	// exited closes when the deck the launcher started ends.
+	exited chan struct{}
 }
 
-// Up says whether deck answers and has started.
+// Up says whether deck answers at its address and has started: its page, and its API asking for the token, so the
+// token goes to no other program on that port.
 func (d *Deck) Up(ctx context.Context) bool {
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+d.Addr+"/", nil)
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
+	page, ok := d.get(ctx, "/")
+	if !ok || page.StatusCode != http.StatusOK {
 		return false
 	}
-	res.Body.Close()
-	return res.StatusCode == http.StatusOK
+	body, _ := io.ReadAll(io.LimitReader(page.Body, 1<<16))
+	api, ok := d.get(ctx, "/api/events")
+	return ok && strings.Contains(string(body), "<title>deck</title>") && api.StatusCode == http.StatusUnauthorized &&
+		api.Header.Get("WWW-Authenticate") == "Bearer"
 }
 
-// Start starts deck unless one answers already, and waits until it has started or ctx ends.
+func (d *Deck) get(ctx context.Context, path string) (*http.Response, bool) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+d.Addr+path, nil)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
+	res.Body = io.NopCloser(strings.NewReader(string(b)))
+	return res, true
+}
+
+// Start starts deck unless one answers already, and waits until it has started or ctx ends; a second call while
+// one starts waits for the same deck.
 func (d *Deck) Start(ctx context.Context) error {
 	if d.Up(ctx) {
 		return nil
 	}
+	d.mu.Lock()
 	if d.cmd == nil {
-		d.cmd = d.Runner.Command(d.Addr)
-		if err := d.cmd.Start(); err != nil {
-			d.cmd = nil
+		cmd := d.Runner.Command(d.Addr)
+		if err := cmd.Start(); err != nil {
+			d.mu.Unlock()
 			return fmt.Errorf("start deck: %w", err)
 		}
-		d.exited = make(chan error, 1)
-		go func(cmd *exec.Cmd, exited chan error) { exited <- cmd.Wait() }(d.cmd, d.exited)
+		exited := make(chan struct{})
+		d.cmd, d.exited = cmd, exited
+		go func() {
+			_ = cmd.Wait()
+			close(exited)
+			d.mu.Lock()
+			if d.cmd == cmd {
+				d.cmd = nil
+			}
+			d.mu.Unlock()
+		}()
 	}
+	exited := d.exited
+	d.mu.Unlock()
 	tick := time.NewTicker(300 * time.Millisecond)
 	defer tick.Stop()
 	for !d.Up(ctx) {
 		select {
-		case err := <-d.exited:
-			d.cmd = nil
-			return fmt.Errorf("deck stopped as it started: %v", err)
+		case <-exited:
+			if d.Up(ctx) {
+				return nil
+			}
+			return errors.New("deck stopped as it started")
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-tick.C:
@@ -73,7 +107,8 @@ func (d *Deck) Start(ctx context.Context) error {
 	return nil
 }
 
-// URL is the address of deck with the owner's token, which signs the window in.
+// URL is the address of deck with the owner's token, which signs the window in; a deck that does not take the token
+// is another deck on that port.
 func (d *Deck) URL(ctx context.Context) (string, error) {
 	token, err := d.Runner.Token(ctx)
 	if err != nil {
@@ -83,20 +118,33 @@ func (d *Deck) URL(ctx context.Context) (string, error) {
 	if token == "" {
 		return "", errors.New("deck has no token yet")
 	}
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+d.Addr+"/api/commands/deck.menu", strings.NewReader("{}"))
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("another deck answers at %s: it does not take the owner's token", d.Addr)
+	}
 	return "http://" + d.Addr + "/?token=" + url.QueryEscape(token), nil
 }
 
-// Stop stops the deck the launcher started, if it did, and waits for it a while.
+// Stop stops the deck the launcher started, if it did, and ends it when it is not gone in a while.
 func (d *Deck) Stop() error {
-	if d.cmd == nil {
+	d.mu.Lock()
+	cmd, exited := d.cmd, d.exited
+	d.mu.Unlock()
+	if cmd == nil {
 		return nil
 	}
-	err := d.Runner.Stop(d.cmd)
+	err := d.Runner.Stop(cmd)
 	select {
-	case <-d.exited:
+	case <-exited:
 	case <-time.After(15 * time.Second):
-		_ = d.cmd.Process.Kill()
+		d.Runner.Kill(cmd)
+		<-exited
 	}
-	d.cmd = nil
 	return err
 }

@@ -13,11 +13,12 @@ var words = map[string]map[string]string{
 		"Open deck": "Открыть deck", "Start at login": "Запускать при входе", "Quit": "Выйти",
 		"deck did not start": "deck не запустился", "Starting deck…": "deck запускается…",
 		"Installing WSL; Windows asks for consent and may need a restart.": "Ставлю WSL; Windows спросит разрешение и может попросить перезагрузку.",
-		"Installing Ubuntu for deck as the distribution deck.": "Ставлю Ubuntu для deck — дистрибутив deck.",
-		"Preparing the distribution: bubblewrap and the user deck.": "Готовлю дистрибутив: bubblewrap и пользователь deck.",
-		"Putting deck into the distribution.": "Кладу deck в дистрибутив.",
-		"restart Windows, then open deck again": "перезагрузите Windows и откройте deck снова",
-		"deck is ready in WSL.": "deck готов в WSL.",
+		"Installing Ubuntu for deck as the distribution deck.":             "Ставлю Ubuntu для deck — дистрибутив deck.",
+		"Preparing the distribution: bubblewrap and the user deck.":        "Готовлю дистрибутив: bubblewrap и пользователь deck.",
+		"Putting deck into the distribution.":                              "Кладу deck в дистрибутив.",
+		"restart Windows, then open deck again":                            "перезагрузите Windows и откройте deck снова",
+		"deck is ready in WSL.":                                            "deck готов в WSL.",
+		"Move deck to Applications first":                                  "Сначала перенесите deck в «Программы»",
 	},
 }
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -52,7 +53,26 @@ func runnerHere() (Runner, error) {
 	return localDeck()
 }
 
-// setUp readies deck in WSL with the Linux build beside the launcher, telling each step on stdout.
+// prepare readies deck in WSL with the Linux build beside the launcher when it is not there yet, as after the
+// restart WSL asked for; say tells each step.
+func prepare(r Runner, say func(string)) error {
+	preparing.Lock()
+	defer preparing.Unlock()
+	w, ok := r.(WSL)
+	if !ok || w.Ready() {
+		return nil
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	return w.Setup(filepath.Join(filepath.Dir(exe), "deck-linux"), say)
+}
+
+// preparing keeps the start at login and a press of Open from readying WSL twice at once.
+var preparing sync.Mutex
+
+// setUp readies deck in WSL, telling each step on stdout, as the installer runs it.
 func setUp(r Runner) int {
 	w, ok := r.(WSL)
 	if !ok {
@@ -90,14 +110,17 @@ func open(d *Deck, show bool) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
-			err := d.Start(ctx)
+			err := prepare(d.Runner, func(string) {})
+			if err == nil {
+				err = d.Start(ctx)
+			}
 			var url string
 			if err == nil {
 				url, err = d.URL(ctx)
 			}
 			application.InvokeSync(func() {
 				if err != nil {
-					app.Dialog.Error().SetTitle(tr("deck did not start")).SetMessage(err.Error()).Show()
+					app.Dialog.Error().SetTitle(tr("deck did not start")).SetMessage(tr(err.Error())).Show()
 					return
 				}
 				if window == nil {
@@ -137,7 +160,9 @@ func open(d *Deck, show bool) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
-			_ = d.Start(ctx)
+			if prepare(d.Runner, func(string) {}) == nil {
+				_ = d.Start(ctx)
+			}
 		}()
 	}
 	if err := app.Run(); err != nil {

@@ -27,6 +27,8 @@ func (l Local) Token(context.Context) (string, error) {
 
 func (l Local) Stop(cmd *exec.Cmd) error { return cmd.Process.Signal(syscall.SIGTERM) }
 
+func (l Local) Kill(cmd *exec.Cmd) { _ = cmd.Process.Kill() }
+
 // localDeck is the deck beside the launcher in its app, else the one on PATH, with the home deck takes itself.
 func localDeck() (Local, error) {
 	home := os.Getenv("DECK_HOME")
@@ -38,8 +40,10 @@ func localDeck() (Local, error) {
 		home = filepath.Join(h, ".deck2")
 	}
 	if exe, err := os.Executable(); err == nil {
+		self, _ := os.Stat(exe)
 		for _, p := range []string{filepath.Join(filepath.Dir(exe), "..", "Resources", "deck"), filepath.Join(filepath.Dir(exe), "deck")} {
-			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			// In deck.app the launcher itself is named deck: it never starts itself.
+			if st, err := os.Stat(p); err == nil && !st.IsDir() && (self == nil || !os.SameFile(st, self)) {
 				return Local{Bin: p, Home: home}, nil
 			}
 		}

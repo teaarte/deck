@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/xml"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // agent is the login item of the launcher: a launch agent of the user that opens it hidden at login.
@@ -28,6 +31,12 @@ func setAutostart(on bool) error {
 	if err != nil {
 		return err
 	}
+	// An app opened from Downloads runs from a copy macOS removes; it starts at login once moved to Applications.
+	if strings.Contains(exe, "/AppTranslocation/") {
+		return errors.New(tr("Move deck to Applications first"))
+	}
+	var path strings.Builder
+	_ = xml.EscapeText(&path, []byte(exe))
 	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -35,7 +44,7 @@ func setAutostart(on bool) error {
 <key>ProgramArguments</key><array><string>%s</string><string>-hidden</string></array>
 <key>RunAtLoad</key><true/>
 </dict></plist>
-`, exe)
+`, path.String())
 	if err := os.MkdirAll(filepath.Dir(agent()), 0o755); err != nil {
 		return err
 	}

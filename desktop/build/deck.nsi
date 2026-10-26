@@ -23,7 +23,7 @@ LangString Failed ${LANG_ENGLISH} "deck could not get WSL ready; the log above s
 LangString Failed ${LANG_RUSSIAN} "deck не смог подготовить WSL; почему — в журнале выше. Запустите установщик снова."
 
 Section
-  nsExec::Exec 'taskkill /IM deck.exe /F'
+  nsExec::Exec 'cmd /c taskkill /F /IM deck.exe /FI "USERNAME eq %USERNAME%"'
   Pop $0
   SetOutPath "$INSTDIR"
   File "deck.exe"
@@ -49,7 +49,7 @@ SectionEnd
 
 ; The distribution deck with the owner's data stays; wsl --unregister deck removes it.
 Section "Uninstall"
-  nsExec::Exec 'taskkill /IM deck.exe /F'
+  nsExec::Exec 'cmd /c taskkill /F /IM deck.exe /FI "USERNAME eq %USERNAME%"'
   Pop $0
   nsExec::Exec 'wsl.exe -d deck --exec pkill -TERM -x deck'
   Pop $0

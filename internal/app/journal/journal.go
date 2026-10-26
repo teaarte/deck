@@ -22,6 +22,8 @@ type Service struct {
 	Now func() time.Time
 	// Words are deck's phrases in a language.
 	Words func(lang string) map[string]string
+	// Groups give the group of a model of a workspace where models are listed, in a language, and its place.
+	Groups func(ctx context.Context, workspace int64, lang string) func(model string) (string, int)
 }
 
 type callsListIn struct {
@@ -124,7 +126,9 @@ type spendDailyRow struct {
 	Day      string `json:"day,omitempty"`
 	Age      int64  `json:"age"`
 	Provider string `json:"provider,omitempty"`
-	Project  string `json:"project,omitempty"`
+	// Group is the group of the model where models are listed, by provider only.
+	Group   string `json:"group,omitempty"`
+	Project string `json:"project,omitempty"`
 	// Title is the project in the owner's words, deck's own work as Deki and deck.
 	Title        string  `json:"title,omitempty"`
 	Calls        int64   `json:"calls"`
@@ -230,9 +234,15 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		}
 	}
 	titles := s.titles(ctx, act, in)
+	group := func(string) (string, int) { return "", 0 }
+	if in.By == "provider" && s.Groups != nil {
+		group = s.Groups(ctx, act.Workspace, in.Lang)
+	}
+	place := map[string]int{}
 	out := make([]spendDailyRow, 0, len(order))
 	for _, k := range order {
 		row := *by[k]
+		row.Group, place[row.Provider] = group(row.Provider)
 		if in.By == "project" || in.By == "project_provider" {
 			row.Title = titles(row.Project)
 		}
@@ -245,6 +255,12 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		slices.SortFunc(out, func(x, y spendDailyRow) int {
 			return cmp.Or(cmp.Compare(y.Tokens, x.Tokens), cmp.Compare(y.Runs, x.Runs))
 		})
+		// By model, the models of a provider stand together, the dearest first.
+		if in.By == "provider" {
+			slices.SortStableFunc(out, func(x, y spendDailyRow) int {
+				return cmp.Or(cmp.Compare(place[x.Provider], place[y.Provider]), cmp.Compare(y.CostUSD, x.CostUSD))
+			})
+		}
 	}
 	return out, nil
 }

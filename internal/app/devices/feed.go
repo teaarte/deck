@@ -93,7 +93,9 @@ type feedRow struct {
 	Command   string   `json:"command,omitempty"`
 	Model     string   `json:"model,omitempty"`
 	Choices   []string `json:"choices,omitempty"`
-	Trigger   int64    `json:"trigger,omitempty"`
+	// ChoiceGroups are the group of each choice, in its order.
+	ChoiceGroups []string `json:"choice_groups,omitempty"`
+	Trigger      int64    `json:"trigger,omitempty"`
 }
 
 // FeedFailure is the kind of a failure among the lines of the feed.
@@ -241,6 +243,7 @@ func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedList
 		Command   string   `json:"command"`
 		Model     string   `json:"model"`
 		Choices   []string `json:"choices"`
+		Groups    []string `json:"choice_groups"`
 		Trigger   int64    `json:"trigger"`
 	}
 	if err := dv.read(ctx, act, "health_list", map[string]any{"project": in.Project, "lang": in.Lang}, &checks); err != nil {
@@ -266,7 +269,7 @@ func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedList
 		out = append(out, feedRow{ID: -(int64(1)<<40 + int64(h.Sum32())), Kind: FeedFailure, Project: c.Project, Author: "deck",
 			Text: manifest.TrText(ws, failingCheck(c.Kind, c.Subject)), Buttons: []Button{}, CreatedAt: c.UpdatedAt,
 			Error: c.Error, Check: c.Subject, DeckScreen: true, SelfCheck: c.SelfCheck, Role: c.Role, Command: c.Command,
-			Model: c.Model, Choices: c.Choices, Trigger: c.Trigger,
+			Model: c.Model, Choices: c.Choices, ChoiceGroups: c.Groups, Trigger: c.Trigger,
 			Open: map[string]any{"verb": "open", "screen": "settings", "params": map[string]any{"tab": "Health"}}})
 	}
 	return out, nil

@@ -1,0 +1,6 @@
+{
+  "name": "look",
+  "icon": "palette",
+  "title": "Look",
+  "blocks": [{"type": "appearance"}]
+}

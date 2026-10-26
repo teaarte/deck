@@ -173,16 +173,17 @@ func TestAFolderAndAnAssignmentTellOnlyTheirReaders(t *testing.T) {
 	}
 }
 
-// TestTheListOfProjectsFollowsTheirFolders: a project of the list shows its folders, so a new folder reads it again.
-func TestTheListOfProjectsFollowsTheirFolders(t *testing.T) {
+// TestTheSettingsOfAModuleFollowItsFolders: the settings of a module show its folders, so a new folder reads them
+// again.
+func TestTheSettingsOfAModuleFollowItsFolders(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	dir := t.TempDir()
 	e.must("deck.folder_add", map[string]any{"project": "web", "path": dir}, nil)
-	drawn, _ := json.Marshal(e.screenMessages("", "settings", map[string]any{"topic": "folders", "changed": "web", "tab": "Modules"}))
+	drawn, _ := json.Marshal(e.screenMessages("web", "settings", map[string]any{"topic": "folders", "changed": "web"}))
 	if !strings.Contains(string(drawn), filepath.Base(dir)) {
-		t.Fatalf("the list of projects is read again with the new folder: %s", drawn)
+		t.Fatalf("the settings of the module are read again with the new folder: %s", drawn)
 	}
 }
 

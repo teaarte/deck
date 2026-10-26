@@ -112,11 +112,14 @@
                 "input": {
                   "days": 1,
                   "by": "provider"
-                },
-                "sort": "-cost_usd"
+                }
               },
               "empty": "No model calls",
               "columns": [
+                {
+                  "label": "Provider",
+                  "bind": "group ?? ''"
+                },
                 {
                   "label": "Model",
                   "bind": "provider",
@@ -229,11 +232,14 @@
                 "input": {
                   "days": 7,
                   "by": "provider"
-                },
-                "sort": "-cost_usd"
+                }
               },
               "empty": "No model calls",
               "columns": [
+                {
+                  "label": "Provider",
+                  "bind": "group ?? ''"
+                },
                 {
                   "label": "Model",
                   "bind": "provider",
@@ -346,11 +352,14 @@
                 "input": {
                   "days": 30,
                   "by": "provider"
-                },
-                "sort": "-cost_usd"
+                }
               },
               "empty": "No model calls",
               "columns": [
+                {
+                  "label": "Provider",
+                  "bind": "group ?? ''"
+                },
                 {
                   "label": "Model",
                   "bind": "provider",

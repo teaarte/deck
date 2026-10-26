@@ -92,8 +92,29 @@ function Board({ board, items }: { board: BoardData; items: Item[] }) {
 
 function Items({ items, cards }: { items: Item[]; cards?: boolean }) {
   const line = (it: Item, i: number) => <Line key={show(it.id) || i} it={it} quiet={i > 0} />;
+  if (items.some((it) => it.group)) return <Groups items={items} cards={cards} line={line} />;
   if (cards) return <div className={s.cards} data-cards>{items.map(line)}</div>;
   return <Virtual items={items} row={56} gap={0} className={s.items} render={line} />;
+}
+
+// Groups are the items under the heading of their group, which the server put together.
+function Groups({ items, cards, line }: { items: Item[]; cards?: boolean; line: (it: Item, i: number) => React.ReactNode }) {
+  const groups: { name: string; items: Item[] }[] = [];
+  items.forEach((it) => {
+    const name = it.group ?? '';
+    if (groups.at(-1)?.name !== name) groups.push({ name, items: [] });
+    groups.at(-1)!.items.push(it);
+  });
+  return (
+    <Stack gap="md" data-groups>
+      {groups.map((g, gi) => (
+        <section key={g.name || gi} data-group={g.name}>
+          {g.name && <Text size="sm" fw={700} className={s.groupHead} data-group-head>{g.name}</Text>}
+          <div className={cards ? s.cards : s.items} data-cards={cards || undefined}>{g.items.map(line)}</div>
+        </section>
+      ))}
+    </Stack>
+  );
 }
 
 const key = (it: Item) => show(it.id);

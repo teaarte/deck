@@ -44,7 +44,10 @@ func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 	}{{"", 1280, 820}, {"-phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
 		b.open(e.URL + "/?token=" + token + "#/deck/settings")
-		b.until("Health first, the failure counted on its tab", `document.querySelector('[role=tab][aria-selected=true]')?.innerText.includes('Health') && document.querySelector('[data-tab-count="failures"]')?.innerText.trim() === '1'`)
+		b.until("Models first, then Modules, Health and Advanced", `document.querySelector('[role=tab][aria-selected=true]')?.innerText.includes('Models') &&
+			[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.replace(/[0-9]/g, '').trim()).join(',') === 'Models,Modules,Health,Advanced'`)
+		b.open(e.URL + "/#/deck/settings?tab=Health")
+		b.until("the failure counted on its tab", `document.querySelector('[role=tab][aria-selected=true]')?.innerText.includes('Health') && document.querySelector('[data-tab-count="failures"]')?.innerText.trim() === '1'`)
 		b.until("what is broken with a way to run it again", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('the model is down') && [...x.querySelectorAll('button')].some((b) => b.innerText.includes('Run again')))`)
 		if got := b.eval(untitled); got != "true" {
 			t.Fatal("settings do not repeat their tab as a title")

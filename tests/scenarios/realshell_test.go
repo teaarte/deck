@@ -167,12 +167,11 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-full]').click(), '')`)
 	b.until("the screen back beside the chat", `document.querySelector('[data-main]').offsetParent`)
 
-	b.open(e.URL + "/#/deck/settings?tab=Look")
+	b.open(e.URL + "/#/deck/look")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "glass")
 	b.look("scheme", "dark")
 	b.until("the dark glass", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'dark'`)
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Look').click(), '')`)
 	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"]')`)
 	b.until("the glass of the theme document on the tabs", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
 	var worn struct{ Name string }
@@ -190,7 +189,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.open(e.URL + "/#/deck/cockpit")
 	b.until("the dark cockpit", `document.querySelector('[data-today-line]') && document.querySelector('[data-grid] [data-block]')`)
 	b.shot("shell-glass-dark-cockpit")
-	b.open(e.URL + "/#/deck/settings?tab=Look")
+	b.open(e.URL + "/#/deck/look")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
 	b.look("scheme", "light")
 	b.eval(`(document.querySelector('[data-accent="grape"]').click(), '')`)

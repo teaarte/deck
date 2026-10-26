@@ -300,13 +300,13 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		}
 	}
 	for _, topic := range []string{"health", "models"} {
-		if got := paths("", "settings", topic); !slices.Equal(got, []string{"/b0-0-0", "/b0-0-1", "/b0-2-3", "/b0-2-4", "/b0-4-3"}) {
+		if got := paths("", "settings", topic); !slices.Equal(got, []string{"/b0-0-3", "/b0-0-4", "/b0-2-0", "/b0-2-1", "/b0-3-3"}) {
 			t.Fatalf("%s reads what is broken and passes, the work and the models, and the agents: %v", topic, got)
 		}
-		if got := paths("", "settings", topic, "Health", "checks"); !slices.Contains(got, "/b0-0-2-0") {
+		if got := paths("", "settings", topic, "Health", "checks"); !slices.Contains(got, "/b0-2-2-0") {
 			t.Fatalf("%s reads every check in its open dialog: %v", topic, got)
 		}
-		if got := paths("", "settings", topic, "Models", "connections"); !slices.Contains(got, "/b0-2-1-0") {
+		if got := paths("", "settings", topic, "Models", "connections"); !slices.Contains(got, "/b0-0-1-0") {
 			t.Fatalf("%s reads the connections in their open dialog: %v", topic, got)
 		}
 	}

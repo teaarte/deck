@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -59,15 +60,68 @@ func (s *Service) book(ctx context.Context, workspace int64, tr func(string) str
 	rows, _ := s.St.Q.ListModels(ctx, workspace)
 	for _, r := range rows {
 		m := r.Model
-		b.add(modelView{Name: m.Name, Kind: m.Kind, Agent: m.Agent, InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd),
+		b.add(modelView{Name: m.Name, Connection: r.Connection.Name, Kind: m.Kind, Agent: m.Agent, InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd),
 			CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0, Subscription: m.Subscription != 0})
 	}
 	return b
 }
 
 func (b *Book) add(v modelView) {
+	v.Provider = providerOf(v, b.tr)
 	b.models[v.Name] = v
 	b.order = append(b.order, v.Name)
+	slices.SortStableFunc(b.order, func(x, y string) int { return byProvider(b.models[x], b.models[y]) })
+}
+
+// Groups give the group of a model of a workspace where models are listed, in a language, and the place of the
+// group among them.
+func (s *Service) Groups(ctx context.Context, workspace int64, lang string) func(model string) (string, int) {
+	ws := s.Words(lang)
+	b := s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
+	return func(model string) (string, int) {
+		v, ok := b.models[model]
+		if !ok {
+			return "", len(b.order)
+		}
+		return v.Provider, slices.IndexFunc(b.order, func(n string) bool { return byProvider(b.models[n], v) == 0 })
+	}
+}
+
+// providerOf is the group a model stands in where models are listed: the subscriptions, else its connection, else
+// the provider deck was started with.
+func providerOf(v modelView, tr func(string) string) string {
+	if v.Subscription {
+		return tr("subscriptions")
+	}
+	return cmp.Or(v.Connection, v.Name)
+}
+
+// byProvider orders models by their group, the subscriptions first, then the built-in providers and the connections.
+func byProvider(a, b modelView) int {
+	sub := func(v modelView) int {
+		if v.Subscription {
+			return 0
+		}
+		return 1
+	}
+	return cmp.Or(cmp.Compare(sub(a), sub(b)), cmp.Compare(cmp.Or(a.Connection, a.Name), cmp.Or(b.Connection, b.Name)))
+}
+
+// Grouped is work with its choices in the order of the book and the group of each beside them.
+func (b *Book) Grouped(w provider.Work) provider.Work {
+	at := func(name string) int {
+		if i := slices.Index(b.order, name); i >= 0 {
+			return i
+		}
+		return len(b.order)
+	}
+	w.Choices = slices.Clone(w.Choices)
+	slices.SortStableFunc(w.Choices, func(x, y string) int { return cmp.Compare(at(x), at(y)) })
+	w.ChoiceGroups = make([]string, len(w.Choices))
+	for i, c := range w.Choices {
+		w.ChoiceGroups[i] = b.models[c].Provider
+	}
+	return w
 }
 
 // Price is the price of a model of the book, empty for one it lacks.
@@ -138,7 +192,7 @@ func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, com
 		}
 		w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model, b.tr)
 		w.Price = b.Price(w.Model)
-		return w
+		return b.Grouped(w)
 	case "model":
 		role, ok := strings.CutPrefix(cmd.Executor.Model, "@")
 		if cmd.Executor.Model == "" {
@@ -211,5 +265,5 @@ func (s *Service) roleWork(ctx context.Context, b *Book, p db.Project, command, 
 	}
 	w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model, b.tr)
 	w.Price = b.Price(w.Model)
-	return w
+	return b.Grouped(w)
 }

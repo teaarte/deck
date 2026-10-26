@@ -10,7 +10,7 @@
           "item": {"title": "title + ' · ' + project_title", "text": "failure", "since": "last_at", "tone": "'error'", "icon": "'alert-circle'"},
           "actions": [
             {"label": "Run again", "icon": "player-play", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
-            {"label": "Change the model", "icon": "cpu", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
+            {"label": "Change the model", "icon": "cpu", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
             {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
           ]},
         {"type": "table", "title": "What runs by itself", "source": {"from": "deck.triggers_list", "sort": "project"}, "filter": ["project"],
@@ -27,7 +27,7 @@
           "actions": [
             {"verb": "run_now", "icon": "player-play", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron' && !paused && !draft"},
             {"verb": "resume", "icon": "player-play", "primary": true, "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
-            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
+            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
             {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
             {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
           ]}

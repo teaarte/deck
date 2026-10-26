@@ -121,6 +121,10 @@ export interface Action {
    */
   labels?: string[];
   /**
+   * The heading each option stands under, in the order of options.
+   */
+  groups?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -190,6 +194,10 @@ export interface Action1 {
    * Each option in the owner's language, when one differs from its value.
    */
   labels?: string[];
+  /**
+   * The heading each option stands under, in the order of options.
+   */
+  groups?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
@@ -359,6 +367,10 @@ export interface Data {
      * what the item is, said in the head of its card in a focus list
      */
     kind?: string;
+    /**
+     * the heading the item stands under
+     */
+    group?: string;
     cover?: Picture;
     questions?: {
       question: string;
@@ -493,6 +505,10 @@ export interface Action2 {
    */
   labels?: string[];
   /**
+   * The heading each option stands under, in the order of options.
+   */
+  groups?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -562,6 +578,10 @@ export interface Action3 {
    * Each option in the owner's language, when one differs from its value.
    */
   labels?: string[];
+  /**
+   * The heading each option stands under, in the order of options.
+   */
+  groups?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
@@ -693,6 +713,10 @@ export interface Action4 {
    */
   labels?: string[];
   /**
+   * The heading each option stands under, in the order of options.
+   */
+  groups?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -792,6 +816,10 @@ export interface Action5 {
    */
   labels?: string[];
   /**
+   * The heading each option stands under, in the order of options.
+   */
+  groups?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -861,6 +889,10 @@ export interface Action6 {
    * Each option in the owner's language, when one differs from its value.
    */
   labels?: string[];
+  /**
+   * The heading each option stands under, in the order of options.
+   */
+  groups?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
@@ -1156,6 +1188,10 @@ export interface Action7 {
    * Each option in the owner's language, when one differs from its value.
    */
   labels?: string[];
+  /**
+   * The heading each option stands under, in the order of options.
+   */
+  groups?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */

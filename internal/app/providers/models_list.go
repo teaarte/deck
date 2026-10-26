@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -52,6 +53,8 @@ type modelView struct {
 	// Price is how its price reads; Used says some work of a project goes to it now or is assigned to it.
 	Price string `json:"price"`
 	Used  bool   `json:"used"`
+	// Provider is the group it stands in: the subscriptions, else its connection.
+	Provider string `json:"provider"`
 }
 
 // lastCheck fills in the state of a model: of its last self-check in an agent, else of its last call.
@@ -132,6 +135,8 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		}
 		out.Connections = append(out.Connections, v)
 	}
+	ws := s.Words(in.Lang)
+	tr := func(p string) string { return manifest.TrText(ws, p) }
 	for _, pv := range s.Builtin {
 		_, sub := pv.(provider.Subscribed)
 		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true, Subscription: sub}
@@ -146,8 +151,9 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}
-	ws := s.Words(in.Lang)
-	tr := func(p string) string { return manifest.TrText(ws, p) }
+	for i := range out.Models {
+		out.Models[i].Provider = providerOf(out.Models[i], tr)
+	}
 	rows, err := s.St.Q.ListAssignments(ctx, act.Workspace)
 	if err != nil {
 		return out, err
@@ -199,6 +205,10 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		out.Models[i].Price, out.Models[i].Used = Price(out.Models[i], tr), used[out.Models[i].Name]
 		out.Models[i].Error = tr(out.Models[i].Error)
 	}
+	// By provider, and in each those that work goes to first.
+	slices.SortStableFunc(out.Models, func(a, b modelView) int {
+		return cmp.Or(byProvider(a, b), cmp.Compare(boolRank(b.Used), boolRank(a.Used)))
+	})
 	for i := range out.Agents {
 		out.Agents[i].Error = tr(out.Agents[i].Error)
 	}
@@ -263,15 +273,22 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 			if w.Choices = b.Of(a.Role); agentic(a.Role) {
 				w.Choices = b.Agents()
 			}
-			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, a.Role), Own: true, Work: w})
+			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, a.Role), Own: true, Work: b.Grouped(w)})
 		}
 		// The views of cards go to the master's model until the owner picks one.
 		if !slices.ContainsFunc(out.Assignments, func(a assignmentView) bool { return a.Project == "" && a.Role == RoleWidget }) {
-			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, RoleWidget), Work: provider.Work{Role: RoleWidget, Choices: b.Agents()}})
+			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, RoleWidget), Work: b.Grouped(provider.Work{Role: RoleWidget, Choices: b.Agents()})})
 		}
 	}
 	for name := range s.Places(ctx, act.Workspace) {
 		used[name] = true
 	}
 	return used, nil
+}
+
+func boolRank(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

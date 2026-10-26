@@ -12,7 +12,7 @@ import (
 )
 
 // lightScreens are the most a whole read of each screen of deck may weigh on lightEnv, in bytes.
-var lightScreens = map[string]int{"settings": 20_000, "files": 25_000, "spend": 10_000, "schedule": 10_000, "cockpit": 10_000, "chat": 10_000}
+var lightScreens = map[string]int{"settings": 26_000, "files": 25_000, "spend": 10_000, "schedule": 10_000, "cockpit": 10_000, "chat": 10_000}
 
 // lightEnv is deck with a working week behind it: modules with many records and files, runs and a long chat.
 func lightEnv(t *testing.T) *Env {

@@ -18,7 +18,7 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
 	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Modules")
-	item := itemOf("notes", "enabled")
+	item := itemOf("notes", "")
 	b.until("the project in the Projects tab", item)
 	b.eval(pressIn(item, "settings"))
 	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Collect'))`)

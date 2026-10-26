@@ -408,12 +408,12 @@ func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.P
 		// The device subscribed with another key of deck: the subscription goes, and the device subscribes again.
 		slog.Error("push refused", "device", s.Device, "status", status)
 		gone()
-		return pushGone, "the push service refused the subscription: " + status + "; deck forgot it, turn pushes on again on this device in Settings → Look"
+		return pushGone, "the push service refused the subscription: " + status + "; deck forgot it, turn pushes on again on this device in Settings → Advanced"
 	case code == http.StatusTooManyRequests || code >= 500:
 		return pushRetry, status
 	default:
 		slog.Error("push refused", "device", s.Device, "status", status)
-		return pushDone, "the push service refused it: " + status + "; turn pushes off and on again on this device in Settings → Look"
+		return pushDone, "the push service refused it: " + status + "; turn pushes off and on again on this device in Settings → Advanced"
 	}
 }
 

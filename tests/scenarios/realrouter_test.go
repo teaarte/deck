@@ -35,13 +35,13 @@ func TestRealBrowserRouter(t *testing.T) {
 	b.until("the dialog closed after its form ran", `!document.querySelector('[data-dialog="rescore"] input') && !location.hash.includes('dialog')`)
 
 	b.open(e.URL + "/#/deck/settings")
-	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Models')`)
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Models').click(), '')`)
-	b.until("the tab in the address", `decodeURIComponent(location.hash).includes('tab=Models')`)
+	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Modules')`)
+	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Modules').click(), '')`)
+	b.until("the tab in the address", `decodeURIComponent(location.hash).includes('tab=Modules')`)
 	b.open(e.URL + "/#/deck/schedule")
 	b.until("the journal", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Runs')`)
 	b.eval(`(history.back(), '')`)
-	b.until("back on the tab picked before", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Models')`)
+	b.until("back on the tab picked before", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Modules')`)
 	b.eval(`(location.reload(), '')`)
-	b.until("the tab kept over a reload", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Models')`)
+	b.until("the tab kept over a reload", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Modules')`)
 }

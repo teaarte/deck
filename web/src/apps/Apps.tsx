@@ -86,9 +86,12 @@ function Room({ onHeight }: { onHeight: (px: number) => void }) {
   return <div ref={ref} className={s.todayRoom} data-today-room />;
 }
 
+// seen are the cell and the width of the tiles last measured in this tab: the tiles drawn again stand at once.
+const seen = { cell: { min: 200, height: 180, gap: 24 }, width: 0 };
+
 // useCell is the size of a cell of the tiles in pixels, from the tokens of the theme: least width, height and gap.
 function useCell(ref: React.RefObject<HTMLDivElement | null>) {
-  const [cell, setCell] = useState({ min: 200, height: 180, gap: 24 });
+  const [cell, setCell] = useState(seen.cell);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -101,6 +104,7 @@ function useCell(ref: React.RefObject<HTMLDivElement | null>) {
         return probe.getBoundingClientRect().width;
       };
       const next = { min: px('--deck-tile-min') || 200, height: px('--deck-tile-height') || 180, gap: px('--deck-tile-gap') };
+      seen.cell = next;
       setCell((c) => (c.min === next.min && c.height === next.height && c.gap === next.gap ? c : next));
     };
     read();
@@ -112,6 +116,7 @@ function useCell(ref: React.RefObject<HTMLDivElement | null>) {
 }
 
 const EMPTY: Saved = { columns: 0, own: false, cards: [] };
+const NARROW = '(max-width: 36em)';
 
 // Apps is the home of deck: cards in cells where the owner put them, Today with Deki first by default; a long press
 // opens the placing, where a card moves to any cell and grows or shrinks by its corner.
@@ -119,10 +124,12 @@ export function Apps() {
   const { t } = useTranslation();
   const menu = useMenuData();
   const route = useRoute();
-  const phone = useMediaQuery('(max-width: 36em)') ?? false;
+  // Known from the first draw, so the cells do not shift once the query answers.
+  const phone = useMediaQuery(NARROW, matchMedia(NARROW).matches, { getInitialValueInEffect: false });
   const dark = useComputedColorScheme('light') === 'dark';
   const scene = useWorn().images?.cockpit;
-  const { width, containerRef, mounted } = useContainerWidth();
+  const { width, containerRef, mounted } = useContainerWidth(seen.width ? { initialWidth: seen.width } : undefined);
+  if (mounted) seen.width = width;
   const measured = useCell(containerRef);
   // A phone keeps half the gap between its cards.
   const cell = phone ? { ...measured, gap: measured.gap / 2 } : measured;

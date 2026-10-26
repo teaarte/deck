@@ -33,7 +33,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.type_(form("deck.project_create", "name"), "notes")
 	b.type_(form("deck.project_create", "prompt"), "Notes of the owner.")
 	submit("deck.project_create")
-	b.until("the new project in the list", itemOf("notes", "enabled"))
+	b.until("the new project in the list", itemOf("notes", ""))
 
 	b.eval(`(document.querySelector('[data-dialog-open="import-project"]').click(), '')`)
 	b.until("the import form", form("deck.project_import", "folder"))
@@ -44,13 +44,13 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.reviewAndEnable("code")
 	e.waitFor("the enabled project", func() bool { return e.project("code").Status == "enabled" })
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
-	b.until("the enabled project", itemOf("code", "enabled"))
+	b.until("the enabled project", itemOf("code", ""))
 
 	tab := func(name string) {
 		b.until("the tab "+name, `[...document.querySelectorAll('[role="tab"]')].some((x) => x.innerText.trim() === '`+name+`')`)
 		b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.trim() === '` + name + `').click(), '')`)
 	}
-	b.eval(pressIn(itemOf("code", "enabled"), "settings"))
+	b.eval(pressIn(itemOf("code", ""), "settings"))
 	tab("Access")
 	b.until("the settings of the project", `document.querySelector('[data-dialog-open="folder"]')`)
 	b.eval(`(document.querySelector('[data-dialog-open="folder"]').click(), '')`)

@@ -92,8 +92,11 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 	}
 	var items []listItem
 	_ = json.Unmarshal(e.settingsBlock("Modules", nil)["items"], &items)
-	if len(items) != 2 || !strings.Contains(items[0].Meta, "folders: my-repo, notes") || strings.Contains(fmt.Sprint(items[1].Actions), "project_delete") {
-		t.Fatalf("the Projects tab shows the folders: %+v", items)
+	if len(items) != 2 || items[0].Meta != "" || strings.Contains(fmt.Sprint(items[1].Actions), "project_delete") {
+		t.Fatalf("the card of a module that runs says only its name: %+v", items)
+	}
+	if own := blockData[[]listItem](t, e.screenBlock("code", "settings", "Module", nil)["items"]); len(own) != 1 || !strings.Contains(own[0].Meta, "folders: my-repo, notes") {
+		t.Fatalf("the settings of the module show its folders: %+v", own)
 	}
 	if code, out := e.press(e.rowAction("code", "settings", "deck.folder_remove", map[string]any{"name": "notes"})); code != 200 {
 		t.Fatalf("the remove button of a folder on the settings of the project works: %d %s", code, out)

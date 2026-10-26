@@ -41,7 +41,7 @@ asks, as a theme of its own name.
    gives two preview addresses, light and dark: give them to the owner as links. Look at it before the owner
    does: `screen_shot` with `theme` and `scheme` draws a screen in it (the tiles `#/`, Today `#/deck/cockpit`, a
    module) on a computer and a phone; read the picture at `path`.
-7. Only the owner puts a theme on: tell them it is in Settings → Look.
+7. Only the owner puts a theme on: tell them it is in Look, the place beside Files.
 
 ## Pictures of a theme
 
@@ -50,7 +50,7 @@ A theme may have pictures, each for the light and the dark scheme, set apart fro
 card of Today under its words (calm on the left, room for Deki on the right); `backdrop`, one wide picture behind
 the page; or `pattern`, a seamless square tile repeated behind it, `pattern-size` wide. Keep them quiet: they stay
 behind everything. Draw them with `deck.model_call` of kind image in the theme's `mood`; the owner's button
-"Draw the background" in Settings → Look asks for them (`deck.theme_draw`). `deck.theme_check` checks the words of
+"Draw the background" in Look asks for them (`deck.theme_draw`). `deck.theme_check` checks the words of
 Today over the cockpit by its main color; look at the tiles with `screen_shot` after.
 
 ## Deleting

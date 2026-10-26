@@ -121,6 +121,13 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			values := r.inputEnum(name, a.Input)
 			labeled(act, func(o string) string { return fmt.Sprint(r.word(among(values), o)) })
 		}
+		if g, ok := value(a.Groups).([]any); ok && len(g) == len(values(act["options"])) {
+			groups := make([]string, len(g))
+			for i, x := range g {
+				groups[i] = fmt.Sprint(x)
+			}
+			act["groups"] = groups
+		}
 	}
 	if v := value(a.Until); v != nil && v != "" {
 		act["until"] = v

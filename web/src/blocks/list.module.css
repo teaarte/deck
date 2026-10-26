@@ -320,3 +320,7 @@
     display: inline-flex;
   }
 }
+
+.groupHead {
+  padding: 0 0 8px;
+}

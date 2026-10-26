@@ -119,11 +119,11 @@ func TestAModelNeverCalledSaysSo(t *testing.T) {
 	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "zai", "api": "openai", "url": "http://127.0.0.1:1/v1", "key": "k"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "zai", "model": "glm-5", "kind": "text"}, nil)
-	rows := blockData[[]screenRow](t, e.settingsBlock("All models", nil)["rows"])
+	rows := e.allModels(nil)
 	for _, r := range rows {
-		if r.Cells[0] == "zai/glm-5" {
-			if r.Cells[2] != "unchecked" || r.Details[2] != "No work has gone to it yet" {
-				t.Fatalf("a model never called says so: %+v", r.Cells)
+		if r.Title == "zai/glm-5" {
+			if r.Tone != "muted" || r.Details != "No work has gone to it yet" || r.Group != "zai" {
+				t.Fatalf("a model never called says so, under its connection: %+v", r)
 			}
 			return
 		}

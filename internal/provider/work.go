@@ -7,7 +7,9 @@ type Work struct {
 	Model   string   `json:"model,omitempty"`
 	Models  []string `json:"models,omitempty"`
 	Choices []string `json:"choices,omitempty"`
-	Price   string   `json:"price,omitempty"`
+	// ChoiceGroups are the group of each choice, in its order.
+	ChoiceGroups []string `json:"choice_groups,omitempty"`
+	Price        string   `json:"price,omitempty"`
 	// Why is one line of the health of the first model that is down, when the work goes to another.
 	Why string `json:"why,omitempty"`
 }

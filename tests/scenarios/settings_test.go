@@ -34,8 +34,8 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 	for _, s := range menu[0].Screens {
 		names = append(names, s.Name)
 	}
-	if !strings.Contains(strings.Join(names, " "), "schedule spend files settings") {
-		t.Fatalf("the deck menu is the schedule, spend, files and settings; the cockpit is the link at its head: %v", names)
+	if !strings.Contains(strings.Join(names, " "), "schedule spend files look settings") {
+		t.Fatalf("the deck menu is the schedule, spend, files, look and settings; the cockpit is the link at its head: %v", names)
 	}
 	check := newCatalogCheck(t)
 	msgs := e.screenMessages("", "settings", nil)
@@ -242,7 +242,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	e.refused(stale["command"].(string), stale["params"], 409, "look at its rights again")
 	press(enable(verb(t, notes.Actions, "review")))
 	notes = findItem(t, items(), "notes")
-	if !strings.HasPrefix(notes.Meta, "enabled") || hasVerb(notes.Actions, "review") || strings.Contains(notes.Meta, "grants") {
+	if notes.Meta != "" || hasVerb(notes.Actions, "review") {
 		t.Fatalf("an enabled project has no enable button and asks for nothing: %+v", notes)
 	}
 	press(verb(t, findItem(t, items(), "notes").Actions, "pause"))
@@ -337,20 +337,19 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": "http://127.0.0.1:1/v1", "local": true}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "small", "name": "ollama-small", "agent": "goose"}, nil)
 	waitTopic(t, events, "health")
-	rows := blockData[[]screenRow](t, e.settingsBlock("All models", map[string]any{"topic": "health"})["rows"])
-	var added screenRow
-	for _, r := range rows {
-		if r.Cells[0] == "ollama-small" {
+	var added listItem
+	for _, r := range e.allModels(map[string]any{"topic": "health"}) {
+		if r.Title == "ollama-small" {
 			added = r
-		} else if r.Cells[2] == "subscription" && hasVerb(r.Actions, "remove") {
+		} else if r.Text == "subscription" && hasVerb(r.Actions, "remove") {
 			t.Fatalf("a built-in provider cannot be removed: %+v", r)
 		}
 	}
-	if !hasVerb(added.Actions, "check") {
-		t.Fatalf("a model in an ACP agent has a self-check and its button: %+v", added.Actions)
+	if !hasVerb(added.Actions, "check") || added.Group != "ollama" {
+		t.Fatalf("a model in an ACP agent has a self-check and its button, under its connection: %+v", added)
 	}
 	remove := verb(t, added.Actions, "remove")
-	if remove["confirm"] != true || added.Cells[1] != "agent" {
+	if remove["confirm"] != true || added.Meta != "agent" {
 		t.Fatalf("an added model in an agent says so and is removed after a yes: %+v", added)
 	}
 	edit := verb(t, added.Actions, "edit")["params"].(map[string]any)
@@ -368,8 +367,8 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	})
 	e.must(remove["command"].(string), remove["params"], nil)
 	waitTopic(t, events, "models")
-	for _, r := range blockData[[]screenRow](t, e.settingsBlock("All models", nil)["rows"]) {
-		if r.Cells[0] == "ollama-small" {
+	for _, r := range e.allModels(nil) {
+		if r.Title == "ollama-small" {
 			t.Fatalf("the removed model is gone: %+v", r)
 		}
 	}

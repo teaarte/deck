@@ -235,7 +235,7 @@
 
 /* The view of a new size comes in softly as the card settles to it. */
 @media (prefers-reduced-motion: no-preference) {
-  .widget [data-screen-view] > * {
+  .widget[data-resized] [data-screen-view] > * {
     animation: settle 220ms ease-out;
   }
 }

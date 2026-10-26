@@ -178,12 +178,12 @@ func rank(order []int64, id int64) int {
 }
 
 // foot are the groups at the foot of the menu: deck's work, the master's screens but its documents, which are a
-// folder of Files, and deck's settings; an empty group is left out.
+// folder of Files, and deck's look and settings; an empty group is left out.
 func (ss *Service) foot(m menuOut, lang string) []menuGroup {
 	work := menuGroup{Key: "work", Title: manifest.Tr(Phrases(lang), "Work")}
 	settings := menuGroup{Key: "settings"}
 	for _, s := range m.Deck.Screens {
-		if s.Name == "settings" {
+		if s.Name == "settings" || s.Name == "look" {
 			settings.Links = append(settings.Links, menuLink{ScreenLink: s})
 		} else {
 			work.Links = append(work.Links, menuLink{ScreenLink: s})

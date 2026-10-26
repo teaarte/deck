@@ -259,13 +259,16 @@ func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 	}
 	e.must("deck.menu", nil, &m)
 	type card struct {
-		Title   string
-		Cover   map[string]string
-		Actions []map[string]any
+		Title, Text, Meta string
+		Cover             map[string]string
+		Actions           []map[string]any
 	}
 	var cards []card
 	_ = json.Unmarshal(e.settingsBlock("Modules", nil)["items"], &cards)
 	i := slices.IndexFunc(cards, func(c card) bool { return c.Title == "notes" })
+	if m := slices.IndexFunc(cards, func(c card) bool { return c.Title != "notes" }); m < 0 || cards[m].Cover["light"] != "/deki/chill.webp" || cards[i].Text != "" || cards[i].Meta != "" {
+		t.Fatalf("a card of a module says only its name, the master's wears Deki: %+v", cards)
+	}
 	if i < 0 || len(m.Projects) != 1 || cards[i].Cover["light"] != m.Projects[0].Cover || !strings.HasPrefix(cards[i].Cover["color"], "#") {
 		t.Fatalf("the card of the module wears the cover of its tile: %+v %+v", cards, m)
 	}

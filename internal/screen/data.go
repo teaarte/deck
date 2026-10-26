@@ -277,7 +277,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			}
 			r.setTone(line, b.Item.Tone, it)
 			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta, "since": b.Item.Since,
-				"icon": b.Item.Icon, "details": b.Item.Details, "questions": b.Item.Questions, "kind": b.Item.Kind} {
+				"icon": b.Item.Icon, "details": b.Item.Details, "questions": b.Item.Questions, "kind": b.Item.Kind, "group": b.Item.Group} {
 				if e == "" {
 					continue
 				}
@@ -285,9 +285,10 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				if err != nil {
 					return nil, fmt.Errorf("item %s: %w", key, err)
 				}
+				_, said := v.(string)
 				switch {
 				case v == nil || v == "":
-				case key == "details", key == "questions":
+				case key == "questions", key == "details" && !said:
 					line[key] = v
 				default:
 					line[key] = fmt.Sprint(r.phrased(e, r.word(r.worded(b.Source, e, b.Filter), v)))
@@ -297,6 +298,15 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				line["title"] = ""
 			}
 			lines = append(lines, line)
+		}
+		if b.Item.Group != "" && !b.Focus && b.Board == "" {
+			first := map[any]int{}
+			for i, l := range lines {
+				if _, ok := first[l["group"]]; !ok {
+					first[l["group"]] = i
+				}
+			}
+			slices.SortStableFunc(lines, func(x, y map[string]any) int { return first[x["group"]] - first[y["group"]] })
 		}
 		out["items"] = lines
 	}

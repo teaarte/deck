@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Loader, Select } from '@mantine/core';
 import type { Action } from '../../lib/catalog.gen';
 import { show } from '../../lib/format';
-import { choices } from '../../ui/actions/ActionInput';
+import { choiceData, choices } from '../../ui/actions/ActionInput';
 import { Failed } from '../../ui/actions/Failed';
 import { usePress } from '../../ui/actions/usePress';
 
@@ -14,7 +14,7 @@ export function Pick({ act, value }: { act: Action; value: unknown }) {
   const [picked, setPicked] = useState('');
   const now = busy && picked ? picked : show(value);
   const opts = choices(act);
-  const data = opts.some((o) => o.value === now) || !now ? opts : [{ value: now, label: now }, ...opts];
+  const data = opts.some((o) => o.value === now) || !now ? choiceData(act) : [{ value: now, label: now }, ...choiceData(act)];
   return (
     <Failed error={error} onClose={clear}>
       <div onClick={(e) => e.stopPropagation()}>

@@ -6,6 +6,7 @@ import { IconTitle } from '../ui/IconTitle';
 import type { ScreenProps } from '../lib/catalog.gen';
 import { ScreenLead } from '../screen/lead';
 import { BlockContext, readBlock } from '../screen/press';
+import { Fit } from './around';
 import { api, children } from './blockImpl';
 import { Side } from './side';
 
@@ -17,6 +18,7 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
   const root = !p.name && !!p.title;
   const lead = useContext(ScreenLead);
   const inTab = useContext(InTab);
+  const fit = useContext(Fit);
   const heads = dialogs && children(p.dialogs).map((c) => <span key={String(c)}>{buildChild(String(c))}</span>);
   // A title the tab of the frame already says is not said again; the lead takes its place.
   const titled = !!p.title && !(root && lead.place === p.title);
@@ -36,7 +38,7 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
         </Group>
       )}
       {titled && under}
-      <div className={s.grid} data-grid>
+      <div className={s.grid} data-grid data-fit={fit || undefined}>
         {children(p.children).map((c) => {
           const id = String(c);
           return <div key={id} className={s.cell} data-span={p.spans?.[id]}>{buildChild(id)}</div>;

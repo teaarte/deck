@@ -79,7 +79,7 @@ func TestRealBrowserSettings(t *testing.T) {
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Look")
+	b.open(e.URL + "/?token=" + token + "#/deck/look")
 	b.until("the appearance tab", `document.querySelector('[data-appearance]')`)
 	root := func(v string) string {
 		return `getComputedStyle(document.documentElement).getPropertyValue('` + v + `').trim()`
@@ -114,7 +114,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 
 	b.call("browser_tabs", map[string]any{"action": "new"})
-	b.open(e.URL + "/#/deck/settings?tab=Look")
+	b.open(e.URL + "/#/deck/look")
 	b.until("the appearance tab in the second tab", `document.querySelector('[data-appearance]')`)
 	b.look("scheme", "light")
 	b.until("the light scheme", `document.documentElement.dataset.mantineColorScheme === 'light'`)
@@ -143,7 +143,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	e.waitFor("the enabled draft", func() bool { return e.project("notes").Status == "enabled" })
 	b.shot("settings-draft")
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
-	b.until("the enabled draft", itemOf("notes", "enabled"))
+	b.until("the enabled draft", itemOf("notes", "")+" && !"+itemOf("notes", "draft"))
 	if p := e.project("notes"); p.Status != "enabled" {
 		t.Fatalf("enable on the projects tab turns the draft on: %+v", p)
 	}
@@ -242,12 +242,12 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	tab("Modules")
-	b.until("the projects tab on a phone", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('enabled'))`)
+	b.until("the projects tab on a phone", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('web'))`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the projects tab fits the width of a phone: %s", got)
 	}
 	b.shot("settings-projects-phone")
-	tab("Look")
+	b.open(e.URL + "/#/deck/look")
 	b.until("the appearance tab on a phone", `document.querySelector('[data-appearance]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("settings fit the width of a phone: %s", got)
@@ -258,7 +258,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	if names, _ := e.side(); !slices.Contains(names, "notes") {
 		t.Fatalf("the project is in the menu before the delete: %v", names)
 	}
-	b.eval(pressIn(itemOf("notes", "enabled"), "delete"))
+	b.eval(pressIn(itemOf("notes", ""), "delete"))
 	b.until("the owner asked before the delete", `document.querySelector('[data-confirm]')?.innerText.includes('notes')`)
 	var still []projectV
 	e.projectsOf(&still)

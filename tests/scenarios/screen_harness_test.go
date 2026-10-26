@@ -315,6 +315,14 @@ type listItem struct {
 	Details   string           `json:"details"`
 	Questions []map[string]any `json:"questions"`
 	Actions   []map[string]any `json:"actions"`
+	Group     string           `json:"group"`
+	Tone      string           `json:"tone"`
+}
+
+// allModels are the cards of the models of Settings, in their order.
+func (e *Env) allModels(extra map[string]any) []listItem {
+	e.T.Helper()
+	return blockData[[]listItem](e.T, e.settingsBlock("All models", extra)["items"])
 }
 
 func merge(a, b map[string]any) map[string]any {

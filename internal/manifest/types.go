@@ -447,6 +447,8 @@ type Item struct {
 	Tone string `json:"tone,omitempty"`
 	// Kind is an expression giving what a line is, said in the head of its card in a focus list.
 	Kind string `json:"kind,omitempty"`
+	// Group is an expression giving the heading a line stands under; the lines of a group come together.
+	Group string `json:"group,omitempty"`
 	// File is the file of a line of a media block: a stored file id or a path in the data folder.
 	File string `json:"file,omitempty"`
 	// Cover is a picture shown on a card or a folder tile: a stored file id, a path in the data folder or a cover
@@ -516,6 +518,8 @@ type Action struct {
 	// Input is the param the owner types before the call, or picks from Options; Confirm asks the owner first.
 	Input   string `json:"input,omitempty"`
 	Options string `json:"options,omitempty"`
+	// Groups give the heading each option stands under, in the order of Options.
+	Groups string `json:"groups,omitempty"`
 	// Chat opens the chat topic the result of the call names.
 	Chat bool `json:"chat,omitempty"`
 	// Download downloads the stored file the result of the call names.

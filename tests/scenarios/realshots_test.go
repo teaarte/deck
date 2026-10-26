@@ -21,7 +21,7 @@ func TestRealBrowserTheMasterSeesAScreen(t *testing.T) {
 	checkBuiltClient(t)
 	shots := make(chan string, 2)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		for _, in := range []map[string]any{{"address": "#/deck/settings?tab=Look", "scheme": "dark"},
+		for _, in := range []map[string]any{{"address": "#/deck/look", "scheme": "dark"},
 			{"address": "#/", "device": "phone", "theme": "juce", "scheme": "light"}} {
 			out, bad := c.Tool(ctx, "screen_shot", in)
 			if bad {

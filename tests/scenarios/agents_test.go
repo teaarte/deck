@@ -86,26 +86,24 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	}
 
 	rows := blockData[[]screenRow](t, e.settingsBlock("Who does what", nil)["rows"])
-	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[0] == "image" })
-	if i < 0 || rows[i].Cells[1] != "" || rows[i].Cells[2] != "router/x/pic" || rows[i].Cells[3] != "$0.04 a call" || !hasVerb(rows[i].Actions, "remove") {
+	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[1] == "image" })
+	if i < 0 || rows[i].Cells[0] != "deck" || rows[i].Cells[2] != "router/x/pic" || rows[i].Cells[3] != "$0.04 a call" || !hasVerb(rows[i].Actions, "remove") {
 		t.Fatalf("the assignments show which models do which work and which one does it now: %+v", rows)
 	}
-	var acp *screenRow
-	models := blockData[[]screenRow](t, e.settingsBlock("All models", nil)["rows"])
+	if pick := verb(t, rows[i].Actions, "model"); fmt.Sprint(pick["options"]) != "[router/x/pic]" || fmt.Sprint(pick["groups"]) != "[router]" {
+		t.Fatalf("the models a row picks from stand under their provider: %+v", pick)
+	}
+	var acp *listItem
+	models := e.allModels(nil)
 	for i, r := range models {
-		if r.Cells[0] == "acp" {
+		if r.Title == "acp" {
 			acp = &models[i]
 		}
 	}
-	if acp == nil || models[0].Cells[0] != "fake" || len(acp.Details) != len(acp.Cells) {
-		t.Fatalf("the models are the built-in providers and the models of connections, with details: %+v", models)
+	if acp == nil || models[0].Title != "fake" || acp.Group != "router" {
+		t.Fatalf("the models are the built-in providers and the models of connections, by provider: %+v", models)
 	}
-	whole := ""
-	for _, d := range acp.Details {
-		if s, ok := d.(string); ok {
-			whole = s
-		}
-	}
+	whole := acp.Details
 	if !strings.Contains(whole, "--version") || !hasVerb(acp.Actions, "check") {
 		t.Fatalf("the error of a model is in full on demand, and its check runs again: %+v", acp)
 	}

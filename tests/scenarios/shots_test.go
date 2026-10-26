@@ -18,7 +18,7 @@ func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 	t.Parallel()
 	got := make(chan string, 1)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/deck/settings?tab=Look", "scheme": "dark", "device": "phone"})
+		out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/deck/look", "scheme": "dark", "device": "phone"})
 		if bad {
 			got <- "refused: " + out
 		} else {

@@ -747,5 +747,7 @@
   "stops a command": "останавливает команду",
   "draws a picture": "рисует картинку",
   "looks at a picture": "смотрит картинку",
-  "uses a tool of %s": "работает инструментом %s"
+  "uses a tool of %s": "работает инструментом %s",
+  "deleted file %s": "удалён файл %s",
+  "deleted files: %d": "удалено файлов: %d"
 }

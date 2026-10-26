@@ -54,6 +54,8 @@ func Line(ctx context.Context, q *db.Queries, f db.Feed) ([]string, bool, error)
 	for i, w := range whats {
 		if of, ok := strings.CutPrefix(w, "deleted records of "); ok {
 			whats[i] = fmt.Sprintf("deleted records of %s: %d", of, times[w])
+		} else if w == "deleted files" {
+			whats[i] = fmt.Sprintf("deleted files: %d", times[w])
 		} else if times[w] > 1 {
 			whats[i] = fmt.Sprintf("%s ×%d", w, times[w])
 		}

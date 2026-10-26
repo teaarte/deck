@@ -2,10 +2,13 @@ package files
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"slices"
 
 	"deck2/internal/app/access"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -33,17 +36,34 @@ func (s *Service) rebind(ctx context.Context, f db.File, fromKind string, fromID
 	})
 }
 
-// fileDelete puts a stored file into the trash, from where file_restore brings it back for a day.
+// fileDelete puts a stored file into the trash, from where file_restore brings it back for a day. A process deletes
+// only a file its own run made, and the owner sees that among what was done without them, with its undo.
 func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileIn) (any, error) {
-	f, _, err := s.own(ctx, act, in.File)
+	f, p, err := s.own(ctx, act, in.File)
 	if err != nil {
 		return nil, err
 	}
 	if f.OwnerKind == trash {
 		return nil, registry.Conflict("deck: file %d is deleted already", f.ID)
 	}
-	return map[string]any{"file": f.ID, "owner_kind": f.OwnerKind, "owner_id": f.OwnerID},
-		s.rebind(ctx, f, f.OwnerKind, f.OwnerID, trash, s.Now().Unix())
+	other := act.Kind != registry.Owner
+	if other && (act.ProcessID == 0 || f.ProcessID.Int64 != act.ProcessID) {
+		return nil, registry.Refuse("deck: a process deletes only the files its own run made; file %d is not one of them", f.ID)
+	}
+	out := map[string]any{"file": f.ID, "owner_kind": f.OwnerKind, "owner_id": f.OwnerID}
+	return out, s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: trash, OwnerID: s.Now().Unix(), ID: f.ID, ProjectID: f.ProjectID, FromKind: f.OwnerKind, FromID: f.OwnerID})
+		if err == nil && n == 0 {
+			err = registry.Conflict("deck: file %d changed meanwhile", f.ID)
+		}
+		if err != nil || !other {
+			return err
+		}
+		params, _ := json.Marshal(out)
+		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
+			Author: act.Author(), Text: fmt.Sprintf("deleted file %s", f.Name), Actions: "[]", Command: registry.Builtin + ".file_restore",
+			Params: string(params), ProcessID: store.ID(act.ProcessID), What: "deleted files"})
+	})
 }
 
 type fileRestoreIn struct {
@@ -71,8 +91,8 @@ func (s *Service) manageCommands() []*registry.Command {
 	return []*registry.Command{
 		s.coverCommand(), s.themeImageCommand(),
 		registry.Def("file_delete", "Delete file",
-			"Deletes a stored file; file_restore brings it back for a day.",
-			registry.OwnerOnly, s.fileDelete),
+			"Deletes a stored file; file_restore brings it back for a day. A process deletes only the files its own run made, such as a draft it made again, and the owner sees it with an undo.",
+			registry.Everyone, s.fileDelete),
 		registry.Def("file_restore", "Bring file back",
 			"Brings a deleted stored file back to what it belonged to.",
 			registry.OwnerOnly, s.fileRestore),

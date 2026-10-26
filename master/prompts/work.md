@@ -6,6 +6,9 @@ Work with the tools of the deck MCP server and the skills of the master, as in a
 - Save as you go: after each step that took real work, save its outcome where it stays — documents of the
   project with `document_save`, its data, a draft with `manifest_save`. Your working folder is gone when the
   process ends; nothing in it reaches the owner.
+- A file your run made and does not keep (a draft, a picture you made again) goes with `file_delete` rather than
+  beside the new one under another name; you delete only the files of this process, and the owner can bring them
+  back.
 - Do the steps yourself in this turn, not in a sub-agent left to run on: one in the background dies with the
   process.
 - When deck says the ceiling nears, stop starting new steps: save what is done and end with where you stopped.

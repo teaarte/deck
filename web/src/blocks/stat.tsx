@@ -39,15 +39,15 @@ function useOneLine(on: boolean, key: unknown) {
 }
 
 function Stat({ p, context }: { p: BlockProps & Shown; context: ComponentContext }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fit = useContext(Fit);
   const d = p.data;
-  const one = useOneLine(fit, d?.value);
+  const one = useOneLine(fit, `${i18n.language} ${JSON.stringify(d?.value)}`);
   const opens = d?.actions?.find((a) => a.screen);
   const open = () => { if (opens) void press(context, opens); };
   let value;
   if (!d) value = <Pending />;
-  else if (d.state === 'error') value = <Text span inherit c="red">{t('state.error')}</Text>;
+  else if (d.state === 'error') value = <Text span inherit c="red" title={fit ? d.error : undefined}>{t('state.error')}</Text>;
   else if (d.state === 'empty') value = <Text span inherit c="dimmed" fz="sm" fw={500} data-empty>{d.empty || t('state.empty')}</Text>;
   else value = <Value v={d.value} s={p} tone={d.tone} />;
   return (
@@ -58,8 +58,8 @@ function Stat({ p, context }: { p: BlockProps & Shown; context: ComponentContext
       <div className={s.body}>
         <Text component="div" className={s.value} data-stat ref={one}>{value}</Text>
         {p.title && <Text className={s.title} truncate>{p.title}</Text>}
-        {p.description && <Text size="xs" c="dimmed" lineClamp={2} data-stat-description>{p.description}</Text>}
-        {d?.state === 'error' && <Text size="xs" c="red" lineClamp={3} data-stat-error>{d.error}</Text>}
+        {p.description && !fit && <Text size="xs" c="dimmed" lineClamp={2} data-stat-description>{p.description}</Text>}
+        {d?.state === 'error' && !fit && <Text size="xs" c="red" lineClamp={3} data-stat-error>{d.error}</Text>}
       </div>
     </Card>
   );

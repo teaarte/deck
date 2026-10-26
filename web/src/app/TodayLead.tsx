@@ -2,6 +2,7 @@ import { Group, Text } from '@mantine/core';
 import { IconAlertCircle, IconCheck, IconHandFinger } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useMenuData } from '../hooks/useMenu';
+import { locale } from '../lib/i18n';
 import s from './shell.module.css';
 
 const MARKS = { 'hand-finger': IconHandFinger, 'alert-circle': IconAlertCircle, check: IconCheck };
@@ -21,7 +22,7 @@ export function TodayLine() {
 
 // TodayDate is the day of Today beside its first line, as the language of the interface says it.
 export function TodayDate() {
-  const { i18n } = useTranslation();
-  const day = new Date().toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' });
+  useTranslation();
+  const day = new Date().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
   return <Text size="sm" c="dimmed" data-today-date>{day}</Text>;
 }

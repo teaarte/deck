@@ -90,9 +90,8 @@ const widgetsManifest = `{"version": 13,
     {"min": "2x2", "blocks": [{"type": "list", "title": "Newest", "source": {"collection": "items", "sort": "-n"}, "item": {"title": "name"}}]}
   ]}`
 
-// TestACardShowsTheLargestViewItFits: a card gets the largest view of a module it fits, a list as long as it holds
-// in thirds of a line (screen/fit.go), shared by the blocks of the view;
-// the menu names the sizes, and a view is only of stat, list and chart blocks.
+// TestACardShowsTheLargestViewItFits: a card gets the largest view it fits, its blocks sharing the thirds of a line
+// it holds; the menu names the sizes, and a view is only of stat, list and chart blocks.
 func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)

@@ -33,7 +33,7 @@ export function Block({ title, icon, span, description, data, context, empty, ba
   const fit = useContext(Fit);
   tally('block');
   let body: ReactNode;
-  const own = data?.state === 'empty' ? empty?.(data) : undefined;
+  const own = data?.state === 'empty' && !fit ? empty?.(data) : undefined;
   if (!data) body = <Pending text={t('state.loading')} />;
   else if (data.state === 'error' && fit) {
     body = <Group gap={8} wrap="nowrap" c="red" className={s.fitLine} title={data.error}><IconAlertTriangle size={18} /><Text size="sm" truncate>{t('state.error')}</Text></Group>;

@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { text } from '../../lib/format';
+import { locale } from '../../lib/i18n';
 import type { Data } from '../../lib/catalog.gen';
 
 export type Row = NonNullable<Data['rows']>[number];
 
 function compare(a: unknown, b: unknown): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
-  return text(a).localeCompare(text(b), undefined, { numeric: true, sensitivity: 'base' });
+  return text(a).localeCompare(text(b), locale(), { numeric: true, sensitivity: 'base' });
 }
 
 // useTableView is what a table shows of its rows: those the search finds, in the order of the sorted column, a page

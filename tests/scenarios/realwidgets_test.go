@@ -17,7 +17,9 @@ const widgetsOfWork = `{"version": 13,
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "n": {"type": "integer"}, "at": {"type": "string"}}, "required": ["name"]}}],
   "screens": [{"name": "item", "title": "Item", "record": "items", "blocks": [{"type": "card", "fields": [{"label": "Name", "bind": "name"}]}]}],
   "widgets": [
-    {"min": "1x1", "blocks": [{"type": "stat", "title": "Price", "icon": "currency-bitcoin", "source": {"collection": "items", "limit": 1}, "format": "money", "currency": "USD", "value": "80484.37"}]},
+    {"min": "1x1", "blocks": [{"type": "stat", "title": "Price", "description": "The last price of the hour, as the exchange gave it", "icon": "currency-bitcoin", "source": {"collection": "items", "limit": 1}, "format": "money", "currency": "USD", "value": "80484.37"}]},
+    {"min": "1x2", "blocks": [{"type": "list", "focus": true, "title": "Needs you", "source": {"collection": "items", "where": "n > 100"}, "item": {"title": "name"}},
+      {"type": "stat", "title": "Price", "source": {"collection": "items", "limit": 1}, "format": "money", "currency": "USD", "value": "80484.37"}]},
     {"min": "2x1", "blocks": [
       {"type": "stat", "title": "Price", "icon": "currency-bitcoin", "source": {"collection": "items", "limit": 1}, "format": "money", "currency": "USD", "value": "80484.37"},
       {"type": "list", "source": {"collection": "items", "sort": "-n"}, "item": {"title": "name", "meta": "'step ' + string(n)", "since": "at", "icon": "'sparkles'"},

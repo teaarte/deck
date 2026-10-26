@@ -14,9 +14,8 @@ import (
 // english are the words in Latin letters of a part of the page, but for the names of modules, models and commands.
 const english = `((el, names) => (el?.innerText ?? '').split(/[^A-Za-z]+/).filter((w) => w.length > 2 && !names.some((n) => n.toLowerCase().split(/[^a-z]+/).includes(w.toLowerCase()))).join(' '))`
 
-// TestRealBrowserRussianTodayAndChat: with the interface in Russian, Today, its card and the chat have no English
-// word of deck: how long ago, the button of a work's process, the turn; the turn stands over the input and the input
-// has no ring in focus, while a button reached by the keyboard shows one.
+// TestRealBrowserRussianTodayAndChat: in Russian, Today, its card and the chat have no English word of deck; the turn
+// stands over the input, the input has no ring in focus, a button reached by the keyboard has one.
 func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")

@@ -175,7 +175,9 @@ function mark(it: Item) {
 // them, words cut at the end rather than wrapped; a narrow line shows the button as its icon.
 function FitLine({ it }: { it: Item }) {
   const ctx = useBlockContext();
-  const [act] = useVisibleActions((it.actions ?? []).filter((a) => !a.input || a.primary));
+  const open = opener(it.actions);
+  // A plain open button goes, as on a screen: a click on the line opens it.
+  const [act] = useVisibleActions((it.actions ?? []).filter((a) => (!a.input || a.primary) && !(a === open && a.verb === 'open' && !a.primary)));
   const under = [it.text, it.meta].filter(Boolean).join(' · ');
   return (
     <div className={s.fitLine} data-item data-tone={it.tone} {...rowOpen(it.actions, ctx)}>

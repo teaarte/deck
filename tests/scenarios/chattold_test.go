@@ -62,9 +62,8 @@ func handOver(ctx context.Context, c *Call, topic *atomic.Int64) provider.Result
 	return provider.Result{Text: "Handed it over."}
 }
 
-// A work the master started from a chat topic tells that topic how it ended: its result when done, why in the
-// owner's words when it failed, and the note it left in the feed is read then; the master and the work are told the
-// owner's language, so the result comes in it.
+// A work the master started from a chat topic tells that topic how it ended, in the owner's language it was told:
+// its result when done, why in the owner's words when it failed, and the note it left in the feed is read then.
 func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	t.Parallel()
 	var works atomic.Int32

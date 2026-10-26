@@ -21,7 +21,7 @@ func TestRealBrowserThemeStylesTheCards(t *testing.T) {
 	b.until("the cockpit's card in the accent", `(() => { const c = document.querySelector('[data-app-tile][data-big]'); return c && getComputedStyle(c).backgroundImage.includes('gradient') })()`)
 	b.shot("tiles-juce")
 
-	cards := `{"version": 1, "title": {"en": "Cards"}, "mood": "m", "schemes": ["light"], "backdrop": "sky",
+	cards := `{"version": 1, "title": {"en": "Cards"}, "mood": "m", "schemes": ["light"],
   "tokens": {"cockpit": "linear-gradient(180deg, #ffffff, #f2f6ee)", "tile": "#ffffff", "tile-text": "#0e1116", "tile-shade": "none",
     "tile-icon": "#faece7", "tile-min": "240px", "tile-height": "200px", "tile-gap": "24px",
     "meadow": "radial-gradient(70% 100% at 22% 100%, #b7d79a 0%, transparent 75%)"},

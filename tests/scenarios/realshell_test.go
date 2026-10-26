@@ -36,6 +36,9 @@ func TestRealBrowserShell(t *testing.T) {
 	manifest = strings.Replace(manifest, `"menu": ["main"]`, `"menu": ["main", "more"]`, 1)
 	e.createProject("web", strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1))
 	e.createProject("solo", webNotes)
+	for _, n := range []string{"glass", "pixel", "neon", "paper", "default"} {
+		e.example(n)
+	}
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "source": "mail", "note": strings.Repeat("the model did not finish the self-check within the ceiling ", 6)}, map[string]any{"title": "a-very-long-title-without-any-spaces-that-would-push-the-table-out-of-its-block-" + strings.Repeat("x", 120), "source": "web"})}, nil)
 	e.waitState(e.start("web", "tell", nil), "done")
@@ -75,7 +78,7 @@ func TestRealBrowserShell(t *testing.T) {
 		return String(!!history && history.bottom <= grid.top) })()`); got != "true" {
 		t.Fatalf("the history of Today is in its head: %s", got)
 	}
-	b.until("the sky of juce behind the shell", `document.documentElement.dataset.deckTheme === 'juce' && document.querySelectorAll('[data-backdrop] [data-cloud]').length === 2`)
+	b.until("the sky of juce behind the shell", `document.documentElement.dataset.deckTheme === 'juce' && document.querySelector('[data-backdrop] [data-backdrop-picture]')`)
 	b.shot("shell-cockpit")
 	b.until("the count of new notifications ahead of the tab's name", `/^\(1\) .+ · deck$/.test(document.title)`)
 
@@ -172,9 +175,6 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Look').click(), '')`)
 	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"]')`)
 	b.until("the glass of the theme document on the tabs", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
-	if got := b.eval(`document.querySelectorAll('[data-backdrop] > div').length`); got != "2" {
-		t.Fatalf("glass draws the pattern of its backdrop: %s", got)
-	}
 	var worn struct{ Name string }
 	e.must("deck.theme", map[string]any{}, &worn)
 	if worn.Name != "glass" {
@@ -233,8 +233,8 @@ func TestRealBrowserShell(t *testing.T) {
 		b.until("the preview of "+look, `document.documentElement.dataset.deckTheme === '`+parts[0]+`' && document.documentElement.dataset.mantineColorScheme === '`+parts[1]+`' && document.querySelector('[data-block] table')`)
 		b.shot("theme-" + parts[0] + "-" + parts[1])
 	}
-	if got := b.eval(`String(document.querySelectorAll('[data-backdrop] [data-cloud]').length)`); got != "0" {
-		t.Fatalf("the sky of juce has no clouds on a working screen: %s", got)
+	if got := b.eval(`String(!!document.querySelector('[data-backdrop] [data-backdrop-picture]'))`); got != "true" {
+		t.Fatalf("the clouds of juce are its picture behind the page: %s", got)
 	}
 	var cur struct{ Name string }
 	e.must("deck.theme", map[string]any{}, &cur)

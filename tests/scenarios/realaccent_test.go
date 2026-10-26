@@ -36,7 +36,7 @@ func TestRealBrowserOneAccent(t *testing.T) {
 		if got := b.eval(filledShown); got != "1" {
 			t.Fatalf("the cockpit fills its first decision alone on a %s: %s", size.name, got)
 		}
-		b.until("the clouds of juce on the cockpit", `document.querySelectorAll('[data-backdrop] [data-cloud]').length === 2`)
+		b.until("the clouds of juce on the cockpit", `document.querySelector('[data-backdrop] [data-backdrop-picture]')`)
 		b.shot("accent-cockpit-" + size.name)
 		b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 		b.until("the chat open", `document.querySelector('[data-chat-input]')?.checkVisibility()`)
@@ -49,9 +49,6 @@ func TestRealBrowserOneAccent(t *testing.T) {
 
 		b.open(e.URL + "/?theme=juce&scheme=light#/p/web/main")
 		b.until("the screen of the module", `location.hash.startsWith('#/p/web/main') && document.querySelector('[data-block]')`)
-		if got := b.eval(`String(document.querySelectorAll('[data-backdrop] [data-cloud]').length)`); got != "0" {
-			t.Fatalf("no clouds on a working screen on a %s: %s", size.name, got)
-		}
 	}
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.open(e.URL + "/?theme=juce&scheme=light#/deck/apps")
@@ -63,7 +60,7 @@ func TestRealBrowserOneAccent(t *testing.T) {
 		t.Fatalf("the master's button is filled only while its asks wait for the owner: %s", b.eval(`document.querySelector('[data-chat-toggle]').outerHTML`))
 	}
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
-	b.until("the clouds with the chat open", `document.querySelector('[data-chat-input]') && document.querySelectorAll('[data-backdrop] [data-cloud]').length === 2`)
+	b.until("the clouds with the chat open", `document.querySelector('[data-chat-input]') && document.querySelector('[data-backdrop] [data-backdrop-picture]')`)
 	if got := b.eval(`document.querySelector('[data-chat-toggle]')?.dataset.variant ?? 'light'`); got != "light" {
 		t.Fatalf("the master's button is light with the chat open: %s", got)
 	}

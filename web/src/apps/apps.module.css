@@ -263,7 +263,7 @@
 
 .room :global(.react-grid-placeholder) {
   border-radius: var(--deck-block-radius);
-  background: var(--mantine-primary-color-light);
+  background: var(--deck-placing, var(--mantine-primary-color-light));
   opacity: 1;
 }
 

@@ -33,11 +33,14 @@ asks, as a theme of its own name.
    The chat: `.message` (`.bubble` the owner's, `.chat-link` a link of a reply), `.turn` with `.turn-head`,
    `.turn-step` and `.turn-log`, `.suggest`, `.chat-ask` (a yes it waits for), `.question`, `.cut` (a reply that
    broke off), `.told` (deck's line of how a work from the topic went), `.composer` and `.hearing` (the voice
-   being recorded). Radius `0` squares all of them already.
+   being recorded). The side panel of a module's screen is `.side` (`.side-sheet` on a phone, `side` and
+   `side-width` its tokens); `.empty` the words of a block with nothing, `.pending` what loads, `.sheet` a sheet
+   from the edge; parts `widget`, `empty` and `pending` style them without CSS, and `placing` is the color of the
+   free cells while the owner places the tiles. Radius `0` squares all of them already.
 6. `deck.theme_check` with the text names every problem; fix them all, then `deck.theme_save`. Its answer
-   gives two preview addresses, light and dark: give them to the owner as links. Look at it before the owner does: `screen_shot` with
-   `theme` and `scheme` draws a screen in it (the tiles `#/`, Today `#/deck/cockpit`, a module) on a computer and
-   a phone; read the picture at `path`.
+   gives two preview addresses, light and dark: give them to the owner as links. Look at it before the owner
+   does: `screen_shot` with `theme` and `scheme` draws a screen in it (the tiles `#/`, Today `#/deck/cockpit`, a
+   module) on a computer and a phone; read the picture at `path`.
 7. Only the owner puts a theme on: tell them it is in Settings → Look.
 
 ## Pictures of a theme

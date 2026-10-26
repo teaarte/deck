@@ -389,9 +389,12 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 		if c.N == 1 {
 			return provider.Result{Text: "Hello **there**"}
 		}
-		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "records_upsert", Text: "{}"})
-		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?",
-			"options": []any{map[string]any{"label": "shop"}, map[string]any{"label": "market"}}}}})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t0", Title: "Bash", Text: "{}"})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventToolUpdate, ID: "t0", Status: "completed"})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: provider.Qualify("records_list"), Text: "{}"})
+		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?", "header": "List",
+			"options": []any{map[string]any{"label": "shop", "description": "The shop by the house"}, map[string]any{"label": "market"}}},
+			map[string]any{"question": "What shows?", "multiSelect": true, "options": []any{map[string]any{"label": "price"}, map[string]any{"label": "photo"}}}}})
 		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
 		return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
 	}, func(c *app.Config) { c.QuestionWait = time.Minute })
@@ -421,8 +424,27 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 	})
 	q := c.Questions[0]
 	if q.Questions[0].Question != "Which list?" || q.Answer.Command != "deck.ask_answer" || q.Answer.Input != "answer" ||
-		c.Turn.Stop.Command != "deck.process_stop" || c.Turn.Lines[0].Title != "records_upsert" || c.Turn.State != "running" {
+		c.Turn.Stop.Command != "deck.process_stop" || c.Turn.Lines[0].Title != "Bash" || c.Turn.State != "running" {
 		t.Fatalf("the question has options and an answer, the turn shows its calls and a stop: %+v", c)
+	}
+	if one, two := q.Questions[0], q.Questions[1]; one.Header != "List" || one.Options[0].Description != "The shop by the house" || one.MultiSelect ||
+		!two.MultiSelect || len(two.Options) != 2 {
+		t.Fatalf("a question keeps its header, what its options mean and whether several go: %+v", q.Questions)
+	}
+	if !c.Turn.Waits || c.Turn.Word != "waits for you" {
+		t.Fatalf("a turn with a question open waits for the owner: %+v", c.Turn)
+	}
+	var ru ChatV
+	e.chatRead(map[string]any{"topic": fmt.Sprint(topic), "lang": "ru"}, &ru)
+	calls := map[string][2]string{}
+	for _, l := range ru.Turn.Lines {
+		if l.Doing != "" {
+			calls[l.Title] = [2]string{l.Doing, l.Act}
+		}
+	}
+	if calls["Bash"] != [2]string{"запускает команду", "work"} || calls[provider.Qualify("records_list")] != [2]string{"вызывает «Список записей»", "read"} ||
+		ru.Turn.Word != "ждёт вас" {
+		t.Fatalf("each call says what it does in the owner's words and the kind of its work: %+v", ru.Turn)
 	}
 	var open []struct{ Topic string }
 	e.must("deck.processes_list", map[string]any{"open": true}, &open)
@@ -456,13 +478,19 @@ type ChatV struct {
 	} `json:"messages"`
 	Questions []struct {
 		Ask       int64
-		Questions []struct{ Question string } `json:"questions"`
-		Answer    chatActionV                 `json:"answer"`
+		Questions []struct {
+			Question, Header string
+			MultiSelect      bool `json:"multiSelect"`
+			Options          []struct{ Label, Description string }
+		} `json:"questions"`
+		Answer chatActionV `json:"answer"`
 	} `json:"questions"`
 	Turn *struct {
-		State string                   `json:"state"`
-		Lines []struct{ Title string } `json:"lines"`
-		Stop  chatActionV              `json:"stop"`
+		State string                               `json:"state"`
+		Word  string                               `json:"word"`
+		Waits bool                                 `json:"waits"`
+		Lines []struct{ Title, Doing, Act string } `json:"lines"`
+		Stop  chatActionV                          `json:"stop"`
 	} `json:"turn"`
 	Send    chatActionV `json:"send"`
 	Archive chatActionV `json:"archive"`

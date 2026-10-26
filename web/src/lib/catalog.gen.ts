@@ -23,6 +23,7 @@ export interface Catalog {
   tone?: Tone;
   action?: Action;
   topic?: Topic;
+  question?: Question;
   reply?: Reply;
   data?: Data;
   ActionsValue?: ActionsValue;
@@ -289,6 +290,27 @@ export interface Reply {
   };
 }
 /**
+ * a question of an agent to the owner
+ *
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "question".
+ */
+export interface Question {
+  question: string;
+  /**
+   * a short name of the question
+   */
+  header?: string;
+  /**
+   * the options do not rule each other out
+   */
+  multiSelect?: boolean;
+  options?: {
+    label?: string;
+    description?: string;
+  }[];
+}
+/**
  * This interface was referenced by `Catalog`'s JSON-Schema
  * via the `definition` "data".
  */
@@ -372,14 +394,7 @@ export interface Data {
      */
     group?: string;
     cover?: Picture;
-    questions?: {
-      question: string;
-      multiSelect?: boolean;
-      options?: {
-        label?: string;
-        description?: string;
-      }[];
-    }[];
+    questions?: Question[];
     actions?: Action[];
   }[];
   /**
@@ -1033,14 +1048,7 @@ export interface ChatValue {
   questions?: {
     ask: number;
     text: string;
-    questions: {
-      question: string;
-      multiSelect?: boolean;
-      options?: {
-        label?: string;
-        description?: string;
-      }[];
-    }[];
+    questions: Question[];
     answer: Action;
   }[];
   turn?: {
@@ -1083,6 +1091,14 @@ export interface ChatValue {
       title?: string;
       status?: string;
       text?: string;
+      /**
+       * of a call: what it does, in the owner's words
+       */
+      doing?: string;
+      /**
+       * of a call: the kind of work it is
+       */
+      act?: "read" | "search" | "draw" | "work";
     }[];
     stop?: Action;
     open?: Action;

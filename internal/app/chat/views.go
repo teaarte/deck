@@ -338,7 +338,7 @@ func (ch *Service) chatTurn(ctx context.Context, act registry.Actor, in chatIn) 
 	}
 	open := t.Reply
 	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: ch.children(ctx, open.Process, false, tr),
-		Lines: ch.turnLines(open.Process), Stop: chatAction("stop", registry.Builtin+".process_stop", map[string]any{"process": open.Process}),
+		Lines: ch.turnLines(ctx, act.Workspace, open.Process, tr), Stop: chatAction("stop", registry.Builtin+".process_stop", map[string]any{"process": open.Process}),
 		Open: openProcess(open.Process), Shown: open.Shown}
 	if p, err := ch.St.Q.GetProcess(ctx, open.Process); err == nil {
 		v.Turn.StartedAt = cmp.Or(p.ReopenedAt.String, p.StartedAt)
@@ -373,6 +373,9 @@ func (ch *Service) chatTurn(ctx context.Context, act registry.Actor, in chatIn) 
 		answer["input"] = "answer"
 		v.Questions = append(v.Questions, questionView{Ask: q.ID, Text: q.Text, Questions: questions, Answer: answer})
 	}
+	if len(v.Questions) > 0 {
+		v.Turn.Waits, v.Turn.Word, v.Turn.Tone = true, tr("waits for you"), "warn"
+	}
 	return v, nil
 }
 
@@ -393,8 +396,8 @@ func (ch *Service) models(ctx context.Context, workspace int64) ([]string, strin
 	return ch.Able(ctx, workspace, cmd), own
 }
 
-// turnLines are the last calls and messages in the log of a process still open.
-func (ch *Service) turnLines(processID int64) []map[string]any {
+// turnLines are the last calls and messages in the log of a process still open, each call with what it does.
+func (ch *Service) turnLines(ctx context.Context, workspace, processID int64, tr func(string) string) []map[string]any {
 	out := []map[string]any{}
 	lines, _ := ch.Runner.Tail(processID, chatLines, "tool", "tool_update", "message")
 	for _, raw := range lines {
@@ -402,6 +405,9 @@ func (ch *Service) turnLines(processID int64) []map[string]any {
 		_ = json.Unmarshal(raw, &l)
 		if text, ok := l["text"].(string); ok {
 			l["text"] = untrusted.Cut(text, 300)
+		}
+		if title, _ := l["title"].(string); l["kind"] == "tool" && title != "" {
+			l["doing"], l["act"] = ch.doing(ctx, workspace, title, tr)
 		}
 		out = append(out, l)
 	}

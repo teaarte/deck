@@ -40,6 +40,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 			c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Reading the list"})
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t2", Title: "records_list", Text: "{}"})
 			c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Weighing the shops"})
+			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t3", Title: "Bash", Text: "{}"})
 			<-ctx.Done()
 			return provider.Result{}
 		}
@@ -80,16 +81,16 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.until("the turn with its calls folded", `document.querySelector('[data-turn] [data-turn-fold]') && !document.querySelector('[data-turn-log]')`)
 	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
 	b.until("the calls under Log", `document.querySelector('[data-turn] [data-turn-line]')?.innerText.includes('records_list')`)
-	b.eval(`([...document.querySelectorAll('[data-question] input[type=checkbox], [data-question] input[type=radio]')].find((i) => i.value === 'market').click(), '')`)
-	b.eval(`([...document.querySelectorAll('[data-question] button')].find((x) => !x.disabled && x.innerText.trim() !== '').click(), '')`)
+	b.eval(`(document.querySelector('[data-question] [data-option="market"]').click(), '')`)
+	b.eval(`([...document.querySelectorAll('[data-question] button')].filter((x) => !x.disabled && x.innerText.trim() !== '').pop().click(), '')`)
 	b.until("the reply after the answer", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('Picked market'))`)
 	b.until("the question gone", `!document.querySelector('[data-question]')`)
 
 	say("think long about it")
-	b.until("the running turn says its work in words, with a timer and stop", `(() => { const t = document.querySelector('[data-turn="running"]'); return t && t.querySelector('[data-turn-now]')?.innerText === 'Weighing the shops' &&
+	b.until("the running turn says the call it makes in words, with its steps, a timer and stop", `(() => { const t = document.querySelector('[data-turn="running"]'); return t && t.querySelector('[data-turn-now]')?.innerText === 'runs a command' &&
 		/^\d+:\d\d$/.test(t.querySelector('[data-turn-timer]')?.innerText ?? '') && t.querySelector('[data-verb="stop"]') && t.querySelectorAll('[data-turn-step]').length === 2 && !t.querySelector('[data-turn-log]') })()`)
 	b.until("the head of the panel says it works", `document.querySelector('[data-chat-panel] [data-chat-live]')`)
-	b.until("Deki in the turn in the pose of what it does: reading or thinking", `['read', 'think'].includes(document.querySelector('[data-turn="running"] [data-turn-head] [data-pose]')?.dataset.pose)`)
+	b.until("Deki in the turn in the pose of what it does", `document.querySelector('[data-turn="running"] [data-turn-head] [data-pose]')?.dataset.pose === 'work'`)
 	b.shot("chat-turn")
 	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
 	b.until("the raw calls under Log", `document.querySelector('[data-turn-log] [data-turn-line]')?.innerText.includes('records_list') && document.querySelector('[data-turn-log] [data-verb="open"]')`)

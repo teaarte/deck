@@ -58,6 +58,8 @@ type Service struct {
 	Words func(lang string) map[string]string
 	// Language is the language of the interface the workspace picked: auto, en or ru.
 	Language func(ctx context.Context, workspace int64) string
+	// Lookup is a command by name.
+	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
 	// Decisions are what processes wait for the owner to decide but their questions, each with its buttons.
 	Decisions func(ctx context.Context, act registry.Actor, processes []int64, lang string) (any, error)
 

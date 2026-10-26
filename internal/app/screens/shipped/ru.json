@@ -726,5 +726,20 @@
   "Asks the master to make a view of the card of a module on the tiles for a size, as a widget of its manifest, on the model of the role widget, the master's own without one.": "Просит мастера сделать вид карточки модуля на плитках для размера — виджетом его манифеста, на модели роли «вид карточки», без неё — на модели мастера.",
   "Draw a widget": "Нарисовать вид карточки",
   "Make a view of the card of module %s on the tiles for the size %s, columns by rows of cells: a widget of its manifest with min %s, of stat, list and chart blocks, that shows on this size what matters most of the module, by the skill widgets; save it with manifest_save.": "Сделай вид карточки модуля %s на плитках для размера %s (колонки на строки клеток): виджет его манифеста с min %s из блоков stat, list и chart, который на этом размере показывает главное о модуле, по скиллу widgets; сохрани его через manifest_save.",
-  "Done today: %d": "Сделано сегодня: %d"
+  "Done today: %d": "Сделано сегодня: %d",
+  "runs a command": "запускает команду",
+  "reads a file": "читает файл",
+  "searches the files": "ищет в файлах",
+  "edits a file": "правит файл",
+  "writes a file": "пишет файл",
+  "reads a page of the web": "читает страницу в сети",
+  "searches the web": "ищет в сети",
+  "looks for a tool": "ищет инструмент",
+  "reads a skill": "читает навык",
+  "gives a part to a helper": "отдаёт часть помощнику",
+  "plans the work": "планирует работу",
+  "asks you": "спрашивает вас",
+  "gives its result": "отдаёт результат",
+  "calls %s": "вызывает %s",
+  "calls «%s»": "вызывает «%s»"
 }

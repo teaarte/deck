@@ -28,11 +28,11 @@ export function logLines(lines: TurnValue['lines'], shown = SHOWN): { key: strin
   }).filter((l) => l.text.trim()).slice(-shown);
 }
 
-// calling is the call of the log still going, which says what the turn does now; none while it thinks.
-function calling(lines: TurnValue['lines']): string | undefined {
+// calling is the call of the log still going, which says what the turn does now; none while it thinks or speaks.
+function calling(lines: TurnValue['lines']): TurnValue['lines'][number] | undefined {
   const ended = new Set(lines.filter((l) => l.kind === 'tool_update' && l.id && l.status).map((l) => l.id));
-  const last = [...lines].reverse().find((l) => l.kind === 'tool');
-  return last && !(last.id && ended.has(last.id)) ? last.title : undefined;
+  const last = [...lines].reverse().find((l) => l.kind === 'tool' || l.kind === 'message');
+  return last?.kind === 'tool' && !(last.id && ended.has(last.id)) ? last : undefined;
 }
 
 // said are the first lines of what the agent said on the way, its steps in words.
@@ -75,18 +75,19 @@ export function Turn({ turn }: { turn: TurnValue }) {
   const mascot = useMascot();
   const steps = said(turn.lines);
   const calls = logLines(turn.lines);
-  const now = useClock(1000, running);
+  const tick = useClock(1000, running);
   const started = turn.started_at ? Date.parse(turn.started_at) : NaN;
-  const head = running ? steps[steps.length - 1] ?? t(mascot ? 'chat.working_deki' : 'chat.working_master') : turn.word;
+  const now = calling(turn.lines);
+  const head = turn.waits || !running ? turn.word : now?.doing ?? steps[steps.length - 1] ?? t(mascot ? 'chat.working_deki' : 'chat.working_master');
   return (
     <div className={s.turn} data-turn={turn.state}>
       <div className={s.turnHead} data-turn-head data-live={running || undefined}>
         <span className={s.turnMark}>
-          {!mascot ? <Glyph busy={running} /> : running || turn.waits ? <Deki pose={turnPose(!!turn.waits, calling(turn.lines))} size={26} />
+          {!mascot ? <Glyph busy={running} /> : running || turn.waits ? <Deki pose={turnPose(!!turn.waits, now?.act)} size={26} />
             : <DekiHead size={24} />}
         </span>
-        <Text size="sm" fw={600} truncate style={{ flex: 1 }} c={running ? undefined : toneColor(turn.tone)} data-turn-now>{head}</Text>
-        {running && !Number.isNaN(started) && <Text size="xs" c="dimmed" data-turn-timer>{clock(Math.max(0, (now - started) / 1000))}</Text>}
+        <Text size="sm" fw={600} truncate style={{ flex: 1 }} c={running && !turn.waits ? undefined : toneColor(turn.tone)} data-turn-now>{head}</Text>
+        {running && !Number.isNaN(started) && <Text size="xs" c="dimmed" data-turn-timer>{clock(Math.max(0, (tick - started) / 1000))}</Text>}
         {turn.stop && <Stop act={turn.stop} />}
       </div>
       {steps.length > 1 && (

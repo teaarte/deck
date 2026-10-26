@@ -70,7 +70,7 @@
     "remark": "What to change",
     "text": "Your message"
   },
-  "question": { "other": "Other" },
+  "question": { "other": "Your own answer", "of": "{{n}} of {{total}}", "next": "Next", "back": "Back", "several": "several may be picked" },
   "token": {
     "why": "This device has no access token of deck yet. The URL deck prints when it starts ends with it.",
     "label": "Access token",

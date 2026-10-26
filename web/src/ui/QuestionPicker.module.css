@@ -1,0 +1,28 @@
+/* A long question with its options scrolls in its own box, so the answer and its buttons stay in the chat. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-xs);
+  max-height: 45dvh;
+  overflow-y: auto;
+}
+
+.text {
+  overflow-wrap: anywhere;
+}
+
+.option {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  border-radius: var(--deck-block-radius);
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--mantine-color-body);
+}
+
+.option[data-checked] {
+  border-color: var(--mantine-primary-color-filled);
+}
+
+.words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

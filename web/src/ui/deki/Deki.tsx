@@ -22,19 +22,12 @@ const night = (d = new Date()) => d.getHours() >= 23 || d.getHours() < 7;
 // poseOf is the pose of Deki for a state of the pulse.
 export const poseOf = (state: string): Pose => PULSE[state] ?? (night() ? 'sleepy' : 'chill');
 
-// TOOLS are the poses of the calls of a turn of the chat, by a part of the name of the tool.
-const TOOLS: [RegExp, Pose][] = [
-  [/web_?search|web_?fetch|browser|search/i, 'search'],
-  [/draw|cover|theme_image|image|model_call/i, 'draw'],
-  [/_get|_list|_log|read|grep|glob|screen_shot/i, 'read'],
-];
-
-// turnPose is the pose of a turn of the chat: thinking before its first call, then by the call it makes, waiting
-// while the owner owes it an answer.
-export function turnPose(waiting: boolean, tool?: string): Pose {
+// turnPose is the pose of a turn of the chat: thinking before its first call, then by the kind of work of the call it
+// makes, waiting while the owner owes it an answer.
+export function turnPose(waiting: boolean, act?: string): Pose {
   if (waiting) return 'wait';
-  if (!tool) return 'think';
-  return TOOLS.find(([re]) => re.test(tool))?.[1] ?? 'work';
+  if (!act) return 'think';
+  return act === 'read' || act === 'search' || act === 'draw' ? act : 'work';
 }
 
 // useMascot says whether this device shows Deki.

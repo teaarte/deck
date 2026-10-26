@@ -39,6 +39,7 @@ wait for your decision. One tap, and the agents carry on.
   Everything else is in the feed, one line for what a run did, and much of it can be undone at once.
 - **Just say what you need.** Talk to **Deki**, the master agent, in chat or by voice. It sends a task to the
   right module, builds a new module from a short interview, looks into what failed, and remembers what you told it.
+  While it works you see what it does right now; its questions come one at a time, each option with what it means.
 - **Any model, your choice, right in the row.** Claude, GPT, Gemini, open models on OpenRouter or your own machine.
   Pick the model of each command from a dropdown, see what it costs, and keep a subscription apart from the money
   you pay.

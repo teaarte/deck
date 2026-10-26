@@ -243,7 +243,7 @@ func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*C
 			}
 		}
 	}
-	if hint := commandName(name); hint != "" {
+	if hint := CommandName(name); hint != "" {
 		if _, err := r.Lookup(ctx, workspace, hint); err == nil {
 			return nil, NotFound("deck: unknown command %q; commands are named by project, as %q", name, hint)
 		}
@@ -251,8 +251,8 @@ func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*C
 	return nil, NotFound("deck: unknown command %q", name)
 }
 
-// commandName is the command name a tool name stands for, as an agent sees it: records_list, code__run.
-func commandName(tool string) string {
+// CommandName is the command name a tool name stands for, as an agent sees it: records_list, code__run.
+func CommandName(tool string) string {
 	switch {
 	case strings.Contains(tool, "."):
 		return ""

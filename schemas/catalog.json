@@ -344,14 +344,14 @@
               "processes": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "project", "command", "state", "open"], "properties": {"id": {"type": "integer"}, "project": {"type": "string"}, "command": {"type": "string"}, "state": {"type": "string"}, "open": {"$ref": "#/$defs/action"}, "word": {"type": "string", "description": "the state in the owner's words"}, "tone": {"$ref": "#/$defs/tone"}, "waits": {"type": "boolean", "description": "it waits for the owner or its provider rather than works"}}}}}}}}},
         "questions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["ask", "text", "questions", "answer"], "properties": {
           "ask": {"type": "integer"}, "text": {"type": "string"},
-          "questions": {"type": "array", "items": {"type": "object", "required": ["question"], "properties": {"question": {"type": "string"}, "multiSelect": {"type": "boolean"},
-            "options": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "description": {"type": "string"}}}}}}},
+          "questions": {"type": "array", "items": {"$ref": "#/$defs/question"}},
           "answer": {"$ref": "#/$defs/action"}}}},
         "turn": {"type": "object", "additionalProperties": false, "required": ["process", "state", "lines"], "properties": {
           "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "started_at": {"type": "string", "description": "when the reply last started work"}, "word": {"type": "string", "description": "the state in the owner's words"}, "tone": {"$ref": "#/$defs/tone"}, "waits": {"type": "boolean", "description": "it waits for the owner or its provider rather than works"},
           "processes": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "project", "command", "state", "open"], "properties": {"id": {"type": "integer"}, "project": {"type": "string"}, "command": {"type": "string"}, "state": {"type": "string"}, "open": {"$ref": "#/$defs/action"}, "word": {"type": "string", "description": "the state in the owner's words"}, "tone": {"$ref": "#/$defs/tone"}, "waits": {"type": "boolean", "description": "it waits for the owner or its provider rather than works"}}}},
           "lines": {"type": "array", "items": {"type": "object", "required": ["at", "kind"], "properties": {"at": {"type": "string"}, "kind": {"type": "string"},
-            "id": {"type": "string"}, "title": {"type": "string"}, "status": {"type": "string"}, "text": {"type": "string"}}}},
+            "id": {"type": "string"}, "title": {"type": "string"}, "status": {"type": "string"}, "text": {"type": "string"},
+            "doing": {"type": "string", "description": "of a call: what it does, in the owner's words"}, "act": {"enum": ["read", "search", "draw", "work"], "description": "of a call: the kind of work it is"}}}},
           "stop": {"$ref": "#/$defs/action"}, "open": {"$ref": "#/$defs/action"}}},
         "send": {"$ref": "#/$defs/action"}, "archive": {"$ref": "#/$defs/action"}, "delete": {"$ref": "#/$defs/action"},
         "models": {"type": "array", "items": {"type": "string"}, "description": "the models the master's replies may go on"}, "prices": {"type": "object", "additionalProperties": {"type": "string"}, "description": "the price of each model in words, such as subscription or free"},
@@ -367,6 +367,9 @@
     "topic": {"type": "object", "additionalProperties": false, "required": ["id", "title", "archived", "updated_at"], "properties": {
       "id": {"type": "integer"}, "title": {"type": "string"}, "project": {"type": "string", "description": "the project of the screen of its first message"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
       "last": {"type": "string", "description": "the last message, cut short"}, "model": {"type": "string", "description": "the model its replies go on, when the owner picked one"}, "reply": {"$ref": "#/$defs/reply"}}},
+    "question": {"type": "object", "required": ["question"], "description": "a question of an agent to the owner", "properties": {
+      "question": {"type": "string"}, "header": {"type": "string", "description": "a short name of the question"}, "multiSelect": {"type": "boolean", "description": "the options do not rule each other out"},
+      "options": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "description": {"type": "string"}}}}}},
     "reply": {"type": "object", "additionalProperties": false, "required": ["process", "state"], "properties": {
       "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "error": {"type": "string"}, "word": {"type": "string", "description": "the state in the owner's words"}, "tone": {"$ref": "#/$defs/tone"}, "waits": {"type": "boolean", "description": "it waits for the owner or its provider rather than works"},
       "open": {"$ref": "#/$defs/action"},
@@ -405,11 +408,7 @@
             "id": {}, "title": {"type": "string"}, "lane": {"type": "string", "description": "the value of the board field of the item"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string"},
             "since": {"type": "string", "description": "the time the line counts from, shown as how long ago"},
             "details": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}, "kind": {"type": "string", "description": "what the item is, said in the head of its card in a focus list"}, "group": {"type": "string", "description": "the heading the item stands under"}, "cover": {"$ref": "#/$defs/picture"},
-            "questions": {"type": "array", "items": {
-              "type": "object", "required": ["question"],
-              "properties": {"question": {"type": "string"}, "multiSelect": {"type": "boolean"},
-                "options": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "description": {"type": "string"}}}}}
-            }},
+            "questions": {"type": "array", "items": {"$ref": "#/$defs/question"}},
             "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}
           }
         }},

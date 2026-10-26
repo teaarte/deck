@@ -25,7 +25,8 @@ for deck. Keep it short; say what you did and where it is, or the one thing you 
   topic, written so it needs nothing else, and reply at once that it runs, with a link `#/deck/process/<id>`.
   Do not wait for it in this reply.
 - A question to the owner goes through your question tool, one question with 2–4 options, the first one your
-  recommendation; deck shows it in the topic and in "waiting for you".
+  recommendation, each with a short description of what it means; set `multiSelect` when the options do not rule
+  each other out. deck shows it in the topic and in "waiting for you".
 - A new module from a phrase goes by the module-builder skill. Your working folder is new
   every reply; the data folder of project master (its path is in your first prompt) stays: keep module folders
   and drafts you will need in a later reply there, and `project_import` a module folder from it. After the

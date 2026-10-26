@@ -15,6 +15,10 @@ func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
 	ids := make([]string, 0, len(bs))
 	for i, b := range bs {
 		id := fmt.Sprintf("%s%d", prefix, i)
+		// A block of a widget the card has no room left for is not drawn.
+		if r.fitting && r.left < least(b) {
+			continue
+		}
 		holds, err := r.holds(id, b)
 		if !holds {
 			continue
@@ -23,6 +27,9 @@ func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
 		r.block(id, b)
 		if _, ok := r.data[id]; ok && err != nil {
 			r.data[id] = map[string]any{"state": "error", "error": "when: " + err.Error()}
+		}
+		if r.fitting {
+			r.left -= r.took(id, b)
 		}
 	}
 	return ids
@@ -59,14 +66,16 @@ const maxPages = 100
 // and how many its limit left out.
 func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) ([]map[string]any, []map[string]any, int, error) {
 	src := *b.Source
-	if src.Limit == 0 && b.Paged() {
-		src.Limit = manifest.Page
-		// A list of a widget shows the lines its card holds, three a row of cells.
-		if h := r.req.Size[1]; h > 0 && b.Type == "list" {
-			src.Limit = 3*h - 1
+	switch {
+	case r.fitting && b.Type == "list":
+		// A list of a widget shows the lines its card has room left for, at most its limit.
+		if n := max(1, (r.left-titled(b))/thirdsLine); src.Limit == 0 || src.Limit > n {
+			src.Limit = n
 		}
+	case src.Limit == 0 && b.Paged():
+		src.Limit = manifest.Page
 	}
-	if n := min(r.req.Pages[id], maxPages); n > 1 && src.Limit > 0 {
+	if n := min(r.req.Pages[id], maxPages); n > 1 && src.Limit > 0 && !r.fitting {
 		src.Limit *= n
 	}
 	if len(picked) > 0 {

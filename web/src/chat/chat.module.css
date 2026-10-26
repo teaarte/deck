@@ -96,11 +96,15 @@
   color: var(--mantine-primary-color-filled);
 }
 
+/* The turn stands over the input, its steps and log scrolling within it. */
 .turn {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  max-height: 40%;
+  overflow-y: auto;
 }
 
 .turnHead {
@@ -117,6 +121,10 @@
 .turnMark {
   display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   color: var(--mantine-primary-color-filled);
 }
 
@@ -203,6 +211,12 @@
   gap: 4px;
 }
 
+/* The field looks the same in focus: its caret marks it; the buttons of the input keep their ring. */
+.composer textarea:focus,
+.composer textarea:focus-visible {
+  outline: none;
+}
+
 .composer {
   display: flex;
   flex-direction: column;
@@ -212,10 +226,6 @@
   background: var(--mantine-color-body);
   box-shadow: inset 0 0 0 1px var(--mantine-color-default-border), var(--deck-shadow);
   transition: box-shadow 150ms ease;
-
-  &:focus-within {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mantine-primary-color-filled) 60%, transparent), var(--deck-shadow);
-  }
 
   &[data-drop] {
     box-shadow: inset 0 0 0 2px var(--mantine-primary-color-filled);

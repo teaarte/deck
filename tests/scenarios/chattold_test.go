@@ -63,7 +63,8 @@ func handOver(ctx context.Context, c *Call, topic *atomic.Int64) provider.Result
 }
 
 // A work the master started from a chat topic tells that topic how it ended: its result when done, why in the
-// owner's words when it failed, and the note it left in the feed is read then.
+// owner's words when it failed, and the note it left in the feed is read then; the master and the work are told the
+// owner's language, so the result comes in it.
 func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	t.Parallel()
 	var works atomic.Int32
@@ -87,8 +88,14 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 		c.Tool(ctx, "notify", map[string]any{"project": "master", "text": "Counted: 3 records."})
 		return provider.Result{Text: "Counted: **3 records**."}
 	})
+	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	topic := e.say(0, "count the records")
 	done := e.told(topic, "done", "ru")
+	for _, c := range e.Fake.Calls()[:2] {
+		if !strings.Contains(c.Prompt, "The owner reads deck in Russian") {
+			t.Fatalf("the reply and the work it handed over are told the owner's language:\n%s", c.Prompt)
+		}
+	}
 	if done.Text != "Counted: **3 records**." || done.Told.Command != "work" || done.Told.Word != "готово" || done.Told.Tone != "ok" {
 		t.Fatalf("a work done tells its result and its state in the owner's words: %+v %+v", done, done.Told)
 	}

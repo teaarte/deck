@@ -90,7 +90,8 @@ const widgetsManifest = `{"version": 13,
     {"min": "2x2", "blocks": [{"type": "list", "title": "Newest", "source": {"collection": "items", "sort": "-n"}, "item": {"title": "name"}}]}
   ]}`
 
-// TestACardShowsTheLargestViewItFits: a card gets the largest view of a module it fits, a list as long as it holds;
+// TestACardShowsTheLargestViewItFits: a card gets the largest view of a module it fits, a list as long as it holds
+// in thirds of a line (screen/fit.go), shared by the blocks of the view;
 // the menu names the sizes, and a view is only of stat, list and chart blocks.
 func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	t.Parallel()
@@ -114,8 +115,19 @@ func TestACardShowsTheLargestViewItFits(t *testing.T) {
 		t.Fatalf("a card too low for the list shows the stat: %v", wide)
 	}
 	big := blockData[[]listItem](t, e.screenData("shelf", "widget", map[string]any{"widget": "3x3"})["b0"]["items"])
-	if len(big) != 8 || big[0].Title != "item 11" {
-		t.Fatalf("a large card shows the list as long as it holds, three lines a row: %d %+v", len(big), big)
+	if len(big) != 7 || big[0].Title != "item 11" {
+		t.Fatalf("a large card shows the list as long as it holds, three lines a row less the head and the title: %d %+v", len(big), big)
+	}
+	e.createProject("lab", widgetsOfWork)
+	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "items", "records": jsonl(recs...)}, nil)
+	low := e.screenData("lab", "widget", map[string]any{"widget": "2x1"})
+	if n := len(blockData[[]listItem](t, low["b1"]["items"])); n != 1 || low["b0"] == nil {
+		t.Fatalf("a low card shows its number and one line under it: %d", n)
+	}
+	two := e.screenData("lab", "widget", map[string]any{"widget": "2x2"})
+	needs, fresh := blockData[[]listItem](t, two["b0"]["items"]), blockData[[]listItem](t, two["b1"]["items"])
+	if len(needs) != 2 || len(fresh) != 2 {
+		t.Fatalf("two lists share the card: the first its limit, the next what is left under its title: %d %d", len(needs), len(fresh))
 	}
 	e.refused("deck.screen", map[string]any{"project": "shelf", "screen": "widget", "widget": "big"}, 422, "size")
 	bad := strings.Replace(widgetsManifest, `{"type": "stat", "title": "Items", "source": {"collection": "items"}}`,

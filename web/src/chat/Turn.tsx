@@ -82,7 +82,7 @@ export function Turn({ turn }: { turn: TurnValue }) {
     <div className={s.turn} data-turn={turn.state}>
       <div className={s.turnHead} data-turn-head data-live={running || undefined}>
         <span className={s.turnMark}>
-          {!mascot ? <Glyph busy={running} /> : running || turn.waits ? <Deki pose={turnPose(!!turn.waits, calling(turn.lines))} size={30} />
+          {!mascot ? <Glyph busy={running} /> : running || turn.waits ? <Deki pose={turnPose(!!turn.waits, calling(turn.lines))} size={26} />
             : <DekiHead size={24} />}
         </span>
         <Text size="sm" fw={600} truncate style={{ flex: 1 }} c={running ? undefined : toneColor(turn.tone)} data-turn-now>{head}</Text>

@@ -8,8 +8,14 @@ description: Makes the views of the card of a module on the tiles of deck — wh
 A card on the tiles of deck shows the largest view of `widgets` of its module's manifest that it fits; without one it
 is the cover with the title. A view is a small screen: `{"min": "2x1", "blocks": [...]}`, where `min` is the least
 size it fits, columns by rows of cells, and `blocks` are one to four `stat`, `list` and `chart` blocks read like on a
-screen (sources, `where`, `sort`, expressions, buttons). A list without `limit` shows the lines the card holds, three
-a row; a chart takes the width it gets. A press on the card opens the module; a button inside presses as on a screen.
+screen (sources, `where`, `sort`, expressions, buttons). A press on the card opens the module; a button inside
+presses as on a screen.
+
+A view never runs out of its card: deck lays it in thirds of a line, `9 × rows − 3` under the card's head, block by
+block from the top. A `stat` takes 3, a `chart` 6, a `list` 3 a line and 1 for its title; a list shows the lines left
+(at most its `limit`), and a block with no room left is not shown. Each line of a list is its title and one line of
+`since`, `text` and `meta`, cut at the end, with its first button beside them; a number stays on one line. So put
+first what matters most, and keep titles short.
 
 ## What to show on what size
 

@@ -20,7 +20,8 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
   const menu = useMenuData();
   // The screen the message goes with, by the titles the owner sees.
   const place = [route.project && (entryOf(menu, route.project)?.title ?? route.project),
-    placesOf(menu, route.project).find((x) => x.name === route.screen)?.title ?? route.screen].filter(Boolean).join(' · ');
+    !route.project && route.screen === 'apps' ? t('nav.apps') : placesOf(menu, route.project).find((x) => x.name === route.screen)?.title ?? route.screen]
+    .filter(Boolean).join(' · ');
   // detached sends the message without the screen the owner is on, so a new topic belongs to no module.
   const [detached, setDetached] = useState(false);
   useEffect(() => setDetached(false), [route.project, route.screen, route.record]);

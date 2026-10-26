@@ -77,17 +77,17 @@
   background: var(--mantine-primary-color-light);
 }
 
-.item[data-tone='warn'] .itemIcon {
+:is(.item, .fitLine)[data-tone='warn'] .itemIcon {
   color: var(--mantine-color-coral-8);
   background: var(--mantine-color-coral-1);
 }
 
-.item[data-tone='error'] .itemIcon {
+:is(.item, .fitLine)[data-tone='error'] .itemIcon {
   color: var(--mantine-color-red-6);
   background: var(--mantine-color-red-0);
 }
 
-.item[data-tone='ok'] .itemIcon {
+:is(.item, .fitLine)[data-tone='ok'] .itemIcon {
   color: var(--mantine-color-green-7);
   background: var(--mantine-color-green-0);
 }
@@ -109,16 +109,16 @@
   letter-spacing: 0.01em;
 }
 
-:global(:root[data-mantine-color-scheme='dark']) .item[data-tone='ok'] .itemIcon {
+:global(:root[data-mantine-color-scheme='dark']) :is(.item, .fitLine)[data-tone='ok'] .itemIcon {
   background: color-mix(in srgb, var(--mantine-color-green-7) 18%, transparent);
 }
 
-:global(:root[data-mantine-color-scheme='dark']) .item[data-tone='warn'] .itemIcon {
+:global(:root[data-mantine-color-scheme='dark']) :is(.item, .fitLine)[data-tone='warn'] .itemIcon {
   color: var(--mantine-color-coral-3);
   background: color-mix(in srgb, var(--mantine-color-coral-6) 18%, transparent);
 }
 
-:global(:root[data-mantine-color-scheme='dark']) .item[data-tone='error'] .itemIcon {
+:global(:root[data-mantine-color-scheme='dark']) :is(.item, .fitLine)[data-tone='error'] .itemIcon {
   color: var(--mantine-color-red-4);
   background: color-mix(in srgb, var(--mantine-color-red-6) 16%, transparent);
 }
@@ -257,4 +257,66 @@
   width: 100%;
   aspect-ratio: 16 / 9;
   margin-bottom: 10px;
+}
+
+/* A line of a widget: three thirds of a line high, nothing wraps (Fit). */
+.fitLine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: calc(3 * var(--third));
+  min-width: 0;
+  container-type: inline-size;
+
+  & + & {
+    border-top: 1px solid var(--deck-line, var(--mantine-color-default-border));
+  }
+
+  &[data-tone='muted'] {
+    opacity: 0.6;
+  }
+}
+
+.fitLine .itemIcon,
+.fitCover {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+
+.fitCover {
+  border-radius: var(--mantine-radius-sm);
+}
+
+.fitWords {
+  flex: 1;
+  min-width: 0;
+}
+
+.fitTitle {
+  line-height: 1.3;
+}
+
+/* The words under the title go in the color of the card, softer, so they read on a picture as well. */
+.fitUnder {
+  opacity: 0.72;
+}
+
+.fitAct {
+  flex: none;
+  white-space: nowrap;
+}
+
+.fitNarrow {
+  display: none;
+}
+
+@container (max-width: 260px) {
+  .fitWide {
+    display: none;
+  }
+
+  .fitNarrow {
+    display: inline-flex;
+  }
 }

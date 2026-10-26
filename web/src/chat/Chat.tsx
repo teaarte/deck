@@ -133,8 +133,8 @@ export function Chat({ value, context }: { value: ChatData; context: ComponentCo
           </div>
         ))}
         {value.asks.map((d) => <DecisionCard key={d.id} d={d} />)}
-        {value.turn && <Turn turn={value.turn} />}
       </Feed>
+      {value.turn && <Turn turn={value.turn} />}
       <Composer text={text} setText={setText} files={files} busy={chat.busy} onNewTopic={() => topics.pick('new')}
         onSend={(detached) => { if (text.trim()) history.push(text.trim()); void chat.send(text, detached); }} onWalk={history.walk}
         onEdit={(v) => { setText(v); chat.forgetKey(); }} />

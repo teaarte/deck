@@ -35,14 +35,17 @@ func (ch *Service) Memory(ctx context.Context, p db.Process) (string, error) {
 	return master.Text("project_memory", struct{ Project, Index string }{proj.Name, own}), nil
 }
 
+// languages name the languages of the interface for an agent; auto names none.
+var languages = map[string]string{"en": "English", "ru": "Russian"}
+
 // masterMemory is the memory an agent of the master gets, with a sign that changes when the memory does.
 func (ch *Service) masterMemory(ctx context.Context, mp db.Project, topic int64) (string, string, error) {
 	own, rev, err := ch.memoryIndex(ctx, mp, "Memory index of the owner")
 	if err != nil {
 		return "", "", err
 	}
-	v := struct{ Own, Project string }{Own: own}
-	sign := fmt.Sprint(rev)
+	v := struct{ Own, Project, Language string }{Own: own, Language: languages[ch.Language(ctx, mp.WorkspaceID)]}
+	sign := fmt.Sprint(rev) + v.Language
 	if cp, ok := ch.topicProject(ctx, topic); ok && cp.ID != mp.ID {
 		idx, crev, err := ch.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", which this topic is about (document_get with project "+cp.Name+")")
 		if err != nil {

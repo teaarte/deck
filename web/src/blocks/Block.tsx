@@ -11,7 +11,7 @@ import { useLive } from '../lib/events';
 import { tally } from '../lib/tally';
 import { readBlock } from '../screen/press';
 import { Actions } from '../ui/actions/Actions';
-import { Around, Small } from './around';
+import { Around, Fit, Small } from './around';
 import { Filters } from './Filters';
 
 export type Span = 1 | 2 | 'full';
@@ -30,25 +30,29 @@ export function Block({ title, icon, span, description, data, context, empty, ba
   // A title the tab or the dialog around says already is not said again.
   const named = title !== useContext(Around) ? title : undefined;
   const small = useContext(Small);
+  const fit = useContext(Fit);
   tally('block');
   let body: ReactNode;
   const own = data?.state === 'empty' ? empty?.(data) : undefined;
   if (!data) body = <Pending text={t('state.loading')} />;
+  else if (data.state === 'error' && fit) {
+    body = <Group gap={8} wrap="nowrap" c="red" className={s.fitLine} title={data.error}><IconAlertTriangle size={18} /><Text size="sm" truncate>{t('state.error')}</Text></Group>;
+  }
   else if (data.state === 'error') body = <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('state.error')}>{data.error}</Alert>;
   else if (own) body = own;
   else if (data.state === 'empty') {
     body = (
-      <Group gap={8} c="dimmed" wrap="nowrap">
+      <Group gap={8} c="dimmed" wrap="nowrap" className={fit ? s.fitLine : undefined}>
         <IconInbox size={18} stroke={1.5} />
-        <Text size="sm" c="dimmed" data-empty>{data.empty || t('state.empty')}</Text>
+        <Text size="sm" c="dimmed" truncate={fit} data-empty>{data.empty || t('state.empty')}</Text>
       </Group>
     );
   }
   else body = children(data);
   if (small) {
     return (
-      <section className={s.small} aria-label={title} data-block data-small data-span={String(span ?? 1)}>
-        {named && <Text size="xs" fw={700} c="dimmed" className={s.bareTitle}>{named}</Text>}
+      <section className={s.small} aria-label={title} data-block data-small data-fit={fit || undefined} data-span={String(span ?? 1)}>
+        {named && <Text size="xs" fw={700} c="dimmed" className={s.bareTitle} truncate={fit}>{named}</Text>}
         {body}
       </section>
     );

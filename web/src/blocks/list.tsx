@@ -1,10 +1,11 @@
-import { useEffect, useState, type DragEvent } from 'react';
+import { useContext, useEffect, useState, type DragEvent } from 'react';
 import { Group, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconAlertCircle, IconAlertTriangle, IconArrowRight, IconCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import s from './list.module.css';
 import { relative, show, when } from '../lib/format';
 import { useClock } from '../hooks/useClock';
+import { ActionButton } from '../ui/actions/ActionButton';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import { Actions } from '../ui/actions/Actions';
 import { Holding } from '../ui/actions/undo';
@@ -19,23 +20,29 @@ import { QuestionPicker } from '../ui/QuestionPicker';
 import { opener, rowOpen } from '../ui/rowOpen';
 import type { Data } from '../lib/catalog.gen';
 import { press, useBlockContext } from '../screen/press';
+import { Fit } from './around';
 import { blockImpl } from './blockImpl';
 import { Virtual } from '../ui/Virtual';
+import { locale } from '../lib/i18n';
 
 export type Item = NonNullable<Data['items']>[number];
 
 // list draws items: a title with its icon in the color of its tone, text, meta, time, details, questions and buttons;
 // as cards, a board, one at a time with focus, or chips when no item has words under its title and each one button.
-export const list = blockImpl<{ cards?: boolean; focus?: boolean }>('list', (p, d) => {
-  const items = d.items ?? [];
-  if (d.board) return <Board board={d.board} items={items} />;
-  if (p.focus) return <Focus items={items} empty={d.empty} />;
-  if (!p.cards && items.every(chip)) return <Chips items={items} />;
-  return <Items items={items} cards={p.cards} />;
-}, {
+export const list = blockImpl<{ cards?: boolean; focus?: boolean }>('list', (p, d) => <Listed cards={p.cards} focus={p.focus} d={d} />, {
   empty: (p, d) => (p.focus ? <Done text={d.empty} /> : undefined),
   bare: (p, d) => (p.focus ? 'plain' : !p.cards && !d?.board && !!d?.items?.length && d.items.every(chip) ? 'row' : undefined),
 });
+
+function Listed({ cards, focus, d }: { cards?: boolean; focus?: boolean; d: Data }) {
+  const fit = useContext(Fit);
+  const items = d.items ?? [];
+  if (fit) return <div data-fit-lines>{items.map((it, i) => <FitLine key={show(it.id) || i} it={it} />)}</div>;
+  if (d.board) return <Board board={d.board} items={items} />;
+  if (focus) return <Focus items={items} empty={d.empty} />;
+  if (!cards && items.every(chip)) return <Chips items={items} />;
+  return <Items items={items} cards={cards} />;
+}
 
 type BoardData = NonNullable<Data['board']>;
 
@@ -157,6 +164,40 @@ function Chip({ it }: { it: Item }) {
 // TONES are the icons of a tone for a line without its own icon, so a tone is not color alone.
 const TONES: Record<string, typeof IconCheck> = { ok: IconCheck, warn: IconAlertTriangle, error: IconAlertCircle };
 
+// mark is the icon of a line: its own, else that of its tone, so a tone is not color alone.
+function mark(it: Item) {
+  const Tone = it.tone ? TONES[it.tone] : undefined;
+  return it.icon ? <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={17} /></span>
+    : Tone ? <span className={s.itemIcon} data-tone-icon><Tone size={17} /></span> : null;
+}
+
+// FitLine is an item in a widget: one line of its title and one of its time, text and meta, its first button beside
+// them, words cut at the end rather than wrapped; a narrow line shows the button as its icon.
+function FitLine({ it }: { it: Item }) {
+  const ctx = useBlockContext();
+  const [act] = useVisibleActions((it.actions ?? []).filter((a) => !a.input || a.primary));
+  const under = [it.text, it.meta].filter(Boolean).join(' · ');
+  return (
+    <div className={s.fitLine} data-item data-tone={it.tone} {...rowOpen(it.actions, ctx)}>
+      {it.cover ? <Cover cover={it.cover} className={s.fitCover} /> : mark(it)}
+      <div className={s.fitWords}>
+        <Text fw={600} size="sm" truncate className={s.fitTitle}>{it.title}</Text>
+        {(it.since || under) && (
+          <Text size="xs" truncate className={`${s.meta} ${s.fitUnder}`}>
+            {it.since && <Since at={it.since} inline />}{it.since && under ? ' · ' : ''}{under}
+          </Text>
+        )}
+      </div>
+      {act && (
+        <span className={s.fitAct}>
+          <span className={s.fitWide}><ActionButton act={act} quiet /></span>
+          <span className={s.fitNarrow}><ActionIconButton act={act} icon={verbIcon(act)} variant="default" /></span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 // Line is one item of a list; later is the way to put it last, in a focus list.
 export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; quiet?: boolean; max?: number; later?: () => void }) {
   const { t } = useTranslation();
@@ -167,15 +208,13 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
   const rest = (it.actions ?? []).filter((a) => a !== answer && !(a === open && a.verb === 'open' && !a.primary));
   const opens = rowOpen(it.actions, ctx);
   const until = (it.actions ?? []).map((a) => a.until).filter(Boolean).sort()[0];
-  const Tone = it.tone ? TONES[it.tone] : undefined;
-  const mark = it.icon ? <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={17} /></span>
-      : Tone ? <span className={s.itemIcon} data-tone-icon><Tone size={17} /></span> : null;
+  const marked = mark(it);
   return (
-    <div className={s.item} data-item data-tone={it.tone} data-big={big || undefined} data-marked={mark ? true : undefined}
-      title={it.since ? when(it.since)?.toLocaleString() : undefined} {...opens}>
+    <div className={s.item} data-item data-tone={it.tone} data-big={big || undefined} data-marked={marked ? true : undefined}
+      title={it.since ? when(it.since)?.toLocaleString(locale()) : undefined} {...opens}>
       {it.cover && <Cover cover={it.cover} className={s.cover} />}
       <Group gap={12} wrap="nowrap" align="flex-start">
-        {mark}
+        {marked}
         <Stack gap={2} miw={0} style={{ flex: 1 }}>
           <Text fw={600} lh={1.35} className={s.itemTitle}>{it.title}</Text>
           {it.text && <Text size="sm" c="var(--deck-text-2)" lh={1.45}>{it.text}</Text>}
@@ -203,8 +242,10 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
 }
 
 // Since is how long ago the time a line counts from was, kept fresh.
-function Since({ at }: { at: string }) {
+function Since({ at, inline }: { at: string; inline?: boolean }) {
   const now = useClock(1000);
   const d = when(at);
-  return d ? <Text size="xs" c="dimmed" className={s.meta} data-since>{relative(d, now)}</Text> : null;
+  if (!d) return null;
+  if (inline) return <span data-since>{relative(d, now)}</span>;
+  return <Text size="xs" c="dimmed" className={s.meta} data-since>{relative(d, now)}</Text>;
 }

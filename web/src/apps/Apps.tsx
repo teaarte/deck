@@ -73,6 +73,19 @@ function roomy(widgets: string[] | undefined, w: number, h: number): boolean {
   return largest === 0 ? w * h >= 2 : w * h >= 2 * largest;
 }
 
+// Room is the room the lines of Today leave under them, told by its height.
+function Room({ onHeight }: { onHeight: (px: number) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const seen = new ResizeObserver(() => onHeight(el.clientHeight));
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [onHeight]);
+  return <div ref={ref} className={s.todayRoom} data-today-room />;
+}
+
 // useCell is the size of a cell of the tiles in pixels, from the tokens of the theme: least width, height and gap.
 function useCell(ref: React.RefObject<HTMLDivElement | null>) {
   const [cell, setCell] = useState({ min: 200, height: 180, gap: 24 });
@@ -118,6 +131,7 @@ export function Apps() {
   const saved = useLiveRead<Saved>('deck.layout', { device: me, columns: cols }, ['settings', 'projects'], EMPTY, !mounted);
   const ids = [TODAY, ...menu.projects.map((p) => p.project ?? '')];
   const [placing, setPlacing] = useState(route.params?.edit === '1');
+  const [room, setRoom] = useState(0);
   const [moved, setMoved] = useState<Cell[]>();
   useEffect(() => { if (route.params?.edit) dropParam('edit'); }, [route.params?.edit]);
   // Saves go one after another; what was moved stays drawn until deck gives the layout of the last of them.
@@ -169,7 +183,7 @@ export function Apps() {
     if (view) {
       return (
         <Tile to={open(p)} title={p.title} seed={id} plain data={{ 'data-module': id }} extra={ask}>
-          <span className={s.widgetHead}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={16} /><Text size="sm" fw={700} truncate>{p.title}</Text></span>
+          <span className={s.widgetHead}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={16} /><Text size="sm" fw={700} lineClamp={2} lh={1.25}>{p.title}</Text></span>
           <Widget project={id} screen="widget" size={`${w}x${h}`} />
         </Tile>
       );
@@ -211,9 +225,9 @@ export function Apps() {
                 return (
                   <div key={c.i} data-cell={c.i}>
                     <Tile to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big cover={of(scene, dark)}
-                      color={(dark ? scene?.dark_color : undefined) || scene?.color} art={<CardDeki size={phone ? 96 : Math.min(150, cell.height * 0.8)} />}>
+                      color={(dark ? scene?.dark_color : undefined) || scene?.color} art={<CardDeki size={Math.min(phone ? 96 : 150, cell.height * 0.8)} room={room} />}>
                       <span className={s.today}><IconSun size={15} aria-hidden />{t('nav.cockpit')}</span>
-                      <Widget screen="today" size={`${c.w}x${c.h}`} />
+                      <Widget screen="today" size={`${c.w}x${c.h}`} rest={<Room onHeight={setRoom} />} />
                     </Tile>
                   </div>
                 );

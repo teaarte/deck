@@ -13,6 +13,7 @@ import s from './chat.module.css';
 import { Processes } from './Turn';
 
 import { Thumb } from '../blocks/media/Thumb';
+import { locale } from '../lib/i18n';
 
 const Media = lazy(() => import('../blocks/media/Media').then((m) => ({ default: m.Media })));
 
@@ -20,7 +21,7 @@ type ChatMessage = ChatData['messages'][number];
 type WorkValue = NonNullable<ChatMessage['work']>;
 
 // cost is a price in dollars, exact to its cents or, below a cent, to two digits.
-const cost = (usd: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD',
+const cost = (usd: number) => new Intl.NumberFormat(locale(), { style: 'currency', currency: 'USD',
   ...(usd > 0 && usd < 0.01 ? { maximumSignificantDigits: 2 } : { maximumFractionDigits: 2 }) }).format(usd);
 
 // Work is what of a reply needs the owner: the processes it started that failed or still wait, each with its log.

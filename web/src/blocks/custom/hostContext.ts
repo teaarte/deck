@@ -1,5 +1,5 @@
 import type { McpUiHostContext, McpUiStyles } from '@modelcontextprotocol/ext-apps/app-bridge';
-import i18n from '../../lib/i18n';
+import i18n, { locale } from '../../lib/i18n';
 
 // HOST_VARIABLES are the MCP Apps style variables by the Mantine variable whose resolved value they take.
 const HOST_VARIABLES: Partial<Record<keyof McpUiStyles, string>> = {
@@ -73,9 +73,6 @@ const HOST_VARIABLES: Partial<Record<keyof McpUiStyles, string>> = {
   '--shadow-md': '--mantine-shadow-md',
   '--shadow-lg': '--mantine-shadow-lg',
 };
-
-// locale is deck's language, with the device's region when the device speaks it.
-const locale = () => (navigator.language.startsWith(i18n.language) ? navigator.language : i18n.language);
 
 // hostContext is the theme of deck as MCP Apps passes it: resolved values, since the frame has none of deck's CSS.
 export function hostContext(theme: 'light' | 'dark'): McpUiHostContext {

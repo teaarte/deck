@@ -32,4 +32,8 @@ export function setLanguage(setting: string) {
   document.documentElement.lang = lang;
 }
 
+// locale is how numbers, times and dates are written: the device's own when it speaks the language of the interface,
+// else the language of the interface.
+export const locale = () => (navigator.language.startsWith(i18n.language) ? navigator.language : i18n.language);
+
 export default i18n;

@@ -68,8 +68,8 @@ type Request struct {
 	Brief bool
 	// Dialog is the dialog open on the screen: the blocks of any other dialog are read only when it opens.
 	Dialog string
-	// Size is the cells of the card of the tiles a widget fills, columns and rows; a list without a limit shows what
-	// fits in it.
+	// Size is the cells of the card of the tiles a widget fills, columns and rows; its blocks show what fits in it
+	// (fit.go), and it is read whole.
 	Size [2]int
 	// Tab and Sub are the keys of the tabs shown, of the screen and inside a tab; the first without one. The blocks
 	// of another tab are read when it is shown, by a read of its block.
@@ -109,6 +109,10 @@ func Render(ctx context.Context, src Sources, req Request) (Drawn, error) {
 	}
 	if req.Topic == "projects" && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {
 		req.Topic = ""
+	}
+	// What a widget shows depends on all its blocks, so it is read whole.
+	if req.Size[1] > 0 {
+		req.Topic, req.Block = "", ""
 	}
 	// The window of a dialog is read as its dialog.
 	req.Block = strings.TrimSuffix(req.Block, "-in")
@@ -151,6 +155,9 @@ func Check(ctx context.Context, src Sources, req Request) ([]string, error) {
 func resolve(ctx context.Context, src Sources, req Request, every bool) (*renderer, error) {
 	r := &renderer{ctx: ctx, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}, fetched: map[string]fetchOf{}, spans: map[string]any{}}
 	r.every = every
+	if h := req.Size[1]; h > 0 {
+		r.fitting, r.left = true, Thirds(h)
+	}
 	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name, Lang: req.Lang}
 	r.params = map[string]any{}
 	for name, typ := range req.Screen.Params {
@@ -206,6 +213,9 @@ type renderer struct {
 	// tabs counts the tabs a block is inside, hidden those of them not shown.
 	tabs, hidden int
 	every        bool
+	// fitting is set for a widget, left the thirds of a line its card has room for still.
+	fitting bool
+	left    int
 	// skipped is set once a block of a closed dialog was left unread; good names the blocks that drew.
 	skipped bool
 	good    []string

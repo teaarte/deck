@@ -6,6 +6,7 @@ import { Markdown } from '../ui/Markdown';
 import { blockImpl } from './blockImpl';
 import { Failed } from '../ui/actions/Failed';
 import { usePress } from '../ui/actions/usePress';
+import { locale } from '../lib/i18n';
 
 const none: Action = {};
 
@@ -82,7 +83,7 @@ function Document({ value }: { value: DocumentValue }) {
               {value.revisions.map((r) => (
                 <Group key={r.revision} gap="xs" justify="space-between" wrap="nowrap" data-revision={r.revision}>
                   <Text size="xs" style={{ overflowWrap: 'anywhere' }}>
-                    #{r.revision} · {r.author} · {new Date(r.created_at).toLocaleString()}{r.reason ? ' · ' + r.reason : ''}
+                    #{r.revision} · {r.author} · {new Date(r.created_at).toLocaleString(locale())}{r.reason ? ' · ' + r.reason : ''}
                   </Text>
                   {r.revert && <Revert act={r.revert} revision={r.revision} />}
                 </Group>

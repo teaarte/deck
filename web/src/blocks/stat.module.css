@@ -64,3 +64,34 @@
   font-size: 13px;
   color: var(--mantine-color-dimmed);
 }
+
+/* A number of a widget: three thirds of a line, in one line however narrow the card (Fit). */
+.stat[data-fit] {
+  height: calc(3 * var(--third));
+  padding: 0;
+  gap: 10px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  container-type: inline-size;
+}
+
+.stat[data-fit] .icon {
+  width: 30px;
+  height: 30px;
+}
+
+.stat[data-fit] .body {
+  flex: 1;
+}
+
+.stat[data-fit] .value {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+@container (max-width: 150px) {
+  .stat[data-fit] .icon {
+    display: none;
+  }
+}

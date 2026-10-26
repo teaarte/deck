@@ -167,7 +167,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Words: screens.Phrases, Said: a.Runner.Said, Go: a.bg.Go, Ctx: a.ctx}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
-		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Prices: a.Providers.Prices, Go: a.bg.Go, Words: screens.Phrases,
+		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Prices: a.Providers.Prices, Go: a.bg.Go, Words: screens.Phrases, Language: a.Settings.Language,
 		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}

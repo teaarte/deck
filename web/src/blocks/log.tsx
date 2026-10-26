@@ -11,6 +11,7 @@ import { usePress } from '../ui/actions/usePress';
 import { Markdown } from '../ui/Markdown';
 import { blockImpl } from './blockImpl';
 import s from './log.module.css';
+import { locale } from '../lib/i18n';
 
 type Line = NonNullable<Data['lines']>[number];
 
@@ -43,9 +44,9 @@ function Raw({ text, mark }: { text: string; mark: string }) {
 function At({ at }: { at: string }) {
   const d = new Date(at);
   const today = d.toDateString() === new Date().toDateString();
-  const text = today ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : d.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  return <Text size="xs" c="dimmed" ml="auto" style={{ flexShrink: 0 }} title={d.toLocaleString()}>{text}</Text>;
+  const text = today ? d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : d.toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return <Text size="xs" c="dimmed" ml="auto" style={{ flexShrink: 0 }} title={d.toLocaleString(locale())}>{text}</Text>;
 }
 
 // Live is the head of a log still going: how long it runs and how many steps it made.

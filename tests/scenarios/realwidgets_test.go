@@ -1,0 +1,119 @@
+package scenarios
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"testing"
+	"time"
+)
+
+// widgetsOfWork is a module whose views mix numbers, lists with buttons, a title too long for one cell and two lists
+// with their titles, as the owner's modules do.
+const widgetsOfWork = `{"version": 13,
+  "i18n": {"ru": {"Laboratory of setups": "Лаборатория сетапов", "Price": "Цена BTC", "Open": "Открыть", "Needs you": "Ждёт вас", "New": "Новое"}},
+  "title": "Laboratory of setups",
+  "collections": [{"name": "items", "description": "An item.", "key": "name", "display": "name",
+    "schema": {"type": "object", "properties": {"name": {"type": "string"}, "n": {"type": "integer"}, "at": {"type": "string"}}, "required": ["name"]}}],
+  "screens": [{"name": "item", "title": "Item", "record": "items", "blocks": [{"type": "card", "fields": [{"label": "Name", "bind": "name"}]}]}],
+  "widgets": [
+    {"min": "1x1", "blocks": [{"type": "stat", "title": "Price", "icon": "currency-bitcoin", "source": {"collection": "items", "limit": 1}, "format": "money", "currency": "USD", "value": "80484.37"}]},
+    {"min": "2x1", "blocks": [
+      {"type": "stat", "title": "Price", "icon": "currency-bitcoin", "source": {"collection": "items", "limit": 1}, "format": "money", "currency": "USD", "value": "80484.37"},
+      {"type": "list", "source": {"collection": "items", "sort": "-n"}, "item": {"title": "name", "meta": "'step ' + string(n)", "since": "at", "icon": "'sparkles'"},
+        "actions": [{"label": "Open", "screen": "item", "primary": true}]}]},
+    {"min": "2x2", "blocks": [
+      {"type": "list", "title": "Needs you", "source": {"collection": "items", "sort": "-n", "limit": 2}, "item": {"title": "name", "meta": "'step ' + string(n)", "icon": "'hand-finger'"},
+        "actions": [{"label": "Open", "screen": "item", "primary": true}]},
+      {"type": "list", "title": "New", "source": {"collection": "items", "sort": "n"}, "item": {"title": "name", "meta": "'step ' + string(n)", "since": "at", "icon": "'sparkles'"}}]}
+  ]}`
+
+// fitsItsCard is what of the cards of the tiles goes out of its card, or wraps a number or a button: empty when
+// nothing does.
+const fitsItsCard = `(() => {
+  const out = [];
+  for (const card of document.querySelectorAll('[data-cell]')) {
+    const c = card.getBoundingClientRect();
+    for (const el of card.querySelectorAll('[data-widget] *, [data-widget-head] *')) {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height || getComputedStyle(el).visibility === 'hidden' || el.closest('[hidden]')) continue;
+      if (r.left < c.left - 1 || r.right > c.right + 1 || r.top < c.top - 1 || r.bottom > c.bottom + 1) {
+        out.push(card.dataset.cell + ': ' + el.tagName + ' ' + (el.innerText || '').slice(0, 30).replace(/\n/g, ' ') + ' out');
+        break;
+      }
+    }
+    for (const el of card.querySelectorAll('[data-stat], button')) {
+      const r = el.getBoundingClientRect();
+      if (!r.width) continue;
+      const line = parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.3;
+      if (el.matches('[data-stat]') && r.height > line * 1.5) out.push(card.dataset.cell + ': number wraps ' + el.innerText.replace(/\n/g, ' '));
+      if (el.scrollWidth > el.clientWidth + 1) out.push(card.dataset.cell + ': cut ' + el.innerText.replace(/\n/g, ' '));
+    }
+  }
+  return out.join('; ');
+})()`
+
+// TestRealBrowserWidgetsFitTheirCards: on a computer and a phone, cards of every size show only what they hold: no
+// line, number or button goes out of its card or wraps; Today of a low card keeps its last line whole.
+func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, ok)
+	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	sizes := [][2]int{{1, 1}, {2, 1}, {2, 2}, {3, 2}, {1, 2}, {3, 3}}
+	at := time.Now().Add(-39 * time.Second).UTC().Format(time.RFC3339)
+	var recs []map[string]any
+	for i := range 12 {
+		recs = append(recs, map[string]any{"name": fmt.Sprintf("A rather long name of item number %d that goes on", i), "n": i, "at": at})
+	}
+	for i := range sizes {
+		name := fmt.Sprintf("lab%d", i)
+		e.createProject(name, widgetsOfWork)
+		e.must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(recs...)}, nil)
+	}
+	b := newPlaywright(t)
+	for _, phone := range []bool{false, true} {
+		width, height, look := 1400, 1100, "computer"
+		if phone {
+			width, height, look = 390, 844, "phone"
+		}
+		b.call("browser_resize", map[string]any{"width": width, "height": height})
+		b.open(e.URL + "/?token=" + token)
+		b.until("the cards", `document.querySelector('[data-cell="today"] [data-widget]') && document.querySelector('[data-cols]')`)
+		cols := colsOf(b)
+		device := b.eval(`localStorage.getItem('deck-device')`)
+		today := int64(2)
+		if phone {
+			today = 1
+		}
+		cards := []deskCard{{"today", 0, 0, int64(min(2, cols)), today}}
+		x, y, row := int64(min(2, cols)), int64(0), today
+		for i, s := range sizes {
+			w, h := int64(min(s[0], cols)), int64(s[1])
+			if x+w > int64(cols) {
+				x, y, row = 0, y+row, 0
+			}
+			cards = append(cards, deskCard{fmt.Sprintf("lab%d", i), x, y, w, h})
+			x += w
+			row = max(row, h)
+		}
+		e.place(device, cols, cards...)
+		b.open(e.URL + "/?reload=" + look)
+		b.until("every card with its view", fmt.Sprintf(`document.querySelectorAll('[data-cell] [data-widget] [data-block]').length >= %d`, len(sizes)+1))
+		time.Sleep(time.Second)
+		b.shot("widgets-" + look)
+		if got := b.eval(fitsItsCard); got != "" {
+			t.Errorf("on a %s, cards hold what they show: %s", look, got)
+		}
+		if got := b.eval(`(() => { const d = document.querySelector('[data-card-deki] img')?.getBoundingClientRect(); if (!d) return 'no Deki';
+			return [...document.querySelectorAll('[data-cell="today"] [data-item]')].filter((l) => { const r = l.getBoundingClientRect();
+				return r.right > d.left && r.left < d.right && r.bottom > d.top && r.top < d.bottom }).map((l) => l.innerText).join('; ') })()`); got != "" {
+			t.Errorf("on a %s, Deki stands clear of Today's lines: %s", look, got)
+		}
+		if text := b.eval(`document.querySelector('[data-cell="today"]').innerText`); !strings.Contains(text, "Сегодня") {
+			t.Errorf("Today in Russian on a %s: %q", look, text)
+		}
+	}
+}

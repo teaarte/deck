@@ -46,6 +46,11 @@
   flex: 1 1 100%;
 }
 
+/* A widget stacks its blocks, each as high as its thirds of a line. */
+:global([data-widget]) .grid > .cell {
+  flex: none;
+}
+
 .cols {
   display: flex;
   flex-wrap: wrap;
@@ -139,6 +144,21 @@
 
 .bareTitle {
   flex: none;
+}
+
+/* In a widget a block takes its thirds of a line: its title one, a line three. */
+.small[data-fit] {
+  gap: 0;
+}
+
+.small[data-fit] > .bareTitle {
+  height: var(--third);
+  line-height: var(--third);
+}
+
+.fitLine {
+  height: calc(3 * var(--third));
+  min-width: 0;
 }
 
 .dialogWindow {

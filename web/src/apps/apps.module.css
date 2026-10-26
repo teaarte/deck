@@ -97,8 +97,18 @@
 
 .card[data-big] .body {
   justify-content: flex-start;
-  max-width: 62%;
   z-index: 1;
+}
+
+/* Today's lines go the whole width; Deki stands in the room they leave, or small in the head without one. */
+.card[data-big] .today {
+  min-height: 28px;
+  padding-right: 40px;
+}
+
+.todayRoom {
+  flex: 1;
+  min-height: 0;
 }
 
 .today {
@@ -154,6 +164,12 @@
   transition: transform 200ms ease-out, scale 160ms ease-out;
 }
 
+.deki[data-head] {
+  top: calc(var(--mantine-spacing-md) - 6px);
+  right: var(--mantine-spacing-md);
+  bottom: auto;
+}
+
 .card:hover .deki {
   scale: 1.04;
 }
@@ -197,12 +213,25 @@
   min-width: 0;
 }
 
-/* A widget fills the card under its head; only its buttons take a press, the rest opens the card. */
+/* A widget fills the card under its head in thirds of a line (Fit); only its buttons take a press, the rest opens
+   the card. */
 .widget {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  container-type: size;
+  --third: calc(100cqh / var(--thirds));
 }
+
+.widget :global([data-screen]),
+.widget :global([data-grid]) {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 0;
+}
+
 
 /* The view of a new size comes in softly as the card settles to it. */
 @media (prefers-reduced-motion: no-preference) {

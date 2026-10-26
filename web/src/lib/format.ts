@@ -1,5 +1,5 @@
 import cronstrue from 'cronstrue/i18n';
-import i18n from './i18n';
+import i18n, { locale } from './i18n';
 
 // Shown is how the catalog says to show a value: its format and the currency of money.
 export interface Shown {
@@ -13,7 +13,7 @@ const MOMENT = /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:\d\d)$/;
 export const text = (v: unknown): string => (v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 
 // show is a value as the owner reads it: a moment in the time of the device, the rest as text.
-export const show = (v: unknown): string => (typeof v === 'string' && MOMENT.test(v) ? new Date(v).toLocaleString() : text(v));
+export const show = (v: unknown): string => (typeof v === 'string' && MOMENT.test(v) ? new Date(v).toLocaleString(locale()) : text(v));
 
 const ISO = /^\d{4}-\d\d-\d\d([T ]\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:?\d\d)?)?$/;
 
@@ -32,10 +32,10 @@ const STEPS: [Intl.RelativeTimeFormatUnit, number][] = [['second', 60], ['minute
 export function relative(d: Date, now: number): string {
   let n = (d.getTime() - now) / 1000;
   for (const [unit, size] of STEPS) {
-    if (Math.abs(n) < size) return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(Math.round(n), unit);
+    if (Math.abs(n) < size) return new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' }).format(Math.round(n), unit);
     n /= size;
   }
-  return d.toLocaleString();
+  return d.toLocaleString(locale());
 }
 
 function duration(s: number): string {
@@ -44,7 +44,7 @@ function duration(s: number): string {
   const parts: [number, string][] = [[Math.floor(s / 86400), 'day'], [Math.floor(s / 3600) % 24, 'hour'], [Math.floor(s / 60) % 60, 'minute'], [s % 60, 'second']];
   const kept = parts.filter(([n]) => n > 0).slice(0, 2);
   if (!kept.length) kept.push([0, 'second']);
-  return kept.map(([n, unit]) => new Intl.NumberFormat(undefined, { style: 'unit', unit, unitDisplay: 'short' }).format(n)).join(' ');
+  return kept.map(([n, unit]) => new Intl.NumberFormat(locale(), { style: 'unit', unit, unitDisplay: 'short' }).format(n)).join(' ');
 }
 
 const BYTES = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte', 'petabyte'];
@@ -55,7 +55,7 @@ function bytes(n: number): string {
     n /= 1000;
     i++;
   }
-  return new Intl.NumberFormat(undefined, { style: 'unit', unit: BYTES[i], unitDisplay: 'short', maximumFractionDigits: i ? 1 : 0 }).format(n);
+  return new Intl.NumberFormat(locale(), { style: 'unit', unit: BYTES[i], unitDisplay: 'short', maximumFractionDigits: i ? 1 : 0 }).format(n);
 }
 
 // formatted is a value as text by its format, in the locale and time zone of the device; a value of another
@@ -65,16 +65,16 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
   try {
     switch (s.format) {
       case 'number':
-        if (n !== undefined) return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
+        if (n !== undefined) return new Intl.NumberFormat(locale(), { maximumFractionDigits: 2 }).format(n);
         break;
       case 'compact':
-        if (n !== undefined) return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+        if (n !== undefined) return new Intl.NumberFormat(locale(), { notation: 'compact', maximumFractionDigits: 1 }).format(n);
         break;
       case 'percent':
-        if (n !== undefined) return new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 }).format(n);
+        if (n !== undefined) return new Intl.NumberFormat(locale(), { style: 'percent', maximumFractionDigits: 1 }).format(n);
         break;
       case 'money':
-        if (n !== undefined && s.currency) return new Intl.NumberFormat(undefined, { style: 'currency', currency: s.currency }).format(n);
+        if (n !== undefined && s.currency) return new Intl.NumberFormat(locale(), { style: 'currency', currency: s.currency }).format(n);
         break;
       case 'duration':
         if (n !== undefined) return duration(n);
@@ -84,12 +84,12 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
         break;
       case 'date': {
         const d = when(v);
-        if (d) return /^\d{4}-\d\d-\d\d$/.test(v as string) ? d.toLocaleDateString(undefined, { timeZone: 'UTC' }) : d.toLocaleDateString();
+        if (d) return /^\d{4}-\d\d-\d\d$/.test(v as string) ? d.toLocaleDateString(locale(), { timeZone: 'UTC' }) : d.toLocaleDateString(locale());
         break;
       }
       case 'datetime': {
         const d = when(v);
-        if (d) return d.toLocaleString();
+        if (d) return d.toLocaleString(locale());
         break;
       }
       case 'relative': {

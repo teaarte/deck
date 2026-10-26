@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -591,8 +592,10 @@ func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into groceries. Move it?" || tasks("groceries") != 1 {
 		t.Fatalf("the master picks the project by the first line of its md: %+v", said)
 	}
-	if _, ok := e.Fake.Calls()[0].Skills["dispatch/SKILL.md"]; !ok {
-		t.Fatalf("the master gets the dispatch skill: %v", e.Fake.Calls()[0].Skills)
+	for _, skill := range []string{"dispatch/SKILL.md", "module-builder/SKILL.md", "module-conventions/SKILL.md", "module-builder/helpers/deck_helper.py"} {
+		if _, ok := e.Fake.Calls()[0].Skills[skill]; !ok {
+			t.Fatalf("the master gets its skills, the conventions of a module's code too: %s of %v", skill, slices.Collect(maps.Keys(e.Fake.Calls()[0].Skills)))
+		}
 	}
 	e.say(topic, "no, move it to garden")
 	if said := e.masterSaid(topic, 2); !strings.HasPrefix(said[1].Text, "deleted: ") || tasks("garden") != 1 || tasks("groceries") != 0 {

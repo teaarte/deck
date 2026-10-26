@@ -8,7 +8,7 @@ description: Builds a deck module (a project with a manifest, prompt, scripts, s
 deck is the owner's control panel for digital workers. A new line of work is a **project**: a JSON manifest
 plus documents (md prompt, scripts, skills). deck gives models channels, tools, data, limits and screens; the
 work itself is done by scripts and agents you describe. You build the module; the owner answers questions
-and presses "enable".
+and presses "enable". Its scripts, prompts and their review follow the module-conventions skill.
 
 You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format`,
 `project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
@@ -409,27 +409,15 @@ These live here, not in deck: deck stays small and you combine them.
 
 ## 4. Scripts
 
-A script reads its input JSON from stdin and prints its result JSON to stdout. A script that fails exits non-zero
-and prints its failure to stdout in the one form deck keeps for every process:
-
-```json
-{"error": "the date field of the feed is not a date", "type": "input.invalid", "details": {"field": "date", "value": "soon"}}
-```
-
-`error` is one short line for the owner; `details` (any JSON, or a string) holds what explains it — deck adds the
-end of stderr after it. `type` says whose the failure is, and the master's `on_error` reads it to choose what to
-tell the owner: `script.failed` (the default: a bug of the script), `input.invalid` (the input or the data it read
-is not what the script takes), `program.missing`, `network` (a site is down or answers wrong), `rights.denied`
-(a folder or a domain the project has no right to), `model.limit` and `model.unavailable` (a model deck called
-refused). Any other type is `script.failed`. A failure with no type or `script.failed` right after deck answered the
+Write scripts by the module-conventions skill: their layout, the contract of stdin and stdout, the one form of a
+failure and its types, and their style. What deck adds to a failure: `details` gets the end of stderr after it, and
+the master's `on_error` reads `type` to choose what to tell the owner; any other type is `script.failed`. A failure
+with no type or `script.failed` right after deck answered the
 last call of the script with an error takes the type of that answer — 400, 404, 413 or 422 `input.invalid`, 403
 `rights.denied`, 429 of a model (or its 413 past a limit per minute) `model.limit`, 5xx of a model `model.unavailable`, 429 or a 5xx past 500 of another
 command `network` — and deck adds its error answers to the failure, so a script need not catch them only to type them.
-Without a non-zero exit stdout stays the result, so a result schema
-may have a field `error` of its own; nothing to do (nothing new, a record already done) is a result, not a
-failure. Print the failure only where the run really ends: a helper that a caller may catch (a spend not logged, a
-check another script loads as a library) raises, and the top of the script turns what nobody caught into the one form,
-so stdout never holds two JSON documents. A script runs in a sandbox:
+Without a non-zero exit stdout stays the result, so a result schema may have a field `error` of its own. A script
+runs in a sandbox:
 
 - write access only to its run folder and `$DECK_DATA`; the project folders are read-only;
 - of the owner's home folder it reads only the runtimes deck finds on `PATH` (an nvm node, a pyenv python) and
@@ -467,10 +455,8 @@ so stdout never holds two JSON documents. A script runs in a sandbox:
   (MLX). That work is an agent command on Claude Code in a project with network: its shell binds ports, uses the
   GPU and keeps its caches like the owner's own; the script readies the inputs and the agent renders;
 - a script runs alone: its folder holds only its own file, so a helper shared by scripts is repeated in each
-  (or read with `document_get` into the work folder). This skill has such a helper, `helpers/deck_helper.py` and
-  `helpers/deck_helper.mjs`: the one form of a failure printed only at the entry point, calls of deck with deck's
-  answer as the details, a file of `$DECK_DATA` replaced whole under its lock. A script that calls deck or rewrites
-  a file takes the part above their example instead of a helper of its own;
+  (or read with `document_get` into the work folder); the helpers of this skill, `helpers/deck_helper.py` and
+  `helpers/deck_helper.mjs`, are the ones module-conventions names;
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
   (`command_describe` gives the input and `result` schemas while you write the script; works through the proxy or without it).
   A 200 body is the command's result itself, with no wrapper; an error is plain text with a 4xx/5xx status, 410
@@ -491,17 +477,10 @@ so stdout never holds two JSON documents. A script runs in a sandbox:
   Programs it needs from the machine go into `scripts[].programs`: a name (`"uv"`) or a name with how the owner
   installs it (`{"name": "ffmpeg", "install": "brew install ffmpeg"}`). A missing program refuses the run at once and
   is a red health row of the command with that text; ask the owner to install it, never work around it — the
-  check button of the row, or the next run, finds it. Python: `"runtime": "exec"` and a PEP 723 block:
-  ```python
-  #!/usr/bin/env -S uv run --script
-  # /// script
-  # requires-python = ">=3.12"
-  # dependencies = ["httpx==0.28.1"]
-  # ///
-  ```
+  check button of the row, or the next run, finds it.
   Every script runs on the one python3 of 3.10 or newer deck picks at start, first on its `PATH` (health names it and
-  the node of scripts); a script that needs a newer one says so in `requires-python`, and uv finds or fetches it.
-  Node: `npm install` into `$DECK_DATA`, output to stderr (stdout is the result), then `createRequire`:
+  the node of scripts); a script that needs a newer one says so in `requires-python` of its PEP 723 block, and uv
+  finds or fetches it. Node installs into `$DECK_DATA` and loads the package with `createRequire`:
   ```js
   const dir = process.env.DECK_DATA + "/node";
   require("node:child_process").execFileSync("npm", ["install", "--prefix", dir, "--no-audit", "--no-fund", "left-pad@1.3.0"], { stdio: ["ignore", 2, 2] });

@@ -59,6 +59,7 @@
           "topic-summary",
           "memory",
           "module-builder",
+          "module-conventions",
           "code-project",
           "themes"
         ]
@@ -96,6 +97,7 @@
         "skills": [
           "memory",
           "module-builder",
+          "module-conventions",
           "code-project"
         ]
       }

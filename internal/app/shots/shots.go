@@ -67,7 +67,7 @@ const ready = `() => {
   if (document.querySelector('[data-screen-error]')) return performance.now();
   if (!document.querySelector('[data-screen-view]:not([aria-busy]) [data-screen], [data-apps]')) return 0;
   if (document.querySelector('[data-awaits], [data-pending]') || document.fonts.status !== 'loaded') return 0;
-  if ([...document.images].some((i) => !i.complete)) return 0;
+  if ([...document.images].some((i) => !i.complete && i.loading !== 'lazy')) return 0;
   return performance.now();
 }`
 
@@ -90,6 +90,11 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in shotIn) (any,
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	key, spec := Key(device), s.spec(device)
+	// The browser starts before the token is lent, so a slow first start does not outlast it.
+	if _, err := s.Host.Tools(ctx, key, spec); err != nil {
+		return nil, fmt.Errorf("deck: the browser of the shots: %w", err)
+	}
 	token := s.Lend(act, 2*time.Minute)
 	defer s.Return(token)
 	q := url.Values{"token": {token}, "shot": {"1"}}
@@ -100,7 +105,6 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in shotIn) (any,
 		q.Set("scheme", in.Scheme)
 	}
 	page := strings.TrimRight(s.Base, "/") + "/?" + q.Encode() + in.Address
-	key, spec := Key(device), s.spec(device)
 	code := fmt.Sprintf(`async (page) => {
   await page.goto(%q);
   const drawn = await page.waitForFunction(%s, null, { timeout: 30000, polling: 100 });
@@ -122,6 +126,8 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in shotIn) (any,
 		return nil, fmt.Errorf("deck: the screen did not draw: %s", strings.TrimSpace(text(res)))
 	}
 	pic, err := s.call(ctx, key, spec, "browser_take_screenshot", map[string]any{"type": "png", "fullPage": true})
+	// The page leaves, so it hears no more of the workspace once its token is back.
+	_, _ = s.call(ctx, key, spec, "browser_navigate", map[string]any{"url": "about:blank"})
 	if err != nil {
 		return nil, err
 	}

@@ -632,6 +632,7 @@
   "outbox": "исходящие",
   "push": "уведомления",
   "browser": "браузер",
+  "browser-open": "браузер без входов",
   "mcp": "MCP-сервер",
   "retention": "хранение",
   "no search is set up, so agents without their own web only read pages; run SearXNG (%s), add it in Settings → Models → Connections (api raw, url http://127.0.0.1:8888, local), as a model of kind search in Settings → Models, and assign it to search in Settings → Models": "поиск не настроен, поэтому агенты без своего веба только читают страницы; запустите SearXNG (%s), добавьте его в Настройки → Модели → Подключения (API «свой», адрес http://127.0.0.1:8888, локальное), как модель вида «поиск» в Настройки → Модели и назначьте на поиск в Настройки → Модели",

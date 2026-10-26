@@ -140,6 +140,10 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 
 // upload takes the files of a multipart form for a project; commands then get them by id.
 func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
+	if lentTo(r) {
+		http.Error(w, "deck: a page deck opens itself only reads", http.StatusForbidden)
+		return
+	}
 	mr, err := r.MultipartReader()
 	if err != nil {
 		http.Error(w, "deck: send the files as multipart/form-data", http.StatusBadRequest)

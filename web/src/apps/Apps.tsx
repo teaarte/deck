@@ -42,6 +42,7 @@ function Tile({ to, title, cover, color, seed, big, plain, art, extra, children,
     <div className={s.card} data-card data-app-tile data-big={big || undefined} data-plain={plain || undefined} data-cover={cover && !plain ? true : undefined}
       style={style} {...data}>
       {src && !plain && <img src={src} alt="" className={s.cover} data-shown={shown || undefined} onLoad={() => setShown(true)} data-cover-img />}
+      {cover && !src && !plain && <span hidden data-awaits />}
       <a href={to} className={s.open} aria-label={title} data-app={seed} />
       {!plain && <span className={s.shade} />}
       <span className={s.body}>{children}</span>
@@ -190,6 +191,7 @@ export function Apps() {
         stop();
         setPlacing(true);
       }}>
+      {saved === EMPTY && <span hidden data-awaits />}
       {placing && (
         <div className={s.placingBar}>
           <Text size="sm" c="dimmed">{t('apps.placing')}</Text>

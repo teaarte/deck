@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// worstContrast is the lowest contrast of the text on the tabs of a phone and of a screen over the plain canvas and
-// over the strokes of its pattern under the glass.
+// worstContrast is the lowest contrast of the text on the tabs of a phone and of a screen over the canvas under the
+// glass.
 const worstContrast = `(() => {
   const c = document.createElement('canvas'); c.width = c.height = 1;
   const x = c.getContext('2d', { willReadFrequently: true });
@@ -19,8 +19,7 @@ const worstContrast = `(() => {
     return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
   const ratio = (a, b) => { const [h, l] = [lum(a), lum(b)].sort((p, q) => q - p); return (h + 0.05) / (l + 0.05); };
   const canvas = getComputedStyle(document.querySelector('[data-backdrop]')).backgroundColor;
-  const stroke = document.querySelector('[data-backdrop] > div');
-  const spots = [[canvas], stroke ? [canvas, getComputedStyle(stroke).backgroundColor] : [canvas]];
+  const spots = [[canvas]];
   let worst = 99;
   for (const [sel, text] of [['[data-phone-tabs]', '[data-phone-tabs] [data-tab]'], ['[data-phone-tabs]', '[data-phone-tabs] [data-tab][data-active]'],
     ['.mantine-Tabs-list', '[role=tab]'], ['.mantine-Tabs-list', '[role=tab][data-active]']]) {

@@ -13,5 +13,8 @@ WHERE document_id IN (SELECT id FROM document WHERE kind = 'theme') AND json_val
         OR json_type(text, '$.light.pattern') IS NOT NULL OR json_type(text, '$.light."pattern-alt"') IS NOT NULL
         OR json_type(text, '$.dark.pattern') IS NOT NULL OR json_type(text, '$.dark."pattern-alt"') IS NOT NULL);
 
+UPDATE document_revision SET text = replace(replace(text, 'var(--pattern-alt)', 'var(--accent-light)'), 'var(--pattern)', 'var(--accent-light)')
+WHERE document_id IN (SELECT id FROM document WHERE kind = 'theme') AND text LIKE '%var(--pattern%';
+
 -- +goose Down
 SELECT 1;

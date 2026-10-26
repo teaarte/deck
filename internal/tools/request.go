@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"deck2/internal/files"
@@ -15,6 +16,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 var field = regexp.MustCompile(`\{([A-Za-z0-9_]+)\}`)
@@ -34,8 +36,11 @@ type outgoing struct {
 
 func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t manifest.HTTPTool, domains []string, in map[string]any) (*outgoing, error) {
 	var missing []string
-	u := fillURL(t.URL, in, &missing)
 	out := &outgoing{}
+	u, err := h.url(p, t, in, out, &missing)
+	if err != nil {
+		return nil, err
+	}
 	values, err := jsonValues(t, in)
 	if err != nil {
 		return nil, err
@@ -53,7 +58,10 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	}
 	req, err := http.NewRequestWithContext(ctx, t.Method, u, nil)
 	if err != nil {
-		return nil, registry.Invalid("deck: %s: %v", t.Name, err)
+		return nil, registry.Invalid("deck: %s: %v", t.Name, untrusted.Redact(err.Error(), out.secrets))
+	}
+	if len(out.secrets) > 0 {
+		out.secrets = append(out.secrets, req.URL.String())
 	}
 	if req, err = gateway.Pin(req, append([]string{req.URL.Host}, domains...)); err != nil {
 		return nil, &registry.Error{Status: registry.Status(err), Text: fmt.Sprintf("deck: %s: %v", t.Name, err)}
@@ -102,6 +110,35 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	}
 	out.req = req
 	return out, nil
+}
+
+// url is where a call goes: the URL of the tool with the input in its fields, or the URL its secret holds when that
+// is https on one of its hosts, with the query of the tool after it.
+func (h *HTTP) url(p db.Project, t manifest.HTTPTool, in map[string]any, out *outgoing, missing *[]string) (string, error) {
+	name, query, ok := manifest.SecretURL(t)
+	if !ok {
+		return fillURL(t.URL, in, missing), nil
+	}
+	v, err := h.Secrets(p.WorkspaceID, name)
+	if err != nil {
+		return "", err
+	}
+	v = strings.TrimSpace(v)
+	out.secrets = append(out.secrets, v)
+	u, err := url.Parse(v)
+	if err != nil || u.Scheme != "https" || u.User != nil ||
+		!slices.Contains(t.Hosts, strings.ToLower(u.Hostname())) {
+		return "", registry.Refuse("deck: %s: the secret %s holds no https address on the hosts of the tool, %s; the owner sets it again",
+			t.Name, name, strings.Join(t.Hosts, ", "))
+	}
+	if query != "" {
+		sep := "?"
+		if u.RawQuery != "" {
+			sep = "&"
+		}
+		v += sep + put(query, in, url.QueryEscape, missing)
+	}
+	return v, nil
 }
 
 // send makes a call; an oauth2 tool refused with 401 gets its token refreshed and the call once more.

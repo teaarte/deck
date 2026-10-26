@@ -338,6 +338,11 @@ func toolWidens(prev, next *Manifest, t HTTPTool, add say) {
 	for _, sc := range added(toolSecrets(old), toolSecrets(t)) {
 		add("secret: %s", sc)
 	}
+	if _, _, ok := SecretURL(t); ok {
+		for _, h := range added(old.Hosts, t.Hosts) {
+			add("tool %s: host %s", t.Name, h)
+		}
+	}
 	switch {
 	case i < 0 && t.Class != registry.External:
 		add("tool %s: new with class %s", t.Name, t.Class)

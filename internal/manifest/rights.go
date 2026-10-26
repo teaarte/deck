@@ -115,7 +115,7 @@ func added(prev, next []string) []string {
 }
 
 func sameCall(a, b HTTPTool) bool {
-	return a.Method == b.Method && a.URL == b.URL && reflect.DeepEqual(a.Headers, b.Headers) &&
+	return a.Method == b.Method && a.URL == b.URL && slices.Equal(a.Hosts, b.Hosts) && reflect.DeepEqual(a.Headers, b.Headers) &&
 		bytes.Equal(compact(a.Body), compact(b.Body)) && bytes.Equal(compact(a.Auth), compact(b.Auth))
 }
 

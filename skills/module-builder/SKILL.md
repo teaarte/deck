@@ -101,7 +101,10 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `secret_set`; scripts and agents never see it, and deck cuts it out of what the service answers), `body`
   template, `input` and `result` schemas. A tool without `class` is `external`. An external call outside
   `allowed_external` waits for the owner; after yes deck makes that exact call and hands the result back. Give
-  a paid or risky tool `confirm_ttl_minutes`. A binary answer (video, audio, picture) becomes a file in the
+  a paid or risky tool `confirm_ttl_minutes`. A service that gives a private link whose token is the URL itself (a
+  published calendar, a webhook, a private feed) is a tool with `"url": "$secret.<name>"` (or
+  `"$secret.<name>?from={from}"` to add a query of the input) and `"hosts"`, the exact names of the hosts the link
+  may point to: deck calls the link the owner stored only when it is https on one of them. A binary answer (video, audio, picture) becomes a file in the
   caller's results folder: `{"file", "type", "size"}`. Everything deck calls outside is journaled; a call whose
   answer was lost is never repeated by deck — the owner retries it or counts it done.
   A tool may sign in with `"auth": {"type": "secret", "secret": "<name>"}` (an `Authorization: Bearer` header;

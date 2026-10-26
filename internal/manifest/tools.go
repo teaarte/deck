@@ -14,11 +14,44 @@ import (
 
 var placeholder = regexp.MustCompile(`\{([A-Za-z0-9_]+)\}`)
 
+// secretURL is a URL taken whole from a secret, with a query of input fields after it.
+var secretURL = regexp.MustCompile(`^\$secret\.([A-Za-z0-9_.-]+)(?:\?(.*))?$`)
+
+// hostName is a host name of hosts: lower case, no scheme, port or wildcard.
+var hostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
+
+// SecretURL is the secret an HTTP tool takes its whole URL from and the query of input fields it adds; false when
+// its URL is written out.
+func SecretURL(t HTTPTool) (name, query string, ok bool) {
+	m := secretURL.FindStringSubmatch(t.URL)
+	if m == nil {
+		return "", "", false
+	}
+	return m[1], m[2], true
+}
+
 // checkTemplate keeps an HTTP tool on its host and its secrets in headers: input fields may fill the path,
-// query, headers and body, never the scheme or host, and $secret.<name> is allowed only in headers.
+// query, headers and body, never the scheme or host, and $secret.<name> is allowed only in headers or as the whole
+// URL with its hosts.
 func checkTemplate(t HTTPTool) []error {
 	var errs []error
 	fail := func(format string, a ...any) { errs = append(errs, fmt.Errorf(format, a...)) }
+	if _, query, ok := SecretURL(t); ok {
+		if len(t.Hosts) == 0 {
+			fail("a url from a secret needs hosts, the names of the hosts it may point to")
+		}
+		for _, h := range t.Hosts {
+			if !hostName.MatchString(h) {
+				fail("hosts: %q is not a host name", h)
+			}
+		}
+		if strings.ContainsAny(query, "#$") {
+			fail("url: the query after a secret takes only text and {field}")
+		}
+		t.URL = "https://host.invalid/?" + query
+	} else if len(t.Hosts) > 0 {
+		fail("hosts go only with a url from a secret, \"$secret.<name>\"")
+	}
 	i := strings.Index(t.URL, "://")
 	rest := ""
 	if i > 0 {

@@ -221,6 +221,7 @@ type HTTPTool struct {
 	Description       string            `json:"description"`
 	Method            string            `json:"method"`
 	URL               string            `json:"url"`
+	Hosts             []string          `json:"hosts,omitempty"`
 	Headers           map[string]string `json:"headers,omitempty"`
 	Body              json.RawMessage   `json:"body,omitempty"`
 	Input             json.RawMessage   `json:"input,omitempty"`

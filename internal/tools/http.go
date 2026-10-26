@@ -94,6 +94,7 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool, domains []string) regi
 			if isSignIn {
 				h.signIn(ctx, p, name, signIn.Why)
 			} else {
+				err = errors.New(untrusted.Redact(err.Error(), req.secrets))
 				h.health(ctx, p, name, "error", err.Error())
 				err = fmt.Errorf("deck: %s: %v", name, err)
 			}

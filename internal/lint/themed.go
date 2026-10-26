@@ -1,14 +1,11 @@
 package lint
 
 import (
-	"bufio"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -56,58 +53,4 @@ func Unthemed(root string) ([]Violation, error) {
 		return nil
 	})
 	return out, err
-}
-
-// Ratchet is the list of files that still have unthemed values: the count of each and why, which only goes down.
-type Ratchet map[string]int
-
-// ReadRatchet reads lines of "<count> <file> <reason>"; lines starting with # are comments.
-func ReadRatchet(path string) (Ratchet, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	out := Ratchet{}
-	sc := bufio.NewScanner(f)
-	for n := 1; sc.Scan(); n++ {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.Fields(line)
-		count, err := strconv.Atoi(parts[0])
-		if len(parts) < 3 || err != nil {
-			return nil, fmt.Errorf("%s:%d: want <count> <file> <reason>", path, n)
-		}
-		out[parts[1]] = count
-	}
-	return out, sc.Err()
-}
-
-// Against says where the violations differ from the ratchet: a file not in it, more than it allows, or fewer, which
-// lowers its count.
-func (r Ratchet) Against(vs []Violation) []string {
-	by := map[string]int{}
-	for _, v := range vs {
-		by[v.File]++
-	}
-	var out []string
-	for f, n := range by {
-		switch allowed, ok := r[f]; {
-		case !ok:
-			out = append(out, fmt.Sprintf("%s: %d unthemed values; take them from the theme", f, n))
-		case n > allowed:
-			out = append(out, fmt.Sprintf("%s: %d unthemed values, the ratchet allows %d", f, n, allowed))
-		case n < allowed:
-			out = append(out, fmt.Sprintf("%s: %d unthemed values left, lower the ratchet from %d", f, n, allowed))
-		}
-	}
-	for f := range r {
-		if by[f] == 0 {
-			out = append(out, fmt.Sprintf("%s: clean, take it off the ratchet", f))
-		}
-	}
-	slices.Sort(out)
-	return out
 }

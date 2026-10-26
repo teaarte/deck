@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"deck2/internal/app"
-	"deck2/internal/gateway"
 	"deck2/internal/app/tokens"
+	"deck2/internal/gateway"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 )

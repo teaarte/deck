@@ -29,7 +29,7 @@ export function Custom({ value }: { value: CustomValue }) {
         style={full ? { position: 'fixed', inset: 0, width: '100vw', height: '100dvh', border: 0, zIndex: 190, background: 'var(--mantine-color-body)' }
           : { width: '100%', height, border: 0, display: 'block' }} />
       {full && (
-        <ActionIcon variant="default" radius="xl" size="lg" onClick={inline} aria-label={t('custom.inline')} data-custom-inline
+        <ActionIcon variant="default" size="lg" onClick={inline} aria-label={t('custom.inline')} data-custom-inline
           style={{ position: 'fixed', top: 12, right: 12, zIndex: 191 }}><IconX size={18} /></ActionIcon>
       )}
       <Modal opened={!!asking} onClose={() => answer(false)} title={t('custom.ask')}>

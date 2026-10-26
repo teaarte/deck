@@ -1,3 +1,0 @@
-# Files of the client with values a theme cannot change: <count> <file> <why it waits>. The list only goes down;
-# a session that rewrites a file takes its values from the theme and lowers or drops its line.
-1 web/src/blocks/custom/Custom.tsx blocks of screens: session D8

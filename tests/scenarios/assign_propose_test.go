@@ -120,17 +120,43 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 	}
 	ask, _ = e.callAsk("deck.assignment_set")
 	e.must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}, nil)
-	if code, out := e.call("deck.ask_answer", map[string]any{"ask": ask, "answer": "allow"}); code == 200 || !strings.Contains(string(out), "changed after it was asked for") {
-		t.Fatalf("a yes to an assignment that changed meanwhile is refused: %d %s", code, out)
+	e.waitFor("the owner's own assignment to close the proposal for the same place", func() bool { return e.askState(ask) == "answered" })
+	if code, out := e.callIn("ru", "deck.ask_answer", map[string]any{"ask": ask, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "на этот запрос уже ответили") {
+		t.Fatalf("a yes to an assignment that changed meanwhile is refused in the owner's words: %d %s", code, out)
 	}
 	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("the refused yes changes nothing: %v", got)
+	}
+
+	if c := e.scriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}); c.Status != 202 {
+		t.Fatalf("a proposal of what is in force is held like any: %+v", c)
+	}
+	e.waitFor("a proposal already in force to close as done", func() bool {
+		var left []askView
+		e.must("deck.asks_list", nil, &left)
+		return len(left) == 0
+	})
+	pin := map[string]any{"role": "text", "project": "shorts", "command": "cut", "models": []string{"openrouter/qwen"}}
+	if c := e.scriptCall("picker", "deck.assignment_set", pin); c.Status != 202 {
+		t.Fatalf("a proposal to pin a command to what it inherits waits: %+v", c)
+	}
+	ask, _ = e.callAsk("deck.assignment_set")
+	e.App.Answers.Settle(t.Context())
+	if state := e.askState(ask); state != "open" {
+		t.Fatalf("a pin of what a place only inherits is not in force there: %s", state)
 	}
 	e.answer(ask, "deny")
 
 	if c := e.scriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"nope"}}); c.Status != 404 {
 		t.Fatalf("a proposal deck cannot apply is refused at once, not held: %+v", c)
 	}
+}
+
+// askState is the state of an ask as the store keeps it.
+func (e *Env) askState(id int64) string {
+	var state string
+	_ = e.App.Store.DB.QueryRow(`SELECT state FROM ask WHERE id = ?`, id).Scan(&state)
+	return state
 }
 
 // TestNoCallerAppliesAnAssignmentPastTheOwner: a token and an agent of a module wait for the owner too, and a trial

@@ -80,6 +80,15 @@ type Command struct {
 	// Free says a call costs nothing and stays on the owner's machine, so it runs in a trial or a draft too; an
 	// error is a call that cannot run at all, so it fails rather than waiting for the owner.
 	Free func(ctx context.Context, a Actor, input json.RawMessage) (bool, error) `json:"-"`
+	// Probes marks a Fingerprint that reaches out, such as to the page of a browser: deck checks it only when the
+	// owner answers, not in the background.
+	Probes bool `json:"-"`
+	// Holds says what a call would make is so already: a call waiting for the owner is then done without making it.
+	Holds func(ctx context.Context, workspace int64, input json.RawMessage) bool `json:"-"`
+	// Undo is the call that takes a call back, as things stand before it is made; false when deck cannot.
+	Undo func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool) `json:"-"`
+	// Spends marks a command that costs money: the owner's press of a button never stands for its yes.
+	Spends bool `json:"-"`
 
 	Handler Handler `json:"-"`
 	schema  *jsonschema.Schema

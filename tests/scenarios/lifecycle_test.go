@@ -333,10 +333,12 @@ func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
 func TestAStopEndsTheTurnsBeforeTheServerGoes(t *testing.T) {
 	t.Parallel()
 	started, ended := make(chan struct{}), make(chan struct{})
+	// Run resumes what runs as at a start of deck, so a second turn of the same process may begin before the stop.
+	var once, end sync.Once
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		close(started)
+		once.Do(func() { close(started) })
 		<-ctx.Done()
-		close(ended)
+		end.Do(func() { close(ended) })
 		return provider.Result{}
 	})
 	p := e.createProject("long", testManifest([]string{agentCommand("work", "")}, nil))

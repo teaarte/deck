@@ -1,4 +1,5 @@
-import { Select } from '@mantine/core';
+import { useState } from 'react';
+import { Loader, Select } from '@mantine/core';
 import type { Action } from '../../lib/catalog.gen';
 import { show } from '../../lib/format';
 import { choices } from '../../ui/actions/ActionInput';
@@ -9,15 +10,18 @@ import { usePress } from '../../ui/actions/usePress';
 // button with it.
 export function Pick({ act, value }: { act: Action; value: unknown }) {
   const { busy, label, send, error, clear } = usePress(act);
-  const now = show(value);
+  // The value picked shows at once, with a loader while it goes.
+  const [picked, setPicked] = useState('');
+  const now = busy && picked ? picked : show(value);
   const opts = choices(act);
   const data = opts.some((o) => o.value === now) || !now ? opts : [{ value: now, label: now }, ...opts];
   return (
     <Failed error={error} onClose={clear}>
       <div onClick={(e) => e.stopPropagation()}>
         <Select size="xs" variant="filled" data={data} value={now || null} aria-label={label} disabled={busy} allowDeselect={false}
+          rightSection={busy ? <Loader size={14} /> : undefined} data-busy={busy || undefined}
           comboboxProps={{ withinPortal: true, width: 'max-content' }} miw={140} maw={280} data-pick={act.pick}
-          onChange={(v) => { if (v && v !== now) void send({ [act.input!]: v }); }} />
+          onChange={(v) => { if (v && v !== now) { setPicked(v); void send({ [act.input!]: v }); } }} />
       </div>
     </Failed>
   );

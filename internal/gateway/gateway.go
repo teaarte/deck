@@ -343,8 +343,8 @@ func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
 }
 
-// call runs a registry command for a caller other than the owner: the class rules decide whether it runs
-// now or waits for the owner, and the call goes to the journal with the class of the command.
+// call runs a registry command for a caller other than the owner: the class rules decide whether it runs now, by the
+// owner's press that named it, or waits for the owner; the journal keeps it with the class of the command.
 func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, args json.RawMessage) (any, error) {
 	c, input, err := g.reg.Resolve(ctx, act, name, args)
 	class, project := registry.Internal, act.ProjectID
@@ -359,9 +359,15 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 		params = Canonical(args)
 	}
 	if err == nil && class != registry.Internal && !act.Cleared(c.Name) && act.Kind != registry.Owner {
-		var now bool
+		var now, press bool
 		if now, err = g.gate(ctx, act, c, project, input); err == nil && !now {
-			return g.hold(ctx, act, c, project, input)
+			if press, err = g.pressed(ctx, act, c, input); err == nil {
+				g.wrote(ctx, act, c)
+				if press {
+					return g.byPress(ctx, act, c, project, input)
+				}
+				return g.hold(ctx, act, c, project, input)
+			}
 		}
 		act = g.clear.Clear(act, c.Name)
 	}
@@ -370,6 +376,9 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 		return nil, err
 	}
 	out, err := g.reg.Invoke(ctx, act, name, input)
+	if err == nil {
+		g.wrote(ctx, act, c)
+	}
 	if !c.Journals {
 		outcome, text := "done", ""
 		if err != nil {

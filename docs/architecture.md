@@ -26,7 +26,10 @@ through the same gateway, so rights, limits, confirmations and the journal live 
 
 - **Command registry.** Every action is a command: `deck.<name>` built into deck, or `<module>.<name>` from a
   manifest. Each has a class (`internal`, `external`, …); what leaves the machine, spends money or widens rights
-  waits for the owner's yes.
+  waits for the owner's yes. A button names the calls its press is the yes to (`allows`): the run it starts makes
+  exactly those without asking, listed in the feed with their undo; money, secrets and rights stay apart. A call
+  waiting for a yes closes by itself once what it would make is in force, or as out of date once what it acts on
+  changed, and the caller hears it.
 - **Runner.** Starts agent turns and scripts, each in a folder and a sandbox of its own (`sandbox-exec` on macOS,
   bubblewrap on Linux). Agent turns take slots; the rest wait.
 - **MCP gateway.** Each run gets deck's MCP server: its module's commands as tools, questions and confirmations

@@ -295,6 +295,8 @@ type Process struct {
 	ErrorDetails     string
 	FollowsID        sql.NullInt64
 	Again            string
+	Allows           string
+	Wrote            int64
 }
 
 type ProcessRemark struct {

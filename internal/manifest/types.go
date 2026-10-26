@@ -494,6 +494,15 @@ type Action struct {
 	Hold bool `json:"hold,omitempty"`
 	// Undo is the call that takes the button's call back, offered for a moment after it went through.
 	Undo *Action `json:"undo,omitempty"`
+	// Allows are the calls the press stands for the owner's yes to in the run the button's command starts: the run
+	// itself makes such a call with the same params without asking.
+	Allows []Allowed `json:"allows,omitempty"`
+}
+
+// Allowed is a call a button names, a command of deck or of the module with params taken from the item.
+type Allowed struct {
+	Command string            `json:"command"`
+	Params  map[string]string `json:"params,omitempty"`
 }
 
 // Widget is a view of the card of a project on the tiles: the blocks it shows from the least size it fits.

@@ -29,6 +29,11 @@ type Service struct {
 	Words func(lang string) map[string]string
 	// Said is the last thing the agent of a process said, empty when it said nothing.
 	Said func(processID int64) string
+	// Go runs work beside the calls unless deck stops, in Ctx.
+	Go  func(func()) bool
+	Ctx context.Context
+
+	settling settling
 }
 
 // Commands are the commands of asks.
@@ -38,7 +43,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Lists what waits for the owner, oldest first: questions, confirmations, requests for rights and sign-ins, with who asks, what and where, and the link of the screen that answers them; a request for rights gives what it widens and why. Confirmations that expired stay until the owner clears them.",
 			registry.OwnerSide, s.asksList).On("asks"),
 		registry.Def("process_asks", "Asks of a run",
-			"Gives the calls a process the owner started by a button waits to make, and those its result names as {\"waiting\": <ask>}, once it asks or ends, so the owner answers them at the button; it waits a few seconds at most.",
+			"Gives what a process the owner started by a button came to once it asks or ends, a few seconds at most: the calls it waits to make and those its result names as {\"waiting\": <ask>}, so the owner answers them at the button, where it stands and why it failed.",
 			registry.OwnerOnly, s.processAsks),
 		registry.Def("ask_answer", "Answer",
 			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done. Deny on an expired confirmation clears it.",

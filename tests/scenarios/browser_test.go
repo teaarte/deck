@@ -127,9 +127,9 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 	e.waitState(id, "waiting_answer")
 	a := e.waitAsk()
 	e.waitState(e.start("web", "browse", steps(nav("https://news.example/c"))), "done")
-	if code, out := e.call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code == 200 || !strings.Contains(string(out), "changed") ||
-		slices.Contains(fakeLog(e.Browser), "click:https://news.example/c") {
-		t.Fatalf("a yes to a click on a page the browser left is refused: %d %s", code, out)
+	if code, out := e.call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "out of date") ||
+		slices.Contains(fakeLog(e.Browser), "click:https://news.example/c") || e.askState(a.ID) != "answered" {
+		t.Fatalf("a yes to a click on a page the browser left is refused, and deck closes it as out of date: %d %s", code, out)
 	}
 }
 

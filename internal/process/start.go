@@ -1,6 +1,7 @@
 package process
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -21,9 +22,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// Started is what a call that starts a process gives back.
+// Started is what a call that starts a process gives back; Running is a process of the same call that was going
+// already, which the call joined.
 type Started struct {
 	Process int64 `json:"process"`
+	Running bool  `json:"running,omitempty"`
 }
 
 // Origin is who started a process: the process that called or triggered it, the trigger, the retry key;
@@ -52,6 +55,8 @@ type Origin struct {
 	Provider string
 	// Follows is the failed process this one repeats or continues.
 	Follows int64
+	// Allows are the calls the owner's press named, as gateway.Allows keeps them: the run makes them without asking.
+	Allows string
 	// again is the one run after Follows with the last call that came for its record while it ran.
 	again bool
 }
@@ -92,20 +97,26 @@ func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Dur
 // Start runs a command of the manifest revision the caller was authorized against in the background. A key
 // of a process still going returns that process; a chain longer than MaxDepth is refused with a warning.
 func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifest, command string, input map[string]any, o Origin) (int64, error) {
+	s, err := r.Begin(ctx, projectID, m, command, input, o)
+	return s.Process, err
+}
+
+// Begin is Start that tells a process it joined, already going, from one it started.
+func (r *Runner) Begin(ctx context.Context, projectID int64, m *manifest.Manifest, command string, input map[string]any, o Origin) (Started, error) {
 	proj, err := r.st.Q.GetProject(ctx, projectID)
 	if err != nil {
-		return 0, err
+		return Started{}, err
 	}
 	if m, err = docs.InForce(ctx, r.st.Q, proj, m); err != nil {
-		return 0, err
+		return Started{}, err
 	}
 	cmd := m.Command(command)
 	if cmd == nil {
-		return 0, fmt.Errorf("project %q has no command %q", proj.Name, command)
+		return Started{}, fmt.Errorf("project %q has no command %q", proj.Name, command)
 	}
 	at, err := r.placement(ctx, projectID, m, cmd, o)
 	if err != nil {
-		return 0, err
+		return Started{}, err
 	}
 	if input == nil {
 		input = map[string]any{}
@@ -115,9 +126,10 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return r.admitIn(ctx, q, proj, m, cmd, command, at, a, o)
 	}); err != nil {
-		return 0, err
+		return Started{}, err
 	}
-	return r.launch(ctx, projectID, m, cmd, at, a, o)
+	id, err := r.launch(ctx, projectID, m, cmd, at, a, o)
+	return Started{Process: id, Running: a.reused && id != 0}, err
 }
 
 // placed is where a command runs: its kind, the provider of an agent, its session and folder.
@@ -308,7 +320,7 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	a.p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: store.Bool(trial), ProjectID: projectID, Command: command, Kind: at.kind, State: StateRunning,
 		Provider: at.provider, Input: string(a.in), SessionID: at.session, ParentID: store.ID(o.Parent), Depth: depth,
 		TriggerID: store.ID(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: at.folder,
-		StartNote: o.Note, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now()), FollowsID: store.ID(o.Follows)})
+		StartNote: o.Note, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now()), FollowsID: store.ID(o.Follows), Allows: cmp.Or(o.Allows, "[]")})
 	if err != nil {
 		return err
 	}

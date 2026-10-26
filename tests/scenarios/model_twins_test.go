@@ -29,6 +29,7 @@ func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 		`DROP TABLE picture`, `DROP TABLE layout`,
 		`ALTER TABLE file DROP COLUMN thumb_id`, `ALTER TABLE file DROP COLUMN width`, `ALTER TABLE file DROP COLUMN height`,
 		`ALTER TABLE file DROP COLUMN color`,
+		`DROP INDEX process_finished`, `ALTER TABLE process DROP COLUMN allows`, `ALTER TABLE process DROP COLUMN wrote`,
 		`DELETE FROM goose_db_version WHERE version_id >= 46`,
 	} {
 		if _, err := st.DB.Exec(q); err != nil {

@@ -220,7 +220,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.N == 1 {
+		if c.command() == "work" {
 			c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
 			c.Tool(ctx, "notes__post", map[string]any{"id": "b", "text": "hi"})
 		}
@@ -234,12 +234,21 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	var asks []askView
 	_ = json.Unmarshal(out, &asks)
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL+"/v2", "")}, nil)
-	if code, body := e.call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "allow"}); code == 200 || !strings.Contains(string(body), "changed after it was asked for") {
+	e.waitFor("deck to close the calls of the changed tool", func() bool {
+		var left []askView
+		e.must("deck.asks_list", nil, &left)
+		return len(left) == 0
+	})
+	if code, body := e.call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "allow"}); code != 409 {
 		t.Fatalf("a yes to a call of a tool that changed since is refused: %d %s", code, body)
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL, "")}, nil)
+	e.waitState(id, "done", "error")
+	e.waitState(e.run(p, "work"), "waiting_answer")
+	var again []askView
+	e.must("deck.asks_list", nil, &again)
 	e.Clock.Add(25 * time.Hour)
-	if code, _ := e.call("deck.ask_answer", map[string]any{"ask": asks[1].ID, "answer": "allow_always"}); code != 409 {
+	if code, _ := e.call("deck.ask_answer", map[string]any{"ask": again[1].ID, "answer": "allow_always"}); code != 409 {
 		t.Fatalf("a yes after the deadline is refused even before the sweep: %d", code)
 	}
 	var m struct{ Manifest string }

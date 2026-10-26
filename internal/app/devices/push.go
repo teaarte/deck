@@ -45,10 +45,10 @@ type pushMessage struct {
 	Badge int64 `json:"badge"`
 }
 
-// Kinds of lines of the owner's feed: a note someone wrote with notify, a change deck made without the owner.
+// Kinds of lines of the owner's feed, as the store names them.
 const (
-	FeedNote   = "note"
-	FeedChange = "change"
+	FeedNote   = store.FeedNote
+	FeedChange = store.FeedChange
 )
 
 type vapid struct {

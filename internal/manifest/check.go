@@ -142,6 +142,9 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 			if slices.Contains(schemaFields(c.Input), RetryKey) {
 				fail("command %q input: %q is reserved: deck adds it to every command", c.Name, RetryKey)
 			}
+			if slices.Contains(schemaFields(c.Input), AllowsKey) {
+				m.warnings = append(m.warnings, fmt.Sprintf("command %q input: %q is reserved: deck takes it for the calls a button allows", c.Name, AllowsKey))
+			}
 			if err := schemas.CheckInput(c.Input); err != nil {
 				fail("command %q input: parameters must use App Intents types: %v", c.Name, err)
 			} else if c.input, err = compileSchema("input-"+c.Name, c.Input); err != nil {

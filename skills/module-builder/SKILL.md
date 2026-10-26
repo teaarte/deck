@@ -17,7 +17,8 @@ You talk to deck through its MCP server (`deck`). The tools are deck commands: `
 the fields you need (`fields`; of `records_list` they are the fields of the data of each record). Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `project_enable`; say which one and why when the module needs it.
 `model_set` and `assignment_set` a module or the master calls itself as a proposal: the call waits for the owner's
-button and applies exactly what it sent, refused if the assignment changed meanwhile. The owner does them in two places. The Settings of the project (Settings →
+button and applies exactly what it sent; deck closes it by itself as done when it is in force already, and as out of
+date when the assignment changed meanwhile (the caller hears so and asks again if it still needs it). The owner does them in two places. The Settings of the project (Settings →
 Projects → "Settings" on its row): "Enable" with the rights enabling grants, pause, the models of
 each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
 Models (assignments, a model and its agent), Connections (where models are reached, and the other secrets: a
@@ -270,7 +271,12 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   every required parameter of its command; deck asks for nothing that is missing, so a choice the owner
   makes in a row is one action per option. A button whose call the owner may want back names the call that takes
   it back, `"undo": {"command": "unrate", "params": {"id": "=_id"}}`, offered for a moment after it went
-  through. A row of the module's own collection or its record page may carry the one deck command a button calls,
+  through. A button whose run makes an external call the row shows, such as Apply of a proposal of models, names that
+  call: `"allows": [{"command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "models":
+  "=split(models, ',')"}}]` — the press is the owner's yes to exactly that call with those params, made by the run the
+  press starts (not its children, not the schedule); deck makes it at once and lists it as done without the owner with
+  its undo, so there is no second yes. Not for calls that spend money; secrets and rights stay the owner's alone.
+  A row of the module's own collection or its record page may carry the one deck command a button calls,
   `{"label": "Delete", "command": "deck.record_delete"}`, with no other params and no undo: the owner deletes that
   record with what belongs to it, always seeing the list first (not on a `custom` block). No button only opens the
   chat: the button of Deki is on every screen and opens the chat with that screen and record in its context, so

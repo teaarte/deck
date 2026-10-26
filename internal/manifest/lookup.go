@@ -44,6 +44,9 @@ func (c *Command) ValidateResult(v any) error {
 // RetryKey is the optional input field of every command: a call with the key of a running process returns it.
 const RetryKey = "retry_key"
 
+// AllowsKey is the input field a press of the owner gives the calls its button allows in; deck takes it out.
+const AllowsKey = "allows"
+
 func (c *Command) InputSchema() json.RawMessage {
 	if len(c.Input) == 0 {
 		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)

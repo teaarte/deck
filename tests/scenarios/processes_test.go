@@ -51,11 +51,16 @@ func TestAgentCallsReturnAtOnceAndRetryKeyReusesTheProcess(t *testing.T) {
 		t.Fatal("a command called by an agent must return its process id without waiting for it")
 	}
 	e.waitState(fan, "done")
-	if got[0] != got[1] || got[0] == got[2] || !strings.Contains(got[0], `"process"`) {
-		t.Fatalf("the same key returns the same process, another key another one: %v", got)
+	var first, same, other struct {
+		Process int64
+		Running bool
 	}
-	var first struct{ Process int64 }
 	_ = json.Unmarshal([]byte(got[0]), &first)
+	_ = json.Unmarshal([]byte(got[1]), &same)
+	_ = json.Unmarshal([]byte(got[2]), &other)
+	if first.Process == 0 || first.Process != same.Process || !same.Running || first.Running || other.Process == first.Process {
+		t.Fatalf("the same key returns the same process, said to be running already, another key another one: %v", got)
+	}
 	if pr := e.full(first.Process); pr.Parent != fan || pr.Depth != 2 || pr.State != "running" {
 		t.Fatalf("the called process belongs to its caller and is still running: %+v", pr)
 	}

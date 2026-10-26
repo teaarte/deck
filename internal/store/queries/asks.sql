@@ -16,6 +16,10 @@ VALUES (sqlc.narg(process_id), sqlc.arg(workspace_id), sqlc.arg(project_id), sql
 SELECT * FROM ask WHERE id = ?;
 
 
+-- name: ListOpenCallAsks :many
+SELECT * FROM ask WHERE state = 'open' AND kind = 'call' ORDER BY id;
+
+
 -- name: ListWorkspaceOpenAsks :many
 SELECT * FROM ask WHERE state = 'open' AND workspace_id = ? ORDER BY id;
 

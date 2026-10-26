@@ -10,6 +10,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
+	"deck2/internal/store/db"
 )
 
 type todayIn struct {
@@ -76,19 +77,11 @@ func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([
 	if len(out) == 0 {
 		out = append(out, todayLine{ID: "calm", Kind: "calm", Title: tr("All is well: nothing to decide, no failures."), Icon: "check", Tone: "ok"})
 	}
-	var runs []struct {
-		State      string
-		FinishedAt string `json:"finished_at"`
-	}
-	if err := ss.read(ctx, act, "processes_list", map[string]any{"limit": 500}, &runs); err != nil {
-		return nil, err
-	}
+	// The day is the owner's, by the clock of their machine, as the schedule and the spend count it.
 	y, m, d := ss.Now().Local().Date()
-	midnight, done := store.Time(time.Date(y, m, d, 0, 0, 0, 0, time.Local)), 0
-	for _, p := range runs {
-		if p.State == "done" && p.FinishedAt >= midnight {
-			done++
-		}
+	done, err := ss.St.Q.CountDoneSince(ctx, db.CountDoneSinceParams{Since: store.Time(time.Date(y, m, d, 0, 0, 0, 0, time.Local)), WorkspaceID: act.Workspace})
+	if err != nil {
+		return nil, err
 	}
 	out = append(out, todayLine{ID: "day", Kind: "day", Title: tr("Done today: %d", done), Icon: "checks"})
 	var spent []struct {

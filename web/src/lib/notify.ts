@@ -7,3 +7,8 @@ export const errorText = (e: unknown): string => (e instanceof Error ? e.message
 export function notifyError(e: unknown, title?: string) {
   notifications.show({ title, message: errorText(e), color: 'red', autoClose: 10000 });
 }
+
+// notifyNote tells for a moment how a press went.
+export function notifyNote(message: string) {
+  notifications.show({ message, autoClose: 3000 });
+}

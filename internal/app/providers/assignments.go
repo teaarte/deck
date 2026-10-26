@@ -231,6 +231,59 @@ func (s *Service) assignmentCommand() *registry.Command {
 		raw, _ := json.Marshal(append([]string{}, before...))
 		return string(raw)
 	}
+	// An assignment holds when its very place has those models, not one it would inherit them from.
+	c.Holds = func(ctx context.Context, workspace int64, input json.RawMessage) bool {
+		in, err := assignmentInput(input)
+		if err != nil {
+			return false
+		}
+		project, cmd, err := s.place(ctx, workspace, in)
+		if err != nil {
+			return false
+		}
+		raw, err := s.St.Q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, ProjectID: project, Command: in.Command, Role: in.Role})
+		var here []string
+		if err != nil || json.Unmarshal([]byte(raw), &here) != nil {
+			return false
+		}
+		after := slices.Compact(slices.Clone(in.Models))
+		if in.Model != "" {
+			before, err := s.before(ctx, workspace, project, in.Command, in.Role, cmd)
+			if err != nil {
+				return false
+			}
+			after = picked(in.Model, before)
+		}
+		return len(after) > 0 && slices.Equal(after, here)
+	}
+	// The undo sets back the models of its very place, or removes the assignment the call made there.
+	c.Undo = func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool) {
+		in, err := assignmentInput(input)
+		if err != nil {
+			return "", nil, false
+		}
+		project, _, err := s.place(ctx, workspace, in)
+		if err != nil {
+			return "", nil, false
+		}
+		prev := []string{}
+		raw, err := s.St.Q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, ProjectID: project, Command: in.Command, Role: in.Role})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return "", nil, false
+		}
+		if err == nil {
+			_ = json.Unmarshal([]byte(raw), &prev)
+		}
+		back := map[string]any{"role": in.Role, "models": prev}
+		if in.Project != "" {
+			back["project"] = in.Project
+		}
+		if in.Command != "" {
+			back["command"] = in.Command
+		}
+		b, _ := json.Marshal(back)
+		return c.Name, b, true
+	}
 	c.Target = func(print string, input json.RawMessage) string {
 		in, err := assignmentInput(input)
 		if err != nil {

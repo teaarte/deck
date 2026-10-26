@@ -39,9 +39,9 @@ type pressAsk struct {
 // pressAsks are the calls a run the owner started waits to make, as the button reads them.
 func (e *Env) pressAsks(process int64) []pressAsk {
 	e.T.Helper()
-	var out []pressAsk
+	var out struct{ Asks []pressAsk }
 	e.must("deck.process_asks", map[string]any{"process": process}, &out)
-	return out
+	return out.Asks
 }
 
 // pressRun starts the script of project as a button of the owner does, with the deck call of method and form.

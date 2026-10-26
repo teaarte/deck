@@ -43,11 +43,17 @@ const picks = new Map<string, Set<string>>();
 const screenOf = (r: Route) => href({ project: r.project, screen: r.screen, record: r.record });
 export const pickParams = (r: Route, params: string[]) => picks.set(screenOf(r), new Set(params));
 
+// held are the params a button gave the dialog it opened on its own screen, by the screen: only the dialog reads them,
+// so the screen stays drawn as they come and go with it.
+const held = new Map<string, Set<string>>();
+const without = (r: Route, names?: Set<string>): Route =>
+  names ? { ...r, params: Object.fromEntries(Object.entries(r.params ?? {}).filter(([k]) => !names.has(k))) } : r;
+
 // placeKey is the key of a screen but for the picks of its side panel: the screen stays drawn while they change.
-export const placeKey = (r: Route) => {
-  const own = picks.get(screenOf(r));
-  return screenKey(own ? { ...r, params: Object.fromEntries(Object.entries(r.params ?? {}).filter(([k]) => !own.has(k))) } : r);
-};
+export const placeKey = (r: Route) => screenKey(without(without(r, picks.get(screenOf(r))), held.get(screenOf(r))));
+
+// wholeKey is the key of a screen as it is read whole: the params of its open dialog read only the dialog.
+export const wholeKey = (r: Route) => screenKey(without(r, held.get(screenOf(r))));
 
 // The trail holds the addresses visited in this tab, so the back button shows only where there is a way back.
 let trail: string[] = [location.hash || '#/'];
@@ -56,7 +62,9 @@ window.addEventListener('hashchange', () => {
   const now = location.hash || '#/';
   if (trail.length > 1 && trail[trail.length - 2] === now) trail = trail.slice(0, -1);
   else if (trail[trail.length - 1] !== now) trail = [...trail, now];
-  route.set(parse(now));
+  const r = parse(now);
+  if (!r.params?.dialog) held.delete(screenOf(r));
+  route.set(r);
 });
 
 export const useRoute = () => useStore(route);
@@ -69,6 +77,11 @@ const moved = () => movers.forEach((f) => f());
 document.addEventListener('click', (e) => { if ((e.target as Element | null)?.closest?.('a[href^="#/"]')) moved(); });
 
 export function go(r: Route) {
+  const now = route.get();
+  if (r.params?.dialog && screenOf(r) === screenOf(now)) {
+    const mine = Object.keys(r.params).filter((k) => !LOCAL.includes(k) && r.params![k] !== now.params?.[k]);
+    if (mine.length) held.set(screenOf(r), new Set(mine));
+  }
   location.hash = href(r);
   moved();
 }
@@ -90,9 +103,15 @@ export function setParam(name: string, value: string | null) {
   location.hash = href(withParam(name, value));
 }
 
-// dropParam removes a parameter: back in the history when the step before is the address without it.
+// dropParam removes a parameter: back in the history when the step before is the address without it. A dialog closed
+// takes the params it was opened with along.
 export function dropParam(name: string) {
-  const to = href(withParam(name, null));
+  let r = withParam(name, null);
+  if (name === 'dialog') {
+    r = without(r, held.get(screenOf(r)));
+    held.delete(screenOf(r));
+  }
+  const to = href(r);
   if (trail.length > 1 && trail[trail.length - 2] === to) {
     history.back();
     return;

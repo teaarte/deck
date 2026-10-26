@@ -28,9 +28,33 @@ const (
 	processAsksQuiet = 2 * time.Second
 )
 
-// processAsks are the calls of its own project a process the owner started waits to make or names in its result as
-// {"waiting": <ask>}, once it ends or asks no more, so the owner answers them at the button; an agent is not waited.
+// pressRun is what the run of a press came to for its button: the calls it waits to make, where it stands and why it
+// failed, in the owner's words.
+type pressRun struct {
+	Asks  []pressAsk `json:"asks"`
+	State string     `json:"state"`
+	Error string     `json:"error,omitempty"`
+}
+
+// processAsks is the run of a press once it ends or asks no more, a few seconds at most, an agent not waited: the calls
+// it waits to make or names in its result as {"waiting": <ask>}, to answer at the button, and where it stands.
 func (s *Service) processAsks(ctx context.Context, act registry.Actor, in processAsksIn) (any, error) {
+	asks, err := s.pressAsks(ctx, act, in)
+	if err != nil {
+		return nil, err
+	}
+	p, err := s.St.Q.GetProcess(ctx, in.Process)
+	if err != nil {
+		return nil, err
+	}
+	out := pressRun{Asks: asks, State: p.State}
+	if p.Error != "" {
+		out.Error = manifest.TrText(s.Words(in.Lang), p.Error)
+	}
+	return out, nil
+}
+
+func (s *Service) pressAsks(ctx context.Context, act registry.Actor, in processAsksIn) ([]pressAsk, error) {
 	p, err := s.St.Q.GetProcess(ctx, in.Process)
 	if err == nil {
 		var pr db.Project

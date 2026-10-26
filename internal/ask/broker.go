@@ -91,6 +91,9 @@ func Remark(ctx context.Context, q *db.Queries, processID int64, text, at string
 // ErrNotOpen is what an answer to an ask that is answered or expired already gets.
 var ErrNotOpen = registry.Conflict("deck: this ask is already answered or expired")
 
+// Stale is the answer deck gives itself to a frozen call whose subject changed since it was asked for.
+const Stale = "stale"
+
 // Broker stores owner-facing asks and lets a live caller block until the owner answers. Waits end by the
 // deck clock, checked at least every Poll, so a sleep of the machine does not stretch them.
 type Broker struct {

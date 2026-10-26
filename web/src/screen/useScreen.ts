@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { notifyError } from '../lib/notify';
 import catalogSchema from '../lib/catalogSchema';
 import type { Action } from '../lib/catalog.gen';
-import { pickParams, placeKey, screenKey, serverParams, type Route } from '../app/router';
+import { pickParams, placeKey, serverParams, wholeKey, type Route } from '../app/router';
 import { catalog } from './catalog';
 import { remember, remembered } from './cache';
 import { Feed, type Message } from './feed';
@@ -41,7 +41,7 @@ export function useScreen(route: Route, shownNow = true) {
   const place = useRef<{ key: string; route: Route }>(undefined);
   const key = place.current && placeKey(place.current.route) === placeKey(route) ? place.current.key : placeKey(route);
   place.current = { key, route };
-  const whole = screenKey(route);
+  const whole = wholeKey(route);
 
   useEffect(() => {
     let gone = false;
@@ -103,7 +103,7 @@ export function useScreen(route: Route, shownNow = true) {
       // The reply goes to the surface pressed, also one still shown while the next screen loads.
       if (reply) p.model.getSurface(a.surfaceId)?.dataModel.set(PRESS + reply, r);
     };
-    const kept = () => screenKey(routeRef.current) + ' ' + i18n.language;
+    const kept = () => wholeKey(routeRef.current) + ' ' + i18n.language;
     // draw feeds a whole read to the processor of the screen, made by the first.
     const draw = (msgs: Message[], ticket: number) => {
       if (!proc.current) {

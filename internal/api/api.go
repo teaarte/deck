@@ -18,8 +18,10 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/app/screens"
 	"deck2/internal/app/tokens"
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/theme"
@@ -132,10 +134,18 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 		out, err = s.app.Registry.Invoke(r.Context(), act, r.PathValue("name"), body)
 	}
 	if err != nil {
-		http.Error(w, err.Error(), registry.Status(err))
+		http.Error(w, said(r, err.Error()), registry.Status(err))
 		return
 	}
 	send(w, out)
+}
+
+// said is a refusal of deck in the language the client reads, by its Deck-Lang header.
+func said(r *http.Request, text string) string {
+	if lang := r.Header.Get("Deck-Lang"); lang != "" {
+		return manifest.TrText(screens.Phrases(lang), text)
+	}
+	return text
 }
 
 // upload takes the files of a multipart form for a project; commands then get them by id.

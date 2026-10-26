@@ -136,6 +136,22 @@ func (e *Env) do(method, path string, body any) (int, []byte) {
 	return resp.StatusCode, out
 }
 
+// callIn is call by a client that reads deck in lang, as the web client says with Deck-Lang.
+func (e *Env) callIn(lang, name string, input any) (int, []byte) {
+	e.T.Helper()
+	b, _ := json.Marshal(input)
+	req, _ := http.NewRequest("POST", e.URL+"/api/commands/"+name, bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Deck-Lang", lang)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	defer resp.Body.Close()
+	out, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, out
+}
+
 // call invokes a registry command as the owner and returns the status and raw body.
 func (e *Env) call(name string, input any) (int, []byte) {
 	e.T.Helper()

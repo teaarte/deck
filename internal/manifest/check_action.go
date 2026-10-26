@@ -65,6 +65,9 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 			return fmt.Errorf("%s: %w", k, err)
 		}
 	}
+	if err := c.allows(b, a, fields); err != nil {
+		return err
+	}
 	if u := a.Undo; u != nil {
 		switch {
 		case a.Command == "":
@@ -130,6 +133,33 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	}
 	if own != target.Record {
 		return fmt.Errorf("screen %q shows a record of %s; open it from a row of %s", a.Screen, target.Record, target.Record)
+	}
+	return nil
+}
+
+// allows checks the calls a button stands for the owner's yes to: of the run its command starts, each a command of
+// deck or of the module with values from the item.
+func (c *screenCheck) allows(b Block, a Action, fields []string) error {
+	if len(a.Allows) == 0 {
+		return nil
+	}
+	switch {
+	case a.Command == "" || c.deck || strings.HasPrefix(a.Command, schemas.Builtin+"."):
+		return errors.New("allows names calls of the run a command of the module starts; the button calls one")
+	case b.Type == "custom":
+		return errors.New("allows is not on a custom block: its frame presses without the owner")
+	case len(a.Allows) > 8:
+		return errors.New("allows names at most 8 calls")
+	}
+	for i, w := range a.Allows {
+		if w.Command == "" || !c.m.knownAction(w.Command) {
+			return fmt.Errorf("allows %d: unknown command %q: a command of deck or of the module", i, w.Command)
+		}
+		for k, v := range w.Params {
+			if err := checkValue(v, fields); err != nil {
+				return fmt.Errorf("allows %d: param %q: %w", i, k, err)
+			}
+		}
 	}
 	return nil
 }

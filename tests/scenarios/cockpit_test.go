@@ -111,22 +111,28 @@ func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 	}
 }
 
-// TestConfirmationShowsWhereTheFrozenCallGoes: where a waiting call goes is frozen with it, so a changed tool does
-// not change what the owner allows.
-func TestConfirmationShowsWhereTheFrozenCallGoes(t *testing.T) {
+// TestAConfirmationOfAChangedToolIsClosedAsOutOfDate: a waiting call of a tool that changed since is no question
+// for the owner any more: deck closes it unmade, and the agent hears it is out of date.
+func TestAConfirmationOfAChangedToolIsClosedAsOutOfDate(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	e := newEnv(t, webAgent(), withTTL)
 	p := e.createProject("notes", webManifest(svc.URL))
-	e.run(p, "work")
+	id := e.run(p, "work")
 	e.waitAsk()
 	moved := strings.Replace(webManifest(svc.URL), svc.URL+"/items/{id}", svc.URL+"/archive/{id}", 1)
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": moved}, nil)
-	items := e.cockpitItems()
-	i := slices.IndexFunc(items, func(it listItem) bool { return strings.Contains(it.Details, "notes.post") })
-	if i < 0 || items[i].Text != "POST "+svc.URL+"/items/n1" {
-		t.Fatalf("the confirmation shows where the frozen call goes, not the changed tool: %+v", items)
+	e.waitFor("deck to close the out-of-date call", func() bool {
+		return !slices.ContainsFunc(e.cockpitItems(), func(it listItem) bool { return strings.Contains(it.Details, "notes.post") })
+	})
+	var journal []struct{ Tool, Outcome, Error string }
+	e.must("deck.calls_list", map[string]any{"project": "notes"}, &journal)
+	if !slices.ContainsFunc(journal, func(j struct{ Tool, Outcome, Error string }) bool {
+		return j.Tool == "notes.post" && j.Outcome == "rejected" && strings.Contains(j.Error, "out of date")
+	}) || len(svc.requests()) != 0 {
+		t.Fatalf("the call is closed unmade as out of date: %+v", journal)
 	}
+	e.waitState(id, "done", "error", "running", "waiting_answer")
 }
 
 // TestRunningNowKeepsALongProcessBehindManyShortOnes: an open process stays in the cockpit however many finished

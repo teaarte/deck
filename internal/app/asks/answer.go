@@ -84,6 +84,18 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 		if q.State != ask.StateOpen {
 			return nil, ask.ErrNotOpen
 		}
+		if q.Kind == ask.KindCall {
+			switch got, err := s.settle(ctx, q, true); {
+			case err != nil:
+				return nil, err
+			case got == gateway.InForce && answer == "allow_always":
+				return map[string]any{"ok": true, "in_force": true}, s.allowAlways(ctx, act, q)
+			case got == gateway.InForce:
+				return map[string]any{"ok": true, "in_force": true}, nil
+			case got == gateway.Changed:
+				return nil, gateway.ErrStale
+			}
+		}
 		var rev int64
 		if q.Kind == ask.KindGrant {
 			var err error

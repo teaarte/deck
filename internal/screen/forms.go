@@ -269,7 +269,9 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 	if d["kind"] != docs.KindCustom || html == "" {
 		return nil, fmt.Errorf("no custom document %q", b.Document)
 	}
+	r.inCustom = true
 	acts, err := r.actions(b.Actions, r.req.Record, r.record)
+	r.inCustom = false
 	if err != nil {
 		return nil, err
 	}

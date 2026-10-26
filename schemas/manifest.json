@@ -305,7 +305,11 @@
         "confirm": {"type": "boolean", "description": "The owner says yes before the call."},
         "hold": {"type": "boolean", "description": "The call goes a few seconds after the press, while a note offers to take it back: for an answer the owner may change their mind about."},
         "primary": {"type": "boolean"},
-        "undo": {"$ref": "#/$defs/action", "description": "The command call that takes this button's call back: command and params only. The owner gets it for a moment after the call went through, instead of a yes before it."}
+        "undo": {"$ref": "#/$defs/action", "description": "The command call that takes this button's call back: command and params only. The owner gets it for a moment after the call went through, instead of a yes before it."},
+        "allows": {"type": "array", "maxItems": 8, "description": "The calls the press of this button is the owner's yes to, in the run its command starts: when that run itself calls one with these very params, such as deck.assignment_set with the models the row shows, deck makes it without asking and lists it among the changes made without the owner, with its undo. Not for calls that spend money; the rights of the manifest and secrets are the owner's alone.",
+          "items": {"type": "object", "additionalProperties": false, "required": ["command"], "properties": {
+            "command": {"type": "string", "description": "A command of deck, such as deck.assignment_set, or of the module."},
+            "params": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Its input, a fixed value or =<expression> over the item; an empty value is left out."}}}}
       }
     }
   }

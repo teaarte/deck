@@ -26,14 +26,16 @@ Every routine you have (the inbox, a market you follow, pull requests, research,
 a **module**: a small app with its own data, buttons, schedule and screens. Agents (Claude Code, Codex, or any
 open model in the Goose agent) do the work in their own sandbox, and deck shows you the result.
 
-You open the **cockpit** in the morning and see what was done, what is running, and the one or two things that
+You open **Today** in the morning and see what was done today, what is running, and the one or two things that
 wait for your decision. One tap, and the agents carry on.
 
 ## Why you'll like it
 
 - **It works while you don't.** Modules run on schedule: the inbox sorted at 8:00, the market read at 7:30, pull
   requests reviewed every two hours. You come back to results, not to a blank chat.
-- **Nothing important happens without you.** Sending a mail, spending money, reaching a new site: deck asks first.
+- **Nothing important happens without you, and you say yes once.** Sending a mail, spending money, reaching a new
+  site: deck asks first. A button you press is your yes to what its row shows, so Apply just applies; deck asks
+  again only when the schedule or an agent wants something. A question that went out of date closes by itself.
   Everything else is in the feed, and much of it can be undone.
 - **Just say what you need.** Talk to **Deki**, the master agent, in chat or by voice. It sends a task to the
   right module, builds a new module from a short interview, looks into what failed, and remembers what you told it.

@@ -152,6 +152,9 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 
 // RejectMessage turns a "deny" or "deny:<reason>" answer into the refusal text the agent gets.
 func RejectMessage(answer string) string {
+	if answer == ask.Stale {
+		return "deck: this call is out of date: what it acts on changed since it was asked for, so deck closed it unmade; ask again if it is still needed."
+	}
 	msg := "deck: the owner rejected this call."
 	if reason := strings.TrimPrefix(answer, "deny:"); reason != answer && reason != "" {
 		msg += " Reason: " + untrusted.Line(reason, 500)

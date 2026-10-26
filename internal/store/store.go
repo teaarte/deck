@@ -65,6 +65,12 @@ const (
 	ProjectEnabled = "enabled"
 )
 
+// Kinds of lines of the owner's feed: a note someone wrote with notify, a change made without the owner.
+const (
+	FeedNote   = "note"
+	FeedChange = "change"
+)
+
 // DefaultWorkspace is the workspace the owner's token opens; migrations create it.
 const DefaultWorkspace = 1
 

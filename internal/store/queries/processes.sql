@@ -1,7 +1,23 @@
 -- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
-    manifest_revision, trial, folder, start_note, alone, started_at, follows_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+    manifest_revision, trial, folder, start_note, alone, started_at, follows_id, allows)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+
+
+-- name: SetProcessAllows :exec
+UPDATE process SET allows = ? WHERE id = ?;
+
+
+-- name: MarkProcessWrote :exec
+UPDATE process SET wrote = 1 WHERE id = ? AND wrote = 0;
+
+
+-- name: CountDoneSince :one
+-- The runs of a workspace done since a time, but those of the schedule that only read.
+SELECT count(*) FROM process
+WHERE state = 'done' AND finished_at >= CAST(sqlc.arg(since) AS TEXT)
+  AND project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
+  AND NOT (kind IN ('script', 'tool') AND wrote = 0 AND (trigger_id IS NOT NULL OR retry_key LIKE 'trigger:%'));
 
 
 -- name: GetProcess :one

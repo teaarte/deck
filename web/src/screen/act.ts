@@ -18,20 +18,24 @@ export async function act(c: Action): Promise<unknown> {
   }
   const out = await call(c.command!, c.params ?? {});
   const o = outcome(out);
-  if (o.started) watchRun(o.started);
+  if (o.started) void watchRun(o.started);
   if (c.chat && o.topic) openTopic(o.topic);
   if (c.download && o.file) saveBlob(await fetchFile('/api/files/' + o.file.id), o.file.name);
   return out;
 }
 
-// Outcome is what an answer of a call names: the process it started, the topic of the chat it made, the file it made.
-export interface Outcome { started?: number; topic?: number; file?: { id: number; name: string } }
+// Outcome is what an answer of a call names: the process it started, or joined as it was running already, the topic
+// of the chat it made, the file it made.
+export interface Outcome { started?: number; running?: boolean; topic?: number; file?: { id: number; name: string } }
 
-// outcome reads the answer of a call, one way for every caller: a started process is an answer of its id alone.
+// outcome reads the answer of a call, one way for every caller: a started process is an answer of its id alone, a run
+// already going says so beside it.
 export function outcome(out: unknown): Outcome {
   const o = (out && typeof out === 'object' ? out : {}) as Record<string, unknown>;
+  const run = typeof o.process === 'number' && Object.keys(o).every((k) => k === 'process' || k === 'running');
   return {
-    started: typeof o.process === 'number' && Object.keys(o).length === 1 ? o.process : undefined,
+    started: run ? o.process as number : undefined,
+    running: run && o.running === true,
     topic: typeof o.topic === 'number' ? o.topic : undefined,
     file: typeof o.file === 'number' ? { id: o.file, name: typeof o.name === 'string' ? o.name : 'file' } : undefined,
   };

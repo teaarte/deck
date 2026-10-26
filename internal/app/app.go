@@ -164,7 +164,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
-		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Words: screens.Phrases, Said: a.Runner.Said}
+		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Words: screens.Phrases, Said: a.Runner.Said, Go: a.bg.Go, Ctx: a.ctx}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
 		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Prices: a.Providers.Prices, Go: a.bg.Go, Words: screens.Phrases,
@@ -208,6 +208,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Providers.KeepBigOptions(a.ctx)
 	a.Providers.Watch(a.Bus)
 	a.Health.Watch(a.Bus)
+	a.Answers.Watch(a.Bus)
 	a.Health.Derive(a.ctx, 0)
 	status, text := script.Runtimes().Health()
 	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Scripts, status, text); err != nil {
@@ -278,10 +279,11 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.slow(ctx, now)
 }
 
-// deadlines are what is due by now: expired confirmations, ceilings, pauses on a usage limit,
-// silent processes, empty results kept long enough, files whose rows are gone, the disk.
+// deadlines are what is due by now: expired confirmations and those deck need not ask about, ceilings, pauses on a
+// usage limit, silent processes, empty results kept long enough, files whose rows are gone, the disk.
 func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Answers.ExpireConfirms(ctx, now)
+	a.Answers.Settle(ctx)
 	a.Runner.Due(ctx, now)
 	a.Files.Drain(ctx)
 	a.Snapshots.CheckDisk(ctx, now)

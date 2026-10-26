@@ -209,7 +209,7 @@
     "off": "Stop pushes here",
     "unsupported": "This browser takes no pushes; on an iPhone, add deck to the home screen first"
   },
-  "press": {"title": "Your yes is needed", "yes": "Yes", "no": "No", "later": "Later, in the cockpit", "lost": "deck did not answer the press; look at what it changed before pressing again"},
+  "press": {"title": "Your yes is needed", "yes": "Yes", "no": "No", "later": "Later, in the cockpit", "lost": "deck did not answer the press; look at what it changed before pressing again", "already": "{{label}}: already running", "done": "{{label}}: done", "going": "{{label}}: still going; its result comes to the feed", "failed": "the run failed"},
   "lead": { "doing": "Now: {{what}}", "next": "Next: {{what}} {{when}}" },
   "list": { "one_of": "{{n}} of {{of}}", "later": "Later" },
   "hold": { "goes": "“{{label}}” goes in 5 s" },

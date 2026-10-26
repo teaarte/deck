@@ -163,6 +163,15 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		if name == manifest.RecordDelete {
 			ps["record"], act["confirm"], act["parts"] = id, true, manifest.RecordParts
 		}
+		delete(ps, manifest.AllowsKey)
+		if len(a.Allows) > 0 && !r.deck() && !r.inCustom {
+			ps[manifest.AllowsKey] = r.allows(a.Allows, env, &failed)
+		}
+		// A press of a button of a module again while its run goes is that run, said to be running already.
+		if _, ok := ps[manifest.RetryKey]; !ok && a.Input == "" && len(a.FromBlock) == 0 && a.Verb != "undo" && !strings.HasPrefix(name, "deck.") {
+			b, _ := json.Marshal(ps)
+			ps[manifest.RetryKey] = "press:" + string(b)
+		}
 		act["command"], act["params"] = name, ps
 		if len(a.FromBlock) > 0 {
 			act["from_block"] = a.FromBlock
@@ -189,6 +198,29 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		}
 	}
 	return act, failed
+}
+
+// allows are the calls a press of a button stands for the owner's yes to, with the values of its item; the press
+// gives them to the run it starts.
+func (r *renderer) allows(as []manifest.Allowed, env map[string]any, failed *error) string {
+	out := make([]map[string]any, 0, len(as))
+	for _, w := range as {
+		name := w.Command
+		if !strings.HasPrefix(name, "deck.") {
+			name = r.req.Project.Name + "." + name
+		}
+		types, ps := r.inputTypes(name), map[string]any{}
+		for k, v := range w.Params {
+			p, err := manifest.Resolve(v, types[k], env)
+			*failed = cmp.Or(*failed, err)
+			if p != nil {
+				ps[k] = p
+			}
+		}
+		out = append(out, map[string]any{"command": name, "params": ps})
+	}
+	b, _ := json.Marshal(out)
+	return string(b)
 }
 
 // inputTypes are the JSON types of the input fields of a command a button calls.

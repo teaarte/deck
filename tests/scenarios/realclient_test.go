@@ -103,7 +103,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 	}
 
 	b.until("the question, the expired one put last", `document.querySelector('[data-kind]')?.innerText === 'Question'`)
-	b.eval(`([...` + card + `.querySelectorAll('label')].find(x => x.innerText === 'go').click(), '')`)
+	b.eval(`(` + card + `.querySelector('[data-option="go"]').click(), '')`)
 	b.until("answer to unlock", `!([...`+card+`.querySelectorAll('button')].find(x => x.innerText === 'Answer')?.disabled ?? true)`)
 	b.eval(press("Answer"))
 	b.until("the expired one last", `document.querySelector('[data-of]')?.innerText === '1 of 1' && `+card+`.innerText.includes('Deny')`)

@@ -2,109 +2,120 @@
 
 # deck
 
-### Your own team of AI agents — and one place to run it.
-
-Hand your routines to agents. They work on schedule, in the background, on your machine.
-You only step in when something needs your **yes**.
+### A personal control panel for AI agents, running on your own machine.
 
 ![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-one_file-003B57?logo=sqlite&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-native-black)
 ![PWA](https://img.shields.io/badge/phone-PWA-5A0FC8)
 
-<img src="docs/screenshots/cockpit.png" alt="The cockpit of deck: one decision waits for your yes, two agents at work, notes of what was done" width="900">
+<img src="docs/screenshots/tiles.png" alt="The tiles of deck: Today with one decision waiting, module cards with live widgets" width="900">
 
 </div>
 
----
+## What it is
 
-## What is deck?
+deck is one program with one data folder. It runs your routines as **modules** and hands the work to agents:
+Claude Code, Codex, or an open model in an ACP agent (Goose), each run in a sandbox. You see the results, and you
+decide only what needs your yes.
 
-Chat assistants wait for you to type. **deck makes agents work for you.**
+It is for one person who already uses coding agents and wants them to do recurring work, such as reading sources,
+watching prices, reviewing pull requests or making short videos, without sitting in a chat for each run.
 
-Every routine you have (the inbox, a market you follow, pull requests, research, videos for your channel) becomes
-a **module**: a small app with its own data, buttons, schedule and screens. Agents (Claude Code, Codex, or any
-open model in the Goose agent) do the work in their own sandbox, and deck shows you the result.
+A module is data, not code in deck: a manifest with collections of records, commands, schedules, screens and
+widgets, plus prompts and small scripts. **Deki**, the built-in master agent, builds a module from a short
+conversation and changes it later.
 
-You open **Today** in the morning and see what was done today, what is running, and the one or two things that
-wait for your decision. One tap, and the agents carry on.
+## What it does
 
-## Why you'll like it
-
-- **It works while you don't.** Modules run on schedule: the inbox sorted at 8:00, the market read at 7:30, pull
-  requests reviewed every two hours. You come back to results, not to a blank chat.
-- **Nothing important happens without you, and you say yes once.** Sending a mail, spending money, reaching a new
-  site: deck asks first. A button you press is your yes to what its row shows, so Apply just applies; deck asks
-  again only when the schedule or an agent wants something. A question that went out of date closes by itself.
-  Everything else is in the feed, one line for what a run did, and much of it can be undone at once.
-- **Just say what you need.** Talk to **Deki**, the master agent, in chat or by voice. It sends a task to the
-  right module, builds a new module from a short interview, looks into what failed, and remembers what you told it.
-  While it works you see what it does right now; its questions come one at a time, each option with what it means.
-- **Any model, your choice, right in the row.** Claude, GPT, Gemini, open models on OpenRouter or your own machine.
-  Pick the model of each command from a dropdown, see what it costs, and keep a subscription apart from the money
-  you pay.
-- **Yours, on your machine.** One program, one folder. No cloud account, no subscription to deck, no data leaving
-  unless you allow it.
-- **In your pocket.** Install it on your phone as an app. Get a push when something waits for you, share a file
-  or a link straight into a module, and reach it from anywhere over your own Tailscale network.
+- **Tiles and Today.** The home screen is a grid of cards you place and resize. Each module card shows a widget
+  of its data. The **Today** card shows what waits for you, what is running, what was done, today's spend and the
+  next scheduled run.
+- **Deki in a side chat.** Deki opens beside any screen and sees that screen. While it works, a status line shows
+  the current step. Its questions come one at a time as cards, each option with a short explanation.
+- **Modules with their own screens.** These include tables, lists, boards, cards, forms, stats, charts, media and
+  a file manager, with an optional side panel of filters and stats. Anything the catalog lacks is a sandboxed
+  `custom` block.
+- **A yes only where it matters.** deck asks before anything that leaves the machine, spends money or widens a
+  module's rights. A button you press already counts as your yes to what its row shows. Changes made without you,
+  such as deleted records, edited documents or new assignments, are listed under **Done without you**, with an
+  undo for each run.
+- **Any model, per command.** Settings → Models has a "who does what" table, where you pick the model of each
+  command in its row, and a grid of every model grouped by provider. It covers subscriptions (Claude Code,
+  Codex), OpenRouter, Google, Anthropic, Groq and any OpenAI-compatible or local server. Each model has prices and
+  fallbacks. **Spend** shows what each model and module cost, with subscriptions kept separate from money paid.
+- **Schedule, Files, Look.** Triggers with their next run, the files of every module, and themes with light
+  and dark schemes, accent and density.
+- **Tools with secrets.** A module calls HTTP APIs and MCP servers through deck. Keys live in deck's secrets, and
+  a private link, such as a calendar feed URL, can be a secret limited to exact hosts. deck keeps secrets out of
+  logs, errors and answers.
+- **Sandbox and one way out.** Scripts, MCP servers and ACP agents run under `sandbox-exec` on macOS or
+  bubblewrap on Linux. Network access goes only through deck's proxy, which reaches only the domains a module
+  declares.
+- **Phone and desktop.** On a phone, deck installs as a PWA with pushes and a share target. It can also join your
+  Tailscale network over HTTPS. A tray launcher runs deck as `deck.app` on macOS, and on Windows inside WSL2.
 
 ## A look inside
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/board.png" alt="An inbox module as a board"><br><sub><b>A module as a board.</b> The inbox,
-sorted by an agent; drag a card to change its lane.</sub></td>
-<td width="50%"><img src="docs/screenshots/module.png" alt="A market module with stats, a chart and a table"><br><sub><b>Your own dashboards.</b>
-Numbers, charts and tables of a module, drawn from its data.</sub></td>
+<td width="50%"><img src="docs/screenshots/today.png" alt="Today: a decision to allow, what runs, what was done without you with an undo"><br><sub><b>Today.</b>
+One decision waits; a run's deletions sit under "done without you" with an undo.</sub></td>
+<td width="50%"><img src="docs/screenshots/chat.png" alt="A board module with Deki's chat open beside it"><br><sub><b>Deki beside a module.</b>
+The chat sees the screen and offers its commands.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/models.png" alt="The models of every command, picked in its row"><br><sub><b>Every model in one table.</b>
-Change the model of any command right in its row.</sub></td>
-<td width="50%" align="center"><img src="docs/screenshots/phone.png" alt="The cockpit on a phone" width="260"><br><sub><b>On your phone.</b>
-The same cockpit, with pushes and sharing.</sub></td>
+<td width="50%"><img src="docs/screenshots/module.png" alt="A module screen with a side panel of filters and stats, a chart and a table"><br><sub><b>A module screen.</b>
+Side panel with a filter and stats, a chart and a table, all from the manifest.</sub></td>
+<td width="50%"><img src="docs/screenshots/board.png" alt="A module as a board with lanes"><br><sub><b>A board.</b>
+Records in lanes by their status; dragging a card runs the module's command.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/first-run.png" alt="An empty deck: tell Deki what to do, or start with a module"><br><sub><b>The first run.</b>
-Tell Deki what you need, or start with a module that finds free models.</sub></td>
-<td width="50%"><img src="docs/screenshots/first-run-draft.png" alt="A draft module: what it needs to work and what it may do"><br><sub><b>A module comes as a draft.</b>
-See what it needs and what it may do, then enable it.</sub></td>
+<td width="50%"><img src="docs/screenshots/models.png" alt="Settings, Models: who does what, a model per command"><br><sub><b>Models.</b>
+The model of each command picked in its row, with price and fallbacks.</sub></td>
+<td width="50%"><img src="docs/screenshots/tiles-dark.png" alt="The tiles in the dark scheme"><br><sub><b>Dark scheme.</b>
+The same tiles; the theme follows the system or your choice.</sub></td>
+</tr>
+<tr>
+<td width="50%" align="center"><img src="docs/screenshots/phone.png" alt="The tiles on a phone" width="240">
+<img src="docs/screenshots/phone-today.png" alt="Today on a phone" width="240"><br><sub><b>On a phone.</b>
+Tiles and Today, with a tab bar for the thumb.</sub></td>
+<td width="50%"><img src="docs/screenshots/first-run.png" alt="An empty deck: tell Deki what to do, or start with a module"><br><sub><b>First run.</b>
+Tell Deki what you need, or add a starter module as a draft.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/first-run-draft.png" alt="A draft module: what it needs to work and what it may do"><br><sub><b>A draft before enabling.</b>
+What the module needs and what it may do once enabled.</sub></td>
+<td width="50%"></td>
 </tr>
 </table>
 
-## What people run on it
+## Install and run
 
-| Module | What the agents do |
-|---|---|
-| **Inbox** | Sort mail every morning, draft replies, and send only what you approve. |
-| **Market watch** | Read prices and news, write calls with their confidence, and check them later. |
-| **Code review** | Review open pull requests, work on cards in your repo, and hand them back for review. |
-| **Research** | Follow sources, collect what is new, and write a short digest. |
-| **Video studio** | Write a script, voice it, and assemble a short clip with local or cloud models. |
-
-You don't write code for a module. Tell Deki what you want, answer a few questions, and it builds the module, a
-manifest with prompts and screens. You review what the module may do and enable it. Modules can be **exported to
-a file and shared**; whoever installs one sees everything it is allowed to do first.
-
-## Quick start
+You need macOS or Linux, Go 1.27, and at least one agent CLI (`claude` or `codex`). Node is needed only to
+rebuild the web client, which is embedded in the binary.
 
 ```bash
 go build -tags tailnet -o deck ./cmd/deck
-./deck                       # prints the address to open, with your access token (data in ~/.deck2)
-./deck -tailscale deck       # or on your own tailnet, over HTTPS, from any device (needs -tags tailnet)
+./deck                                  # prints the address with the access token; data in ~/.deck2
+DECK_HOME=/tmp/deckhome ./deck          # another data folder
+./deck -addr 127.0.0.1:7700             # the listen address (default); the next port serves custom blocks
+./deck -tailscale deck                  # join your tailnet as "deck" and serve HTTPS there
 ```
 
-You need macOS or Linux, Go 1.27, and an agent CLI on the machine (`claude` or `codex`); add any other model
-in Settings → Models. On the desktop, `desktop/build.sh` makes `deck.app` for macOS and `deck-setup.exe` for
-Windows, where deck runs inside WSL2: an icon in the tray that starts deck, opens it in its own window and starts
-at login (Windows is not yet tried on a real machine; see `docs/spikes/windows.md`). Updating is just replacing the binary: your data and modules carry over. A deck from before
-23 October 2026 moves its modules by export and import instead; Deki brings an older manifest to the current
-format.
+Without `-tags tailnet` the binary is smaller and `-tailscale` refuses to start. To update deck, replace the
+binary. On start, deck brings the database and the stored manifests up to the current format.
 
-## Under the hood
+**Desktop app.** `desktop/build.sh` builds `deck.app` for macOS and `deck-setup.exe` for Windows (it needs
+`brew install makensis`). The launcher sits in the tray, starts deck, opens it in its own window and can start at
+login. On Windows, deck runs in its own WSL2 distribution; see [docs/spikes/windows.md](docs/spikes/windows.md)
+(not yet tried on a real Windows machine).
 
-One Go binary with SQLite and the web client inside, MCP between agents and deck, every run in a sandbox. How it
-is built, what a module looks like, and how to build and test it: **[docs/architecture.md](docs/architecture.md)**.
+**Phone.** Open deck's address in Safari or Chrome, enter the token once and add it to the home screen. To reach
+deck away from home, run it with `-tailscale`.
 
-<div align="center">
-<sub>A personal project, built in the open. Ideas and issues are welcome.</sub>
-</div>
+## More
+
+- [docs/architecture.md](docs/architecture.md): how deck is built, what a module looks like, build and tests.
+- [docs/spec.md](docs/spec.md): the full spec (in Russian).
+- [CLAUDE.md](CLAUDE.md): the package map and the rules of the code.

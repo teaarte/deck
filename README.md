@@ -93,7 +93,9 @@ go build -tags tailnet -o deck ./cmd/deck
 ```
 
 You need macOS or Linux, Go 1.27, and an agent CLI on the machine (`claude` or `codex`); add any other model
-in Settings → Models. Updating is just replacing the binary: your data and modules carry over. A deck from before
+in Settings → Models. On the desktop, `desktop/build.sh` makes `deck.app` for macOS and `deck-setup.exe` for
+Windows, where deck runs inside WSL2: an icon in the tray that starts deck, opens it in its own window and starts
+at login (Windows is not yet tried on a real machine; see `docs/spikes/windows.md`). Updating is just replacing the binary: your data and modules carry over. A deck from before
 23 October 2026 moves its modules by export and import instead; Deki brings an older manifest to the current
 format.
 

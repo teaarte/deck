@@ -18,7 +18,10 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
 - Script packages from PyPI and npm through deck's proxy: `DECK_REAL_PACKAGES=1 go test ./tests/scenarios -run TestRealScriptPackages -v`
 - Web client in a real browser (Playwright MCP; checks that `web/dist` is fresh):
   `DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
-- Scenario tests on Linux (bubblewrap sandbox, needs docker): `DECK_LINUX=1 go test ./tests/linux -v`
+- Scenario tests on Linux (bubblewrap sandbox, a user without privileges as in WSL2, needs docker):
+  `DECK_LINUX=1 go test ./tests/linux -v`
+- The desktop launcher (its own module): `cd desktop && go test ./...`; `desktop/build.sh` makes `deck.app` and the
+  Windows installer (`brew install makensis`)
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`
 - Regenerate the Codex protocol types from the installed CLI: `go generate ./internal/provider/codex`
 
@@ -75,6 +78,8 @@ hold; look inside a package for the rest.
   `internal/home`, `internal/nonce` — what their names say.
 - `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet`.
 - `internal/lint` — code rules checked by `tests/lint`.
+- `desktop` — the launcher on the desktop (Wails, a Go module of its own): tray, window on deck's address, start at
+  login; on Windows deck runs in its WSL2 distribution `deck` (`docs/spikes/windows.md`). deck knows nothing of it.
 - `starters` — the modules deck offers on its first run, each a `.zip` as `deck.project_export` makes it; data, no
   code of deck for any of them.
 - `master` — the built-in project master (manifest, prompts, skills, deck's texts for its agents).

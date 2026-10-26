@@ -42,7 +42,8 @@ func TestLinuxTestsExist(t *testing.T) {
 	}
 }
 
-// The scenario tests, scripts and their sandbox included, run on Linux with bubblewrap inside a container.
+// The scenario tests, scripts and their sandbox included, run on Linux with bubblewrap inside a container, as a user
+// without privileges, as deck runs in WSL2; the container unmasks /proc, which a WSL2 machine does not mask.
 func TestScenariosOnLinux(t *testing.T) {
 	if os.Getenv("DECK_LINUX") == "" {
 		t.Skip("set DECK_LINUX=1 to run the scenario tests in a Linux container; needs docker")
@@ -55,9 +56,10 @@ func TestScenariosOnLinux(t *testing.T) {
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("docker build: %v\n%s", err, out)
 	}
-	run := exec.Command("docker", "run", "--rm", "--init", "--privileged", "-v", root+":/src:ro", "-v", "deck2-gomod:/go/pkg/mod",
-		"-v", "deck2-gocache:/root/.cache/go-build", "-w", "/src", "deck2-linux-test",
-		"go", "test", "-count=1", "-v", "./tests/scenarios")
+	run := exec.Command("docker", "run", "--rm", "--init", "--security-opt", "seccomp=unconfined", "--security-opt", "apparmor=unconfined",
+		"--security-opt", "systempaths=unconfined", "-v", root+":/src:ro", "-v", "deck2-gomod:/go/pkg/mod", "-v", "deck2-gocache:/cache",
+		"-e", "GOCACHE=/cache", "-e", "GOFLAGS=-buildvcs=false", "-w", "/src", "deck2-linux-test", "sh", "-c",
+		"chown -R deck /go/pkg/mod /cache && exec setpriv --reuid=deck --regid=deck --init-groups env HOME=/home/deck go test -count=1 -v ./tests/scenarios")
 	out, err := run.CombinedOutput()
 	if err != nil {
 		t.Fatalf("scenario tests on Linux: %v\n%s", err, out)

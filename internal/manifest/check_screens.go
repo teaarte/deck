@@ -129,6 +129,21 @@ func (c *screenCheck) params() {
 			c.warn("screen %q: no param %q; declare it in params of the screen", c.screen.Name, m[1])
 		}
 	}
+	for _, name := range slices.Sorted(maps.Keys(c.screen.Params)) {
+		p := c.screen.Params[name]
+		if p.Default == nil {
+			continue
+		}
+		switch v := p.Default.(type) {
+		case string, json.Number, bool:
+			_, text := Typed(fmt.Sprint(v), p.Type).(string)
+			if _, isText := v.(string); text != (p.Type == "string") || p.Type == "string" && !isText {
+				c.warn("screen %q params.%s: the default %v is no %s", c.screen.Name, name, v, p.Type)
+			}
+		default:
+			c.warn("screen %q params.%s: the default is one value of its type, not %v", c.screen.Name, name, v)
+		}
+	}
 }
 
 // withParam adds param to the names an expression of the screen reads when the screen declares parameters.

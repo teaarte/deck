@@ -63,6 +63,33 @@ func TestRealBrowserTheSidePanelOfAScreen(t *testing.T) {
 	}
 }
 
+// TestRealBrowserAFilterStartsOnItsDefault: a filter whose param has a default starts on it; all is a pick of its own
+// that the address keeps, so a reload stays on every row.
+func TestRealBrowserAFilterStartsOnItsDefault(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, nil)
+	e.createProject("lab", strings.Replace(sideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
+	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
+		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
+		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
+	b := newPlaywright(t)
+	rows := `[...document.querySelectorAll('[data-grid] tbody tr')].filter((x) => x.offsetParent).length`
+	b.call("browser_resize", map[string]any{"width": 1280, "height": 820})
+	b.open(e.URL + "/?token=" + token + "#/p/lab/lab")
+	b.until("the default picked", rows+` === 2 && document.querySelector('[data-side-filter="coin"]').value === 'BTC'`)
+	b.eval(`(document.querySelector('[data-side-filter="coin"]').click(), '')`)
+	b.until("all offered first", `[...document.querySelectorAll('[role=option]')][0]?.innerText.trim() === 'All'`)
+	b.eval(`([...document.querySelectorAll('[role=option]')][0].click(), '')`)
+	b.until("all picked, kept in the address", `/[?&]coin=(&|$)/.test(location.hash) && `+rows+` === 3 && document.querySelector('[data-side-filter="coin"]').value === 'All'`)
+	b.shot("side-default-all")
+	b.call("browser_navigate", map[string]any{"url": "about:blank"})
+	b.open(e.URL + "/#/p/lab/lab?coin=")
+	b.until("a reload stays on all", rows+` === 3 && document.querySelector('[data-side-filter="coin"]').value === 'All'`)
+}
+
 // TestRealBrowserAWorkTellsItsTopic: the line deck writes into a topic when a work started from it ends shows its
 // result and opens its process.
 func TestRealBrowserAWorkTellsItsTopic(t *testing.T) {

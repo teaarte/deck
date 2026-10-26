@@ -113,13 +113,13 @@ func (g *Gateway) byPress(ctx context.Context, act registry.Actor, c *registry.C
 			_ = json.Unmarshal([]byte(p.Allows), &as)
 			return q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: Allows(append(as, Allow{Command: c.Name, Params: input})), ID: p.ID})
 		}
-		row := db.AddFeedParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProjectID: act.ProjectID, Kind: store.FeedChange,
-			Author: act.Author(), Text: fmt.Sprintf("%s by your press: %s", c.Name, what), Actions: "[]", Params: "{}", ProcessID: store.ID(act.ProcessID)}
+		row := db.AddFeedParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProjectID: act.ProjectID,
+			Author: act.Author(), Text: fmt.Sprintf("%s by your press: %s", c.Name, what), Actions: "[]", Params: "{}", ProcessID: store.ID(act.ProcessID),
+			What: fmt.Sprintf("%s by your press", c.Name)}
 		if undo != "" {
 			row.Command, row.Params = undo, string(back)
 		}
-		_, err := q.AddFeed(ctx, row)
-		return err
+		return store.AddChange(ctx, q, row)
 	})
 	if err2 != nil {
 		slog.Error("call by a press", "command", c.Name, "err", err2)

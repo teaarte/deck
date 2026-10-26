@@ -45,7 +45,7 @@ func (c *Command) ValidateResult(v any) error {
 const RetryKey = "retry_key"
 
 // AllowsKey is the input field a press of the owner gives the calls its button allows in; deck takes it out.
-const AllowsKey = "allows"
+const AllowsKey = registry.AllowsKey
 
 func (c *Command) InputSchema() json.RawMessage {
 	if len(c.Input) == 0 {

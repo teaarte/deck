@@ -262,13 +262,35 @@ func commandName(tool string) string {
 	return Builtin + "." + tool
 }
 
+// AllowsKey is the field of an input a press of the owner gives the calls its button allows in; the registry takes it
+// out into the actor, so no schema has it.
+const AllowsKey = "allows"
+
 // Invoke checks the caller, validates the input against the command schema and runs the command.
 func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.RawMessage) (any, error) {
+	if a.Kind == Owner {
+		a.Allows, input = allows(input)
+	} else if got, _ := allows(input); got != "" {
+		return nil, Invalid("deck: %s comes only with a press of the owner", AllowsKey)
+	}
 	c, input, err := r.Check(ctx, a, name, input)
 	if err != nil {
 		return nil, err
 	}
 	return c.Handler(ctx, a, input)
+}
+
+// allows takes the field of the calls a press allows out of an input.
+func allows(input json.RawMessage) (string, json.RawMessage) {
+	var in map[string]json.RawMessage
+	if json.Unmarshal(input, &in) != nil || in[AllowsKey] == nil {
+		return "", input
+	}
+	var out string
+	_ = json.Unmarshal(in[AllowsKey], &out)
+	delete(in, AllowsKey)
+	b, _ := json.Marshal(in)
+	return out, b
 }
 
 // Check does everything Invoke does except running the command.

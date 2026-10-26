@@ -8,6 +8,8 @@ import { Pending } from '../ui/Pending';
 import { api } from './blockImpl';
 import { Picks } from './side';
 
+const ALL = '\u0000all';
+
 // filter is a pick of the side panel that sets a param of the screen in its address; the screen is read again with it.
 export const filter = createComponentImplementation(api('filter'), ({ props }) => {
   const p = props as FilterProps & { data?: { filters?: { field: string; label?: string; value?: string; options: string[]; labels?: string[] }[] } };
@@ -17,8 +19,10 @@ export const filter = createComponentImplementation(api('filter'), ({ props }) =
   const value = f?.value || null;
   useEffect(() => mark(p.param, !!value), [mark, p.param, value]);
   if (!f) return <Pending />;
+  // All is a pick of its own: a filter with a default starts on it, and all stays picked in the address.
   return (
-    <Select size="sm" label={f.label || p.title} clearable placeholder={t('filter.all')} value={value} comboboxProps={{ withinPortal: true }}
-      data={f.options.map((o, i) => ({ value: o, label: f.labels?.[i] ?? o }))} onChange={(v) => setParam(f.field, v)} data-side-filter={f.field} />
+    <Select size="sm" label={f.label || p.title} value={value ?? ALL} comboboxProps={{ withinPortal: true }} allowDeselect={false}
+      data={[{ value: ALL, label: t('filter.all') }, ...f.options.map((o, i) => ({ value: o, label: f.labels?.[i] ?? o }))]}
+      onChange={(v) => setParam(f.field, v === ALL ? '' : v)} data-side-filter={f.field} />
   );
 });

@@ -48,7 +48,7 @@ type Service struct {
 	// PrepareLater records the health of the script commands of a project in the background.
 	PrepareLater func(projectID int64)
 	// Changed lists a change made without the owner.
-	Changed func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, reason string) error
+	Changed func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error
 	// CheckScreens names the blocks of the screens of a saved manifest that fail on the data there is now.
 	CheckScreens func(ctx context.Context, act registry.Actor, p db.Project, m *manifest.Manifest) []string
 	// Unassigned are the commands of a manifest no model takes, with what the owner does.

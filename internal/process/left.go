@@ -3,7 +3,9 @@ package process
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
@@ -36,7 +38,11 @@ func LeftBy(ctx context.Context, q *db.Queries, id int64) ([]Left, error) {
 		return out, err
 	}
 	for _, f := range changes {
-		out = append(out, Left{Kind: LeftChange, ID: f.ID, Text: untrusted.Cut(f.Text, 200), Undo: f.Command != ""})
+		parts, undo, err := store.Line(ctx, q, f)
+		if err != nil {
+			return out, err
+		}
+		out = append(out, Left{Kind: LeftChange, ID: f.ID, Text: untrusted.Cut(strings.Join(parts, "; "), 200), Undo: undo})
 	}
 	recs, err := q.ListTreeRecords(ctx, id)
 	if err != nil {

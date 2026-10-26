@@ -294,7 +294,7 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 				return err
 			}
 		}
-		if err = pj.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
+		if err = pj.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), fmt.Sprintf("changed the manifest of %s", p.Name), reason); err != nil {
 			return err
 		}
 		return pj.Scheduler.Sync(ctx, q, p.ID, pm.m)
@@ -310,10 +310,7 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 		pj.PrepareLater(p.ID)
 	}
 	saved.Screens = pj.CheckScreens(ctx, act, p, pm.m)
-	prompt, _ := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
-	also := append(pj.filterValues(ctx, p.ID, pm.m), docs.Description(prompt))
-	saved.Unused = pm.m.UnusedWords(also...)
-	saved.Untranslated = pm.m.Untranslated(func(lang, text string) bool { return pj.Words(lang)[text] != "" }, also...)
+	saved.Unused, saved.Untranslated = pj.words(ctx, p, pm.m)
 	saved.Warnings = append(pj.unassigned(ctx, p, pm.m), pj.unpaged(ctx, p, pm.m)...)
 	return saved, nil
 }
@@ -366,8 +363,21 @@ func (pj *Service) Save(ctx context.Context, act registry.Actor, p db.Project, r
 	return pj.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision)
 }
 
-// filterValues are the values the records of a project hold in the fields its screens filter by, each a text the
-// owner sees in a filter.
+// words are the keys of the i18n of a manifest of p that nothing uses and the texts it does not translate; data
+// wants no translation.
+func (pj *Service) words(ctx context.Context, p db.Project, m *manifest.Manifest) (unused, untranslated []string) {
+	var also, values []string
+	if p.ID != 0 {
+		prompt, _ := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
+		also, values = []string{docs.Description(prompt)}, pj.filterValues(ctx, p.ID, m)
+	}
+	unused = m.UnusedWords(also, values)
+	untranslated = m.Untranslated(func(lang, text string) bool { return pj.Words(lang)[text] != "" }, also...)
+	return unused, untranslated
+}
+
+// filterValues are the values the records of a project hold in the fields its screens filter by, which a filter
+// shows in the words of the manifest where it has them.
 func (pj *Service) filterValues(ctx context.Context, project int64, m *manifest.Manifest) []string {
 	var out []string
 	for col, fields := range m.Filtered() {

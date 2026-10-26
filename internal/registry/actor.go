@@ -35,6 +35,11 @@ type Actor struct {
 	Trial bool
 	// Alone marks a trial of only the command called: the commands after it do not start.
 	Alone bool
+	// Looks marks a caller that looks at deck's pages in deck's own browser: a screen comes to it whole, as to the owner.
+	Looks bool
+	// Allows are the calls the owner's press names for the run its command starts, as the press gave them; only an
+	// owner's call has them.
+	Allows string
 	// CallLimit is how long a tool call of the calling agent may last; zero when it has no such limit.
 	CallLimit time.Duration
 	// cleared is the command the holder of the Clearance, the gateway, let through its class rules; a call the

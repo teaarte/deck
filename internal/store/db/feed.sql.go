@@ -34,11 +34,11 @@ func (q *Queries) AddDeckNote(ctx context.Context, arg AddDeckNoteParams) error 
 
 const addFeed = `-- name: AddFeed :one
 INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, created_at, process_id,
-    cause)
+    cause, what, line_id)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12, ?13,
-    ?14, ?15)
-RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts
+    ?14, ?15, ?16, ?17)
+RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts, line_id, what
 `
 
 type AddFeedParams struct {
@@ -57,6 +57,8 @@ type AddFeedParams struct {
 	CreatedAt   string
 	ProcessID   sql.NullInt64
 	Cause       string
+	What        string
+	LineID      sql.NullInt64
 }
 
 func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) {
@@ -76,6 +78,8 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		arg.CreatedAt,
 		arg.ProcessID,
 		arg.Cause,
+		arg.What,
+		arg.LineID,
 	)
 	var i Feed
 	err := row.Scan(
@@ -100,6 +104,8 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		&i.Repeats,
 		&i.Cause,
 		&i.Parts,
+		&i.LineID,
+		&i.What,
 	)
 	return i, err
 }
@@ -144,6 +150,23 @@ func (q *Queries) CauseNote(ctx context.Context, arg CauseNoteParams) (int64, er
 	return id, err
 }
 
+const changeLine = `-- name: ChangeLine :one
+SELECT id FROM feed WHERE kind = 'change' AND process_id = ?1 AND project_id = ?2 AND line_id IS NULL
+  AND undone_at IS NULL ORDER BY id LIMIT 1
+`
+
+type ChangeLineParams struct {
+	ProcessID sql.NullInt64
+	ProjectID int64
+}
+
+func (q *Queries) ChangeLine(ctx context.Context, arg ChangeLineParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, changeLine, arg.ProcessID, arg.ProjectID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const countUnreadNotes = `-- name: CountUnreadNotes :one
 SELECT CAST(count(*) AS INTEGER) FROM feed WHERE workspace_id = ?1 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
 `
@@ -170,7 +193,7 @@ func (q *Queries) DeleteMasterNotes(ctx context.Context, arg DeleteMasterNotesPa
 }
 
 const getFeed = `-- name: GetFeed :one
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts FROM feed WHERE id = ?
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts, line_id, what FROM feed WHERE id = ?
 `
 
 func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
@@ -198,14 +221,82 @@ func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
 		&i.Repeats,
 		&i.Cause,
 		&i.Parts,
+		&i.LineID,
+		&i.What,
 	)
 	return i, err
 }
 
+const joinChangeLine = `-- name: JoinChangeLine :exec
+UPDATE feed SET repeats = repeats + 1, created_at = ?1 WHERE id = ?2
+`
+
+type JoinChangeLineParams struct {
+	CreatedAt string
+	ID        int64
+}
+
+func (q *Queries) JoinChangeLine(ctx context.Context, arg JoinChangeLineParams) error {
+	_, err := q.db.ExecContext(ctx, joinChangeLine, arg.CreatedAt, arg.ID)
+	return err
+}
+
+const listChangeLine = `-- name: ListChangeLine :many
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts, line_id, what FROM feed WHERE id = ?1 OR line_id = ?1 ORDER BY id
+`
+
+func (q *Queries) ListChangeLine(ctx context.Context, id int64) ([]Feed, error) {
+	rows, err := q.db.QueryContext(ctx, listChangeLine, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Feed
+	for rows.Next() {
+		var i Feed
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.Kind,
+			&i.Author,
+			&i.Text,
+			&i.Screen,
+			&i.RecordID,
+			&i.Actions,
+			&i.Command,
+			&i.Params,
+			&i.DocumentID,
+			&i.Revision,
+			&i.UndoneAt,
+			&i.CreatedAt,
+			&i.ForMaster,
+			&i.ReadAt,
+			&i.ProcessID,
+			&i.Repeats,
+			&i.Cause,
+			&i.Parts,
+			&i.LineID,
+			&i.What,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFeed = `-- name: ListFeed :many
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts FROM feed WHERE workspace_id = ?1 AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts, line_id, what FROM feed WHERE workspace_id = ?1 AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND (CAST(?3 AS TEXT) = '' OR kind = CAST(?3 AS TEXT)) AND for_master = 0 AND (CAST(?4 AS INTEGER) = 0 OR kind = 'note' AND read_at IS NULL)
-ORDER BY id DESC LIMIT ?5
+  AND line_id IS NULL
+ORDER BY created_at DESC, id DESC LIMIT ?5
 `
 
 type ListFeedParams struct {
@@ -253,6 +344,8 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 			&i.Repeats,
 			&i.Cause,
 			&i.Parts,
+			&i.LineID,
+			&i.What,
 		); err != nil {
 			return nil, err
 		}
@@ -268,7 +361,7 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 }
 
 const listMasterNotes = `-- name: ListMasterNotes :many
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats, cause, parts, line_id, what FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id
 `
 
 func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Feed, error) {
@@ -302,6 +395,8 @@ func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Fee
 			&i.Repeats,
 			&i.Cause,
 			&i.Parts,
+			&i.LineID,
+			&i.What,
 		); err != nil {
 			return nil, err
 		}

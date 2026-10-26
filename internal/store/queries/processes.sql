@@ -315,7 +315,7 @@ WITH RECURSIVE tree(id) AS (
     UNION ALL
     SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
 )
-SELECT * FROM feed WHERE kind = 'change' AND undone_at IS NULL AND process_id IN (SELECT id FROM tree) ORDER BY id LIMIT 200;
+SELECT * FROM feed WHERE kind = 'change' AND undone_at IS NULL AND line_id IS NULL AND process_id IN (SELECT id FROM tree) ORDER BY id LIMIT 200;
 
 -- name: ListTreeRecords :many
 WITH RECURSIVE tree(id) AS (

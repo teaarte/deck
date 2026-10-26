@@ -120,19 +120,16 @@ func (pj *Service) startHandler(projectID int64, m *manifest.Manifest, command s
 			return nil, registry.Invalid("deck: input: %v", err)
 		}
 		key, _ := input[manifest.RetryKey].(string)
-		allows, _ := input[manifest.AllowsKey].(string)
 		delete(input, manifest.RetryKey)
 		delete(input, manifest.AllowsKey)
 		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: key, Trial: act.Trial, Alone: act.Alone}
 		// Only the owner's own press stands for their yes.
-		if act.Kind == registry.Owner {
-			if allows != "" {
-				var as []gateway.Allow
-				if err := json.Unmarshal([]byte(allows), &as); err != nil {
-					return nil, registry.Invalid("deck: allows: %v", err)
-				}
-				o.Allows = gateway.Allows(as)
+		if act.Kind == registry.Owner && act.Allows != "" {
+			var as []gateway.Allow
+			if err := json.Unmarshal([]byte(act.Allows), &as); err != nil {
+				return nil, registry.Invalid("deck: allows: %v", err)
 			}
+			o.Allows = gateway.Allows(as)
 		}
 		return pj.Runner.Begin(ctx, projectID, m, command, input, o)
 	}
@@ -152,8 +149,6 @@ func withRetryKey(in json.RawMessage) json.RawMessage {
 	}
 	props[manifest.RetryKey] = map[string]any{"type": "string",
 		"description": "Optional: while a process of this command with the same key is still going, the call returns it instead of starting another"}
-	props[manifest.AllowsKey] = map[string]any{"type": "string",
-		"description": "Set by the owner's press: the calls its button allows the run; deck takes it from no one else"}
 	s["properties"] = props
 	b, err := json.Marshal(s)
 	if err != nil {

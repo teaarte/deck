@@ -85,3 +85,30 @@ func TestTheSidePanelHoldsFiltersButtonsAndSmallBlocks(t *testing.T) {
 		e.refused("deck.project_create", map[string]any{"name": "lab", "manifest": bad}, 422, c.want)
 	}
 }
+
+// TestAFilterStartsOnTheDefaultOfItsParam: a default of a param narrows the screen while the address does not name it;
+// the param named empty is all; a default not of its type is refused on a save.
+func TestAFilterStartsOnTheDefaultOfItsParam(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("lab", strings.Replace(sideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
+	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
+		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
+		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
+	type filter struct{ Value string }
+	first := e.screenData("lab", "lab", nil)
+	if rows := blockData[[]screenRow](t, first["b0"]["rows"]); len(rows) != 2 || blockData[[]filter](t, first["s0"]["filters"])[0].Value != "BTC" {
+		t.Fatalf("the screen starts on the default of its param: %+v", rows)
+	}
+	all := e.screenData("lab", "lab", map[string]any{"params": `{"coin": ""}`})
+	if rows := blockData[[]screenRow](t, all["b0"]["rows"]); len(rows) != 3 || blockData[[]filter](t, all["s0"]["filters"])[0].Value != "" {
+		t.Fatalf("all picked shows every row: %+v", rows)
+	}
+	var cur struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "lab"}, &cur)
+	if !strings.Contains(cur.Manifest, `"default": "BTC"`) || !strings.Contains(cur.Manifest, `"side": "string"`) {
+		t.Fatalf("a param keeps its form: %s", cur.Manifest)
+	}
+	bad := strings.Replace(sideManifest, `"side": "string"}`, `"side": "string", "n": {"type": "integer", "default": "many"}}`, 1)
+	e.refused("deck.manifest_save", map[string]any{"project": "lab", "manifest": bad}, 422, "the default many is no integer")
+}

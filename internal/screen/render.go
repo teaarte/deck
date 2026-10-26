@@ -160,9 +160,14 @@ func resolve(ctx context.Context, src Sources, req Request, every bool) (*render
 	}
 	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name, Lang: req.Lang}
 	r.params = map[string]any{}
-	for name, typ := range req.Screen.Params {
-		if v := req.Params[name]; v != "" {
-			r.params[name] = manifest.Typed(v, typ)
+	// A param the address names empty is the owner's pick of all, not its default.
+	for name, p := range req.Screen.Params {
+		v, named := req.Params[name]
+		if !named && p.Default != nil {
+			v = fmt.Sprint(p.Default)
+		}
+		if v != "" {
+			r.params[name] = manifest.Typed(v, p.Type)
 		}
 	}
 	if req.Screen.Record != "" {

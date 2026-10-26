@@ -25,7 +25,7 @@ export function parse(hash: string): Route {
 
 export function href(r: Route): string {
   const path = '#/' + (r.project ? 'p/' + encodeURIComponent(r.project) : 'deck') + '/' + encodeURIComponent(r.screen) + (r.record ? '/' + r.record : '');
-  const query = new URLSearchParams(Object.entries(r.params ?? {}).filter(([, v]) => v !== '')).toString();
+  const query = new URLSearchParams(Object.entries(r.params ?? {}).filter(([k, v]) => v !== '' || picked(r, k))).toString();
   return query ? path + '?' + query : path;
 }
 
@@ -43,6 +43,8 @@ export const screenKey = (r: Route) => href({ ...r, params: { ...serverParams(r)
 const picks = new Map<string, Set<string>>();
 const screenOf = (r: Route) => href({ project: r.project, screen: r.screen, record: r.record });
 export const pickParams = (r: Route, params: string[]) => picks.set(screenOf(r), new Set(params));
+// A pick of the side panel empty is the owner's pick of all, which the address keeps: without it the default holds.
+const picked = (r: Route, name: string) => picks.get(screenOf(r))?.has(name) === true;
 
 // held are the params a button gave the dialog it opened on its own screen, by the screen: only the dialog reads them,
 // so the screen stays drawn as they come and go with it.
@@ -117,7 +119,7 @@ export function back() {
 const withParam = (name: string, value: string | null): Route => {
   const r = route.get();
   const params = { ...(r.params ?? {}) };
-  if (value === null || value === '') delete params[name];
+  if (value === null || value === '' && !picked(r, name)) delete params[name];
   else params[name] = value;
   return { ...r, params: Object.keys(params).length ? params : undefined };
 };

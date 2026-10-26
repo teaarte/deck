@@ -358,7 +358,7 @@ func (r *renderer) fieldEnum(collection, expr string) []string {
 // worded says which values of an expression are words of the owner's language: of the enums of the fields it reads,
 // the texts it writes, and the module's words for a field of a collection its block filters by.
 func (r *renderer) worded(src *manifest.Source, expr string, filters []string) func(string) bool {
-	values := literal(expr)
+	values := manifest.Literals(expr)
 	var own map[string]string
 	if src != nil {
 		fields := []string{expr}
@@ -382,7 +382,7 @@ func (r *renderer) phrased(expr string, v any) any {
 	if !ok {
 		return v
 	}
-	lits := literal(expr)
+	lits := manifest.Literals(expr)
 	bound := func(rest string, at func(string, string) bool) bool {
 		return rest == "" || slices.ContainsFunc(lits, func(l string) bool { return l != "" && !letter.MatchString(l) && at(rest, l) })
 	}
@@ -414,17 +414,6 @@ func (r *renderer) phrased(expr string, v any) any {
 
 // letter is a letter of any language.
 var letter = regexp.MustCompile(`\pL`)
-
-// quoted are the texts an expression writes, in single quotes.
-var quoted = regexp.MustCompile(`'([^'\\]*)'`)
-
-func literal(expr string) []string {
-	var out []string
-	for _, m := range quoted.FindAllStringSubmatch(expr, -1) {
-		out = append(out, m[1])
-	}
-	return out
-}
 
 // resultEnum are the values of the enum of the field an expression reads in the rows of a command of deck.
 func (r *renderer) resultEnum(src manifest.Source, expr string) []string {

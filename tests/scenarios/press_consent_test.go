@@ -134,14 +134,11 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	e.must("deck.asks_list", nil, &asks)
 	e.answer(asks[0].ID, "deny")
 
-	// The yes is the owner's alone and the run's alone: a run another caller starts with the same allows asks.
+	// The yes is the owner's alone: a run that gives allows to a command it starts is refused.
 	_, out = e.call("picker.apply", map[string]any{"id": apply["params"].(map[string]any)["id"], "relay": other["params"].(map[string]any)["allows"]})
 	_ = json.Unmarshal(out, &run)
-	relay := e.waitScript(run.Process, "done", "error")
-	var child struct{ Process int64 }
-	_ = json.Unmarshal(relay.Result, &child)
-	if p := e.waitScript(child.Process, "done", "error"); child.Process == 0 || !strings.Contains(string(p.Result), "waiting") {
-		t.Fatalf("a run another caller started is no press of the owner: %+v %+v", relay, p)
+	if relay := e.waitScript(run.Process, "done", "error"); !strings.Contains(string(relay.Result), "allows comes only with a press of the owner") {
+		t.Fatalf("a run another caller started is no press of the owner: %+v", relay)
 	}
 	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("nothing but the press changed the models: %v", got)

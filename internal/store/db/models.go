@@ -129,6 +129,8 @@ type Feed struct {
 	Repeats     int64
 	Cause       string
 	Parts       string
+	LineID      sql.NullInt64
+	What        string
 }
 
 type File struct {

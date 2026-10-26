@@ -15,7 +15,7 @@ import (
 
 type manifestCheckIn struct {
 	Project  string   `type:"project" opt:"" desc:"The project whose manifest it would be; without one the manifest is checked alone"`
-	Manifest string   `type:"json" opt:"" desc:"The whole manifest JSON; leave it out to check old parts of the current one replaced with new ones"`
+	Manifest string   `type:"json" opt:"" desc:"The whole manifest JSON; leave it out to check old parts of the current one replaced with new ones, or with neither the current one"`
 	Old      []string `type:"text[]" opt:"" desc:"Parts of the current manifest to replace, as for manifest_save"`
 	New      []string `type:"text[]" opt:"" desc:"The text that replaces each old part, in the same order"`
 }
@@ -47,11 +47,19 @@ func (pj *Service) check(ctx context.Context, act registry.Actor, in manifestChe
 		if p, err = access.Project(ctx, pj.St.Q, act, in.Project); err != nil {
 			return out, err
 		}
-		save := manifestSaveIn{Manifest: in.Manifest, Old: in.Old, New: in.New}
-		if err := pj.edited(ctx, p, &save); err != nil {
-			return out, err
+		if strings.TrimSpace(in.Manifest) == "" && len(in.Old)+len(in.New) == 0 {
+			cur, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
+			if err != nil {
+				return out, err
+			}
+			in.Manifest = cur
+		} else {
+			save := manifestSaveIn{Manifest: in.Manifest, Old: in.Old, New: in.New}
+			if err := pj.edited(ctx, p, &save); err != nil {
+				return out, err
+			}
+			in.Manifest = save.Manifest
 		}
-		in.Manifest = save.Manifest
 	} else if strings.TrimSpace(in.Manifest) == "" {
 		return out, registry.Invalid("deck: give the manifest JSON, or a project and old and new parts of its manifest")
 	}
@@ -87,13 +95,9 @@ func (pj *Service) check(ctx context.Context, act registry.Actor, in manifestChe
 	}
 	out.Widens = append(out.Widens, manifest.Widens(prev, pm.m)...)
 	out.Waits = len(out.Widens) > 0 && act.Kind != registry.Owner && !out.Enable
-	var also []string
-	if p.ID != 0 {
-		prompt, _ := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
-		also = append(pj.filterValues(ctx, p.ID, pm.m), docs.Description(prompt))
-	}
-	out.Unused = append(out.Unused, pm.m.UnusedWords(also...)...)
-	out.Untranslated = append(out.Untranslated, pm.m.Untranslated(func(lang, text string) bool { return pj.Words(lang)[text] != "" }, also...)...)
+	unused, untranslated := pj.words(ctx, p, pm.m)
+	out.Unused = append(out.Unused, unused...)
+	out.Untranslated = append(out.Untranslated, untranslated...)
 	out.Ok = len(out.Refused) == 0
 	return out, nil
 }

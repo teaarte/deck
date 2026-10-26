@@ -1,10 +1,20 @@
 -- name: AddFeed :one
 INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, created_at, process_id,
-    cause)
+    cause, what, line_id)
 VALUES (sqlc.arg(workspace_id), sqlc.arg(project_id), sqlc.arg(kind), sqlc.arg(author), sqlc.arg(text), sqlc.arg(screen),
     sqlc.narg(record_id), sqlc.arg(actions), sqlc.arg(command), sqlc.arg(params), sqlc.narg(document_id), sqlc.arg(revision), sqlc.arg(created_at),
-    sqlc.narg(process_id), sqlc.arg(cause))
+    sqlc.narg(process_id), sqlc.arg(cause), sqlc.arg(what), sqlc.narg(line_id))
 RETURNING *;
+
+-- name: ChangeLine :one
+SELECT id FROM feed WHERE kind = 'change' AND process_id = sqlc.arg(process_id) AND project_id = sqlc.arg(project_id) AND line_id IS NULL
+  AND undone_at IS NULL ORDER BY id LIMIT 1;
+
+-- name: JoinChangeLine :exec
+UPDATE feed SET repeats = repeats + 1, created_at = sqlc.arg(created_at) WHERE id = sqlc.arg(id);
+
+-- name: ListChangeLine :many
+SELECT * FROM feed WHERE id = sqlc.arg(id) OR line_id = sqlc.arg(id) ORDER BY id;
 
 -- name: CauseNote :one
 SELECT id FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND cause = sqlc.arg(cause) AND kind = 'note' AND for_master = 0
@@ -14,7 +24,8 @@ ORDER BY id LIMIT 1;
 -- name: ListFeed :many
 SELECT * FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND (CAST(sqlc.arg(kind) AS TEXT) = '' OR kind = CAST(sqlc.arg(kind) AS TEXT)) AND for_master = 0 AND (CAST(sqlc.arg(unread) AS INTEGER) = 0 OR kind = 'note' AND read_at IS NULL)
-ORDER BY id DESC LIMIT sqlc.arg(lim);
+  AND line_id IS NULL
+ORDER BY created_at DESC, id DESC LIMIT sqlc.arg(lim);
 
 -- name: GetFeed :one
 SELECT * FROM feed WHERE id = ?;

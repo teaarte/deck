@@ -335,7 +335,7 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 }
 
 // TestTheModulesWordsNameItsFieldsAndFilteredValues: a record's edit and a filtered field without an enum speak the
-// module's words, no empty choice; a save names the texts a language lacks.
+// module's words, no empty choice; a save names the texts a language lacks, not the data.
 func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -380,9 +380,9 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 		Untranslated []string `json:"untranslated"`
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": m}, &saved)
-	if len(saved.Unused) != 0 || !slices.Contains(saved.Untranslated, "ru: paper") || !slices.Contains(saved.Untranslated, "ru: note") ||
+	if len(saved.Unused) != 0 || slices.Contains(saved.Untranslated, "ru: paper") || !slices.Contains(saved.Untranslated, "ru: note") ||
 		slices.Contains(saved.Untranslated, "ru: web") || slices.Contains(saved.Untranslated, "ru: Work") {
-		t.Fatalf("a save names the texts ru lacks, deck's words and the values filtered by known: %+v", saved)
+		t.Fatalf("a save names the texts ru lacks; deck's words are known, the values filtered by data that wants none: %+v", saved)
 	}
 }
 

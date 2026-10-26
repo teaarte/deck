@@ -17,8 +17,9 @@ import (
 	"deck2/internal/store/db"
 )
 
-// Changed lists a change of a document by someone other than the owner in an enabled project, with its undo.
-func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, reason string) error {
+// Changed lists a change of a document by someone other than the owner in an enabled project, with its undo; what is
+// the text without who made it, as a line of the changes of a run counts it.
+func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error {
 	if act.Kind == registry.Owner {
 		return nil
 	}
@@ -29,15 +30,14 @@ func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Acto
 	if reason != "" {
 		text += ": " + reason
 	}
-	row := db.AddFeedParams{CreatedAt: store.Time(dv.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedChange, Author: act.Author(), Text: text, Actions: "[]",
-		Params: "{}", DocumentID: store.ID(prev.ID), Revision: n, ProcessID: store.ID(act.ProcessID)}
+	row := db.AddFeedParams{CreatedAt: store.Time(dv.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(), Text: text, Actions: "[]",
+		Params: "{}", DocumentID: store.ID(prev.ID), Revision: n, ProcessID: store.ID(act.ProcessID), What: what}
 	if prev.Current != 0 {
 		params, _ := json.Marshal(map[string]any{"document": prev.ID, "revision": prev.Current, "if_revision": n,
 			"reason": "undo a change made without the owner"})
 		row.Command, row.Params = registry.Builtin+".document_revert", string(params)
 	}
-	_, err = q.AddFeed(ctx, row)
-	return err
+	return store.AddChange(ctx, q, row)
 }
 
 type feedListIn struct {
@@ -166,6 +166,16 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 		if f.Cause != "" {
 			r.Cause = f.Cause
 			r.parts(f, names, ws)
+		}
+		if f.Kind == FeedChange && f.Repeats > 1 {
+			parts, undo, err := store.Line(ctx, dv.St.Q, f)
+			if err != nil {
+				return nil, err
+			}
+			for i, p := range parts {
+				parts[i] = manifest.TrText(ws, p)
+			}
+			r.Text, r.CanUndo = strings.Join(parts, "; "), undo && !f.UndoneAt.Valid
 		}
 		r.Screen, r.DeckScreen = strings.CutPrefix(r.Screen, DeckPrefix)
 		if r.Screen != "" {
@@ -298,30 +308,85 @@ type feedUndoIn struct {
 	Entry int64 `desc:"Id of a change in the feed"`
 }
 
-// feedUndo runs the undo of a change as the owner, unless the document has changed since.
+// feedUndo runs the undo of a line of changes as the owner, the last change first, unless a document has changed
+// since; a document changed more than once in the line goes back once, to before the first change.
 func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoIn) (any, error) {
 	r, err := dv.St.Q.GetFeed(ctx, in.Entry)
-	if err != nil || r.WorkspaceID != act.Workspace || r.Kind != FeedChange {
+	if err != nil || r.WorkspaceID != act.Workspace || r.Kind != FeedChange || r.LineID.Valid {
 		return nil, registry.NotFound("deck: no change %d", in.Entry)
 	}
+	_, undoable, err := store.Line(ctx, dv.St.Q, r)
 	switch {
+	case err != nil:
+		return nil, err
 	case r.UndoneAt.Valid:
 		return nil, registry.Conflict("deck: this change is already undone")
-	case r.Command == "":
+	case !undoable:
 		return nil, registry.Invalid("deck: this change has no earlier version to return to")
 	}
-	if r.DocumentID.Valid {
-		d, err := docs.Get(ctx, dv.St.Q, r.DocumentID.Int64)
+	line, err := dv.St.Q.ListChangeLine(ctx, r.ID)
+	if err != nil {
+		return nil, err
+	}
+	type undo struct {
+		ids    []int64
+		call   db.Feed
+		params map[string]any
+		// gap marks a document that changed between two changes of the line, by the owner or another run.
+		gap bool
+	}
+	var undos []*undo
+	byDoc := map[int64]*undo{}
+	for _, c := range line {
+		if c.UndoneAt.Valid || c.Command == "" {
+			continue
+		}
+		if u := byDoc[c.DocumentID.Int64]; c.DocumentID.Valid && u != nil {
+			var from struct{ Revision int64 }
+			_ = json.Unmarshal([]byte(c.Params), &from)
+			u.gap = u.gap || from.Revision != u.call.Revision
+			u.ids, u.call.Revision = append(u.ids, c.ID), c.Revision
+			u.params["if_revision"] = c.Revision
+			continue
+		}
+		u := &undo{ids: []int64{c.ID}, call: c}
+		if c.DocumentID.Valid {
+			_ = json.Unmarshal([]byte(c.Params), &u.params)
+			byDoc[c.DocumentID.Int64] = u
+		}
+		undos = append(undos, u)
+	}
+	for _, u := range undos {
+		if !u.call.DocumentID.Valid {
+			continue
+		}
+		d, err := docs.Get(ctx, dv.St.Q, u.call.DocumentID.Int64)
 		if err != nil {
 			return nil, err
 		}
-		if d.Current != r.Revision {
+		if d.Current != u.call.Revision || u.gap {
 			return nil, registry.Conflict("deck: the document changed after this; return to an earlier version from its history")
 		}
 	}
-	out, err := dv.Invoke(ctx, act, r.Command, json.RawMessage(r.Params))
-	if err != nil {
-		return nil, err
+	var out any
+	for _, u := range slices.Backward(undos) {
+		params := json.RawMessage(u.call.Params)
+		if u.params != nil {
+			params, _ = json.Marshal(u.params)
+		}
+		if out, err = dv.Invoke(ctx, act, u.call.Command, params); err != nil {
+			return nil, err
+		}
+		if err := dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			for _, id := range u.ids {
+				if _, err := q.MarkFeedUndone(ctx, id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
 	}
 	err = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.MarkFeedUndone(ctx, r.ID)

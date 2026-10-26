@@ -63,6 +63,7 @@ func (s *Service) Lent(raw string) (registry.Actor, bool) {
 	if !ok || time.Now().After(l.until) {
 		return registry.Actor{}, false
 	}
+	l.act.Looks = true
 	return l.act, true
 }
 

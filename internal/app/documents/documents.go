@@ -24,7 +24,7 @@ type Service struct {
 	Now     func() time.Time
 	Sandbox sandbox.Sandbox
 	// Changed lists a change made without the owner.
-	Changed func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, reason string) error
+	Changed func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error
 	// SaveManifest saves a manifest through its checks; a change that widens rights waits for the owner.
 	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error)
 	Ctx          context.Context

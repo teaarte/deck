@@ -36,7 +36,7 @@ wait for your decision. One tap, and the agents carry on.
 - **Nothing important happens without you, and you say yes once.** Sending a mail, spending money, reaching a new
   site: deck asks first. A button you press is your yes to what its row shows, so Apply just applies; deck asks
   again only when the schedule or an agent wants something. A question that went out of date closes by itself.
-  Everything else is in the feed, and much of it can be undone.
+  Everything else is in the feed, one line for what a run did, and much of it can be undone at once.
 - **Just say what you need.** Talk to **Deki**, the master agent, in chat or by voice. It sends a task to the
   right module, builds a new module from a short interview, looks into what failed, and remembers what you told it.
 - **Any model, your choice, right in the row.** Claude, GPT, Gemini, open models on OpenRouter or your own machine.

@@ -346,7 +346,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   the result of an expression that reads that field (`subtitles ?? 'off'`) and in the options of a button's input or
   a picked cell; a value of a field without an enum that a block filters by is translated in the filter and in that
   block by the module's `i18n` (`{"ru": {"en": "английский"}}`). `manifest_save` answers `untranslated`, the texts a
-  language of `i18n` lacks, and `unused_i18n`, the keys of no text: add the first, drop the second. A button to a screen takes `params`; the screen
+  language of `i18n` lacks (data, tickers, numbers and texts already in another script want none), and `unused_i18n`,
+  the keys of no text (a text an expression writes, an option of a filter and a value of a filtered field count as
+  used): add the first, drop the second. `manifest_check` with only `project` checks the current manifest. A button to a screen takes `params`; the screen
   declares them with their types (`"params": {"title": "string", "n": "integer"}`) and reads them in expressions
   as `param.<name>`: `"values": {"title": "=param.title"}` fills a form, `"input": {"days": "=param.n ?? 7"}` a
   source, `"when": "param.n > 1"` a block. An input that gives nothing or fails is an error on its block, not a read
@@ -356,7 +358,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   {"collection": "trades"}, "field": "coin"}` offers the values the field has; `"options": ["long", "short"]` fixed
   ones, said by `i18n`), `actions` with buttons to screens and records, small `stat` and `list` blocks. A pick goes
   into the address, so it stays on reload and in a link, and every block that reads it narrows at once: `"where":
-  "param.coin == nil || coin == param.coin"`. Give a screen a panel only when a pick serves all its blocks or its
+  "param.coin == nil || coin == param.coin"`. A filter starts on all; to start on a pick, give its param a default:
+  `"params": {"score": {"type": "integer", "default": 8}}` — the owner then picks «all» on purpose. Give a screen a panel only when a pick serves all its blocks or its
   tabs (a coin, a source, a status); one table's own narrowing stays its `filter`. A filter stands only in `side`.
 - **Changing a manifest**: send `manifest_save` `old` (parts of the text `manifest_get` gives, each found exactly
   once, a run of spaces and line breaks counted as one; take enough around a part to make it unique) and `new`

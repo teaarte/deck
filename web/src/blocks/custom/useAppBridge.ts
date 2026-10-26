@@ -128,5 +128,5 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
     context.current = { ...context.current, displayMode: 'inline', containerDimensions: undefined };
     bridge.current?.setHostContext(context.current);
   };
-  return { frame, height, full, inline, failed };
+  return { frame, height, full, inline, failed, ready };
 }

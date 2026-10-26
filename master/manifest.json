@@ -4,6 +4,10 @@
   "i18n": {
     "ru": {
       "Reply": "Ответ",
+      "topic": "тема",
+      "task": "задача",
+      "process": "процесс",
+      "whose": "чья",
       "Answers the owner's messages in a chat topic.": "Отвечает на сообщения владельца в теме чата.",
       "The chat topic": "Тема чата",
       "Long work": "Долгая работа",

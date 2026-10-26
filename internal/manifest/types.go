@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -266,11 +267,42 @@ type Screen struct {
 	Icon  string `json:"icon,omitempty"`
 	// Record is the collection whose record the screen shows; the client opens it with the record id.
 	Record string `json:"record,omitempty"`
-	// Params are the parameters of its address by name and JSON type, param.<name> in its expressions.
-	Params map[string]string `json:"params,omitempty"`
-	Blocks []Block           `json:"blocks"`
+	// Params are the parameters of its address by name, param.<name> in its expressions.
+	Params map[string]Param `json:"params,omitempty"`
+	Blocks []Block          `json:"blocks"`
 	// Side are the blocks of the panel beside the screen: filters of its params, buttons, small blocks.
 	Side []Block `json:"side,omitempty"`
+}
+
+// Param is a parameter of the address of a screen: its JSON type, written alone as text, and the value it has while
+// the address does not name it.
+type Param struct {
+	Type    string
+	Default any
+}
+
+func (p *Param) UnmarshalJSON(b []byte) error {
+	if json.Unmarshal(b, &p.Type) == nil {
+		return nil
+	}
+	var v struct {
+		Type    string `json:"type"`
+		Default any    `json:"default"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil {
+		return err
+	}
+	p.Type, p.Default = v.Type, v.Default
+	return nil
+}
+
+func (p Param) MarshalJSON() ([]byte, error) {
+	if p.Default == nil {
+		return json.Marshal(p.Type)
+	}
+	return json.Marshal(map[string]any{"type": p.Type, "default": p.Default})
 }
 
 // ClientParams are the params of an address only the client reads: tabs, a dialog, the chat, a widget, placing.

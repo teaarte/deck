@@ -15,12 +15,16 @@ export interface Worn {
   font: { text?: string; headings?: string };
   radius: '0' | 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   density: 'compact' | 'default' | 'comfortable';
-  backdrop: 'pattern' | 'sky' | 'plain';
   css: string;
+  // images are the pictures of the theme as covers are: the scene of Today, the page behind, a tile repeated behind.
+  images?: Partial<Record<'cockpit' | 'backdrop' | 'pattern', Picture>>;
 }
 
+// Picture is a picture of the theme by scheme: where it is read and its main color.
+export interface Picture { light?: string; dark?: string; color?: string; dark_color?: string }
+
 const KEY = 'deck-theme';
-const BARE: Worn = { name: '', title: '', mood: '', schemes: ['light', 'dark'], font: {}, radius: 'md', density: 'default', backdrop: 'plain', css: '' };
+const BARE: Worn = { name: '', title: '', mood: '', schemes: ['light', 'dark'], font: {}, radius: 'md', density: 'default', css: '' };
 
 // Preview is a theme and scheme a link asks for, as deck.theme_check gives them: ?theme=<name>&scheme=dark. It lasts
 // while the screen of the link shows; a pick in Settings or the owner ends it.
@@ -72,7 +76,7 @@ export function useWear(on: boolean) {
   useEffect(() => {
     if (!on) return;
     const input = { name: theme || undefined, lang: i18n.language };
-    return liveRead<Worn>('deck.theme', input, () => ['documents', 'settings'], (w) => {
+    return liveRead<Worn>('deck.theme', input, () => ['documents', 'settings', 'files'], (w) => {
       if (!w) return;
       if (!theme) localStorage.setItem(KEY, JSON.stringify(w));
       put(w);

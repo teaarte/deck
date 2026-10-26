@@ -5,6 +5,7 @@ import { Button, Text, Title, useComputedColorScheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconCheck, IconSparkles, IconSun } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { of } from '../app/Backdrop';
 import { NavStatus } from '../app/NavStatus';
 import { dropParam, href, useRoute } from '../app/router';
 import { openTopic } from '../chat/chatStore';
@@ -15,6 +16,7 @@ import { useCover } from '../lib/covers';
 import { device } from '../lib/device';
 import { notifyError } from '../lib/notify';
 import { outcome } from '../screen/act';
+import { useWorn } from '../theme/worn';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './apps.module.css';
 import { CardDeki } from './CardDeki';
@@ -104,6 +106,7 @@ export function Apps() {
   const route = useRoute();
   const phone = useMediaQuery('(max-width: 36em)') ?? false;
   const dark = useComputedColorScheme('light') === 'dark';
+  const scene = useWorn().images?.cockpit;
   const { width, containerRef, mounted } = useContainerWidth();
   const measured = useCell(containerRef);
   // A phone keeps half the gap between its cards.
@@ -204,7 +207,8 @@ export function Apps() {
               if (c.i === TODAY) {
                 return (
                   <div key={c.i} data-cell={c.i}>
-                    <Tile to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big art={<CardDeki size={phone ? 96 : Math.min(150, cell.height * 0.8)} />}>
+                    <Tile to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big cover={of(scene, dark)}
+                      color={(dark ? scene?.dark_color : undefined) || scene?.color} art={<CardDeki size={phone ? 96 : Math.min(150, cell.height * 0.8)} />}>
                       <span className={s.today}><IconSun size={15} aria-hidden />{t('nav.cockpit')}</span>
                       <Widget screen="today" size={`${c.w}x${c.h}`} />
                     </Tile>

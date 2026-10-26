@@ -4,7 +4,6 @@
   "mood": "Soft daylight sky with small white clouds, friendly rounded 3D shapes in white and coral, gentle shadows, airy and cheerful, clean like a toy, no text.",
   "accent": "coral",
   "font": {"text": "\"Helvetica Neue\", Helvetica, Arial, system-ui, -apple-system, sans-serif", "headings": "\"Helvetica Neue\", Helvetica, Arial, system-ui, -apple-system, sans-serif"},
-  "backdrop": "sky",
   "tokens": {"canvas": "linear-gradient(180deg, #cfe6fa 0%, #e3f0fb 45%, #f4f5f7 100%)", "ring": "0 0 0 1px rgb(20 40 70 / 0.05)",
     "shadow": "0 10px 40px -20px rgb(20 40 70 / 0.4)", "fill": "#f4f5f7", "fill-hover": "#eceef2", "divider": "#f0f1f4"},
   "light": {"island": "#ffffff", "block": "#ffffff", "text-2": "#374151", "text": "#0e1116", "dimmed": "#5b6470", "hover": "#f4f5f7", "line": "#e7e9ee"},

@@ -20,20 +20,19 @@ import (
 
 // Theme is a theme as its document holds it.
 type Theme struct {
-	Version  int                          `json:"version"`
-	Title    map[string]string            `json:"title"`
-	Mood     string                       `json:"mood"`
-	Schemes  []string                     `json:"schemes,omitempty"`
-	Accent   string                       `json:"accent,omitempty"`
-	Font     Font                         `json:"font"`
-	Radius   string                       `json:"radius,omitempty"`
-	Density  string                       `json:"density,omitempty"`
-	Backdrop string                       `json:"backdrop,omitempty"`
-	Tokens   map[string]string            `json:"tokens,omitempty"`
-	Light    map[string]string            `json:"light,omitempty"`
-	Dark     map[string]string            `json:"dark,omitempty"`
-	Parts    map[string]map[string]string `json:"parts,omitempty"`
-	CSS      string                       `json:"css,omitempty"`
+	Version int                          `json:"version"`
+	Title   map[string]string            `json:"title"`
+	Mood    string                       `json:"mood"`
+	Schemes []string                     `json:"schemes,omitempty"`
+	Accent  string                       `json:"accent,omitempty"`
+	Font    Font                         `json:"font"`
+	Radius  string                       `json:"radius,omitempty"`
+	Density string                       `json:"density,omitempty"`
+	Tokens  map[string]string            `json:"tokens,omitempty"`
+	Light   map[string]string            `json:"light,omitempty"`
+	Dark    map[string]string            `json:"dark,omitempty"`
+	Parts   map[string]map[string]string `json:"parts,omitempty"`
+	CSS     string                       `json:"css,omitempty"`
 }
 
 type Font struct {
@@ -43,16 +42,17 @@ type Font struct {
 
 // Look is a theme as the client applies it: the CSS of its tokens, parts and own rules, and what Mantine takes.
 type Look struct {
-	Name     string   `json:"name"`
-	Title    string   `json:"title"`
-	Mood     string   `json:"mood"`
-	Schemes  []string `json:"schemes"`
-	Accent   string   `json:"accent,omitempty"`
-	Font     Font     `json:"font"`
-	Radius   string   `json:"radius"`
-	Density  string   `json:"density"`
-	Backdrop string   `json:"backdrop"`
-	CSS      string   `json:"css"`
+	Name    string   `json:"name"`
+	Title   string   `json:"title"`
+	Mood    string   `json:"mood"`
+	Schemes []string `json:"schemes"`
+	Accent  string   `json:"accent,omitempty"`
+	Font    Font     `json:"font"`
+	Radius  string   `json:"radius"`
+	Density string   `json:"density"`
+	CSS     string   `json:"css"`
+	// Images are the pictures of the theme by slot, as covers are: the cockpit, the backdrop and the pattern.
+	Images map[string]any `json:"images"`
 	// Problems are what a check of today refuses in it; the client gets the theme without those parts.
 	Problems []string `json:"problems,omitempty"`
 }
@@ -133,8 +133,21 @@ func NameOf(doc string) string {
 	return ""
 }
 
-//go:embed shipped/*.json
+//go:embed shipped
 var shipped embed.FS
+
+// Slots are the pictures a theme may have: the cockpit's card, the page behind and a tile repeated over it.
+var Slots = []string{"cockpit", "backdrop", "pattern"}
+
+// Shipped is a picture deck ships with a theme, <slot>-<scheme>.webp, nil for none.
+func Shipped(name, file string) []byte {
+	if nameRule.MatchString(name) && path.Base(file) == file && strings.HasSuffix(file, ".webp") {
+		if b, err := shipped.ReadFile("shipped/" + name + "/" + file); err == nil {
+			return b
+		}
+	}
+	return nil
+}
 
 // Builtin is the text of a theme deck ships, nil for none.
 func Builtin(name string) []byte {
@@ -150,7 +163,9 @@ func Builtins() []string {
 	es, _ := shipped.ReadDir("shipped")
 	var out []string
 	for _, e := range es {
-		out = append(out, strings.TrimSuffix(path.Base(e.Name()), ".json"))
+		if n, ok := strings.CutSuffix(e.Name(), ".json"); ok && !e.IsDir() {
+			out = append(out, n)
+		}
 	}
 	return out
 }
@@ -206,7 +221,7 @@ func radius(v string) string {
 // Wear is the look of a theme; problems name what deck's checks refuse in it, left out of the look.
 func (t *Theme) Wear(name, lang string) Look {
 	l := Look{Name: name, Title: t.Title["en"], Mood: t.Mood, Schemes: t.Schemes, Accent: t.Accent, Font: t.Font,
-		Radius: cmpOr(t.Radius, "md"), Density: cmpOr(t.Density, "default"), Backdrop: cmpOr(t.Backdrop, "pattern")}
+		Radius: cmpOr(t.Radius, "md"), Density: cmpOr(t.Density, "default"), Images: map[string]any{}}
 	if s := t.Title[lang]; s != "" {
 		l.Title = s
 	}
@@ -403,4 +418,34 @@ func (cs *colors) pairs(scheme string) (map[string]float64, error) {
 		}
 	}
 	return out, nil
+}
+
+// ContrastOver names the pairs that read under Least when the token of a card is the main color of its picture, by
+// scheme; a scheme without a color is left as it is.
+func (t *Theme) ContrastOver(token string, colors map[string]string) []string {
+	over := *t
+	over.Light, over.Dark = maps.Clone(t.Light), maps.Clone(t.Dark)
+	if over.Light == nil {
+		over.Light = map[string]string{}
+	}
+	if over.Dark == nil {
+		over.Dark = map[string]string{}
+	}
+	for scheme, c := range colors {
+		if c == "" {
+			continue
+		}
+		if scheme == "dark" {
+			over.Dark[token] = c
+		} else {
+			over.Light[token] = c
+		}
+	}
+	var out []string
+	for _, p := range over.Contrast() {
+		if strings.Contains(p, "on "+token) {
+			out = append(out, "over its picture: "+p)
+		}
+	}
+	return out
 }

@@ -6,20 +6,17 @@
   pointer-events: none;
 }
 
-.pattern {
+.picture {
   position: absolute;
   inset: 0;
-  background: var(--deck-pattern-color);
-  mask-size: 720px;
-  -webkit-mask-size: 720px;
-  mask-repeat: repeat;
-  -webkit-mask-repeat: repeat;
+  background-position: center;
+  background-size: cover;
 }
 
-.patternAlt {
-  background: var(--deck-pattern-alt);
-  mask-position: 36px 36px;
-  -webkit-mask-position: 36px 36px;
+.pattern {
+  background-position: 0 0;
+  background-size: var(--deck-pattern-size, 320px) auto;
+  background-repeat: repeat;
 }
 
 .meadow {
@@ -30,30 +27,8 @@
 }
 
 @media (prefers-contrast: more) {
-  .pattern,
+  .picture,
   .meadow {
     display: none;
   }
-}
-
-.cloud {
-  position: absolute;
-  width: min(46vw, 560px);
-  opacity: 0.95;
-  user-select: none;
-}
-
-.cloudLeft {
-  left: -6vw;
-  bottom: -8vh;
-}
-
-.cloudRight {
-  right: -4vw;
-  top: -6vh;
-  width: min(36vw, 440px);
-}
-
-:global(:root[data-mantine-color-scheme='dark']) .cloud {
-  opacity: 0.14;
 }

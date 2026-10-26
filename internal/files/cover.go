@@ -61,3 +61,20 @@ func CoverOf(pics []db.Picture, project int64, theme string) *Cover {
 	}
 	return c
 }
+
+// ThemeImage is a picture of a theme in a slot by scheme, nil without one: of its own scheme, else of the other. A
+// cockpit shows the light copy; a backdrop and a pattern fill the page, so they show the picture itself.
+func ThemeImage(pics []db.Picture, slot, theme string) *Cover {
+	own := slices.DeleteFunc(slices.Clone(pics), func(x db.Picture) bool { return x.Slot != slot || x.Theme != theme })
+	light, dark := Pick(own, theme, "light"), Pick(own, theme, "dark")
+	if light == nil {
+		return nil
+	}
+	shown := func(p db.Picture) string {
+		if slot == "cockpit" {
+			return fmt.Sprintf("/api/files/%d", Shown(p))
+		}
+		return fmt.Sprintf("/api/files/%d", p.FileID)
+	}
+	return &Cover{Light: shown(*light), Dark: shown(*dark), Color: light.Color, DarkColor: dark.Color, Theme: theme}
+}

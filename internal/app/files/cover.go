@@ -52,35 +52,46 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 		})
 		return map[string]any{"project": p.Name, "theme": in.Theme, "removed": schemes}, err
 	}
-	ref, err := files.Resolve(ctx, s.Home, s.St.Q, p.ID, act.ProcessID, in.File)
-	if err != nil {
-		if m, merr := access.Master(ctx, s.St.Q, act.Workspace); merr == nil {
-			ref, err = files.Resolve(ctx, s.Home, s.St.Q, m.ID, act.ProcessID, in.File)
-		}
-	}
+	scheme := cmp.Or(in.Scheme, "light")
+	id, err := s.putPicture(ctx, act, p, files.CoverSlot, in.Theme, scheme, in.File)
 	if err != nil {
 		return nil, err
 	}
+	return map[string]any{"project": p.Name, "cover": id, "theme": in.Theme, "scheme": scheme}, nil
+}
+
+// putPicture stores a file as the picture of a project's slot for a theme and scheme, with its light copy and main
+// color, in place of the one before; the file is the project's, the master's or the calling process's.
+func (s *Service) putPicture(ctx context.Context, act registry.Actor, p db.Project, slot, theme, scheme, file string) (int64, error) {
+	ref, err := files.Resolve(ctx, s.Home, s.St.Q, p.ID, act.ProcessID, file)
+	if err != nil {
+		if m, merr := access.Master(ctx, s.St.Q, act.Workspace); merr == nil {
+			ref, err = files.Resolve(ctx, s.Home, s.St.Q, m.ID, act.ProcessID, file)
+		}
+	}
+	if err != nil {
+		return 0, err
+	}
 	if !strings.HasPrefix(ref.Type, "image/") {
-		return nil, registry.Invalid("deck: a cover is a picture, not %s", ref.Type)
+		return 0, registry.Invalid("deck: a %s is a picture, not %s", slot, ref.Type)
 	}
 	owner := registry.Actor{Kind: registry.Owner, Workspace: act.Workspace}
 	f, err := os.Open(ref.Path)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	defer f.Close()
 	v, err := s.Upload(ctx, owner, p.Name, ref.Name, ref.Type, f)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	thumb, light := s.thumbOf(ctx, owner, p.Name, v.ID)
-	scheme, cur := cmp.Or(in.Scheme, "light"), s.Current(ctx, act.Workspace)
+	cur := s.Current(ctx, act.Workspace)
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := s.keep(ctx, q, p.ID, in.Theme, scheme, cur); err != nil {
+		if err := s.keep(ctx, q, p.ID, slot, theme, scheme, cur); err != nil {
 			return err
 		}
-		pic, err := q.PutPicture(ctx, db.PutPictureParams{ProjectID: p.ID, Slot: files.CoverSlot, Theme: in.Theme, Scheme: scheme,
+		pic, err := q.PutPicture(ctx, db.PutPictureParams{ProjectID: p.ID, Slot: slot, Theme: theme, Scheme: scheme,
 			FileID: v.ID, ThumbID: thumb, Color: light.Color, DrawnIn: cur})
 		if err != nil {
 			return err
@@ -97,15 +108,15 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 	})
 	if err != nil {
 		s.dropUploads(ctx, v.ID, thumb.Int64)
-		return nil, err
+		return 0, err
 	}
-	return map[string]any{"project": p.Name, "cover": v.ID, "theme": in.Theme, "scheme": scheme}, nil
+	return v.ID, nil
 }
 
-// keep moves the cover a new one replaces out of its place: one for every theme becomes the cover of the theme in use
-// when it was set, cur for an older one, where that theme has none of the scheme; else it goes to the trash.
-func (s *Service) keep(ctx context.Context, q *db.Queries, project int64, theme, scheme, cur string) error {
-	old, err := q.GetPicture(ctx, db.GetPictureParams{ProjectID: project, Slot: files.CoverSlot, Theme: theme, Scheme: scheme})
+// keep moves the picture a new one replaces out of its place: a cover for every theme becomes the cover of the theme in
+// use when it was set, cur for an older one, where that theme has none of the scheme; else it goes to the trash.
+func (s *Service) keep(ctx context.Context, q *db.Queries, project int64, slot, theme, scheme, cur string) error {
+	old, err := q.GetPicture(ctx, db.GetPictureParams{ProjectID: project, Slot: slot, Theme: theme, Scheme: scheme})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -113,7 +124,7 @@ func (s *Service) keep(ctx context.Context, q *db.Queries, project int64, theme,
 		return err
 	}
 	if to := cmp.Or(old.DrawnIn, cur); theme == "" && to != "" {
-		_, err := q.GetPicture(ctx, db.GetPictureParams{ProjectID: project, Slot: files.CoverSlot, Theme: to, Scheme: scheme})
+		_, err := q.GetPicture(ctx, db.GetPictureParams{ProjectID: project, Slot: slot, Theme: to, Scheme: scheme})
 		if errors.Is(err, sql.ErrNoRows) {
 			return q.SetPictureTheme(ctx, db.SetPictureThemeParams{Theme: to, ID: old.ID})
 		}
@@ -125,7 +136,7 @@ func (s *Service) keep(ctx context.Context, q *db.Queries, project int64, theme,
 		FromKind: files.PictureKind, FromID: old.ID}); err != nil {
 		return err
 	}
-	return q.DeletePicture(ctx, db.DeletePictureParams{ProjectID: project, Slot: files.CoverSlot, Theme: theme, Scheme: scheme})
+	return q.DeletePicture(ctx, db.DeletePictureParams{ProjectID: project, Slot: slot, Theme: theme, Scheme: scheme})
 }
 
 // thumbOf stores the light copy of a stored picture as an upload of the project and gives it with the size and main

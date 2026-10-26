@@ -10,10 +10,11 @@ import (
 )
 
 type themeLook struct {
-	Name, Title, Mood, Accent, Radius, Density, Backdrop, CSS string
-	Schemes                                                   []string
-	Problems                                                  []string
-	Current                                                   bool
+	Name, Title, Mood, Accent, Radius, Density, CSS string
+	Schemes                                         []string
+	Problems                                        []string
+	Current                                         bool
+	Images                                          map[string]struct{ Light, Dark, Color string }
 }
 
 type themeRow struct {
@@ -37,7 +38,7 @@ func (e *Env) themes() map[string]themeRow {
 }
 
 const nightTheme = `{"version": 1, "title": {"en": "Night", "ru": "Ночь"}, "mood": "Deep blue night, stars, soft glow.",
-  "schemes": ["dark"], "backdrop": "plain", "radius": "lg",
+  "schemes": ["dark"], "radius": "lg",
   "dark": {"canvas": "#05070d", "body": "#0d1220", "text": "#e8ecf8", "dimmed": "#a3acc4"},
   "parts": {"button": {"transform": "uppercase", "radius": "xl"}, "island": {"radius": "18px"}},
   "css": ".nav .asks { color: var(--accent-3); }\n.dark .tab[data-active]:hover { color: var(--text); }"}`
@@ -49,18 +50,28 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 	e := newEnv(t, idle)
 
 	all := e.themes()
-	for _, n := range []string{"juce", "default", "glass", "pixel", "neon", "paper"} {
-		r, ok := all[n]
-		if !ok || !r.Builtin || r.Own || len(r.Problems) > 0 {
-			t.Fatalf("shipped theme %s: %+v", n, r)
+	if r := all["juce"]; len(all) != 1 || !r.Builtin || r.Own || len(r.Problems) > 0 || !r.Current {
+		t.Fatalf("deck ships juce alone and wears it first: %+v", all)
+	}
+	for _, n := range []string{"default", "glass", "pixel", "neon", "paper"} {
+		e.example(n)
+	}
+	all = e.themes()
+	for _, n := range []string{"default", "glass", "pixel", "neon", "paper"} {
+		if r := all[n]; !r.Own || r.Builtin || len(r.Problems) > 0 {
+			t.Fatalf("the example %s of the skill is a theme of the owner that passes the checks: %+v", n, r)
 		}
 	}
-	if !all["juce"].Current || all["paper"].Title != "Бумага" {
-		t.Fatalf("juce is worn first, titles translate: %+v", all)
+	if all["paper"].Title != "Бумага" {
+		t.Fatalf("titles translate: %+v", all["paper"])
 	}
 	var l themeLook
 	e.must("deck.theme", map[string]any{}, &l)
-	if l.Name != "juce" || l.Accent != "coral" || l.Backdrop != "sky" || !strings.Contains(l.CSS, "--deck-canvas: linear-gradient(180deg, #cfe6fa") ||
+	clouds := l.Images["backdrop"]
+	if code, body := e.do("GET", clouds.Light, nil); code != 200 || len(body) < 1000 || clouds.Dark != "/api/files/theme/juce/backdrop-dark.webp" {
+		t.Fatalf("the clouds of juce are its pictures, shipped with deck: %+v %d", l.Images, code)
+	}
+	if l.Name != "juce" || l.Accent != "coral" || !strings.Contains(l.CSS, "--deck-canvas: linear-gradient(180deg, #cfe6fa") ||
 		!strings.Contains(l.CSS, "--deck-island-radius: 24px") || !strings.Contains(l.CSS, "[data-phone-tabs] [data-asks]") || l.Mood == "" {
 		t.Fatalf("juce as the client wears it: %+v", l)
 	}
@@ -108,14 +119,14 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 		t.Fatalf("night as the client wears it: %+v", l)
 	}
 
-	paper := strings.Replace(nightTheme, `"Night"`, `"My paper"`, 1)
-	e.must("deck.theme_save", map[string]any{"name": "paper", "text": paper}, nil)
-	if r := e.themes()["paper"]; !r.Own || !r.Builtin || r.Title != "Ночь" {
-		t.Fatalf("the owner's paper over the shipped one: %+v", r)
+	juce := strings.Replace(nightTheme, `"Night"`, `"My juce"`, 1)
+	e.must("deck.theme_save", map[string]any{"name": "juce", "text": juce}, nil)
+	if r := e.themes()["juce"]; !r.Own || !r.Builtin || r.Title != "Ночь" {
+		t.Fatalf("the owner's juce over the shipped one: %+v", r)
 	}
-	e.must("deck.theme_delete", map[string]any{"name": "paper"}, nil)
-	if r := e.themes()["paper"]; r.Own || r.Title != "Бумага" {
-		t.Fatalf("the shipped paper is back: %+v", r)
+	e.must("deck.theme_delete", map[string]any{"name": "juce"}, nil)
+	if r := e.themes()["juce"]; r.Own || r.Title != "Juce" {
+		t.Fatalf("the shipped juce is back: %+v", r)
 	}
 	e.refused("deck.theme_delete", map[string]any{"name": "juce"}, 422, "deck ships the theme juce")
 
@@ -157,7 +168,7 @@ func TestThemesStyleTheCardsOfModules(t *testing.T) {
 		t.Fatalf("the cards of juce: the cockpit's in the accent, the others by their names: %+v", l)
 	}
 
-	cards := `{"version": 1, "title": {"en": "Cards"}, "mood": "m", "schemes": ["light"], "backdrop": "sky",
+	cards := `{"version": 1, "title": {"en": "Cards"}, "mood": "m", "schemes": ["light"],
   "tokens": {"cockpit": "linear-gradient(180deg, #ffffff, #f2f6ee)", "tile": "#ffffff", "tile-text": "#0e1116", "tile-shade": "none",
     "tile-icon": "var(--accent-light)", "tile-min": "240px", "tile-height": "200px", "tile-lift": "translateY(-2px)",
     "meadow": "radial-gradient(70% 100% at 22% 100%, #b7d79a 0%, transparent 75%)", "toast": "#1b1b21"},

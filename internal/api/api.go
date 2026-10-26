@@ -22,6 +22,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/registry"
 	"deck2/internal/store"
+	"deck2/internal/theme"
 )
 
 type Server struct {
@@ -47,6 +48,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/files", s.upload)
 	api.HandleFunc("GET /api/files/{id}", s.download)
 	api.HandleFunc("GET /api/files/data/{project}/{path...}", s.downloadData)
+	api.HandleFunc("GET /api/files/theme/{name}/{file}", s.themePicture)
 	mux.Handle("/api/", s.auth(api))
 	return mux
 }
@@ -249,4 +251,16 @@ func send(w http.ResponseWriter, v any) {
 
 func fail(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+// themePicture is a picture deck ships with a theme, such as the clouds of juce.
+func (s *Server) themePicture(w http.ResponseWriter, r *http.Request) {
+	b := theme.Shipped(r.PathValue("name"), r.PathValue("file"))
+	if b == nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/webp")
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	_, _ = w.Write(b)
 }

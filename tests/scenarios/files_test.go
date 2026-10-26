@@ -446,6 +446,7 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 	if got.CoverDark != got.Cover || !strings.HasPrefix(got.CoverColor, "#1") {
 		t.Fatalf("the cover of the theme in use goes first, in its scheme and in the other: %+v", got)
 	}
+	e.example("pixel")
 	e.must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
 	if got = menu(); !strings.HasPrefix(got.CoverColor, "#d") {
 		t.Fatalf("another theme shows the cover for every theme: %+v", got)
@@ -530,6 +531,7 @@ func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
 	first := themeLook{}
 	e.must("deck.theme", map[string]any{}, &first)
 	red, _ := set("red.png", color.RGBA{220, 30, 30, 255}, map[string]any{})
+	e.example("pixel")
 	e.must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
 	green, greenFile := set("green.png", color.RGBA{30, 220, 30, 255}, map[string]any{})
 	if got, want := covers(), fmt.Sprintf("=%d %s=%d", green, first.Name, red); got != want {
@@ -607,6 +609,7 @@ func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
 		t.Fatalf("the master is told what to draw: %+v", said)
 	}
 
+	e.example("pixel")
 	e.must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	e.must("deck.covers_draw", map[string]any{"model": "openrouter/painter"}, &out)

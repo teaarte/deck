@@ -33,3 +33,15 @@ SELECT * FROM picture WHERE thumb_id IS NULL ORDER BY id LIMIT 20;
 
 -- name: SetPictureThumb :exec
 UPDATE picture SET thumb_id = sqlc.arg(thumb_id), color = sqlc.arg(color) WHERE id = sqlc.arg(id) AND file_id = sqlc.arg(file_id);
+
+
+-- name: ListThemePictures :many
+-- The pictures of a theme the master's project keeps for a workspace: its cockpit, backdrop and pattern.
+SELECT pc.* FROM picture pc JOIN project p ON p.id = pc.project_id
+WHERE p.workspace_id = sqlc.arg(workspace_id) AND p.builtin = 1 AND pc.theme = sqlc.arg(theme)
+    AND pc.slot IN ('cockpit', 'backdrop', 'pattern') ORDER BY pc.id;
+
+
+-- name: DeleteThemePictures :exec
+DELETE FROM picture WHERE theme = sqlc.arg(theme) AND slot IN ('cockpit', 'backdrop', 'pattern')
+    AND project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id) AND builtin = 1);

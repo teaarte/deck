@@ -13,7 +13,7 @@ export function CardDeki({ size }: { size: number }) {
   const { t } = useTranslation();
   const { pulse } = useMenuData();
   const { motion } = useLook();
-  const sky = useWorn().backdrop === 'sky';
+  const sky = !!useWorn().images?.backdrop;
   const ref = useRef<HTMLButtonElement>(null);
   const mascot = useMascot();
   const name = useMasterName();

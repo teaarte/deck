@@ -31,6 +31,21 @@ func (q *Queries) DeletePicture(ctx context.Context, arg DeletePictureParams) er
 	return err
 }
 
+const deleteThemePictures = `-- name: DeleteThemePictures :exec
+DELETE FROM picture WHERE theme = ?1 AND slot IN ('cockpit', 'backdrop', 'pattern')
+    AND project_id IN (SELECT id FROM project WHERE workspace_id = ?2 AND builtin = 1)
+`
+
+type DeleteThemePicturesParams struct {
+	Theme       string
+	WorkspaceID int64
+}
+
+func (q *Queries) DeleteThemePictures(ctx context.Context, arg DeleteThemePicturesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteThemePictures, arg.Theme, arg.WorkspaceID)
+	return err
+}
+
 const getPicture = `-- name: GetPicture :one
 SELECT id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at, drawn_in FROM picture WHERE project_id = ? AND slot = ? AND theme = ? AND scheme = ?
 `
@@ -114,6 +129,52 @@ SELECT id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at
 
 func (q *Queries) ListPicturesWithoutThumb(ctx context.Context) ([]Picture, error) {
 	rows, err := q.db.QueryContext(ctx, listPicturesWithoutThumb)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Picture
+	for rows.Next() {
+		var i Picture
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Slot,
+			&i.Theme,
+			&i.Scheme,
+			&i.FileID,
+			&i.ThumbID,
+			&i.Color,
+			&i.CreatedAt,
+			&i.DrawnIn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listThemePictures = `-- name: ListThemePictures :many
+SELECT pc.id, pc.project_id, pc.slot, pc.theme, pc.scheme, pc.file_id, pc.thumb_id, pc.color, pc.created_at, pc.drawn_in FROM picture pc JOIN project p ON p.id = pc.project_id
+WHERE p.workspace_id = ?1 AND p.builtin = 1 AND pc.theme = ?2
+    AND pc.slot IN ('cockpit', 'backdrop', 'pattern') ORDER BY pc.id
+`
+
+type ListThemePicturesParams struct {
+	WorkspaceID int64
+	Theme       string
+}
+
+// The pictures of a theme the master's project keeps for a workspace: its cockpit, backdrop and pattern.
+func (q *Queries) ListThemePictures(ctx context.Context, arg ListThemePicturesParams) ([]Picture, error) {
+	rows, err := q.db.QueryContext(ctx, listThemePictures, arg.WorkspaceID, arg.Theme)
 	if err != nil {
 		return nil, err
 	}

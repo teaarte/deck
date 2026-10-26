@@ -203,6 +203,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	a.Projects.CheckManifests(a.ctx)
+	a.Themes.Settle(a.ctx)
 	a.Providers.Prune(a.ctx, 0)
 	a.Providers.KeepBigOptions(a.ctx)
 	a.Providers.Watch(a.Bus)

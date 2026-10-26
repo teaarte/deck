@@ -98,6 +98,7 @@
     "dark_only": "{{theme}} is dark only.",
     "light_only": "{{theme}} is light only.",
     "fill_covers": "Draw the missing covers for this theme",
+    "draw_pictures": "Draw the background and the scene of Today for this theme",
     "theme": "Theme",
     "preview": "Preview of the theme “{{theme}}”",
     "preview_use": "Use",

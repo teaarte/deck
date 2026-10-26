@@ -27,9 +27,9 @@ export function preload(menu: Menu) {
   }
 }
 
-// FILE is the address of a file of deck, a stored one or one of a data folder: a cover is read with the token from
-// nowhere else.
-const FILE = /^\/api\/files\/(\d+|data\/[^?#]+(\?thumb=1)?)$/;
+// FILE is the address of a file of deck, a stored one, one of a data folder or a picture deck ships with a theme: a
+// cover is read with the token from nowhere else.
+const FILE = /^\/api\/files\/(\d+|data\/[^?#]+(\?thumb=1)?|theme\/[a-z0-9-]+\/[a-z]+-(light|dark)\.webp)$/;
 
 // useCover is the address of a cover for the page once it is read.
 export function useCover(at?: string): string | undefined {

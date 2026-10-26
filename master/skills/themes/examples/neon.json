@@ -3,9 +3,8 @@
   "title": {"en": "Neon", "ru": "Неон"},
   "mood": "A dark room at night, glowing neon tubes in the accent color and pink, synthwave, bright light lines on black, reflections, no text.",
   "schemes": ["dark"],
-  "backdrop": "pattern",
   "dark": {"canvas": "color-mix(in srgb, var(--accent) 10%, #05050a)", "body": "rgb(14 14 22)", "island": "rgb(14 14 22)", "block": "rgb(16 16 26)",
     "text": "#ecebff", "dimmed": "rgb(236 235 255 / 0.62)", "ring": "0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent)",
-    "shadow": "0 0 28px -6px color-mix(in srgb, var(--accent) 55%, transparent)", "pattern": "color-mix(in srgb, var(--accent-4) 45%, transparent)"},
+    "shadow": "0 0 28px -6px color-mix(in srgb, var(--accent) 55%, transparent)"},
   "css": ".h2 { background: linear-gradient(90deg, var(--accent-3), var(--color-pink-4)); -webkit-background-clip: text; background-clip: text; color: transparent; }\n.button[data-variant=filled], .nav-item[data-active] { box-shadow: 0 0 18px -2px var(--accent); }\n"
 }

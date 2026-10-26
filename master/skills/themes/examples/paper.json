@@ -3,8 +3,7 @@
   "title": {"en": "Paper", "ru": "Бумага"},
   "mood": "A warm sheet of paper with an ink and watercolor sketch, muted sepia and one soft accent, hand drawn lines, calm and handmade, no text.",
   "font": {"text": "ui-serif, \"New York\", Charter, Georgia, serif", "headings": "ui-serif, \"New York\", Charter, Georgia, serif"},
-  "backdrop": "pattern",
   "tokens": {"block": "var(--island)", "shadow": "0 1px 0 rgb(120 96 60 / 0.12)"},
-  "light": {"canvas": "#f3ede2", "dimmed": "#665c4e", "island": "#fbf8f2", "ring": "0 0 0 1px rgb(120 96 60 / 0.22)", "pattern": "rgb(120 96 60 / 0.16)"},
-  "dark": {"canvas": "#1d1a16", "island": "#26221c", "ring": "0 0 0 1px rgb(240 220 190 / 0.14)", "pattern": "rgb(240 220 190 / 0.1)"}
+  "light": {"canvas": "#f3ede2", "dimmed": "#665c4e", "island": "#fbf8f2", "ring": "0 0 0 1px rgb(120 96 60 / 0.22)"},
+  "dark": {"canvas": "#1d1a16", "island": "#26221c", "ring": "0 0 0 1px rgb(240 220 190 / 0.14)"}
 }

@@ -2,6 +2,7 @@
 package themes
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/docs"
+	"deck2/internal/files"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -82,7 +84,41 @@ func (s *Service) look(ctx context.Context, ws int64, name, lang string) (theme.
 	if err != nil {
 		return theme.Look{}, err
 	}
-	return t.Wear(name, lang), nil
+	l := t.Wear(name, lang)
+	l.Images = s.images(ctx, ws, name)
+	return l, nil
+}
+
+// images are the pictures of a theme by slot: the owner's, which the master's project keeps, else those deck ships.
+func (s *Service) images(ctx context.Context, ws int64, name string) map[string]any {
+	out := map[string]any{}
+	pics, err := s.St.Q.ListThemePictures(ctx, db.ListThemePicturesParams{WorkspaceID: ws, Theme: name})
+	if err != nil {
+		return out
+	}
+	for _, slot := range theme.Slots {
+		if c := files.ThemeImage(pics, slot, name); c != nil {
+			out[slot] = c
+			continue
+		}
+		c := files.Cover{Theme: name}
+		for _, scheme := range []string{"light", "dark"} {
+			file := slot + "-" + scheme + ".webp"
+			if theme.Shipped(name, file) == nil {
+				continue
+			}
+			if at := "/api/files/theme/" + name + "/" + file; scheme == "light" {
+				c.Light = at
+			} else {
+				c.Dark = at
+			}
+		}
+		if c.Light != "" || c.Dark != "" {
+			c.Light = cmp.Or(c.Light, c.Dark)
+			out[slot] = &c
+		}
+	}
+	return out
 }
 
 type themeIn struct {
@@ -198,6 +234,9 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in checkIn) (an
 		}
 	}
 	out := checkOut{Problems: check(in.Name, raw)}
+	if in.Name != "" {
+		out.Problems = append(out.Problems, s.overPictures(ctx, act.Workspace, in.Name, raw)...)
+	}
 	out.OK = len(out.Problems) == 0
 	if in.Text == "" {
 		out.Preview = preview(in.Name)
@@ -263,8 +302,10 @@ func (s *Service) remove(ctx context.Context, act registry.Actor, in nameIn) (an
 		case d.Kind != docs.KindTheme:
 			return registry.Invalid("deck: %s is no theme", d.Name)
 		}
-		_, err = q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: d.ID})
-		return err
+		if _, err = q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: d.ID}); err != nil {
+			return err
+		}
+		return q.DeleteThemePictures(ctx, db.DeleteThemePicturesParams{WorkspaceID: act.Workspace, Theme: in.Name})
 	})
 	if err != nil {
 		return nil, err
@@ -303,8 +344,8 @@ func (s *Service) Commands() []*registry.Command {
 			"Lists the themes of deck: the shipped ones and the owner's, which one is in use and what a check refuses in each.",
 			registry.Everyone, s.list).On("documents", "settings"),
 		registry.Read("theme", "Theme",
-			"Returns a theme as the client applies it: its CSS, fonts, radius, density, backdrop and mood; the one in use without a name.",
-			registry.Everyone, s.theme).On("documents", "settings"),
+			"Returns a theme as the client applies it: its CSS, fonts, radius, density, mood and pictures; the one in use without a name.",
+			registry.Everyone, s.theme).On("documents", "settings", "files"),
 		registry.Def("theme_format", "Theme format",
 			"Returns the JSON Schema of a theme with the catalog of its tokens, variables and classes.",
 			registry.Everyone, func(context.Context, registry.Actor, struct{}) (any, error) { return Format(), nil }),
@@ -320,6 +361,9 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("covers_draw", "Draw covers",
 			"Asks the master to draw the covers of a module's card in the mood of the theme in use, for its schemes; without a module, of every module that has none in this theme.",
 			registry.OwnerOnly, s.draw),
+		registry.Def("theme_draw", "Draw theme pictures",
+			"Asks the master to draw the pictures of the theme in use in its mood, for its schemes: the scene of the card of Today and the backdrop or the pattern behind the page.",
+			registry.OwnerOnly, s.drawPictures),
 		registry.Read("project_covers", "Covers",
 			"Lists the covers of a module's card: the theme each is for, empty for every theme, its scheme and picture, and which ones the card shows in the theme in use.",
 			registry.Everyone, s.covers).On("files", "documents", "settings"),
@@ -327,4 +371,18 @@ func (s *Service) Commands() []*registry.Command {
 			"Puts a theme on the whole deck.",
 			registry.OwnerOnly, s.use),
 	}
+}
+
+// overPictures are the problems of the text of the cockpit over its picture, by its main color under the shade.
+func (s *Service) overPictures(ctx context.Context, ws int64, name string, raw []byte) []string {
+	pics, err := s.St.Q.ListThemePictures(ctx, db.ListThemePicturesParams{WorkspaceID: ws, Theme: name})
+	if err != nil {
+		return nil
+	}
+	c := files.ThemeImage(pics, "cockpit", name)
+	t, err := theme.Parse(raw)
+	if c == nil || err != nil {
+		return nil
+	}
+	return t.ContrastOver("cockpit", map[string]string{"light": c.Color, "dark": cmp.Or(c.DarkColor, c.Color)})
 }

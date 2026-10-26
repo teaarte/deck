@@ -82,20 +82,23 @@ function Theme() {
       notifyError(e, t('look.theme'));
     }
   };
-  const fill = async () => {
+  // ask gives the master a task of drawing in the theme and opens its topic.
+  const ask = async (command: string, label: string) => {
     try {
-      const out = await call<{ topic?: number }>('deck.covers_draw', {});
+      const out = await call<{ topic?: number }>(command, {});
       if (out.topic) openTopic(out.topic);
     } catch (e) {
-      notifyError(e, t('look.fill_covers'));
+      notifyError(e, label);
     }
   };
   return (
     <Stack gap={4}>
       <Choice label={t('look.theme')} name="theme" value={current} options={rows.map((r) => r.name)}
         labels={Object.fromEntries(rows.map((r) => [r.name, r.title]))} onChange={(v) => void pick(v)} />
-      <Button variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void fill()} data-fill-covers
-        style={{ alignSelf: 'flex-start' }}>{t('look.fill_covers')}</Button>
+      <Button variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void ask('deck.covers_draw', t('look.fill_covers'))}
+        data-fill-covers style={{ alignSelf: 'flex-start' }}>{t('look.fill_covers')}</Button>
+      <Button variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void ask('deck.theme_draw', t('look.draw_pictures'))}
+        data-draw-pictures style={{ alignSelf: 'flex-start' }}>{t('look.draw_pictures')}</Button>
     </Stack>
   );
 }

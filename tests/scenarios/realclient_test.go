@@ -108,7 +108,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 	b.eval(press("Answer"))
 	b.until("the expired one last", `document.querySelector('[data-of]')?.innerText === '1 of 1' && `+card+`.innerText.includes('Deny')`)
 	b.eval(press("Deny"))
-	b.until("all decided, Deki at rest", `document.querySelector('[data-focus-done] [data-deki="chill"]')`)
+	b.until("all decided, Deki glad", `document.querySelector('[data-focus-done] [data-deki="done"]')`)
 	e.waitState(asking, "done")
 	e.waitFor("every answer sent", func() bool { return len(e.cockpitItems()) == 0 })
 

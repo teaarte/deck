@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLook } from '../../theme/look';
 import s from './deki.module.css';
@@ -7,16 +7,11 @@ import s from './deki.module.css';
 export type Pose = 'chill' | 'think' | 'work' | 'wait' | 'point' | 'worry' | 'done' | 'listen' | 'read' | 'draw' | 'search'
   | 'sleepy' | 'hello';
 
-// DRAWN are the poses with a picture in /deki; one not drawn yet shows the nearest that is.
-const DRAWN: Pose[] = ['chill', 'think', 'work', 'wait', 'sleepy'];
-const NEAR: Partial<Record<Pose, Pose>> = { point: 'wait', worry: 'think', done: 'chill', listen: 'think', read: 'think', draw: 'work',
-  search: 'work', hello: 'wait' };
-
-// picture is the picture a pose shows.
-export const picture = (p: Pose): Pose => (DRAWN.includes(p) ? p : NEAR[p] ?? 'chill');
+// POSES are the poses with a picture in /deki.
+const POSES: Pose[] = ['chill', 'think', 'work', 'wait', 'point', 'worry', 'done', 'listen', 'read', 'draw', 'search', 'sleepy', 'hello'];
 
 // The pictures load once, so a change of pose does not blink.
-for (const p of DRAWN) new Image().src = `/deki/${p}.webp`;
+for (const p of POSES) new Image().src = `/deki/${p}.webp`;
 
 // PULSE are the poses of the states of the pulse of deck; a calm one rests, or sleeps at night.
 const PULSE: Record<string, Pose> = { asks: 'point', errors: 'worry', talking: 'think', running: 'work' };
@@ -70,10 +65,10 @@ function Picture({ pose, size, still, leaving, wake = 0 }: { pose: Pose; size: n
     void el.offsetWidth;
     el.style.animation = '';
   }, [wake, pose]);
-  const src = `/deki/${picture(pose)}.webp`;
+  const src = `/deki/${pose}.webp`;
   return (
-    <span ref={ref} className={s.pose} style={{ '--deki-src': `url(${src})` } as CSSProperties} data-still={still || undefined}
-      data-leaving={leaving || undefined} data-pose={pose} data-deki={leaving ? undefined : picture(pose)}>
+    <span ref={ref} className={s.pose} data-still={still || undefined}
+      data-leaving={leaving || undefined} data-pose={pose} data-deki={leaving ? undefined : pose}>
       <img src={src} alt="" height={size} style={{ height: size }} />
     </span>
   );
@@ -92,7 +87,7 @@ export function Deki({ pose, size, still, wake = 0 }: { pose: Pose; size: number
     const before = last.current;
     last.current = pose;
     clearTimeout(timer.current);
-    if (picture(before) === picture(pose) || stillAll(motion)) {
+    if (before === pose || stillAll(motion)) {
       setWas(undefined);
       return;
     }
@@ -104,7 +99,7 @@ export function Deki({ pose, size, still, wake = 0 }: { pose: Pose; size: number
   return (
     <span className={s.deki}>
       {was && <Picture pose={was} size={size} still leaving />}
-      <Picture key={picture(pose)} pose={pose} size={size} still={still} wake={wake} />
+      <Picture key={pose} pose={pose} size={size} still={still} wake={wake} />
     </span>
   );
 }
@@ -114,7 +109,7 @@ export function DekiHead({ size, square }: { size: number; square?: boolean }) {
   if (!useMascot()) return null;
   return (
     <span className={s.head} style={{ width: size, height: size, borderRadius: `min(${square ? Math.round(size / 3) + 'px' : '50%'}, calc(var(--mantine-radius-default) * 100))` }} data-deki="head">
-      <img src="/deki/head.webp" alt="" />
+      <img src="/deki/avatar.webp" alt="" />
     </span>
   );
 }

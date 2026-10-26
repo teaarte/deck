@@ -1,6 +1,0 @@
-chill.webp
-head.webp
-sleepy.webp
-think.webp
-wait.webp
-work.webp

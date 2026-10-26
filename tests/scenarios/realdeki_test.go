@@ -28,7 +28,7 @@ func TestRealBrowserDekiAndMotion(t *testing.T) {
 	b.until("Deki at rest after the greeting", `['chill', 'sleepy'].includes(`+deki+`?.dataset.pose)`)
 
 	e.scriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
-	b.until("Deki pointing at the decision, in the picture nearest until its own is drawn", deki+`?.dataset.pose === 'point' && `+deki+`.dataset.deki === 'wait'`)
+	b.until("Deki pointing at the decision", deki+`?.dataset.pose === 'point' && `+deki+`.dataset.deki === 'point'`)
 	b.shot("deki-point")
 	b.until("the motion of the pose playing", deki+`.getAnimations().some((a) => a.playState === 'running')`)
 	b.until("the motion of the pose played a few times and rests", deki+`.getAnimations().length === 0`)

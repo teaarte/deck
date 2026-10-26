@@ -1,17 +1,46 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLook } from '../../theme/look';
 import s from './deki.module.css';
 
-// Mood is the pose of Deki: wait while something waits for the owner, work at the phone while anything runs, dots
-// while a turn of the chat goes, think over failing checks, chill when all is calm, sleepy when calm without the sky.
-export type Mood = 'dots' | 'think' | 'wait' | 'work' | 'chill' | 'sleepy';
+// Pose is what Deki does, one for each state of deck it shows.
+export type Pose = 'chill' | 'think' | 'work' | 'wait' | 'point' | 'worry' | 'done' | 'listen' | 'read' | 'draw' | 'search'
+  | 'sleepy' | 'hello';
 
-// MOODS are the poses of Deki for each state of the pulse; a calm one rests under the sky.
-const MOODS: Record<string, Mood> = { asks: 'wait', running: 'work', errors: 'think', talking: 'dots' };
+// DRAWN are the poses with a picture in /deki; one not drawn yet shows the nearest that is.
+const DRAWN: Pose[] = ['chill', 'think', 'work', 'wait', 'sleepy'];
+const NEAR: Partial<Record<Pose, Pose>> = { point: 'wait', worry: 'think', done: 'chill', listen: 'think', read: 'think', draw: 'work',
+  search: 'work', hello: 'wait' };
 
-// moodOf is the pose of Deki for a state of the pulse.
-export const moodOf = (state: string, sky: boolean): Mood => MOODS[state] ?? (sky ? 'chill' : 'sleepy');
+// picture is the picture a pose shows.
+export const picture = (p: Pose): Pose => (DRAWN.includes(p) ? p : NEAR[p] ?? 'chill');
+
+// The pictures load once, so a change of pose does not blink.
+for (const p of DRAWN) new Image().src = `/deki/${p}.webp`;
+
+// PULSE are the poses of the states of the pulse of deck; a calm one rests, or sleeps at night.
+const PULSE: Record<string, Pose> = { asks: 'point', errors: 'worry', talking: 'think', running: 'work' };
+
+// night is the hours Deki sleeps when nothing goes, by the clock of the device.
+const night = (d = new Date()) => d.getHours() >= 23 || d.getHours() < 7;
+
+// poseOf is the pose of Deki for a state of the pulse.
+export const poseOf = (state: string): Pose => PULSE[state] ?? (night() ? 'sleepy' : 'chill');
+
+// TOOLS are the poses of the calls of a turn of the chat, by a part of the name of the tool.
+const TOOLS: [RegExp, Pose][] = [
+  [/web_?search|web_?fetch|browser|search/i, 'search'],
+  [/draw|cover|theme_image|image|model_call/i, 'draw'],
+  [/_get|_list|_log|read|grep|glob|screen_shot/i, 'read'],
+];
+
+// turnPose is the pose of a turn of the chat: thinking before its first call, then by the call it makes, waiting
+// while the owner owes it an answer.
+export function turnPose(waiting: boolean, tool?: string): Pose {
+  if (waiting) return 'wait';
+  if (!tool) return 'think';
+  return TOOLS.find(([re]) => re.test(tool))?.[1] ?? 'work';
+}
 
 // useMascot says whether this device shows Deki.
 export const useMascot = () => useLook().mascot;
@@ -22,12 +51,38 @@ export function useMasterName() {
   return useMascot() ? t('chat.deki') : t('chat.master');
 }
 
-// Deki is the mascot in a pose, size pixels high, moving the way the pose moves; still keeps it in place.
-export function Deki({ mood, size, still }: { mood: Mood; size: number; still?: boolean }) {
-  if (!useMascot()) return null;
+// Picture is one pose drawn, moving the way it moves unless still; one leaving fades out under the next.
+function Picture({ pose, size, still, leaving }: { pose: Pose; size: number; still?: boolean; leaving?: boolean }) {
+  const src = `/deki/${picture(pose)}.webp`;
   return (
-    <span key={mood} className={s.pose} style={{ '--deki-src': `url(/deki/${mood}.webp)` } as CSSProperties} data-still={still || undefined} data-deki={mood}>
-      <img src={`/deki/${mood}.webp`} alt="" height={size} style={{ height: size }} />
+    <span className={s.pose} style={{ '--deki-src': `url(${src})` } as CSSProperties} data-still={still || undefined}
+      data-leaving={leaving || undefined} data-pose={pose} data-deki={leaving ? undefined : picture(pose)}>
+      <img src={src} alt="" height={size} style={{ height: size }} />
+    </span>
+  );
+}
+
+// Deki is the mascot in a pose, size pixels high. A new pose comes in over the one before as it fades; its motion
+// plays a few times and rests, again at each wake.
+export function Deki({ pose, size, still, wake = 0 }: { pose: Pose; size: number; still?: boolean; wake?: number }) {
+  const mascot = useMascot();
+  const { motion } = useLook();
+  const last = useRef(pose);
+  const [was, setWas] = useState<Pose>();
+  useEffect(() => {
+    if (last.current === pose) return;
+    const before = last.current;
+    last.current = pose;
+    if (picture(before) === picture(pose) || !motion) return;
+    setWas(before);
+    const t = setTimeout(() => setWas(undefined), 400);
+    return () => clearTimeout(t);
+  }, [pose, motion]);
+  if (!mascot) return null;
+  return (
+    <span className={s.deki}>
+      {was && <Picture pose={was} size={size} still leaving />}
+      <Picture key={picture(pose) + wake} pose={pose} size={size} still={still} />
     </span>
   );
 }

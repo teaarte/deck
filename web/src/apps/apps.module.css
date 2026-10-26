@@ -204,6 +204,26 @@
   overflow: hidden;
 }
 
+/* The view of a new size comes in softly as the card settles to it. */
+@media (prefers-reduced-motion: no-preference) {
+  .widget [data-screen-view] > * {
+    animation: settle 220ms ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(.react-grid-layout),
+  :global(.react-grid-item) {
+    transition: none;
+  }
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+  }
+}
+
 .widget :is(button, a, input, [role='button']) {
   pointer-events: auto;
 }

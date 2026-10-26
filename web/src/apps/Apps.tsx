@@ -7,7 +7,7 @@ import { IconCheck, IconSparkles, IconSun } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { of } from '../app/Backdrop';
 import { NavStatus } from '../app/NavStatus';
-import { dropParam, href, useRoute } from '../app/router';
+import { dropParam, href, useMoving, useRoute } from '../app/router';
 import { openTopic } from '../chat/chatStore';
 import { useLiveRead } from '../hooks/useLiveRead';
 import { useMenuData, type MenuEntry } from '../hooks/useMenu';
@@ -37,7 +37,8 @@ function Tile({ to, title, cover, color, seed, big, plain, art, extra, children,
 }) {
   const src = useCover(cover);
   const [shown, setShown] = useState(false);
-  const style = { '--hue': hue(seed), ...(cover && color ? { '--cover-color': color } : {}) } as CSSProperties;
+  const grows = useMoving() === seed;
+  const style = { '--hue': hue(seed), ...(cover && color ? { '--cover-color': color } : {}), ...(grows ? { viewTransitionName: 'module' } : {}) } as CSSProperties;
   return (
     <div className={s.card} data-card data-app-tile data-big={big || undefined} data-plain={plain || undefined} data-cover={cover && !plain ? true : undefined}
       style={style} {...data}>

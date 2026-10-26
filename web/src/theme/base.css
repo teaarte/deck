@@ -57,6 +57,19 @@ body {
   }
 }
 
+/* A card of the tiles grows into the screen of its module and back; the rest of the page fades across. */
+::view-transition-group(*) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+::view-transition-old(module),
+::view-transition-new(module) {
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
 :root[data-deck-motion='off'] *,
 :root[data-deck-motion='off'] *::before,
 :root[data-deck-motion='off'] *::after {

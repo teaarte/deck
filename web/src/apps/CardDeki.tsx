@@ -1,19 +1,41 @@
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { setChatOpen } from '../chat/chatStore';
 import { useMenuData } from '../hooks/useMenu';
 import { useLook } from '../theme/look';
-import { useWorn } from '../theme/worn';
-import { Deki, moodOf, useMascot, useMasterName } from '../ui/deki/Deki';
+import { Deki, poseOf, useMascot, useMasterName, type Pose } from '../ui/deki/Deki';
 import s from './apps.module.css';
 
-// CardDeki is Deki on the cockpit's card in the pose of the pulse, turning to the pointer over the card; a press
-// opens the chat with the master.
+// MOMENT is how long Deki greets on the first open of a device, or is glad when the work ran out.
+const MOMENT = 5000;
+
+// usePose is the pose of the pulse, but for a moment: hello on the first open of the device, done when what ran
+// ended with nothing left to decide or fix.
+function usePose(state: string): Pose {
+  const [moment, setMoment] = useState<Pose | undefined>(() => (localStorage.getItem('deck-deki-hello') ? undefined : 'hello'));
+  const was = useRef(state);
+  useEffect(() => {
+    localStorage.setItem('deck-deki-hello', '1');
+    const busy = was.current === 'running' || was.current === 'talking';
+    was.current = state;
+    if (busy && state === 'calm') setMoment('done');
+  }, [state]);
+  useEffect(() => {
+    if (!moment) return;
+    const t = setTimeout(() => setMoment(undefined), MOMENT);
+    return () => clearTimeout(t);
+  }, [moment]);
+  return moment ?? poseOf(state);
+}
+
+// CardDeki is Deki on the cockpit's card in the pose of the pulse, turning to the pointer over the card and waking
+// as it comes; a press opens the chat with the master.
 export function CardDeki({ size }: { size: number }) {
   const { t } = useTranslation();
   const { pulse } = useMenuData();
   const { motion } = useLook();
-  const sky = !!useWorn().images?.backdrop;
+  const pose = usePose(pulse.state);
+  const [wake, setWake] = useState(0);
   const ref = useRef<HTMLButtonElement>(null);
   const mascot = useMascot();
   const name = useMasterName();
@@ -37,14 +59,21 @@ export function CardDeki({ size }: { size: number }) {
       cancelAnimationFrame(frame);
       ['--look-x', '--look-y', '--look-r'].forEach((k) => el.style.removeProperty(k));
     };
+    const come = () => setWake((n) => n + 1);
     card.addEventListener('pointermove', move);
     card.addEventListener('pointerleave', leave);
-    return () => { leave(); card.removeEventListener('pointermove', move); card.removeEventListener('pointerleave', leave); };
+    card.addEventListener('pointerenter', come);
+    return () => {
+      leave();
+      card.removeEventListener('pointermove', move);
+      card.removeEventListener('pointerleave', leave);
+      card.removeEventListener('pointerenter', come);
+    };
   }, [motion, mascot]);
   if (!mascot) return null;
   return (
     <button ref={ref} type="button" className={s.deki} onClick={() => setChatOpen(true)} aria-label={t('chat.talk', { name })} data-card-deki={pulse.state}>
-      <Deki mood={moodOf(pulse.state, sky)} size={size} still={!motion} />
+      <Deki pose={pose} size={size} still={!motion} wake={wake} />
     </button>
   );
 }

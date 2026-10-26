@@ -127,7 +127,7 @@ function Done({ text }: { text?: string }) {
   const mascot = useMascot();
   return (
     <Stack align="center" gap="xs" className={s.done} data-focus-done>
-      {mascot && <Deki mood="chill" size={150} still />}
+      {mascot && <Deki pose="done" size={150} />}
       <Text fz={20} fw={700} ta="center">{text || t('state.empty')}</Text>
     </Stack>
   );

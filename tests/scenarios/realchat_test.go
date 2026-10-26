@@ -89,6 +89,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.until("the running turn says its work in words, with a timer and stop", `(() => { const t = document.querySelector('[data-turn="running"]'); return t && t.querySelector('[data-turn-now]')?.innerText === 'Weighing the shops' &&
 		/^\d+:\d\d$/.test(t.querySelector('[data-turn-timer]')?.innerText ?? '') && t.querySelector('[data-verb="stop"]') && t.querySelectorAll('[data-turn-step]').length === 2 && !t.querySelector('[data-turn-log]') })()`)
 	b.until("the head of the panel says it works", `document.querySelector('[data-chat-panel] [data-chat-live]')`)
+	b.until("Deki in the turn in the pose of what it does: reading or thinking", `['read', 'think'].includes(document.querySelector('[data-turn="running"] [data-turn-head] [data-pose]')?.dataset.pose)`)
 	b.shot("chat-turn")
 	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
 	b.until("the raw calls under Log", `document.querySelector('[data-turn-log] [data-turn-line]')?.innerText.includes('records_list') && document.querySelector('[data-turn-log] [data-verb="open"]')`)

@@ -7,7 +7,7 @@ import type { ChatData } from './chatData';
 import { useClock } from '../hooks/useClock';
 import { toneColor } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
-import { DekiHead, useMascot } from '../ui/deki/Deki';
+import { Deki, DekiHead, turnPose, useMascot } from '../ui/deki/Deki';
 import { Glyph } from '../ui/Glyph';
 import { usePress } from '../ui/actions/usePress';
 import s from './chat.module.css';
@@ -26,6 +26,13 @@ export function logLines(lines: TurnValue['lines'], shown = SHOWN): { key: strin
     const status = l.id ? ended.get(l.id) : undefined;
     return { key: String(i), text: `${status === 'failed' ? '✗' : status ? '✓' : '›'} ${l.title ?? ''}`, failed: status === 'failed' };
   }).filter((l) => l.text.trim()).slice(-shown);
+}
+
+// calling is the call of the log still going, which says what the turn does now; none while it thinks.
+function calling(lines: TurnValue['lines']): string | undefined {
+  const ended = new Set(lines.filter((l) => l.kind === 'tool_update' && l.id && l.status).map((l) => l.id));
+  const last = [...lines].reverse().find((l) => l.kind === 'tool');
+  return last && !(last.id && ended.has(last.id)) ? last.title : undefined;
 }
 
 // said are the first lines of what the agent said on the way, its steps in words.
@@ -74,7 +81,10 @@ export function Turn({ turn }: { turn: TurnValue }) {
   return (
     <div className={s.turn} data-turn={turn.state}>
       <div className={s.turnHead} data-turn-head data-live={running || undefined}>
-        <span className={s.turnMark}>{mascot ? <DekiHead size={24} /> : <Glyph busy={running} />}</span>
+        <span className={s.turnMark}>
+          {!mascot ? <Glyph busy={running} /> : running || turn.waits ? <Deki pose={turnPose(!!turn.waits, calling(turn.lines))} size={30} />
+            : <DekiHead size={24} />}
+        </span>
         <Text size="sm" fw={600} truncate style={{ flex: 1 }} c={running ? undefined : toneColor(turn.tone)} data-turn-now>{head}</Text>
         {running && !Number.isNaN(started) && <Text size="xs" c="dimmed" data-turn-timer>{clock(Math.max(0, (now - started) / 1000))}</Text>}
         {turn.stop && <Stop act={turn.stop} />}

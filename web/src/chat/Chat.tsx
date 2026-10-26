@@ -24,6 +24,7 @@ import { useInputHistory } from './useInputHistory';
 import { useChatSend } from './useChatSend';
 import { useStickToBottom } from './useStickToBottom';
 import { useTopics } from './useTopics';
+import { useVoiceState } from './voiceStore';
 
 type Decision = ChatData['asks'][number];
 
@@ -34,9 +35,10 @@ function Empty({ suggest, put }: { suggest: ChatData['suggest']; put: (text: str
   const { t } = useTranslation();
   const mascot = useMascot();
   const name = useMasterName();
+  const voice = useVoiceState();
   return (
     <Stack align="center" gap="sm" className={s.empty} data-chat-empty>
-      {mascot && <Deki mood="chill" size={190} still />}
+      {mascot && <Deki pose={voice.seconds > 0 ? 'listen' : 'chill'} size={190} still={voice.seconds === 0} />}
       <Text fz={19} fw={700} ta="center">{t('chat.what')}</Text>
       <Text size="sm" c="dimmed" ta="center">{t('chat.what_text', { name })}</Text>
       {suggest.length > 0 && (

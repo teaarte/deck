@@ -21,7 +21,7 @@ import { PhoneTabs } from './PhoneTabs';
 import { TodayDate, TodayLine } from './TodayLead';
 import { Places } from './Places';
 import { BackButton, Toolbar } from './Toolbar';
-import { dropParam, onMove, useRoute } from './router';
+import { dropParam, onMove, useMoving, useRoute } from './router';
 import { titleCount, titlePlace } from './title';
 import { useChatLayout } from './useChatLayout';
 
@@ -40,6 +40,7 @@ export function Shell() {
   useEffect(() => titleCount(menu.pulse.notes ?? 0), [menu.pulse.notes]);
   useEffect(() => { if (menu.language) setLanguage(menu.language); }, [menu.language]);
   useEffect(() => preload(menu), [menu]);
+  const moving = useMoving();
   const layout = useChatLayout();
   const { chat, setChat, full } = layout;
   const phone = usePhone();
@@ -84,7 +85,9 @@ export function Shell() {
           {!apps && <Places slot={setSlot} />}
           {apps ? <Apps /> : (
             <ScreenLead.Provider value={lead}>
-              <ScreenView route={route} />
+              <div style={route.project && route.project === moving ? { viewTransitionName: 'module' } : undefined} data-module-view>
+                <ScreenView route={route} />
+              </div>
             </ScreenLead.Provider>
           )}
         </main>

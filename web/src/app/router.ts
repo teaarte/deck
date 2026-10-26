@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom';
 import { createStore, useStore } from '../lib/store';
 
 // Route is a screen and its parameters: #/p/<project>/<screen>[/<record>][?name=value&…], deck's own without p/.
@@ -58,13 +59,35 @@ export const wholeKey = (r: Route) => screenKey(without(r, held.get(screenOf(r))
 // The trail holds the addresses visited in this tab, so the back button shows only where there is a way back.
 let trail: string[] = [location.hash || '#/'];
 const route = createStore(parse(location.hash));
+
+// moving is the module whose card grows into its screen, or its screen back into the card, while the move shows.
+const moving = createStore<string | undefined>(undefined);
+export const useMoving = () => useStore(moving);
+
+type Transitions = Document & { startViewTransition?: (f: () => void) => unknown };
+const tiles = (r: Route) => !r.project && r.screen === 'apps';
+
+// show draws a new address; between the tiles and a module the card and the screen pass into each other, where the
+// browser can and the owner keeps the motion.
+function show(r: Route) {
+  const was = route.get();
+  const card = tiles(was) && r.project && !r.record ? r.project : tiles(r) && was.project ? was.project : undefined;
+  const doc = document as Transitions;
+  if (!card || !doc.startViewTransition || document.documentElement.dataset.deckMotion === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    route.set(r);
+    return;
+  }
+  flushSync(() => moving.set(card));
+  doc.startViewTransition(() => flushSync(() => route.set(r)));
+}
+
 window.addEventListener('hashchange', () => {
   const now = location.hash || '#/';
   if (trail.length > 1 && trail[trail.length - 2] === now) trail = trail.slice(0, -1);
   else if (trail[trail.length - 1] !== now) trail = [...trail, now];
   const r = parse(now);
   if (!r.params?.dialog) held.delete(screenOf(r));
-  route.set(r);
+  show(r);
 });
 
 export const useRoute = () => useStore(route);

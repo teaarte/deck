@@ -723,3 +723,13 @@ func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 		}
 	}
 }
+
+// TestLookIsAPlaceOfItsOwn: Look is a screen of deck beside Settings, drawn whole by the stock renderer's rules.
+func TestLookIsAPlaceOfItsOwn(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	raw, _ := json.Marshal(e.screenMessages("", "look", nil))
+	if !strings.Contains(string(raw), `"component":"appearance"`) || !strings.Contains(string(raw), `"topics":[]`) {
+		t.Fatalf("Look holds the appearance and names its topics, none: %s", raw)
+	}
+}

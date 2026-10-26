@@ -254,6 +254,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	b.shot("settings-phone")
 
+	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	tab("Modules")
 	if names, _ := e.side(); !slices.Contains(names, "notes") {
 		t.Fatalf("the project is in the menu before the delete: %v", names)

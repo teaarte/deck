@@ -426,7 +426,7 @@ func (b *playwright) eval(js string) string {
 func (b *playwright) look(name, value string) {
 	b.t.Helper()
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const at = page.locator('[data-look="` + name + `"]');
-		if (!(await at.isVisible())) await page.locator('[role=tab]').filter({hasText: /^(Look|Оформление)$/}).click();
+		if (!(await at.isVisible())) { await page.evaluate(() => { location.hash = '#/deck/look' }); await at.waitFor(); }
 		await at.click();
 		await page.locator('[role=option][value="` + value + `"]:visible').click(); }`})
 	b.until(name+" "+value, `document.querySelector('[data-look="`+name+`"][data-value="`+value+`"]')`)

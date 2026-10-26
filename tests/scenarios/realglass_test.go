@@ -57,13 +57,20 @@ func TestRealBrowserGlass(t *testing.T) {
 	style := func(sel, prop string) string {
 		return b.eval(`getComputedStyle(document.querySelector('` + sel + `')).` + prop)
 	}
+	b.open(e.URL + "/#/deck/settings")
+	b.until("the tabs of settings", `document.querySelector('.mantine-Tabs-list')`)
 	if got := style(".mantine-Tabs-list", "backdropFilter"); got != "none" {
 		t.Fatalf("juce has no glass: %s", got)
 	}
+	b.open(e.URL + "/#/deck/look")
+	b.until("the look", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "glass")
 	b.look("scheme", "light")
 	b.until("the light glass theme", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'light'`)
 	b.until("the interface tab", `document.querySelector('[data-appearance]').offsetParent`)
+	b.shot("glass-look")
+	b.open(e.URL + "/#/deck/settings")
+	b.until("the tabs of settings", `document.querySelector('.mantine-Tabs-list')`)
 	b.shot("glass-settings")
 	if got := style(".mantine-Tabs-list", "backdropFilter"); got == "none" {
 		t.Fatalf("the tabs are glass: %s", got)
@@ -165,5 +172,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	b.open(e.URL + "/#/deck/look")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "default")
-	b.until("the default theme back", `document.documentElement.dataset.deckTheme === 'default' && getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter === 'none'`)
+	b.until("the default theme back", `document.documentElement.dataset.deckTheme === 'default'`)
+	b.open(e.URL + "/#/deck/settings")
+	b.until("the tabs without glass", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter === 'none'`)
 }

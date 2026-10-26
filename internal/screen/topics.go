@@ -125,7 +125,7 @@ func changesWhen(bs []manifest.Block, record string, deck bool, own, changed, to
 // screenTopics are the topics after which a client reads a screen again: those its blocks follow, the topic of the
 // record of its page, and for a project screen projects, which draws it whole.
 func screenTopics(bs []manifest.Block, record string, deck bool) []string {
-	var out []string
+	out := []string{}
 	add := func(ts ...string) {
 		for _, t := range ts {
 			if !slices.Contains(out, t) {

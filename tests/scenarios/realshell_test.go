@@ -173,12 +173,15 @@ func TestRealBrowserShell(t *testing.T) {
 	b.look("scheme", "dark")
 	b.until("the dark glass", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"]')`)
+	b.open(e.URL + "/#/deck/settings")
 	b.until("the glass of the theme document on the tabs", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
 	var worn struct{ Name string }
 	e.must("deck.theme", map[string]any{}, &worn)
 	if worn.Name != "glass" {
 		t.Fatalf("the theme is the whole deck's, kept on the server: %+v", worn)
 	}
+	b.open(e.URL + "/#/deck/look")
+	b.until("the switch of the mascot", `document.querySelector('[data-look="mascot"]')`)
 	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)
 	b.until("no Deki anywhere once the mascot is off", `!document.querySelector('[data-deki]')`)
 	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)

@@ -124,9 +124,9 @@ func (h *HTTP) url(p db.Project, t manifest.HTTPTool, in map[string]any, out *ou
 		return "", err
 	}
 	v = strings.TrimSpace(v)
-	out.secrets = append(out.secrets, v)
 	u, err := url.Parse(v)
-	if err != nil || u.Scheme != "https" || u.User != nil ||
+	out.secrets = append(out.secrets, linkParts(v, u)...)
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Fragment != "" ||
 		!slices.Contains(t.Hosts, strings.ToLower(u.Hostname())) {
 		return "", registry.Refuse("deck: %s: the secret %s holds no https address on the hosts of the tool, %s; the owner sets it again",
 			t.Name, name, strings.Join(t.Hosts, ", "))
@@ -139,6 +139,24 @@ func (h *HTTP) url(p db.Project, t manifest.HTTPTool, in map[string]any, out *ou
 		v += sep + put(query, in, url.QueryEscape, missing)
 	}
 	return v, nil
+}
+
+// linkParts are the forms a service may echo a private link in: whole, its path and query, the parts of its path
+// that look like tokens, and each escaped for JSON or a URL.
+func linkParts(v string, u *url.URL) []string {
+	parts := []string{v}
+	if u != nil {
+		parts = append(parts, u.Path, u.EscapedPath(), u.RawQuery)
+		for _, seg := range strings.Split(u.Path, "/") {
+			if len(seg) >= 8 && strings.ContainsAny(seg, "0123456789") {
+				parts = append(parts, seg)
+			}
+		}
+	}
+	for _, p := range slices.Clone(parts) {
+		parts = append(parts, strings.ReplaceAll(p, "/", `\/`), url.QueryEscape(p))
+	}
+	return slices.DeleteFunc(parts, func(p string) bool { return len(p) < 8 })
 }
 
 // send makes a call; an oauth2 tool refused with 401 gets its token refreshed and the call once more.
@@ -218,8 +236,15 @@ func fillURL(raw string, in map[string]any, missing *[]string) string {
 }
 
 // target is where a call of a tool with input goes, as the owner is asked about it; its URL as written when the input
-// does not fill it.
+// does not fill it, and the hosts a URL from a secret may point to.
 func target(t manifest.HTTPTool, input json.RawMessage) string {
+	if _, _, ok := manifest.SecretURL(t); ok {
+		return fillTarget(t, input) + " (" + strings.Join(t.Hosts, ", ") + ")"
+	}
+	return fillTarget(t, input)
+}
+
+func fillTarget(t manifest.HTTPTool, input json.RawMessage) string {
 	in, err := manifest.DecodeObject(input)
 	if err != nil {
 		return t.URL

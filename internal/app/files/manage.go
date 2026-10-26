@@ -10,6 +10,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // trash is the owner of a deleted file until the daily cleanup drops it; its owner id is the second it went there.
@@ -46,8 +47,7 @@ func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileIn)
 	if f.OwnerKind == trash {
 		return nil, registry.Conflict("deck: file %d is deleted already", f.ID)
 	}
-	other := act.Kind != registry.Owner
-	if other && (act.ProcessID == 0 || f.ProcessID.Int64 != act.ProcessID) {
+	if act.Kind != registry.Owner && (act.ProcessID == 0 || f.ProcessID.Int64 != act.ProcessID) {
 		return nil, registry.Refuse("deck: a process deletes only the files its own run made; file %d is not one of them", f.ID)
 	}
 	out := map[string]any{"file": f.ID, "owner_kind": f.OwnerKind, "owner_id": f.OwnerID}
@@ -56,12 +56,12 @@ func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileIn)
 		if err == nil && n == 0 {
 			err = registry.Conflict("deck: file %d changed meanwhile", f.ID)
 		}
-		if err != nil || !other {
+		if err != nil || act.Kind == registry.Owner || p.Status == store.ProjectDraft {
 			return err
 		}
 		params, _ := json.Marshal(out)
 		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
-			Author: act.Author(), Text: fmt.Sprintf("deleted file %s", f.Name), Actions: "[]", Command: registry.Builtin + ".file_restore",
+			Author: act.Author(), Text: fmt.Sprintf("deleted file %s", untrusted.Line(f.Name, 80)), Actions: "[]", Command: registry.Builtin + ".file_restore",
 			Params: string(params), ProcessID: store.ID(act.ProcessID), What: "deleted files"})
 	})
 }
@@ -77,6 +77,9 @@ func (s *Service) fileRestore(ctx context.Context, act registry.Actor, in fileRe
 	f, _, err := s.own(ctx, act, in.File)
 	if err != nil {
 		return nil, err
+	}
+	if f.OwnerKind == in.OwnerKind && f.OwnerID == in.OwnerID {
+		return map[string]any{"file": f.ID}, nil
 	}
 	if f.OwnerKind != trash {
 		return nil, registry.Conflict("deck: file %d is not deleted", f.ID)

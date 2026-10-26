@@ -173,7 +173,7 @@ func (s *Service) projectSecrets(ctx context.Context, act registry.Actor, projec
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("secret_set", "Set secret",
-			"Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.",
+			"Stores a secret for tools (a header, or the whole URL of a private link) as a file only deck reads; agents and scripts never see it.",
 			registry.OwnerOnly, s.secretSet),
 		registry.Def("secret_delete", "Delete secret",
 			"Deletes a stored secret; the tools and providers that name it fail until it is set again.",

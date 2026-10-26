@@ -53,7 +53,7 @@ func (h *HTTP) Command(p db.Project, t manifest.HTTPTool, domains []string) *reg
 	if title == "" {
 		title = t.Name
 	}
-	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
+	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "hosts": t.Hosts, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
 	print := gateway.Canonical(b)
 	return &registry.Command{Name: p.Name + "." + t.Name, Title: title, Description: t.Description, Class: t.Class,
 		Input: t.Input, Result: t.Result, Callers: registry.Everyone, ProjectID: p.ID,

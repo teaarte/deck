@@ -14,7 +14,9 @@ import (
 const AskTool = "ask"
 
 var askSchema = map[string]any{"type": "object", "required": []string{"question"}, "properties": map[string]any{
-	"question": map[string]any{"type": "string"},
+	"question":    map[string]any{"type": "string"},
+	"header":      map[string]any{"type": "string", "description": "A short name of the question, a word or two"},
+	"multiSelect": map[string]any{"type": "boolean", "description": "The options do not rule each other out: the owner may pick several"},
 	"options": map[string]any{"type": "array", "description": "2 to 4 choices, the recommended one first",
 		"items": map[string]any{"type": "object", "properties": map[string]any{"label": map[string]any{"type": "string"},
 			"description": map[string]any{"type": "string"}}}}}}

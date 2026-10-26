@@ -48,8 +48,11 @@ func (ch *Service) doing(ctx context.Context, workspace int64, title string, tr 
 		return fmt.Sprintf(tr("uses a tool of %s"), server), act
 	}
 	name := registry.CommandName(tool)
+	if name == "" {
+		return title, act
+	}
 	c, err := ch.Lookup(ctx, workspace, name)
-	if err != nil || name == "" {
+	if err != nil {
 		return title, act
 	}
 	if c.Reads && act == "work" {

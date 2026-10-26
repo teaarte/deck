@@ -16,9 +16,8 @@ var longQuestion = "The groceries module keeps two lists, and the shop list has 
 	strings.Repeat("Merging changes the screens and the widget of the module, and the old items get the tag of their list. ", 6) +
 	"Should I merge them into one list, keep both as they are, or move the old items somewhere else?"
 
-// TestRealBrowserMasterQuestions asks the owner in the chat: a long question with options described, and two
-// questions at once one by one, the second of many answers; on a computer and a phone, the question stays in the
-// chat above the turn, which waits for the owner, and each answer reaches the master.
+// TestRealBrowserMasterQuestions: a long question with options described and two questions one by one, the second of
+// many answers, fit in the chat above the waiting turn on a computer and a phone, and each answer reaches the master.
 func TestRealBrowserMasterQuestions(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")

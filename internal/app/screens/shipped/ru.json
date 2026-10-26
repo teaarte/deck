@@ -741,5 +741,11 @@
   "asks you": "спрашивает вас",
   "gives its result": "отдаёт результат",
   "calls %s": "вызывает %s",
-  "calls «%s»": "вызывает «%s»"
+  "calls «%s»": "вызывает «%s»",
+  "reads a folder": "читает папку",
+  "reads what a command wrote": "читает вывод команды",
+  "stops a command": "останавливает команду",
+  "draws a picture": "рисует картинку",
+  "looks at a picture": "смотрит картинку",
+  "uses a tool of %s": "работает инструментом %s"
 }

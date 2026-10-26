@@ -19,6 +19,11 @@ var agentTools = map[string][2]string{
 	"WebSearch": {"searches the web", "search"}, "ToolSearch": {"looks for a tool", "read"}, "Skill": {"reads a skill", "read"},
 	"Task": {"gives a part to a helper", "work"}, "Agent": {"gives a part to a helper", "work"}, "TodoWrite": {"plans the work", "work"},
 	"AskUserQuestion": {"asks you", "work"}, gateway.AskTool: {"asks you", "work"}, gateway.SubmitTool: {"gives its result", "work"},
+	"MultiEdit": {"edits a file", "work"}, "LS": {"reads a folder", "read"}, "BashOutput": {"reads what a command wrote", "read"},
+	"KillShell": {"stops a command", "work"}, "ExitPlanMode": {"plans the work", "work"},
+	"shell": {"runs a command", "work"}, "apply_patch": {"edits a file", "work"}, "web_search": {"searches the web", "search"},
+	"imageGeneration": {"draws a picture", "draw"}, "imageView": {"looks at a picture", "read"},
+	"collabAgentToolCall": {"gives a part to a helper", "work"},
 }
 
 var (
@@ -38,6 +43,9 @@ func (ch *Service) doing(ctx context.Context, workspace int64, title string, tr 
 		act = "search"
 	case draws.MatchString(tool):
 		act = "draw"
+	}
+	if server, _, ok := strings.Cut(strings.TrimPrefix(tool, "mcp__"), "__"); ok && strings.HasPrefix(tool, "mcp__") {
+		return fmt.Sprintf(tr("uses a tool of %s"), server), act
 	}
 	name := registry.CommandName(tool)
 	c, err := ch.Lookup(ctx, workspace, name)

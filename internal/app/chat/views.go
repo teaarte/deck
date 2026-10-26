@@ -400,6 +400,7 @@ func (ch *Service) models(ctx context.Context, workspace int64) ([]string, strin
 func (ch *Service) turnLines(ctx context.Context, workspace, processID int64, tr func(string) string) []map[string]any {
 	out := []map[string]any{}
 	lines, _ := ch.Runner.Tail(processID, chatLines, "tool", "tool_update", "message")
+	said := map[string][2]string{}
 	for _, raw := range lines {
 		var l map[string]any
 		_ = json.Unmarshal(raw, &l)
@@ -407,7 +408,12 @@ func (ch *Service) turnLines(ctx context.Context, workspace, processID int64, tr
 			l["text"] = untrusted.Cut(text, 300)
 		}
 		if title, _ := l["title"].(string); l["kind"] == "tool" && title != "" {
-			l["doing"], l["act"] = ch.doing(ctx, workspace, title, tr)
+			d, ok := said[title]
+			if !ok {
+				d[0], d[1] = ch.doing(ctx, workspace, title, tr)
+				said[title] = d
+			}
+			l["doing"], l["act"] = d[0], d[1]
 		}
 		out = append(out, l)
 	}

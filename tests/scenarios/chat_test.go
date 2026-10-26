@@ -391,6 +391,8 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 		}
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t0", Title: "Bash", Text: "{}"})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventToolUpdate, ID: "t0", Status: "completed"})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "x0", Title: "shell", Text: "{}"})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "x1", Title: "mcp__playwright__browser_click", Text: "{}"})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: provider.Qualify("records_list"), Text: "{}"})
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?", "header": "List",
 			"options": []any{map[string]any{"label": "shop", "description": "The shop by the house"}, map[string]any{"label": "market"}}},
@@ -442,7 +444,8 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 			calls[l.Title] = [2]string{l.Doing, l.Act}
 		}
 	}
-	if calls["Bash"] != [2]string{"запускает команду", "work"} || calls[provider.Qualify("records_list")] != [2]string{"вызывает «Список записей»", "read"} ||
+	if calls["Bash"] != [2]string{"запускает команду", "work"} || calls["shell"] != calls["Bash"] ||
+		calls["mcp__playwright__browser_click"] != [2]string{"работает инструментом playwright", "search"} || calls[provider.Qualify("records_list")] != [2]string{"вызывает «Список записей»", "read"} ||
 		ru.Turn.Word != "ждёт вас" {
 		t.Fatalf("each call says what it does in the owner's words and the kind of its work: %+v", ru.Turn)
 	}

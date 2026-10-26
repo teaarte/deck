@@ -348,7 +348,7 @@
   "optional": "по желанию",
   "Set it in Settings → Advanced → Secrets.": "Задай его в Настройках → Дополнительно → Секреты.",
   "Language of the words, such as ru; English without one": "Язык слов, например ru; без него английский",
-  "Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.": "Хранит секрет для заголовков инструментов в файле, который читает только deck; агенты и скрипты его не видят.",
+  "Stores a secret for tools (a header, or the whole URL of a private link) as a file only deck reads; agents and scripts never see it.": "Хранит секрет для инструментов (заголовок или весь адрес закрытой ссылки) в файле, который читает только deck; агенты и скрипты его не видят.",
   "Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.": "Записывает снимок базы, файлов и папок данных модулей в резервные копии; остаются семь последних.",
   "Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.": "Создаёт токен для агента в терминале, Быстрых команд или скрипта; он действует как мастер и может вызывать только перечисленные команды.",
   "Command of the project the assignment is for; the whole project without it": "Команда модуля, для которой назначение; без неё — весь модуль",

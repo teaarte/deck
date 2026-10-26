@@ -57,6 +57,7 @@ func TestMain(m *testing.M) {
 		}
 		askApprove(os.Args[1], os.Args[2], os.Args[3])
 	default:
+		trustTestTLS()
 		os.Exit(m.Run())
 	}
 }

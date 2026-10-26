@@ -13,8 +13,8 @@ import (
 	"deck2/internal/gateway"
 )
 
-// The tools of deck trust the certificate of test servers on https, as a public service's, before any test runs.
-func init() {
+// trustTestTLS makes the tools of deck trust the certificate of test servers on https, as a public service's.
+func trustTestTLS() {
 	s := httptest.NewTLSServer(http.NotFoundHandler())
 	defer s.Close()
 	pool, err := x509.SystemCertPool()

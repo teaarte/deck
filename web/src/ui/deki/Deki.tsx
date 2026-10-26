@@ -51,38 +51,60 @@ export function useMasterName() {
   return useMascot() ? t('chat.deki') : t('chat.master');
 }
 
-// Picture is one pose drawn, moving the way it moves unless still; one leaving fades out under the next.
-function Picture({ pose, size, still, leaving }: { pose: Pose; size: number; still?: boolean; leaving?: boolean }) {
+// still is the motion off: by the owner on this device or by the system.
+const stillAll = (motion: boolean) => !motion || matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Picture is one pose drawn, moving the way it moves unless still; one leaving fades out under the next. Its motion
+// plays again at each wake and each new pose, without the picture coming in again.
+function Picture({ pose, size, still, leaving, wake = 0 }: { pose: Pose; size: number; still?: boolean; leaving?: boolean; wake?: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+  }, [wake, pose]);
   const src = `/deki/${picture(pose)}.webp`;
   return (
-    <span className={s.pose} style={{ '--deki-src': `url(${src})` } as CSSProperties} data-still={still || undefined}
+    <span ref={ref} className={s.pose} style={{ '--deki-src': `url(${src})` } as CSSProperties} data-still={still || undefined}
       data-leaving={leaving || undefined} data-pose={pose} data-deki={leaving ? undefined : picture(pose)}>
       <img src={src} alt="" height={size} style={{ height: size }} />
     </span>
   );
 }
 
-// Deki is the mascot in a pose, size pixels high. A new pose comes in over the one before as it fades; its motion
+// Deki is the mascot in a pose, size pixels high. A new picture comes in over the one before as it fades; its motion
 // plays a few times and rests, again at each wake.
 export function Deki({ pose, size, still, wake = 0 }: { pose: Pose; size: number; still?: boolean; wake?: number }) {
   const mascot = useMascot();
   const { motion } = useLook();
   const last = useRef(pose);
   const [was, setWas] = useState<Pose>();
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     if (last.current === pose) return;
     const before = last.current;
     last.current = pose;
-    if (picture(before) === picture(pose) || !motion) return;
+    clearTimeout(timer.current);
+    if (picture(before) === picture(pose) || stillAll(motion)) {
+      setWas(undefined);
+      return;
+    }
     setWas(before);
-    const t = setTimeout(() => setWas(undefined), 400);
-    return () => clearTimeout(t);
+    timer.current = setTimeout(() => setWas(undefined), 400);
   }, [pose, motion]);
+  useEffect(() => () => clearTimeout(timer.current), []);
   if (!mascot) return null;
   return (
     <span className={s.deki}>
       {was && <Picture pose={was} size={size} still leaving />}
-      <Picture key={picture(pose) + wake} pose={pose} size={size} still={still} />
+      <Picture key={picture(pose)} pose={pose} size={size} still={still} wake={wake} />
     </span>
   );
 }

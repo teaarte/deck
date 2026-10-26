@@ -9,8 +9,8 @@ import s from './apps.module.css';
 // MOMENT is how long Deki greets on the first open of a device, or is glad when the work ran out.
 const MOMENT = 5000;
 
-// usePose is the pose of the pulse, but for a moment: hello on the first open of the device, done when what ran
-// ended with nothing left to decide or fix.
+// usePose is the pose of the pulse, but for a calm moment: hello on the first open of the device, done when what ran
+// ended with nothing left to decide or fix; anything else to show ends the moment.
 function usePose(state: string): Pose {
   const [moment, setMoment] = useState<Pose | undefined>(() => (localStorage.getItem('deck-deki-hello') ? undefined : 'hello'));
   const was = useRef(state);
@@ -19,13 +19,14 @@ function usePose(state: string): Pose {
     const busy = was.current === 'running' || was.current === 'talking';
     was.current = state;
     if (busy && state === 'calm') setMoment('done');
+    else if (state !== 'calm') setMoment(undefined);
   }, [state]);
   useEffect(() => {
     if (!moment) return;
     const t = setTimeout(() => setMoment(undefined), MOMENT);
     return () => clearTimeout(t);
   }, [moment]);
-  return moment ?? poseOf(state);
+  return (state === 'calm' && moment) || poseOf(state);
 }
 
 // CardDeki is Deki on the cockpit's card in the pose of the pulse, turning to the pointer over the card and waking

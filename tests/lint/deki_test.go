@@ -38,7 +38,7 @@ func translucent(img image.Image) float64 {
 				continue
 			}
 			inside++
-			if alpha(x, y) < 250 {
+			if alpha(x, y) < 255 {
 				soft++
 			}
 		}
@@ -73,9 +73,9 @@ func TestDekiIsOpaque(t *testing.T) {
 		}
 		share := translucent(img)
 		switch listed := slices.Contains(known, name); {
-		case share > 0.005 && !listed:
+		case share > 0.001 && !listed:
 			t.Errorf("%s lets the background through: %.1f%% of its inside is not solid", name, 100*share)
-		case share <= 0.005 && listed:
+		case share <= 0.001 && listed:
 			t.Errorf("%s is solid now: take it off deki_translucent.txt", name)
 		}
 	}

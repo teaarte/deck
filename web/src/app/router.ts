@@ -64,7 +64,7 @@ const route = createStore(parse(location.hash));
 const moving = createStore<string | undefined>(undefined);
 export const useMoving = () => useStore(moving);
 
-type Transitions = Document & { startViewTransition?: (f: () => void) => unknown };
+type Transitions = Document & { startViewTransition?: (f: () => void) => { finished?: Promise<void> } };
 const tiles = (r: Route) => !r.project && r.screen === 'apps';
 
 // show draws a new address; between the tiles and a module the card and the screen pass into each other, where the
@@ -78,7 +78,8 @@ function show(r: Route) {
     return;
   }
   flushSync(() => moving.set(card));
-  doc.startViewTransition(() => flushSync(() => route.set(r)));
+  const move = doc.startViewTransition(() => flushSync(() => route.set(r)));
+  void move.finished?.finally(() => moving.set(undefined));
 }
 
 window.addEventListener('hashchange', () => {

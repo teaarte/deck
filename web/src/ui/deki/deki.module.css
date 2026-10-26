@@ -54,9 +54,9 @@
   }
 }
 
-/* A pose comes in once, plays its motion a few times and rests; it plays again when it wakes. */
+/* A picture comes in once; its pose plays its motion a few times and rests, again when it wakes. */
 @media (prefers-reduced-motion: no-preference) {
-  .pose {
+  .pose:not([data-leaving]) img {
     animation: arrive 0.35s ease-out;
   }
 
@@ -65,19 +65,19 @@
   }
 
   .pose:not([data-still]):is([data-pose='work'], [data-pose='search'], [data-pose='draw']) {
-    animation: arrive 0.35s ease-out, type 1.4s ease-in-out 0.35s 3;
+    animation: type 1.4s ease-in-out 0.35s 3;
   }
 
   .pose:not([data-still]):is([data-pose='wait'], [data-pose='point'], [data-pose='hello'], [data-pose='done']) {
-    animation: arrive 0.35s ease-out, wave 2.4s ease-in-out 0.35s 2;
+    animation: wave 2.4s ease-in-out 0.35s 2;
   }
 
   .pose:not([data-still]):is([data-pose='think'], [data-pose='worry'], [data-pose='read'], [data-pose='listen']) {
-    animation: arrive 0.35s ease-out, ponder 4s ease-in-out 0.35s 2;
+    animation: ponder 4s ease-in-out 0.35s 2;
   }
 
   .pose:not([data-still]):is([data-pose='chill'], [data-pose='sleepy']) {
-    animation: arrive 0.35s ease-out, float 6s ease-in-out 0.35s 1;
+    animation: float 6s ease-in-out 0.35s 1;
   }
 }
 

@@ -32,14 +32,15 @@ func TestRealBrowserDekiAndMotion(t *testing.T) {
 	b.shot("deki-point")
 	b.until("the motion of the pose playing", deki+`.getAnimations().some((a) => a.playState === 'running')`)
 	b.until("the motion of the pose played a few times and rests", deki+`.getAnimations().length === 0`)
-	b.eval(`(document.querySelector('[data-card-deki]').parentElement.dispatchEvent(new PointerEvent('pointerenter')), '')`)
-	b.until("Deki wakes as the pointer comes", deki+`.getAnimations().some((a) => a.playState === 'running')`)
+	b.eval(`(window.img = `+deki+`.querySelector('img'), document.querySelector('[data-card-deki]').parentElement.dispatchEvent(new PointerEvent('pointerenter')), '')`)
+	b.until("Deki wakes as the pointer comes, the picture staying as it was", deki+`.getAnimations().some((a) => a.playState === 'running') && `+deki+`.querySelector('img') === window.img`)
 
 	b.eval(`(() => { window.moves = []; const go = document.startViewTransition.bind(document);
 		document.startViewTransition = (f) => { window.moves.push(document.querySelector('[data-module=picker]')?.style.viewTransitionName
 			|| document.querySelector('[data-module-view]')?.style.viewTransitionName || ''); return go(f) }; return '' })()`)
 	b.eval(`(document.querySelector('[data-app=picker]').click(), '')`)
 	b.until("the module open", `location.hash.startsWith('#/p/picker/') && document.querySelector('[data-module-view]')`)
+	b.until("the move over, the screen no longer named for it", `!document.querySelector('[data-module-view]').style.viewTransitionName`)
 	b.eval(`(history.back(), '')`)
 	b.until("the tiles again", `document.querySelector('[data-app=picker]')`)
 	if got := b.eval(`window.moves.join(' ')`); got != "module module" {

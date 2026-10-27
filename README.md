@@ -118,3 +118,8 @@ deck away from home, run it with `-tailscale`.
 
 - [docs/architecture.md](docs/architecture.md): how deck is built, what a module looks like, build and tests.
 - [CLAUDE.md](CLAUDE.md): the package map and the rules of the code.
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md): free to read, run, change and share for any noncommercial purpose.
+Commercial use needs a separate license from the author.

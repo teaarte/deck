@@ -6,3 +6,12 @@
 /web/node_modules
 /web/tsconfig.tsbuildinfo
 /desktop/dist
+
+# docs stay on the owner's disk; git keeps only what README links to
+/docs/*
+!/docs/architecture.md
+!/docs/spec.md
+!/docs/screenshots/
+!/docs/spikes/
+/docs/spikes/*
+!/docs/spikes/windows.md

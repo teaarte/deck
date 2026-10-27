@@ -12,7 +12,7 @@
               "input_usd": "=param.input_usd", "output_usd": "=param.output_usd", "call_usd": "=param.call_usd", "unit": "=param.unit", "options": "=param.options",
               "tpm": "=param.tpm", "context": "=param.context"},
             "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
-              "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing'"}, "value": "name"}}}]},
+              "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing' && status != 'off'"}, "value": "name"}}}]},
         {"type": "dialog", "name": "connections", "title": "Connections", "icon": "plug", "blocks": [
           {"type": "table", "title": "Connections", "source": {"from": "deck.models_list", "rows": "connections"},
             "description": "Where deck reaches models: an API or a server of this machine, with its address and key.",
@@ -148,7 +148,11 @@
           "columns": [
             {"label": "Agent", "bind": "name"},
             {"label": "Version", "bind": "version"},
-            {"label": "Status", "bind": "status == 'missing' ? 'not installed' : status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' ? 'muted' : 'warn'", "details": "error"}
+            {"label": "Status", "bind": "status == 'missing' ? 'not installed' : status == 'off' ? 'turned off' : status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' || status == 'off' ? 'muted' : 'warn'", "details": "error"}
+          ],
+          "actions": [
+            {"verb": "turn_off", "command": "deck.provider_off", "params": {"provider": "=name", "off": "true"}, "when": "builtin && status != 'missing' && status != 'off'"},
+            {"verb": "turn_on", "command": "deck.provider_off", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"}
           ]},
         {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
           "description": "Keys and passwords of connections and tools; agents and scripts never see them.",

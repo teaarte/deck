@@ -45,7 +45,7 @@ type modelView struct {
 	Context int64 `json:"context,omitempty"`
 	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
 	Builtin bool    `json:"builtin"`
-	Status  string  `json:"status,omitempty" enum:"ok|warning|error|checking|paused|needs_login|missing"`
+	Status  string  `json:"status,omitempty" enum:"ok|warning|error|checking|paused|needs_login|missing|off"`
 	Error   string  `json:"error,omitempty"`
 	Verdict string  `json:"verdict,omitempty"`
 	Speed   float64 `json:"speed,omitempty"`
@@ -108,7 +108,7 @@ type modelsListIn struct {
 }
 
 func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsListIn) (modelsOut, error) {
-	out := modelsOut{Agents: s.agents(ctx), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}, Uses: []useView{}, Work: []workView{}}
+	out := modelsOut{Agents: s.agents(ctx, act.Workspace), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}, Uses: []useView{}, Work: []workView{}}
 	conns, err := s.St.Q.ListConnections(ctx, act.Workspace)
 	if err != nil {
 		return out, err
@@ -141,6 +141,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		_, sub := pv.(provider.Subscribed)
 		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true, Subscription: sub}
 		s.lastCheck(ctx, act.Workspace, &v)
+		s.offStatus(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}
 	for _, r := range models {
@@ -149,6 +150,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0,
 			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context}
 		s.lastCheck(ctx, act.Workspace, &v)
+		s.offStatus(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}
 	for i := range out.Models {
@@ -291,4 +293,11 @@ func boolRank(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// offStatus marks a model whose program is not installed or that the owner turned off, in place of its last check.
+func (s *Service) offStatus(ctx context.Context, workspace int64, v *modelView) {
+	if off := s.Off(ctx, workspace, v.Name); off != "" {
+		v.Status, v.Error, v.Verdict, v.Speed = off, "", "", 0
+	}
 }

@@ -258,6 +258,11 @@ type Modeled interface {
 	With(name, model, effort string) Provider
 }
 
+// Installed is a provider whose program may be missing from the machine.
+type Installed interface {
+	Installed() bool
+}
+
 // SelfChecker is a provider whose adapter deck checks at start, on a button and on a broken turn.
 type SelfChecker interface {
 	SelfCheck(ctx context.Context) Check

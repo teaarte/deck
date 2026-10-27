@@ -39,6 +39,12 @@ func New(home string) *Adapter {
 
 func (a *Adapter) Name() string { return cmp.Or(a.name, "codex") }
 
+// Installed says the program of the CLI is on the PATH of deck.
+func (a *Adapter) Installed() bool {
+	_, err := exec.LookPath(a.Binary)
+	return err == nil
+}
+
 // With is the app-server on a model of deck's settings, by its id in Codex and its effort.
 func (a *Adapter) With(name, model, effort string) provider.Provider {
 	c := *a

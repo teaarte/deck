@@ -749,5 +749,8 @@
   "looks at a picture": "смотрит картинку",
   "uses a tool of %s": "работает инструментом %s",
   "deleted file %s": "удалён файл %s",
-  "deleted files: %d": "удалено файлов: %d"
+  "deleted files: %d": "удалено файлов: %d",
+  "turned off": "выключено",
+  "Turn provider off": "Выключить провайдера",
+  "Turns a built-in provider (claude-code, codex) off or on again: off, deck does not check it, gives it no work and offers none of its models; a provider whose program is not installed is off by itself.": "Выключает встроенного провайдера (claude-code, codex) или включает снова: выключенного deck не проверяет, не даёт ему работы и не предлагает его модели; провайдер, чья программа не установлена, выключен сам."
 }

@@ -48,6 +48,8 @@
     "pause": "Pause",
     "restore": "Bring back",
     "resume": "Resume",
+    "turn_off": "Turn off",
+    "turn_on": "Turn on",
     "send": "Send",
     "rework": "Send back for rework",
     "enable": "Enable",

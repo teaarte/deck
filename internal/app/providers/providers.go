@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -129,11 +128,16 @@ func (s *Service) named(ctx context.Context, name string) provider.Provider {
 	return nil
 }
 
-// checked are the providers with a self-check: the built-in ones and those the owner added to any workspace.
+// checked are the providers with a self-check: the built-in ones some workspace uses and those the owner added.
 func (s *Service) checked(ctx context.Context) []provider.Provider {
 	var out []provider.Provider
 	seen := map[string]bool{}
-	all := slices.Clone(s.Builtin)
+	var all []provider.Provider
+	for _, pv := range s.Builtin {
+		if !s.resting(ctx, pv) {
+			all = append(all, pv)
+		}
+	}
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)
 	for _, ws := range spaces {
 		added, _ := s.All(ctx, ws)
@@ -148,15 +152,20 @@ func (s *Service) checked(ctx context.Context) []provider.Provider {
 	return out
 }
 
-// All lists every provider of a workspace, the built-in ones first, then the models that run in an agent.
+// All lists every provider of a workspace that is on, the built-in ones first, then the models that run in an agent.
 func (s *Service) All(ctx context.Context, workspace int64) ([]provider.Provider, error) {
 	rows, err := s.St.Q.ListModels(ctx, workspace)
 	if err != nil {
 		return nil, err
 	}
-	out := slices.Clone(s.Builtin)
+	var out []provider.Provider
+	for _, pv := range s.Builtin {
+		if s.Off(ctx, workspace, pv.Name()) == "" {
+			out = append(out, pv)
+		}
+	}
 	for _, r := range rows {
-		if r.Model.Agent == "" {
+		if r.Model.Agent == "" || s.Off(ctx, workspace, r.Model.Name) != "" {
 			continue
 		}
 		if pv, err := s.Provider(ctx, workspace, r.Model.Name); err == nil {
@@ -222,7 +231,10 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.providerCheck),
 		registry.Read("models_list", "Models",
 			"Lists the connections models are reached through, the models with their kind and price, and which models do which work.",
-			registry.Everyone, s.modelsList).On("models", "assignments", "projects", "health"),
+			registry.Everyone, s.modelsList).On("models", "assignments", "projects", "health", "settings"),
+		registry.Def("provider_off", "Turn provider off",
+			"Turns a built-in provider (claude-code, codex) off or on again: off, deck does not check it, gives it no work and offers none of its models; a provider whose program is not installed is off by itself.",
+			registry.OwnerOnly, s.providerOff),
 		s.assignmentCommand(),
 		registry.Def("connection_set", "Set connection",
 			"Adds or changes a connection models are reached through: its API, address and key.",

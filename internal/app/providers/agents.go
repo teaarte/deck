@@ -17,8 +17,10 @@ import (
 type agentView struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
-	Status  string `json:"status" enum:"ok|warning|error|checking|paused|needs_login|missing"`
+	Status  string `json:"status" enum:"ok|warning|error|checking|paused|needs_login|missing|off"`
 	Error   string `json:"error"`
+	// Builtin is a provider deck was started with, which the owner may turn off.
+	Builtin bool `json:"builtin"`
 }
 
 // discover keeps one health row of an ACP agent: its version, red when it gives none, none when it is not installed.
@@ -66,16 +68,20 @@ func versionErr(c provider.Check) error {
 	return errors.New("the self-check found no version")
 }
 
-// agents are the built-in providers with a self-check and the ACP agents deck knows.
-func (s *Service) agents(ctx context.Context) []agentView {
+// agents are the built-in providers with a self-check and the ACP agents deck knows; a built-in one that is not
+// installed or that the workspace turned off says so.
+func (s *Service) agents(ctx context.Context, workspace int64) []agentView {
 	var out []agentView
 	for _, pv := range s.Builtin {
 		if _, ok := pv.(provider.SelfChecker); !ok {
 			continue
 		}
-		v := agentView{Name: pv.Name()}
+		v := agentView{Name: pv.Name(), Builtin: true}
 		if h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(pv.Name())); err == nil {
 			v.Version, v.Status, v.Error = h.Version, h.Status, h.Error
+		}
+		if off := s.Off(ctx, workspace, pv.Name()); off != "" {
+			v.Status, v.Error = off, ""
 		}
 		out = append(out, v)
 	}

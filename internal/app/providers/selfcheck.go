@@ -59,6 +59,13 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 			}
 		})
 	}
+	for _, pv := range s.Builtin {
+		if _, ok := pv.(provider.SelfChecker); ok && s.resting(ctx, pv) {
+			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				return health.Clear(ctx, q, health.Of{}, health.Provider(pv.Name()))
+			})
+		}
+	}
 	for _, pv := range s.checked(ctx) {
 		if s.onCLI(ctx, pv.Name()) {
 			continue

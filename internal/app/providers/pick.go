@@ -91,6 +91,10 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 	if len(names) > 0 {
 		var why []string
 		for _, name := range names {
+			if off := s.Off(ctx, p.WorkspaceID, name); off != "" {
+				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which is %s; %s", place, name, map[string]string{offMissing: "not installed on this machine", offByOwner: "turned off in Settings → Models"}[off], s.change(ctx, p.WorkspaceID, requires)))
+				continue
+			}
 			pv, err := s.Provider(ctx, p.WorkspaceID, name)
 			if err != nil {
 				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which does not run: %v; %s", place, name, err, s.change(ctx, p.WorkspaceID, requires)))

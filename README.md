@@ -2,58 +2,93 @@
 
 # deck
 
-### A personal control panel for AI agents, running on your own machine.
+### Your AI agents do the routine. You only say yes.
 
-![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)
+A personal control panel that runs Claude Code, Codex and local models on your recurring work —<br>
+on your own machine, in a sandbox, with every outbound step waiting for your one tap.
+
+![Go](https://img.shields.io/badge/Go-one_binary-00ADD8?logo=go&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-one_file-003B57?logo=sqlite&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-native-black)
+![A2UI](https://img.shields.io/badge/screens-A2UI-4285F4)
 ![PWA](https://img.shields.io/badge/phone-PWA-5A0FC8)
 
 <img src="docs/screenshots/tiles.png" alt="The tiles of deck: Today with one decision waiting, module cards with live widgets" width="900">
 
 </div>
 
-## What it is
+## Why deck
 
-deck is one program with one data folder. It runs your routines as **modules** and hands the work to agents:
-Claude Code, Codex, or an open model in an ACP agent (Goose), each run in a sandbox. You see the results, and you
-decide only what needs your yes.
+Coding agents are good enough to do real work. Sitting in a chat to start each run is not. deck turns a routine —
+reading sources, watching prices, triaging pull requests, making short videos — into a **module** that runs on a
+schedule, keeps its data and shows the result on a card. You open deck in the morning, see what was done, and
+answer the one or two things that need you.
 
-It is for one person who already uses coding agents and wants them to do recurring work, such as reading sources,
-watching prices, reviewing pull requests or making short videos, without sitting in a chat for each run.
+- **Ask for a module in words.** Deki, the built-in master agent, interviews you for a minute, builds the module
+  (data, commands, schedule, screens, widgets), tries it as a draft and hands it over. Later you just tell it what
+  to change.
+- **Nothing important happens behind your back.** Anything that leaves the machine, spends money or widens a
+  module's rights waits for your yes, and a button you press already is that yes. What agents changed on their own
+  is one line per run under **Done without you**, with an undo.
+- **Your models, your bill.** Subscriptions (Claude Code, Codex) or any model on OpenRouter, Google, Anthropic,
+  Groq, a local server or Ollama. Pick the model of each command in its row, with fallbacks. **Spend** shows what
+  every module costs.
+- **Yours.** One program, one folder, no account, no cloud. Keys stay in deck's secret store; agents and scripts
+  never see them.
 
-A module is data, not code in deck: a manifest with collections of records, commands, schedules, screens and
-widgets, plus prompts and small scripts. **Deki**, the built-in master agent, builds a module from a short
-conversation and changes it later.
+## Tiles and live widgets
 
-## What it does
+The home screen is a grid of cards you place and resize freely, any width by any height, separately for each
+device. Each module card is a **live widget**: a tiny screen of the module's own data that updates the moment the
+data changes, with no polling.
 
-- **Tiles and Today.** The home screen is a grid of cards you place and resize. Each module card shows a widget
-  of its data. The **Today** card shows what waits for you, what is running, what was done, today's spend and the
-  next scheduled run.
-- **Deki in a side chat.** Deki opens beside any screen and sees that screen. While it works, a status line shows
-  the current step. Its questions come one at a time as cards, each option with a short explanation.
-- **Modules with their own screens.** These include tables, lists, boards, cards, forms, stats, charts, media and
-  a file manager, with an optional side panel of filters and stats. Anything the catalog lacks is a sandboxed
-  `custom` block.
-- **A yes only where it matters.** deck asks before anything that leaves the machine, spends money or widens a
-  module's rights. A button you press already counts as your yes to what its row shows. Changes made without you,
-  such as deleted records, edited documents or new assignments, are listed under **Done without you**, with an
-  undo for each run.
-- **Any model, per command.** Settings → Models has a "who does what" table, where you pick the model of each
-  command in its row, and a grid of every model grouped by provider. It covers subscriptions (Claude Code,
-  Codex), OpenRouter, Google, Anthropic, Groq and any OpenAI-compatible or local server. Each model has prices and
-  fallbacks. **Spend** shows what each model and module cost, with subscriptions kept separate from money paid.
-- **Schedule, Files, Look.** Triggers with their next run, the files of every module, and themes with light
-  and dark schemes, accent and density.
-- **Tools with secrets.** A module calls HTTP APIs and MCP servers through deck. Keys live in deck's secrets, and
-  a private link, such as a calendar feed URL, can be a secret limited to exact hosts. deck keeps secrets out of
-  logs, errors and answers.
-- **Sandbox and one way out.** Scripts, MCP servers and ACP agents run under `sandbox-exec` on macOS or
-  bubblewrap on Linux. Network access goes only through deck's proxy, which reaches only the domains a module
-  declares.
-- **Phone and desktop.** On a phone, deck installs as a PWA with pushes and a share target. It can also join your
-  Tailscale network over HTTPS. A tray launcher runs deck as `deck.app` on macOS, and on Windows inside WSL2.
+- A module declares up to eight widget views in its manifest, each for a least size (`1x1`, `2x1`, `3x2`, …) and
+  made of up to four `stat`, `list` and `chart` blocks. The card shows the largest view that fits and fills it
+  from the top: a list shows as many lines as there is room for, a chart gets wider. Its buttons work as on a screen.
+- Resize a card to a size the module has no view for, press **Draw a widget**, and Deki designs one on the model you
+  assigned to that work. The result is an ordinary manifest edit you can undo.
+- **Today** is deck's own widget: what waits for you, what failed, what runs, what was done, what the day cost and
+  what runs next.
+- A card without widgets shows its cover, which Deki can also draw.
+
+## Deki, the master agent
+
+Deki lives in a side chat next to any screen and sees what you are looking at, so "this" and "here" just work.
+
+- **Live work.** A status line says what it is doing right now (reading a document, calling `dec.add`, running a
+  command), and the full log is one tap away.
+- **Questions as cards.** One at a time, each option with what it means, single or multiple choice, or your own
+  answer.
+- **Long work in the background.** A rebuild with renders and self-checks goes to a process of its own; the chat
+  stays free.
+- **Memory and a daily review.** It remembers what you told it and looks over the day on its own.
+
+## Under the hood
+
+For those who want to know how it holds together; the full picture is in
+[docs/architecture.md](docs/architecture.md).
+
+- **One binary, one door.** About 50k lines of Go with SQLite and the React client embedded. Buttons, the API,
+  schedules, scripts and agents all call the same commands through one registry, so rights, confirmations, the
+  journal and the undo are enforced in exactly one place.
+- **MCP-native.** Every agent process gets its own deck MCP server: the commands it may call as tools, questions and
+  confirmations to the owner, nothing else. Scripts get an HTTP entry with a per-run token.
+- **Sandboxed, with one way out.** Scripts, MCP servers and ACP agents run under `sandbox-exec` (macOS) or bubblewrap
+  (Linux). The only network path is deck's proxy: a name resolves once, only public addresses are dialed, only the
+  module's declared domains are reachable. Model keys live in the proxy, never in a module.
+- **Screens are data.** Screens and widgets are JSON resolved on the server into [A2UI](https://github.com/google/A2UI)
+  messages from a catalog of blocks (tables, boards, cards, forms, charts, media, a file manager, tabs, dialogs,
+  side panels). Each read declares its topics; a committed write publishes the topic of its table, and the client
+  refreshes over SSE only what changed. Anything the catalog lacks is an
+  [MCP App](https://github.com/modelcontextprotocol/ext-apps) in a sandboxed frame on a second origin.
+- **Modules are not code in deck.** A manifest, prompts, skills and small scripts. Export to a `.zip` without your
+  data or secrets; import as a draft that shows what it needs and what it may do before you enable it.
+- **Any agent behind one interface.** The Claude Code CLI, the Codex app-server (its protocol generated from the
+  installed CLI) and any ACP agent such as Goose on a local model. A refused or silent turn goes to the next model
+  of the assignment; a CLI that is not installed is simply off.
+- **Tested end to end.** About 900 scenario tests through the real registry and gateway on a real SQLite with a fake
+  provider; behind flags, the same against the real Claude Code, Codex, a local model and a real browser at desktop
+  and phone sizes. Provider adapters are contract-tested on recorded streams.
 
 ## A look inside
 
@@ -92,32 +127,29 @@ What the module needs and what it may do once enabled.</sub></td>
 
 ## Install and run
 
-You need macOS or Linux, Go 1.27, and at least one agent CLI (`claude` or `codex`). Node is needed only to
-rebuild the web client, which is embedded in the binary.
+macOS or Linux, Go 1.27, and at least one agent CLI (`claude` or `codex`) or an ACP agent on a local model. Node is
+needed only to rebuild the web client, which is embedded in the binary.
 
 ```bash
-go build -tags tailnet -o deck ./cmd/deck
+go build -o deck ./cmd/deck             # add -tags tailnet to serve deck on your Tailscale network
 ./deck                                  # prints the address with the access token; data in ~/.deck2
 DECK_HOME=/tmp/deckhome ./deck          # another data folder
 ./deck -addr 127.0.0.1:7700             # the listen address (default); the next port serves custom blocks
-./deck -tailscale deck                  # join your tailnet as "deck" and serve HTTPS there
+./deck -tailscale deck                  # with the tag: join your tailnet as "deck" over HTTPS
 ```
 
-Without `-tags tailnet` the binary is smaller and `-tailscale` refuses to start. To update deck, replace the
-binary. On start, deck brings the database and the stored manifests up to the current format.
+To update, replace the binary: on start deck migrates its database and the stored manifests.
 
-**Desktop app.** `desktop/build.sh` builds `deck.app` for macOS and `deck-setup.exe` for Windows (it needs
-`brew install makensis`). The launcher sits in the tray, starts deck, opens it in its own window and can start at
-login. On Windows, deck runs in its own WSL2 distribution, which the installer sets up (not yet tried on a real
-Windows machine).
+- **Phone.** Open deck's address in Safari or Chrome, enter the token once and add it to the home screen. Pushes and
+  sharing a link or a file into a module work as in a native app. Away from home, run deck with `-tailscale`.
+- **Desktop app.** `desktop/build.sh` builds `deck.app` for macOS and an installer for Windows, where deck runs in
+  its own WSL2 distribution (not yet tried on a real Windows machine). The launcher lives in the tray and can start
+  at login.
 
-**Phone.** Open deck's address in Safari or Chrome, enter the token once and add it to the home screen. To reach
-deck away from home, run it with `-tailscale`.
+## Status
 
-## More
-
-- [docs/architecture.md](docs/architecture.md): how deck is built, what a module looks like, build and tests.
-- [CLAUDE.md](CLAUDE.md): the package map and the rules of the code.
+deck is a personal project in daily use by its author: one owner per deck, macOS first, Linux tested in docker.
+It changes fast; the database and manifests are migrated on start.
 
 ## License
 

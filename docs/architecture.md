@@ -39,11 +39,19 @@ one place.
   refused or goes silent, it hands the turn to the next model of the assignment.
 - **Providers.** One interface with one outcome of a turn: `claudecode` (the Claude Code CLI), `codex` (Codex
   app-server, a generated protocol) and `acp` (an ACP agent such as Goose, run in deck's sandbox on a model reached
-  through deck's proxy).
+  through deck's proxy). Each has a self-check; a red one is checked again every 30 minutes. A built-in CLI that is
+  not installed is off by itself (no check, no work, its models not offered), and the owner may turn an installed
+  one off (`deck.provider_off`).
 - **Gateway.** Each process gets deck's MCP server. It exposes the module's commands as tools, questions and
   confirmations to the owner, and the deck commands the module may call. Scripts reach deck over an HTTP entry with
   a per-run token. The model proxy holds the keys, so a module never sees one. `Egress` is the only way out to the
   web: a name resolves once, and only public addresses are dialed.
+- **Tools and secrets.** A module reaches a service through HTTP tools of its manifest (method, URL template, headers,
+  body, input and result schemas) and MCP servers deck starts for it. A secret goes into a header as
+  `$secret.<name>`, or is the whole URL of a private link (`"url": "$secret.<name>"`) limited to exact `hosts` and
+  https. deck cuts every secret, in any echoed form, out of answers, errors, health and the journal.
+- **Files.** What a run leaves in its results folder becomes stored files of its process or record. A process may
+  delete only the files its own run made; that is a line of "done without you" with an undo.
 - **Sandbox.** Scripts, MCP servers and ACP agents run under `sandbox-exec` on macOS or bubblewrap on Linux. The
   only network path is the `Door` to deck's proxy. A process sees its own folder, the folders the owner granted
   and the environment deck gives it.
@@ -53,16 +61,20 @@ one place.
   button sends an A2UI action back. Anything the catalog lacks, a model writes as an MCP App: a `custom` block in a
   sandboxed frame on a second origin. deck's own screens (Today, Schedule, Spend, Files, Look, Settings) are data
   as well, in `internal/app/screens/shipped/`.
-- **Tiles and widgets.** The home grid stores a layout for each device and each number of columns. A module card
-  shows the largest of its manifest's `widgets` views that fits the card (`stat`, `list` and `chart` blocks). When
-  a size has no view, Deki can draw one on request.
+- **Tiles and widgets.** The home grid stores one layout per device and number of columns: free sizes in cells,
+  written by the grid and by Settings → Modules alike. A widget is a small screen, not a new kind of data: up to
+  eight views in a manifest, each with a least size (`2x1`) and up to four `stat`, `list` and `chart` blocks, read
+  through the same path and topics as a screen. The card shows the largest view that fits, fills it from the top
+  and refreshes over SSE. For a size without a view, `deck.widget_draw` asks Deki to write one into the manifest,
+  on the model of the role `widget`. Today is deck's own widget of the same blocks.
 - **Models are settings.** Connections (OpenRouter, Google, Anthropic, Groq, any OpenAI-compatible or local
   server), models with kinds and prices, and assignments with fallbacks are declared once in deck. Each command
   of a module, and each role of the master, has its own model. Subscriptions are shown apart from money paid.
 - **The master.** Deki is a built-in project (`master/`): its prompts, skills and commands such as reply, long
   work, daily review and memory upkeep. It works through the same registry with its own rights. It builds and
-  changes modules with the skills in `skills/` (`module-builder`, `module-conventions`, `code-project`,
-  `memory`).
+  changes modules with the skills in `skills/`: `module-builder` (what a manifest can do), `module-conventions` (the
+  layout, script contract, checks and review of a module's code), `code-project` and `memory`. A skill deck ships
+  merges with the master's own edits of it on update.
 - **Failures** have one form (`internal/fault`): a type from a closed set, whose failure it is, a text and
   details. A script reports its own failure as `{"error", "type", "details"}`.
 

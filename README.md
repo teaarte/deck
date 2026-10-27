@@ -108,8 +108,8 @@ binary. On start, deck brings the database and the stored manifests up to the cu
 
 **Desktop app.** `desktop/build.sh` builds `deck.app` for macOS and `deck-setup.exe` for Windows (it needs
 `brew install makensis`). The launcher sits in the tray, starts deck, opens it in its own window and can start at
-login. On Windows, deck runs in its own WSL2 distribution; see [docs/spikes/windows.md](docs/spikes/windows.md)
-(not yet tried on a real Windows machine).
+login. On Windows, deck runs in its own WSL2 distribution, which the installer sets up (not yet tried on a real
+Windows machine).
 
 **Phone.** Open deck's address in Safari or Chrome, enter the token once and add it to the home screen. To reach
 deck away from home, run it with `-tailscale`.
@@ -117,5 +117,4 @@ deck away from home, run it with `-tailscale`.
 ## More
 
 - [docs/architecture.md](docs/architecture.md): how deck is built, what a module looks like, build and tests.
-- [docs/spec.md](docs/spec.md): the full spec (in Russian).
 - [CLAUDE.md](CLAUDE.md): the package map and the rules of the code.

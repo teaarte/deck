@@ -1,8 +1,7 @@
 # deck under the hood
 
 How deck is built, what a module looks like, and how to build and test deck. For what deck is, see the
-[README](../README.md). The full spec (in Russian) is [spec.md](spec.md). The package map and the rules of the
-code are in [CLAUDE.md](../CLAUDE.md).
+[README](../README.md). The package map and the rules of the code are in [CLAUDE.md](../CLAUDE.md).
 
 ## The shape
 
@@ -119,8 +118,7 @@ To build for another Mac with Apple silicon:
 is pure Go). On start, deck migrates the database and the stored manifests to the current format.
 
 The desktop launcher (`desktop/`, Wails) is a separate Go module. deck itself knows nothing about it.
-`desktop/build.sh` makes `deck.app` and the Windows installer, which runs deck in a WSL2 distribution
-([spikes/windows.md](spikes/windows.md)).
+`desktop/build.sh` makes `deck.app` and the Windows installer, which runs deck in a WSL2 distribution.
 
 ## Tests
 

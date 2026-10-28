@@ -9,7 +9,8 @@ why and tell the owner the fix; do not change the project yourself.
 2. The type says where to look: `script.failed`, `result.invalid`, `task.failed`, `input.invalid`, `timeout` are
    the module's — the fix; `program.missing` — the program to install and how; `network` — a site is down or a
    domain is not in the project's rights; `rights.denied` — the right the owner would grant, or the module asking
-   for less. `process_get` gives the text and `error_details` (stderr, the error a script reported). Tell apart a
+   for less; `killed` — a signal from outside deck killed the agent twice in a row (another program, the system
+   short of memory): no fix of the module. `process_get` gives the text and `error_details` (stderr, the error a script reported). Tell apart a
    fault of the module, a fault outside it (say so, no fix) and a one-off (nothing). A call refused
    because its model is not in deck's settings: propose that model with `deck.model_set` (it waits for the owner's
    button; `models_list` shows the connections) or name a model deck has that does the same work.

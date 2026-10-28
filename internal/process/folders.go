@@ -2,6 +2,8 @@ package process
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 
 	"deck2/internal/fault"
@@ -40,6 +42,48 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 	}
 	r.mu.Unlock()
 	return false
+}
+
+// holdRun leaves a fresh run of a command of one run at a time waiting while a run of it before has not ended; it
+// reports whether the run goes on.
+func (r *Runner) holdRun(ctx context.Context, t turn) bool {
+	held := false
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		p, err := q.GetProcess(ctx, t.process)
+		if err != nil {
+			return err
+		}
+		_, err = q.EarlierRun(ctx, db.EarlierRunParams{ProjectID: p.ProjectID, Command: p.Command, Trial: p.Trial, ID: p.ID})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		held, err = r.holdIn(ctx, q, t, StateWaitingRun)
+		return err
+	})
+	if err != nil {
+		r.finish(ctx, t.process, StateError, "", false, fault.Wrap("wait for the run before", err))
+		return false
+	}
+	if !held {
+		return true
+	}
+	r.mu.Lock()
+	if r.live[t.process] == t.live {
+		delete(r.live, t.process)
+	}
+	r.mu.Unlock()
+	// The run before may have ended between the check and the wait.
+	r.Wake(ctx)
+	return false
+}
+
+// runFree reports whether no run before p of its command is still going.
+func (r *Runner) runFree(ctx context.Context, p db.Process) bool {
+	_, err := r.st.Q.EarlierRun(ctx, db.EarlierRunParams{ProjectID: p.ProjectID, Command: p.Command, Trial: p.Trial, ID: p.ID})
+	return errors.Is(err, sql.ErrNoRows)
 }
 
 // leave runs as a turn exits: the folder locks of a process that has closed meanwhile, as by a stop, go now

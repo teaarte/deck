@@ -49,6 +49,9 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		return
 	}
 	trial := p.Trial == 1
+	if t.cmd.Runs == manifest.RunsOne && !t.resume && !r.holdRun(bg, t) {
+		return
+	}
 	switch t.cmd.Executor.Type {
 	case KindScript:
 		r.runScript(ctx, t, trial)
@@ -236,7 +239,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 	bg := context.WithoutCancel(ctx)
 	processID, pv, req := t.process, t.pv, a.req
 	asks := t.asks
-	for retried := false; ; {
+	for retried, revived := false, false; ; {
 		a.listen(true)
 		stop := r.watchCall(processID, a.proj.WorkspaceID, pv)
 		res, err := pv.Run(ctx, req)
@@ -289,9 +292,23 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		if settled && !blocked {
 			verr = validate(t.cmd, res.Structured)
 		}
+		var killed *provider.Killed
 		switch {
 		case (err != nil || res.Outcome != provider.Done) && r.questioned(bg, processID):
 			r.park(bg, processID)
+		case errors.As(err, &killed) && !revived && req.SessionID != "":
+			// A signal from outside cut the turn once: it goes on in its session, which keeps what it did.
+			revived = true
+			req.Emit(provider.Event{Kind: provider.EventStderr, Text: "deck: " + killed.Error() + "; the turn goes on in its session"})
+			req.Resume = true
+			req.Prompt = "deck: a signal from outside deck killed your turn mid-work. What you did so far stays: check it, do not" +
+				" redo it, and go on where you stopped.\n"
+			if a.sub != nil {
+				req.Prompt += "When you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.\n"
+			}
+			continue
+		case errors.As(err, &killed):
+			fail(fault.With(fault.Killed, killed.Error(), killed.Stderr))
 		case err != nil:
 			fail(fault.Of(err))
 			r.deps.Broke(bg, pv.Name())

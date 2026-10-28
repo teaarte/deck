@@ -1013,6 +1013,14 @@ export interface ChatValue {
        * what deck wrote of the failure
        */
       error?: string;
+      /**
+       * of the last run of a work that failed: what it left that the owner can take back
+       */
+      left?: {
+        text: string;
+        action: Action;
+      }[];
+      go?: Action8;
     };
     /**
      * how a reply of the master went
@@ -1152,6 +1160,80 @@ export interface ChatValue {
  * A button: a command call or a move to a screen. verb names a built-in label the client translates.
  */
 export interface Action7 {
+  label?: string;
+  verb?: string;
+  /**
+   * Name of a Tabler icon on the button.
+   */
+  icon?: string;
+  primary?: boolean;
+  command?: string;
+  params?: {};
+  /**
+   * Param the owner types before the call.
+   */
+  input?: string;
+  /**
+   * Time after which the button is hidden.
+   */
+  until?: string;
+  project?: string;
+  screen?: string;
+  record?: number;
+  /**
+   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   */
+  class?: string;
+  /**
+   * The fields a custom block's call fills beside params; the host refuses any other.
+   */
+  from_block?: string[];
+  /**
+   * The fields of from_block that name a record: the host takes only the id of an item of the block or of the record of its page.
+   */
+  from_items?: string[];
+  /**
+   * The client asks the owner before the call: a button of deck that deletes or revokes.
+   */
+  confirm?: boolean;
+  /**
+   * The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision.
+   */
+  hold?: boolean;
+  /**
+   * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
+   */
+  parts?: string;
+  /**
+   * Values the owner picks the input from.
+   */
+  options?: string[];
+  /**
+   * Each option in the owner's language, when one differs from its value.
+   */
+  labels?: string[];
+  /**
+   * The heading each option stands under, in the order of options.
+   */
+  groups?: string[];
+  /**
+   * The table column with the same pick draws the button as a picker of its options in the cell.
+   */
+  pick?: string;
+  /**
+   * With a command, the result names a chat topic, which the client opens; alone it opens the chat in a new topic, which the button of Deki does on every screen, so a save refuses it.
+   */
+  chat?: boolean;
+  /**
+   * With a command, the result names a stored file (file), which the client downloads.
+   */
+  download?: boolean;
+  undo?: Action1;
+}
+/**
+ * A button: a command call or a move to a screen. verb names a built-in label the client translates.
+ */
+export interface Action8 {
   label?: string;
   verb?: string;
   /**

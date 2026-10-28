@@ -2,6 +2,7 @@ package provider
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -81,6 +82,55 @@ func (c *Child) Close() {
 	c.Signal(syscall.SIGKILL)
 	c.stderr.Close()
 	os.Remove(c.stderr.Name())
+}
+
+// Killed is a program of a turn a signal ended that deck did not send: not a stop, the ceiling or a restart.
+type Killed struct {
+	Program string
+	Signal  syscall.Signal
+	Stderr  string
+}
+
+func (k *Killed) Error() string {
+	text := fmt.Sprintf("%s was killed by %s from outside: not deck, a stop of the owner or the ceiling", k.Program, SignalName(k.Signal))
+	if k.Signal == syscall.SIGKILL {
+		text = fmt.Sprintf("%s; the system kills so when memory runs out", text)
+	}
+	return text
+}
+
+// KilledBy is the signal that ended a program by its exit error: a death by the signal, or the exit 128+n of a
+// program that caught signal n and exited, as Claude Code does.
+func KilledBy(err error) (syscall.Signal, bool) {
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) {
+		return 0, false
+	}
+	ws, ok := exit.Sys().(syscall.WaitStatus)
+	switch {
+	case ok && ws.Signaled():
+		return ws.Signal(), true
+	case ok && ws.Exited():
+		if sig := syscall.Signal(ws.ExitStatus() - 128); sig == syscall.SIGHUP || sig == syscall.SIGINT || sig == syscall.SIGKILL || sig == syscall.SIGTERM {
+			return sig, true
+		}
+	}
+	return 0, false
+}
+
+// SignalName is the name of a signal, such as SIGTERM.
+func SignalName(sig syscall.Signal) string {
+	switch sig {
+	case syscall.SIGHUP:
+		return "SIGHUP"
+	case syscall.SIGINT:
+		return "SIGINT"
+	case syscall.SIGKILL:
+		return "SIGKILL"
+	case syscall.SIGTERM:
+		return "SIGTERM"
+	}
+	return fmt.Sprintf("signal %d", sig)
 }
 
 // Writer writes lines to the stdin of a program in order from a goroutine of its own, so a turn never waits

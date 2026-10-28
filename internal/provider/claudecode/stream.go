@@ -214,6 +214,10 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 		if !t.started && strings.Contains(stderr, "(passed via --permission-prompt-tool) not found") {
 			res.Outcome = provider.NoTools
 		}
+		// Deck signals claude only once it has a result or the turn was cancelled, so a signal now came from outside.
+		if sig, ok := provider.KilledBy(waitErr); ok && res.Outcome != provider.NoTools {
+			return res, &provider.Killed{Program: "claude", Signal: sig, Stderr: stderr}
+		}
 		return res, fmt.Errorf("claude exited without a result: %v: %s", waitErr, stderr)
 	case t.foreign != "":
 		return res, fmt.Errorf("claude ran session %s instead of %s assigned by deck", t.foreign, t.req.SessionID)

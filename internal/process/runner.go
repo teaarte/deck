@@ -32,6 +32,8 @@ const (
 	StateWaitingSlot = "waiting_slot"
 	// StateWaitingFolder waits for another agent process to leave the project folder.
 	StateWaitingFolder = "waiting_folder"
+	// StateWaitingRun waits for the run before it of a command that runs one at a time.
+	StateWaitingRun = "waiting_run"
 	StateDone          = "done"
 	StateError         = "error"
 	StateInterrupted   = "interrupted"

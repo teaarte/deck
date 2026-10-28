@@ -29,7 +29,9 @@ const (
 	ProgramMissing = "program.missing"
 	RightsDenied   = "rights.denied"
 	Network        = "network"
-	Stopped        = "stopped"
+	// Killed is a program of a process a signal from outside deck ended.
+	Killed  = "killed"
+	Stopped = "stopped"
 )
 
 // Whose a failure is.
@@ -45,7 +47,7 @@ var whose = map[string]string{
 	ModelLimit: OfModel, ModelUnavailable: OfModel, ModelLogin: OfModel, AgentLoop: OfModel,
 	DeckTools: OfDeck, DeckRestart: OfDeck, DeckInternal: OfDeck, DeckStopped: OfDeck,
 	Timeout: OfModule, ScriptFailed: OfModule, ResultInvalid: OfModule, TaskFailed: OfModule, InputInvalid: OfModule,
-	ProgramMissing: OfEnvironment, Network: OfEnvironment,
+	ProgramMissing: OfEnvironment, Network: OfEnvironment, Killed: OfEnvironment,
 	RightsDenied: OfOwner, Stopped: OfOwner,
 }
 
@@ -169,6 +171,7 @@ var said = map[string]string{
 	AgentLoop: "the agent went round in circles", DeckTools: "deck's tools failed", DeckRestart: "deck restarted",
 	DeckInternal: "an error of deck", DeckStopped: "deck stopped it", Timeout: "it ran out of time", Network: "the network failed",
 	RightsDenied: "a right was refused", Stopped: "you stopped it", TaskFailed: "the agent reported an error",
+	Killed: "a signal from outside deck killed it",
 }
 
 // Said is a failure of type t in words, a phrase of deck; empty for a type the text says better.

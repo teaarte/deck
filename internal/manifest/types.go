@@ -115,11 +115,16 @@ type Command struct {
 	Requires       []string        `json:"requires,omitempty"`
 	Provider       string          `json:"provider,omitempty"`
 	TimeoutMinutes int             `json:"timeout_minutes,omitempty"`
-	Executor       Executor        `json:"executor"`
+	// Runs is RunsOne for a command whose next call waits until the run before it has ended.
+	Runs     string   `json:"runs,omitempty"`
+	Executor Executor `json:"executor"`
 
 	input  *jsonschema.Schema
 	result *jsonschema.Schema
 }
+
+// RunsOne is a command that runs one at a time.
+const RunsOne = "one"
 
 type Executor struct {
 	Type       string   `json:"type"`

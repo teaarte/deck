@@ -39,6 +39,15 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
   const asking = useRef(false);
   latest.current = value;
   const [ready, setReady] = useState(false);
+  // reads are the files the frame asked for and has not got yet; drawn is a ready frame no read kept busy a moment.
+  const [reads, setReads] = useState(0);
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => {
+    setDrawn(false);
+    if (!ready || reads > 0) return;
+    const id = setTimeout(() => setDrawn(true), 500);
+    return () => clearTimeout(id);
+  }, [ready, reads]);
   const [height, setHeight] = useState(240);
   const [full, setFull] = useState(false);
   const [failed, setFailed] = useState('');
@@ -94,7 +103,8 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
     b.onreadresource = async ({ uri }): Promise<ReadResourceResult> => {
       const project = latest.current.project;
       if (!project) throw new Error('deck: a block on a screen of deck has no module files to read');
-      const r = await call<Resource>('deck.file_read', { project, uri });
+      setReads((n) => n + 1);
+      const r = await call<Resource>('deck.file_read', { project, uri }).finally(() => setReads((n) => n - 1));
       return { contents: [{ uri: r.uri, mimeType: r.type, blob: r.blob }] };
     };
     b.onsizechange = ({ height: h }) => { if (h) setHeight(Math.min(Math.max(h, 40), 4000)); };
@@ -128,5 +138,5 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
     context.current = { ...context.current, displayMode: 'inline', containerDimensions: undefined };
     bridge.current?.setHostContext(context.current);
   };
-  return { frame, height, full, inline, failed, ready };
+  return { frame, height, full, inline, failed, drawn };
 }

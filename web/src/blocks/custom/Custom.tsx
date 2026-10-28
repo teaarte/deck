@@ -13,13 +13,16 @@ export function Custom({ value }: { value: CustomValue }) {
   const [asking, setAsking] = useState<Ask & { done: (ok: boolean) => void }>();
   const ask = (q: Ask) => new Promise<boolean>((done) => setAsking({ ...q, done }));
   const answer = (ok: boolean) => { asking?.done(ok); setAsking(undefined); };
-  const { frame, height, full, inline, failed, ready } = useAppBridge(value, ask, useBlockContext());
-  // The frame awaits its HTML for a few seconds at most, so a shot of the screen shows the block drawn.
+  const { frame, height, full, inline, failed, drawn } = useAppBridge(value, ask, useBlockContext());
+  // The frame awaits its HTML, then the files it reads, for a few seconds at most each, so a shot of the screen
+  // shows the block drawn.
   const [late, setLate] = useState(false);
+  const ready = drawn || late;
   useEffect(() => {
+    setLate(false);
     const id = setTimeout(() => setLate(true), 5000);
     return () => clearTimeout(id);
-  }, []);
+  }, [drawn]);
   // Allow waits a moment, so a click meant for the screen under a window the frame just opened does not land on it.
   const [armed, setArmed] = useState(false);
   useEffect(() => {
@@ -31,7 +34,7 @@ export function Custom({ value }: { value: CustomValue }) {
   return (
     <>
       {failed && <Text size="sm" c="red" data-custom-error>{t('custom.failed', { why: failed })}</Text>}
-      <iframe ref={frame} title="custom" data-custom data-full={full || undefined} data-awaits={!ready && !failed && !late || undefined} sandbox="allow-scripts allow-same-origin allow-forms"
+      <iframe ref={frame} title="custom" data-custom data-full={full || undefined} data-awaits={!ready && !failed || undefined} sandbox="allow-scripts allow-same-origin allow-forms"
         style={full ? { position: 'fixed', inset: 0, width: '100vw', height: '100dvh', border: 0, zIndex: 190, background: 'var(--mantine-color-body)' }
           : { width: '100%', height, border: 0, display: 'block' }} />
       {full && (

@@ -52,6 +52,8 @@ func Show(p db.Process, question string, long bool, tr func(string) string) Show
 		s.Word = say("waits for a slot")
 	case p.State == StateWaitingFolder:
 		s.Word = say("waits for folder %s", p.Folder)
+	case p.State == StateWaitingRun:
+		s.Word = say("waits for the run before it")
 	case p.SilentSinceMs.Valid:
 		s.Word = say("silent")
 	case p.Kind == KindScript:

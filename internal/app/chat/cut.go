@@ -54,7 +54,7 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64, tr func
 	}
 	tools, _ := ch.Runner.Tail(p.ID, workLines, "tool")
 	v := &cutView{Stopped: stopped(p), Steps: len(tools), Said: ch.Runner.Said(p.ID), Did: process.Did(ctx, ch.St.Q, p.ID),
-		Undo: []undoView{}, Retry: []action{}}
+		Retry: []action{}}
 	why := p.ErrorType
 	if p.State == process.StateInterrupted {
 		why = cmp.Or(why, fault.DeckRestart)
@@ -62,9 +62,25 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64, tr func
 	if why = fault.Said(why); why != "" && !v.Stopped {
 		v.Reason = tr(why)
 	}
-	left, err := process.LeftBy(ctx, ch.St.Q, p.ID)
+	v.Undo = ch.undos(ctx, p.ID)
+	if v.Stopped {
+		v.Retry = append(v.Retry, chatAction("continue", registry.Builtin+".chat_retry", map[string]any{"message": message, "provider": p.Provider}))
+		return v
+	}
+	for _, name := range ch.others(ctx, p) {
+		a := chatAction("retry", registry.Builtin+".chat_retry", map[string]any{"message": message, "provider": name})
+		a["label"] = name
+		v.Retry = append(v.Retry, a)
+	}
+	return v
+}
+
+// undos are what a process left that the owner can take back, each with its button.
+func (ch *Service) undos(ctx context.Context, processID int64) []undoView {
+	out := []undoView{}
+	left, err := process.LeftBy(ctx, ch.St.Q, processID)
 	if err != nil {
-		slog.Error("what a broken reply left", "process", p.ID, "err", err)
+		slog.Error("what a process left", "process", processID, "err", err)
 	}
 	for _, l := range left {
 		var a action
@@ -80,18 +96,9 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64, tr func
 		default:
 			continue
 		}
-		v.Undo = append(v.Undo, undoView{Text: l.Text, Action: a})
+		out = append(out, undoView{Text: l.Text, Action: a})
 	}
-	if v.Stopped {
-		v.Retry = append(v.Retry, chatAction("continue", registry.Builtin+".chat_retry", map[string]any{"message": message, "provider": p.Provider}))
-		return v
-	}
-	for _, name := range ch.others(ctx, p) {
-		a := chatAction("retry", registry.Builtin+".chat_retry", map[string]any{"message": message, "provider": name})
-		a["label"] = name
-		v.Retry = append(v.Retry, a)
-	}
-	return v
+	return out
 }
 
 // others are the providers the master's reply may go again on, but the one it broke on.

@@ -51,7 +51,7 @@ type processView struct {
 	Project string          `json:"project"`
 	Command string          `json:"command"`
 	Kind    string          `json:"kind" enum:"agent|script|tool|model"`
-	State   string          `json:"state" enum:"running|waiting_answer|needs_login|rate_limited|waiting_provider|waiting_slot|waiting_folder|done|error|interrupted|stopped"`
+	State   string          `json:"state" enum:"running|waiting_answer|needs_login|rate_limited|waiting_provider|waiting_slot|waiting_folder|waiting_run|done|error|interrupted|stopped"`
 	Result  json.RawMessage `json:"result,omitempty"`
 	// Input is what the process was started with; only process_get gives it.
 	Input       json.RawMessage `json:"input,omitempty"`
@@ -394,15 +394,16 @@ func (s *Service) processStop(ctx context.Context, act registry.Actor, in proces
 
 type processReworkIn struct {
 	Process int64  `type:"process" desc:"Process id"`
-	Remark  string `type:"text" desc:"What to change"`
+	Remark  string `type:"text" opt:"" desc:"What to change; without it a process that failed goes on where it stopped"`
 }
 
 func (s *Service) processRework(ctx context.Context, act registry.Actor, in processReworkIn) (any, error) {
-	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
+	p, err := s.ownProcess(ctx, act, in.Process)
+	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(in.Remark) == "" {
-		return nil, registry.Invalid("deck: a rework needs a remark")
+	if strings.TrimSpace(in.Remark) == "" && p.State == process.StateDone {
+		return nil, registry.Invalid("deck: a rework of a process that is done needs a remark")
 	}
 	if err := s.Runner.Rework(ctx, in.Process, in.Remark); err != nil {
 		return nil, err
@@ -509,7 +510,7 @@ func (s *Service) processCommands() []*registry.Command {
 			"Stops a process; a running agent is killed and what it did so far stays.",
 			registry.OwnerSide, s.processStop),
 		registry.Def("process_rework", "Send back for rework",
-			"Sends a finished agent process back to the same session with a remark; changed artifacts get new revisions.",
+			"Sends a finished agent process back to the same session with a remark, or one that failed or was stopped on where it stopped; changed artifacts get new revisions.",
 			registry.OwnerSide, s.processRework),
 		registry.Read("process_log", "Process log",
 			"Gives a page of the events of a process, oldest first, each with its number n: the last ones, or those before or after a number; only errors, tool calls or messages; a text longer than 1000 bytes is cut, and a page of one event gives it whole. While it runs and for a week after it ended.",

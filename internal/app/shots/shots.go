@@ -105,27 +105,40 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in shotIn) (any,
 		q.Set("scheme", in.Scheme)
 	}
 	page := strings.TrimRight(s.Base, "/") + "/?" + q.Encode() + in.Address
+	// A phone's full-page picture leaves the frames of custom blocks blank, so its window grows to the page instead.
 	code := fmt.Sprintf(`async (page) => {
   await page.goto(%q);
   const drawn = await page.waitForFunction(%s, null, { timeout: 30000, polling: 100 });
   const ms = await drawn.jsonValue();
   await page.waitForTimeout(250);
   await page.waitForFunction(%s, null, { timeout: 10000, polling: 100 });
+  const window = page.viewportSize();
+  const tall = %t ? Math.min(await page.evaluate(() => document.documentElement.scrollHeight), 8000) : 0;
+  if (tall > window.height) {
+    await page.setViewportSize({ width: window.width, height: tall });
+    await page.waitForTimeout(250);
+    await page.waitForFunction(%s, null, { timeout: 10000, polling: 100 });
+  }
   const error = await page.evaluate(() => document.querySelector('[data-screen-error]')?.innerText ?? '');
-  return JSON.stringify({ ms: Math.round(ms), error });
-}`, page, ready, ready)
+  return JSON.stringify({ ms: Math.round(ms), error, window, grown: tall > window.height });
+}`, page, ready, ready, device == "phone", ready)
 	res, err := s.call(ctx, key, spec, "browser_run_code_unsafe", map[string]any{"code": code})
 	if err != nil {
 		return nil, err
 	}
 	var drawn struct {
-		MS    int64  `json:"ms"`
-		Error string `json:"error"`
+		MS     int64           `json:"ms"`
+		Error  string          `json:"error"`
+		Window json.RawMessage `json:"window"`
+		Grown  bool            `json:"grown"`
 	}
 	if err := json.Unmarshal([]byte(result(res)), &drawn); err != nil {
 		return nil, fmt.Errorf("deck: the screen did not draw: %s", strings.TrimSpace(text(res)))
 	}
-	pic, err := s.call(ctx, key, spec, "browser_take_screenshot", map[string]any{"type": "png", "fullPage": true})
+	pic, err := s.call(ctx, key, spec, "browser_take_screenshot", map[string]any{"type": "png", "fullPage": !drawn.Grown})
+	if drawn.Grown {
+		_, _ = s.call(ctx, key, spec, "browser_run_code_unsafe", map[string]any{"code": fmt.Sprintf("async (page) => { await page.setViewportSize(%s); }", drawn.Window)})
+	}
 	// The page leaves, so it hears no more of the workspace once its token is back.
 	_, _ = s.call(ctx, key, spec, "browser_navigate", map[string]any{"url": "about:blank"})
 	if err != nil {

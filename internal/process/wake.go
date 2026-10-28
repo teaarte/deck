@@ -108,6 +108,13 @@ func (r *Runner) wake(ctx context.Context) {
 				busy[key] = true
 				continue
 			}
+		case StateWaitingRun:
+			key := fmt.Sprint("run:", p.ProjectID, ".", p.Command)
+			if busy[key] || !r.runFree(ctx, p) {
+				busy[key] = true
+				continue
+			}
+			busy[key] = true
 		case StateWaitingFolder:
 			if busy["folder:"+p.Folder] || !r.folderFree(ctx, p.Folder) {
 				busy["folder:"+p.Folder] = true

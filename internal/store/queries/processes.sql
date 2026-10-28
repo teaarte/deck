@@ -271,7 +271,7 @@ WHERE id = sqlc.arg(id) AND state = 'running';
 
 -- name: ListHeld :many
 SELECT sqlc.embed(p), j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
-WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder')
+WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder', 'waiting_run')
    OR p.state = 'rate_limited' AND p.pause_until_ms <= CAST(sqlc.arg(now) AS INTEGER)
 ORDER BY p.id;
 
@@ -393,3 +393,10 @@ SELECT EXISTS (SELECT 1 FROM process q WHERE q.project_id = p.project_id AND q.c
   OR EXISTS (SELECT 1 FROM process f WHERE f.follows_id = p.id
     AND (f.finished_at IS NULL OR f.state = 'done' AND f.not_by_schema = 0))
 FROM process p WHERE p.id = ?;
+
+
+-- name: EarlierRun :one
+-- A run of the same command before this one that has not ended.
+SELECT id FROM process
+WHERE project_id = ? AND command = ? AND trial = ? AND id < ? AND finished_at IS NULL
+ORDER BY id LIMIT 1;

@@ -19,6 +19,7 @@ import (
 
 	"deck2/internal/api"
 	"deck2/internal/app"
+	deckhome "deck2/internal/home"
 	"deck2/internal/nonce"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
@@ -54,6 +55,12 @@ func run() error {
 		}
 		home = filepath.Join(h, ".deck2")
 	}
+	// A second deck of the home would take the agents of the first for those a crash left, and kill them.
+	lock, err := lockHome(deckhome.Layout(home))
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
 	ln, sideLn, err := listenPair(*addr)
 	if err != nil {
 		return err
@@ -136,6 +143,22 @@ func cleanEnv() error {
 		return err
 	}
 	return syscall.Exec(exe, os.Args, clean)
+}
+
+// lockHome holds the lock of the home until deck exits; another deck holding it refuses this one.
+func lockHome(h deckhome.Layout) (*os.File, error) {
+	if err := os.MkdirAll(h.State(), 0o700); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(h.Lock(), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("another deck runs on %s; one home has one deck", string(h))
+	}
+	return f, nil
 }
 
 func loadToken(path string) (string, error) {

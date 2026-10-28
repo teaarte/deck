@@ -1,7 +1,8 @@
 import { lazy, memo, Suspense, useState, type MouseEvent } from 'react';
-import { ActionIcon, Badge, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, CopyButton, Group, Spoiler, Stack, Text, Tooltip } from '@mantine/core';
 import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import type { Action } from '../lib/catalog.gen';
 import { formatted, toneColor } from '../lib/format';
 import type { ChatData } from './chatData';
 import { ActionButton } from '../ui/actions/ActionButton';
@@ -64,7 +65,29 @@ function Told({ m, told }: { m: ChatMessage; told: Told }) {
       </Group>
       {failed && told.reason && <Text size="sm">{told.reason}</Text>}
       {failed && told.error && <Details text={told.error} />}
-      {told.state === 'done' && m.text && <Markdown text={m.text} />}
+      {failed && !!told.left?.length && <Left undo={told.left} />}
+      {failed && told.go && <Group gap={6}><ActionButton act={{ ...told.go, primary: true }} /></Group>}
+      {told.state === 'done' && m.text && (
+        <Spoiler maxHeight={360} showLabel={t('chat.show_all')} hideLabel={t('chat.show_less')} data-told-result>
+          <Markdown text={m.text} />
+        </Spoiler>
+      )}
+    </Stack>
+  );
+}
+
+// Left is what a work that broke off left, each with the button that takes it back.
+function Left({ undo }: { undo: { text: string; action: Action }[] }) {
+  const { t } = useTranslation();
+  return (
+    <Stack gap={4} data-left>
+      <Text size="xs" fw={600}>{t('chat.cut_left')}</Text>
+      {undo.map((u, i) => (
+        <Group key={i} gap={6} wrap="nowrap" justify="space-between" className={s.left}>
+          <Text size="xs" lineClamp={2}>{u.text}</Text>
+          <ActionButton act={u.action} />
+        </Group>
+      ))}
     </Stack>
   );
 }
@@ -89,17 +112,7 @@ function Broken({ cut, reply, latest }: { cut: Cut; reply: Reply; latest: boolea
       {(cut.did.length > 0 || (cut.reason && reply.error)) && (
         <Details text={[...(cut.reason && reply.error ? [reply.error, ''] : []), ...cut.did].join('\n')} />
       )}
-      {cut.undo.length > 0 && (
-        <Stack gap={4}>
-          <Text size="xs" fw={600}>{t('chat.cut_left')}</Text>
-          {cut.undo.map((u, i) => (
-            <Group key={i} gap={6} wrap="nowrap" justify="space-between" className={s.left}>
-              <Text size="xs" lineClamp={2}>{u.text}</Text>
-              <ActionButton act={u.action} />
-            </Group>
-          ))}
-        </Stack>
-      )}
+      {cut.undo.length > 0 && <Left undo={cut.undo} />}
       {cut.retry.length > 0 && (
         <Group gap={6}>
           {cut.retry.map((r, i) => (

@@ -298,6 +298,32 @@ func (q *Queries) DropAgain(ctx context.Context, arg DropAgainParams) (int64, er
 	return result.RowsAffected()
 }
 
+const earlierRun = `-- name: EarlierRun :one
+SELECT id FROM process
+WHERE project_id = ? AND command = ? AND trial = ? AND id < ? AND finished_at IS NULL
+ORDER BY id LIMIT 1
+`
+
+type EarlierRunParams struct {
+	ProjectID int64
+	Command   string
+	Trial     int64
+	ID        int64
+}
+
+// A run of the same command before this one that has not ended.
+func (q *Queries) EarlierRun(ctx context.Context, arg EarlierRunParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, earlierRun,
+		arg.ProjectID,
+		arg.Command,
+		arg.Trial,
+		arg.ID,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const findActiveProcess = `-- name: FindActiveProcess :one
 SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id, again, allows, wrote FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
@@ -929,7 +955,7 @@ func (q *Queries) ListFollowers(ctx context.Context, followsID sql.NullInt64) ([
 
 const listHeld = `-- name: ListHeld :many
 SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, p.again, p.allows, p.wrote, j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
-WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder')
+WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder', 'waiting_run')
    OR p.state = 'rate_limited' AND p.pause_until_ms <= CAST(?1 AS INTEGER)
 ORDER BY p.id
 `

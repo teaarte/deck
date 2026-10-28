@@ -115,6 +115,10 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	msg := "deck: the owner sent this task back for rework.\n" + untrusted.Value("Remark", strings.TrimSpace(remark), 500) +
 		"\nKeep what is right and change what the remark asks for. Save changed documents again under the same" +
 		" names, so each change is a new revision, then give the final result again."
+	if strings.TrimSpace(remark) == "" {
+		msg = "deck: the task stopped before its end, and the owner asks you to go on. What you did so far stays: check it," +
+			" do not redo it, go on where you stopped, then give the final result."
+	}
 	note := strings.TrimSpace(p.StartNote + "\n" + msg)
 	var n int64
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

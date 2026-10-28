@@ -15,6 +15,7 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -55,7 +56,7 @@ func (ch *Service) tell(ctx context.Context, p db.Process) {
 		return
 	}
 	// A continued work tells again how its run ended; a wait is told once for each thing it asks.
-	text, key := untrusted.Cut(p.Result, 4000), fmt.Sprintf("deck:%d:end:%s", p.ID, cmp.Or(p.ReopenedAt.String, p.StartedAt))
+	text, key := untrusted.Cut(p.Result, maxChatText), endKey(p)
 	switch {
 	case !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer:
 		return
@@ -94,12 +95,20 @@ func (ch *Service) tell(ctx context.Context, p db.Process) {
 	}
 }
 
+// endKey is the key of the message that tells how the last run of a work ended.
+func endKey(p db.Process) string {
+	return fmt.Sprintf("deck:%d:end:%s", p.ID, cmp.Or(p.ReopenedAt.String, p.StartedAt))
+}
+
 // toldView is how a work started from the topic ended or what it waits for, in the owner's words.
 type toldView struct {
 	procView
 	// Reason is why a failed work failed; Error is what deck wrote of it.
 	Reason string `json:"reason,omitempty"`
 	Error  string `json:"error,omitempty"`
+	// Left is what a work that failed last left, with its undo; Go sends it on in its session.
+	Left []undoView `json:"left,omitempty"`
+	Go   action     `json:"go,omitempty"`
 }
 
 // told is the view of a message of deck: the state it was written at, the work it tells of and why that failed.
@@ -132,6 +141,13 @@ func (ch *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]str
 		v.Error = m.Text
 		if !(p.Kind == process.KindScript && slices.Contains(fault.ByScript, s.ErrorType)) {
 			v.Error = manifest.TrText(ws, m.Text)
+		}
+		// Only the message of how the work stands now offers to go on.
+		if m.RetryKey == endKey(p) && p.FinishedAt.Valid && p.State == at.State {
+			v.Left = ch.undos(ctx, p.ID)
+			if p.Kind == process.KindAgent && p.SessionID != "" {
+				v.Go = chatAction("continue", registry.Builtin+".process_rework", map[string]any{"process": p.ID})
+			}
 		}
 	}
 	return v

@@ -173,3 +173,73 @@ func TestAWorkSentBackTellsItsTopicAgain(t *testing.T) {
 		return strings.Join(said, " | ") == "Counted: 3 records. | Recounted: 4 records."
 	})
 }
+
+// A long result of a work comes to its topic whole, and the master's next turn reads it whole.
+func TestAWorkTellsItsTopicItsWholeResult(t *testing.T) {
+	t.Parallel()
+	long := strings.Repeat("Шаг сделан, одна фраза — одно дело. ", 90) + "Что заводить первым?"
+	var from atomic.Int64
+	var replies atomic.Int32
+	var prompt atomic.Value
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "work" {
+			return provider.Result{Text: long}
+		}
+		if replies.Add(1) == 1 {
+			return handOver(ctx, c, &from)
+		}
+		prompt.Store(c.Req.Prompt)
+		return provider.Result{Text: "ok"}
+	})
+	topic := e.say(0, "plan it")
+	if done := e.told(topic, "done", ""); done.Text != long {
+		t.Fatalf("the topic gets the whole result of %d bytes, not %d", len(long), len(done.Text))
+	}
+	e.say(topic, "and?")
+	e.masterSaid(topic, 2)
+	if p, _ := prompt.Load().(string); !strings.Contains(p, "Что заводить первым?") {
+		t.Fatalf("the master reads the whole result:\n%s", p)
+	}
+}
+
+// A work from a topic that failed tells what it left and goes on in its session at the owner's press.
+func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
+	t.Parallel()
+	var from atomic.Int64
+	var works atomic.Int32
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		switch {
+		case strings.Contains(c.Req.Prompt, "go on where you stopped"):
+			return provider.Result{Text: "Finished the rest."}
+		case c.command() != "work":
+			return handOver(ctx, c, &from)
+		case works.Add(1) == 1:
+			return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
+		}
+		return provider.Result{Text: "a second fresh run"}
+	})
+	topic := e.say(0, "do it")
+	failed := e.told(topic, "error", "")
+	var view struct{ Messages []json.RawMessage }
+	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	var goOn struct {
+		Told struct {
+			Go struct {
+				Command string         `json:"command"`
+				Params  map[string]any `json:"params"`
+			} `json:"go"`
+		} `json:"told"`
+	}
+	for _, raw := range view.Messages {
+		if strings.Contains(string(raw), `"go"`) {
+			_ = json.Unmarshal(raw, &goOn)
+		}
+	}
+	if goOn.Told.Go.Command != "deck.process_rework" {
+		t.Fatalf("a failed work offers to go on: %+v", view.Messages)
+	}
+	e.must(goOn.Told.Go.Command, goOn.Told.Go.Params, nil)
+	if done := e.told(topic, "done", ""); done.Text != "Finished the rest." || done.Process != failed.Process {
+		t.Fatalf("the same work goes on in its session: %+v", done)
+	}
+}

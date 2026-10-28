@@ -171,6 +171,8 @@
     "placeholder": "Message to the master",
     "send_failed": "The message was not sent",
     "cut_by": "The reply on {{provider}} broke off",
+    "show_all": "Show all",
+    "show_less": "Show less",
     "cut_left": "What it left",
     "retry_on": "Answer on {{provider}}",
     "steps_one": "{{count}} step", "steps_other": "{{count}} steps",

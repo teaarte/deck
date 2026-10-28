@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"image"
 	"image/png"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"deck2/internal/app"
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 )
 
@@ -90,6 +94,18 @@ func TestRealBrowserAShotDrawsACustomBlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	magenta := magentaIn(t, b)
+	if dir := os.Getenv("DECK_SCREENSHOTS"); dir != "" {
+		_ = os.WriteFile(dir+"/shot-custom.png", b, 0o644)
+	}
+	if magenta < 2000 {
+		t.Fatalf("the shot shows the custom block drawn: %d magenta points", magenta)
+	}
+}
+
+// magentaIn counts the magenta points of a picture, one in four.
+func magentaIn(t *testing.T, b []byte) int {
+	t.Helper()
 	img, err := png.Decode(bytes.NewReader(b))
 	if err != nil {
 		t.Fatal(err)
@@ -102,10 +118,66 @@ func TestRealBrowserAShotDrawsACustomBlock(t *testing.T) {
 			}
 		}
 	}
-	if dir := os.Getenv("DECK_SCREENSHOTS"); dir != "" {
-		_ = os.WriteFile(dir+"/shot-custom.png", b, 0o644)
+	return magenta
+}
+
+// customReads is a custom block that, given its items, takes a moment, then reads a picture of its module's data
+// folder by resources/read and shows it, as a block of photos does.
+const customReads = `<!doctype html><html><body style="margin:0"><img id="pic" style="display:block;width:100%;height:200px"><script type="module">
+import { App } from "/ext-apps.js";
+const app = new App({ name: "photo", version: "1" });
+app.ontoolresult = async () => {
+  await new Promise((r) => setTimeout(r, 200));
+  const c = (await app.readServerResource({ uri: "deck://data/pics/photo.png" })).contents[0];
+  document.getElementById("pic").src = URL.createObjectURL(new Blob([Uint8Array.from(atob(c.blob), (x) => x.charCodeAt(0))], { type: c.mimeType }));
+};
+await app.connect();
+</script></body></html>`
+
+// TestRealBrowserAShotWaitsForThePicturesACustomBlockReads: a shot of a screen waits for the pictures a custom block
+// reads itself, on a computer and on a phone.
+func TestRealBrowserAShotWaitsForThePicturesACustomBlockReads(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
-	if magenta < 2000 {
-		t.Fatalf("the shot shows the custom block drawn: %d magenta points", magenta)
+	checkBuiltClient(t)
+	shots := make(chan string, 2)
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		for _, device := range []string{"computer", "phone"} {
+			out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/p/web/main", "scheme": "light", "device": device})
+			if bad {
+				out = "refused: " + out
+			}
+			shots <- out
+		}
+		return provider.Result{Text: "Looked."}
+	}, func(c *app.Config) { c.Browser = app.DefaultBrowser })
+	p := e.createProject("web", webNotes)
+	pic := image.NewRGBA(image.Rect(0, 0, 400, 200))
+	for i := range pic.Pix {
+		pic.Pix[i] = []uint8{255, 0, 255, 255}[i%4]
+	}
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, pic)
+	data := deckhome.Layout(e.App.Cfg.Home).Data(p)
+	_ = os.MkdirAll(filepath.Join(data, "pics"), 0o700)
+	_ = os.WriteFile(filepath.Join(data, "pics", "photo.png"), buf.Bytes(), 0o600)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customReads}, nil)
+	e.say(0, "look at the photo")
+	for _, device := range []string{"computer", "phone"} {
+		var shot struct{ Path, Error string }
+		if raw := <-shots; json.Unmarshal([]byte(raw), &shot) != nil || shot.Error != "" {
+			t.Fatalf("the shot: %s", raw)
+		}
+		b, err := os.ReadFile(shot.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dir := os.Getenv("DECK_SCREENSHOTS"); dir != "" {
+			_ = os.WriteFile(filepath.Join(dir, fmt.Sprintf("shot-custom-picture-%s.png", device)), b, 0o644)
+		}
+		if magenta := magentaIn(t, b); magenta < 2000 {
+			t.Fatalf("the shot on a %s shows the picture the block read: %d magenta points", device, magenta)
+		}
 	}
 }

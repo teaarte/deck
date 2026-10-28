@@ -264,7 +264,7 @@ func (r *Runner) resumeTurn(ctx context.Context, processID int64, message string
 
 // turnOf is a fresh start of the session a process has, with the command of its manifest revision.
 func (r *Runner) turnOf(ctx context.Context, p db.Process) (turn, error) {
-	if p.SessionID == "" {
+	if p.SessionID == "" && p.Kind == KindAgent {
 		return turn{}, errors.New("process has no session to resume")
 	}
 	m, err := docs.ManifestAt(ctx, r.st.Q, p.ProjectID, p.ManifestRevision)

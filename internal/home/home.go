@@ -27,6 +27,9 @@ func (l Layout) State() string { return l.state() }
 func (l Layout) Work() string { return l.work() }
 
 func (l Layout) DB() string    { return l.state("deck.db") }
+
+// Lock is the file the one deck of a home holds locked while it runs.
+func (l Layout) Lock() string { return l.state("deck.lock") }
 func (l Layout) Token() string { return l.state("token") }
 func (l Layout) Files() string { return l.state("files") }
 

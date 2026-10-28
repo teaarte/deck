@@ -77,6 +77,7 @@
           "description": "Provider capabilities beyond what every provider has: images is a model that reads pictures; no_cloud is a model on the owner's hardware; local_browser is a shell that starts a local browser (Chrome, a headless render) and listens on local ports."},
         "provider": {"type": "string", "description": "Suggested provider; the owner picks the real one in settings."},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 240},
+        "runs": {"enum": ["one"], "description": "one: one run at a time; a call while a run goes on waits as a run of its own and starts once the runs before it have ended. For a command whose runs share files of $DECK_DATA, an install or a browser."},
         "executor": {"$ref": "#/$defs/executor"}
       }
     },

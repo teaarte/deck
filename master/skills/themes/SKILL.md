@@ -23,9 +23,9 @@ asks, as a theme of its own name.
 4. The cards of modules have their own tokens: `cockpit` (the cockpit's card; the accent by default), `tile` (a
    card without a cover), `tile-shade`, `tile-text`, `tile-icon`, `tile-shadow`, `tile-lift`, and of their grid
    `tile-min`, `tile-height`, `tile-gap` (one cell: a card stands on whole cells); classes `.widget` (the view of a
-   module in its card) and `.placing` (a card while the owner places the tiles); `meadow` is the ground at the foot
-   of the page, `toast` and `toast-text` the note with Undo. Text on the cockpit and on a card without a cover needs
-   4.5:1 under the last stop of its shade.
+   module in its card), `.left-out` (the mark of the blocks a card has no room for) and `.placing` (a card while the
+   owner places the tiles); `meadow` is the ground at the foot of the page, `toast` and `toast-text` the note with
+   Undo. Text on the cockpit and on a card without a cover needs 4.5:1 under the last stop of its shade.
 5. CSS only when tokens and parts are not enough, and only by the classes of the catalog: no url(), no
    @import, no selectors of the page. A card of a module is `.tile` (`.today` the cockpit's, `[data-cover]` one
    with a picture), a card of a board `.board-card`; `.card` names both and stays for older themes. `.places` and

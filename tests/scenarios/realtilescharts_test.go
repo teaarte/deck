@@ -65,10 +65,8 @@ func console() string {
 	return b.String()
 }
 
-// TestRealBrowserTilesAndCharts: on a computer and a phone a card takes the view of its size and its chart grows to
-// the bottom, a block it has no room for is said in its head; Today's lines read over the theme's picture; the axes
-// of a chart cut no label and name each date once; the board's accent is on the first card at work; a table has its
-// button in its head.
+// TestRealBrowserTilesAndCharts: cards take the view of their size with the chart grown and what has no room said;
+// Today reads over its picture; axes cut and repeat no label; the board's accent is at work; a table has a head.
 func TestRealBrowserTilesAndCharts(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")

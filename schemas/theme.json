@@ -80,7 +80,7 @@
     "classes": {
       "island": "[data-island]", "nav": "[data-phone-tabs]", "nav-item": "[data-phone-tabs] [data-tab]", "main": "[data-main]",
       "chat": "[data-chat-panel]", "chat-phone": "[data-chat-phone]", "phone-bar": "[data-phone-tabs]", "block": "[data-block]",
-      "card": "[data-card]", "tile": "[data-app-tile]", "today": "[data-app-tile][data-big]", "tile-icon": "[data-app-tile-icon]", "widget": "[data-widget]", "placing": "[data-apps][data-placing] [data-app-tile]",
+      "card": "[data-card]", "tile": "[data-app-tile]", "today": "[data-app-tile][data-big]", "tile-icon": "[data-app-tile-icon]", "widget": "[data-widget]", "left-out": "[data-widget-left-out]", "placing": "[data-apps][data-placing] [data-app-tile]",
       "board-card": "[data-lane] [data-card]", "toast": "[data-toast]", "meadow": "[data-meadow]", "places": "[data-places]", "place": "[data-places] > a", "hero": "[data-hero]", "screen-head": "[data-screen-head]", "actions": "[data-actions]",
       "composer": "[data-composer]", "attached": ":is([data-attached-picture], [data-attached-file])", "message": "[data-message]", "bubble": "[data-bubble]", "chat-link": "[data-message='master'] a[href^='#/']",
       "turn": "[data-turn]", "turn-head": "[data-turn-head]", "turn-step": "[data-turn-step]", "turn-log": "[data-turn-log]",

@@ -87,8 +87,8 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.until("the question gone", `!document.querySelector('[data-question]')`)
 
 	say("think long about it")
-	b.until("the running turn says the call it makes in words, with its steps, a timer and stop", `(() => { const t = document.querySelector('[data-turn="running"]'); return t && t.querySelector('[data-turn-now]')?.innerText === 'runs a command' &&
-		/^\d+:\d\d$/.test(t.querySelector('[data-turn-timer]')?.innerText ?? '') && t.querySelector('[data-verb="stop"]') && t.querySelectorAll('[data-turn-step]').length === 2 && !t.querySelector('[data-turn-log]') })()`)
+	b.until("the running turn says the call it makes in words with a timer and stop, its steps folded", `(() => { const t = document.querySelector('[data-turn="running"]'); return t && t.querySelector('[data-turn-now]')?.innerText === 'runs a command' &&
+		/^\d+:\d\d$/.test(t.querySelector('[data-turn-timer]')?.innerText ?? '') && t.querySelector('[data-verb="stop"]') && !t.querySelector('[data-turn-step]') && !t.querySelector('[data-turn-log]') })()`)
 	b.until("the head of the panel says it works", `document.querySelector('[data-chat-panel] [data-chat-live]')`)
 	b.until("Deki in the turn in the pose of what it does", `document.querySelector('[data-turn="running"] [data-turn-head] [data-pose]')?.dataset.pose === 'work'`)
 	b.shot("chat-turn")

@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense } from 'react';
+import { lazy, memo, Suspense, useState, type MouseEvent } from 'react';
 import { ActionIcon, Badge, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -30,13 +30,21 @@ function Work({ w }: { w: WorkValue }) {
   return <div className={s.work} data-work><Processes list={w.processes} /></div>;
 }
 
-// Meta is how a reply went in one line, the model, cost, time and steps; a phone has no hover, so it always shows.
-function Meta({ w }: { w: WorkValue }) {
+// sent is when a message was written, in the time zone and locale of the device: the time alone today.
+const sent = (at: string) => {
+  const d = new Date(at);
+  if (isNaN(d.getTime())) return '';
+  const today = d.toDateString() === new Date().toDateString();
+  return new Intl.DateTimeFormat(locale(), today ? { timeStyle: 'short' } : { dateStyle: 'medium', timeStyle: 'short' }).format(d);
+};
+
+// Meta is how a reply went in one line, the model, cost, time and steps, and when it was written.
+function Meta({ w, at }: { w?: WorkValue; at: string }) {
   const { t } = useTranslation();
-  const parts = [w.model || w.provider, w.cost_usd !== undefined ? cost(w.cost_usd) : '',
+  const parts = w ? [w.model || w.provider, w.cost_usd !== undefined ? cost(w.cost_usd) : '',
     w.subscription_usd !== undefined ? t('chat.subscription', { cost: cost(w.subscription_usd) }) : '',
-    t('chat.worked', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('chat.steps', { count: w.steps }) : ''].filter(Boolean);
-  return <Text size="xs" c="dimmed" data-work-meta>{parts.join(' · ')}</Text>;
+    t('chat.worked', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('chat.steps', { count: w.steps }) : ''] : [];
+  return <Text size="xs" c="dimmed" data-work-meta>{[...parts, sent(at)].filter(Boolean).join(' · ')}</Text>;
 }
 
 type Told = NonNullable<ChatMessage['told']>;
@@ -119,18 +127,24 @@ function ReplyState({ reply, latest }: { reply: Reply; latest: boolean }) {
 export const Message = memo(function Message({ m, latest }: { m: ChatMessage; latest: boolean }) {
   const { t } = useTranslation();
   const mascot = useMascot();
+  // A press shows how the message went, for a phone has no hover; a press on a link or a button, or a selection, does not.
+  const [shown, setShown] = useState(false);
+  const show = (e: MouseEvent) => {
+    if (!getSelection()?.toString() && !(e.target as HTMLElement).closest('a, button, img, video')) setShown(!shown);
+  };
   if (m.role === 'deck') return m.told ? <Told m={m} told={m.told} /> : null;
   if (m.role === 'owner') {
     // A picture attached shows as its light copy, another file by its name.
     const pictures = (m.files ?? []).filter((f) => f.thumb);
     const files = (m.files ?? []).filter((f) => !f.thumb).map((f) => f.name);
     return (
-      <Stack gap={4} align="flex-end" data-message="owner">
+      <Stack gap={2} align="flex-end" className={s.ownerLine} data-message="owner" data-shown={shown || undefined} onClick={show}>
         <div className={s.ownerBubble} data-bubble>
           {pictures.length > 0 && <Group gap={4} mb={6}>{pictures.map((f) => <Thumb key={f.id} it={f} size={72} />)}</Group>}
           {files.length > 0 && <Group gap={4} mb={6}>{files.map((f) => <Badge key={f} size="sm" variant="white" leftSection={<IconPaperclip size={11} />}>{f}</Badge>)}</Group>}
           <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</Text>
         </div>
+        <div className={s.lineTools} data-line-tools><Meta at={m.created_at} /></div>
         {(m.reply?.tone === 'error' || m.reply?.tone === 'muted') && <ReplyState reply={m.reply} latest={latest} />}
         {m.delete && (
           <Group gap={2} data-not-taken>
@@ -142,18 +156,18 @@ export const Message = memo(function Message({ m, latest }: { m: ChatMessage; la
     );
   }
   return (
-    <div className={s.masterLine} data-message="master" data-avatar={mascot || undefined} tabIndex={-1}>
+    <div className={s.masterLine} data-message="master" data-avatar={mascot || undefined} data-shown={shown || undefined} tabIndex={-1} onClick={show}>
       {mascot && <span className={s.avatar}><DekiHead size={28} /></span>}
       <Markdown text={m.text} />
       {!!m.files?.length && <div className={s.made} data-message-files><Suspense><Media items={m.files} /></Suspense></div>}
       {m.work && <Work w={m.work} />}
-      <Group gap={4} className={s.lineTools}>
+      <Group gap={4} className={s.lineTools} data-line-tools>
         <CopyButton value={m.text}>{({ copied, copy }) => (
           <Tooltip label={copied ? t('chat.copied') : t('chat.copy')}>
-            <ActionIcon variant="subtle" color="gray" size="sm" className={s.copy} onClick={copy} aria-label={t('chat.copy')}>{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}</ActionIcon>
+            <ActionIcon variant="subtle" color="gray" size="sm" onClick={copy} aria-label={t('chat.copy')}>{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}</ActionIcon>
           </Tooltip>
         )}</CopyButton>
-        {m.work && <Meta w={m.work} />}
+        <Meta w={m.work} at={m.created_at} />
       </Group>
     </div>
   );

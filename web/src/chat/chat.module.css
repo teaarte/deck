@@ -35,24 +35,23 @@
   left: 0;
 }
 
+/* How a message went shows on hover, in focus, or by a press where there is no hover. */
 .lineTools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
   margin-top: 2px;
-}
-
-.copy {
   opacity: 0;
   transition: opacity 150ms ease;
 }
 
-.masterLine:hover .copy,
-.masterLine:focus-within .copy {
+.masterLine:hover .lineTools,
+.masterLine:focus-within .lineTools,
+.ownerLine:hover .lineTools,
+.ownerLine:focus-within .lineTools,
+[data-shown] > .lineTools {
   opacity: 1;
-}
-
-@media (hover: none) {
-  .copy {
-    opacity: 1;
-  }
 }
 
 .masterLine:focus {
@@ -96,7 +95,7 @@
   color: var(--mantine-primary-color-filled);
 }
 
-/* The turn stands over the input, its steps and log scrolling within it. */
+/* The turn stands over the input in one line; what it opens scrolls within it, under the line and as wide. */
 .turn {
   display: flex;
   flex: none;
@@ -109,13 +108,23 @@
 
 .turnHead {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   min-height: 34px;
   padding: 3px 4px 3px 6px;
   border-radius: var(--mantine-radius-xl);
   background: var(--deck-fill, var(--mantine-color-default-hover));
+
+  &[role='button'] {
+    cursor: pointer;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mantine-primary-color-filled);
+    outline-offset: -2px;
+  }
 }
 
 .turnMark {
@@ -128,11 +137,28 @@
   color: var(--mantine-primary-color-filled);
 }
 
-.steps {
+.turnFact {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.turnModel {
+  flex: 0 1 auto;
+  max-width: 28%;
+}
+
+.turnChevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--mantine-color-dimmed);
+}
+
+.turnBody {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 2px 4px 0 46px;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 6px;
 }
 
 .step {
@@ -156,22 +182,16 @@
   text-align: center;
 }
 
-.logToggle {
-  align-self: flex-start;
-  margin-left: 42px;
-}
-
 .log {
   position: relative;
   min-width: 0;
-  margin-left: 46px;
   border-radius: var(--deck-block-radius);
   background: var(--mantine-color-default-hover);
 }
 
 .logLines {
-  padding: 8px 12px;
-  padding-bottom: 40px;
+  padding: 6px 10px;
+  padding-right: 40px;
   font-family: var(--mantine-font-family-monospace);
   font-size: 11.5px;
   line-height: 1.55;
@@ -211,10 +231,35 @@
   gap: 4px;
 }
 
-/* The field looks the same in focus: its caret marks it; the buttons of the input keep their ring. */
+/* The field looks the same in focus, whatever the theme: its caret marks it; the buttons keep their ring. */
+.composer textarea,
 .composer textarea:focus,
 .composer textarea:focus-visible {
   outline: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.attachedPicture {
+  position: relative;
+  display: inline-flex;
+
+  & img {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: var(--deck-block-radius);
+    background: var(--mantine-color-default-hover);
+  }
+}
+
+.unattach {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-color-body);
+  box-shadow: 0 0 0 1px var(--mantine-color-default-border);
 }
 
 .composer {
@@ -309,7 +354,6 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 10px 6px;
 }
 
 .proc {
@@ -323,4 +367,9 @@
 .made {
   margin-top: 6px;
   max-width: 520px;
+}
+
+.ownerLine .lineTools {
+  min-height: 16px;
+  margin-top: 0;
 }

@@ -9,6 +9,17 @@ import s from './chat.module.css';
 import type { useAttachments } from './useAttachments';
 import { useVoice } from './useVoice';
 
+// Picture is a picture attached and not sent yet, shown from the device.
+function Picture({ file }: { file: File }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return url ? <img src={url} alt={file.name} title={file.name} /> : null;
+}
+
 // Composer is where the owner writes: the screen the message goes with, the files, the text, voice and send.
 export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdit, onWalk }: {
   text: string; setText: (f: (prev: string) => string) => void; files: ReturnType<typeof useAttachments>; busy: boolean;
@@ -51,8 +62,13 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
       )}
       {files.files.length > 0 && (
         <Group gap={6} px={6} pt={4} data-attached>
-          {files.files.map((f, i) => (
-            <Badge key={i} size="lg" variant="light" maw="100%" leftSection={<IconPaperclip size={12} />}
+          {files.files.map((f, i) => f.type.startsWith('image/') ? (
+            <span key={i} className={s.attachedPicture} data-attached-picture>
+              <Picture file={f} />
+              <CloseButton size="xs" className={s.unattach} onClick={() => files.remove(i)} aria-label={t('chat.unattach')} />
+            </span>
+          ) : (
+            <Badge key={i} size="lg" variant="light" maw="100%" leftSection={<IconPaperclip size={12} />} data-attached-file
               rightSection={<CloseButton size="xs" onClick={() => files.remove(i)} aria-label={t('chat.unattach')} />}>{f.name}</Badge>
           ))}
         </Group>
@@ -71,6 +87,7 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
         </div>
       ) : <Textarea variant="unstyled" autosize minRows={1} maxRows={10} placeholder={t('chat.placeholder')} value={text} data-chat-input px={8}
         onChange={(e) => onEdit(e.currentTarget.value)}
+        onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); files.attach(e.clipboardData.files); } }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); return; }
           if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {

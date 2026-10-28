@@ -65,33 +65,42 @@ function Stop({ act }: { act: Action }) {
   return <Button size="compact-xs" color="red" variant="light" loading={busy} onClick={() => void send()} data-verb="stop">{t('chat.stop')}</Button>;
 }
 
-// Turn is the reply going on: what it does now in its own words with a timer and Stop, the steps it said before,
-// and its raw calls folded under Log.
+// Turn is the reply going on in one line: what it does now with a timer, the model and Stop; a press on the line
+// opens the steps it said, its raw calls and the processes it started.
 export function Turn({ turn }: { turn: TurnValue }) {
   const { t } = useTranslation();
-  const [log, setLog] = useState(false);
-  const open = usePress(turn.open ?? {});
+  const [open, setOpen] = useState(false);
+  const log = usePress(turn.open ?? {});
   const running = turn.state === 'running';
   const mascot = useMascot();
   const steps = said(turn.lines);
   const calls = logLines(turn.lines);
+  const procs = turn.processes ?? [];
   const tick = useClock(1000, running);
   const started = turn.started_at ? Date.parse(turn.started_at) : NaN;
   const now = calling(turn.lines);
   const head = turn.waits || !running ? turn.word : now?.doing ?? steps[steps.length - 1] ?? t(mascot ? 'chat.working_deki' : 'chat.working_master');
+  const more = steps.length > 0 || calls.length > 0 || procs.length > 0;
+  const toggle = () => more && setOpen(!open);
   return (
     <div className={s.turn} data-turn={turn.state}>
-      <div className={s.turnHead} data-turn-head data-live={running || undefined}>
+      <div className={s.turnHead} data-turn-head data-live={running || undefined} data-open={open || undefined}
+        role={more ? 'button' : undefined} tabIndex={more ? 0 : undefined} aria-expanded={more ? open : undefined}
+        aria-label={more ? (open ? t('chat.hide_log') : t('chat.log')) : undefined} data-turn-fold={more || undefined}
+        onClick={(e) => { if (!(e.target as HTMLElement).closest('button')) toggle(); }}
+        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggle(); } }}>
         <span className={s.turnMark}>
           {!mascot ? <Glyph busy={running} /> : running || turn.waits ? <Deki pose={turnPose(!!turn.waits, now?.act)} size={26} />
             : <DekiHead size={24} />}
         </span>
         <Text size="sm" fw={600} truncate style={{ flex: 1 }} c={running && !turn.waits ? undefined : toneColor(turn.tone)} data-turn-now>{head}</Text>
-        {running && !Number.isNaN(started) && <Text size="xs" c="dimmed" data-turn-timer>{clock(Math.max(0, (tick - started) / 1000))}</Text>}
+        {running && !Number.isNaN(started) && <Text size="xs" c="dimmed" className={s.turnFact} data-turn-timer>{clock(Math.max(0, (tick - started) / 1000))}</Text>}
+        {turn.provider && <Text size="xs" c="dimmed" truncate className={s.turnModel} data-turn-model>{turn.provider}</Text>}
+        {more && <span className={s.turnChevron} aria-hidden>{open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}</span>}
         {turn.stop && <Stop act={turn.stop} />}
       </div>
-      {steps.length > 1 && (
-        <div className={s.steps} data-turn-steps>
+      {open && (
+        <div className={s.turnBody} data-turn-log>
           {steps.slice(-SHOWN).map((x, i, all) => {
             const last = i === all.length - 1;
             return (
@@ -101,25 +110,19 @@ export function Turn({ turn }: { turn: TurnValue }) {
               </div>
             );
           })}
+          {calls.length > 0 && (
+            <div className={s.log}>
+              <div className={s.logLines} role={turn.open ? 'button' : undefined} tabIndex={turn.open ? 0 : undefined}
+                aria-label={turn.open ? t('chat.full_log') : undefined} title={turn.open ? t('chat.full_log') : undefined}
+                onClick={() => turn.open && void log.send()} onKeyDown={(e) => { if (turn.open && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void log.send(); } }}>
+                {calls.map((l) => <div key={l.key} className={s.logLine} data-failed={l.failed || undefined} data-turn-line>{l.text}</div>)}
+              </div>
+              {turn.open && <div className={s.logButtons}><ActionIconButton act={turn.open} variant="default" icon={<IconArrowUpRight size={15} />} /></div>}
+            </div>
+          )}
+          <Processes list={procs} />
         </div>
       )}
-      {calls.length > 0 && (
-        <Button size="compact-xs" variant="subtle" color="gray" className={s.logToggle} onClick={() => setLog(!log)}
-          rightSection={log ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />} aria-expanded={log} data-turn-fold>
-          {log ? t('chat.hide_log') : t('chat.log')}
-        </Button>
-      )}
-      {log && (
-        <div className={s.log} data-turn-log>
-          <div className={s.logLines} role={turn.open ? 'button' : undefined} tabIndex={turn.open ? 0 : undefined}
-            aria-label={turn.open ? t('chat.full_log') : undefined} title={turn.open ? t('chat.full_log') : undefined}
-            onClick={() => turn.open && void open.send()} onKeyDown={(e) => { if (turn.open && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void open.send(); } }}>
-            {calls.map((l) => <div key={l.key} className={s.logLine} data-failed={l.failed || undefined} data-turn-line>{l.text}</div>)}
-          </div>
-          {turn.open && <div className={s.logButtons}><ActionIconButton act={turn.open} variant="default" icon={<IconArrowUpRight size={15} />} /></div>}
-        </div>
-      )}
-      <Processes list={turn.processes ?? []} />
     </div>
   );
 }

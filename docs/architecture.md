@@ -137,11 +137,12 @@ The desktop launcher (`desktop/`, Wails) is a separate Go module. deck itself kn
 **Releases and updates.** A tag `v*` runs `.github/workflows/release.yml`. It builds deck for macOS arm64 and Linux
 amd64/arm64, each with and without the tailnet, plus `deck-macos.zip` (deck.app) and `deck-setup.exe`.
 `cmd/deck-release` writes `release.json` with the size and sha256 of each file and signs it with the ed25519 key in
-the repository secret `DECK_RELEASE_KEY`. The public key is `internal/release/release.pub`, built into deck and,
+the secret `DECK_RELEASE_KEY` of the GitHub environment `release`. The public key is `internal/release/release.pub`, built into deck and,
 as a copy, into the launcher. `-ldflags -X deck2/internal/release.Version=…` sets the version; `deck -version`
 prints it with the build. `internal/app/updates` reads the latest list once a day through `gateway.Fetch` and keeps
 the health row `update`. Its `deck.update` puts the binary of its build in place and restarts deck with
-`syscall.Exec` after a full stop. A deck started by the launcher (`DECK_LAUNCHER`) instead exits with code 75. The
+`syscall.Exec` after a full stop. It takes a snapshot first and keeps the old binary until the new deck serves
+(`state/update.json`). A start that finds that update already tried goes back to the old binary. A deck started by the launcher (`DECK_LAUNCHER`) instead exits with code 75. The
 launcher then replaces deck.app whole, or on Windows runs the new installer silently.
 
 ## Tests

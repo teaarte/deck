@@ -147,8 +147,9 @@ Releases are on [GitHub](https://github.com/teaarte/deck/releases): `deck-<os>-<
 
 **Updating.** A released deck looks for a new release once a day. When one is out, Settings → Advanced and a note in
 the feed show an **Update** button, which only the owner can press. deck downloads the build it was made from and
-checks it against `release.json`, whose ed25519 signature it checks with the key built into it. It puts the new
-binary in place, restarts, and the agents go on in their sessions. If the signature or a sha256 does not match, deck
+checks it against `release.json`, whose ed25519 signature it checks with the key built into it. It takes a snapshot, puts the
+new binary in place and restarts; the agents go on in their sessions. If the new version never gets as far as
+serving, the next start goes back to the old one. If the signature or a sha256 does not match, deck
 stays as it is. deck.app and the Windows installer are updated whole by their launcher. A deck built from source
 calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`. On start, deck migrates its
 database and the stored manifests.

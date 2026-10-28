@@ -21,7 +21,8 @@ asks, as a theme of its own name.
 3. `mood` is the style of pictures in this theme in one or two sentences — the covers of modules are drawn by it,
    each kept for its theme: `deck.covers_draw` without a module draws those this theme lacks.
 4. The cards of modules have their own tokens: `cockpit` (the cockpit's card; the accent by default), `tile` (a
-   card without a cover), `tile-shade`, `tile-text`, `tile-icon`, `tile-shadow`, `tile-lift`, and of their grid
+   card without a cover), `tile-shade`, `tile-text`, `tile-veil` (under each line of Today over its picture; empty
+   for the color opposite to `tile-text`), `tile-icon`, `tile-shadow`, `tile-lift`, and of their grid
    `tile-min`, `tile-height`, `tile-gap` (one cell: a card stands on whole cells); classes `.widget` (the view of a
    module in its card), `.left-out` (the mark of the blocks a card has no room for) and `.placing` (a card while the
    owner places the tiles); `meadow` is the ground at the foot of the page, `toast` and `toast-text` the note with

@@ -33,6 +33,7 @@ export function Widget({ project, screen, size, rest }: { project?: string; scre
 
 // useLeftOut are the titles of the blocks of a widget the card has no room for on this device: they wrap out of sight.
 function useLeftOut() {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [names, setNames] = useState<string[]>([]);
   useEffect(() => {
@@ -42,7 +43,13 @@ function useLeftOut() {
       const grid = el.querySelector<HTMLElement>('[data-grid][data-fit]');
       const cells = grid ? [...grid.children] as HTMLElement[] : [];
       const right = grid?.getBoundingClientRect().right ?? 0;
-      const out = cells.filter((c) => c.getBoundingClientRect().left >= right - 1).map((c) => { const b = c.querySelector<HTMLElement>('[data-block]'); return b?.getAttribute('aria-label') || b?.dataset.title || '…'; });
+      const left = cells.filter((c) => c.getBoundingClientRect().left >= right - 1);
+      // A block out of sight takes no focus either.
+      cells.forEach((c) => { c.inert = left.includes(c); });
+      const out = left.map((c) => {
+        const b = c.querySelector<HTMLElement>('[data-block]');
+        return b?.getAttribute('aria-label') || b?.dataset.title || t(c.querySelector('[data-chart-block]') ? 'apps.a_chart' : 'apps.a_block');
+      });
       setNames((was) => (was.join('\n') === out.join('\n') ? was : out));
     };
     const seen = new ResizeObserver(look);
@@ -51,6 +58,6 @@ function useLeftOut() {
     changed.observe(el, { childList: true, subtree: true });
     look();
     return () => { seen.disconnect(); changed.disconnect(); };
-  }, []);
+  }, [t]);
   return { ref, names };
 }

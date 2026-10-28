@@ -29,7 +29,7 @@
     "css": {"type": "string", "maxLength": 20000, "description": "More CSS. A selector is made of the classes of the catalog alone (.button, .nav .asks, .tab[data-active], .h2:hover), states [data-variant=…], [data-active], [data-disabled], [data-checked], [data-expanded], [data-cover] and [data-big] of a card, :hover, :active, :focus, :focus-visible, :focus-within, :disabled, :first-child, :last-child, :not(…), ::before, ::after, ::placeholder, and the combinators space, >, +, ~. .root, .light and .dark are the page in both schemes, the light and the dark one, and only start a selector. At-rules: @media of prefers-*, forced-colors, hover, pointer, min-width, max-width; @supports. Custom properties: the tokens, the accent and the radii by their names above, and --theme-<name>."}
   },
   "$defs": {
-    "tokenNames": {"enum": ["canvas", "body", "island", "block", "text", "text-2", "dimmed", "line", "divider", "hover", "fill", "fill-hover", "ring", "shadow", "pattern-size", "sky", "meadow", "cockpit", "tile", "tile-shade", "tile-text", "tile-icon", "tile-shadow", "tile-lift", "tile-min", "tile-height", "tile-gap", "toast", "toast-text", "side", "side-width", "placing"]},
+    "tokenNames": {"enum": ["canvas", "body", "island", "block", "text", "text-2", "dimmed", "line", "divider", "hover", "fill", "fill-hover", "ring", "shadow", "pattern-size", "sky", "meadow", "cockpit", "tile", "tile-shade", "tile-text", "tile-veil", "tile-icon", "tile-shadow", "tile-lift", "tile-min", "tile-height", "tile-gap", "toast", "toast-text", "side", "side-width", "placing"]},
     "tokens": {"type": "object", "additionalProperties": false, "propertyNames": {"$ref": "#/$defs/tokenNames"},
       "patternProperties": {"": {"type": "string", "minLength": 1, "maxLength": 400}}},
     "part": {"type": "object", "additionalProperties": false,
@@ -62,6 +62,7 @@
       "tile": {"var": "--deck-tile", "desc": "A card of a module without a cover; empty for a color of its own by the module's name", "light": "", "dark": ""},
       "tile-shade": {"var": "--deck-tile-shade", "desc": "The shade under the text of a card, over its cover or color; a gradient whose last stop is under the text", "light": "linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.55) 100%)", "dark": "linear-gradient(180deg, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.55) 100%)"},
       "tile-text": {"var": "--deck-tile-text", "desc": "The text and icons of a card", "light": "#ffffff", "dark": "#ffffff"},
+      "tile-veil": {"var": "--deck-tile-veil", "desc": "The veil under each line of Today over its picture, read with tile-text over any picture; empty for the color opposite to tile-text", "light": "", "dark": ""},
       "tile-icon": {"var": "--deck-tile-icon", "desc": "The plate under the icon of a card", "light": "rgb(0 0 0 / 0.28)", "dark": "rgb(0 0 0 / 0.28)"},
       "tile-shadow": {"var": "--deck-tile-shadow", "desc": "The shadow of a card, a box-shadow", "light": "0 1px 3px rgb(0 0 0 / 0.05), 0 10px 15px -5px rgb(0 0 0 / 0.05), 0 7px 7px -5px rgb(0 0 0 / 0.04)", "dark": "0 1px 3px rgb(0 0 0 / 0.4), 0 10px 15px -5px rgb(0 0 0 / 0.35), 0 7px 7px -5px rgb(0 0 0 / 0.3)"},
       "tile-lift": {"var": "--deck-tile-lift", "desc": "How a card rises under the pointer, a transform; none for staying", "light": "scale(1.015)", "dark": "scale(1.015)"},

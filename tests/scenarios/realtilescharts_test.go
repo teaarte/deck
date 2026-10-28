@@ -124,10 +124,10 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 				chart.height > 3 * w.clientHeight / Number(getComputedStyle(w).getPropertyValue('--thirds')) && g.bottom - last.bottom < 8 })()`)
 		b.until("the 2x1 view: the stat and the chart, the block it has no room for said in its head", `(() => { const w = document.querySelector('[data-cell="lab2"] [data-widget]');
 			const g = w.querySelector('[data-grid]'); const r = g.getBoundingClientRect(); const cells = [...g.children].map((c) => [c, c.getBoundingClientRect()]);
-			return cells[0][1].left === r.left && cells[1][1].left === r.left && cells[1][0].querySelector('[data-chart-block]') && cells[2][1].left >= r.right - 1 &&
+			return cells[0][1].left === r.left && cells[1][1].left === r.left && cells[1][0].querySelector('[data-chart-block]') && cells[2][1].left >= r.right - 1 && cells[2][0].inert &&
 				w.querySelector('[data-widget-left-out]')?.getAttribute('aria-label').includes('Open trades') })()`)
 		b.until("Today's lines on a veil over the picture", `(() => { const ls = [...document.querySelectorAll('[data-cell="today"] [data-item]')];
-			return ls.length > 0 && ls.every((l) => getComputedStyle(l).backgroundImage.startsWith('linear-gradient')) })()`)
+			return ls.length > 0 && ls.every((l) => /^(rgba\(0, 0, 0, 0.6\)|color\(srgb 0 0 0 \/ 0.6\))$/.test(getComputedStyle(l).backgroundColor)) })()`)
 		time.Sleep(time.Second)
 		if got := b.eval(axesFit); got != "" {
 			t.Errorf("on a %s, the axes of the cards cut no label and name each date once: %s", look, got)

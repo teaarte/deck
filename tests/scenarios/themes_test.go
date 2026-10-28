@@ -197,10 +197,11 @@ func TestThemesStyleTheCardsOfModules(t *testing.T) {
 	}
 
 	faint := map[string]string{
-		"tile-text on cockpit reads": `{"version": 1, "title": {"en": "X"}, "mood": "m", "tokens": {"cockpit": "#fff3bf", "tile-shade": "none"}}`,
-		"tile-text on tile reads":    `{"version": 1, "title": {"en": "X"}, "mood": "m", "tokens": {"tile": "#ffffff", "tile-shade": "none"}}`,
-		"toast-text on toast reads":  `{"version": 1, "title": {"en": "X"}, "mood": "m", "light": {"toast": "#f1f3f5"}}`,
-		"a theme reads the states":   `{"version": 1, "title": {"en": "X"}, "mood": "m", "css": ".tile[data-app] { color: red }"}`,
+		"tile-text on cockpit reads":   `{"version": 1, "title": {"en": "X"}, "mood": "m", "tokens": {"cockpit": "#fff3bf", "tile-shade": "none"}}`,
+		"tile-text on tile reads":      `{"version": 1, "title": {"en": "X"}, "mood": "m", "tokens": {"tile": "#ffffff", "tile-shade": "none"}}`,
+		"toast-text on toast reads":    `{"version": 1, "title": {"en": "X"}, "mood": "m", "light": {"toast": "#f1f3f5"}}`,
+		"tile-text on tile-veil reads": `{"version": 1, "title": {"en": "X"}, "mood": "m", "tokens": {"tile-veil": "rgb(0 0 0 / 0.2)"}}`,
+		"a theme reads the states":     `{"version": 1, "title": {"en": "X"}, "mood": "m", "css": ".tile[data-app] { color: red }"}`,
 	}
 	for want, text := range faint {
 		e.must("deck.theme_check", map[string]any{"text": text}, &c)

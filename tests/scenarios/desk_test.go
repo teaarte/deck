@@ -73,6 +73,10 @@ func TestTheTilesStandWhereEachDevicePutThem(t *testing.T) {
 	if v := e.desk("desk", 5); !v.Own || v.Columns != 3 {
 		t.Fatalf("a wider grid of a device takes its narrower layout as it is: %+v", v)
 	}
+	e.place("pocket", 1, deskCard{"today", 0, 0, 1, 3}, deskCard{"beta", 0, 3, 1, 2})
+	if v := e.desk("pocket", 2); !v.Own || v.Columns != 2 || !slices.Equal(v.Cards, []deskCard{{"today", 0, 0, 2, 3}, {"beta", 0, 3, 2, 2}}) {
+		t.Fatalf("the cards of a grid of one column go across a wider one, their heights kept: %+v", v)
+	}
 	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
 	e.place("laptop", 4, deskCard{"today", 0, 0, 2, 1}, deskCard{"gamma", 2, 0, 2, 2}, deskCard{"beta", 3, 3, 1, 1})
 	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)

@@ -26,6 +26,7 @@
 /* A tile without a picture or a color of the theme takes a color of its name. */
 [data-app-tile] {
   --deck-tile-auto: linear-gradient(135deg, hsl(var(--hue) 70% 55%), hsl(calc(var(--hue) + 50) 75% 40%));
+  --deck-tile-veil-auto: rgb(from var(--deck-tile-text) calc(255 - r) calc(255 - g) calc(255 - b) / 0.6);
 }
 
 body {

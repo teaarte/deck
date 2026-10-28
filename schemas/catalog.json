@@ -397,7 +397,7 @@
           "type": "object", "required": ["id", "cells"], "additionalProperties": false,
           "properties": {"id": {}, "cells": {"type": "array"}, "tones": {"type": "array", "description": "the tone of each cell, null for none", "items": {"oneOf": [{"$ref": "#/$defs/tone"}, {"type": "null"}]}}, "details": {"type": "array", "description": "the text of each cell shown in full on demand, null for none; such a cell shows its value in one line", "items": {"type": ["string", "null"]}}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
         }},
-        "head": {"type": "array", "description": "the buttons in the head of a list", "items": {"$ref": "#/$defs/action"}},
+        "head": {"type": "array", "description": "the buttons in the head of a list, a table or a custom block", "items": {"$ref": "#/$defs/action"}},
         "board": {"type": "object", "required": ["field", "lanes"], "additionalProperties": false,
           "description": "the lanes of a board: the field of its items and the values of its enum with their labels",
           "properties": {"field": {"type": "string"}, "lanes": {"type": "array", "items": {"type": "object", "required": ["value", "label"],

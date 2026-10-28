@@ -356,7 +356,7 @@ export interface Data {
     actions?: Action[];
   }[];
   /**
-   * the buttons in the head of a list
+   * the buttons in the head of a list, a table or a custom block
    */
   head?: Action[];
   /**

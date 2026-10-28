@@ -355,12 +355,12 @@
   user-select: none;
 }
 
-/* Today's words read over any picture of the theme: each line on a veil of the picture's own color. */
+/* Today's words read over any picture of the theme: each line on a veil, the color opposite to its text by default. */
 .card[data-big][data-cover] .widget :global([data-item]) {
-  --veil: color-mix(in srgb, var(--cover-color, black) 72%, transparent);
   padding-inline: 8px;
   border-top: 0;
   border-radius: var(--mantine-radius-md);
-  background: linear-gradient(90deg, var(--veil) 70%, color-mix(in srgb, var(--cover-color, black) 45%, transparent));
+  background: var(--deck-tile-icon);
+  background: var(--deck-tile-veil, var(--deck-tile-veil-auto));
   backdrop-filter: blur(8px);
 }

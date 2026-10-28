@@ -405,6 +405,18 @@ func (cs *colors) pairs(scheme string) (map[string]float64, error) {
 		}
 		least(pair[0]+" on "+pair[1], fg, bgs)
 	}
+	// A veil lies over a picture of any color: the text on it is read over white and over black under it.
+	if v := cs.tokens["tile-veil"]; v != "" {
+		fg, err := cs.color(cs.tokens["tile-text"])
+		if err != nil {
+			return nil, fmt.Errorf("tile-text: %w", err)
+		}
+		veil, err := cs.color(v)
+		if err != nil {
+			return nil, fmt.Errorf("tile-veil: %w", err)
+		}
+		least("tile-text on tile-veil", fg, []rgba{veil.over(rgba{1, 1, 1, 1}), veil.over(rgba{0, 0, 0, 1})})
+	}
 	for _, fg := range []string{"text", "dimmed"} {
 		c, err := cs.color(cs.tokens[fg])
 		if err != nil {

@@ -361,7 +361,7 @@ type Block struct {
 	// Cards lays the items of a list side by side as cards; Focus shows them one at a time, the next ones behind.
 	Cards bool `json:"cards,omitempty"`
 	Focus bool `json:"focus,omitempty"`
-	// Head are the buttons in the head of a list, their when and label expressions over its rows.
+	// Head are the buttons in the head of a list, a table or a custom block, their when and label over its rows.
 	Head []Action `json:"head,omitempty"`
 	// Command is the command of a form.
 	Command string `json:"command,omitempty"`

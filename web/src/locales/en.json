@@ -215,5 +215,5 @@
   "lead": { "doing": "Now: {{what}}", "next": "Next: {{what}} {{when}}" },
   "list": { "one_of": "{{n}} of {{of}}", "later": "Later" },
   "hold": { "goes": "“{{label}}” goes in 5 s" },
-  "apps": { "place": "The tiles could not be placed", "draw": "Deki prepares a view for this size", "placing": "Drag a card to any cell or pull its corner", "done": "Done", "left_out": "Not in the card: {{names}}" }
+  "apps": { "place": "The tiles could not be placed", "draw": "Deki prepares a view for this size", "placing": "Drag a card to any cell or pull its corner", "done": "Done", "left_out": "Not in the card: {{names}}", "a_chart": "a chart", "a_block": "a block" }
 }

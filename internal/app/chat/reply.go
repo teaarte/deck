@@ -123,7 +123,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 				texts = append(texts, given)
 			}
 			if err := ch.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
-				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", 0, last, false)
+				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", 0, last)
 			}
 		}
 		if open.State == process.StateRunning {
@@ -131,7 +131,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 			if err != nil || ch.Runner.Say(ctx, open.ID, strings.TrimSpace("deck: the owner wrote while you work.\n"+news+"\n"+given)) == process.Refused {
 				return err
 			}
-			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", told, last, false)
+			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", told, last)
 		}
 		if open.State != process.StateWaitingAnswer {
 			return nil
@@ -143,7 +143,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 		if err := ch.Runner.Remark(ctx, open.ID, strings.TrimSpace(msg+"\n\n"+given)); err != nil {
 			return err
 		}
-		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, told, last, true)
+		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, told, last)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
@@ -213,22 +213,17 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		if id != 0 {
 			// The failed reply takes the messages, so its error shows and the topic does not start again.
-			_ = ch.takeMessages(ctx, t, id, o.Session, sign, 0, last, true)
+			_ = ch.takeMessages(ctx, t, id, o.Session, sign, 0, last)
 		}
 		return err
 	}
-	return ch.takeMessages(ctx, t, id, o.Session, sign, told, last, true)
+	return ch.takeMessages(ctx, t, id, o.Session, sign, told, last)
 }
 
-// takeMessages gives the waiting messages up to through to the reply process with the sign of the memory it got
-// and drops the notes of deck it was told; seen marks its session told of every message up to through.
-func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, told, through int64, seen bool) error {
+// takeMessages gives the waiting messages up to through to the reply process, keeps the sign of the memory its
+// session was given, when it was given one, and drops the notes of deck the turn was told, up to told.
+func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, told, through int64) error {
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if seen {
-			if err := q.SeeChat(ctx, db.SeeChatParams{Seen: through, TopicID: t.ID, SessionID: session}); err != nil {
-				return err
-			}
-		}
 		if told > 0 {
 			if err := q.DeleteMasterNotes(ctx, db.DeleteMasterNotesParams{WorkspaceID: t.WorkspaceID, Through: told}); err != nil {
 				return err
@@ -290,8 +285,7 @@ func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.
 			}
 			var lines []db.ChatMessage
 			for _, m := range missed {
-				// The session wrote its replies and took the owner's messages; what deck wrote meanwhile it has not seen.
-				if m.ID < pending[0].ID && (m.ProcessID == 0 || ch.sessionOf(ctx, m.ProcessID) != session) {
+				if m.ID < pending[0].ID && !ch.knows(ctx, m, session) {
 					lines = append(lines, m)
 				}
 			}
@@ -426,11 +420,15 @@ func attached(ms []db.ChatMessage) []int64 {
 	return out
 }
 
-// sessionOf is the agent session of a process, or empty.
-func (ch *Service) sessionOf(ctx context.Context, processID int64) string {
-	p, err := ch.St.Q.GetProcess(ctx, processID)
-	if err != nil {
-		return ""
+// knows reports whether a session already has a message: its own reply, or one of the owner a turn of it took and
+// answered; what deck wrote meanwhile and what a failed turn took it has not.
+func (ch *Service) knows(ctx context.Context, m db.ChatMessage, session string) bool {
+	if m.ProcessID == 0 {
+		return false
 	}
-	return p.SessionID
+	p, err := ch.St.Q.GetProcess(ctx, m.ProcessID)
+	if err != nil || p.SessionID != session {
+		return false
+	}
+	return m.Role == roleMaster || p.State == process.StateDone
 }

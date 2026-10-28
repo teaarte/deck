@@ -689,3 +689,24 @@ func (q *Queries) TouchTopic(ctx context.Context, arg TouchTopicParams) error {
 	_, err := q.db.ExecContext(ctx, touchTopic, arg.Now, arg.ID)
 	return err
 }
+
+const turnSeen = `-- name: TurnSeen :one
+SELECT CAST(COALESCE(MIN(
+    (SELECT MAX(o.id) FROM chat_message o WHERE o.topic_id = ?1 AND o.process_id = ?2 AND o.role = 'owner'),
+    COALESCE((SELECT MIN(d.id) - 1 FROM chat_message d WHERE d.topic_id = ?1 AND d.role = 'deck'
+        AND d.id > (SELECT MIN(f.id) FROM chat_message f WHERE f.topic_id = ?1 AND f.process_id = ?2 AND f.role = 'owner')),
+        9223372036854775807)), 0) AS INTEGER) AS seen
+`
+
+type TurnSeenParams struct {
+	TopicID   int64
+	ProcessID int64
+}
+
+// What a reply turn saw of its topic: the owner's messages it took, short of the first deck wrote after them.
+func (q *Queries) TurnSeen(ctx context.Context, arg TurnSeenParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, turnSeen, arg.TopicID, arg.ProcessID)
+	var seen int64
+	err := row.Scan(&seen)
+	return seen, err
+}

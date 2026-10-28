@@ -144,3 +144,12 @@ DELETE FROM chat_message WHERE id = ? AND role = 'owner' AND process_id = 0;
 
 -- name: ReleaseMessages :execrows
 UPDATE chat_message SET process_id = 0 WHERE topic_id = sqlc.arg(topic_id) AND process_id = sqlc.arg(process_id) AND role = 'owner';
+
+
+-- name: TurnSeen :one
+-- What a reply turn saw of its topic: the owner's messages it took, short of the first deck wrote after them.
+SELECT CAST(COALESCE(MIN(
+    (SELECT MAX(o.id) FROM chat_message o WHERE o.topic_id = sqlc.arg(topic_id) AND o.process_id = sqlc.arg(process_id) AND o.role = 'owner'),
+    COALESCE((SELECT MIN(d.id) - 1 FROM chat_message d WHERE d.topic_id = sqlc.arg(topic_id) AND d.role = 'deck'
+        AND d.id > (SELECT MIN(f.id) FROM chat_message f WHERE f.topic_id = sqlc.arg(topic_id) AND f.process_id = sqlc.arg(process_id) AND f.role = 'owner')),
+        9223372036854775807)), 0) AS INTEGER) AS seen;

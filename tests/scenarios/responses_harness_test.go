@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 // fakeResponses is an OpenAI Responses API whose model follows the steps of a prompt as written: a shell command
@@ -29,35 +28,41 @@ type fakeResponses struct {
 
 func newResponses(t *testing.T) *fakeResponses {
 	f := &fakeResponses{t: t, seen: map[string]bool{}}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/responses") {
-			http.NotFound(w, r)
-			return
-		}
-		b, _ := io.ReadAll(r.Body)
-		if d := os.Getenv("DECK_DUMP"); d != "" {
-			_ = os.WriteFile(filepath.Join(d, fmt.Sprintf("req-%d.json", time.Now().UnixNano())), b, 0o600)
-		}
-		var req respRequest
-		if err := json.Unmarshal(b, &req); err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		item := f.next(req)
-		w.Header().Set("Content-Type", "text/event-stream")
-		event := func(kind string, v map[string]any) {
-			v["type"] = kind
-			data, _ := json.Marshal(v)
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", kind, data)
-		}
-		event("response.created", map[string]any{"response": map[string]any{"id": "resp"}})
-		event("response.output_item.done", map[string]any{"item": item})
-		event("response.completed", map[string]any{"response": map[string]any{"id": "resp",
-			"usage": map[string]any{"input_tokens": 100, "output_tokens": 10, "total_tokens": 110}}})
-	}))
+	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
 	f.URL = srv.URL + "/v1"
 	return f
+}
+
+// serveResponses is the fake model of a test of deck's image, a program in its own container.
+func serveResponses(addr string) {
+	f := &fakeResponses{seen: map[string]bool{}}
+	fmt.Fprintln(os.Stderr, http.ListenAndServe(addr, f))
+	os.Exit(1)
+}
+
+func (f *fakeResponses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/responses") {
+		http.NotFound(w, r)
+		return
+	}
+	b, _ := io.ReadAll(r.Body)
+	var req respRequest
+	if err := json.Unmarshal(b, &req); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	item := f.next(req)
+	w.Header().Set("Content-Type", "text/event-stream")
+	event := func(kind string, v map[string]any) {
+		v["type"] = kind
+		data, _ := json.Marshal(v)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", kind, data)
+	}
+	event("response.created", map[string]any{"response": map[string]any{"id": "resp"}})
+	event("response.output_item.done", map[string]any{"item": item})
+	event("response.completed", map[string]any{"response": map[string]any{"id": "resp",
+		"usage": map[string]any{"input_tokens": 100, "output_tokens": 10, "total_tokens": 110}}})
 }
 
 // codexHome is a Codex folder whose model is this API, which needs no login.

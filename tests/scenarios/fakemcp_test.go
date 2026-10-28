@@ -36,6 +36,9 @@ func TestMain(m *testing.M) {
 		serveACP(dir)
 		return
 	}
+	if addr := os.Getenv("DECK_FAKE_RESPONSES"); addr != "" {
+		serveResponses(addr)
+	}
 	if dir := os.Getenv("DECK_FAKE_CODEX"); dir != "" {
 		serveCodex(dir)
 		return

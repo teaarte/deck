@@ -1,5 +1,6 @@
 # A tag v* makes a release of deck: its binaries, deck.app and the Windows installer, with release.json of their
-# sizes and sha256 signed by DECK_RELEASE_KEY, a secret of the environment release; deck updates from it.
+# sizes and sha256 signed by DECK_RELEASE_KEY, a secret of the environment release; deck updates from it. Then the
+# image of deck for a server goes to ghcr.io, tagged with the version and latest, for linux/amd64 and linux/arm64.
 name: release
 
 on:
@@ -117,3 +118,50 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
         run: gh release create "$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --title "deck $VERSION" --generate-notes
+
+  image:
+    needs: [version, release]
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build and push the image of this system
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+          COMMIT: ${{ github.sha }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx build --platform "linux/$ARCH" --push --provenance=false \
+            --build-arg VERSION="$VERSION" --build-arg COMMIT="$COMMIT" \
+            --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
+            --label org.opencontainers.image.version="$VERSION" \
+            -t "$IMAGE:$VERSION-$ARCH" .
+
+  manifest:
+    needs: [version, image]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Tag both systems as the version and latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          for tag in "$VERSION" latest; do
+            docker buildx imagetools create -t "$IMAGE:$tag" "$IMAGE:$VERSION-amd64" "$IMAGE:$VERSION-arm64"
+          done

@@ -27,10 +27,12 @@ var (
 	Pinned  = &http.Client{Transport: Outbound, Timeout: 5 * time.Minute, CheckRedirect: sameHost}
 )
 
-// modelClient calls the API of a model; pageClient gets one page pinned, and Fetch checks each redirect itself.
+// modelClient calls the API of a model; pageClient gets one page pinned and fileClient one big file, and Fetch checks
+// each redirect itself.
 var (
 	modelClient = &http.Client{Transport: Direct, CheckRedirect: noRedirect}
 	pageClient  = &http.Client{Transport: Outbound, Timeout: time.Minute, CheckRedirect: noRedirect}
+	fileClient  = &http.Client{Transport: Outbound, Timeout: 30 * time.Minute, CheckRedirect: noRedirect}
 )
 
 func noRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }

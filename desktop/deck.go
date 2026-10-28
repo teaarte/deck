@@ -36,6 +36,8 @@ type Deck struct {
 	cmd    *exec.Cmd
 	// exited closes when the deck the launcher started ends.
 	exited chan struct{}
+	// Update runs when the deck the launcher started ends asking for an update.
+	Update func()
 }
 
 // Up says whether deck answers at its address and has started: its page, and its API asking for the token, so the
@@ -79,7 +81,11 @@ func (d *Deck) Start(ctx context.Context) error {
 		exited := make(chan struct{})
 		d.cmd, d.exited = cmd, exited
 		go func() {
-			_ = cmd.Wait()
+			err := cmd.Wait()
+			var exit *exec.ExitError
+			if errors.As(err, &exit) && exit.ExitCode() == UpdateCode && d.Update != nil {
+				go d.Update()
+			}
 			close(exited)
 			d.mu.Lock()
 			if d.cmd == cmd {

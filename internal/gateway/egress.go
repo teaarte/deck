@@ -155,6 +155,15 @@ func Pin(req *http.Request, domains []string) (*http.Request, error) {
 // Fetch gets a page in the domains the way Egress carries one, at the addresses its name resolved to once; the
 // place a redirect names is checked the same way.
 func Fetch(ctx context.Context, domains []string, page string) (*http.Response, error) {
+	return fetch(ctx, pageClient, "text/html,text/plain,application/json;q=0.9,*/*;q=0.5", domains, page)
+}
+
+// Download gets a big file the way Fetch gets a page, with a ceiling of its own.
+func Download(ctx context.Context, domains []string, page string) (*http.Response, error) {
+	return fetch(ctx, fileClient, "*/*", domains, page)
+}
+
+func fetch(ctx context.Context, client *http.Client, accept string, domains []string, page string) (*http.Response, error) {
 	for range 6 {
 		u, err := url.Parse(page)
 		if err != nil || u.Scheme != "http" && u.Scheme != "https" || u.Hostname() == "" {
@@ -167,8 +176,8 @@ func Fetch(ctx context.Context, domains []string, page string) (*http.Response, 
 		if req, err = Pin(req, domains); err != nil {
 			return nil, err
 		}
-		req.Header.Set("Accept", "text/html,text/plain,application/json;q=0.9,*/*;q=0.5")
-		resp, err := pageClient.Do(req)
+		req.Header.Set("Accept", accept)
+		resp, err := client.Do(req)
 		if err != nil {
 			return nil, err
 		}

@@ -6,6 +6,7 @@ import (
 	apphealth "deck2/internal/app/health"
 	"deck2/internal/app/processes"
 	"deck2/internal/app/screens"
+	"deck2/internal/app/updates"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -84,6 +85,7 @@ type App struct {
 	MCP       *tools.MCP
 	Browser   *tools.Browser
 	Shots     *shots.Service
+	Updates   *updates.Service
 	Host      *mcphost.Host
 
 	ctx      context.Context
@@ -186,6 +188,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	a.Shots = &shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Tokens.Lend, Return: a.Tokens.Return,
 		Themed: a.Themes.Exists}
+	a.Updates = &updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher,
+		Exe: cfg.Exe, Restart: cfg.Restart, Go: func(f func()) bool { return a.bg.Go(f) }}
 	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
@@ -210,6 +214,9 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Health.Watch(a.Bus)
 	a.Answers.Watch(a.Bus)
 	a.Health.Derive(a.ctx, 0)
+	if err := a.Updates.Mark(a.ctx); err != nil {
+		return nil, err
+	}
 	status, text := script.Runtimes().Health()
 	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Scripts, status, text); err != nil {
 		return nil, err
@@ -301,6 +308,7 @@ func (a *App) slow(ctx context.Context, now time.Time) {
 	cancel()
 	a.Files.Thumbs(ctx)
 	a.Snapshots.Daily(ctx, now)
+	a.Updates.Daily(ctx, now)
 }
 
 const pushTimeout = 2 * time.Minute

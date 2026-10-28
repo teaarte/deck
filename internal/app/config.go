@@ -1,9 +1,12 @@
 package app
 
 import (
-	"deck2/internal/registry"
+	"os"
 	"time"
 
+	"deck2/internal/app/updates"
+	"deck2/internal/registry"
+	"deck2/internal/release"
 	"deck2/internal/sandbox"
 )
 
@@ -34,6 +37,15 @@ type Config struct {
 	SnapshotBudget int64
 	// Commands are more builtin commands, such as the probes of tests.
 	Commands []*registry.Command
+	// Releases is where deck finds its updates; Version and Variant are this build's, Launcher marks a deck its
+	// launcher updates, and Restart ends deck to take an update.
+	Releases updates.Source
+	Version  string
+	Variant  string
+	Launcher bool
+	Restart  func(release.Restart)
+	// Exe is the binary of deck an update replaces; the running one when nil.
+	Exe func() (string, error)
 }
 
 func (c *Config) defaults() {
@@ -57,6 +69,24 @@ func (c *Config) defaults() {
 	}
 	if c.SnapshotBudget <= 0 {
 		c.SnapshotBudget = 2 << 30
+	}
+	if c.Releases.URL == "" {
+		c.Releases = updates.GitHub
+	}
+	if c.Releases.Key == nil {
+		c.Releases.Key = release.Key()
+	}
+	if c.Version == "" {
+		c.Version = release.Version
+	}
+	if c.Variant == "" {
+		c.Variant = release.Variant(false)
+	}
+	if c.Exe == nil {
+		c.Exe = os.Executable
+	}
+	if c.Restart == nil {
+		c.Restart = func(release.Restart) {}
 	}
 	if c.Browser == nil {
 		c.Browser = DefaultBrowser

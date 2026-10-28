@@ -74,7 +74,7 @@ hold; look inside a package for the rest.
 - `internal/untrusted` — text deck did not write, shaped (`Cut`, `Line`, `Block`) before a prompt, an ask or a
   journal.
 - `internal/files` — the files a command input points to and tools answer with (the files service is `app/files`).
-- `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/paths`,
+- `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/paths`, `internal/release`,
   `internal/home`, `internal/nonce` — what their names say.
 - `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet`.
 - `internal/lint` — code rules checked by `tests/lint`.

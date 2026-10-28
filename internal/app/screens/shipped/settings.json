@@ -128,6 +128,16 @@
             ]}]}
       ]},
       {"title": "Advanced", "icon": "adjustments", "blocks": [
+        {"type": "table", "title": "deck", "source": {"from": "deck.health_list", "where": "subject == 'update'"},
+          "description": "The version of deck and whether a newer one is out; deck looks once a day.",
+          "columns": [
+            {"label": "Version", "bind": "version"},
+            {"label": "Status", "bind": "error != '' ? error : status", "format": "tag", "tone": "status == 'ok' ? 'ok' : 'warn'"}
+          ],
+          "actions": [
+            {"label": "Update", "icon": "download", "command": "deck.update", "when": "status == 'warning'"},
+            {"label": "Look for an update", "icon": "refresh", "command": "deck.update_check", "when": "version startsWith 'v'"}
+          ]},
         {"type": "dialog", "name": "secret", "title": "Add a secret", "icon": "key", "blocks": [
           {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
         {"type": "dialog", "name": "token", "title": "Create a token", "icon": "ticket", "blocks": [

@@ -1,0 +1,94 @@
+# A tag v* makes a release of deck: its binaries, deck.app and the Windows installer, with release.json of their
+# sizes and sha256 signed by the key in the secret DECK_RELEASE_KEY; deck and its launcher update from it.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build deck for each system, with and without the tailnet
+        env:
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          mkdir -p dist
+          for target in darwin/arm64 linux/amd64 linux/arm64; do
+            os=${target%/*} arch=${target#*/}
+            for tags in "" tailnet; do
+              name=deck-$os-$arch${tags:+-$tags}
+              CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -tags "$tags" \
+                -ldflags "-s -w -X deck2/internal/release.Version=$VERSION -X deck2/internal/release.Commit=$COMMIT" \
+                -o dist/$name ./cmd/deck
+            done
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+
+  mac:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build deck.app
+        env:
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: desktop/build.sh mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: desktop/dist/deck-macos.zip
+
+  windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+      - name: Build the Windows installer
+        env:
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: desktop/build.sh windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: desktop/dist/deck-setup.exe
+
+  release:
+    needs: [binaries, mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Sign the list of the files
+        env:
+          DECK_RELEASE_KEY: ${{ secrets.DECK_RELEASE_KEY }}
+        run: go run ./cmd/deck-release -version "${{ github.ref_name }}" -commit "${{ github.sha }}" -out dist dist/deck-*
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/* --title "deck ${{ github.ref_name }}" --generate-notes

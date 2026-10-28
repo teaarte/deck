@@ -16,7 +16,7 @@ type Local struct {
 
 func (l Local) Command(addr string) *exec.Cmd {
 	cmd := exec.Command(l.Bin, "-addr", addr)
-	cmd.Env = append(os.Environ(), "DECK_HOME="+l.Home)
+	cmd.Env = append(os.Environ(), "DECK_HOME="+l.Home, "DECK_LAUNCHER=1")
 	return cmd
 }
 

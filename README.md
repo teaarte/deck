@@ -142,7 +142,16 @@ DECK_HOME=/tmp/deckhome ./deck          # another data folder
 ./deck -tailscale deck                  # with the tag: join your tailnet as "deck" over HTTPS
 ```
 
-To update, replace the binary: on start deck migrates its database and the stored manifests.
+Releases are on [GitHub](https://github.com/teaarte/deck/releases): `deck-<os>-<arch>` (`-tailnet` with the tailnet),
+`deck-macos.zip` with deck.app and `deck-setup.exe` for Windows.
+
+**Updating.** A released deck looks for a new release once a day. When one is out, Settings → Advanced and a note in
+the feed show an **Update** button, which only the owner can press. deck downloads the build it was made from and
+checks it against `release.json`, whose ed25519 signature it checks with the key built into it. It puts the new
+binary in place, restarts, and the agents go on in their sessions. If the signature or a sha256 does not match, deck
+stays as it is. deck.app and the Windows installer are updated whole by their launcher. A deck built from source
+calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`. On start, deck migrates its
+database and the stored manifests.
 
 - **Phone.** Open deck's address in Safari or Chrome, enter the token once and add it to the home screen. Pushes and
   sharing a link or a file into a module work as in a native app. Away from home, run deck with `-tailscale`.

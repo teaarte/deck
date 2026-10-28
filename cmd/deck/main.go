@@ -23,6 +23,7 @@ import (
 	"deck2/internal/nonce"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
+	"deck2/internal/release"
 	"deck2/internal/sandbox"
 	"deck2/internal/tsnet"
 	"deck2/web"
@@ -33,54 +34,90 @@ func main() {
 		fmt.Fprintln(os.Stderr, "deck: restart with a clean environment:", err)
 		os.Exit(1)
 	}
-	if err := run(); err != nil {
+	restart, err := run()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "deck:", err)
+		os.Exit(1)
+	}
+	switch {
+	case restart == nil:
+	case restart.Launcher:
+		os.Exit(release.LauncherCode)
+	default:
+		// deck stopped whole; it starts again in the new binary, or in the old one when that will not start.
+		err := syscall.Exec(restart.Exe, os.Args, os.Environ())
+		if rerr := os.Rename(restart.Old, restart.Exe); rerr == nil {
+			err = syscall.Exec(restart.Exe, os.Args, os.Environ())
+		}
+		fmt.Fprintln(os.Stderr, "deck: restart after the update:", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run() (*release.Restart, error) {
 	addr := flag.String("addr", "127.0.0.1:7700", "listen address; the next port is the second origin of custom blocks")
 	tailnet := flag.String("tailscale", "", "join the owner's tailnet under this name and serve HTTPS there")
+	version := flag.Bool("version", false, "print the version, commit and build of deck and quit")
 	flag.Parse()
+	if *version {
+		fmt.Println(release.Version, release.Commit, release.Variant(tsnet.Built))
+		return nil, nil
+	}
 	if *tailnet != "" && !tsnet.Built {
-		return errors.New("deck: -tailscale needs a deck built with go build -tags tailnet")
+		return nil, errors.New("deck: -tailscale needs a deck built with go build -tags tailnet")
 	}
 
 	home := os.Getenv("DECK_HOME")
 	if home == "" {
 		h, err := os.UserHomeDir()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		home = filepath.Join(h, ".deck2")
 	}
 	// A second deck of the home would take the agents of the first for those a crash left, and kill them.
 	lock, err := lockHome(deckhome.Layout(home))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer lock.Close()
 	ln, sideLn, err := listenPair(*addr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
+	restarts := make(chan release.Restart, 1)
 	a, err := app.New(app.Config{
 		Home: home, MCPBase: mcpBase(ln.Addr().(*net.TCPAddr)),
 		QuestionWait: 30 * time.Minute, ConfirmWait: 30 * time.Minute, ConfirmTTL: 24 * time.Hour,
+		Variant: release.Variant(tsnet.Built), Launcher: os.Getenv("DECK_LAUNCHER") != "",
+		Restart: func(r release.Restart) {
+			select {
+			case restarts <- r:
+			default:
+			}
+		},
 	}, claudecode.New(home), codex.New(home))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer a.Close()
 	token, err := loadToken(a.Home.Token())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	var restart atomic.Pointer[release.Restart]
+	go func() {
+		select {
+		case r := <-restarts:
+			restart.Store(&r)
+			stop()
+		case <-ctx.Done():
+		}
+	}()
 
 	// deck's MCP server answers before any turn starts, a resumed one too; the rest waits until deck has started.
 	server := api.New(a, token, web.FS())
@@ -118,23 +155,23 @@ func run() error {
 	if *tailnet != "" {
 		node, err := tsnet.Start(ctx, tsnet.Config{Hostname: *tailnet, Dir: a.Home.Tailscale(), Health: a.TailnetHealth}, server)
 		if err != nil {
-			return fmt.Errorf("tailscale: %w", err)
+			return nil, fmt.Errorf("tailscale: %w", err)
 		}
 		defer node.Close()
 	}
 	slog.Info("deck listening", "url", fmt.Sprintf("http://%s/?token=%s", ln.Addr(), token), "home", home)
 	if err := <-served; err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+		return nil, err
 	}
 	// Serve returns once Shutdown starts; the calls still running finish before deck closes.
 	<-stopped
-	return nil
+	return restart.Load(), nil
 }
 
 // cleanEnv restarts deck with only the variables it needs: on macOS a confined program reads the
 // environment of every process of the owner.
 func cleanEnv() error {
-	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_HOME")
+	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_HOME", "DECK_LAUNCHER")
 	if len(clean) == len(os.Environ()) {
 		return nil
 	}

@@ -94,6 +94,7 @@ func TestTheLauncherRunsTheDeckOfWSL(t *testing.T) {
 	script := `#!/bin/sh
 while [ "$1" != "--exec" ]; do shift; done; shift
 export HOME="` + home + `"
+if [ "$1" = env ]; then shift; while [ "${1#*=}" != "$1" ]; do export "$1"; shift; done; fi
 case "$1" in
 ` + Bin + `) shift; echo $$ > "` + dir + `/pid"; exec "` + built(t) + `" "$@" ;;
 pkill) exec kill -TERM "$(cat "` + dir + `/pid")" ;;

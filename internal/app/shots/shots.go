@@ -116,8 +116,13 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in shotIn) (any,
   const tall = %t ? Math.min(await page.evaluate(() => document.documentElement.scrollHeight), 8000) : 0;
   if (tall > window.height) {
     await page.setViewportSize({ width: window.width, height: tall });
-    await page.waitForTimeout(250);
-    await page.waitForFunction(%s, null, { timeout: 10000, polling: 100 });
+    try {
+      await page.waitForTimeout(250);
+      await page.waitForFunction(%s, null, { timeout: 10000, polling: 100 });
+    } catch (e) {
+      await page.setViewportSize(window);
+      throw e;
+    }
   }
   const error = await page.evaluate(() => document.querySelector('[data-screen-error]')?.innerText ?? '');
   return JSON.stringify({ ms: Math.round(ms), error, window, grown: tall > window.height });
@@ -135,7 +140,7 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in shotIn) (any,
 	if err := json.Unmarshal([]byte(result(res)), &drawn); err != nil {
 		return nil, fmt.Errorf("deck: the screen did not draw: %s", strings.TrimSpace(text(res)))
 	}
-	pic, err := s.call(ctx, key, spec, "browser_take_screenshot", map[string]any{"type": "png", "fullPage": !drawn.Grown})
+	pic, err := s.call(ctx, key, spec, "browser_take_screenshot", map[string]any{"type": "png", "fullPage": true})
 	if drawn.Grown {
 		_, _ = s.call(ctx, key, spec, "browser_run_code_unsafe", map[string]any{"code": fmt.Sprintf("async (page) => { await page.setViewportSize(%s); }", drawn.Window)})
 	}

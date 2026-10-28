@@ -8,6 +8,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/fault"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -70,6 +71,7 @@ func (r *Runner) end(ctx context.Context, processID int64, state string, f *faul
 		r.dropped(ctx, closedCalls)
 		r.closed(ctx, processID)
 		r.disown(processID)
+		r.Wake(ctx)
 	}
 	if lt == nil {
 		r.leave(ctx, processID)
@@ -112,6 +114,12 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	if cmd == nil {
 		return registry.Invalid("deck: command %q no longer exists", p.Command)
 	}
+	if strings.TrimSpace(remark) == "" && p.State == StateDone {
+		return registry.Invalid("deck: a rework of a process that is done needs a remark")
+	}
+	if fs, err := r.st.Q.ListFollowers(ctx, store.ID(p.ID)); err == nil && len(fs) > 0 && strings.TrimSpace(remark) == "" {
+		return registry.Invalid("deck: process %d took over the work of process %d", fs[len(fs)-1].ID, p.ID)
+	}
 	msg := "deck: the owner sent this task back for rework.\n" + untrusted.Value("Remark", strings.TrimSpace(remark), 500) +
 		"\nKeep what is right and change what the remark asks for. Save changed documents again under the same" +
 		" names, so each change is a new revision, then give the final result again."
@@ -122,6 +130,11 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	note := strings.TrimSpace(p.StartNote + "\n" + msg)
 	var n int64
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if cmd.Runs == manifest.RunsOne {
+			if other, err := q.OtherRun(ctx, db.OtherRunParams{ProjectID: p.ProjectID, Command: p.Command, Trial: p.Trial, ID: p.ID}); err == nil {
+				return registry.Conflict("deck: run %d of %s is going, and it runs one at a time", other, p.Command)
+			}
+		}
 		if p.RetryKey != "" {
 			other, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: p.ProjectID, Command: p.Command, RetryKey: p.RetryKey, Trial: p.Trial})
 			if err == nil && other.ID != p.ID {

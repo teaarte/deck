@@ -220,9 +220,8 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	return ch.takeMessages(ctx, t, id, o.Session, sign, told, last, true)
 }
 
-// takeMessages gives the waiting messages up to through to the reply process, keeps the sign of the memory its
-// session was given, when it was given one, and drops the notes of deck the turn was told, up to told; seen marks
-// the session told of every message up to through, as a turn that got what it missed is.
+// takeMessages gives the waiting messages up to through to the reply process with the sign of the memory it got
+// and drops the notes of deck it was told; seen marks its session told of every message up to through.
 func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, told, through int64, seen bool) error {
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if seen {
@@ -291,8 +290,8 @@ func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.
 			}
 			var lines []db.ChatMessage
 			for _, m := range missed {
-				// The session wrote its own replies; what deck wrote during them it has not seen.
-				if m.ID < pending[0].ID && !(m.Role == roleMaster && ch.sessionOf(ctx, m.ProcessID) == session) {
+				// The session wrote its replies and took the owner's messages; what deck wrote meanwhile it has not seen.
+				if m.ID < pending[0].ID && (m.ProcessID == 0 || ch.sessionOf(ctx, m.ProcessID) != session) {
 					lines = append(lines, m)
 				}
 			}

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	deckhome "deck2/internal/home"
 )
@@ -48,4 +49,19 @@ func TestACommandOfOneRunAtATimeQueuesTheNextCall(t *testing.T) {
 	if len(at) != 4 || !strings.HasPrefix(lines[1], "end") || at[2] < at[1] {
 		t.Fatalf("the second run starts after the first ended:\n%s", b)
 	}
+}
+
+// A run stopped by the owner lets the next one of its command start at once.
+func TestAStoppedRunLetsTheNextOneStart(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("spans", strings.Replace(scriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
+	e.saveScript("spans", "scripts/main.py", strings.Replace(spanScript, "time.sleep(1)", "time.sleep(30)", 1))
+	first, second := e.start("spans", "run", nil), e.start("spans", "run", nil)
+	e.waitScript(second, "waiting_run")
+	e.must("deck.process_stop", map[string]any{"process": first}, nil)
+	if got := e.pollState(second, 5*time.Second, 50*time.Millisecond, "running"); got.State != "running" {
+		t.Fatalf("the next run starts once the first is stopped: %+v", got)
+	}
+	e.must("deck.process_stop", map[string]any{"process": second}, nil)
 }

@@ -44,6 +44,10 @@ func (s *Service) fileRead(ctx context.Context, act registry.Actor, in fileReadI
 	if err := access.Files(act, p.Name, false); err != nil {
 		return resource{}, err
 	}
+	// The master's own calls would carry whole files into its context; its shots read them in deck's browser.
+	if act.Kind == registry.Master && !act.Looks {
+		return resource{}, registry.Refuse("deck: file_read is for custom blocks; a file of the data folder reads with data_read")
+	}
 	u, err := url.Parse(in.URI)
 	rest := ""
 	if err == nil {

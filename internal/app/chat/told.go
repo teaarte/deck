@@ -143,7 +143,8 @@ func (ch *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]str
 			v.Error = manifest.TrText(ws, m.Text)
 		}
 		// Only the message of how the work stands now offers to go on.
-		if m.RetryKey == endKey(p) && p.FinishedAt.Valid && p.State == at.State {
+		fs, _ := ch.St.Q.ListFollowers(ctx, store.ID(p.ID))
+		if m.RetryKey == endKey(p) && p.FinishedAt.Valid && p.State == at.State && len(fs) == 0 {
 			v.Left = ch.undos(ctx, p.ID)
 			if p.Kind == process.KindAgent && p.SessionID != "" {
 				v.Go = chatAction("continue", registry.Builtin+".process_rework", map[string]any{"process": p.ID})

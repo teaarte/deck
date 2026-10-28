@@ -274,6 +274,11 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			return
 		}
 		r.toolsFound(processID)
+		var killed *provider.Killed
+		if errors.As(err, &killed) && a.sub != nil && submitted(a.sub) {
+			// A turn killed after it handed in its result is done.
+			err, res.Outcome = nil, provider.Done
+		}
 		if a.sub != nil && err == nil && res.Outcome != provider.Failed && submitted(a.sub) {
 			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
 			res.Outcome = provider.Done
@@ -292,7 +297,6 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		if settled && !blocked {
 			verr = validate(t.cmd, res.Structured)
 		}
-		var killed *provider.Killed
 		switch {
 		case (err != nil || res.Outcome != provider.Done) && r.questioned(bg, processID):
 			r.park(bg, processID)

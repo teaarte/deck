@@ -98,7 +98,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   the ceiling of a slow command (agents 60, scripts 10 by default). `"runs": "one"` makes a command run one at a
   time: a call while a run goes on is a run of its own that waits ("waits for the run before it") and starts once
   the runs before it have ended — for runs that share an install, an engine, a browser or a work file of
-  `$DECK_DATA`; the module writes no lock of its own for that.
+  `$DECK_DATA`; the module writes no lock of its own for that. Such a command never calls itself: the call would wait
+  for the run that waits for it.
 - **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
   input (path or query, never the host), `headers` with `$secret.<name>` (the owner stores it with
   `secret_set`; scripts and agents never see it, and deck cuts it out of what the service answers), `body`

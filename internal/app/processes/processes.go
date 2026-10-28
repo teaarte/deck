@@ -398,12 +398,8 @@ type processReworkIn struct {
 }
 
 func (s *Service) processRework(ctx context.Context, act registry.Actor, in processReworkIn) (any, error) {
-	p, err := s.ownProcess(ctx, act, in.Process)
-	if err != nil {
+	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(in.Remark) == "" && p.State == process.StateDone {
-		return nil, registry.Invalid("deck: a rework of a process that is done needs a remark")
 	}
 	if err := s.Runner.Rework(ctx, in.Process, in.Remark); err != nil {
 		return nil, err

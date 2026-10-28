@@ -109,7 +109,7 @@ func (r *Runner) wake(ctx context.Context) {
 				continue
 			}
 		case StateWaitingRun:
-			key := fmt.Sprint("run:", p.ProjectID, ".", p.Command)
+			key := fmt.Sprint("run:", p.ProjectID, ".", p.Command, ":", p.Trial)
 			if busy[key] || !r.runFree(ctx, p) {
 				busy[key] = true
 				continue

@@ -400,3 +400,10 @@ FROM process p WHERE p.id = ?;
 SELECT id FROM process
 WHERE project_id = ? AND command = ? AND trial = ? AND id < ? AND finished_at IS NULL
 ORDER BY id LIMIT 1;
+
+
+-- name: OtherRun :one
+-- Another run of the same command that has not ended.
+SELECT id FROM process
+WHERE project_id = ? AND command = ? AND trial = ? AND id != ? AND finished_at IS NULL
+ORDER BY id LIMIT 1;

@@ -1916,6 +1916,32 @@ func (q *Queries) MarkToolCallUnknown(ctx context.Context, arg MarkToolCallUnkno
 	return result.RowsAffected()
 }
 
+const otherRun = `-- name: OtherRun :one
+SELECT id FROM process
+WHERE project_id = ? AND command = ? AND trial = ? AND id != ? AND finished_at IS NULL
+ORDER BY id LIMIT 1
+`
+
+type OtherRunParams struct {
+	ProjectID int64
+	Command   string
+	Trial     int64
+	ID        int64
+}
+
+// Another run of the same command that has not ended.
+func (q *Queries) OtherRun(ctx context.Context, arg OtherRunParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, otherRun,
+		arg.ProjectID,
+		arg.Command,
+		arg.Trial,
+		arg.ID,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const pauseCeiling = `-- name: PauseCeiling :exec
 UPDATE process SET ceiling_ms = MAX(0, deadline_ms - CAST(?1 AS INTEGER)), deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = ?2 AND state = 'running' AND deadline_ms IS NOT NULL

@@ -193,8 +193,13 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 			r.MarkRead = map[string]any{"verb": "mark_read", "command": registry.Builtin + ".feed_read", "params": map[string]any{"entry": r.ID}}
 		}
 		_ = json.Unmarshal([]byte(f.Actions), &r.Buttons)
-		for i := range r.Buttons {
-			r.Buttons[i].Command = r.Project + "." + r.Buttons[i].Command
+		for i, b := range r.Buttons {
+			// A note of deck carries deck's own commands and words; a module's, the commands of its project.
+			if f.Author == "deck" && strings.HasPrefix(b.Command, registry.Builtin+".") {
+				r.Buttons[i].Label = manifest.TrText(ws, b.Label)
+				continue
+			}
+			r.Buttons[i].Command = r.Project + "." + b.Command
 		}
 		out = append(out, r)
 	}

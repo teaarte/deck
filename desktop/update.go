@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -40,7 +41,47 @@ type Release struct {
 // Latest is the release of deck's own repository.
 func Latest() Release {
 	k, _ := base64.StdEncoding.DecodeString(strings.TrimSpace(releaseKey))
-	return Release{URL: Releases, Key: k, Client: &http.Client{Timeout: 30 * time.Minute}}
+	return Release{URL: Releases, Key: k, Client: &http.Client{Timeout: 30 * time.Minute, CheckRedirect: toGitHub}}
+}
+
+// toGitHub follows a redirect only over https to GitHub and the hosts of its files.
+func toGitHub(req *http.Request, via []*http.Request) error {
+	h := req.URL.Hostname()
+	if len(via) >= 5 || req.URL.Scheme != "https" || h != "github.com" && !strings.HasSuffix(h, ".githubusercontent.com") {
+		return fmt.Errorf("the release redirects to %s", req.URL.Redacted())
+	}
+	return nil
+}
+
+// Newer reports whether version a, vMAJOR.MINOR.PATCH, is later than b; a version that is not one never is.
+func Newer(a, b string) bool {
+	x, okA := semver(a)
+	y, okB := semver(b)
+	if !okA || !okB {
+		return false
+	}
+	for i := range x {
+		if x[i] != y[i] {
+			return x[i] > y[i]
+		}
+	}
+	return false
+}
+
+func semver(v string) ([3]int, bool) {
+	var out [3]int
+	parts := strings.Split(strings.TrimPrefix(v, "v"), ".")
+	if !strings.HasPrefix(v, "v") || len(parts) != 3 {
+		return out, false
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return out, false
+		}
+		out[i] = n
+	}
+	return out, true
 }
 
 type releaseFile struct {
@@ -51,6 +92,8 @@ type releaseFile struct {
 
 // list is the signed list of the latest release.
 func (r Release) list(ctx context.Context) (version string, files []releaseFile, err error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	list, err := r.get(ctx, "release.json", 1<<20)
 	if err != nil {
 		return "", nil, err
@@ -70,6 +113,9 @@ func (r Release) list(ctx context.Context) (version string, files []releaseFile,
 	if err := json.Unmarshal(list, &fs); err != nil {
 		return "", nil, err
 	}
+	if _, ok := semver(fs.Version); !ok {
+		return "", nil, fmt.Errorf("the release names no version: %q", fs.Version)
+	}
 	return fs.Version, fs.Files, nil
 }
 
@@ -87,11 +133,14 @@ func (r Release) get(ctx context.Context, name string, limit int64) ([]byte, err
 }
 
 // Fetch writes the file of a name of the latest release to path once its size and sha256 are those of the signed
-// list; it gives the version of the release.
-func (r Release) Fetch(ctx context.Context, name, path string) (string, error) {
+// list and the release is newer than the version of deck now; it gives the version of the release.
+func (r Release) Fetch(ctx context.Context, name, path, now string) (string, error) {
 	version, files, err := r.list(ctx)
 	if err != nil {
 		return "", err
+	}
+	if !Newer(version, now) {
+		return "", fmt.Errorf("the latest release %s is not newer than deck %s", version, now)
 	}
 	var f *releaseFile
 	for i := range files {
@@ -111,12 +160,15 @@ func (r Release) Fetch(ctx context.Context, name, path string) (string, error) {
 	if res.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%s: %s", name, res.Status)
 	}
-	out, err := os.Create(path)
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o700)
 	if err != nil {
 		return "", err
 	}
 	h := sha256.New()
 	n, err := io.Copy(io.MultiWriter(out, h), io.LimitReader(res.Body, f.Size+1))
+	if serr := out.Sync(); err == nil {
+		err = serr
+	}
 	if cerr := out.Close(); err == nil {
 		err = cerr
 	}
@@ -130,16 +182,17 @@ func (r Release) Fetch(ctx context.Context, name, path string) (string, error) {
 	return version, nil
 }
 
-// ReplaceApp puts the deck.app of the latest release in place of bundle; the old one goes once the new one stands.
-func ReplaceApp(ctx context.Context, r Release, bundle string) error {
+// ReplaceApp puts the deck.app of the latest release, newer than now, in place of bundle in one swap; the old one goes
+// once the new one stands.
+func ReplaceApp(ctx context.Context, r Release, bundle, now string) error {
 	parent := filepath.Dir(bundle)
 	work, err := os.MkdirTemp(parent, ".deck-update-")
 	if err != nil {
-		return err
+		return fmt.Errorf("deck cannot write the folder of deck.app, %s, so it cannot update itself: %w", parent, err)
 	}
 	defer os.RemoveAll(work)
 	archive := filepath.Join(work, "deck-macos.zip")
-	if _, err := r.Fetch(ctx, "deck-macos.zip", archive); err != nil {
+	if _, err := r.Fetch(ctx, "deck-macos.zip", archive, now); err != nil {
 		return err
 	}
 	if err := unzip(archive, work); err != nil {
@@ -149,15 +202,16 @@ func ReplaceApp(ctx context.Context, r Release, bundle string) error {
 	if st, err := os.Stat(filepath.Join(fresh, "Contents", "MacOS", "deck")); err != nil || st.Mode()&0o111 == 0 {
 		return errors.New("the release holds no deck.app")
 	}
-	old := filepath.Join(work, "old.app")
-	if err := os.Rename(bundle, old); err != nil {
-		return err
+	// After the swap the old app stands in the work folder, which goes with it.
+	return swap(fresh, bundle)
+}
+
+// Leftovers removes the work folders of updates a crash left beside the app.
+func Leftovers(bundle string) {
+	old, _ := filepath.Glob(filepath.Join(filepath.Dir(bundle), ".deck-update-*"))
+	for _, dir := range old {
+		_ = os.RemoveAll(dir)
 	}
-	if err := os.Rename(fresh, bundle); err != nil {
-		_ = os.Rename(old, bundle)
-		return err
-	}
-	return nil
 }
 
 // unzip unpacks an archive into dir, refusing a path that leaves it.

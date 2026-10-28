@@ -28,6 +28,9 @@ func (l Layout) Work() string { return l.work() }
 
 func (l Layout) DB() string    { return l.state("deck.db") }
 
+// Update is the update a deck put in place and has not yet served in.
+func (l Layout) Update() string { return l.state("update.json") }
+
 // Lock is the file the one deck of a home holds locked while it runs.
 func (l Layout) Lock() string { return l.state("deck.lock") }
 func (l Layout) Token() string { return l.state("token") }

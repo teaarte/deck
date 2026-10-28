@@ -11,7 +11,7 @@ import (
 var words = map[string]map[string]string{
 	"ru": {
 		"Open deck": "Открыть deck", "Start at login": "Запускать при входе", "Quit": "Выйти",
-		"deck did not start": "deck не запустился", "deck did not update": "deck не обновился",
+		"deck did not start": "deck не запустился", "deck did not update": "deck не обновился", "deck is updating": "deck обновляется",
 		"the signature of the release does not hold": "подпись выпуска не сходится", "Starting deck…": "deck запускается…",
 		"Installing WSL; Windows asks for consent and may need a restart.": "Ставлю WSL; Windows спросит разрешение и может попросить перезагрузку.",
 		"Installing Ubuntu for deck as the distribution deck.":             "Ставлю Ubuntu для deck — дистрибутив deck.",

@@ -77,7 +77,7 @@ func oldApp(t *testing.T) string {
 func TestTheLauncherPutsTheNewAppInPlace(t *testing.T) {
 	r := serveRelease(t, "deck-macos.zip", appZip(t, "new"), false)
 	bundle := oldApp(t)
-	if err := ReplaceApp(context.Background(), r, bundle); err != nil {
+	if err := ReplaceApp(context.Background(), r, bundle, "v0.1.0"); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := os.ReadFile(filepath.Join(bundle, "Contents", "MacOS", "deck"))
@@ -92,7 +92,7 @@ func TestTheLauncherPutsTheNewAppInPlace(t *testing.T) {
 func TestTheLauncherRefusesAForgedRelease(t *testing.T) {
 	r := serveRelease(t, "deck-macos.zip", appZip(t, "evil"), true)
 	bundle := oldApp(t)
-	if err := ReplaceApp(context.Background(), r, bundle); err == nil || !strings.Contains(err.Error(), "signature") {
+	if err := ReplaceApp(context.Background(), r, bundle, "v0.1.0"); err == nil || !strings.Contains(err.Error(), "signature") {
 		t.Fatalf("a forged release is refused: %v", err)
 	}
 	if got, _ := os.ReadFile(filepath.Join(bundle, "Contents", "MacOS", "deck")); string(got) != "old" {
@@ -113,5 +113,17 @@ func TestDeckAsksTheLauncherForItsUpdate(t *testing.T) {
 	case <-asked:
 	case <-ctx.Done():
 		t.Fatal("the launcher was not asked to update deck")
+	}
+}
+
+// TestTheLauncherTakesNoOlderRelease: a signed release no newer than deck now is not put in place.
+func TestTheLauncherTakesNoOlderRelease(t *testing.T) {
+	r := serveRelease(t, "deck-macos.zip", appZip(t, "old again"), false)
+	bundle := oldApp(t)
+	if err := ReplaceApp(context.Background(), r, bundle, "v0.2.0"); err == nil || !strings.Contains(err.Error(), "not newer") {
+		t.Fatalf("a release no newer is refused: %v", err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(bundle, "Contents", "MacOS", "deck")); string(got) != "old" {
+		t.Fatalf("the app stays as it was: %q", got)
 	}
 }

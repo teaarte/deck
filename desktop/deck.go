@@ -23,6 +23,8 @@ type Runner interface {
 	Command(addr string) *exec.Cmd
 	// Token is the access token of the owner deck keeps in its home.
 	Token(ctx context.Context) (string, error)
+	// Version is the version of the deck it starts, as deck -version says it.
+	Version(ctx context.Context) (string, error)
 	// Stop asks the deck it started to stop; Kill ends it when it does not.
 	Stop(cmd *exec.Cmd) error
 	Kill(cmd *exec.Cmd)
@@ -36,8 +38,9 @@ type Deck struct {
 	cmd    *exec.Cmd
 	// exited closes when the deck the launcher started ends.
 	exited chan struct{}
-	// Update runs when the deck the launcher started ends asking for an update.
-	Update func()
+	// Update runs when the deck the launcher started ends asking for an update; updating keeps deck down meanwhile.
+	Update   func()
+	updating bool
 }
 
 // Up says whether deck answers at its address and has started: its page, and its API asking for the token, so the
@@ -72,6 +75,10 @@ func (d *Deck) Start(ctx context.Context) error {
 		return nil
 	}
 	d.mu.Lock()
+	if d.updating {
+		d.mu.Unlock()
+		return errors.New("deck is updating")
+	}
 	if d.cmd == nil {
 		cmd := d.Runner.Command(d.Addr)
 		if err := cmd.Start(); err != nil {
@@ -83,15 +90,22 @@ func (d *Deck) Start(ctx context.Context) error {
 		go func() {
 			err := cmd.Wait()
 			var exit *exec.ExitError
-			if errors.As(err, &exit) && exit.ExitCode() == UpdateCode && d.Update != nil {
-				go d.Update()
-			}
-			close(exited)
+			update := errors.As(err, &exit) && exit.ExitCode() == UpdateCode && d.Update != nil
 			d.mu.Lock()
 			if d.cmd == cmd {
 				d.cmd = nil
 			}
+			d.updating = d.updating || update
 			d.mu.Unlock()
+			close(exited)
+			if update {
+				go func() {
+					d.Update()
+					d.mu.Lock()
+					d.updating = false
+					d.mu.Unlock()
+				}()
+			}
 		}()
 	}
 	exited := d.exited

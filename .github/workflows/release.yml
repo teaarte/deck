@@ -1,5 +1,5 @@
 # A tag v* makes a release of deck: its binaries, deck.app and the Windows installer, with release.json of their
-# sizes and sha256 signed by the key in the secret DECK_RELEASE_KEY; deck and its launcher update from it.
+# sizes and sha256 signed by DECK_RELEASE_KEY, a secret of the environment release; deck updates from it.
 name: release
 
 on:
@@ -7,19 +7,33 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "the tag $TAG is not vMAJOR.MINOR.PATCH"; exit 1; }
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
   binaries:
+    needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
+          cache: false
       - name: Build deck for each system, with and without the tailnet
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ needs.version.outputs.version }}
           COMMIT: ${{ github.sha }}
         run: |
           mkdir -p dist
@@ -32,63 +46,74 @@ jobs:
                 -o dist/$name ./cmd/deck
             done
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: binaries
           path: dist/
 
   mac:
+    needs: version
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
+          cache: false
       - name: Build deck.app
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ needs.version.outputs.version }}
           COMMIT: ${{ github.sha }}
         run: desktop/build.sh mac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: mac
           path: desktop/dist/deck-macos.zip
 
   windows:
+    needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
+          cache: false
       - run: sudo apt-get update -q && sudo apt-get install -y -q nsis
       - name: Build the Windows installer
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ needs.version.outputs.version }}
           COMMIT: ${{ github.sha }}
         run: desktop/build.sh windows
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows
           path: desktop/dist/deck-setup.exe
 
   release:
-    needs: [binaries, mac, windows]
+    needs: [version, binaries, mac, windows]
     runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
-      - uses: actions/download-artifact@v4
+          cache: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist
           merge-multiple: true
       - name: Sign the list of the files
         env:
           DECK_RELEASE_KEY: ${{ secrets.DECK_RELEASE_KEY }}
-        run: go run ./cmd/deck-release -version "${{ github.ref_name }}" -commit "${{ github.sha }}" -out dist dist/deck-*
+          VERSION: ${{ needs.version.outputs.version }}
+          COMMIT: ${{ github.sha }}
+        run: go run ./cmd/deck-release -version "$VERSION" -commit "$COMMIT" -out dist dist/deck-*
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/* --title "deck ${{ github.ref_name }}" --generate-notes
+          VERSION: ${{ needs.version.outputs.version }}
+        run: gh release create "$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --title "deck $VERSION" --generate-notes

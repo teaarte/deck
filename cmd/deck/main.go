@@ -81,6 +81,9 @@ func run() (*release.Restart, error) {
 		return nil, err
 	}
 	defer lock.Close()
+	if err := pending(deckhome.Layout(home)); err != nil {
+		return nil, err
+	}
 	ln, sideLn, err := listenPair(*addr)
 	if err != nil {
 		return nil, err
@@ -107,14 +110,17 @@ func run() (*release.Restart, error) {
 		return nil, err
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// An update ends deck as a signal does, the signals still heard meanwhile.
+	base, end := context.WithCancel(context.Background())
+	defer end()
+	ctx, stop := signal.NotifyContext(base, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var restart atomic.Pointer[release.Restart]
 	go func() {
 		select {
 		case r := <-restarts:
 			restart.Store(&r)
-			stop()
+			end()
 		case <-ctx.Done():
 		}
 	}()
@@ -159,6 +165,11 @@ func run() (*release.Restart, error) {
 		}
 		defer node.Close()
 	}
+	// The update this deck is has served, so the binary before it goes.
+	if p, ok := release.ReadPending(a.Home.Update()); ok {
+		os.Remove(p.Old)
+		os.Remove(a.Home.Update())
+	}
 	slog.Info("deck listening", "url", fmt.Sprintf("http://%s/?token=%s", ln.Addr(), token), "home", home)
 	if err := <-served; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return nil, err
@@ -180,6 +191,25 @@ func cleanEnv() error {
 		return err
 	}
 	return syscall.Exec(exe, os.Args, clean)
+}
+
+// pending starts the binary before an update when the updated deck already tried to start and never served; a
+// first start of the update marks it tried.
+func pending(h deckhome.Layout) error {
+	p, ok := release.ReadPending(h.Update())
+	switch {
+	case !ok:
+		return nil
+	case !p.Tried:
+		p.Tried = true
+		return release.WritePending(h.Update(), p)
+	}
+	slog.Error("the update did not start; deck goes back to the binary before it", "version", p.Version)
+	os.Remove(h.Update())
+	if err := os.Rename(p.Old, p.Exe); err != nil {
+		return fmt.Errorf("go back from the update %s: %w", p.Version, err)
+	}
+	return syscall.Exec(p.Exe, os.Args, os.Environ())
 }
 
 // lockHome holds the lock of the home until deck exits; another deck holding it refuses this one.

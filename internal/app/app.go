@@ -189,7 +189,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Shots = &shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Tokens.Lend, Return: a.Tokens.Return,
 		Themed: a.Themes.Exists}
 	a.Updates = &updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher,
-		Exe: cfg.Exe, Restart: cfg.Restart, Go: func(f func()) bool { return a.bg.Go(f) }}
+		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: func(f func()) bool { return a.bg.Go(f) },
+		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
 	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,

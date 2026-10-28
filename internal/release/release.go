@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -144,3 +145,27 @@ type Restart struct {
 
 // LauncherCode is the exit code with which deck asks its launcher to update it.
 const LauncherCode = 75
+
+// Pending is an update put in place whose deck has not served yet: a start that finds it tried starts the old binary.
+type Pending struct {
+	Exe     string `json:"exe"`
+	Old     string `json:"old"`
+	Version string `json:"version"`
+	Tried   bool   `json:"tried,omitempty"`
+}
+
+// ReadPending is the pending update kept at path, if there is one.
+func ReadPending(path string) (Pending, bool) {
+	b, err := os.ReadFile(path)
+	var p Pending
+	if err != nil || json.Unmarshal(b, &p) != nil || p.Exe == "" || p.Old == "" {
+		return Pending{}, false
+	}
+	return p, true
+}
+
+// WritePending keeps a pending update at path.
+func WritePending(path string, p Pending) error {
+	b, _ := json.Marshal(p)
+	return os.WriteFile(path, b, 0o600)
+}

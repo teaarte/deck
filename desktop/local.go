@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -23,6 +24,20 @@ func (l Local) Command(addr string) *exec.Cmd {
 func (l Local) Token(context.Context) (string, error) {
 	b, err := os.ReadFile(filepath.Join(l.Home, "state", "token"))
 	return string(b), err
+}
+
+func (l Local) Version(ctx context.Context) (string, error) {
+	out, err := exec.CommandContext(ctx, l.Bin, "-version").Output()
+	return firstWord(out), err
+}
+
+// firstWord is the version deck -version prints first.
+func firstWord(out []byte) string {
+	f := strings.Fields(string(out))
+	if len(f) == 0 {
+		return ""
+	}
+	return f[0]
 }
 
 func (l Local) Stop(cmd *exec.Cmd) error { return cmd.Process.Signal(syscall.SIGTERM) }

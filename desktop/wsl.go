@@ -45,6 +45,11 @@ func (w WSL) Token(ctx context.Context) (string, error) {
 	return string(out), err
 }
 
+func (w WSL) Version(ctx context.Context) (string, error) {
+	out, err := w.run("", Bin, "-version").Output()
+	return firstWord(out), err
+}
+
 // Stop and Kill reach deck inside the distribution: ending wsl.exe alone may leave it running there.
 func (w WSL) Stop(*exec.Cmd) error { return w.run("", "pkill", "-TERM", "-x", "deck").Run() }
 

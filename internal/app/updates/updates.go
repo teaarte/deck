@@ -4,12 +4,12 @@ package updates
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -52,10 +52,12 @@ type Service struct {
 	// Variant is the binary of this build in a release; Launcher marks a deck its launcher updates.
 	Variant  string
 	Launcher bool
-	// Exe is the binary of deck; Restart ends deck to take an update.
-	Exe     func() (string, error)
-	Restart func(release.Restart)
-	Go      func(func()) bool
+	// Exe is the binary of deck; Restart ends deck to take an update; Pending is where the update waits to be served.
+	Exe      func() (string, error)
+	Restart  func(release.Restart)
+	Pending  string
+	Snapshot func(context.Context) error
+	Go       func(func()) bool
 
 	mu      sync.Mutex
 	checked time.Time
@@ -120,8 +122,8 @@ func (s *Service) get(ctx context.Context, name string, limit int64) ([]byte, er
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s of the latest release: %s", name, resp.Status)
+	if resp.StatusCode != http.StatusOK || resp.Request.URL.Scheme != "https" {
+		return nil, fmt.Errorf("%s of the latest release: %s from %s", name, resp.Status, resp.Request.URL.Host)
 	}
 	return io.ReadAll(io.LimitReader(resp.Body, limit))
 }
@@ -186,7 +188,9 @@ func (s *Service) out() versionOut {
 		Newer: release.Newer(s.latest.Version, s.Version), Error: s.failed}
 }
 
-func (s *Service) version(context.Context, registry.Actor, struct{}) (versionOut, error) { return s.out(), nil }
+func (s *Service) version(context.Context, registry.Actor, struct{}) (versionOut, error) {
+	return s.out(), nil
+}
 
 func (s *Service) checkNow(ctx context.Context, _ registry.Actor, _ struct{}) (any, error) {
 	if s.Version == "dev" {
@@ -224,8 +228,10 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 		return nil, registry.Invalid("deck: %s is the latest release", s.Version)
 	}
 	if s.Launcher {
+		if !s.Go(func() { time.Sleep(time.Second); s.Restart(release.Restart{Launcher: true}) }) {
+			return nil, registry.Conflict("deck: deck is stopping; update it once it has started again")
+		}
 		done = true
-		s.Go(func() { time.Sleep(time.Second); s.Restart(release.Restart{Launcher: true}) })
 		return map[string]any{"version": fs.Version, "by": "launcher"}, nil
 	}
 	f, ok := fs.File(s.Variant)
@@ -239,7 +245,7 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 	if err != nil {
 		return nil, err
 	}
-	fresh := exe + ".new"
+	fresh, old := exe+".new", exe+".old"
 	if err := s.download(ctx, f, fresh); err != nil {
 		os.Remove(fresh)
 		return nil, err
@@ -248,49 +254,90 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 		os.Remove(fresh)
 		return nil, err
 	}
-	old := exe + ".old"
-	os.Remove(old)
-	if err := os.Link(exe, old); err != nil {
+	// What ran is what goes in place: its sha256 again, then the mode of a program.
+	if err := sameFile(fresh, f); err != nil {
 		os.Remove(fresh)
-		return nil, fmt.Errorf("deck: keep the binary before the update: %w", err)
+		return nil, err
+	}
+	if err := s.Snapshot(ctx); err != nil {
+		os.Remove(fresh)
+		return nil, registry.Refuse("deck: a snapshot before the update: %v", err)
+	}
+	os.Remove(old)
+	if err := errors.Join(os.Chmod(fresh, 0o755), os.Link(exe, old),
+		release.WritePending(s.Pending, release.Pending{Exe: exe, Old: old, Version: fs.Version})); err != nil {
+		os.Remove(fresh)
+		os.Remove(old)
+		os.Remove(s.Pending)
+		return nil, registry.Refuse("deck: keep the binary before the update: %v", err)
 	}
 	if err := os.Rename(fresh, exe); err != nil {
 		os.Remove(fresh)
 		os.Remove(old)
-		return nil, fmt.Errorf("deck: put the update in place: %w", err)
+		os.Remove(s.Pending)
+		return nil, registry.Refuse("deck: put the update in place: %v", err)
 	}
+	syncDir(filepath.Dir(exe))
 	done = true
-	s.Go(func() { time.Sleep(time.Second); s.Restart(release.Restart{Exe: exe, Old: old}) })
+	if !s.Go(func() { time.Sleep(time.Second); s.Restart(release.Restart{Exe: exe, Old: old}) }) {
+		return map[string]any{"version": fs.Version, "by": "deck", "restart": "deck is stopping; it starts in the new version"}, nil
+	}
 	return map[string]any{"version": fs.Version, "by": "deck"}, nil
+}
+
+// sameFile checks a file of a release once more by its size and sha256.
+func sameFile(path string, f release.File) error {
+	in, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	h := sha256.New()
+	n, err := io.Copy(h, in)
+	if err != nil || n != f.Size || hex.EncodeToString(h.Sum(nil)) != f.SHA256 {
+		return registry.Refuse("deck: the sha256 of %s is not the one of the signed list", f.Name)
+	}
+	return nil
+}
+
+// syncDir writes a folder's entries to the disk, so a rename in it outlives a loss of power.
+func syncDir(dir string) {
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		d.Close()
+	}
 }
 
 // download writes file f of the latest release to path once its size and sha256 are those of the signed list.
 func (s *Service) download(ctx context.Context, f release.File, path string) error {
 	resp, err := gateway.Download(ctx, s.Source.Domains, s.Source.URL+f.Name)
 	if err != nil {
-		return fmt.Errorf("deck: download %s: %w", f.Name, err)
+		return registry.Refuse("deck: download %s: %v", f.Name, err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("deck: download %s: %s", f.Name, resp.Status)
+	if resp.StatusCode != http.StatusOK || resp.Request.URL.Scheme != "https" {
+		return registry.Refuse("deck: download %s: %s", f.Name, resp.Status)
 	}
 	os.Remove(path)
-	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o755)
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o700)
 	if err != nil {
 		return err
 	}
 	h := sha256.New()
 	n, err := io.Copy(io.MultiWriter(out, h), io.LimitReader(resp.Body, f.Size+1))
+	if serr := out.Sync(); err == nil {
+		err = serr
+	}
 	if cerr := out.Close(); err == nil {
 		err = cerr
 	}
 	switch {
 	case err != nil:
-		return fmt.Errorf("deck: download %s: %w", f.Name, err)
+		return registry.Refuse("deck: download %s: %v", f.Name, err)
 	case n != f.Size:
-		return fmt.Errorf("deck: %s is %d bytes, the signed list says %d", f.Name, n, f.Size)
+		return registry.Refuse("deck: %s is %d bytes, the signed list says %d", f.Name, n, f.Size)
 	case hex.EncodeToString(h.Sum(nil)) != f.SHA256:
-		return fmt.Errorf("deck: the sha256 of %s is not the one of the signed list", f.Name)
+		return registry.Refuse("deck: the sha256 of %s is not the one of the signed list", f.Name)
 	}
 	return nil
 }
@@ -301,10 +348,10 @@ func runs(ctx context.Context, bin, version string) error {
 	defer cancel()
 	out, err := exec.CommandContext(ctx, bin, "-version").Output()
 	if err != nil {
-		return fmt.Errorf("deck: the new binary does not run here: %w", err)
+		return registry.Refuse("deck: the new binary does not run here: %v", err)
 	}
 	if got, _, _ := strings.Cut(strings.TrimSpace(string(out)), " "); got != version {
-		return fmt.Errorf("deck: the new binary says it is %q, not %s", got, version)
+		return registry.Refuse("deck: the new binary says it is %q, not %s", got, version)
 	}
 	return nil
 }

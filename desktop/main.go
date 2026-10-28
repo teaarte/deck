@@ -42,6 +42,11 @@ func main() {
 	if *setup {
 		os.Exit(setUp(runner))
 	}
+	if exe, err := os.Executable(); err == nil && runtime.GOOS == "darwin" {
+		if bundle, ok := bundleOf(exe); ok {
+			Leftovers(bundle)
+		}
+	}
 	open(&Deck{Runner: runner, Addr: *addr}, !*hidden)
 }
 
@@ -107,7 +112,7 @@ func open(d *Deck, show bool) {
 	})
 	// deck asked for its update: the launcher puts it in place and starts it, or starts the old deck again.
 	d.Update = func() {
-		if err := selfUpdate(app.Quit); err != nil {
+		if err := selfUpdate(d.Runner, app.Quit); err != nil {
 			application.InvokeSync(func() {
 				app.Dialog.Error().SetTitle(tr("deck did not update")).SetMessage(tr(err.Error())).Show()
 			})

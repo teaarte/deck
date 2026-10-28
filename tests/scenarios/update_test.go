@@ -124,11 +124,29 @@ func TestDeckUpdatesItselfFromASignedRelease(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("one note of the new version, however often deck looks: %d", n)
 	}
-	e.must("deck.update", nil, nil)
+	var feed []struct {
+		Text    string
+		Buttons []struct{ Label, Command string }
+	}
+	e.must("deck.feed_list", map[string]any{"kind": "note", "lang": "ru"}, &feed)
+	var button struct{ Label, Command string }
+	for _, f := range feed {
+		if strings.Contains(f.Text, "v0.2.0") && len(f.Buttons) == 1 {
+			button = f.Buttons[0]
+		}
+	}
+	if button.Command != "deck.update" || button.Label != "Обновить" {
+		t.Fatalf("the note's button is deck's update in the owner's words: %+v %+v", button, feed)
+	}
+	e.must(button.Command, nil, nil)
 	rs := <-restarts
 	exe, _ = filepath.EvalSymlinks(exe)
 	got, _ := os.ReadFile(exe)
 	old, _ := os.ReadFile(rs.Old)
+	p, pending := release.ReadPending(filepath.Join(e.App.Cfg.Home, "state", "update.json"))
+	if !pending || p.Version != "v0.2.0" || p.Old != rs.Old {
+		t.Fatalf("the update waits to be served, the old binary named: %+v", p)
+	}
 	if rs.Launcher || rs.Exe != exe || string(got) != string(newBinary("v0.2.0")) || string(old) != string(newBinary("v0.1.0")) {
 		t.Fatalf("the new binary stands in place of the old, which is kept: %+v %q %q", rs, got, old)
 	}

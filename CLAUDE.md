@@ -20,6 +20,8 @@ Protocol facts: Claude Code â€” `docs/spikes/claude-code.md`, Codex app-server â
   `DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
 - Scenario tests on Linux (bubblewrap sandbox, a user without privileges as in WSL2, needs docker):
   `DECK_LINUX=1 go test ./tests/linux -v`
+- deck's image from `compose.yaml` on a bare docker (docker in docker, Codex on a model of the test):
+  `DECK_SERVER=1 go test ./tests/scenarios -run TestServerFromScratch -v`
 - The desktop launcher (its own module): `cd desktop && go test ./...`; `desktop/build.sh` makes `deck.app` and the
   Windows installer (`brew install makensis`)
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`

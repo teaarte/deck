@@ -160,9 +160,36 @@ database and the stored manifests.
   its own WSL2 distribution (not yet tried on a real Windows machine). The launcher lives in the tray and can start
   at login.
 
+## Server
+
+deck runs on a Linux server (amd64 or arm64) from its image, with Claude Code, Codex, uv and a browser inside. You
+need Docker with compose, and a domain name pointing at the server, with ports 80, 443 and 8443 open:
+
+```bash
+mkdir deck && cd deck
+curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/master/compose.yaml
+echo "DECK_DOMAIN=deck.example.com" > .env
+docker compose up -d
+docker compose logs deck | grep token     # the link with the access token
+```
+
+Caddy in the same compose gets the HTTPS certificate. Open the link, then sign in to the agents in
+Settings → Models → **Sign in**: Codex shows a link and a code, Claude Code a link whose page gives the code to
+enter. Their logins stay in the volume `agents`, deck's data in `deck`. Add `DECK_TAILSCALE=deck` to `.env` to
+also reach deck on your tailnet. Without a domain deck is only at `127.0.0.1:7700` of the server, for an SSH
+tunnel. To update: `docker compose pull && docker compose up -d`.
+
+**What the container protects.** deck runs as one user and every agent, script and MCP server as another, under
+Docker's own seccomp and AppArmor with nothing loosened: they cannot read deck's token, base or secrets, and nothing
+reaches the server outside the container. Inside it, the network of modules is not limited to their domains,
+modules can see and act for one another, and an agent's shell can read the logins of Claude Code and Codex, since
+the CLIs read them to work. For deck's own sandbox inside as well, set `DECK_SANDBOX=bwrap` and give the container
+`security_opt: [seccomp=unconfined, systempaths=unconfined]`; on Ubuntu 23.10+ the host must also allow user
+namespaces to it (an AppArmor profile with `userns`, or `sysctl kernel.apparmor_restrict_unprivileged_userns=0`).
+
 ## Status
 
-deck is a personal project in daily use by its author: one owner per deck, macOS first, Linux tested in docker.
+deck is a personal project in daily use by its author: one owner per deck, macOS first, Linux and the server image tested in docker.
 It changes fast; the database and manifests are migrated on start.
 
 ## License

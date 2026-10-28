@@ -54,7 +54,10 @@ one place.
   delete only the files its own run made; that is a line of "done without you" with an undo.
 - **Sandbox.** Scripts, MCP servers and ACP agents run under `sandbox-exec` on macOS or bubblewrap on Linux. The
   only network path is the `Door` to deck's proxy. A process sees its own folder, the folders the owner granted
-  and the environment deck gives it.
+  and the environment deck gives it. In deck's image (`DECK_AGENT_USER=agent`) the container is the sandbox: deck
+  runs as `deck` with a few file capabilities, and every program of agents, scripts and MCP servers runs as `agent`
+  (`sandbox.AsAgent` hands it the folders of its turn). deck's state stays closed by file rights, but the network of
+  modules is not limited and modules see one another; `DECK_SANDBOX=bwrap` keeps bubblewrap inside as well.
 - **Screens are data.** The server resolves a stored screen into [A2UI](https://github.com/google/A2UI) messages
   from a block catalog (`schemas/catalog.json`): tables, lists and boards, cards, forms, stats, charts, media, a
   file manager, tabs, columns and dialogs. A screen can also have a side panel. The client only draws them, and a
@@ -145,6 +148,13 @@ the health row `update`. Its `deck.update` puts the binary of its build in place
 (`state/update.json`). A start that finds that update already tried goes back to the old binary. A deck started by the launcher (`DECK_LAUNCHER`) instead exits with code 75. The
 launcher then replaces deck.app whole, or on Windows runs the new installer silently.
 
+**Server image.** After the release the same workflow builds `Dockerfile` on native amd64 and arm64 runners and
+pushes `ghcr.io/teaarte/deck:<version>` and `:latest`. `compose.yaml` runs it with Caddy in front (`DECK_DOMAIN`,
+HTTPS on 443 and the second origin on 8443; deck takes `-public` and trusts `X-Forwarded-Proto`), optionally on the
+tailnet (`DECK_TAILSCALE`). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
+Claude Code and Codex are signed in from Settings → Models (`deck.agent_login`), their logins live in the volume
+`agents`.
+
 ## Tests
 
 These are scenario tests through the real registry and gateway, on a real SQLite in a temp dir, with a fake
@@ -154,7 +164,8 @@ provider. The only exception is the contract tests of each provider adapter, whi
 go test -race -timeout 30m ./...
 DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v   # the client in a real browser
 DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v    # the real Claude Code
-DECK_LINUX=1 go test ./tests/linux -v                                   # bubblewrap, in docker
+DECK_LINUX=1 go test ./tests/linux -v                                   # bubblewrap and deck's image user, in docker
+DECK_SERVER=1 go test ./tests/scenarios -run TestServerFromScratch -v   # compose.yaml on a bare docker
 ```
 
 The runs against Codex, ACP agents on local models and package installs are listed in

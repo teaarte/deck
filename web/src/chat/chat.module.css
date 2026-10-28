@@ -35,7 +35,8 @@
   left: 0;
 }
 
-/* How a message went shows on hover, in focus, or by a press where there is no hover. */
+/* How a message went shows on hover, with a key on its buttons, or by a press where there is no hover; hidden, it
+   takes no press. */
 .lineTools {
   display: flex;
   align-items: center;
@@ -43,15 +44,22 @@
   min-height: 22px;
   margin-top: 2px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 150ms ease;
 }
 
-.masterLine:hover .lineTools,
-.masterLine:focus-within .lineTools,
-.ownerLine:hover .lineTools,
-.ownerLine:focus-within .lineTools,
+@media (hover: hover) {
+  .masterLine:hover .lineTools,
+  .ownerLine:hover .lineTools {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.masterLine:has(:focus-visible) .lineTools,
 [data-shown] > .lineTools {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .masterLine:focus {
@@ -116,14 +124,24 @@
   padding: 3px 4px 3px 6px;
   border-radius: var(--mantine-radius-xl);
   background: var(--deck-fill, var(--mantine-color-default-hover));
+}
 
-  &[role='button'] {
-    cursor: pointer;
-  }
+.turnFold {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: inherit;
+  border-radius: var(--mantine-radius-xl);
 
   &:focus-visible {
     outline: 2px solid var(--mantine-primary-color-filled);
-    outline-offset: -2px;
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    cursor: default;
   }
 }
 
@@ -354,6 +372,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 2px 0;
 }
 
 .proc {

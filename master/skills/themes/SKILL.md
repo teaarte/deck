@@ -32,8 +32,8 @@ asks, as a theme of its own name.
    `.place` are the tabs of the screens under the head, `.nav` the tabs at the foot of a phone, `.nav-item` one.
    The chat: `.message` (`.bubble` the owner's, `.chat-link` a link of a reply), `.turn` with `.turn-head`,
    `.turn-step` and `.turn-log`, `.suggest`, `.chat-ask` (a yes it waits for), `.question`, `.cut` (a reply that
-   broke off), `.told` (deck's line of how a work from the topic went), `.composer` and `.hearing` (the voice
-   being recorded). The side panel of a module's screen is `.side` (`.side-sheet` on a phone, `side` and
+   broke off), `.told` (deck's line of how a work from the topic went), `.composer` with `.attached` (a file put
+   in before sending) and `.hearing` (the voice being recorded). The side panel of a module's screen is `.side` (`.side-sheet` on a phone, `side` and
    `side-width` its tokens); `.empty` the words of a block with nothing, `.pending` what loads, `.sheet` a sheet
    from the edge; parts `widget`, `empty` and `pending` style them without CSS, and `placing` is the color of the
    free cells while the owner places the tiles. Radius `0` squares all of them already.

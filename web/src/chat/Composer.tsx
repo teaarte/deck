@@ -87,7 +87,12 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
         </div>
       ) : <Textarea variant="unstyled" autosize minRows={1} maxRows={10} placeholder={t('chat.placeholder')} value={text} data-chat-input px={8}
         onChange={(e) => onEdit(e.currentTarget.value)}
-        onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); files.attach(e.clipboardData.files); } }}
+        onPaste={(e) => {
+          // A copy from an app comes as rich text with a picture of it: the text is what was meant.
+          if (!e.clipboardData.files.length || e.clipboardData.types.includes('text/html')) return;
+          e.preventDefault();
+          files.attach(e.clipboardData.files);
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); return; }
           if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {

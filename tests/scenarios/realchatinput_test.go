@@ -46,9 +46,13 @@ func TestRealBrowserChatInput(t *testing.T) {
 	b.eval(pasteFiles)
 	b.until("the pasted picture and file over the field", `document.querySelector('[data-attached-picture] img')?.naturalWidth === 16 &&
 		document.querySelector('[data-attached-file]')?.textContent.includes('list.txt') && document.querySelector('[data-chat-input]').value === 'a'`)
+	b.eval(`(() => { const dt = new DataTransfer(); dt.setData('text/html', '<table><tr><td>1</td></tr></table>'); dt.setData('text/plain', '1');
+		dt.items.add(new File(['x'], 'cells.png', { type: 'image/png' }));
+		document.querySelector('[data-chat-input]').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); return '' })()`)
 	b.eval(`(() => { const dt = new DataTransfer(); dt.items.add(new File(['eggs'], 'dropped.txt', { type: 'text/plain' }));
 		document.querySelector('[data-composer]').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); return '' })()`)
-	b.until("the dropped file beside them", `[...document.querySelectorAll('[data-attached-file]')].some((f) => f.textContent.includes('dropped.txt'))`)
+	b.until("the dropped file beside them, a copy of cells from an app kept as its text", `[...document.querySelectorAll('[data-attached-file]')].some((f) => f.textContent.includes('dropped.txt')) &&
+		document.querySelectorAll('[data-attached] > *').length === 3`)
 	b.shot("input-paste-pc")
 	b.type_(`document.querySelector('[data-chat-input]')`, "we are out of milk")
 	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
@@ -84,20 +88,20 @@ func TestRealBrowserChatInput(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
 	b.until("the turn in one line: what it does, a timer, the model and Stop, its steps folded", oneLineTurn)
 	b.shot("input-turn-pc")
-	b.eval(`(document.querySelector('[data-turn-head]').click(), '')`)
+	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
 	b.until("the steps and the calls under the line, as wide as it and not moved right", openedTurn)
 	b.shot("input-turn-open-pc")
-	b.eval(`(document.querySelector('[data-turn-head]').click(), '')`)
-	b.until("the turn folded again", `!document.querySelector('[data-turn-log]') && document.querySelector('[data-turn-head]').getAttribute('aria-expanded') === 'false'`)
+	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
+	b.until("the turn folded again", `!document.querySelector('[data-turn-open]') && document.querySelector('[data-turn-fold]').getAttribute('aria-expanded') === 'false'`)
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.until("the chat on the phone", `document.querySelector('[data-chat-input]')?.getBoundingClientRect().width > 300 && document.querySelector('[data-turn="running"]')`)
 	b.until("the turn in one line on the phone", oneLineTurn)
 	b.shot("input-turn-phone")
-	b.eval(`(document.querySelector('[data-turn-head]').click(), '')`)
+	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
 	b.until("the steps and the calls on the phone, not moved right", openedTurn)
 	b.shot("input-turn-open-phone")
-	b.eval(`(document.querySelector('[data-turn-head]').click(), '')`)
+	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.mouse.move(5, 5); }`})
 	b.eval(`([...document.querySelectorAll('[data-message="owner"] [data-bubble]')][0].click(), '')`)
 	b.until("on a phone a press shows when the message was written", `(() => { const m = document.querySelector('[data-message="owner"]');
@@ -118,14 +122,14 @@ const oneLineTurn = `(() => { const t = document.querySelector('[data-turn="runn
 	const r = h.getBoundingClientRect(); const parts = ['[data-pose]', '[data-turn-now]', '[data-turn-timer]', '[data-turn-model]', '[data-verb="stop"]'].map((q) => h.querySelector(q));
 	return parts.every((p) => p && p.getBoundingClientRect().width > 0 && p.getBoundingClientRect().top >= r.top - 1 && p.getBoundingClientRect().bottom <= r.bottom + 1) &&
 		r.height < 44 && h.querySelector('[data-turn-now]').innerText === 'runs a command' && h.querySelector('[data-turn-model]').innerText === 'fake' &&
-		h.getAttribute('aria-expanded') === 'false' && !t.querySelector('[data-turn-step]') && !t.querySelector('[data-turn-log]') &&
+		h.querySelector('[data-turn-fold]').getAttribute('aria-expanded') === 'false' && !t.querySelector('[data-turn-step]') && !t.querySelector('[data-turn-open]') &&
 		t.getBoundingClientRect().height < r.height + 2 })()`
 
 // openedTurn holds when the turn shows its two steps and its calls under its line, starting at most a few pixels
 // right of the line and ending within it.
-const openedTurn = `(() => { const t = document.querySelector('[data-turn="running"]'); const h = t?.querySelector('[data-turn-head]'); const body = t?.querySelector('[data-turn-log]');
+const openedTurn = `(() => { const t = document.querySelector('[data-turn="running"]'); const h = t?.querySelector('[data-turn-head]'); const body = t?.querySelector('[data-turn-open]');
 	if (!body) return false; const r = h.getBoundingClientRect();
 	const inner = [...body.querySelectorAll('[data-turn-step], [data-turn-line]')];
-	return h.getAttribute('aria-expanded') === 'true' && body.querySelectorAll('[data-turn-step]').length === 2 && inner.some((l) => l.innerText.includes('records_list')) &&
+	return h.querySelector('[data-turn-fold]').getAttribute('aria-expanded') === 'true' && body.querySelectorAll('[data-turn-step]').length === 2 && inner.some((l) => l.innerText.includes('records_list')) &&
 		[body, ...body.querySelectorAll('*')].every((x) => { const q = x.getBoundingClientRect(); return q.width === 0 || (q.left >= r.left - 1 && q.right <= r.right + 1) }) &&
 		inner.every((l) => l.getBoundingClientRect().left - r.left <= 20) })()`

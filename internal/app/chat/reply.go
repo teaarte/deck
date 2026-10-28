@@ -123,7 +123,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 				texts = append(texts, given)
 			}
 			if err := ch.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
-				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", 0, last)
+				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", 0, last, false)
 			}
 		}
 		if open.State == process.StateRunning {
@@ -131,7 +131,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 			if err != nil || ch.Runner.Say(ctx, open.ID, strings.TrimSpace("deck: the owner wrote while you work.\n"+news+"\n"+given)) == process.Refused {
 				return err
 			}
-			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", told, last)
+			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", told, last, false)
 		}
 		if open.State != process.StateWaitingAnswer {
 			return nil
@@ -143,7 +143,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 		if err := ch.Runner.Remark(ctx, open.ID, strings.TrimSpace(msg+"\n\n"+given)); err != nil {
 			return err
 		}
-		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, told, last)
+		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, told, last, true)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
@@ -213,17 +213,23 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		if id != 0 {
 			// The failed reply takes the messages, so its error shows and the topic does not start again.
-			_ = ch.takeMessages(ctx, t, id, o.Session, sign, 0, last)
+			_ = ch.takeMessages(ctx, t, id, o.Session, sign, 0, last, true)
 		}
 		return err
 	}
-	return ch.takeMessages(ctx, t, id, o.Session, sign, told, last)
+	return ch.takeMessages(ctx, t, id, o.Session, sign, told, last, true)
 }
 
 // takeMessages gives the waiting messages up to through to the reply process, keeps the sign of the memory its
-// session was given, when it was given one, and drops the notes of deck the turn was told, up to told.
-func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, told, through int64) error {
+// session was given, when it was given one, and drops the notes of deck the turn was told, up to told; seen marks
+// the session told of every message up to through, as a turn that got what it missed is.
+func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, told, through int64, seen bool) error {
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if seen {
+			if err := q.SeeChat(ctx, db.SeeChatParams{Seen: through, TopicID: t.ID, SessionID: session}); err != nil {
+				return err
+			}
+		}
 		if told > 0 {
 			if err := q.DeleteMasterNotes(ctx, db.DeleteMasterNotesParams{WorkspaceID: t.WorkspaceID, Through: told}); err != nil {
 				return err
@@ -285,7 +291,8 @@ func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.
 			}
 			var lines []db.ChatMessage
 			for _, m := range missed {
-				if m.ID < pending[0].ID {
+				// The session wrote its own replies; what deck wrote during them it has not seen.
+				if m.ID < pending[0].ID && !(m.Role == roleMaster && ch.sessionOf(ctx, m.ProcessID) == session) {
 					lines = append(lines, m)
 				}
 			}
@@ -418,4 +425,13 @@ func attached(ms []db.ChatMessage) []int64 {
 		}
 	}
 	return out
+}
+
+// sessionOf is the agent session of a process, or empty.
+func (ch *Service) sessionOf(ctx context.Context, processID int64) string {
+	p, err := ch.St.Q.GetProcess(ctx, processID)
+	if err != nil {
+		return ""
+	}
+	return p.SessionID
 }

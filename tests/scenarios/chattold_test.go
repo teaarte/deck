@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 )
@@ -181,12 +182,18 @@ func TestAWorkTellsItsTopicItsWholeResult(t *testing.T) {
 	var from atomic.Int64
 	var replies atomic.Int32
 	var prompt atomic.Value
+	worked := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "work" {
+			defer close(worked)
 			return provider.Result{Text: long}
 		}
 		if replies.Add(1) == 1 {
-			return handOver(ctx, c, &from)
+			// The work ends and tells the topic while the reply that started it still runs.
+			res := handOver(ctx, c, &from)
+			<-worked
+			time.Sleep(300 * time.Millisecond)
+			return res
 		}
 		prompt.Store(c.Req.Prompt)
 		return provider.Result{Text: "ok"}

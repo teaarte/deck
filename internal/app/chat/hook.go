@@ -35,14 +35,10 @@ func (h Hook) Turn(ctx context.Context, p db.Process, text string) {
 		return
 	}
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		m, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(ch.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID})
-		if err != nil {
+		if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(ch.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID}); err != nil {
 			return err
 		}
-		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(ch.Now()), ID: topic}); err != nil {
-			return err
-		}
-		return q.SeeChat(ctx, db.SeeChatParams{Seen: m.ID, TopicID: topic, SessionID: p.SessionID})
+		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(ch.Now()), ID: topic})
 	})
 	if err != nil {
 		slog.Error("chat reply", "process", p.ID, "err", err)

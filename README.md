@@ -43,8 +43,10 @@ device. Each module card is a **live widget**: a tiny screen of the module's own
 data changes, with no polling.
 
 - A module declares up to eight widget views in its manifest, each for a least size (`1x1`, `2x1`, `3x2`, …) and
-  made of up to four `stat`, `list` and `chart` blocks. The card shows the largest view that fits and fills it
-  from the top: a list shows as many lines as there is room for, a chart gets wider. Its buttons work as on a screen.
+  made of up to four `stat`, `list` and `chart` blocks. The card shows the largest view that fits, on a phone too
+  (two cells across), and fills it from the top: a list shows as many lines as there is room for, a chart grows
+  over the room left, and a block the card has no room for is named in its corner (`+1`). Its buttons work as on a
+  screen.
 - Resize a card to a size the module has no view for, press **Draw a widget**, and Deki designs one on the model you
   assigned to that work. The result is an ordinary manifest edit you can undo.
 - **Today** is deck's own widget: what waits for you, what failed, what runs, what was done, what the day cost and
@@ -55,8 +57,10 @@ data changes, with no polling.
 
 Deki lives in a side chat next to any screen and sees what you are looking at, so "this" and "here" just work.
 
-- **Live work.** A status line says what it is doing right now (reading a document, calling `dec.add`, running a
-  command), and the full log is one tap away.
+- **Live work.** One line says what it is doing right now (reading a document, calling `dec.add`, running a
+  command) with a timer, the model and Stop; a tap opens its steps and the log in place.
+- **Paste and drop.** A screenshot or a file goes into a message straight from the clipboard or by dragging it on
+  the field. Hover a message (tap it on a phone) for its model, cost and the time it was written.
 - **Questions as cards.** One at a time, each option with what it means, single or multiple choice, or your own
   answer.
 - **Long work in the background.** A rebuild with renders and self-checks goes to a process of its own; the chat

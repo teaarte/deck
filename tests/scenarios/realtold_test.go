@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 )
@@ -32,6 +33,7 @@ func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
 		return provider.Result{Text: "a second fresh run"}
 	})
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.createProject("plain", plainManifest)
 	topic := e.say(0, "сделай")
 	e.told(topic, "error", "ru")
 	b := newPlaywright(t)
@@ -42,10 +44,9 @@ func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
 			b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 		}
 		b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
-		b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
-		if !phone {
-			b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
-		}
+		b.until("the cockpit or its chat", `document.querySelector('[data-chat-toggle], [data-told]')`)
+		time.Sleep(500 * time.Millisecond)
+		b.eval(`(document.querySelector('[data-told]')?.offsetParent || document.querySelector('[data-chat-toggle]').click(), '')`)
 	}
 	for _, phone := range []bool{false, true} {
 		open(phone)

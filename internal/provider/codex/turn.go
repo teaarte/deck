@@ -54,7 +54,7 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 	if err := t.call(ctx, "account/read", map[string]any{}, &acct); err != nil {
 		return t.res, err
 	}
-	if len(acct.Account) == 0 || string(acct.Account) == "null" {
+	if acct.RequiresOpenaiAuth && (len(acct.Account) == 0 || string(acct.Account) == "null") {
 		return provider.Result{Outcome: provider.Login, Text: "codex: not logged in; run codex login"}, nil
 	}
 	if skills != "" {

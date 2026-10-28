@@ -153,7 +153,18 @@ func (f *fakeCodexRun) subst(s string) string {
 	w, _ := os.ReadFile(filepath.Join(f.dir, "word"))
 	key, _ := os.ReadFile(filepath.Join(f.dir, "key"))
 	secret, _ := os.ReadFile(strings.TrimSpace(string(key)))
-	return strings.NewReplacer("{{word}}", strings.TrimSpace(string(w)), "{{secret}}", strings.TrimSpace(string(secret)), "{{cwd}}", f.cwd).Replace(s)
+	skills, _ := os.ReadFile(filepath.Join(f.dir, "skills"))
+	return strings.NewReplacer("{{word}}", strings.TrimSpace(string(w)), "{{secret}}", strings.TrimSpace(string(secret)), "{{cwd}}", f.cwd,
+		"{{skill}}", skillCommand(string(skills))).Replace(s)
+}
+
+// skillCommand is the command the skill of a self-check in the skills folder gives.
+func skillCommand(skills string) string {
+	b, _ := os.ReadFile(filepath.Join(skills, "deck-check", "SKILL.md"))
+	if m := regexp.MustCompile(`Run exactly this shell command once: (.+)`).FindStringSubmatch(string(b)); m != nil {
+		return m[1]
+	}
+	return "true"
 }
 
 func (f *fakeCodexRun) run(lines []string) {
@@ -209,6 +220,14 @@ func (f *fakeCodexRun) reply(want string, l map[string]json.RawMessage) {
 		m := f.nextRequest(nil)
 		var method string
 		_ = json.Unmarshal(m["method"], &method)
+		if method == "skills/extraRoots/set" {
+			var roots struct {
+				ExtraRoots []string `json:"extraRoots"`
+			}
+			if json.Unmarshal(m["params"], &roots) == nil && len(roots.ExtraRoots) > 0 {
+				_ = os.WriteFile(filepath.Join(f.dir, "skills"), []byte(roots.ExtraRoots[0]), 0o644)
+			}
+		}
 		if method == "skills/extraRoots/set" && want != method {
 			f.write(`{"id":` + string(m["id"]) + `,"result":{}}`)
 			continue

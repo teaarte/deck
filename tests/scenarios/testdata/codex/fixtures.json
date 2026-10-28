@@ -27,7 +27,7 @@
   "cli": "0.155.1",
   "date": "2026-09-27",
   "kind": "real",
-  "note": "first self-check turn: echo into word.txt, sh probe.sh that fails to read the hidden key, ask, result_submit; the fake runs the echo and the MCP calls and writes what the sandbox did to the probe files"
+  "note": "first self-check turn: echo into word.txt, the command of the skill deck-check, sh probe.sh that fails to read the hidden key, ask, result_submit; the fake runs the echo and the MCP calls and writes what the sandbox did to the probe files"
  },
  "selfcheck_resume.jsonl": {
   "cli": "0.155.1",

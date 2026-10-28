@@ -141,7 +141,8 @@ func (f *fakeACPRun) send(v any) {
 
 func (f *fakeACPRun) subst(s string) string {
 	w, _ := os.ReadFile(filepath.Join(f.dir, "word"))
-	return strings.NewReplacer("{{session}}", f.session, "{{cwd}}", f.cwd, "{{word}}", strings.TrimSpace(string(w))).Replace(s)
+	return strings.NewReplacer("{{session}}", f.session, "{{cwd}}", f.cwd, "{{word}}", strings.TrimSpace(string(w)),
+		"{{skill}}", skillCommand(filepath.Join(os.Getenv("HOME"), ".agents", "skills"))).Replace(s)
 }
 
 // request is the next request of deck; notifications, such as a cancel, are recorded and passed by.

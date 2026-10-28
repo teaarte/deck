@@ -25,6 +25,9 @@ func noTools(refusal string) bool {
 	return toolWord.MatchString(refusal) && strings.Contains(strings.ToLower(refusal), "support")
 }
 
+// checkSkill is the skill a self-check gives its turn.
+const checkSkill = "deck-check"
+
 // ShellCheck is what the self-check of an adapter whose agent has a shell of its own differs in.
 type ShellCheck struct {
 	// Agent names the agent in what the check says.
@@ -40,11 +43,11 @@ type ShellCheck struct {
 	Done func(session string)
 }
 
-// Check runs a short session as deck runs agents: a write in its folder, a hidden file its shell cannot read,
+// Check runs a short session as deck runs agents: a write in its folder, a skill, a hidden file its shell cannot read,
 // ask, result_submit, token counts, a resume, then a turn whose curl has no network; deck reads the probes.
 func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	c = start
-	word, secret := CheckWord(), CheckWord()
+	word, secret, skilled := CheckWord(), CheckWord(), CheckWord()
 	answer := word + "-answered"
 	cs := &CheckServer{Answer: answer, Approve: s.PermissionMCP != ""}
 	url, stop, err := ServeCheck(cs.Server())
@@ -91,7 +94,10 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			}
 		}()
 	}
+	skill := "---\nname: " + checkSkill + "\ndescription: The word of deck's self-check.\n---\n\nRun exactly this shell command once: echo " +
+		skilled + " > " + filepath.Join(work, "skill.txt") + "\n"
 	req := Request{Cwd: work, SessionID: sessions[0], MCPURL: url, PermissionMCP: s.PermissionMCP,
+		Skills: map[string]string{checkSkill + "/SKILL.md": skill},
 		OnEvent: func(e Event) {
 			if e.Kind != EventStderr && e.Kind != EventRateLimit {
 				Answered(ctx)
@@ -106,9 +112,10 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			mu.Unlock()
 		},
 		Prompt: "This is a self-check of deck. Do these steps in order, one at a time.\n1. Run exactly this shell command once: echo " + word + " > " + filepath.Join(work, "word.txt") +
-			"\n2. Run exactly this shell command once: sh " + filepath.Join(work, "probe.sh") +
-			"\n3. Ask the owner with the ask tool of the deck MCP server: \"Which answer should the result carry?\" and wait for the answer." +
-			"\n4. Only after you have the answer, hand in {\"word\": \"" + word + "\", \"answer\": <the answer you got>} with the result_submit tool of the deck MCP server, then end your turn."}
+			"\n2. Read your skill " + checkSkill + " and run the one shell command it gives." +
+			"\n3. Run exactly this shell command once: sh " + filepath.Join(work, "probe.sh") +
+			"\n4. Ask the owner with the ask tool of the deck MCP server: \"Which answer should the result carry?\" and wait for the answer." +
+			"\n5. Only after you have the answer, hand in {\"word\": \"" + word + "\", \"answer\": <the answer you got>} with the result_submit tool of the deck MCP server, then end your turn."}
 	type out struct{ Word, Answer string }
 	// missed is set when a turn ended in words without result_submit, which a real turn is reminded of once.
 	missed := false
@@ -174,14 +181,17 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		return c
 	}
 	written, _ := os.ReadFile(filepath.Join(work, "word.txt"))
+	read, _ := os.ReadFile(filepath.Join(work, "skill.txt"))
 	code, codeErr := os.ReadFile(filepath.Join(work, "probe.code"))
-	read, _ := os.ReadFile(filepath.Join(work, "probe.out"))
+	probed, _ := os.ReadFile(filepath.Join(work, "probe.out"))
 	switch {
 	case strings.TrimSpace(string(written)) != word:
 		model(fmt.Errorf("auto mode: the write in its own folder did not run (word.txt: %q)", string(written)))
+	case strings.TrimSpace(string(read)) != skilled:
+		model(fmt.Errorf("skills: the command of the skill deck gave the turn did not run: %s could not read the skill or did not follow it (skill.txt: %q)", s.Agent, string(read)))
 	case codeErr != nil:
 		model(errors.New("secrets: the probe that reads a hidden file did not run"))
-	case strings.TrimSpace(string(code)) == "0" || strings.Contains(string(read), secret):
+	case strings.TrimSpace(string(code)) == "0" || strings.Contains(string(probed), secret):
 		c.Err = fmt.Errorf("secrets: the shell of %s read a file deck hides", s.Agent)
 	case strings.Contains(strings.Join(approved, "\n"), "word.txt"):
 		c.Err = fmt.Errorf("auto mode: %s asked deck about a write in its own folder: %s", s.Agent, strings.Join(approved, "; "))

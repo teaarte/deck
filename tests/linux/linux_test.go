@@ -16,7 +16,8 @@ var linuxTests = []string{"TestScriptCommandRunsInTheSandbox", "TestScriptKeepsA
 	"TestACPCommandAgentWorksThroughTheGateway", "TestACPProjectWithoutNetworkHasNoWebThroughTheProxy", "TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails",
 	"TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject", "TestAScriptReadsNoFolderOfAnotherProject",
 	"TestAScriptSeesNoOtherProcess", "TestAnMCPServerReachesOnlyTheDomainsOfItsProject", "TestTheTunnelOfAStoppedMCPServerCloses",
-	"TestMCPCallLostWithItsServerIsAnUnknownOutcome", "TestProjectDeleteStopsTheMCPServersOfTheProject", "TestAFileThatWillNotGoIsInHealthUntilItGoes"}
+	"TestMCPCallLostWithItsServerIsAnUnknownOutcome", "TestProjectDeleteStopsTheMCPServersOfTheProject", "TestAFileThatWillNotGoIsInHealthUntilItGoes",
+	"TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest", "TestCodexCommandAgentWorksThroughTheGateway"}
 
 // TestLinuxTestsExist fails when a listed test is renamed or gone from tests/scenarios.
 func TestLinuxTestsExist(t *testing.T) {

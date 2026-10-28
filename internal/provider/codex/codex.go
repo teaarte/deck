@@ -153,7 +153,10 @@ func (a *Adapter) writeSkills(skills map[string]string) (string, error) {
 	if len(skills) == 0 {
 		return "", nil
 	}
-	dir, err := os.MkdirTemp(a.Dir, "skills-*")
+	if err := os.MkdirAll(a.Home.Work(), 0o700); err != nil {
+		return "", err
+	}
+	dir, err := os.MkdirTemp(a.Home.Work(), "skills-*")
 	if err != nil {
 		return "", err
 	}

@@ -99,6 +99,54 @@ func TestEveryCommandFitsAppIntents(t *testing.T) {
 	}
 }
 
+func TestCommandsListDeckSelectsBuiltins(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	e.createProject("ideas", ideasManifest)
+	for _, kind := range []string{registry.Owner, registry.Master} {
+		act := registry.Actor{Kind: kind, Workspace: 1}
+		out, err := e.App.Registry.Invoke(t.Context(), act, "deck.commands_list", json.RawMessage(`{"project":"deck","fields":["name","description","owner_only","form","form_params"]}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := json.Marshal(out)
+		var rows []struct {
+			Name      string `json:"name"`
+			OwnerOnly bool   `json:"owner_only"`
+			Form      string `json:"form"`
+		}
+		if err := json.Unmarshal(raw, &rows); err != nil || len(rows) == 0 {
+			t.Fatalf("built-in commands for %s: %s, %v", kind, raw, err)
+		}
+		found := false
+		for _, row := range rows {
+			if !strings.HasPrefix(row.Name, "deck.") {
+				t.Fatalf("built-in filter includes a module command: %s", row.Name)
+			}
+			if row.Name == "deck.secret_set" {
+				found = true
+				if row.OwnerOnly != (kind == registry.Master) || kind == registry.Master && row.Form == "" {
+					t.Fatalf("owner-only command keeps its form and access for %s: %+v", kind, row)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("deck.secret_set is absent")
+		}
+	}
+	var module []struct{ Name string }
+	e.must("deck.commands_list", map[string]any{"project": "ideas"}, &module)
+	if len(module) == 0 {
+		t.Fatal("module filter is empty")
+	}
+	for _, row := range module {
+		if !strings.HasPrefix(row.Name, "ideas.") {
+			t.Fatalf("module filter includes %s", row.Name)
+		}
+	}
+	e.refused("deck.commands_list", map[string]any{"project": "missing"}, 404, `no project "missing"`)
+}
+
 func TestUnknownCommandAndBadInput(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)

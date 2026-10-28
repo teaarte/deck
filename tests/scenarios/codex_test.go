@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -32,17 +33,36 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	t.Setenv("CODEX_API_KEY", "sk-deck-test")
 	t.Setenv("CODEX_HOME", t.TempDir())
 	e, home := codexEnv(t, c)
-	p := e.createProject("paint", colorManifest)
+	withSkills := strings.Replace(colorManifest, `"type": "agent",`, `"type": "agent", "skills": ["module-builder", "module-conventions"],`, 1)
+	p := e.createProject("paint", withSkills)
 	id := e.run(p, "work")
 	a := e.waitAsk()
 	if a.Kind != "question" || !strings.Contains(a.Text, "Which color should the report use?") {
 		t.Fatalf("the question of the agent reaches the owner: %+v", a)
+	}
+	var skillRoots []string
+	_ = json.Unmarshal(c.call(1).request("skills/extraRoots/set")["extraRoots"], &skillRoots)
+	if len(skillRoots) != 1 || !strings.HasPrefix(skillRoots[0], deckhome.Layout(home).Work()+string(os.PathSeparator)) {
+		t.Fatalf("the skills are outside deck's closed state: %v", skillRoots)
+	}
+	for _, name := range []string{"module-builder", "module-conventions"} {
+		text, err := os.ReadFile(filepath.Join(skillRoots[0], name, "SKILL.md"))
+		if err != nil || len(text) == 0 {
+			t.Fatalf("the turn receives the skill %s: %v", name, err)
+		}
+	}
+	permissions, _ := c.call(1).config("permissions.deck.filesystem")
+	if !strings.Contains(permissions, quoteTOML(skillRoots[0])+`="read"`) {
+		t.Fatalf("the skills are read-only: %s", permissions)
 	}
 	e.answer(a.ID, "blue")
 	got := e.waitState(id, "done", "error")
 	cc := c.call(1)
 	if got.State != "done" || string(got.Result) != `{"color":"blue"}` || cc.violation != "" {
 		t.Fatalf("the result comes in by the schema with result_submit: %+v %s", got, cc.violation)
+	}
+	if _, err := os.Stat(skillRoots[0]); !os.IsNotExist(err) {
+		t.Fatalf("the skills of the finished turn are removed: %v", err)
 	}
 	if len(cc.mcp) != 2 || !strings.Contains(cc.mcp[0]["text"].(string), "blue") || cc.mcp[1]["is_error"] != false {
 		t.Fatalf("the agent got the owner's answer from ask and deck took its result: %v", cc.mcp)
@@ -63,7 +83,11 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if strings.Contains(fs, quoteTOML(home)+`=`) || !strings.Contains(shell, "XDG_CACHE_HOME="+quoteTOML(filepath.Join(data, ".cache"))) {
 		t.Fatalf("deck's folder stays open above a run, so its paths resolve, and caches go to the data folder: %s %s", fs, shell)
 	}
-	for _, want := range []string{quoteTOML(deckhome.Layout(home).State()) + `="deny"`, quoteTOML(cc.env["CODEX_HOME"]) + `="deny"`, quoteTOML(work) + `="write"`,
+	codexPrivate := cc.env["CODEX_HOME"]
+	if runtime.GOOS == "linux" {
+		codexPrivate = filepath.Join(codexPrivate, "{[!t]*,t[!m]*,tm[!p]*,tmp?*,t,tm}")
+	}
+	for _, want := range []string{quoteTOML(deckhome.Layout(home).State()) + `="deny"`, quoteTOML(codexPrivate) + `="deny"`, quoteTOML(work) + `="write"`,
 		quoteTOML(filepath.Join(user, ".ssh")) + `="deny"`, quoteTOML(filepath.Join(user, ".claude")) + `="deny"`,
 		quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "projects", itoa(p), "data")) + `="write"`, quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "results")) + `="write"`} {
 		if !strings.Contains(fs, want) {

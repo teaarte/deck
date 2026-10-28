@@ -63,13 +63,18 @@ func (ss *Service) commandDescribe(ctx context.Context, act registry.Actor, in c
 }
 
 type commandsListIn struct {
-	Project string `type:"project" opt:"" desc:"Only the commands of this project"`
+	Project string `type:"project" opt:"" desc:"Project name to filter by, or deck for built-in commands; omit for all available commands"`
 	Lang    string `opt:"" desc:"Language of the prices of their models, such as ru; English without one"`
 }
 
 // commandsList is what the caller may call: deck's commands and those of the projects it reaches.
 func (ss *Service) commandsList(ctx context.Context, act registry.Actor, in commandsListIn) ([]commandRow, error) {
-	pid, err := access.Filter(ctx, ss.St.Q, act, in.Project)
+	builtin := in.Project == registry.Builtin
+	project := in.Project
+	if builtin {
+		project = ""
+	}
+	pid, err := access.Filter(ctx, ss.St.Q, act, project)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +110,7 @@ func (ss *Service) commandsList(ctx context.Context, act registry.Actor, in comm
 	manifests := map[int64]*manifest.Manifest{}
 	out := []commandRow{}
 	for _, c := range cmds {
-		if pid != 0 && c.ProjectID != pid {
+		if builtin && c.ProjectID != 0 || pid != 0 && c.ProjectID != pid {
 			continue
 		}
 		r := commandRow{Name: c.Name, Title: c.Title, Project: names[c.ProjectID], Files: append([]string{}, manifest.FileFields(c.Input)...)}

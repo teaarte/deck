@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -58,6 +59,13 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	for _, d := range slices.Concat(sandbox.Shut(a.Home), []string{codexHome()}, sandbox.Private()) {
 		for _, p := range paths.Names(d) {
 			fs[p] = "deny"
+		}
+	}
+	// bwrap keeps a read path inside a denied one closed, and Codex runs its sandbox helper from tmp of its folder.
+	if runtime.GOOS == "linux" {
+		for _, p := range paths.Names(codexHome()) {
+			delete(fs, p)
+			fs[filepath.Join(p, "{[!t]*,t[!m]*,tm[!p]*,tmp?*,t,tm}")] = "deny"
 		}
 	}
 	for _, h := range req.Hidden {

@@ -57,7 +57,7 @@ func (ss *Service) Commands() []*registry.Command {
 			"Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes, with a block only that of the block; the blocks of a dialog get data only while it is open. Anyone but the owner gets the text of a document and the HTML of a custom block by size, and whole by a read of that block.",
 			registry.OwnerSide, ss.screenGet),
 		registry.Read("commands_list", "Commands",
-			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. command_describe gives a description.",
+			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. project deck selects built-in commands; omit project for all commands. command_describe gives a description.",
 			registry.OwnerSide, ss.commandsList).On("projects", "tools", "assignments", "models", "triggers", "health", "documents"),
 		registry.Read("command_describe", "Describe command",
 			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers.",

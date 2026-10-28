@@ -13,6 +13,7 @@ import (
 
 	"deck2/internal/paths"
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 )
 
 // turn is one app-server session: it sets the thread up, runs one turn and collects what the turn reported.
@@ -120,7 +121,11 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 	}
 	text, _ := json.Marshal(TextUserInput{Type: "text", Text: t.req.Prompt})
 	var started TurnStartResponse
-	if err := t.call(ctx, "turn/start", TurnStartParams{ThreadID: t.thread, Input: []UserInput{text}, Permissions: profile,
+	perms := profile
+	if sandbox.Contained() {
+		perms = ""
+	}
+	if err := t.call(ctx, "turn/start", TurnStartParams{ThreadID: t.thread, Input: []UserInput{text}, Permissions: perms,
 		Model: t.a.model, Effort: ReasoningEffort(t.a.effort)}, &started); err != nil {
 		return t.res, fmt.Errorf("the prompt did not reach codex: %w", err)
 	}

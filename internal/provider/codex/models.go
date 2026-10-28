@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 )
 
 // Models are the models the app-server lists, with the efforts each takes; no model is called.
@@ -15,6 +16,9 @@ func (a *Adapter) Models(ctx context.Context) ([]provider.Model, error) {
 	defer cancel()
 	cmd := exec.Command(a.Binary, "app-server")
 	cmd.Env = environ()
+	if err := sandbox.AsAgent(cmd, nil, nil); err != nil {
+		return nil, err
+	}
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

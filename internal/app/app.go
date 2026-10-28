@@ -159,7 +159,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		SaveManifest: a.Projects.Save, Changed: a.Devices.Changed}
 	a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		Expire: a.Records.Expire}
-	a.Providers = providers.Service{St: st, Words: screens.Phrases, Now: cfg.Now, Home: h, FilesMu: &a.Files.Mu, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+	a.Providers = providers.Service{St: st, Words: screens.Phrases, Changed: func(topic string) { a.Bus.Emit(events.Event{Topic: topic}) }, Now: cfg.Now, Home: h, FilesMu: &a.Files.Mu, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
 		VideoCeiling: cfg.VideoCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
@@ -188,7 +188,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	a.Shots = &shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Tokens.Lend, Return: a.Tokens.Return,
 		Themed: a.Themes.Exists}
-	a.Updates = &updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher,
+	a.Updates = &updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher, Image: cfg.Image,
 		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: func(f func()) bool { return a.bg.Go(f) },
 		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
 	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,

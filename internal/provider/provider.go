@@ -6,6 +6,7 @@ import (
 	"deck2/internal/fault"
 	"encoding/json"
 	"net/http"
+	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -266,6 +267,12 @@ type Installed interface {
 // SelfChecker is a provider whose adapter deck checks at start, on a button and on a broken turn.
 type SelfChecker interface {
 	SelfCheck(ctx context.Context) Check
+}
+
+// SignIn is a CLI the owner signs in to from deck: Login is its program of a sign-in by a link, which prints the
+// link and a code, or waits for the code the page of the link gives.
+type SignIn interface {
+	Login() (*exec.Cmd, error)
 }
 
 // CallLimiter is a provider whose calls of gateway tools time out: a wait for the owner ends before that and the

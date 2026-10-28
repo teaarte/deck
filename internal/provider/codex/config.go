@@ -100,14 +100,16 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	if req.NoNetwork {
 		web = "disabled"
 	}
+	perms := []string{"default_permissions=" + quote(":read-only"),
+		"permissions." + profile + ".description=" + quote("deck session "+req.SessionID),
+		"permissions." + profile + ".filesystem={" + strings.Join(table, ",") + "}",
+		fmt.Sprintf("permissions.%s.network.enabled=%t", profile, !req.NoNetwork)}
+	if sandbox.Contained() {
+		// In deck's container its user of agents is the sandbox; Codex's own needs namespaces the container has not.
+		perms = []string{"sandbox_mode=" + quote("danger-full-access")}
+	}
 	args := []string{"app-server"}
-	for _, kv := range append(slices.Clone(off),
-		"web_search="+quote(web),
-		"default_permissions="+quote(":read-only"),
-		"permissions."+profile+".description="+quote("deck session "+req.SessionID),
-		"permissions."+profile+".filesystem={"+strings.Join(table, ",")+"}",
-		fmt.Sprintf("permissions.%s.network.enabled=%t", profile, !req.NoNetwork),
-		"shell_environment_policy.set="+caches(req.Data)) {
+	for _, kv := range slices.Concat(off, []string{"web_search=" + quote(web)}, perms, []string{"shell_environment_policy.set=" + caches(req.Data)}) {
 		args = append(args, "-c", kv)
 	}
 	return args, nil

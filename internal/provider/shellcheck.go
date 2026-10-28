@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
 )
 
@@ -43,8 +44,8 @@ type ShellCheck struct {
 	Done func(session string)
 }
 
-// Check runs a short session as deck runs agents: a write in its folder, a skill, a hidden file its shell cannot read,
-// ask, result_submit, token counts, a resume, then a turn whose curl has no network; deck reads the probes.
+// Check runs a short session as deck runs agents: a write, a skill, a hidden file its shell cannot read, ask, result_submit,
+// token counts, a resume, then a turn whose curl has no network (not in deck's container); deck reads the probes.
 func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	c = start
 	word, secret, skilled := CheckWord(), CheckWord(), CheckWord()
@@ -210,6 +211,9 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	}
 	if o.Word != word || o.Answer != answer {
 		model(fmt.Errorf("resume: the result was %+v, want the word %s and the answer %s", o, word, answer))
+		return c
+	}
+	if sandbox.Contained() {
 		return c
 	}
 	off := Request{Cwd: work, SessionID: sessions[1], MCPURL: req.MCPURL, PermissionMCP: req.PermissionMCP, NoNetwork: true, OnUsage: req.OnUsage,

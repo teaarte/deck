@@ -17,12 +17,16 @@ import (
 
 	"deck2/internal/paths"
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 )
 
 // Version is the version the CLI reports, such as 2.1.281.
 func (a *Adapter) Version(ctx context.Context) (string, error) {
 	cmd := exec.CommandContext(ctx, a.Binary, "--version")
 	cmd.Env = environ()
+	if err := sandbox.AsAgent(cmd, nil, nil); err != nil {
+		return "", err
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("%s --version: %w", a.Binary, err)
@@ -162,6 +166,9 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	if !step("resume") {
 		return c
 	}
+	if sandbox.Contained() {
+		return c
+	}
 	off := provider.Request{Cwd: work, SessionID: uuid.NewString(), MCPURL: req.MCPURL, PermissionMCP: req.PermissionMCP,
 		AllowedTools: req.AllowedTools, Hidden: deny, NoNetwork: true,
 		ResultSchema: json.RawMessage(`{"type":"object","required":["word"],"properties":{"word":{"type":"string"}}}`),
@@ -183,4 +190,11 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		c.Err = fmt.Errorf("turn without network: curl in the sandbox of the CLI printed %q, want 000", out.Word)
 	}
 	return c
+}
+
+// Login is the sign-in of the CLI by a link, as the user its turns run as.
+func (a *Adapter) Login() (*exec.Cmd, error) {
+	cmd := exec.Command(a.Binary, "auth", "login")
+	cmd.Env = environ()
+	return cmd, sandbox.AsAgent(cmd, nil, nil)
 }

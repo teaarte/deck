@@ -66,9 +66,9 @@ func settings(req provider.Request) map[string]any {
 		}
 	}
 	s["permissions"] = map[string]any{"deny": deny}
-	// The sandbox of the CLI closes the shell of a project without network only: with it on, a shell binds no port,
-	// gets no GPU and writes no cache outside its folders, which renders and local models need.
-	if req.NoNetwork {
+	// The sandbox of the CLI closes the shell of a project without network only (in it a shell binds no port and gets
+	// no GPU); in deck's container it has no namespaces, and the container is the sandbox.
+	if req.NoNetwork && !sandbox.Contained() {
 		s["sandbox"] = map[string]any{"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false,
 			"network": map[string]any{"allowedDomains": []string{}, "strictAllowlist": true}}
 	}
@@ -123,8 +123,13 @@ func (a *Adapter) writeFile(pattern string, data []byte) (string, error) {
 	if err := os.MkdirAll(a.ConfigDir, 0o700); err != nil {
 		return "", err
 	}
-	if err := os.Chmod(a.ConfigDir, 0o700); err != nil {
+	// Others may pass it to their own file, as the user of agents in deck's container does, but not list or write it.
+	if fi, err := os.Stat(a.ConfigDir); err != nil {
 		return "", err
+	} else if fi.Mode().Perm()&0o066 != 0 {
+		if err := os.Chmod(a.ConfigDir, fi.Mode().Perm()&^0o066); err != nil {
+			return "", err
+		}
 	}
 	f, err := os.CreateTemp(a.ConfigDir, pattern+"-*.json")
 	if err != nil {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -55,8 +56,9 @@ func main() {
 }
 
 func run() (*release.Restart, error) {
-	addr := flag.String("addr", "127.0.0.1:7700", "listen address; the next port is the second origin of custom blocks")
-	tailnet := flag.String("tailscale", "", "join the owner's tailnet under this name and serve HTTPS there")
+	addr := flag.String("addr", cmp.Or(os.Getenv("DECK_ADDR"), "127.0.0.1:7700"), "listen address; the next port is the second origin of custom blocks")
+	tailnet := flag.String("tailscale", os.Getenv("DECK_TAILSCALE"), "join the owner's tailnet under this name and serve HTTPS there")
+	public := flag.String("public", os.Getenv("DECK_PUBLIC"), "the https address of a proxy deck is reached through, such as https://deck.example.com; its port 8443 is the second origin")
 	version := flag.Bool("version", false, "print the version, commit and build of deck and quit")
 	flag.Parse()
 	if *version {
@@ -65,6 +67,13 @@ func run() (*release.Restart, error) {
 	}
 	if *tailnet != "" && !tsnet.Built {
 		return nil, errors.New("deck: -tailscale needs a deck built with go build -tags tailnet")
+	}
+	if *public != "" && !strings.HasPrefix(*public, "https://") {
+		return nil, errors.New("deck: -public is an https address, such as https://deck.example.com")
+	}
+	// With a user of agents what deck writes is its own, so that user reads only what deck hands it.
+	if sandbox.HasAgentUser() {
+		syscall.Umask(0o077)
 	}
 
 	home := os.Getenv("DECK_HOME")
@@ -81,6 +90,11 @@ func run() (*release.Restart, error) {
 		return nil, err
 	}
 	defer lock.Close()
+	if sandbox.HasAgentUser() {
+		if err := private(deckhome.Layout(home)); err != nil {
+			return nil, err
+		}
+	}
 	if err := pending(deckhome.Layout(home)); err != nil {
 		return nil, err
 	}
@@ -93,7 +107,7 @@ func run() (*release.Restart, error) {
 	a, err := app.New(app.Config{
 		Home: home, MCPBase: mcpBase(ln.Addr().(*net.TCPAddr)),
 		QuestionWait: 30 * time.Minute, ConfirmWait: 30 * time.Minute, ConfirmTTL: 24 * time.Hour,
-		Variant: release.Variant(tsnet.Built), Launcher: os.Getenv("DECK_LAUNCHER") != "",
+		Variant: release.Variant(tsnet.Built), Launcher: os.Getenv("DECK_LAUNCHER") != "", Image: os.Getenv("DECK_IMAGE"),
 		Restart: func(r release.Restart) {
 			select {
 			case restarts <- r:
@@ -130,6 +144,10 @@ func run() (*release.Restart, error) {
 	server.Pair(port, port+1)
 	if *tailnet != "" {
 		server.Pair(tsnet.Ports(false))
+	}
+	if *public != "" {
+		server.Proxied()
+		server.Pair(443, 8443)
 	}
 	var started atomic.Bool
 	handler := server.Handler()
@@ -170,7 +188,11 @@ func run() (*release.Restart, error) {
 		os.Remove(p.Old)
 		os.Remove(a.Home.Update())
 	}
-	slog.Info("deck listening", "url", fmt.Sprintf("http://%s/?token=%s", ln.Addr(), token), "home", home)
+	url := fmt.Sprintf("http://%s/?token=%s", ln.Addr(), token)
+	if *public != "" {
+		url = strings.TrimSuffix(*public, "/") + "/?token=" + token
+	}
+	slog.Info("deck listening", "url", url, "home", home)
 	if err := <-served; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return nil, err
 	}
@@ -182,7 +204,8 @@ func run() (*release.Restart, error) {
 // cleanEnv restarts deck with only the variables it needs: on macOS a confined program reads the
 // environment of every process of the owner.
 func cleanEnv() error {
-	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_HOME", "DECK_LAUNCHER")
+	// Go adds GOTRACEBACK to the environment of a binary with capabilities, as deck's in its image.
+	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_", "GOTRACEBACK")
 	if len(clean) == len(os.Environ()) {
 		return nil
 	}
@@ -210,6 +233,24 @@ func pending(h deckhome.Layout) error {
 		return fmt.Errorf("go back from the update %s: %w", p.Version, err)
 	}
 	return syscall.Exec(p.Exe, os.Args, os.Environ())
+}
+
+// private closes to others what deck kept in its home and its state before it had a user of agents, the base too.
+func private(h deckhome.Layout) error {
+	for _, dir := range []string{string(h), h.State()} {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if fi, err := os.Lstat(filepath.Join(dir, e.Name())); err == nil && fi.Mode()&os.ModeSymlink == 0 && fi.Mode().Perm()&0o066 != 0 {
+				if err := os.Chmod(filepath.Join(dir, e.Name()), fi.Mode().Perm()&^0o066); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // lockHome holds the lock of the home until deck exits; another deck holding it refuses this one.

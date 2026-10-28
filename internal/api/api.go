@@ -33,6 +33,8 @@ type Server struct {
 	web   fs.FS
 	// pairs maps the port of the client to the port of its second origin.
 	pairs map[int]int
+	// proxied trusts X-Forwarded-Proto of the proxy deck is reached through.
+	proxied bool
 }
 
 func New(a *app.App, token string, web fs.FS) *Server { return &Server{app: a, token: token, web: web} }

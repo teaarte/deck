@@ -11,10 +11,14 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
+
+// containerText says what deck's container as the sandbox does not close.
+const containerText = "deck's container is the sandbox: agents and scripts run as a user of their own and do not read deck's state, but the network of modules is not limited and modules see one another"
 
 // docChanged lists a change made without the owner of a script, or of a document an agent writes by the writes of its
 // manifest, undone by returning to the revision before n.
@@ -73,8 +77,11 @@ func (dc *Service) Programs(ctx context.Context, projectID int64) error {
 	}
 	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		status, text := "ok", ""
-		if sbErr != nil {
+		switch {
+		case sbErr != nil:
 			status, text = "error", dc.Sandbox.Name()+": "+sbErr.Error()
+		case sandbox.Contained():
+			text = containerText
 		}
 		if _, err := health.Set(ctx, q, health.Of{}, health.Sandbox, status, text); err != nil {
 			return err

@@ -19,6 +19,12 @@ var linuxTests = []string{"TestScriptCommandRunsInTheSandbox", "TestScriptKeepsA
 	"TestMCPCallLostWithItsServerIsAnUnknownOutcome", "TestProjectDeleteStopsTheMCPServersOfTheProject", "TestAFileThatWillNotGoIsInHealthUntilItGoes",
 	"TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest", "TestCodexCommandAgentWorksThroughTheGateway"}
 
+// containerTests are the scenario tests that must pass in deck's image: deck as one user, agents and scripts as
+// another, under Docker's own confinement with nothing loosened.
+var containerTests = []string{"TestInDecksContainerAScriptRunsAsTheUserOfAgents", "TestScriptCommandRunsInTheSandbox",
+	"TestUploadedAndRecordFilesReachTheScriptReadOnly", "TestScriptKeepsAnIndexInTheProjectDataFolder", "TestMCPServerToolsFollowClassesAndFilter",
+	"TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest"}
+
 // TestLinuxTestsExist fails when a listed test is renamed or gone from tests/scenarios.
 func TestLinuxTestsExist(t *testing.T) {
 	files, err := filepath.Glob("../scenarios/*_test.go")
@@ -36,7 +42,7 @@ func TestLinuxTestsExist(t *testing.T) {
 			have[m[1]] = true
 		}
 	}
-	for _, name := range linuxTests {
+	for _, name := range append(linuxTests, containerTests...) {
 		if !have[name] {
 			t.Errorf("%s is listed for Linux but is not a test in tests/scenarios", name)
 		}
@@ -68,6 +74,34 @@ func TestScenariosOnLinux(t *testing.T) {
 	for _, name := range linuxTests {
 		if !strings.Contains(string(out), "--- PASS: "+name) {
 			t.Errorf("%s did not pass on Linux:\n%s", name, out)
+		}
+	}
+}
+
+// The scenario tests of deck's image run as root, as deck with its capabilities would, with a user of agents and
+// Docker's default seccomp and AppArmor.
+func TestScenariosInDecksContainer(t *testing.T) {
+	if os.Getenv("DECK_LINUX") == "" {
+		t.Skip("set DECK_LINUX=1 to run the scenario tests in a Linux container; needs docker")
+	}
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	build := exec.Command("docker", "build", "-q", "-t", "deck2-linux-test", filepath.Join(root, "tests", "linux"))
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("docker build: %v\n%s", err, out)
+	}
+	run := exec.Command("docker", "run", "--rm", "--init", "-v", root+":/src:ro", "-v", "deck2-gomod:/go/pkg/mod", "-v", "deck2-gocache:/cache",
+		"-e", "GOCACHE=/cache", "-e", "GOFLAGS=-buildvcs=false", "-e", "DECK_AGENT_USER=agent", "-w", "/src", "deck2-linux-test",
+		"go", "test", "-count=1", "-v", "-run", "^("+strings.Join(containerTests, "|")+")$", "./tests/scenarios")
+	out, err := run.CombinedOutput()
+	if err != nil {
+		t.Fatalf("scenario tests in deck's container: %v\n%s", err, out)
+	}
+	for _, name := range containerTests {
+		if !strings.Contains(string(out), "--- PASS: "+name) {
+			t.Errorf("%s did not pass in deck's container:\n%s", name, out)
 		}
 	}
 }

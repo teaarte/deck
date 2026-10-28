@@ -1,0 +1,9 @@
+.git
+.claude
+docs
+desktop
+web/node_modules
+deck
+*.db
+*.db-*
+tests

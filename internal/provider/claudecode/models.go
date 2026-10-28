@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 )
 
 // Models are the models the CLI lists in its answer to initialize; no model is called. A model without auto mode
@@ -25,6 +26,9 @@ func (a *Adapter) Models(ctx context.Context) ([]provider.Model, error) {
 		"--strict-mcp-config", "--setting-sources", "")
 	cmd.Dir = a.ConfigDir
 	cmd.Env = environ()
+	if err := sandbox.AsAgent(cmd, nil, nil); err != nil {
+		return nil, err
+	}
 	cmd.Stdin = strings.NewReader(`{"type":"control_request","request_id":"deck-models","request":{"subtype":"initialize"}}` + "\n")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

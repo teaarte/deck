@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 )
 
 // Adapter runs the Claude Code CLI in print mode with stream-json output. See docs/spikes/claude-code.md.
@@ -162,7 +163,11 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	cmd.Dir = req.Cwd
 	cmd.Env = environ()
 	cmd.Stdin, cmd.Stdout = inR, outW
-	child, err := provider.Start(cmd, a.ConfigDir, req.OnStart)
+	err = sandbox.AsAgent(cmd, append([]string{req.Cwd}, req.Dirs...), append([]string{cfg, setFile, plugin}, req.Read...))
+	var child *provider.Child
+	if err == nil {
+		child, err = provider.Start(cmd, a.ConfigDir, req.OnStart)
+	}
 	inR.Close()
 	outW.Close()
 	if err != nil {

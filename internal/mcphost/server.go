@@ -25,7 +25,7 @@ func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
 		cmd := exec.Command(spec.Command, spec.Args...)
 		cmd.Env, cmd.Dir = spec.Env, spec.Dir
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		return cmd, nil
+		return cmd, sandbox.AsAgent(cmd, []string{spec.Dir}, spec.Read)
 	}
 	path, err := exec.LookPath(spec.Command)
 	if err != nil {

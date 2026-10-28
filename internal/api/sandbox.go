@@ -33,7 +33,7 @@ func (s *Server) Pair(main, sandbox int) {
 func (s *Server) Sandbox() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /sandbox.html", func(w http.ResponseWriter, r *http.Request) {
-		name, port := hostPort(r)
+		name, port := s.hostPort(r)
 		main := 0
 		for m, sb := range s.pairs {
 			if sb == port {
@@ -44,7 +44,7 @@ func (s *Server) Sandbox() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		self, origin := origin(r, name, port), origin(r, name, main)
+		self, origin := s.origin(r, name, port), s.origin(r, name, main)
 		w.Header().Set("Content-Security-Policy", fmt.Sprintf(sandboxCSP, self, origin))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
@@ -68,8 +68,8 @@ func (s *Server) Sandbox() http.Handler {
 func (s *Server) framesOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		src := "'self'"
-		if name, port := hostPort(r); s.pairs[port] != 0 {
-			src += " " + origin(r, name, s.pairs[port])
+		if name, port := s.hostPort(r); s.pairs[port] != 0 {
+			src += " " + s.origin(r, name, s.pairs[port])
 		}
 		w.Header().Set("Content-Security-Policy", "frame-src "+src+" blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'")
 		next.ServeHTTP(w, r)
@@ -78,20 +78,29 @@ func (s *Server) framesOnly(next http.Handler) http.Handler {
 
 // custom sends the frame of a custom block to the second origin paired with the port the client came on.
 func (s *Server) custom(w http.ResponseWriter, r *http.Request) {
-	name, port := hostPort(r)
+	name, port := s.hostPort(r)
 	sb, ok := s.pairs[port]
 	if !ok {
 		http.Error(w, "deck: custom blocks need the second port", http.StatusNotFound)
 		return
 	}
-	http.Redirect(w, r, origin(r, name, sb)+"/sandbox.html", http.StatusFound)
+	http.Redirect(w, r, s.origin(r, name, sb)+"/sandbox.html", http.StatusFound)
 }
 
-func hostPort(r *http.Request) (string, int) {
+// Proxied says deck is reached through a proxy of HTTPS, such as Caddy of deck's compose, which names the scheme
+// of a request in X-Forwarded-Proto; called before deck serves.
+func (s *Server) Proxied() { s.proxied = true }
+
+// secure says the client came over HTTPS, to deck or to its proxy.
+func (s *Server) secure(r *http.Request) bool {
+	return r.TLS != nil || s.proxied && r.Header.Get("X-Forwarded-Proto") == "https"
+}
+
+func (s *Server) hostPort(r *http.Request) (string, int) {
 	name, p, err := net.SplitHostPort(r.Host)
 	if err != nil {
 		name, p = r.Host, "80"
-		if r.TLS != nil {
+		if s.secure(r) {
 			p = "443"
 		}
 	}
@@ -99,9 +108,9 @@ func hostPort(r *http.Request) (string, int) {
 	return name, port
 }
 
-func origin(r *http.Request, name string, port int) string {
+func (s *Server) origin(r *http.Request, name string, port int) string {
 	scheme, std := "http", 80
-	if r.TLS != nil {
+	if s.secure(r) {
 		scheme, std = "https", 443
 	}
 	if port == std {

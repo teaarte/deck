@@ -52,6 +52,8 @@ type Service struct {
 	Reach func(ctx context.Context) error
 	// Words are deck's phrases in a language, for the prices of models.
 	Words func(lang string) map[string]string
+	// Changed tells the clients a topic changed that no write of the store announced, such as a sign-in from deck.
+	Changed func(topic string)
 
 	mu    sync.Mutex
 	check map[string]*checks
@@ -59,6 +61,8 @@ type Service struct {
 	plain sync.Map
 	// found is set once the ACP agents were looked for.
 	found bool
+	// logins are the sign-ins of CLI agents from deck, by provider.
+	logins map[string]*signIn
 }
 
 // Named is the provider of a workspace by name: a built-in one of deck or one the owner added.
@@ -232,6 +236,15 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("models_list", "Models",
 			"Lists the connections models are reached through, the models with their kind and price, and which models do which work.",
 			registry.Everyone, s.modelsList).On("models", "assignments", "projects", "health", "settings"),
+		registry.Def("agent_login", "Sign in to agent",
+			"Starts the sign-in of a built-in CLI agent (claude-code, codex) on this machine by a link: gives the link and the code to enter there, or that the page of the link gives a code to hand in with agent_login_code; the self-check runs once it is signed in.",
+			registry.OwnerOnly, s.agentLogin),
+		registry.Def("agent_login_code", "Sign-in code",
+			"Hands the sign-in of a CLI agent started with agent_login the code the page of its link gave.",
+			registry.OwnerOnly, s.agentLoginCode),
+		registry.Read("agent_logins", "Sign-ins",
+			"Lists the sign-ins of CLI agents started from deck that wait for the owner, with their link and code, and those that failed.",
+			registry.OwnerOnly, s.agentLogins).On("health"),
 		registry.Def("provider_off", "Turn provider off",
 			"Turns a built-in provider (claude-code, codex) off or on again: off, deck does not check it, gives it no work and offers none of its models; a provider whose program is not installed is off by itself.",
 			registry.OwnerOnly, s.providerOff),

@@ -52,6 +52,8 @@ type Service struct {
 	// Variant is the binary of this build in a release; Launcher marks a deck its launcher updates.
 	Variant  string
 	Launcher bool
+	// Image is the image of a deck that runs in a container: a newer one comes as a newer image, never in place.
+	Image string
 	// Exe is the binary of deck; Restart ends deck to take an update; Pending is where the update waits to be served.
 	Exe      func() (string, error)
 	Restart  func(release.Restart)
@@ -145,6 +147,9 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 	newer := release.Newer(fs.Version, s.Version)
 	if newer {
 		status, text = health.Warning, fmt.Sprintf("deck %s is out; this one is %s", fs.Version, s.Version)
+		if s.Image != "" {
+			text = fmt.Sprintf("deck %s is out; pull the image %s: docker compose pull && docker compose up -d", fs.Version, s.Image)
+		}
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		changed, err := health.Set(ctx, q, health.Of{}, Subject, status, text)
@@ -156,6 +161,9 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 			return err
 		}
 		buttons, _ := json.Marshal([]map[string]any{{"label": "Update", "command": registry.Builtin + ".update", "icon": "download"}})
+		if s.Image != "" {
+			buttons = []byte("[]")
+		}
 		for _, ws := range spaces {
 			m, err := access.Master(ctx, q, ws)
 			if err != nil {
@@ -220,6 +228,9 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 			s.mu.Unlock()
 		}
 	}()
+	if s.Image != "" {
+		return nil, registry.Invalid("deck: this deck runs from the image %s; a newer one comes as a newer image: docker compose pull && docker compose up -d", s.Image)
+	}
 	fs, err := s.check(ctx)
 	if err != nil {
 		return nil, registry.Refuse("deck: the latest release: %v", err)

@@ -41,8 +41,14 @@ type Sandbox interface {
 	Command(ctx context.Context, p Policy) (*exec.Cmd, error)
 }
 
-// New returns the sandbox of this operating system.
-func New() Sandbox { return platform() }
+// New returns the sandbox of this operating system, or deck's container when deck runs agents as a user of their own
+// there without its own sandbox (DECK_SANDBOX=bwrap keeps it).
+func New() Sandbox {
+	if Contained() {
+		return container{}
+	}
+	return platform()
+}
 
 // End kills what is left of the process group of a command.
 func End(cmd *exec.Cmd) {
@@ -91,5 +97,16 @@ func Confine(ctx context.Context, sb Sandbox, layout home.Layout, path, bin stri
 	if p.Door != nil {
 		p.Env = append(slices.Clone(p.Env), p.Door.Env()...)
 	}
-	return sb.Command(ctx, p)
+	cmd, err := sb.Command(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	write := slices.Clone(p.Write)
+	if p.Door != nil {
+		write = append(write, p.Door.dir)
+	}
+	if err := AsAgent(cmd, write, p.Read); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }

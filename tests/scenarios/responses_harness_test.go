@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -63,7 +65,7 @@ func (f *fakeResponses) codexHome(t *testing.T) string {
 	dir := homeTemp(t)
 	cfg := "model_provider = \"fake\"\nmodel = \"gpt-5\"\n[model_providers.fake]\nname = \"fake\"\nbase_url = " +
 		quoteJSON(f.URL) + "\nwire_api = \"responses\"\nrequires_openai_auth = false\n"
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(cfg), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return dir
@@ -278,16 +280,27 @@ func quoteJSON(s string) string {
 }
 
 // homeTemp is a folder of the test in the home, as deck's and Codex's are: Codex puts no helper of its sandbox under
-// /tmp, and on Linux its sandbox shows /tmp only where it may write.
+// /tmp, and on Linux its sandbox shows /tmp only where it may write; with a user of agents it is in theirs, as theirs.
 func homeTemp(t *testing.T) string {
-	user, err := os.UserHomeDir()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir, err := os.MkdirTemp(user, ".deck-test-")
+	agent, _ := user.Lookup(os.Getenv("DECK_AGENT_USER"))
+	if agent != nil {
+		home = agent.HomeDir
+	}
+	dir, err := os.MkdirTemp(home, ".deck-test-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	if agent != nil {
+		uid, _ := strconv.Atoi(agent.Uid)
+		gid, _ := strconv.Atoi(agent.Gid)
+		if err := os.Chown(dir, uid, gid); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return dir
 }

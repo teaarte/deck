@@ -1,0 +1,44 @@
+# deck on a server: put DECK_DOMAIN (a name of this server) in .env, run docker compose up -d, and open the link
+# with the token from docker compose logs deck. README, "Server", says the rest.
+name: deck
+services:
+  deck:
+    image: ghcr.io/teaarte/deck:latest
+    init: true
+    restart: unless-stopped
+    shm_size: 512m
+    environment:
+      DECK_PUBLIC: ${DECK_DOMAIN:+https://${DECK_DOMAIN}}
+      DECK_TAILSCALE: ${DECK_TAILSCALE:-}
+      TZ: ${TZ:-}
+    ports:
+      - "127.0.0.1:7700:7700"
+      - "127.0.0.1:7701:7701"
+    volumes:
+      - deck:/var/lib/deck
+      - agents:/home/agent
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8443:8443"
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      - caddy:/data
+volumes:
+  deck:
+  agents:
+  caddy:
+configs:
+  caddyfile:
+    content: |
+      ${DECK_DOMAIN:-localhost} {
+        reverse_proxy deck:7700
+      }
+      ${DECK_DOMAIN:-localhost}:8443 {
+        reverse_proxy deck:7701
+      }

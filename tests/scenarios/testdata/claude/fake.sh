@@ -6,6 +6,16 @@ if [ "$1" = "--version" ]; then
   echo "$(cat "$d/version" 2>/dev/null || echo 2.1.281) (Claude Code)"
   exit 0
 fi
+if [ "$1" = "auth" ] && [ "$2" = "login" ]; then
+  echo "Opening browser to sign in..."
+  echo "If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true&state=fake"
+  printf 'Paste code here if prompted > '
+  read -r code
+  [ "$code" = "good-code" ] || { echo "OAuth error: invalid code" >&2; exit 1; }
+  echo "$code" > "$d/signed-in"
+  echo "Login successful."
+  exit 0
+fi
 case " $* " in
   *" --session-id "*|*" --resume "*) ;;
   *" --input-format "*) cat "$d/models" 2>/dev/null; exit 0 ;;

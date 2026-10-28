@@ -43,6 +43,8 @@ type Config struct {
 	Version  string
 	Variant  string
 	Launcher bool
+	// Image is the container image deck runs from (DECK_IMAGE), which updates by a newer image.
+	Image string
 	Restart  func(release.Restart)
 	// Exe is the binary of deck an update replaces; the running one when nil.
 	Exe func() (string, error)

@@ -53,12 +53,26 @@
             {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=command ?? ''", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"},
             {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}, "when": "kind == 'default' && own"}
           ]},
+        {"type": "table", "title": "Sign in to agents", "source": {"from": "deck.agent_logins"},
+          "empty": "No sign-in waits; Sign in on an agent that needs one gives its link here",
+          "description": "Open the link, sign in there and enter the code; the self-check runs once the agent is signed in. The sign-in stays in deck's machine.",
+          "columns": [
+            {"label": "Agent", "bind": "provider"},
+            {"label": "Link", "bind": "url", "format": "link"},
+            {"label": "Code", "bind": "code ?? ''", "format": "copy"},
+            {"label": "Status", "bind": "(error ?? '') != '' ? error : paste ? 'Waits for the code of the page' : 'Waits for the sign-in'", "tone": "(error ?? '') != '' ? 'error' : 'warn'"}
+          ],
+          "actions": [
+            {"label": "Enter the code", "icon": "key", "command": "deck.agent_login_code", "params": {"provider": "=provider"}, "input": "code", "when": "paste && (error ?? '') == ''"},
+            {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=provider"}, "when": "(error ?? '') != ''"}
+          ]},
         {"type": "list", "title": "All models", "cards": true, "empty": "No models yet: add a connection, then its models; Deki can propose them in the chat", "source": {"from": "deck.models_list", "rows": "models"}, "filter": ["kind", "connection", "status"],
           "description": "Every model deck reaches, by provider: the subscriptions first, then each connection; those that work goes to first, the others dimmed.",
           "item": {"title": "name", "text": "price", "meta": "agent != nil && agent != '' ? 'agent' : kind", "group": "provider",
             "icon": "status == nil ? 'circle-dashed' : nil", "details": "status == nil ? 'No work has gone to it yet' : error",
             "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status != nil ? 'warn' : used ? '' : 'muted'"},
           "actions": [
+            {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=name"}, "when": "builtin && (status == 'needs_login' || status == 'error' || status == 'warning')"},
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != ''"},
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "tts", "model": "=name", "text": "This is a short check of the voice."}, "when": "kind == 'tts'"},
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "text", "model": "=name", "prompt": "This is a short check of the model: reply with the one word ok."}, "when": "kind == 'text' && (agent ?? '') == ''"},

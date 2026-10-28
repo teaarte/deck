@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 
 	"deck2/internal/files"
 	"deck2/internal/registry"
@@ -244,14 +245,20 @@ func fileOwner(ctx context.Context, q *db.Queries, projectID, processID int64, f
 }
 
 func move(src, dst string) error {
-	if os.Rename(src, dst) == nil {
-		return nil
+	// A file another name holds, or another user owns, is copied: what the program kept of it cannot change deck's.
+	if fi, err := os.Lstat(src); err == nil {
+		if st, ok := fi.Sys().(*syscall.Stat_t); ok && st.Nlink == 1 && int(st.Uid) == os.Getuid() && os.Rename(src, dst) == nil {
+			return nil
+		}
 	}
-	in, err := os.Open(src)
+	in, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
+	if fi, err := in.Stat(); err != nil || !fi.Mode().IsRegular() {
+		return fmt.Errorf("result file %s is not a regular file", filepath.Base(src))
+	}
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err

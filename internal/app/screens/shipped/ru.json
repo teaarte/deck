@@ -784,5 +784,20 @@
   "deleted files: %d": "удалено файлов: %d",
   "turned off": "выключено",
   "Turn provider off": "Выключить провайдера",
-  "Turns a built-in provider (claude-code, codex) off or on again: off, deck does not check it, gives it no work and offers none of its models; a provider whose program is not installed is off by itself.": "Выключает встроенного провайдера (claude-code, codex) или включает снова: выключенного deck не проверяет, не даёт ему работы и не предлагает его модели; провайдер, чья программа не установлена, выключен сам."
+  "Turns a built-in provider (claude-code, codex) off or on again: off, deck does not check it, gives it no work and offers none of its models; a provider whose program is not installed is off by itself.": "Выключает встроенного провайдера (claude-code, codex) или включает снова: выключенного deck не проверяет, не даёт ему работы и не предлагает его модели; провайдер, чья программа не установлена, выключен сам.",
+  "Sign in to agents": "Вход в агентов",
+  "Open the link, sign in there and enter the code; the self-check runs once the agent is signed in. The sign-in stays in deck's machine.": "Откройте ссылку, войдите там и введите код; когда агент войдёт, deck проверит его сам. Вход остаётся на машине deck.",
+  "Link": "Ссылка",
+  "Code": "Код",
+  "Waits for the code of the page": "Ждёт код со страницы",
+  "Waits for the sign-in": "Ждёт входа",
+  "Enter the code": "Ввести код",
+  "%s sign-in ended: %s": "вход в %s не удался: %s",
+  "Sign in to agent": "Войти в агента",
+  "Sign-in code": "Код входа",
+  "Sign-ins": "Входы в агентов",
+  "deck's container is the sandbox: agents and scripts run as a user of their own and do not read deck's state, but the network of modules is not limited and modules see one another": "песочница — контейнер deck: агенты и скрипты работают от своего пользователя и не читают состояние deck, но сеть модулей не ограничена и модули видят друг друга",
+  "deck %s is out; pull the image %s: docker compose pull && docker compose up -d": "вышел deck %s; обновите образ %s: docker compose pull && docker compose up -d",
+  "deck: this deck runs from the image %s; a newer one comes as a newer image: docker compose pull && docker compose up -d": "deck: этот deck работает из образа %s; новая версия приходит новым образом: docker compose pull && docker compose up -d",
+  "No sign-in waits; Sign in on an agent that needs one gives its link here": "Входов не ждёт; «Войти» у агента, которому нужен вход, покажет здесь ссылку"
 }

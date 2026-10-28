@@ -33,9 +33,8 @@ wire_api = "responses"
 requires_openai_auth = false
 `
 
-// TestServerFromScratch is deck on a bare machine, docker in docker: compose.yaml and docker compose up -d, the link
-// with the token in the log, the first screen over Caddy's HTTPS, the sign-in links of Claude Code and Codex, Codex on
-// a model of the test passing its self-check with a skill, and a module whose script runs as the user of agents.
+// TestServerFromScratch is deck on a bare docker, docker in docker, from compose.yaml: the token in the log, HTTPS by
+// Caddy, sign-in links, Codex on a model of the test passing its self-check, a script as the user of agents.
 func TestServerFromScratch(t *testing.T) {
 	if os.Getenv("DECK_SERVER") == "" {
 		t.Skip("set DECK_SERVER=1 to run deck's image on a bare docker; needs docker with buildx")

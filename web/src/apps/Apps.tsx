@@ -133,7 +133,8 @@ export function Apps() {
   const measured = useCell(containerRef);
   // A phone keeps half the gap between its cards.
   const cell = phone ? { ...measured, gap: measured.gap / 2 } : measured;
-  const cols = Math.max(1, Math.floor((width + cell.gap) / (cell.min + cell.gap)));
+  // The narrowest grid still has two columns, as a phone: a card across it is two cells wide, a half one.
+  const cols = Math.max(2, Math.floor((width + cell.gap) / (cell.min + cell.gap)));
   const me = device();
   const saved = useLiveRead<Saved>('deck.layout', { device: me, columns: cols }, ['settings', 'projects'], EMPTY, !mounted);
   const ids = [TODAY, ...menu.projects.map((p) => p.project ?? '')];

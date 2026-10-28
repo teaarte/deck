@@ -51,7 +51,7 @@ function Stat({ p, context }: { p: BlockProps & Shown; context: ComponentContext
   else if (d.state === 'empty') value = <Text span inherit c="dimmed" fz="sm" fw={500} data-empty>{d.empty || t('state.empty')}</Text>;
   else value = <Value v={d.value} s={p} tone={d.tone} />;
   return (
-    <Card className={`${b.block} ${s.stat}`} data-block data-stat-block data-fit={fit || undefined} data-span={String(p.span ?? 1)} data-tone={d?.tone}
+    <Card className={`${b.block} ${s.stat}`} data-block data-stat-block data-title={p.title} data-fit={fit || undefined} data-span={String(p.span ?? 1)} data-tone={d?.tone}
       data-opens={opens ? true : undefined} role={opens ? 'link' : undefined} tabIndex={opens ? 0 : undefined} onClick={open}
       onKeyDown={(e) => { if (opens && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } }}>
       <span className={s.icon}><NamedIcon name={p.icon} fallback={p.title ?? ''} size={18} /></span>

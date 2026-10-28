@@ -15,10 +15,6 @@ func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
 	ids := make([]string, 0, len(bs))
 	for i, b := range bs {
 		id := fmt.Sprintf("%s%d", prefix, i)
-		// A block of a widget the card has no room left for is not drawn.
-		if r.fitting && r.left < least(b) {
-			continue
-		}
 		holds, err := r.holds(id, b)
 		if !holds {
 			continue

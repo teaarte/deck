@@ -196,3 +196,28 @@ func TestACustomButtonNamesTheFieldsItsBlockFills(t *testing.T) {
 	deckRows := strings.Replace(with(`{"label": "Touch", "command": "touch", "from_block": ["note"]}`), `"source": {"collection": "notes", "sort": "title"},`, `"source": {"from": "deck.asks_list"},`, 1)
 	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": deckRows}, 422, "the block holds no records of the module")
 }
+
+// TestATableAndACustomBlockHaveButtonsInTheirHead: a table and a custom block take a head as a list does, over the
+// rows of their source; an empty table keeps its head, so its one button needs no actions block.
+func TestATableAndACustomBlockHaveButtonsInTheirHead(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, webNotesAgent())
+	m := strings.Replace(webNotes, `"document": "custom/chart.html",`, `"document": "custom/chart.html", "head": [{"label": "Mark all", "command": "mark"}],`, 1)
+	m = strings.Replace(m, `"columns": [{"label": "Title", "bind": "title"}], "actions"`,
+		`"columns": [{"label": "Title", "bind": "title"}], "head": [{"label": "='Mark (' + string(len(rows)) + ')'", "command": "mark"}], "actions"`, 1)
+	e.createProject("web", m)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	head := func(block string) []map[string]any {
+		return blockData[[]map[string]any](t, e.screenData("web", "main", nil)[block]["head"])
+	}
+	if h := head("b3"); len(h) != 1 || h[0]["label"] != "Mark (0)" || h[0]["command"] != "web.mark" {
+		t.Fatalf("an empty table keeps the button of its head: %+v", h)
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a"}`}, nil)
+	if h := head("b3"); len(h) != 1 || h[0]["label"] != "Mark (2)" {
+		t.Fatalf("the head of a table reads its rows: %+v", h)
+	}
+	if h := head("b2"); len(h) != 1 || h[0]["label"] != "Mark all" || h[0]["command"] != "web.mark" {
+		t.Fatalf("a custom block has the buttons of its head: %+v", h)
+	}
+}

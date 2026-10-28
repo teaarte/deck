@@ -149,6 +149,15 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	if more > 0 && (b.Type == "list" || b.Type == "table") {
 		out["more"] = more
 	}
+	if len(b.Head) > 0 {
+		head, err := r.actions(b.Head, 0, map[string]any{"rows": items})
+		if err != nil {
+			return nil, fmt.Errorf("head: %w", err)
+		}
+		if len(head) > 0 {
+			out["head"] = head
+		}
+	}
 	if len(items) == 0 && (b.Type != "stat" || b.Empty != "") && b.Board == "" {
 		// An empty folder of a file manager keeps its steps back.
 		if c := r.crumbs(b); b.Type == "media" && len(c) > 1 {
@@ -236,15 +245,6 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		}
 		out["rows"] = rows
 	case "list":
-		if len(b.Head) > 0 {
-			head, err := r.actions(b.Head, 0, map[string]any{"rows": items})
-			if err != nil {
-				return nil, fmt.Errorf("head: %w", err)
-			}
-			if len(head) > 0 {
-				out["head"] = head
-			}
-		}
 		lines := make([]map[string]any, 0, len(items))
 		var values, labels []string
 		if b.Board != "" {

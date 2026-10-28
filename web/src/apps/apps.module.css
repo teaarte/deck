@@ -225,11 +225,32 @@
   --third: calc(100cqh / var(--thirds));
 }
 
-.widget :global([data-screen]),
-.widget :global([data-grid]) {
-  flex-direction: column;
-  flex-wrap: nowrap;
+.widget :global([data-screen]) {
   gap: 0;
+}
+
+/* A view without Today's room fills its card, so its chart can grow to the bottom. */
+.widget[data-fills] :global([data-screen-view]),
+.widget[data-fills] :global([data-screen-view]) :global(*):has(> [data-screen]),
+.widget[data-fills] :global([data-screen]) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.leftOut {
+  position: absolute;
+  top: var(--mantine-spacing-md);
+  right: var(--mantine-spacing-md);
+  z-index: 2;
+  padding: 0 6px;
+  border-radius: var(--mantine-radius-xl);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  line-height: 20px;
+  color: var(--mantine-color-dimmed);
+  background: var(--mantine-color-default-hover);
 }
 
 
@@ -332,4 +353,14 @@
 .open {
   -webkit-touch-callout: none;
   user-select: none;
+}
+
+/* Today's words read over any picture of the theme: each line on a veil of the picture's own color. */
+.card[data-big][data-cover] .widget :global([data-item]) {
+  --veil: color-mix(in srgb, var(--cover-color, black) 72%, transparent);
+  padding-inline: 8px;
+  border-top: 0;
+  border-radius: var(--mantine-radius-md);
+  background: linear-gradient(90deg, var(--veil) 70%, color-mix(in srgb, var(--cover-color, black) 45%, transparent));
+  backdrop-filter: blur(8px);
 }

@@ -70,6 +70,8 @@ function Board({ board, items }: { board: BoardData; items: Item[] }) {
       });
     });
   };
+  // The one accent of the board is on the first card of the first lane that has one, never on a muted card.
+  const lead = board.lanes.flatMap((l) => shown.filter((it) => laneOf(it) === l.value)).find((it) => it.tone !== 'muted');
   return (
     <div className={s.board} data-board={board.field}>
       {board.lanes.filter((l) => movable || shown.some((it) => laneOf(it) === l.value)).map((l) => {
@@ -80,7 +82,7 @@ function Board({ board, items }: { board: BoardData; items: Item[] }) {
             {here.map((it, i) => (
               <div key={show(it.id) || i} className={s.card} draggable={!!mover(it)} data-card={show(it.id)}
                 onDragStart={(e) => e.dataTransfer.setData('text/deck-item', show(it.id))}>
-                <Line it={it} quiet={it !== shown[0]} />
+                <Line it={it} quiet={it !== lead} />
               </div>
             ))}
           </div>

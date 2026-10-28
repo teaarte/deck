@@ -94,6 +94,13 @@ func (ss *Service) layout(ctx context.Context, act registry.Actor, in layoutIn) 
 		}
 		out.Cards = append(out.Cards, card{ID: name, X: c.X, Y: c.Y, W: c.W, H: c.H})
 	}
+	// A grid of one column is the order with the heights: its cards go across a wider grid as they went across it.
+	if !order && l.Columns == 1 && in.Columns > 1 {
+		for i := range out.Cards {
+			out.Cards[i].X, out.Cards[i].W = 0, in.Columns
+		}
+		out.Columns = in.Columns
+	}
 	if order || l.Columns == 0 {
 		slices.SortStableFunc(out.Cards, func(a, b card) int { return cmp.Or(cmp.Compare(a.Y, b.Y), cmp.Compare(a.X, b.X)) })
 		out.Columns = 0

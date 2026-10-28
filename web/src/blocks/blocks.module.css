@@ -46,9 +46,32 @@
   flex: 1 1 100%;
 }
 
-/* A widget stacks its blocks, each as high as its thirds of a line. */
-:global([data-widget]) .grid > .cell {
+/* A widget stacks its blocks in their thirds of a line; a chart grows over the room left, and a block the card has
+   no room for wraps out of sight. */
+.grid[data-fit] {
+  flex: 1;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  min-height: 0;
+  overflow: hidden;
+  gap: 0;
+}
+
+.grid[data-fit] > .cell {
   flex: none;
+  width: 100%;
+  height: auto;
+}
+
+.grid[data-fit] > .cell:has([data-chart-block]) {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.grid[data-fit] > .cell:has([data-chart-block]) > * {
+  flex: 1;
 }
 
 .cols {

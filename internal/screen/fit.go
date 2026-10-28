@@ -3,12 +3,12 @@ package screen
 import "deck2/internal/manifest"
 
 // A widget is laid in thirds of a line, the same in the client: a line of a list takes three, the title of a block
-// one, a number three and a chart six.
+// one, a number three and a chart at least three; the client leaves out a block the card has no room for.
 const (
 	thirdsTitle = 1
 	thirdsLine  = 3
 	thirdsStat  = 3
-	thirdsChart = 6
+	thirdsChart = 3
 )
 
 // Thirds is what a card of h rows of cells holds under its head: three lines a row, less one for the head.

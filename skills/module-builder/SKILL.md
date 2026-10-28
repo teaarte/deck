@@ -295,7 +295,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   in a board or a focus list). A queue the owner goes through, such as drafts to approve, is a `list` with `"focus": true`: one
   item at a time with `item.kind` saying what it is and Later to put it last; a decision there may hold,
   `"hold": true`, so its call goes a few seconds after the press while the owner may take it back. Buttons over the
-  whole list go in its `head`, their `when` and `label` reading `rows` (`"when": "len(rows) > 0"`).
+  whole list go in its `head`, their `when` and `label` reading `rows` (`"when": "len(rows) > 0"`); a `table` and a
+  `custom` block take a `head` the same way, so one button over a table, such as Collect now, is not an `actions`
+  block of its own.
   A command the owner fills in by hand is a `form`:
   `{"type": "form", "command": "score"}` asks for the command's input by its schema and shows the result by the
   result schema; a command that keeps its result writes the records itself; a field picked from a source takes

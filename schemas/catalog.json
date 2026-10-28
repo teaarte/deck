@@ -44,7 +44,7 @@
     },
     "table": {
       "description": "Rows of a source.",
-      "block": {"description": "Needs source and columns (each a label and bind, an expression over the row); filter and actions are optional. The first columns are the main ones: a line shows four (two on a phone), the rest, and the details of a column, open in the row under it; a column every row leaves empty is not drawn; a tag column takes its details as the hint of its badge.", "required": ["source", "columns"], "properties": {"source": {"$ref": "#/$defs/source"}, "columns": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/bind"}}, "filter": {"$ref": "#/$defs/filter"}, "search": {"$ref": "#/$defs/search"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source and columns (each a label and bind, an expression over the row); filter and actions are optional. The first columns are the main ones: a line shows four (two on a phone), the rest, and the details of a column, open in the row under it; a column every row leaves empty is not drawn; a tag column takes its details as the hint of its badge.", "required": ["source", "columns"], "properties": {"source": {"$ref": "#/$defs/source"}, "columns": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/bind"}}, "filter": {"$ref": "#/$defs/filter"}, "search": {"$ref": "#/$defs/search"}, "actions": {"$ref": "#/$defs/actions"}, "head": {"$ref": "#/$defs/actions", "description": "Buttons in the head of the table, such as one that collects its rows now; their when and their label of an expression read rows, the rows of its source."}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["columns", "data"],
@@ -55,7 +55,7 @@
         "description": {"type": "string"},
         "columns": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "format": {"type": "string"}, "currency": {"type": "string"},
           "pick": {"type": "string", "description": "The button of each row whose pick is the same is the one the cell picks the input of."}}}},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "rows: [{id, cells, actions}]"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "rows: [{id, cells, actions}], head: the buttons of its head"}
       }
     },
     "list": {
@@ -234,7 +234,7 @@
     },
     "custom": {
       "description": "An MCP App: HTML of a custom/ document, fed by its source, pressing only its buttons.",
-      "block": {"description": "Needs document, a custom/ document with its HTML; its buttons call commands, app.openLink opens a screen or dialog of deck (never a page outside), app.requestDisplayMode fullscreen gives it the whole screen, app.readServerResource({uri}) reads a file of its module whole (up to 200 MB) as contents[0].blob in base64 with its mimeType — deck://data/<path> of its data folder or deck://file/<id> a stored file, never one of another module; it shows one as a blob: or data: URL, the network stays closed.", "required": ["document"], "properties": {"document": {"type": "string", "pattern": "^custom/"}, "source": {"$ref": "#/$defs/source"}, "params": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Settings the block is given beside its items, by name: fixed text, or =<expression> over the record of the page such as =title or =param.<name>; one HTML serves several screens."}, "actions": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/action"}, {"required": ["command"], "not": {"required": ["screen"]}}]}}}},
+      "block": {"description": "Needs document, a custom/ document with its HTML; its buttons call commands, app.openLink opens a screen or dialog of deck (never a page outside), app.requestDisplayMode fullscreen gives it the whole screen, app.readServerResource({uri}) reads a file of its module whole (up to 200 MB) as contents[0].blob in base64 with its mimeType — deck://data/<path> of its data folder or deck://file/<id> a stored file, never one of another module; it shows one as a blob: or data: URL, the network stays closed.", "required": ["document"], "properties": {"document": {"type": "string", "pattern": "^custom/"}, "source": {"$ref": "#/$defs/source"}, "params": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Settings the block is given beside its items, by name: fixed text, or =<expression> over the record of the page such as =title or =param.<name>; one HTML serves several screens."}, "actions": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/action"}, {"required": ["command"], "not": {"required": ["screen"]}}]}}, "head": {"$ref": "#/$defs/actions", "description": "Buttons in the head of the block, drawn by deck beside its title, not by its HTML; their when and their label of an expression read rows, the items of its source."}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -243,7 +243,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {html, items, record, actions}"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {html, items, record, actions}, head: the buttons of its head"}
       }
     },
     "chat": {

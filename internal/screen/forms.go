@@ -300,6 +300,13 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 		}
 		v["items"] = out
 	}
+	var head []map[string]any
+	if len(b.Head) > 0 {
+		rows, _ := v["items"].([]map[string]any)
+		if head, err = r.actions(b.Head, 0, map[string]any{"rows": rows}); err != nil {
+			return nil, fmt.Errorf("head: %w", err)
+		}
+	}
 	if r.record != nil {
 		v["record"] = plain(r.record)
 	}
@@ -315,7 +322,11 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 		}
 		v["params"] = params
 	}
-	return map[string]any{"state": "ready", "value": v}, nil
+	out := map[string]any{"state": "ready", "value": v}
+	if len(head) > 0 {
+		out["head"] = head
+	}
+	return out, nil
 }
 
 // only is an item cut to the fields a custom block takes, with its id.

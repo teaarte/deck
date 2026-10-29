@@ -244,8 +244,8 @@ func fileOwner(ctx context.Context, q *db.Queries, projectID, processID int64, f
 	return "record", f.Record, err
 }
 
-// move copies a file of the results folder into deck's files through the folder itself, so no link the program put on
-// the way leads it elsewhere, and what the program kept of the file cannot change deck's copy.
+// move copies a file of the results folder into deck's files through the folder itself and removes it there: no link
+// on the way leads it elsewhere, and what the program kept of the file cannot change deck's copy.
 func move(results, name, dst string) error {
 	root, err := os.OpenRoot(results)
 	if err != nil {
@@ -266,5 +266,8 @@ func move(results, name, dst string) error {
 		out.Close()
 		return err
 	}
-	return out.Close()
+	if err := out.Close(); err != nil {
+		return err
+	}
+	return root.Remove(rel)
 }

@@ -76,7 +76,7 @@ func (s *Service) putPicture(ctx context.Context, act registry.Actor, p db.Proje
 		return 0, registry.Invalid("deck: a %s is a picture, not %s", slot, ref.Type)
 	}
 	owner := registry.Actor{Kind: registry.Owner, Workspace: act.Workspace}
-	f, err := os.Open(ref.Path)
+	f, _, err := ref.Open()
 	if err != nil {
 		return 0, err
 	}

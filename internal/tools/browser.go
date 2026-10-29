@@ -71,15 +71,18 @@ func (b *Browser) dir(name string) string { return filepath.Join(b.Home.Browser(
 
 func (b *Browser) spec(open bool) mcphost.Spec {
 	args := append(slices.Clone(b.Argv[1:]), "--user-data-dir", b.dir("profile"), "--output-dir", b.dir("out"))
+	write, read := []string{b.dir("profile"), b.dir("out")}, []string(nil)
 	if open {
-		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"), "--init-script", b.noWebRTC(),
+		script := b.noWebRTC()
+		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"), "--init-script", script,
 			"--proxy-server", "http://"+cmp.Or(b.proxy(), "127.0.0.1:1"), "--proxy-bypass", "<-loopback>")
+		write, read = []string{b.dir("open-out")}, []string{script}
 	}
 	if !b.headed || open {
 		args = append(args, "--headless")
 	}
 	env := sandbox.Kept("HOME", "TMPDIR", "XDG_")
-	return mcphost.Spec{Command: b.Argv[0], Args: args, Env: env, Dir: b.dir("work")}
+	return mcphost.Spec{Command: b.Argv[0], Args: args, Env: env, Dir: b.dir("work"), Write: write, Read: read}
 }
 
 // openWeb is all the browser without sign-ins reaches: the public internet. Its tabs outlive a call and are

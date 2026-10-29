@@ -29,8 +29,8 @@ type Spec struct {
 	Env     []string
 	Dir     string
 	URL     string
-	// Read are folders of the owner a confined program reads.
-	Read []string
+	// Read are folders of the owner a confined program reads, Write those it writes beside Dir.
+	Read, Write []string
 	// Confine runs a program in the sandbox; Domains are what it reaches through deck's proxy, its only network.
 	Confine bool
 	Domains []string

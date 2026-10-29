@@ -51,7 +51,7 @@ func (s *Service) spec(device string) mcphost.Spec {
 	} else {
 		args = append(args, "--viewport-size", "1280x820")
 	}
-	return mcphost.Spec{Command: s.Argv[0], Args: args, Env: sandbox.Kept("HOME", "TMPDIR", "XDG_"), Dir: s.dir("work")}
+	return mcphost.Spec{Command: s.Argv[0], Args: args, Env: sandbox.Kept("HOME", "TMPDIR", "XDG_"), Dir: s.dir("work"), Write: []string{s.dir("out")}}
 }
 
 type shotIn struct {

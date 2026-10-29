@@ -25,7 +25,7 @@ func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
 		cmd := exec.Command(spec.Command, spec.Args...)
 		cmd.Env, cmd.Dir = spec.Env, spec.Dir
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		return cmd, sandbox.AsAgent(cmd, []string{spec.Dir}, spec.Read)
+		return cmd, sandbox.AsAgent(cmd, append([]string{spec.Dir}, spec.Write...), spec.Read)
 	}
 	path, err := exec.LookPath(spec.Command)
 	if err != nil {
@@ -37,7 +37,7 @@ func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
 	}
 	s.door = door
 	cmd, err := sandbox.Confine(context.Background(), h.Sandbox, h.Home, env(spec.Env, "PATH"), path, sandbox.Policy{
-		Argv: append([]string{path}, spec.Args...), Dir: spec.Dir, Env: spec.Env, Write: []string{spec.Dir}, Read: spec.Read, Door: door})
+		Argv: append([]string{path}, spec.Args...), Dir: spec.Dir, Env: spec.Env, Write: append([]string{spec.Dir}, spec.Write...), Read: spec.Read, Door: door})
 	if err != nil {
 		s.close()
 		return nil, err
@@ -63,8 +63,8 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 	if spec.URL != "" {
 		transport = &mcp.StreamableClientTransport{Endpoint: spec.URL, HTTPClient: gateway.Streams}
 	} else {
-		if spec.Dir != "" {
-			if err := os.MkdirAll(spec.Dir, 0o700); err != nil {
+		for _, d := range append([]string{spec.Dir}, spec.Write...) {
+			if err := os.MkdirAll(d, 0o700); d != "" && err != nil {
 				return err
 			}
 		}

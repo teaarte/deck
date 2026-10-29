@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -205,7 +206,8 @@ func run() (*release.Restart, error) {
 // environment of every process of the owner.
 func cleanEnv() error {
 	// Go adds GOTRACEBACK to the environment of a binary with capabilities, as deck's in its image.
-	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_", "GOTRACEBACK")
+	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_HOME", "DECK_LAUNCHER", "DECK_ADDR", "DECK_TAILSCALE",
+		"DECK_PUBLIC", "DECK_AGENT_USER", "DECK_SANDBOX", "DECK_IMAGE", "DECK_BRIDGE", "GOTRACEBACK")
 	if len(clean) == len(os.Environ()) {
 		return nil
 	}
@@ -235,22 +237,18 @@ func pending(h deckhome.Layout) error {
 	return syscall.Exec(p.Exe, os.Args, os.Environ())
 }
 
-// private closes to others what deck kept in its home and its state before it had a user of agents, the base too.
+// private closes to others all deck kept in its state before it had a user of agents, the base too.
 func private(h deckhome.Layout) error {
-	for _, dir := range []string{string(h), h.State()} {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
+	return filepath.WalkDir(h.State(), func(p string, e fs.DirEntry, err error) error {
+		if err != nil || e.Type()&fs.ModeSymlink != 0 {
 			return err
 		}
-		for _, e := range entries {
-			if fi, err := os.Lstat(filepath.Join(dir, e.Name())); err == nil && fi.Mode()&os.ModeSymlink == 0 && fi.Mode().Perm()&0o066 != 0 {
-				if err := os.Chmod(filepath.Join(dir, e.Name()), fi.Mode().Perm()&^0o066); err != nil {
-					return err
-				}
-			}
+		fi, err := e.Info()
+		if err == nil && fi.Mode().Perm()&0o077 != 0 {
+			err = os.Chmod(p, fi.Mode().Perm()&^0o077)
 		}
-	}
-	return nil
+		return err
+	})
 }
 
 // lockHome holds the lock of the home until deck exits; another deck holding it refuses this one.

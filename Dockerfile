@@ -24,10 +24,12 @@ RUN apt-get update \
     && mkdir -p /var/lib/deck && chown deck:deck /var/lib/deck && chmod 700 /var/lib/deck /home/agent
 COPY --from=uv /uv /uvx /usr/local/bin/
 COPY --from=build /out/deck /usr/local/bin/deck
-# deck runs the programs of agents as agent, hands them their folders and stops them.
-RUN setcap cap_setuid,cap_setgid,cap_chown,cap_fowner,cap_dac_override,cap_kill+ep /usr/local/bin/deck
+COPY --from=build /out/deck /usr/local/lib/deck/bridge
+# deck runs the programs of agents as agent, hands them their folders and stops them; only deck may run it.
+RUN chown root:deck /usr/local/bin/deck && chmod 0750 /usr/local/bin/deck \
+    && setcap cap_setuid,cap_setgid,cap_chown,cap_fowner,cap_dac_override,cap_kill+ep /usr/local/bin/deck
 ENV HOME=/home/agent SHELL=/bin/bash DECK_HOME=/var/lib/deck DECK_ADDR=0.0.0.0:7700 DECK_AGENT_USER=agent \
-    DECK_IMAGE=ghcr.io/teaarte/deck
+    DECK_IMAGE=ghcr.io/teaarte/deck DECK_BRIDGE=/usr/local/lib/deck/bridge
 USER deck
 WORKDIR /
 EXPOSE 7700 7701

@@ -188,12 +188,12 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	switch {
 	case strings.TrimSpace(string(written)) != word:
 		model(fmt.Errorf("auto mode: the write in its own folder did not run (word.txt: %q)", string(written)))
-	case strings.TrimSpace(string(read)) != skilled:
-		model(fmt.Errorf("skills: the command of the skill deck gave the turn did not run: %s could not read the skill or did not follow it (skill.txt: %q)", s.Agent, string(read)))
 	case codeErr != nil:
 		model(errors.New("secrets: the probe that reads a hidden file did not run"))
 	case strings.TrimSpace(string(code)) == "0" || strings.Contains(string(probed), secret):
 		c.Err = fmt.Errorf("secrets: the shell of %s read a file deck hides", s.Agent)
+	case strings.TrimSpace(string(read)) != skilled:
+		model(fmt.Errorf("skills: the command of the skill deck gave the turn did not run: %s could not read the skill or did not follow it (skill.txt: %q)", s.Agent, string(read)))
 	case strings.Contains(strings.Join(approved, "\n"), "word.txt"):
 		c.Err = fmt.Errorf("auto mode: %s asked deck about a write in its own folder: %s", s.Agent, strings.Join(approved, "; "))
 	case asked == 0 || o.Answer != answer:

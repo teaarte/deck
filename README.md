@@ -176,16 +176,23 @@ docker compose logs deck | grep token     # the link with the access token
 Caddy in the same compose gets the HTTPS certificate. Open the link, then sign in to the agents in
 Settings → Models → **Sign in**: Codex shows a link and a code, Claude Code a link whose page gives the code to
 enter. Their logins stay in the volume `agents`, deck's data in `deck`. Add `DECK_TAILSCALE=deck` to `.env` to
-also reach deck on your tailnet. Without a domain deck is only at `127.0.0.1:7700` of the server, for an SSH
-tunnel. To update: `docker compose pull && docker compose up -d`.
+also reach deck on your tailnet. Without a domain, reach deck through an SSH tunnel to `127.0.0.1:7700` of the
+server (Caddy then serves only a self-signed `localhost`, still behind the token). To update:
+`docker compose pull && docker compose up -d`.
 
 **What the container protects.** deck runs as one user and every agent, script and MCP server as another, under
-Docker's own seccomp and AppArmor with nothing loosened: they cannot read deck's token, base or secrets, and nothing
-reaches the server outside the container. Inside it, the network of modules is not limited to their domains,
-modules can see and act for one another, and an agent's shell can read the logins of Claude Code and Codex, since
-the CLIs read them to work. For deck's own sandbox inside as well, set `DECK_SANDBOX=bwrap` and give the container
-`security_opt: [seccomp=unconfined, systempaths=unconfined]`; on Ubuntu 23.10+ the host must also allow user
-namespaces to it (an AppArmor profile with `userns`, or `sysctl kernel.apparmor_restrict_unprivileged_userns=0`).
+Docker's own seccomp and AppArmor with nothing loosened. They cannot read deck's token, base or secrets, and they
+cannot touch the server's files or processes. They do share one user and the container's network:
+
+- the network of modules is not limited to their domains, and it reaches what the server offers to its containers,
+  such as the address of the cloud's metadata;
+- a module's program can read what another running turn was given and act with its rights, the master's too, and
+  read the logins of Claude Code and Codex, since the CLIs read them to work.
+
+Run deck there for yourself, with modules you trust. For deck's own sandbox inside as well (programs in their own
+namespaces, the network only through deck's proxy), set `DECK_SANDBOX=bwrap` and give the container
+`security_opt: [seccomp=unconfined, systempaths=unconfined]`; on Ubuntu 23.10+ the host must also allow it user
+namespaces (an AppArmor profile with `userns`, or `sysctl kernel.apparmor_restrict_unprivileged_userns=0`).
 
 ## Status
 

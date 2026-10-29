@@ -1,6 +1,5 @@
-# A tag v* makes a release of deck: its binaries, deck.app and the Windows installer, with release.json of their
-# sizes and sha256 signed by DECK_RELEASE_KEY, a secret of the environment release; deck updates from it. Then the
-# image of deck for a server goes to ghcr.io, tagged with the version and latest, for linux/amd64 and linux/arm64.
+# A tag v* releases deck's binaries, deck.app and the Windows installer with release.json signed by DECK_RELEASE_KEY
+# (environment release), then pushes the server image to ghcr.io as the version and latest, amd64 and arm64.
 name: release
 
 on:

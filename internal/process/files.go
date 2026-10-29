@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/fault"
+	"deck2/internal/paths"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +15,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 
 	"deck2/internal/files"
 	"deck2/internal/registry"
@@ -93,7 +93,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		return "", err
 	}
 	for i, row := range rows {
-		if err := move(srcs[i], r.cfg.Home.File(row.ID)); err != nil {
+		if err := move(results, res.Files[i].Path, r.cfg.Home.File(row.ID)); err != nil {
 			r.dropFiles(ctx, rows)
 			return "", err
 		}
@@ -244,21 +244,20 @@ func fileOwner(ctx context.Context, q *db.Queries, projectID, processID int64, f
 	return "record", f.Record, err
 }
 
-func move(src, dst string) error {
-	// A file another name holds, or another user owns, is copied: what the program kept of it cannot change deck's.
-	if fi, err := os.Lstat(src); err == nil {
-		if st, ok := fi.Sys().(*syscall.Stat_t); ok && st.Nlink == 1 && int(st.Uid) == os.Getuid() && os.Rename(src, dst) == nil {
-			return nil
-		}
-	}
-	in, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+// move copies a file of the results folder into deck's files through the folder itself, so no link the program put on
+// the way leads it elsewhere, and what the program kept of the file cannot change deck's copy.
+func move(results, name, dst string) error {
+	root, err := os.OpenRoot(results)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	if fi, err := in.Stat(); err != nil || !fi.Mode().IsRegular() {
-		return fmt.Errorf("result file %s is not a regular file", filepath.Base(src))
+	defer root.Close()
+	rel := filepath.Clean("/" + name)[1:]
+	in, err := paths.OpenRegular(root, rel)
+	if err != nil {
+		return fmt.Errorf("result file %s: %w", rel, err)
 	}
+	defer in.Close()
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err

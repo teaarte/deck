@@ -51,15 +51,37 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 	if !ok {
 		return nil, registry.Invalid("deck: %s is not a CLI agent deck signs in to", in.Provider)
 	}
+	l := &signIn{Provider: in.Provider}
 	s.mu.Lock()
-	if l := s.logins[in.Provider]; l != nil && l.Error == "" {
+	if was := s.logins[in.Provider]; was != nil && was.Error == "" {
+		v := *was
 		s.mu.Unlock()
-		return *l, nil
+		if v.URL == "" {
+			return nil, registry.Conflict("deck: the sign-in of %s is starting", in.Provider)
+		}
+		return v, nil
 	}
+	if s.logins == nil {
+		s.logins = map[string]*signIn{}
+	}
+	s.logins[in.Provider] = l
 	s.mu.Unlock()
+	started := false
+	defer func() {
+		if !started {
+			s.mu.Lock()
+			if s.logins[in.Provider] == l {
+				delete(s.logins, in.Provider)
+			}
+			s.mu.Unlock()
+		}
+	}()
 	cmd, err := si.Login()
 	if err != nil {
 		return nil, err
+	}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	}
 	if cmd.Dir == "" {
 		cmd.Dir = os.TempDir()
@@ -74,19 +96,16 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 	}
 	cmd.Stdout, cmd.Stderr = w, w
 	life, stop := context.WithTimeout(s.Ctx, loginCeiling)
-	l := &signIn{Provider: in.Provider, stdin: stdin, stop: stop}
 	if err := cmd.Start(); err != nil {
 		stop()
 		out.Close()
 		w.Close()
 		return nil, err
 	}
+	started = true
 	w.Close()
 	s.mu.Lock()
-	if s.logins == nil {
-		s.logins = map[string]*signIn{}
-	}
-	s.logins[in.Provider] = l
+	l.stdin, l.stop = stdin, stop
 	s.mu.Unlock()
 	shown := make(chan struct{})
 	var tail []string
@@ -139,10 +158,13 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 		err := cmd.Wait()
 		exited.Store(true)
 		out.Close()
+		stdin.Close()
 		stop()
 		s.mu.Lock()
 		if err == nil {
-			delete(s.logins, in.Provider)
+			if s.logins[in.Provider] == l {
+				delete(s.logins, in.Provider)
+			}
 		} else {
 			l.Error = fmt.Sprintf("%s sign-in ended: %s", in.Provider, untrusted.Line(err.Error()+": "+strings.Join(lastLines(tail, 3), " "), 600))
 		}
@@ -173,16 +195,19 @@ type agentLoginCodeIn struct {
 // agentLoginCode hands the program of a sign-in the code its page gave.
 func (s *Service) agentLoginCode(_ context.Context, _ registry.Actor, in agentLoginCodeIn) (any, error) {
 	s.mu.Lock()
-	l := s.logins[in.Provider]
+	var stdin io.WriteCloser
+	if l := s.logins[in.Provider]; l != nil && l.Error == "" && l.Paste {
+		stdin = l.stdin
+	}
 	s.mu.Unlock()
-	if l == nil || l.Error != "" || !l.Paste {
+	if stdin == nil {
 		return nil, registry.Invalid("deck: no sign-in of %s waits for a code; start it again", in.Provider)
 	}
 	code := strings.TrimSpace(in.Code)
 	if code == "" || strings.ContainsAny(code, "\r\n") {
 		return nil, registry.Invalid("deck: the code is one line")
 	}
-	if _, err := io.WriteString(l.stdin, code+"\n"); err != nil {
+	if _, err := io.WriteString(stdin, code+"\n"); err != nil {
 		return nil, err
 	}
 	return map[string]any{"provider": in.Provider}, nil

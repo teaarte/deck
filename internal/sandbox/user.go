@@ -1,7 +1,6 @@
 package sandbox
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -38,8 +37,8 @@ func theAgent() (*agentUser, error) {
 		}
 		uid, _ := strconv.ParseUint(u.Uid, 10, 32)
 		gid, _ := strconv.ParseUint(u.Gid, 10, 32)
-		if int(uid) == os.Getuid() {
-			agentErr = fmt.Errorf("the user of agents %s is the user deck runs as", name)
+		if int(uid) == os.Getuid() || uid == 0 {
+			agentErr = fmt.Errorf("the user of agents %s is root or the user deck runs as", name)
 			return
 		}
 		agentIs = &agentUser{uid: uint32(uid), gid: uint32(gid)}
@@ -78,14 +77,10 @@ func AsAgent(cmd *exec.Cmd, write, read []string) error {
 		}
 	}
 	for _, d := range []string{cmd.Dir, filepath.Dir(cmd.Path)} {
-		if !filepath.IsAbs(d) {
-			continue
-		}
-		if err := a.noAgentLinks(d); err != nil {
-			return err
-		}
-		if err := pass(d); err != nil {
-			return err
+		if filepath.IsAbs(d) {
+			if err := a.pass(d); err != nil {
+				return err
+			}
 		}
 	}
 	if cmd.SysProcAttr == nil {
@@ -95,51 +90,48 @@ func AsAgent(cmd *exec.Cmd, write, read []string) error {
 	return nil
 }
 
-// hand gives the user of agents path: what deck made in it becomes the agent's when it writes there, readable when it
-// only reads, and the folders of deck above it can be passed. A link the agent could have made on the way is refused.
+// hand gives the user of agents path, its own to write or readable, through a root it cannot lead out of; a file
+// another name holds stays as it is.
 func (a *agentUser) hand(path string, writes bool) error {
 	if !filepath.IsAbs(path) {
 		return nil
 	}
-	path = filepath.Clean(path)
-	if err := a.noAgentLinks(path); err != nil {
+	root, rel, err := a.reach(filepath.Clean(path), false)
+	if err != nil || root == nil {
 		return err
 	}
-	if err := pass(filepath.Dir(path)); err != nil {
-		return err
-	}
+	defer root.Close()
 	deck := uint32(os.Getuid())
-	root, err := os.Lstat(path)
-	if err != nil || owner(root) != deck {
+	if fi, err := root.Lstat(rel); err != nil || owner(fi) != deck {
 		return nil
 	}
 	// What deck made is collected first and changed deepest first, so no folder is the agent's while deck is inside it.
 	var mine []string
-	_ = filepath.WalkDir(path, func(p string, e fs.DirEntry, err error) error {
+	_ = fs.WalkDir(root.FS(), filepath.ToSlash(rel), func(p string, e fs.DirEntry, err error) error {
 		fi, ierr := e.Info()
 		if err != nil || ierr != nil || owner(fi) != deck {
-			if e != nil && e.IsDir() && p != path {
+			if e != nil && e.IsDir() && p != filepath.ToSlash(rel) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if st, ok := fi.Sys().(*syscall.Stat_t); ok && writes && fi.Mode().IsRegular() && st.Nlink > 1 {
+		if st, ok := fi.Sys().(*syscall.Stat_t); ok && fi.Mode().IsRegular() && st.Nlink > 1 {
 			return nil
 		}
 		mine = append(mine, p)
 		return nil
 	})
 	for i := len(mine) - 1; i >= 0; i-- {
-		p := mine[i]
-		fi, err := os.Lstat(p)
+		p := filepath.FromSlash(mine[i])
+		fi, err := root.Lstat(p)
 		switch {
 		case err != nil:
 		case writes:
-			err = os.Lchown(p, int(a.uid), int(a.gid))
+			err = root.Lchown(p, int(a.uid), int(a.gid))
 		case fi.IsDir():
-			err = os.Chmod(p, fi.Mode().Perm()|0o005)
+			err = root.Chmod(p, fi.Mode().Perm()|0o005)
 		case fi.Mode().IsRegular():
-			err = os.Chmod(p, fi.Mode().Perm()|0o004)
+			err = root.Chmod(p, fi.Mode().Perm()|0o004)
 		}
 		if err != nil {
 			return err
@@ -148,36 +140,59 @@ func (a *agentUser) hand(path string, writes bool) error {
 	return nil
 }
 
-// pass lets others pass the folders of deck from dir up, so a program finds what it is given in them; it lists none.
-func pass(dir string) error {
-	deck := uint32(os.Getuid())
-	for d := filepath.Clean(dir); d != "/" && d != "."; d = filepath.Dir(d) {
-		if fi, err := os.Lstat(d); err == nil && fi.IsDir() && owner(fi) == deck && fi.Mode().Perm()&0o001 == 0 {
-			if err := os.Chmod(d, fi.Mode().Perm()|0o001); err != nil {
-				return err
-			}
-		}
+// pass lets the user of agents pass the folders of deck from dir up, so a program finds what it is given in them.
+func (a *agentUser) pass(dir string) error {
+	root, _, err := a.reach(filepath.Clean(dir), true)
+	if root != nil {
+		root.Close()
 	}
-	return nil
+	return err
 }
 
-// noAgentLinks refuses a path through a link in a folder the user of agents owns, which it could point anywhere.
-func (a *agentUser) noAgentLinks(path string) error {
-	parent := "/"
-	for _, part := range splitPath(path) {
-		next := filepath.Join(parent, part)
+// reach opens the deepest folder on the way to path the user of agents cannot change, lets it pass the folders of
+// deck down to path's own (path too with self), and gives that folder as a root with the way from it.
+func (a *agentUser) reach(path string, self bool) (*os.Root, string, error) {
+	deck := uint32(os.Getuid())
+	top, parts := "/", splitPath(path)
+	i := 0
+	for ; i < len(parts); i++ {
+		next := filepath.Join(top, parts[i])
 		fi, err := os.Lstat(next)
 		if err != nil {
-			return nil
+			return nil, "", nil
 		}
-		if fi.Mode()&os.ModeSymlink != 0 {
-			if pi, err := os.Lstat(parent); err != nil || owner(pi) == a.uid {
-				return errors.New("sandbox: " + next + " is a link in a folder of the agents; deck does not follow it")
+		if !fi.IsDir() || owner(fi) == a.uid {
+			break
+		}
+		if owner(fi) == deck && fi.Mode().Perm()&0o001 == 0 && (self || i < len(parts)-1) {
+			if err := os.Chmod(next, fi.Mode().Perm()|0o001); err != nil {
+				return nil, "", err
 			}
 		}
-		parent = next
+		top = next
 	}
-	return nil
+	root, err := os.OpenRoot(top)
+	if err != nil {
+		return nil, "", err
+	}
+	rel := "."
+	if i < len(parts) {
+		rel = filepath.Join(parts[i:]...)
+	}
+	last := len(parts) - 1
+	if self {
+		last++
+	}
+	for d, j := "", i; j < last; j++ {
+		d = filepath.Join(d, parts[j])
+		if fi, err := root.Lstat(d); err == nil && fi.IsDir() && owner(fi) == deck && fi.Mode().Perm()&0o001 == 0 {
+			if err := root.Chmod(d, fi.Mode().Perm()|0o001); err != nil {
+				root.Close()
+				return nil, "", err
+			}
+		}
+	}
+	return root, rel, nil
 }
 
 func splitPath(path string) []string {

@@ -18,7 +18,7 @@ import (
 )
 
 // containerText says what deck's container as the sandbox does not close.
-const containerText = "deck's container is the sandbox: agents and scripts run as a user of their own and do not read deck's state, but the network of modules is not limited and modules see one another"
+const containerText = "deck's container is the sandbox: agents and scripts run as a user of their own and do not read deck's state, but the network of modules is not limited and modules see and act for one another"
 
 // docChanged lists a change made without the owner of a script, or of a document an agent writes by the writes of its
 // manifest, undone by returning to the revision before n.

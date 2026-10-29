@@ -111,7 +111,11 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 	}
 	argv := p.Argv
 	if p.Door != nil {
+		// In deck's image deck itself has capabilities and only it may run it; DECK_BRIDGE is a copy without them.
 		self, err := os.Executable()
+		if b := os.Getenv("DECK_BRIDGE"); b != "" {
+			self, err = b, nil
+		}
 		if err != nil {
 			return nil, err
 		}

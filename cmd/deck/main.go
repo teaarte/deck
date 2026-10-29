@@ -72,6 +72,9 @@ func run() (*release.Restart, error) {
 	if *public != "" && !strings.HasPrefix(*public, "https://") {
 		return nil, errors.New("deck: -public is an https address, such as https://deck.example.com")
 	}
+	if err := sandbox.AgentUserErr(); err != nil {
+		return nil, err
+	}
 	// With a user of agents what deck writes is its own, so that user reads only what deck hands it.
 	if sandbox.HasAgentUser() {
 		syscall.Umask(0o077)

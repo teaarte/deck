@@ -46,6 +46,12 @@ func theAgent() (*agentUser, error) {
 	return agentIs, agentErr
 }
 
+// AgentUserErr is why the user of agents DECK_AGENT_USER names cannot be one; deck does not start then.
+func AgentUserErr() error {
+	_, err := theAgent()
+	return err
+}
+
 // HasAgentUser says programs of agents and scripts run as the user of agents of deck's container.
 func HasAgentUser() bool {
 	a, _ := theAgent()
@@ -115,7 +121,7 @@ func (a *agentUser) hand(path string, writes bool) error {
 			}
 			return nil
 		}
-		if st, ok := fi.Sys().(*syscall.Stat_t); ok && fi.Mode().IsRegular() && st.Nlink > 1 {
+		if fi.Mode().IsRegular() && nlink(fi) > 1 {
 			return nil
 		}
 		mine = append(mine, p)
@@ -126,6 +132,8 @@ func (a *agentUser) hand(path string, writes bool) error {
 		fi, err := root.Lstat(p)
 		switch {
 		case err != nil:
+			err = nil
+		case owner(fi) != deck, fi.Mode().IsRegular() && nlink(fi) > 1:
 		case writes:
 			err = root.Lchown(p, int(a.uid), int(a.gid))
 		case fi.IsDir():
@@ -208,4 +216,11 @@ func owner(fi fs.FileInfo) uint32 {
 		return st.Uid
 	}
 	return 0
+}
+
+func nlink(fi fs.FileInfo) uint64 {
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		return uint64(st.Nlink)
+	}
+	return 1
 }

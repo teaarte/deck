@@ -800,5 +800,9 @@
   "deck %s is out; pull the image %s: docker compose pull && docker compose up -d": "вышел deck %s; обновите образ %s: docker compose pull && docker compose up -d",
   "deck: this deck runs from the image %s; a newer one comes as a newer image: docker compose pull && docker compose up -d": "deck: этот deck работает из образа %s; новая версия приходит новым образом: docker compose pull && docker compose up -d",
   "No sign-in waits; Sign in on an agent that needs one gives its link here": "Входов не ждёт; «Войти» у агента, которому нужен вход, покажет здесь ссылку",
-  "deck: the sign-in of %s is starting": "deck: вход в %s уже начинается"
+  "deck: the sign-in of %s is starting": "deck: вход в %s уже начинается",
+  "deck: %s is not a CLI agent deck signs in to": "deck: %s — не агент-CLI, в который deck входит сам",
+  "deck: no sign-in of %s waits for a code; start it again": "deck: вход в %s не ждёт кода; начните вход заново",
+  "deck: the code is one line": "deck: код — одна строка",
+  "deck: %s printed no sign-in link: %s": "deck: %s не дал ссылку для входа: %s"
 }

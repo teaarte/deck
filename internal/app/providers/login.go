@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -182,7 +181,7 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if l.URL == "" {
-		return nil, errors.New("deck: " + in.Provider + " printed no sign-in link: " + strings.Join(lastLines(tail, 3), " "))
+		return nil, fmt.Errorf("deck: %s printed no sign-in link: %s", in.Provider, strings.Join(lastLines(tail, 3), " "))
 	}
 	return *l, nil
 }

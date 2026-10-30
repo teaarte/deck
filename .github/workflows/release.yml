@@ -1,5 +1,5 @@
-# A tag v* releases deck's binaries, deck.app and the Windows installer with release.json signed by DECK_RELEASE_KEY
-# (environment release), then pushes the server image to ghcr.io as the version and latest, amd64 and arm64.
+# A tag v* of a commit of master that ci made green pushes the server image to ghcr.io as the version and latest, then
+# releases deck's binaries, deck.app and the Windows installer with release.json signed by DECK_RELEASE_KEY.
 name: release
 
 on:
@@ -10,7 +10,32 @@ permissions:
   contents: read
 
 jobs:
+  green:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: The commit is of master and ci made it green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          git merge-base --is-ancestor "$SHA" origin/master || { echo "$SHA is not a commit of master"; exit 1; }
+          # A run of ci still going is waited for, up to 40 minutes.
+          for _ in $(seq 80); do
+            runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --json status,conclusion)
+            jq -e 'any(.[]; .conclusion == "success")' <<< "$runs" > /dev/null && exit 0
+            jq -e 'any(.[]; .status != "completed")' <<< "$runs" > /dev/null || break
+            sleep 30
+          done
+          echo "ci has no green run of $SHA"; exit 1
+
   version:
+    needs: green
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.check.outputs.version }}
@@ -91,7 +116,7 @@ jobs:
           path: desktop/dist/deck-setup.exe
 
   release:
-    needs: [version, binaries, mac, windows]
+    needs: [version, binaries, mac, windows, manifest]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -119,7 +144,7 @@ jobs:
         run: gh release create "$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --title "deck $VERSION" --generate-notes
 
   image:
-    needs: [version, release]
+    needs: version
     strategy:
       matrix:
         include:

@@ -9,7 +9,7 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   `-tailscale` refuses to start); web client: `cd web && npm ci && npm run build` (type check + `web/dist`)
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token; the next port is the second origin of
   `custom` blocks); on the owner's tailnet: `./deck -tailscale deck` (sign-in link in the log and in health)
-- Tests: `go test -race -timeout 30m ./...`; the tailnet scenario only with the tag:
+- Tests: `go test -race -timeout 30m ./...` (waits in the harness are `within(d)`, ×4 under race or `DECK_TEST_SLOW`); the tailnet scenario only with the tag:
   `go test -tags tailnet ./tests/scenarios -run TestPhoneReachesDeckOverTheTailnet`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
 - Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios -run TestRealCodex -v`
@@ -34,7 +34,7 @@ hold; look inside a package for the rest.
 
 - `cmd/deck` — entry point and flags.
 - `internal/app` — the wiring only: `New` builds every service from the functions of the others (a test checks none
-  is left unset), registers their commands, runs `Loop`/`Sweep`; background work goes through `background.Go`.
+  is left unset), registers their commands, runs `Loop`/`Sweep`; background work goes through `Go(func(ctx)) bool`.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
   `internal/app`. Who may touch what is `app/access`. Deck's screens are data in `app/screens/shipped/` (a file a
   screen, `ru.json` the one dictionary of deck's words — of screens, of commands and of the sentences deck writes,
@@ -45,7 +45,8 @@ hold; look inside a package for the rest.
 - `internal/store` — SQLite: one writer (`Tx`; no network or waiting inside), readers apart; a committed write
   publishes the topic of its table (`changes.go`; a table is in a scope or `silent`); goose migrations from the base
   `00043_base.sql`; sqlc queries one file per area (`db/` is generated).
-- `internal/events` — the bus: a topic with the project and workspace it changed in; no event is dropped.
+- `internal/events` — the bus: a topic with the project and workspace it changed in; no event is dropped. deck's own
+  observers only `Follow` it: beside the commits, merged by workspace with the projects changed.
 - `internal/manifest` — the manifest of a module (one format, `version.go`): types, parsing, checks of screens by
   part, expressions (`Where`, `Resolve`), the table of rights (`grants.go`: `Widens` and `Clip` by one table), the
   structural merge of a grant (`merge.go`), texts and their translation.
@@ -79,7 +80,8 @@ hold; look inside a package for the rest.
 - `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/paths`, `internal/release`,
   `internal/home`, `internal/nonce` — what their names say.
 - `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet`.
-- `internal/lint` — code rules checked by `tests/lint`.
+- `internal/lint` — code rules checked by `tests/lint`; the rules of Go (`rules.go`) keep their current exceptions by
+  file:line in `exceptions.go`, a list that only shrinks.
 - `desktop` — the launcher on the desktop (Wails, a Go module of its own): tray, window on deck's address, start at
   login; on Windows deck runs in its WSL2 distribution `deck` (`docs/spikes/windows.md`). deck knows nothing of it.
 - `starters` — the modules deck offers on its first run, each a `.zip` as `deck.project_export` makes it; data, no
@@ -96,6 +98,9 @@ hold; look inside a package for the rest.
   calls a command itself, and a button the client needs comes from the server in the block's data.
   `web/foreign` is a test page: a screen in the stock renderer with deck's catalog alone.
 - `tests/scenarios` — scenario tests through the real gateway with a fake provider, helpers in `*_harness_test.go`.
+- `.github` — `ci.yml` on every push and PR (checks, tests, race shards by `race.sh` on Linux and macOS, `tests/linux`),
+  `image.yml` (the image on its changes and nightly), `release.yml` (a tag only of a green commit of master);
+  `renovate.json` keeps the pinned base images, CLIs, modules and actions current.
 
 ## Rules
 

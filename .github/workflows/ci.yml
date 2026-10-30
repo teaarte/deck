@@ -1,0 +1,120 @@
+# Every push of a branch and pull request from a fork: the checks, the tests with and without the race detector on Linux
+# and macOS, the tests in Linux containers; a release tag goes out only from a commit this made green.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  SQLC_VERSION: 1.31.1
+
+jobs:
+  check:
+    if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: gofmt
+        run: |
+          out=$(gofmt -l cmd internal tests desktop)
+          [ -z "$out" ] || { echo "not formatted:"; echo "$out"; exit 1; }
+      - run: go vet ./...
+      - run: go test -count=1 ./tests/lint
+      - name: web/dist is the build of web
+        run: |
+          cd web && npm ci && npm run build
+          if [ -n "$(git status --porcelain -- .)" ]; then
+            echo "web/dist is not the build of web: rebuild and commit it"; git status --short -- .; exit 1
+          fi
+      - name: The code of sqlc is generated from the queries
+        run: |
+          curl -sSfL "https://github.com/sqlc-dev/sqlc/releases/download/v$SQLC_VERSION/sqlc_${SQLC_VERSION}_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin sqlc
+          sqlc diff
+      - name: The protocol of Codex is generated from the version deck's image installs
+        run: |
+          npm install -g "@openai/codex@$(sed -n 's/^ARG CODEX_VERSION=//p' Dockerfile)"
+          go generate ./internal/provider/codex
+          git diff --exit-code -- internal/provider/codex
+
+  test:
+    if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+      - run: go test -count=1 -shuffle=on ./...
+
+  race:
+    if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}
+    name: race (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, shards: 4, shard: 0 }
+          - { os: ubuntu-latest, shards: 4, shard: 1 }
+          - { os: ubuntu-latest, shards: 4, shard: 2 }
+          - { os: ubuntu-latest, shards: 4, shard: 3 }
+          - { os: macos-15, shards: 3, shard: 0 }
+          - { os: macos-15, shards: 3, shard: 1 }
+          - { os: macos-15, shards: 3, shard: 2 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+      - run: .github/race.sh ${{ matrix.shards }} ${{ matrix.shard }}
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: race-${{ matrix.os }}-${{ matrix.shard }}
+          path: |
+            ran-*.txt
+            out-*.txt
+
+  covered:
+    needs: race
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: race-${{ matrix.os }}-*
+          path: ran
+          merge-multiple: true
+      - run: rm -f ran/out-*.txt && .github/covered.sh
+
+  linux:
+    if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - run: DECK_LINUX=1 go test -count=1 -timeout 20m -v ./tests/linux

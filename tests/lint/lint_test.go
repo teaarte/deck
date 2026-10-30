@@ -48,3 +48,34 @@ func TestChecksCatchViolations(t *testing.T) {
 		t.Errorf("want exactly 11 violations, got %d:\n%s", len(vs), all)
 	}
 }
+
+func TestRepositoryKeepsTheRulesOfGo(t *testing.T) {
+	vs, err := lint.Rules("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range vs {
+		t.Error(v)
+	}
+}
+
+func TestRulesOfGoCatchViolations(t *testing.T) {
+	vs, err := lint.Rules("testdata/rules")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, v := range vs {
+		got = append(got, v.String())
+	}
+	all := strings.Join(got, "\n")
+	for _, want := range []string{
+		"internal/app/x/x.go:8: the wall clock",
+		"internal/app/x/x.go:9: a bare go statement",
+		"internal/app/x/x.go:10: the wall clock",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing violation %q in:\n%s", want, all)
+		}
+	}
+}

@@ -72,7 +72,9 @@ var fakes string
 
 func runWithFakes(m *testing.M) int {
 	fakes, _ = os.Executable()
-	if raceOn {
+	if built := os.Getenv("DECK_FAKES"); built != "" {
+		fakes = built
+	} else if raceOn {
 		dir, err := os.MkdirTemp("", "deck-fakes-")
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)

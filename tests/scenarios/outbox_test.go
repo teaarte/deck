@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -121,9 +122,16 @@ func TestACronAcrossTheClockShifts(t *testing.T) {
 	if err != nil {
 		t.Skip("no zone data:", err)
 	}
-	local := time.Local
-	time.Local = oslo
-	t.Cleanup(func() { time.Local = local })
+	// deck's zone is the one of its process, so the test runs again in a process of its own in Oslo.
+	if os.Getenv("TZ") != "Europe/Oslo" {
+		self, _ := os.Executable()
+		run := exec.Command(self, "-test.run=^TestACronAcrossTheClockShifts$", "-test.count=1")
+		run.Env = append(os.Environ(), "TZ=Europe/Oslo", "DECK_FAKES="+fakes)
+		if out, err := run.CombinedOutput(); err != nil {
+			t.Fatalf("in Oslo: %v\n%s", err, out)
+		}
+		return
+	}
 	for _, c := range []struct {
 		cron string
 		from time.Time

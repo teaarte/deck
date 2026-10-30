@@ -287,7 +287,8 @@ func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
 	a := e.waitAsk()
 	e.waitState(id, "waiting_answer")
 	e.answer(a.ID, "blue")
-	got := e.waitState(id, "done", "error")
+	// Three starts of the agent in the sandbox, one after another.
+	got := e.pollState(id, time.Minute, 20*time.Millisecond, "done", "error")
 	var resume struct{ SessionID string }
 	if f.calls() == 7 {
 		_ = json.Unmarshal(f.call(7).request("session/resume"), &resume)

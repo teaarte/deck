@@ -187,7 +187,7 @@ func TestAModelThatGivesNoSignHandsTheTurnOnLongBeforeTheCeiling(t *testing.T) {
 	}
 	e.waitNote("gave no sign for 5 minutes")
 	spoke := e.startWork(2)
-	e.waitFor("the model speaks", func() bool { return len(e.Fake.Calls()) == 2 })
+	e.waitFor("the model speaks", func() bool { return len(e.Fake.Calls()) == 2 && len(e.log(spoke)) == 1 })
 	clock.Add(time.Hour - time.Minute)
 	e.sweep()
 	if got := e.waitState(spoke, "running"); got.State != "running" {

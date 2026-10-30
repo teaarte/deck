@@ -480,8 +480,10 @@ func TestCeilingDoesNotCountTheTimeDeckWasDown(t *testing.T) {
 
 func TestCeilingRunsAgainWhenAQuestionGoesUnanswered(t *testing.T) {
 	t.Parallel()
+	asked := make(chan struct{})
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		askQuestion(ctx, c, "Which?")
+		close(asked)
 		<-ctx.Done()
 		return provider.Result{}
 	}, func(c *app.Config) { c.QuestionWait = 30 * time.Minute })
@@ -490,7 +492,14 @@ func TestCeilingRunsAgainWhenAQuestionGoesUnanswered(t *testing.T) {
 	e.waitAsk()
 	e.waitFor("the ceiling to pause", func() bool { return e.full(id).Deadline == "" })
 	e.Clock.Add(31 * time.Minute)
-	e.waitFor("the ceiling to run again once the wait ends", func() bool { return e.full(id).Deadline != "" })
+	e.waitFor("the ceiling to run again once the wait ends and the agent hears it", func() bool {
+		select {
+		case <-asked:
+			return e.full(id).Deadline != ""
+		default:
+			return false
+		}
+	})
 	e.Clock.Add(61 * time.Minute)
 	e.sweep()
 	e.waitState(id, "error")
@@ -544,7 +553,7 @@ func TestHistoryFindsAnOldRunOfAQuietProject(t *testing.T) {
 	for i := 0; i < 205; i++ {
 		e.run(busy, "job")
 	}
-	e.waitWithin("the busy runs", time.Minute, func() bool {
+	e.waitWithin("the busy runs", 3*time.Minute, func() bool {
 		for _, p := range e.processes() {
 			if p.State != "done" {
 				return false

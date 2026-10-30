@@ -12,7 +12,7 @@ import (
 )
 
 // quiet are the topics no subject of a frozen call follows; the rest may change one.
-var quiet = []string{"processes", "usage", "health", "feed", "chat", "collection", "files", "calls"}
+var quiet = []string{"processes", "log", "usage", "health", "feed", "chat", "collection", "files", "calls"}
 
 // Follow settles the calls waiting for the owner after any change their subjects may follow, in the background.
 func (s *Service) Follow(bus *events.Bus) {

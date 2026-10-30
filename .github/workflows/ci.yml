@@ -11,9 +11,10 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels its older run; every pushed commit keeps its own.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || github.run_id }}
+  cancel-in-progress: true
 
 env:
   SQLC_VERSION: 1.31.1

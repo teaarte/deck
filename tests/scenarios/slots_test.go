@@ -210,7 +210,11 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 	start, got := make(chan struct{}), make(chan string, 1)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "boss" {
-			<-start
+			select {
+			case <-start:
+			case <-ctx.Done():
+				return provider.Result{}
+			}
 			out, _ := c.Tool(ctx, "process_get", map[string]any{"process": job.Load(), "wait": 600})
 			got <- out
 		}
@@ -219,7 +223,7 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.createProject("jobs", testManifest([]string{agentCommand("boss", ""), agentCommand("job", "")}, nil))
 	boss := e.run(p, "boss")
-	e.waitState(boss, "running")
+	e.waitFor("the boss to hold the slot", func() bool { return len(e.Fake.Calls()) == 1 })
 	ids := []int64{e.run(p, "job"), e.run(p, "job")}
 	job.Store(ids[0])
 	e.waitFor("both jobs to wait for the slot", func() bool { return e.states(ids) == "waiting_slot waiting_slot" })

@@ -29,7 +29,7 @@ jobs:
           for _ in $(seq 80); do
             runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --json status,conclusion)
             jq -e 'any(.[]; .conclusion == "success")' <<< "$runs" > /dev/null && exit 0
-            jq -e 'any(.[]; .status != "completed")' <<< "$runs" > /dev/null || break
+            jq -e 'length == 0 or any(.[]; .status != "completed")' <<< "$runs" > /dev/null || break
             sleep 30
           done
           echo "ci has no green run of $SHA"; exit 1

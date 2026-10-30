@@ -124,7 +124,9 @@ func TestCeilingStopsTheAgentAndManifestOverridesIt(t *testing.T) {
 	p := e.createProject("long", testManifest([]string{agentCommand("short", ""),
 		strings.Replace(agentCommand("long", ""), `"class"`, `"timeout_minutes": 120, "class"`, 1)}, nil))
 	a, b := e.run(p, "short"), e.run(p, "long")
-	e.waitFor("both ceilings to run", func() bool { return e.full(a).Deadline != "" && e.full(b).Deadline != "" })
+	e.waitFor("both ceilings to run and both models to give a sign", func() bool {
+		return e.full(a).Deadline != "" && e.full(b).Deadline != "" && len(e.log(a)) == 1 && len(e.log(b)) == 1
+	})
 	e.Clock.Add(59 * time.Minute)
 	e.sweep()
 	if got := e.full(a); got.State != "running" {
@@ -465,7 +467,7 @@ func TestCeilingDoesNotCountTheTimeDeckWasDown(t *testing.T) {
 	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	e2.waitFor("the resumed ceiling", func() bool { return e2.full(id).Deadline != "" })
+	e2.waitFor("the resumed ceiling and a sign of the model", func() bool { return e2.full(id).Deadline != "" && len(e2.log(id)) == 2 })
 	clock.Add(49 * time.Minute)
 	e2.sweep()
 	if got := e2.full(id); got.State != "running" {
@@ -738,7 +740,7 @@ func TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns(t *testing.T) {
 	p := e.createProject("long", testManifest([]string{agentCommand("parent", ""), agentCommand("child", "")}, nil))
 	id := e.run(p, "parent")
 	kid := <-child
-	e.waitFor("the ceiling to run", func() bool { return e.full(id).Deadline != "" })
+	e.waitFor("the ceiling to run and the child to give a sign", func() bool { return e.full(id).Deadline != "" && len(e.log(kid)) == 1 })
 	e.Clock.Add(51 * time.Minute)
 	e.sweep()
 	if got := <-told; !strings.Contains(got, "time ceiling in 9 minutes") {

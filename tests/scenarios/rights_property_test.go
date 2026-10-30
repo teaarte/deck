@@ -229,7 +229,7 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 			t.Errorf("pair %d: what is in force widens %q\ngranted: %s\nnext: %s", i, w, granted, next)
 		}
 	}
-	if read < 160 {
+	if read < rightsPairs*4/5 {
 		t.Fatalf("too few pairs reached a revision beyond the grant: %d", read)
 	}
 }

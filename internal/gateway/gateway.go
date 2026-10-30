@@ -87,7 +87,7 @@ type Gateway struct {
 	// clear is the one clearance of the registry: only the gateway lets a call that is not internal through.
 	clear registry.Clearance
 
-	mu sync.Mutex
+	mu         sync.Mutex
 	sessions   map[string]*entry
 	tokens     map[int64]*automationEntry
 	handler    http.Handler

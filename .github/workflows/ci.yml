@@ -110,11 +110,14 @@ jobs:
 
   linux:
     if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}
+    name: linux (${{ matrix.test }})
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [TestScenariosOnLinux, TestScenariosInDecksContainer]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version-file: go.mod
-      - run: DECK_LINUX=1 go test -count=1 -timeout 20m -v ./tests/linux
+      - uses: ./.github/actions/setup
+      - run: DECK_LINUX=1 go test -count=1 -timeout 20m -v -run "^(TestLinuxTestsExist|${{ matrix.test }})$" ./tests/linux

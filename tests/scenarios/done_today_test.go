@@ -78,7 +78,9 @@ print(json.dumps({"updated": ["a"]}))
 	}
 	var ru []struct{ ID, Title string }
 	e.must("deck.today", map[string]any{"lang": "ru"}, &ru)
-	if !slices.ContainsFunc(ru, func(l struct{ ID, Title string }) bool { return strings.HasPrefix(l.Title, fmt.Sprint("Сделано сегодня: 606")) }) {
+	if !slices.ContainsFunc(ru, func(l struct{ ID, Title string }) bool {
+		return strings.HasPrefix(l.Title, fmt.Sprint("Сделано сегодня: 606"))
+	}) {
 		t.Fatalf("the day is told in the owner's words: %+v", ru)
 	}
 }

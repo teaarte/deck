@@ -53,7 +53,10 @@ func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 		t.Fatalf("each run keeps its three files: %v %v", m, o)
 	}
 	e.must("deck.process_rework", map[string]any{"process": mine, "remark": fmt.Sprintf("delete files %d %d %d", m["draft-1.png"], m["draft-2.png"], o["draft-1.png"])}, nil)
-	e.waitFor("the rework done", func() bool { p := e.process(mine); return p.State == "done" && strings.Contains(string(p.Result), "file") })
+	e.waitFor("the rework done", func() bool {
+		p := e.process(mine)
+		return p.State == "done" && strings.Contains(string(p.Result), "file")
+	})
 	if said := string(e.process(mine).Result); !strings.Contains(said, "deletes only the files its own run made") {
 		t.Fatalf("a file of another run is refused: %s", said)
 	}

@@ -32,7 +32,7 @@ func TestRealBrowserDekiAndMotion(t *testing.T) {
 	b.shot("deki-point")
 	b.until("the motion of the pose playing", deki+`.getAnimations().some((a) => a.playState === 'running')`)
 	b.until("the motion of the pose played a few times and rests", deki+`.getAnimations().length === 0`)
-	b.eval(`(window.img = `+deki+`.querySelector('img'), document.querySelector('[data-card-deki]').parentElement.dispatchEvent(new PointerEvent('pointerenter')), '')`)
+	b.eval(`(window.img = ` + deki + `.querySelector('img'), document.querySelector('[data-card-deki]').parentElement.dispatchEvent(new PointerEvent('pointerenter')), '')`)
 	b.until("Deki wakes as the pointer comes, the picture staying as it was", deki+`.getAnimations().some((a) => a.playState === 'running') && `+deki+`.querySelector('img') === window.img`)
 
 	b.eval(`(() => { window.moves = []; const go = document.startViewTransition.bind(document);

@@ -76,7 +76,7 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 	base := "http://" + ts.Listener.Addr().String()
 	browser := t.TempDir()
 	self := fakes
-	c := app.Config{Home: home, MCPBase: base, QuestionWait: within(5 * time.Second), ConfirmWait: within(5 * time.Second),
+	c := app.Config{Home: home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second,
 		Browser: []string{"env", "DECK_FAKE_MCP=browser", "DECK_FAKE_DIR=" + browser, self}}
 	probes := &atomic.Int64{}
 	c.Commands = []*registry.Command{probe(probes)}

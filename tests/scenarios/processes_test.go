@@ -127,8 +127,8 @@ func TestCeilingStopsTheAgentAndManifestOverridesIt(t *testing.T) {
 	e.waitFor("both ceilings to run", func() bool { return e.full(a).Deadline != "" && e.full(b).Deadline != "" })
 	e.Clock.Add(59 * time.Minute)
 	e.sweep()
-	if e.full(a).State != "running" {
-		t.Fatal("the ceiling of a command agent is an hour")
+	if got := e.full(a); got.State != "running" {
+		t.Fatalf("the ceiling of a command agent is an hour: %+v", got)
 	}
 	e.Clock.Add(2 * time.Minute)
 	e.sweep()

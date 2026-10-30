@@ -8,21 +8,15 @@ import (
 	"os"
 	"strings"
 
+	"deck2/internal/events"
 	"deck2/internal/health"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
-// Kick drains the outbox beside the caller, once a write put a row in it; a kick while a drain runs makes one more.
-func (s *Service) Kick() {
-	if s.kicked.Swap(true) {
-		return
-	}
-	s.Go(func() {
-		for s.kicked.Swap(false) {
-			s.Drain(s.Ctx)
-		}
-	})
+// Follow drains the outbox beside the commits, once a write put a row in it.
+func (s *Service) Follow(bus *events.Bus) {
+	bus.Follow(s.Go, []string{events.Outbox}, func(ctx context.Context, _ int64, _ []string) { s.Drain(ctx) })
 }
 
 // Drain removes the stored files and folders committed writes deleted, as the outbox lists them, waiting while a

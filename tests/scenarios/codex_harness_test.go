@@ -19,7 +19,7 @@ type fakeCodex struct{ fakeBin }
 func newCodex(t *testing.T) *fakeCodex {
 	t.Helper()
 	dir := t.TempDir()
-	self, _ := os.Executable()
+	self := fakes
 	root, _ := filepath.Abs(".")
 	script := "#!/bin/sh\nexec env DECK_FAKE_CODEX='" + dir + "' DECK_FAKE_CODEX_ROOT='" + root + "' '" + self + "' \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(dir, "codex"), []byte(script), 0o755); err != nil {

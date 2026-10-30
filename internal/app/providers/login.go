@@ -152,7 +152,7 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 			_ = sandbox.Kill(cmd, syscall.SIGKILL)
 		}
 	}()
-	s.Go(func() {
+	s.Go(func(context.Context) {
 		<-read
 		err := cmd.Wait()
 		exited.Store(true)

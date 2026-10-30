@@ -76,7 +76,7 @@ type Config struct {
 	// Progress is how often a long call of a tool tells a client that asked for it that it still runs.
 	Progress time.Duration
 	// Go runs work beside the calls unless deck stops.
-	Go func(func()) bool
+	Go func(func(context.Context)) bool
 }
 
 type Gateway struct {
@@ -88,8 +88,6 @@ type Gateway struct {
 	clear registry.Clearance
 
 	mu sync.Mutex
-	// renewing lets one renew of the live sessions run at a time.
-	renewing   sync.Mutex
 	sessions   map[string]*entry
 	tokens     map[int64]*automationEntry
 	handler    http.Handler
@@ -112,19 +110,13 @@ type entry struct {
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
 	g := &Gateway{cfg: cfg, st: st, asks: asks, reg: reg, clear: reg.Clearance(), sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
 	g.handler = provider.Stateful(mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
-	bus.Watch(func(e events.Event) {
-		if e.Topic == "projects" || e.Topic == "tools" {
-			g.cfg.Go(func() { g.renew(context.Background()) })
-		}
-	})
+	bus.Follow(cfg.Go, []string{"projects", "tools"}, func(ctx context.Context, _ int64, _ []string) { g.renew(ctx) })
 	return g
 }
 
 // renew gives every live session with an MCP server the commands it may call now, after a project changed: a new
 // command is a tool at once, one taken out is gone; a session of a script has no server.
 func (g *Gateway) renew(ctx context.Context) {
-	g.renewing.Lock()
-	defer g.renewing.Unlock()
 	g.mu.Lock()
 	es := slices.Collect(maps.Values(g.sessions))
 	g.mu.Unlock()

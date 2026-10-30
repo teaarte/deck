@@ -105,11 +105,11 @@ type Broker struct {
 	waiters map[int64]chan string
 	late    func(ctx context.Context, a db.Ask)
 	// run runs work beside the calls unless deck stops.
-	run func(func()) bool
+	run func(func(context.Context)) bool
 }
 
 // NewBroker is the broker of a store; run runs work beside the calls unless deck stops.
-func NewBroker(st *store.Store, now func() time.Time, run func(func()) bool) *Broker {
+func NewBroker(st *store.Store, now func() time.Time, run func(func(context.Context)) bool) *Broker {
 	return &Broker{st: st, now: now, run: run, Poll: time.Second, waiters: map[int64]chan string{}}
 }
 
@@ -213,7 +213,7 @@ func (b *Broker) Answer(ctx context.Context, id int64, answer string) error {
 		if err != nil {
 			return err
 		}
-		b.run(func() { b.late(context.WithoutCancel(ctx), a) })
+		b.run(func(context.Context) { b.late(context.WithoutCancel(ctx), a) })
 	}
 	return nil
 }

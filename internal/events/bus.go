@@ -1,6 +1,9 @@
 package events
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // Event says something changed: clients re-read what the topic names. Project, when set, is the project it
 // changed in; Workspace zero reaches every workspace.
@@ -14,8 +17,10 @@ type Event struct {
 type Bus struct {
 	mu   sync.Mutex
 	subs map[*Sub]struct{}
-	// watchers are deck's own listeners; they are not clients.
+	// watchers are the followers of deck itself; they are not clients.
 	watchers []func(Event)
+	// busy counts the followers that run or wait to.
+	busy atomic.Int64
 }
 
 func NewBus() *Bus { return &Bus{subs: map[*Sub]struct{}{}} }
@@ -55,9 +60,15 @@ func (s *Sub) add(e Event) {
 	}
 }
 
+// Outbox is the topic of a row put in the outbox: deck's own, never published to a client.
+const Outbox = "outbox"
+
 func (b *Bus) Emit(e Event) {
 	b.mu.Lock()
 	for s := range b.subs {
+		if e.Topic == Outbox {
+			break
+		}
 		if e.Workspace == 0 || s.workspace == 0 || s.workspace == e.Workspace {
 			s.add(e)
 		}
@@ -67,13 +78,6 @@ func (b *Bus) Emit(e Event) {
 	for _, w := range watchers {
 		w(e)
 	}
-}
-
-// Watch calls f on every event, after the commit that brought it.
-func (b *Bus) Watch(f func(Event)) {
-	b.mu.Lock()
-	b.watchers = append(b.watchers, f)
-	b.mu.Unlock()
 }
 
 // Subscribe follows the events of a workspace.

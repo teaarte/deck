@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"deck2/internal/app/access"
@@ -36,9 +35,8 @@ type Service struct {
 	Mu   sync.RWMutex
 	// Held reports whether a record of a project holds a folder of its data folder now.
 	Held func(ctx context.Context, project int64, folder string) bool
-	// Go runs work beside the calls unless deck stops, under Ctx.
-	Go  func(func()) bool
-	Ctx context.Context
+	// Go runs work beside the calls unless deck stops.
+	Go func(func(context.Context)) bool
 	// Themed reports whether a theme of the name is there.
 	Themed func(ctx context.Context, ws int64, name string) bool
 	// Invoke calls a command as an actor; Words are deck's phrases in a language.
@@ -46,9 +44,8 @@ type Service struct {
 	Words  func(lang string) map[string]string
 	// Current is the name of the theme a workspace wears.
 	Current func(ctx context.Context, ws int64) string
-	// draining keeps one drain of the outbox at a time; kicked says one more is due.
+	// draining keeps one drain of the outbox at a time.
 	draining sync.Mutex
-	kicked   atomic.Bool
 }
 
 // View is a stored file as a list or an upload gives it.

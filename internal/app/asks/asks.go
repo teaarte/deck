@@ -29,11 +29,8 @@ type Service struct {
 	Words func(lang string) map[string]string
 	// Said is the last thing the agent of a process said, empty when it said nothing.
 	Said func(processID int64) string
-	// Go runs work beside the calls unless deck stops, in Ctx.
-	Go  func(func()) bool
-	Ctx context.Context
-
-	settling settling
+	// Go runs work beside the calls unless deck stops.
+	Go func(func(context.Context)) bool
 }
 
 // Commands are the commands of asks.

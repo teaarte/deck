@@ -59,7 +59,7 @@ type Service struct {
 	Restart  func(release.Restart)
 	Pending  string
 	Snapshot func(context.Context) error
-	Go       func(func()) bool
+	Go       func(func(context.Context)) bool
 
 	mu      sync.Mutex
 	checked time.Time
@@ -239,7 +239,7 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 		return nil, registry.Invalid("deck: %s is the latest release", s.Version)
 	}
 	if s.Launcher {
-		if !s.Go(func() { time.Sleep(time.Second); s.Restart(release.Restart{Launcher: true}) }) {
+		if !s.Go(func(context.Context) { time.Sleep(time.Second); s.Restart(release.Restart{Launcher: true}) }) {
 			return nil, registry.Conflict("deck: deck is stopping; update it once it has started again")
 		}
 		done = true
@@ -290,7 +290,7 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 	}
 	syncDir(filepath.Dir(exe))
 	done = true
-	if !s.Go(func() { time.Sleep(time.Second); s.Restart(release.Restart{Exe: exe, Old: old}) }) {
+	if !s.Go(func(context.Context) { time.Sleep(time.Second); s.Restart(release.Restart{Exe: exe, Old: old}) }) {
 		return map[string]any{"version": fs.Version, "by": "deck", "restart": "deck is stopping; it starts in the new version"}, nil
 	}
 	return map[string]any{"version": fs.Version, "by": "deck"}, nil

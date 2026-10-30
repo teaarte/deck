@@ -29,7 +29,7 @@ func TestASlowDeviceHearsEveryChange(t *testing.T) {
 		e.App.Bus.Emit(events.Event{Topic: "collection", Project: fmt.Sprintf("p%d", i)})
 	}
 	heard := map[string]bool{}
-	timeout := time.After(10 * time.Second)
+	timeout := time.After(within(10 * time.Second))
 	for len(heard) < 500 {
 		select {
 		case ev := <-phone:
@@ -105,7 +105,7 @@ func TestAWriteTellsTheReadersOfItsTable(t *testing.T) {
 // waitEvent waits for an event of the topic in the project.
 func waitEvent(t *testing.T, ch <-chan events.Event, want events.Event) {
 	t.Helper()
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(within(5 * time.Second))
 	for {
 		select {
 		case got := <-ch:

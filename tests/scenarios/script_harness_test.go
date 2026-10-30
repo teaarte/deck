@@ -55,7 +55,7 @@ type healthRow struct {
 // waitHealth waits until the health of subject is status, or any status for "", and returns it.
 func (e *Env) waitHealth(subject, status string) healthRow {
 	e.T.Helper()
-	deadline := time.Now().Add(2 * time.Minute)
+	deadline := time.Now().Add(within(2 * time.Minute))
 	for time.Now().Before(deadline) {
 		var hs []healthRow
 		e.must("deck.health_list", nil, &hs)

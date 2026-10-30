@@ -434,7 +434,7 @@ func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
 		if len(files) != 1 || !strings.Contains(fmt.Sprint(files[0]["error"]), `no file "pipe.png"`) {
 			t.Fatalf("a pipe is no file: %v", files)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(within(10 * time.Second)):
 		t.Fatal("a pipe in the data folder hangs the screen")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"deck2/internal/events"
 	"fmt"
 	"slices"
 	"sync"
@@ -93,8 +94,8 @@ var tables = map[string]table{
 	"outbox":            {Outbox, ofDeck, []string{"tries", "error"}},
 }
 
-// Outbox is the topic of a row put in the outbox: deck's own, never published to a client.
-const Outbox = "outbox"
+// Outbox is the topic of a row put in the outbox.
+const Outbox = events.Outbox
 
 // apart are the topics deck publishes by hand: of what it keeps in files or streams, not in tables.
 var apart = []string{"log", "secrets", "snapshots"}

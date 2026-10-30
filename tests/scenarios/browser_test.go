@@ -257,7 +257,7 @@ func TestBrowserWithholdsPagesOffTheDomainsAndSurvivesALostAction(t *testing.T) 
 	}()
 	select {
 	case <-done:
-	case <-time.After(20 * time.Second):
+	case <-time.After(within(20 * time.Second)):
 		t.Fatal("the browser keeps working after an action whose outcome was lost")
 	}
 }

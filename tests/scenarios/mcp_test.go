@@ -26,7 +26,7 @@ import (
 
 // mcpManifest declares the fake MCP server; extra goes into the manifest object.
 func mcpManifest(extra string) string {
-	self, _ := os.Executable()
+	self := fakes
 	return fmt.Sprintf(`{"version": 13,
   "commands": [
     {"name": "work", "title": "Work", "description": "Works with the server.", "class": "internal",
@@ -202,7 +202,7 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 	t.Setenv("DECK_LEAK", "deck's own")
 	got := map[string]toolCall{}
 	e := newEnv(t, stepAgent(got, nil))
-	self, _ := os.Executable()
+	self := fakes
 	e.createProject("srv", fmt.Sprintf(`{"version": 13,
   "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "input": {"type": "object", "properties": {"step": {"type": "string"}}}, "result": {"type": "object"},
@@ -494,12 +494,12 @@ func TestTheTunnelOfAStoppedMCPServerCloses(t *testing.T) {
 	var c net.Conn
 	select {
 	case c = <-conns:
-	case <-time.After(10 * time.Second):
+	case <-time.After(within(10 * time.Second)):
 		t.Fatal("the tunnel reaches the service")
 	}
 	defer c.Close()
 	e.App.Host.Stop(fmt.Sprintf("%d/fake", e.projectID("held")))
-	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
+	_ = c.SetReadDeadline(time.Now().Add(within(10 * time.Second)))
 	if _, err := c.Read(make([]byte, 1)); err == nil || errors.Is(err, os.ErrDeadlineExceeded) {
 		t.Fatalf("the tunnel of a stopped server closes: %v", err)
 	}

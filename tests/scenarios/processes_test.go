@@ -47,7 +47,7 @@ func TestAgentCallsReturnAtOnceAndRetryKeyReusesTheProcess(t *testing.T) {
 	var got []string
 	select {
 	case got = <-ids:
-	case <-time.After(10 * time.Second):
+	case <-time.After(within(10 * time.Second)):
 		t.Fatal("a command called by an agent must return its process id without waiting for it")
 	}
 	e.waitState(fan, "done")
@@ -235,14 +235,14 @@ func TestQuestionWaitEndsByTheClock(t *testing.T) {
 
 func TestStopEndsRunningAndParkedProcesses(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "Do ask.") {
 			askQuestion(ctx, c, "Which?")
 			return provider.Result{Text: "waiting"}
 		}
 		<-ctx.Done()
 		return provider.Result{}
-	}, short)
+	})
 	p := e.createProject("stop", testManifest([]string{agentCommand("job", ""), agentCommand("ask", "")}, nil))
 	running := e.run(p, "job")
 	e.waitFor("the turn to start", func() bool { return len(e.Fake.Calls()) == 1 })
@@ -251,7 +251,7 @@ func TestStopEndsRunningAndParkedProcesses(t *testing.T) {
 		t.Fatalf("stop ends a running agent: %+v", got)
 	}
 	parked := e.run(p, "ask")
-	e.waitState(parked, "waiting_answer")
+	e.passState(parked, "waiting_answer")
 	e.must("deck.process_stop", map[string]any{"process": parked}, nil)
 	e.waitState(parked, "stopped")
 	if _, out := e.call("deck.asks_list", nil); strings.Contains(string(out), "Which?") {
@@ -372,12 +372,12 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 	}
 	select {
 	case <-ours:
-	case <-time.After(3 * time.Second):
+	case <-time.After(within(3 * time.Second)):
 		t.Fatal("the CLI group a crashed deck left must be killed before the session resumes")
 	}
 	select {
 	case <-removed:
-	case <-time.After(3 * time.Second):
+	case <-time.After(within(3 * time.Second)):
 		t.Fatal("the group of a provider the owner removed since is killed too")
 	}
 	select {
@@ -648,7 +648,7 @@ func TestACallThatOutlivesItsTurnLeavesAParkedProcessWithoutACeiling(t *testing.
 			_, _ = sess.CallTool(context.Background(), &mcp.CallToolParams{Name: "approve",
 				Arguments: map[string]any{"tool_name": "Bash", "input": map[string]any{"command": "curl https://example.com"}, "tool_use_id": "t1"}})
 		}()
-		for deadline := time.Now().Add(5 * time.Second); !asked.Load() && time.Now().Before(deadline); {
+		for deadline := time.Now().Add(within(5 * time.Second)); !asked.Load() && time.Now().Before(deadline); {
 			time.Sleep(10 * time.Millisecond)
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}

@@ -24,7 +24,7 @@ type fakeACP struct{ fakeBin }
 func newACP(t *testing.T) *fakeACP {
 	t.Helper()
 	dir := t.TempDir()
-	self, _ := os.Executable()
+	self := fakes
 	schema, err := os.ReadFile(acpSchema(t))
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ type fakeDirSandbox struct {
 }
 
 func (s fakeDirSandbox) Command(ctx context.Context, p sandbox.Policy) (*exec.Cmd, error) {
-	self, _ := os.Executable()
+	self := fakes
 	p.Write, p.Read = append(append(p.Write, s.dir), s.more...), append(p.Read, self)
 	return s.Sandbox.Command(ctx, p)
 }

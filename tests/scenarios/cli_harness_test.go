@@ -111,7 +111,7 @@ func (e *Env) session(id int64) string {
 
 func waitCalls(t *testing.T, c *fakeCLI, n int) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(within(5 * time.Second))
 	for c.calls() < n {
 		if time.Now().After(deadline) {
 			t.Fatalf("the CLI was started %d times, want %d", c.calls(), n)

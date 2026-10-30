@@ -67,7 +67,7 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 	select {
 	case m := <-up:
 		return &deckBinary{cmd: cmd, url: m[1], token: m[2]}
-	case <-time.After(30 * time.Second):
+	case <-time.After(within(30 * time.Second)):
 		mu.Lock()
 		defer mu.Unlock()
 		t.Fatalf("deck did not start; it said:\n%s", strings.Join(said, "\n"))
@@ -126,7 +126,7 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 		code, out, err := d.call("late.slow", map[string]any{})
 		got <- answer{code, out, err}
 	}()
-	for deadline := time.Now().Add(10 * time.Second); len(slow.requests()) == 0; time.Sleep(20 * time.Millisecond) {
+	for deadline := time.Now().Add(within(10 * time.Second)); len(slow.requests()) == 0; time.Sleep(20 * time.Millisecond) {
 		if time.Now().After(deadline) {
 			t.Fatal("the call did not reach the tool")
 		}
@@ -140,7 +140,7 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 	go func() { done <- d.cmd.Wait() }()
 	select {
 	case <-done:
-	case <-time.After(15 * time.Second):
+	case <-time.After(within(15 * time.Second)):
 		t.Fatal("deck does not exit after the stop")
 	}
 }

@@ -53,7 +53,7 @@ type Service struct {
 	// Prices say the price of each model in a language.
 	Prices func(ctx context.Context, workspace int64, lang string) func(model string) string
 	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next start.
-	Go func(func()) bool
+	Go func(func(context.Context)) bool
 	// Words are deck's phrases in a language.
 	Words func(lang string) map[string]string
 	// Language is the language of the interface the workspace picked: auto, en or ru.

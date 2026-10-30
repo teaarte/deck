@@ -64,7 +64,7 @@ func (e *Env) live(ctx context.Context) <-chan events.Event {
 
 func waitTopic(t *testing.T, ch <-chan string, want string) {
 	t.Helper()
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(within(5 * time.Second))
 	for {
 		select {
 		case got := <-ch:

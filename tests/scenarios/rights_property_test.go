@@ -189,7 +189,7 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
     {"name": "notes", "description": "A note.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`)
 	r := rand.New(rand.NewPCG(1, 2))
 	read := 0
-	for i := range 200 {
+	for i := range rightsPairs {
 		granted, next := rightsManifest(r), rightsManifest(r)
 		if _, err := manifest.Parse([]byte(granted)); err != nil {
 			t.Fatalf("a generated manifest does not read: %v\n%s", err, granted)

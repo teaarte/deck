@@ -56,10 +56,10 @@ func TestACLIThatIsNotInstalledIsOffByItself(t *testing.T) {
 	main := &Fake{script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "ok"} }}
 	e := newEnvBuiltin(t, dir, []provider.Provider{main, missing})
 	e.App.Providers.Checks(context.Background(), time.Now())
-	time.Sleep(500 * time.Millisecond)
-	if a, m := e.agentStatus("codex"); a != "missing" || m != "missing" {
-		t.Fatalf("a CLI that is not installed is missing, as an agent and as a model: %q %q", a, m)
-	}
+	e.waitFor("codex to be missing, as an agent and as a model", func() bool {
+		a, m := e.agentStatus("codex")
+		return a == "missing" && m == "missing"
+	})
 	if slices.Contains(e.healthSubjects(), "provider:codex") {
 		t.Fatalf("a missing CLI has no row of health: %v", e.healthSubjects())
 	}

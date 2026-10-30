@@ -298,7 +298,7 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	var behaviors []string
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", map[string]any{"command": "make deploy"})
 			return provider.Result{Text: "stopped"}
@@ -314,12 +314,12 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 		}
 		wg.Wait()
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	}, short)
+	})
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
-	e.waitState(id, "waiting_answer")
+	e.passState(id, "waiting_answer")
 	e.answer(e.waitAsk().ID, "allow")
-	e.waitFor("the four calls answered", func() bool {
+	e.passWaits("the four calls answered", func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return len(behaviors) == 4

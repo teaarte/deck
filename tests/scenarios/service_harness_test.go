@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -41,6 +42,17 @@ func (s *service) requests() []seenRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]seenRequest{}, s.seen...)
+}
+
+// to are the requests the service got on paths that start with prefix.
+func (s *service) to(prefix string) []seenRequest {
+	var out []seenRequest
+	for _, r := range s.requests() {
+		if strings.HasPrefix(r.Path, prefix) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func jsonReply(w http.ResponseWriter, body string) {

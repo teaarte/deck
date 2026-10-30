@@ -17,13 +17,9 @@ import (
 // derivedFrom are the topics of what the derived rows of health are worked out of.
 var derivedFrom = []string{"projects", "documents", "assignments", "models", "secrets"}
 
-// Watch derives the rows of health again whenever what they are worked out of changes.
-func (s *Service) Watch(bus *events.Bus) {
-	bus.Watch(func(e events.Event) {
-		if slices.Contains(derivedFrom, e.Topic) {
-			s.Derive(context.Background(), e.Workspace)
-		}
-	})
+// Follow derives the rows of health of the projects whose rows are worked out of what changed, beside the commits.
+func (s *Service) Follow(bus *events.Bus) {
+	bus.Follow(s.Go, derivedFrom, s.Derive)
 }
 
 // derived is a row deck works out of what a workspace holds.
@@ -32,9 +28,9 @@ type derived struct {
 	status, text string
 }
 
-// Derive writes the rows deck works out of what a workspace holds, every workspace for zero: a manifest that does not
-// read, a command no model takes, a secret a project needs that is not set and no search; a row whose cause went goes.
-func (s *Service) Derive(ctx context.Context, workspace int64) {
+// Derive writes the rows deck works out of what a workspace holds, every workspace for zero and of the projects named,
+// every one for nil: a manifest that does not read, a command no model takes, an unset secret, no search.
+func (s *Service) Derive(ctx context.Context, workspace int64, projects []string) {
 	s.deriving.Lock()
 	defer s.deriving.Unlock()
 	spaces := []int64{workspace}
@@ -46,16 +42,23 @@ func (s *Service) Derive(ctx context.Context, workspace int64) {
 		}
 	}
 	for _, ws := range spaces {
-		if err := s.derive(ctx, ws); err != nil {
+		if err := s.derive(ctx, ws, projects); err != nil && ctx.Err() == nil {
 			slog.Error("derive health", "workspace", ws, "err", err)
 		}
 	}
 }
 
-func (s *Service) derive(ctx context.Context, ws int64) error {
+func (s *Service) derive(ctx context.Context, ws int64, projects []string) error {
 	ps, err := s.St.Q.ListWorkspaceProjects(ctx, ws)
 	if err != nil {
 		return err
+	}
+	if projects != nil {
+		ps = slices.DeleteFunc(ps, func(p db.Project) bool { return !slices.Contains(projects, p.Name) })
+	}
+	ids := map[int64]bool{}
+	for _, p := range ps {
+		ids[p.ID] = true
 	}
 	want := map[string]derived{}
 	if text := s.NoSearch(ctx, ws); text != "" {
@@ -119,6 +122,9 @@ func (s *Service) derive(ctx context.Context, ws int64) error {
 		}
 		for _, r := range rows {
 			h := r.Health
+			if h.ProjectID.Valid && !ids[h.ProjectID.Int64] && projects != nil {
+				continue
+			}
 			if _, ok := want[h.Subject]; ok || h.WorkspaceID.Int64 != ws || !ownDerived(h, scripts) && !gone(h) {
 				continue
 			}

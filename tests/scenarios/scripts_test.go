@@ -452,7 +452,7 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 		filepath.Join(owner, "sdk", "current", "bin"), os.Getenv("PATH")}
 	t.Setenv("PATH", strings.Join(path, string(os.PathListSeparator)))
 	e := newEnv(t, nil)
-	self, _ := os.Executable()
+	self := fakes
 	e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
     "env": {"DECK_FAKE_MCP": "project"}, "toolFilter": ["peek"], "classes": {"peek": "internal"}}}}}`, self)))
 	e.must("deck.folder_add", map[string]any{"project": "tools", "path": filepath.Join(owner, "code")}, nil)

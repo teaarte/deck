@@ -103,8 +103,8 @@ func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 	if code, out := e.call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "expired") {
 		t.Fatalf("allow after the term is refused: %d %s", code, out)
 	}
-	if len(svc.requests()) != 0 {
-		t.Fatal("no call was made")
+	if made := svc.to("/items/"); len(made) != 0 {
+		t.Fatalf("no call was made: %+v", made)
 	}
 	if items := e.cockpitItems(); len(items) != 1 || len(items[0].Actions) != 1 || items[0].Actions[0]["verb"] != "deny" {
 		t.Fatalf("the confirmation shows as expired with deny only: %+v", items)

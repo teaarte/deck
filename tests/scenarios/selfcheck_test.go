@@ -22,7 +22,7 @@ import (
 // approving makes the fake CLI act as the real one does in auto mode on the self-check: the write in its folder
 // runs without asking, only the question reaches deck's permission tool, and curl fails without network.
 func (c *fakeCLI) approving() {
-	self, _ := os.Executable()
+	self := fakes
 	offline, _ := filepath.Abs("testdata/claude/selfcheck_offline.jsonl")
 	c.before(`if grep -q -- --tools "$c/args" && grep -q 'self-check of deck' "$c/stdin"; then
   sed "s/{{session}}/$session/g" '` + offline + `'
@@ -207,7 +207,7 @@ func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 	c := newCLI(t)
 	c.stream(1, "selfcheck.jsonl")
 	c.stream(2, "selfcheck_resume.jsonl")
-	self, _ := os.Executable()
+	self := fakes
 	c.approving()
 	c.before(readFile(t, filepath.Join(c.dir, "before")) + fmt.Sprintf(`
 [ -n "$url" ] && DECK_FAKE_MCP=approve '%s' "$url" Bash '{"command":"cat ~/.ssh/id_rsa"}'
@@ -554,7 +554,7 @@ func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
 	g.gate <- struct{}{}
 	select {
 	case <-g.entered:
-	case <-time.After(5 * time.Second):
+	case <-time.After(within(5 * time.Second)):
 		t.Fatal("the stale self-check must run again")
 	}
 	if got := e.waitState(id, "waiting_provider", "done", "error"); got.State != "waiting_provider" {

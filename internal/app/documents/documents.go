@@ -18,7 +18,7 @@ import (
 	"deck2/internal/store/db"
 )
 
-// Service keeps the documents; Ctx and Go are the life of deck, for the checks of scripts in the background.
+// Service keeps the documents; Go runs the checks of scripts in the background.
 type Service struct {
 	St      *store.Store
 	Now     func() time.Time
@@ -27,9 +27,8 @@ type Service struct {
 	Changed func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error
 	// SaveManifest saves a manifest through its checks; a change that widens rights waits for the owner.
 	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error)
-	Ctx          context.Context
 	// Go runs work beside the calls; false once deck stops.
-	Go func(func()) bool
+	Go func(func(context.Context)) bool
 }
 
 type documentView struct {

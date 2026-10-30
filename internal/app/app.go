@@ -112,11 +112,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Cfg, a.Home, a.Store, a.Bus, a.Scripts = cfg, h, st, events.NewBus(), script.New(cfg.Sandbox, h)
 	registry.Declare(cfg.Commands, store.Topics())
 	a.ctx, a.cancel = context.WithCancel(context.Background())
+	a.bg.ctx = a.ctx
 	st.Changed = func(c store.Change) {
-		if c.Topic == store.Outbox {
-			a.Files.Kick()
-			return
-		}
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
 	a.Asks = ask.NewBroker(st, cfg.Now, a.bg.Go)
@@ -146,7 +143,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 
 	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
 	a.Folders = folders.Service{St: st, Home: h}
-	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Ctx: a.ctx,
+	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go,
 		Themed: a.Themes.Exists, Current: a.Themes.Current, Invoke: a.Registry.Invoke, Words: screens.Phrases}
 	a.Journal = journal.Service{St: st, Now: cfg.Now, Words: screens.Phrases, Groups: a.Providers.Groups}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake, Words: screens.Phrases}
@@ -155,7 +152,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		IsFailure: func(ctx context.Context, act registry.Actor, id int64) (bool, error) {
 			return a.Processes.IsFailure(ctx, act, id)
 		}}
-	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
+	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Changed: a.Devices.Changed}
 	a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		Expire: a.Records.Expire}
@@ -166,7 +163,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
-		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Words: screens.Phrases, Said: a.Runner.Said, Go: a.bg.Go, Ctx: a.ctx}
+		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Words: screens.Phrases, Said: a.Runner.Said, Go: a.bg.Go}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
 		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Prices: a.Providers.Prices, Go: a.bg.Go, Words: screens.Phrases, Language: a.Settings.Language, Lookup: a.Registry.Lookup,
@@ -179,7 +176,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
 		Words: screens.Phrases}
 	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch, Missing: a.Providers.Missing,
-		Works: a.Providers.Works, Places: a.Providers.Places, Words: screens.Phrases}
+		Works: a.Providers.Works, Places: a.Providers.Places, Words: screens.Phrases, Go: a.bg.Go}
 	a.Screens = screens.Service{St: st, Now: cfg.Now, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Devices.Unread, Works: a.Providers.Works,
 		ScreenFailed: a.Failures.Screen, ScreenDrawn: a.Failures.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
@@ -189,7 +186,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Shots = &shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Tokens.Lend, Return: a.Tokens.Return,
 		Themed: a.Themes.Exists}
 	a.Updates = &updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher, Image: cfg.Image,
-		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: func(f func()) bool { return a.bg.Go(f) },
+		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: a.bg.Go,
 		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
 	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
@@ -209,12 +206,13 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Projects.CheckManifests(a.ctx)
 	a.Themes.Settle(a.ctx)
-	a.Providers.Prune(a.ctx, 0)
+	a.Providers.Prune(a.ctx, 0, nil)
 	a.Providers.KeepBigOptions(a.ctx)
-	a.Providers.Watch(a.Bus)
-	a.Health.Watch(a.Bus)
-	a.Answers.Watch(a.Bus)
-	a.Health.Derive(a.ctx, 0)
+	a.Providers.Follow(a.Bus)
+	a.Health.Follow(a.Bus)
+	a.Answers.Follow(a.Bus)
+	a.Files.Follow(a.Bus)
+	a.Health.Derive(a.ctx, 0, nil)
 	if err := a.Updates.Mark(a.ctx); err != nil {
 		return nil, err
 	}
@@ -242,21 +240,22 @@ func (a *App) Stop() {
 	})
 }
 
-// background is the work deck runs beside the calls; once deck stops, none starts.
+// background is the work deck runs beside the calls, in the life of deck; once deck stops, none starts.
 type background struct {
+	ctx     context.Context
 	mu      sync.Mutex
 	wg      sync.WaitGroup
 	stopped bool
 }
 
 // Go runs f beside the calls unless deck stops, and reports whether it runs.
-func (b *background) Go(f func()) bool {
+func (b *background) Go(f func(ctx context.Context)) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.stopped {
 		return false
 	}
-	b.wg.Go(f)
+	b.wg.Go(func() { f(b.ctx) })
 	return true
 }
 
@@ -278,7 +277,7 @@ func (a *App) Run(ctx context.Context, every time.Duration) {
 		slog.Error("resume interrupted", "err", err)
 	}
 	a.Chats.PumpChats(ctx)
-	a.bg.Go(func() { a.Loop(a.ctx, every) })
+	a.bg.Go(func(ctx context.Context) { a.Loop(ctx, every) })
 }
 
 // Sweep checks every deadline against now, then pushes and runs the daily cleanup and snapshot.
@@ -324,10 +323,12 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 		now := a.Cfg.Now()
 		a.deadlines(ctx, now)
 		if a.slowRunning.CompareAndSwap(false, true) {
-			a.bg.Go(func() {
+			if !a.bg.Go(func(context.Context) {
 				defer a.slowRunning.Store(false)
 				a.slow(ctx, now)
-			})
+			}) {
+				a.slowRunning.Store(false)
+			}
 		}
 		a.Providers.Checks(ctx, now)
 		select {

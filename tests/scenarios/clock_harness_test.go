@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -91,4 +92,27 @@ func (c *Clock) Add(d time.Duration) time.Time {
 // withClock runs deck on a test clock that starts at start.
 func withClock(clock *Clock) func(*app.Config) {
 	return func(c *app.Config) { c.Now = clock.Now }
+}
+
+// passWaits moves the clock past every wait for the owner until ok holds.
+func (e *Env) passWaits(what string, ok func() bool) {
+	e.T.Helper()
+	e.waitFor(what, func() bool {
+		if ok() {
+			return true
+		}
+		e.Clock.Add(e.App.Cfg.QuestionWait + e.App.Cfg.ConfirmWait)
+		return false
+	})
+}
+
+// passState moves the clock past every wait for the owner until process id is in one of states.
+func (e *Env) passState(id int64, states ...string) proc {
+	e.T.Helper()
+	var p proc
+	e.passWaits(fmt.Sprintf("process %d to reach %v", id, states), func() bool {
+		p = e.process(id)
+		return slices.Contains(states, p.State)
+	})
+	return p
 }

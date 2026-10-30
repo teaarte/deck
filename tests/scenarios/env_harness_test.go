@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -76,8 +75,8 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 	ts := httptest.NewUnstartedServer(nil)
 	base := "http://" + ts.Listener.Addr().String()
 	browser := t.TempDir()
-	self, _ := os.Executable()
-	c := app.Config{Home: home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second,
+	self := fakes
+	c := app.Config{Home: home, MCPBase: base, QuestionWait: within(5 * time.Second), ConfirmWait: within(5 * time.Second),
 		Browser: []string{"env", "DECK_FAKE_MCP=browser", "DECK_FAKE_DIR=" + browser, self}}
 	probes := &atomic.Int64{}
 	c.Commands = []*registry.Command{probe(probes)}
@@ -133,7 +132,20 @@ func (e *Env) do(method, path string, body any) (int, []byte) {
 	}
 	defer resp.Body.Close()
 	out, _ := io.ReadAll(resp.Body)
+	e.caughtUp()
 	return resp.StatusCode, out
+}
+
+// caughtUp waits until deck's followers caught up with what a call changed, as the health it works out.
+func (e *Env) caughtUp() {
+	e.T.Helper()
+	deadline := time.Now().Add(within(10 * time.Second))
+	for !e.App.Bus.Settled() {
+		if time.Now().After(deadline) {
+			e.T.Fatal("timed out waiting for the followers of deck to catch up")
+		}
+		time.Sleep(time.Millisecond)
+	}
 }
 
 // callIn is call by a client that reads deck in lang, as the web client says with Deck-Lang.

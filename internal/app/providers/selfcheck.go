@@ -53,9 +53,9 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 	s.found = true
 	s.mu.Unlock()
 	if !found {
-		s.Go(func() {
+		s.Go(func(ctx context.Context) {
 			for _, name := range acp.Names() {
-				s.discover(s.Ctx, name)
+				s.discover(ctx, name)
 			}
 		})
 	}
@@ -125,9 +125,8 @@ func (s *Service) startCheck(name string, force bool) bool {
 	}
 	c.running, c.started, c.last, c.retry, c.broke = true, true, s.Now(), time.Time{}, false
 	s.mu.Unlock()
-	ctx := s.Ctx
 	subject := health.Provider(name)
-	started := s.Go(func() {
+	started := s.Go(func(ctx context.Context) {
 		h, _ := health.Get(ctx, s.St.Q, health.Of{}, subject)
 		if force || h.Status == health.Error || h.Status == health.Checking {
 			s.writeCheck(ctx, name, health.Checking, "the self-check is running", "", "", 0)

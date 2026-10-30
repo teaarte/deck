@@ -45,7 +45,7 @@ type Service struct {
 	Builtin []provider.Provider
 	Ctx     context.Context
 	// Go runs work beside the calls; false once deck stops.
-	Go func(func()) bool
+	Go func(func(context.Context)) bool
 	// Resolve finds a file an input points to for a process of a project.
 	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 	// Reach connects to deck's MCP server as an agent turn does; a self-check fails when it does not answer.

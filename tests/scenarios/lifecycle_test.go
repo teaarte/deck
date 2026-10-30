@@ -14,32 +14,34 @@ import (
 	"deck2/internal/store/db"
 )
 
-func short(c *app.Config) {
-	c.QuestionWait = 100 * time.Millisecond
-	c.ConfirmWait = 100 * time.Millisecond
-}
-
 func askQuestion(ctx context.Context, c *Call, q string) map[string]any {
 	return c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": q}}})
 }
 
 func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 	t.Parallel()
-	answered := make(chan struct{})
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	asked, answered := make(chan struct{}), make(chan struct{})
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {
 			askQuestion(ctx, c, "Which topic?")
+			close(asked)
 			<-answered
 			return provider.Result{Text: "stopped"}
 		}
 		writeIdeas(ctx, c, "late")
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
-	}, short)
+	})
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
 	a := e.waitAsk()
-	// Past the question's wait of 100 ms, while the turn still runs.
-	time.Sleep(200 * time.Millisecond)
+	e.passWaits("the question's wait to pass while the turn still runs", func() bool {
+		select {
+		case <-asked:
+			return true
+		default:
+			return false
+		}
+	})
 	e.answer(a.ID, "go")
 	close(answered)
 	e.waitState(id, "done")
@@ -51,7 +53,7 @@ func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 func TestTwoLateAnswersResumeOnce(t *testing.T) {
 	t.Parallel()
 	var running, maxRunning int32
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.Req.Resume {
 			n := atomic.AddInt32(&running, 1)
 			defer atomic.AddInt32(&running, -1)
@@ -67,10 +69,10 @@ func TestTwoLateAnswersResumeOnce(t *testing.T) {
 		askQuestion(ctx, c, "First?")
 		askQuestion(ctx, c, "Second?")
 		return provider.Result{Text: "stopped"}
-	}, short)
+	})
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
-	e.waitState(id, "waiting_answer")
+	e.passState(id, "waiting_answer")
 	var asks []askView
 	e.must("deck.asks_list", nil, &asks)
 	if len(asks) != 2 {
@@ -105,7 +107,7 @@ func TestProviderErrorMarksProcessError(t *testing.T) {
 func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 	t.Parallel()
 	var second, third map[string]any
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		call := map[string]any{"command": "make deploy"}
 		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", call)
@@ -114,14 +116,14 @@ func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 		second = c.Approve(ctx, "Bash", call)
 		third = c.Approve(ctx, "Bash", call)
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	}, short)
+	})
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
-	e.waitState(id, "waiting_answer")
+	e.passState(id, "waiting_answer")
 	a := e.waitAsk()
 	e.answer(a.ID, "allow")
-	e.waitWithin("the resume", 5*time.Second, func() bool { return len(e.Fake.Calls()) >= 2 })
-	e.waitState(id, "waiting_answer")
+	e.waitFor("the resume", func() bool { return len(e.Fake.Calls()) >= 2 })
+	e.passState(id, "waiting_answer")
 	e.App.Runner.Wait()
 	if second["behavior"] != "allow" {
 		t.Fatalf("the allowed call must go through after resume: %v", second)
@@ -136,18 +138,19 @@ func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 
 func TestConfirmationExpiresAndProcessIsTold(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", map[string]any{"command": "rm -rf build"})
 			return provider.Result{Text: "stopped"}
 		}
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	}, short, func(c *app.Config) { c.ConfirmTTL = time.Hour })
+	}, func(c *app.Config) { c.ConfirmTTL = time.Hour })
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
-	e.waitState(id, "waiting_answer")
+	e.passState(id, "waiting_answer")
 	a := e.waitAsk()
-	e.App.Sweep(context.Background(), time.Now().Add(2*time.Hour))
+	e.Clock.Add(2 * time.Hour)
+	e.sweep()
 	e.waitState(id, "done")
 	if !strings.Contains(e.Fake.Calls()[1].Prompt, "Expired") {
 		t.Fatalf("resume must report the expiry: %q", e.Fake.Calls()[1].Prompt)
@@ -309,16 +312,16 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 
 func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.Req.Resume {
 			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 		}
 		askQuestion(ctx, c, "Which topic?")
 		return provider.Result{Text: "stopped"}
-	}, short)
+	})
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
-	e.waitState(id, "waiting_answer")
+	e.passState(id, "waiting_answer")
 	a := e.waitAsk()
 	renamed := strings.NewReplacer(`"name": "collect"`, `"name": "gather"`, `"command": "collect"`, `"command": "gather"`).Replace(ideasManifest)
 	e.must("deck.manifest_save", map[string]any{"project": "ideas", "manifest": renamed}, nil)

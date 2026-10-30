@@ -37,8 +37,8 @@ func (dc *Service) docChanged(ctx context.Context, q *db.Queries, act registry.A
 
 // PrepareLater records the health of the script commands of a project in the background.
 func (dc *Service) PrepareLater(projectID int64) {
-	dc.Go(func() {
-		if err := dc.Programs(dc.Ctx, projectID); err != nil && dc.Ctx.Err() == nil {
+	dc.Go(func(ctx context.Context) {
+		if err := dc.Programs(ctx, projectID); err != nil && ctx.Err() == nil {
 			slog.Error("prepare scripts", "project", projectID, "err", err)
 		}
 	})

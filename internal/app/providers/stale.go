@@ -13,18 +13,14 @@ import (
 	"deck2/internal/store/db"
 )
 
-// Watch prunes the assignments of commands a manifest no longer has whenever a manifest or a project changes.
-func (s *Service) Watch(bus *events.Bus) {
-	bus.Watch(func(e events.Event) {
-		if e.Topic == "documents" || e.Topic == "projects" {
-			s.Prune(context.Background(), e.Workspace)
-		}
-	})
+// Follow prunes the assignments of commands a manifest no longer has whenever a manifest or a project changes.
+func (s *Service) Follow(bus *events.Bus) {
+	bus.Follow(s.Go, []string{"documents", "projects"}, s.Prune)
 }
 
-// Prune removes the assignments of commands that are gone and those of agent turns of commands no longer of an agent,
-// every workspace for zero; a project whose manifest does not read keeps them.
-func (s *Service) Prune(ctx context.Context, workspace int64) {
+// Prune removes the assignments of commands gone or no longer of an agent, every workspace for zero and of the
+// projects named, every one for nil; a project whose manifest does not read keeps them.
+func (s *Service) Prune(ctx context.Context, workspace int64, projects []string) {
 	spaces := []int64{workspace}
 	if workspace == 0 {
 		var err error
@@ -34,20 +30,20 @@ func (s *Service) Prune(ctx context.Context, workspace int64) {
 		}
 	}
 	for _, ws := range spaces {
-		if err := s.prune(ctx, ws); err != nil {
+		if err := s.prune(ctx, ws, projects); err != nil && ctx.Err() == nil {
 			slog.Error("prune assignments", "workspace", ws, "err", err)
 		}
 	}
 }
 
-func (s *Service) prune(ctx context.Context, ws int64) error {
+func (s *Service) prune(ctx context.Context, ws int64, projects []string) error {
 	rows, err := s.St.Q.ListAssignments(ctx, ws)
 	if err != nil {
 		return err
 	}
 	var gone []db.ListAssignmentsRow
 	for _, r := range rows {
-		if r.Command == "" || !r.ProjectID.Valid {
+		if r.Command == "" || !r.ProjectID.Valid || projects != nil && !slices.Contains(projects, r.Project) {
 			continue
 		}
 		p, err := s.St.Q.GetProject(ctx, r.ProjectID.Int64)

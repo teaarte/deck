@@ -33,11 +33,11 @@ const (
 	// StateWaitingFolder waits for another agent process to leave the project folder.
 	StateWaitingFolder = "waiting_folder"
 	// StateWaitingRun waits for the run before it of a command that runs one at a time.
-	StateWaitingRun = "waiting_run"
-	StateDone          = "done"
-	StateError         = "error"
-	StateInterrupted   = "interrupted"
-	StateStopped       = "stopped"
+	StateWaitingRun  = "waiting_run"
+	StateDone        = "done"
+	StateError       = "error"
+	StateInterrupted = "interrupted"
+	StateStopped     = "stopped"
 )
 
 // Final are the states a process ends in; the client reads the same list from the catalog.
@@ -207,9 +207,7 @@ func (r *Runner) spawn(t turn) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.stopped {
-		if t.slot != nil {
-			go t.slot.release(context.WithoutCancel(r.ctx))
-		}
+		t.slot.free()
 		return false
 	}
 	ctx, cancel := context.WithCancelCause(r.ctx)

@@ -180,7 +180,7 @@ func selfCheckWith(t *testing.T, fixture, before, offline, status string) string
 
 func TestSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 	t.Parallel()
-	self, _ := os.Executable()
+	self := fakes
 	for _, tc := range []struct{ name, fixture, before, want, offline string }{
 		{"green", "selfcheck.jsonl", "", "", ""},
 		{"asks about a write in its folder", "selfcheck.jsonl", `echo "$word" > word.txt; DECK_FAKE_MCP=approve '` + self + `' "$(sed -n 's/.*"url":"\([^"]*\)".*/\1/p' "$c/mcpconfig")" Bash '{"command":"echo"}'`, "auto mode: the CLI asked deck about", ""},

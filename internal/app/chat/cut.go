@@ -184,7 +184,7 @@ func (ch *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRet
 	if err != nil {
 		return nil, err
 	}
-	ch.Go(func() { ch.pump(context.WithoutCancel(ctx), t.ID) })
+	ch.Go(func(context.Context) { ch.pump(context.WithoutCancel(ctx), t.ID) })
 	return map[string]any{"topic": t.ID, "provider": in.Provider}, nil
 }
 

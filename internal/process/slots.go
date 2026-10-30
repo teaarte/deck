@@ -36,15 +36,28 @@ func (s *slot) release(ctx context.Context) {
 	if s == nil {
 		return
 	}
+	s.r.mu.Lock()
+	freed := s.free()
+	s.r.mu.Unlock()
+	if freed {
+		s.r.Wake(ctx)
+	}
+}
+
+// free gives the slot back under r.mu without waking the waiting, and reports whether it was held till now.
+func (s *slot) free() bool {
+	if s == nil {
+		return false
+	}
+	freed := false
 	s.once.Do(func() {
-		s.r.mu.Lock()
 		s.gone = true
 		if s.lent == 0 {
 			s.r.slots[s.workspace]--
 		}
-		s.r.mu.Unlock()
-		s.r.Wake(ctx)
+		freed = true
 	})
+	return freed
 }
 
 // Lend frees the slot of a running agent turn while it waits for another process, so the processes it waits for

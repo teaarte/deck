@@ -23,7 +23,7 @@ func heard(ctx context.Context, c *Call) string {
 		m.Taken <- true
 		return m.Text
 	case <-ctx.Done():
-	case <-time.After(10 * time.Second):
+	case <-time.After(within(10 * time.Second)):
 	}
 	return ""
 }

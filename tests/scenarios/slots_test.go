@@ -236,7 +236,7 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 		if !strings.Contains(out, `"state":"done"`) {
 			t.Fatalf("the wait ends with the process it waited for: %s", out)
 		}
-	case <-time.After(20 * time.Second):
+	case <-time.After(within(20 * time.Second)):
 		t.Fatal("the job waited for never took the slot the waiting agent holds")
 	}
 	for _, id := range append(ids, boss) {

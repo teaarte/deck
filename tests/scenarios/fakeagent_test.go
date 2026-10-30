@@ -187,7 +187,7 @@ func (f *fakeServer) nextRequest(note func(map[string]json.RawMessage)) map[stri
 			if note != nil {
 				note(m)
 			}
-		case <-time.After(30 * time.Second):
+		case <-time.After(within(30 * time.Second)):
 			f.violate("deck sent nothing for 30 s")
 		}
 	}
@@ -207,7 +207,7 @@ func (f *fakeServer) answer(id, what string) map[string]json.RawMessage {
 			if len(m["method"]) > 0 && len(m["id"]) > 0 {
 				f.queue = append(f.queue, m)
 			}
-		case <-time.After(30 * time.Second):
+		case <-time.After(within(30 * time.Second)):
 			f.violate("deck did not answer %s", what)
 		}
 	}

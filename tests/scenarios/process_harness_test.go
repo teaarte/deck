@@ -28,7 +28,7 @@ func (e *Env) waitState(id int64, states ...string) proc {
 // pollState reads a process every poll until it is in one of states or timeout passes.
 func (e *Env) pollState(id int64, timeout, poll time.Duration, states ...string) proc {
 	e.T.Helper()
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(within(timeout))
 	for time.Now().Before(deadline) {
 		p := e.process(id)
 		for _, s := range states {
@@ -51,7 +51,7 @@ type askView struct {
 
 func (e *Env) waitAsk() askView {
 	e.T.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(within(10 * time.Second))
 	for time.Now().Before(deadline) {
 		_, out := e.call("deck.asks_list", nil)
 		var as []askView
@@ -115,7 +115,7 @@ func (e *Env) drained() {
 // waitWithin waits for ok as long as d, for what runs several sandboxed programs one after another.
 func (e *Env) waitWithin(what string, d time.Duration, ok func() bool) {
 	e.T.Helper()
-	deadline := time.Now().Add(d)
+	deadline := time.Now().Add(within(d))
 	for !ok() {
 		if time.Now().After(deadline) {
 			e.T.Fatalf("timed out waiting for %s", what)

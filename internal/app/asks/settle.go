@@ -3,45 +3,21 @@ package asks
 import (
 	"context"
 	"log/slog"
-	"sync/atomic"
+	"slices"
 
 	"deck2/internal/events"
 	"deck2/internal/gateway"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
 // quiet are the topics no subject of a frozen call follows; the rest may change one.
-var quiet = map[string]bool{"processes": true, "usage": true, "health": true, "feed": true, "chat": true, "collection": true, "files": true,
-	"calls": true}
+var quiet = []string{"processes", "usage", "health", "feed", "chat", "collection", "files", "calls"}
 
-// settling runs one settle at a time; again asks for one more after it.
-type settling struct{ running, again atomic.Bool }
-
-// Watch settles the calls waiting for the owner after any change their subjects may follow, in the background.
-func (s *Service) Watch(bus *events.Bus) {
-	bus.Watch(func(e events.Event) {
-		if !quiet[e.Topic] {
-			s.kick()
-		}
-	})
-}
-
-func (s *Service) kick() {
-	s.settling.again.Store(true)
-	if !s.settling.running.CompareAndSwap(false, true) {
-		return
-	}
-	if !s.Go(func() {
-		for s.settling.again.Swap(false) {
-			s.Settle(s.Ctx)
-		}
-		s.settling.running.Store(false)
-		if s.settling.again.Load() {
-			s.kick()
-		}
-	}) {
-		s.settling.running.Store(false)
-	}
+// Follow settles the calls waiting for the owner after any change their subjects may follow, in the background.
+func (s *Service) Follow(bus *events.Bus) {
+	topics := slices.DeleteFunc(store.Topics(), func(t string) bool { return slices.Contains(quiet, t) })
+	bus.Follow(s.Go, topics, func(ctx context.Context, _ int64, _ []string) { s.Settle(ctx) })
 }
 
 // Settle closes the calls waiting for the owner that deck need not ask about any more: one whose change is in force

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -61,8 +62,32 @@ func TestMain(m *testing.M) {
 		askApprove(os.Args[1], os.Args[2], os.Args[3])
 	default:
 		trustTestTLS()
-		os.Exit(m.Run())
+		os.Exit(runWithFakes(m))
 	}
+}
+
+// fakes is the program that serves the fakes: this test binary, or one built without the race detector, whose every
+// start costs a second.
+var fakes string
+
+func runWithFakes(m *testing.M) int {
+	fakes, _ = os.Executable()
+	if raceOn {
+		dir, err := os.MkdirTemp("", "deck-fakes-")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		defer os.RemoveAll(dir)
+		build := exec.Command("go", "test", "-c", "-o", filepath.Join(dir, "fakes"), ".")
+		build.Env = append(os.Environ(), "GOFLAGS=")
+		if out, err := build.CombinedOutput(); err != nil {
+			fmt.Fprintf(os.Stderr, "build the fakes: %v\n%s", err, out)
+			return 1
+		}
+		fakes = filepath.Join(dir, "fakes")
+	}
+	return m.Run()
 }
 
 // askApprove calls the permission tool at url about one tool call the way Claude Code does.

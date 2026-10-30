@@ -187,7 +187,7 @@ func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 		if code != 200 {
 			t.Fatalf("projects_list: %d", code)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(within(5 * time.Second)):
 		t.Fatal("a read waits for an open transaction")
 	}
 }
@@ -209,7 +209,7 @@ func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t 
 		if err == nil || !strings.Contains(err.Error(), "waited") {
 			t.Fatalf("a nested transaction fails with why: %v", err)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(within(10 * time.Second)):
 		t.Fatal("a transaction inside a transaction freezes deck")
 	}
 }

@@ -180,6 +180,8 @@ type Service struct {
 	// Works looks up the model that does the work of a command; Places the work each model does.
 	Works  func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	Places func(ctx context.Context, workspace int64) map[string][]string
+	// Go runs work beside the calls unless deck stops.
+	Go func(func(context.Context)) bool
 
 	// deriving keeps one Derive at a time.
 	deriving sync.Mutex

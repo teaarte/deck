@@ -68,6 +68,23 @@
      ],
      "title": "AmazonBedrockAccount",
      "type": "object"
+    },
+    {
+     "description": "Google Cloud Vertex AI with externally managed credentials.",
+     "properties": {
+      "type": {
+       "enum": [
+        "gcp"
+       ],
+       "title": "GcpAccountType",
+       "type": "string"
+      }
+     },
+     "required": [
+      "type"
+     ],
+     "title": "GcpAccount",
+     "type": "object"
     }
    ]
   },
@@ -84,6 +101,15 @@
    ],
    "title": "AccountRateLimitsUpdatedNotification",
    "type": "object"
+  },
+  "AccountRoutingOverride": {
+   "description": "Backend routing policy. Wire values match the accounts/check contract.",
+   "enum": [
+    "NO_CONSTRAINT",
+    "us",
+    "us_cr"
+   ],
+   "type": "string"
   },
   "ActivePermissionProfile": {
    "properties": {
@@ -410,17 +436,19 @@
    "type": "object"
   },
   "CodexErrorInfo": {
-   "description": "This translation layer make sure that we expose codex error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.",
-   "oneOf": [
+   "anyOf": [
     {
      "enum": [
       "contextWindowExceeded",
       "sessionBudgetExceeded",
       "usageLimitExceeded",
       "rateLimitExceeded",
+      "flexUnavailable",
       "serverOverloaded",
+      "modelNotFound",
       "cyberPolicy",
       "misalignmentPolicyViolation",
+      "tooManyDenials",
       "internalServerError",
       "unauthorized",
       "badRequest",
@@ -546,8 +574,15 @@
      ],
      "title": "ActiveTurnNotSteerableCodexErrorInfo",
      "type": "object"
+    },
+    {
+     "type": [
+      "string",
+      "object"
+     ]
     }
-   ]
+   ],
+   "description": "This translation layer make sure that we expose codex error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant."
   },
   "CollabAgentState": {
    "properties": {
@@ -1035,6 +1070,32 @@
      "type": "object"
     },
     {
+     "anyOf": [
+      {
+       "properties": {
+        "image_url": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "image_url"
+       ],
+       "title": "ImageUrlContentItem",
+       "type": "object"
+      },
+      {
+       "properties": {
+        "file_id": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "file_id"
+       ],
+       "title": "FileIdContentItem",
+       "type": "object"
+      }
+     ],
      "properties": {
       "detail": {
        "anyOf": [
@@ -1046,9 +1107,6 @@
         }
        ]
       },
-      "image_url": {
-       "type": "string"
-      },
       "type": {
        "enum": [
         "input_image"
@@ -1058,7 +1116,6 @@
       }
      },
      "required": [
-      "image_url",
       "type"
      ],
      "title": "InputImageContentItem",
@@ -1086,6 +1143,20 @@
     },
     {
      "properties": {
+      "annotations": {
+       "items": true,
+       "type": [
+        "array",
+        "null"
+       ]
+      },
+      "logprobs": {
+       "items": true,
+       "type": [
+        "array",
+        "null"
+       ]
+      },
       "text": {
        "type": "string"
       },
@@ -1128,7 +1199,7 @@
    "type": "object"
   },
   "CyberAccessProgram": {
-   "description": "Requested cyber treatment for a ChatGPT-authenticated Codex turn. Authorization and model-tier restrictions remain server-owned.",
+   "description": "Requested cyber treatment for an OpenAI model turn. Authorization and model-tier restrictions remain server-owned.",
    "enum": [
     "standard",
     "daybreakBlue",
@@ -1676,6 +1747,32 @@
      "type": "object"
     },
     {
+     "anyOf": [
+      {
+       "properties": {
+        "image_url": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "image_url"
+       ],
+       "title": "ImageUrlFunctionCallOutputContentItem",
+       "type": "object"
+      },
+      {
+       "properties": {
+        "file_id": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "file_id"
+       ],
+       "title": "FileIdFunctionCallOutputContentItem",
+       "type": "object"
+      }
+     ],
      "properties": {
       "detail": {
        "anyOf": [
@@ -1687,9 +1784,6 @@
         }
        ]
       },
-      "image_url": {
-       "type": "string"
-      },
       "type": {
        "enum": [
         "input_image"
@@ -1699,7 +1793,6 @@
       }
      },
      "required": [
-      "image_url",
       "type"
      ],
      "title": "InputImageFunctionCallOutputContentItem",
@@ -1773,6 +1866,16 @@
     },
     "requiresOpenaiAuth": {
      "type": "boolean"
+    },
+    "workspaceRouting": {
+     "anyOf": [
+      {
+       "$ref": "#/definitions/WorkspaceRouting"
+      },
+      {
+       "type": "null"
+      }
+     ]
     }
    },
    "required": [
@@ -1884,12 +1987,33 @@
     }
    ]
   },
+  "ImageGenerationInputImage": {
+   "description": "A local image file successfully read for this exact image-generation request.",
+   "properties": {
+    "path": {
+     "$ref": "#/definitions/AbsolutePathBuf"
+    },
+    "sha256": {
+     "description": "Lowercase SHA-256 of the file bytes read before image normalization.",
+     "type": "string"
+    }
+   },
+   "required": [
+    "path",
+    "sha256"
+   ],
+   "type": "object"
+  },
   "InitializeCapabilities": {
    "description": "Client-declared capabilities negotiated during initialize.",
    "properties": {
     "experimentalApi": {
      "default": false,
      "description": "Opt into receiving experimental API methods and fields.",
+     "type": "boolean"
+    },
+    "explicitGatewayOauth": {
+     "description": "Use explicit gateway OAuth login instead of automatic browser authorization. Applies to this app-server's gateway runtime; later connections cannot undo it.",
      "type": "boolean"
     },
     "extensions": {
@@ -2136,6 +2260,29 @@
    ],
    "type": "string"
   },
+  "McpAppDisplayMode": {
+   "enum": [
+    "inline",
+    "fullscreen"
+   ],
+   "type": "string"
+  },
+  "McpAppUi": {
+   "description": "UI resource and display preference for model invocations, captured from the tool descriptor.",
+   "properties": {
+    "preferredModelDisplayMode": {
+     "$ref": "#/definitions/McpAppDisplayMode"
+    },
+    "resourceUri": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "preferredModelDisplayMode",
+    "resourceUri"
+   ],
+   "type": "object"
+  },
   "McpServerElicitationAction": {
    "enum": [
     "accept",
@@ -2280,7 +2427,7 @@
    "type": "object"
   },
   "MessagePhase": {
-   "description": "Classifies an assistant message as interim commentary or final answer text.\n\nProviders do not emit this consistently, so callers must treat `None` as \"phase unknown\" and keep compatibility behavior for legacy models.",
+   "description": "Classifies assistant text as commentary, a partial answer, or a terminal answer.\n\nProviders do not emit this consistently, so callers must treat `None` as \"phase unknown\" and keep compatibility behavior for legacy models.",
    "oneOf": [
     {
      "description": "Mid-turn assistant text (for example preamble/progress narration).\n\nAdditional tool calls or assistant output may follow before turn completion.",
@@ -2290,7 +2437,14 @@
      "type": "string"
     },
     {
-     "description": "The assistant's terminal answer text for the current turn.",
+     "description": "Stable answer text that may be followed by more assistant output or tools.",
+     "enum": [
+      "partial_answer"
+     ],
+     "type": "string"
+    },
+    {
+     "description": "The assistant's declared terminal answer text for the current turn.",
      "enum": [
       "final_answer"
      ],
@@ -2309,6 +2463,13 @@
     },
     "errorType": {
      "description": "Open-ended classification; clients must accept categories added by Responses.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "reviewTarget": {
+     "description": "Opaque server-issued block target. Presence alone does not enable target-based continuation.",
      "type": [
       "string",
       "null"
@@ -2366,6 +2527,18 @@
        "type": "null"
       }
      ]
+    },
+    "availableAccessPrograms": {
+     "anyOf": [
+      {
+       "$ref": "#/definitions/ModelAccessPrograms"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "Null when the catalog does not provide access-program metadata."
     },
     "defaultReasoningEffort": {
      "$ref": "#/definitions/ReasoningEffort"
@@ -2439,6 +2612,7 @@
     },
     "supportsPersonality": {
      "default": false,
+     "description": "@deprecated Always false; models no longer support personality selection.",
      "type": "boolean"
     },
     "upgrade": {
@@ -2467,6 +2641,22 @@
     "isDefault",
     "model",
     "supportedReasoningEfforts"
+   ],
+   "type": "object"
+  },
+  "ModelAccessPrograms": {
+   "description": "Caller-specific explicit access programs advertised by model discovery.",
+   "properties": {
+    "cyber": {
+     "description": "Accepted explicit selections.",
+     "items": {
+      "$ref": "#/definitions/CyberAccessProgram"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "cyber"
    ],
    "type": "object"
   },
@@ -2787,6 +2977,7 @@
    "type": "object"
   },
   "Personality": {
+   "description": "Deprecated: `friendly` and `pragmatic` no longer select a style.",
    "enum": [
     "none",
     "friendly",
@@ -2801,6 +2992,7 @@
     "plus",
     "pro",
     "prolite",
+    "promax",
     "team",
     "self_serve_business_prolite",
     "self_serve_business_usage_based",
@@ -2812,6 +3004,8 @@
     "edu",
     "edu_plus",
     "edu_pro",
+    "sci",
+    "sci_plus",
     "unknown"
    ],
    "type": "string"
@@ -3055,11 +3249,48 @@
    "oneOf": [
     {
      "properties": {
+      "id": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "role": {
+       "type": "string"
+      },
+      "tools": {
+       "items": true,
+       "type": "array"
+      },
+      "type": {
+       "enum": [
+        "additional_tools"
+       ],
+       "title": "AdditionalToolsResponseItemType",
+       "type": "string"
+      }
+     },
+     "required": [
+      "role",
+      "tools",
+      "type"
+     ],
+     "title": "AdditionalToolsResponseItem",
+     "type": "object"
+    },
+    {
+     "properties": {
       "content": {
        "items": {
         "$ref": "#/definitions/ContentItem"
        },
        "type": "array"
+      },
+      "encrypted_content": {
+       "type": [
+        "string",
+        "null"
+       ]
       },
       "id": {
        "type": [
@@ -3089,6 +3320,12 @@
       },
       "role": {
        "type": "string"
+      },
+      "status": {
+       "type": [
+        "string",
+        "null"
+       ]
       },
       "type": {
        "enum": [
@@ -3220,6 +3457,12 @@
         "null"
        ]
       },
+      "encrypted_content": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
       "id": {
        "description": "Legacy id field retained for compatibility with older payloads.",
        "type": [
@@ -3264,6 +3507,12 @@
       "call_id": {
        "type": "string"
       },
+      "encrypted_content": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
       "encrypted_function_args": {
        "items": {
         "type": "string"
@@ -3298,6 +3547,12 @@
         "null"
        ]
       },
+      "status": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
       "type": {
        "enum": [
         "function_call"
@@ -3319,6 +3574,12 @@
      "properties": {
       "arguments": true,
       "call_id": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "encrypted_content": {
        "type": [
         "string",
         "null"
@@ -3423,6 +3684,12 @@
      "properties": {
       "call_id": {
        "type": "string"
+      },
+      "encrypted_content": {
+       "type": [
+        "string",
+        "null"
+       ]
       },
       "id": {
        "type": [
@@ -3584,6 +3851,12 @@
         }
        ]
       },
+      "encrypted_content": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
       "id": {
        "type": [
         "string",
@@ -3622,6 +3895,12 @@
     },
     {
      "properties": {
+      "encrypted_content": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
       "id": {
        "type": [
         "string",
@@ -4217,7 +4496,7 @@
      "type": "string"
     },
     "path": {
-     "$ref": "#/definitions/AbsolutePathBuf"
+     "$ref": "#/definitions/LegacyAppPathString"
     },
     "pluginId": {
      "description": "Owning plugin ID, matching `PluginSummary.id`, when known.",
@@ -4735,7 +5014,7 @@
      "description": "Optional analytics source classification for this thread."
     },
     "turns": {
-     "description": "Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read` (when `includeTurns` is true) responses. For all other responses and notifications returning a Thread, the turns field will be an empty list.",
+     "description": "Only populated on `thread/resume`, `thread/fork`, and `thread/read` (when `includeTurns` is true) responses. For all other responses and notifications returning a Thread, the turns field will be an empty list.",
      "items": {
       "$ref": "#/definitions/Turn"
      },
@@ -5196,11 +5475,22 @@
        "type": "string"
       },
       "mcpAppResourceUri": {
-       "description": "Deprecated: use `appContext.resourceUri` instead.",
+       "description": "Legacy compatibility field; prefer `mcpAppUi.resourceUri` when available.",
        "type": [
         "string",
         "null"
        ]
+      },
+      "mcpAppUi": {
+       "anyOf": [
+        {
+         "$ref": "#/definitions/McpAppUi"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Presentation captured from the invoked descriptor; absent in older history."
       },
       "pluginId": {
        "type": [
@@ -5410,6 +5700,24 @@
       "kind": {
        "$ref": "#/definitions/SubAgentActivityKind"
       },
+      "model": {
+       "description": "Resolved model at sub-agent creation; absent from older records and other activities.",
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "reasoningEffort": {
+       "anyOf": [
+        {
+         "$ref": "#/definitions/ReasoningEffort"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Resolved reasoning effort at sub-agent creation, when known."
+      },
       "type": {
        "enum": [
         "subAgentActivity"
@@ -5523,6 +5831,33 @@
      "type": "object"
     },
     {
+     "anyOf": [
+      {
+       "properties": {
+        "fileId": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "fileId"
+       ],
+       "title": "FileIdThreadItem",
+       "type": "object"
+      },
+      {
+       "properties": {
+        "result": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "result"
+       ],
+       "title": "ResultThreadItem",
+       "type": "object"
+      }
+     ],
+     "description": "Either inline generated-image data or its durable attachment-store identity.\n\n`File` must remain first so rollouts written during the migration, which contain both an empty `result` and a `fileId`, retain the file reference when deserialized.",
      "properties": {
       "failure": {
        "anyOf": [
@@ -5538,8 +5873,12 @@
       "id": {
        "type": "string"
       },
-      "result": {
-       "type": "string"
+      "inputImages": {
+       "description": "Observed local inputs for a completed generation, absent on older items.",
+       "items": {
+        "$ref": "#/definitions/ImageGenerationInputImage"
+       },
+       "type": "array"
       },
       "revisedPrompt": {
        "type": [
@@ -5577,7 +5916,6 @@
      },
      "required": [
       "id",
-      "result",
       "status",
       "type"
      ],
@@ -5801,7 +6139,8 @@
       {
        "type": "null"
       }
-     ]
+     ],
+     "description": "@deprecated `friendly` and `pragmatic` no longer select a style. Changing this does not rewrite the thread's existing instructions."
     },
     "runtimeWorkspaceRoots": {
      "description": "Replace the thread's runtime workspace roots. Paths must be absolute.",
@@ -5865,8 +6204,27 @@
      ],
      "description": "Reviewer currently used for approval requests on this thread."
     },
+    "collaborationMode": {
+     "anyOf": [
+      {
+       "$ref": "#/definitions/CollaborationMode"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "Effective collaboration mode. Absent when resuming from an older server."
+    },
     "cwd": {
      "$ref": "#/definitions/AbsolutePathBuf"
+    },
+    "disabledPluginIds": {
+     "default": [],
+     "description": "Saved list of disabled plugin IDs. Does not yet filter plugin capabilities.",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
     },
     "initialTurnsPage": {
      "anyOf": [
@@ -6065,6 +6423,13 @@
       "null"
      ]
     },
+    "daybreakEnabled": {
+     "description": "Initial Daybreak choice for this persistent thread. Omitted or null leaves it unset. This does not select a turn's `cyberAccessProgram` or grant access. Not supported for ephemeral threads.",
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
     "developerInstructions": {
      "type": [
       "string",
@@ -6157,7 +6522,8 @@
       {
        "type": "null"
       }
-     ]
+     ],
+     "description": "@deprecated `friendly` and `pragmatic` no longer select a style."
     },
     "projectId": {
      "description": "Optional project identity for this new thread. Durable threads persist the assignment; ephemeral threads expose it only in live responses.",
@@ -6261,6 +6627,14 @@
     },
     "cwd": {
      "$ref": "#/definitions/AbsolutePathBuf"
+    },
+    "disabledPluginIds": {
+     "default": [],
+     "description": "Saved list of disabled plugin IDs. Does not yet filter plugin capabilities.",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
     },
     "instructionSources": {
      "default": [],
@@ -6522,7 +6896,7 @@
        "type": "null"
       }
      ],
-     "description": "Only populated when the Turn's status is failed."
+     "description": "Error associated with a failed or interrupted turn."
     },
     "id": {
      "description": "Identifier for this turn. Codex-generated turn IDs are UUIDv7.",
@@ -6543,6 +6917,13 @@
      ],
      "default": "full",
      "description": "Describes how much of `items` has been loaded for this turn."
+    },
+    "rootTurnId": {
+     "description": "ID of the first turn in the chain of work that led to this turn. Pass this as `rootTurnId` when starting work on behalf of this turn. May be null in older history or a `review/start` response.",
+     "type": [
+      "string",
+      "null"
+     ]
     },
     "startedAt": {
      "description": "Unix timestamp (in seconds) when the turn started.",
@@ -6755,7 +7136,17 @@
        "type": "null"
       }
      ],
-     "description": "EXPERIMENTAL - Request a workspace-authorized cyber program for this turn. Omission preserves automatic behavior. This does not grant access."
+     "description": "EXPERIMENTAL - Request an authorized cyber program for this turn. Omission preserves automatic behavior. This does not grant access."
+    },
+    "disabledPluginIds": {
+     "description": "Replace this thread's disabled plugin IDs. Omitted/null preserves the list; [] clears it.",
+     "items": {
+      "type": "string"
+     },
+     "type": [
+      "array",
+      "null"
+     ]
     },
     "effort": {
      "anyOf": [
@@ -6805,6 +7196,13 @@
     "outputSchema": {
      "description": "Optional JSON Schema used to constrain the final assistant message for this turn."
     },
+    "parentTurnId": {
+     "description": "ID of the turn that caused this new turn to start.\n\nSet this when starting work on behalf of another turn, such as delegated work in a different thread. Leave unset for work started directly by the user. Ignored when this request adds input to an active turn.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
     "permissions": {
      "description": "Select a named permissions profile id for this turn and subsequent turns. Cannot be combined with `sandboxPolicy`.",
      "type": [
@@ -6821,15 +7219,32 @@
        "type": "null"
       }
      ],
-     "description": "Override the personality for this turn and subsequent turns."
+     "description": "@deprecated `friendly` and `pragmatic` no longer select a style. Changing this does not rewrite the thread's existing instructions."
     },
     "responsesapiClientMetadata": {
      "additionalProperties": {
       "type": "string"
      },
-     "description": "Optional metadata to enrich Codex's ResponsesAPI turn metadata.\n\nEntries are flattened into the JSON string sent as `client_metadata[\"x-codex-turn-metadata\"]` on ResponsesAPI HTTP and websocket requests.\n\nThey are not sent as top-level ResponsesAPI `client_metadata` keys, and reserved keys such as `session_id`, `thread_id`, `turn_id`, and `window_id` cannot be overridden.",
+     "description": "Optional metadata to enrich Codex's ResponsesAPI turn metadata. Replaces unprotected client-provided entries when supplied; an empty map clears them.\n\nEntries are flattened into the JSON string sent as `client_metadata[\"x-codex-turn-metadata\"]` on ResponsesAPI HTTP and websocket requests.\n\nThey are not sent as top-level ResponsesAPI `client_metadata` keys, and reserved keys such as `session_id`, `thread_id`, `turn_id`, and `window_id` cannot be overridden.",
      "type": [
       "object",
+      "null"
+     ]
+    },
+    "responsesapiClientMetadataPatch": {
+     "additionalProperties": {
+      "type": "string"
+     },
+     "description": "Merge entries into the ResponsesAPI turn metadata without removing existing entries. Applied after `responsesapiClientMetadata` if both are provided; reserved keys remain protected.",
+     "type": [
+      "object",
+      "null"
+     ]
+    },
+    "rootTurnId": {
+     "description": "ID of the first turn in the chain of work that led to this new turn.\n\nWhen setting `parentTurnId`, set this to the parent turn's `rootTurnId` when known. This keeps descendant work attributed to the original turn. If omitted, the new turn becomes its own root. Ignored when this request adds input to an active turn.",
+     "type": [
+      "string",
       "null"
      ]
     },
@@ -6962,7 +7377,17 @@
      "additionalProperties": {
       "type": "string"
      },
-     "description": "Optional metadata to enrich Codex's ResponsesAPI turn metadata.\n\nEntries are flattened into the JSON string sent as `client_metadata[\"x-codex-turn-metadata\"]` on ResponsesAPI HTTP and websocket requests.\n\nThey are not sent as top-level ResponsesAPI `client_metadata` keys, and reserved keys such as `session_id`, `thread_id`, `turn_id`, and `window_id` cannot be overridden.",
+     "description": "Optional metadata to enrich Codex's ResponsesAPI turn metadata. Replaces unprotected client-provided entries when supplied; an empty map clears them.\n\nEntries are flattened into the JSON string sent as `client_metadata[\"x-codex-turn-metadata\"]` on ResponsesAPI HTTP and websocket requests.\n\nThey are not sent as top-level ResponsesAPI `client_metadata` keys, and reserved keys such as `session_id`, `thread_id`, `turn_id`, and `window_id` cannot be overridden.",
+     "type": [
+      "object",
+      "null"
+     ]
+    },
+    "responsesapiClientMetadataPatch": {
+     "additionalProperties": {
+      "type": "string"
+     },
+     "description": "Merge entries into the ResponsesAPI turn metadata without removing existing entries. Applied after `responsesapiClientMetadata` if both are provided; reserved keys remain protected.",
      "type": [
       "object",
       "null"
@@ -6993,6 +7418,10 @@
     },
     "output": {
      "$ref": "#/definitions/FunctionCallOutputBody"
+    },
+    "retain": {
+     "description": "Requests retention of this output in the thread's model history.",
+     "type": "boolean"
     }
    },
    "required": [
@@ -7058,6 +7487,32 @@
      "type": "object"
     },
     {
+     "anyOf": [
+      {
+       "properties": {
+        "url": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "url"
+       ],
+       "title": "UrlUserInput",
+       "type": "object"
+      },
+      {
+       "properties": {
+        "fileId": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "fileId"
+       ],
+       "title": "FileIdUserInput",
+       "type": "object"
+      }
+     ],
      "properties": {
       "detail": {
        "anyOf": [
@@ -7076,14 +7531,10 @@
        ],
        "title": "ImageUserInputType",
        "type": "string"
-      },
-      "url": {
-       "type": "string"
       }
      },
      "required": [
-      "type",
-      "url"
+      "type"
      ],
      "title": "ImageUserInput",
      "type": "object"
@@ -7309,6 +7760,25 @@
      "type": "object"
     }
    ]
+  },
+  "WorkspaceRouting": {
+   "properties": {
+    "accountRoutingOverride": {
+     "$ref": "#/definitions/AccountRoutingOverride"
+    },
+    "backendOrigin": {
+     "type": "string"
+    },
+    "chatgptAccountId": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "accountRoutingOverride",
+    "backendOrigin",
+    "chatgptAccountId"
+   ],
+   "type": "object"
   }
  },
  "methods": {
@@ -7316,8 +7786,12 @@
    "initialized": ""
   },
   "ClientRequest": {
+   "account/bedrock/checkGovCloudRequirements": "BedrockCheckGovCloudRequirementsParams",
    "account/bedrock/discover": "BedrockDiscoverParams",
    "account/bedrock/setup": "BedrockSetupParams",
+   "account/gatewayOAuth/cancel": "",
+   "account/gatewayOAuth/login": "",
+   "account/gatewayOAuth/read": "",
    "account/login/cancel": "CancelLoginAccountParams",
    "account/login/start": "LoginAccountParams",
    "account/logout": "",
@@ -7349,6 +7823,7 @@
    "externalAgentConfig/import": "ExternalAgentConfigImportParams",
    "externalAgentConfig/import/readHistories": "",
    "externalAgentConfig/import/recordHistory": "ExternalAgentConfigImportHistoryRecordParams",
+   "feedback/save": "FeedbackSaveParams",
    "feedback/upload": "FeedbackUploadParams",
    "fs/copy": "FsCopyParams",
    "fs/createDirectory": "FsCreateDirectoryParams",
@@ -7412,6 +7887,7 @@
    "remoteControl/pairing/status": "RemoteControlPairingStatusParams",
    "remoteControl/status/read": "",
    "review/start": "ReviewStartParams",
+   "rollout/compress": "",
    "server/diagnostics": "ServerDiagnosticsParams",
    "skills/config/write": "SkillsConfigWriteParams",
    "skills/extraRoots/set": "SkillsExtraRootsSetParams",
@@ -7421,6 +7897,7 @@
    "thread/attachment/add": "ThreadAttachmentAddParams",
    "thread/attachment/list": "ThreadAttachmentListParams",
    "thread/attachment/remove": "ThreadAttachmentRemoveParams",
+   "thread/attachmentOwner/list": "ThreadAttachmentOwnerListParams",
    "thread/backgroundTerminals/clean": "ThreadBackgroundTerminalsCleanParams",
    "thread/backgroundTerminals/list": "ThreadBackgroundTerminalsListParams",
    "thread/backgroundTerminals/terminate": "ThreadBackgroundTerminalsTerminateParams",
@@ -7434,11 +7911,14 @@
    "thread/increment_elicitation": "ThreadIncrementElicitationParams",
    "thread/inject_items": "ThreadInjectItemsParams",
    "thread/items/list": "ThreadItemsListParams",
+   "thread/items/read": "ThreadItemsReadParams",
    "thread/list": "ThreadListParams",
    "thread/loaded/list": "ThreadLoadedListParams",
+   "thread/memory/read": "ThreadMemoryReadParams",
    "thread/memoryMode/set": "ThreadMemoryModeSetParams",
    "thread/metadata/update": "ThreadMetadataUpdateParams",
    "thread/name/set": "ThreadSetNameParams",
+   "thread/prediction/request": "ThreadPredictionRequestParams",
    "thread/queue/add": "ThreadQueueAddParams",
    "thread/queue/delete": "ThreadQueueDeleteParams",
    "thread/queue/list": "ThreadQueueListParams",
@@ -7446,6 +7926,7 @@
    "thread/queue/start": "ThreadQueueStartParams",
    "thread/queue/update": "ThreadQueueUpdateParams",
    "thread/read": "ThreadReadParams",
+   "thread/readState/update": "ThreadReadStateUpdateParams",
    "thread/realtime/appendAudio": "ThreadRealtimeAppendAudioParams",
    "thread/realtime/appendSpeech": "ThreadRealtimeAppendSpeechParams",
    "thread/realtime/appendText": "ThreadRealtimeAppendTextParams",
@@ -7454,7 +7935,8 @@
    "thread/realtime/stop": "ThreadRealtimeStopParams",
    "thread/resume": "ThreadResumeParams",
    "thread/revert": "ThreadRevertParams",
-   "thread/rollback": "ThreadRollbackParams",
+   "thread/sample": "ThreadSampleParams",
+   "thread/sample/cancel": "ThreadSampleCancelParams",
    "thread/search": "ThreadSearchParams",
    "thread/searchOccurrences": "ThreadSearchOccurrencesParams",
    "thread/section/move": "ThreadSectionMoveParams",
@@ -7482,6 +7964,7 @@
    "windowsSandbox/setupStart": "WindowsSandboxSetupStartParams"
   },
   "ServerNotification": {
+   "account/gatewayOAuth/changed": "GatewayOAuthChangedNotification",
    "account/login/completed": "AccountLoginCompletedNotification",
    "account/rateLimits/updated": "AccountRateLimitsUpdatedNotification",
    "account/updated": "AccountUpdatedNotification",
@@ -7537,8 +8020,10 @@
    "thread/goal/cleared": "ThreadGoalClearedNotification",
    "thread/goal/updated": "ThreadGoalUpdatedNotification",
    "thread/name/updated": "ThreadNameUpdatedNotification",
+   "thread/prediction/updated": "ThreadPredictionUpdatedNotification",
    "thread/project/updated": "ThreadProjectUpdatedNotification",
    "thread/queue/changed": "ThreadQueueChangedNotification",
+   "thread/readState/changed": "ThreadReadStateChangedNotification",
    "thread/realtime/closed": "ThreadRealtimeClosedNotification",
    "thread/realtime/error": "ThreadRealtimeErrorNotification",
    "thread/realtime/item/completed": "ThreadRealtimeItemCompletedNotification",

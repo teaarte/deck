@@ -24,6 +24,8 @@ type AccountRateLimitsUpdatedNotification struct {
 	RateLimits RateLimitSnapshot `json:"rateLimits"`
 }
 
+type AccountRoutingOverride string
+
 type ActivePermissionProfile struct {
 	Extends string `json:"extends,omitempty"`
 	ID      string `json:"id"`
@@ -60,6 +62,13 @@ type AdditionalNetworkPermissions struct {
 type AdditionalPermissionProfile struct {
 	FileSystem *AdditionalFileSystemPermissions `json:"fileSystem,omitempty"`
 	Network    *AdditionalNetworkPermissions    `json:"network,omitempty"`
+}
+
+type AdditionalToolsResponseItem struct {
+	ID    string            `json:"id,omitempty"`
+	Role  string            `json:"role"`
+	Tools []json.RawMessage `json:"tools"`
+	Type  string            `json:"type"`
 }
 
 type AgentMessageDelivery string
@@ -270,6 +279,7 @@ type CustomToolCallOutputResponseItem struct {
 
 type CustomToolCallResponseItem struct {
 	CallID                                 string                                  `json:"call_id"`
+	EncryptedContent                       string                                  `json:"encrypted_content,omitempty"`
 	ID                                     string                                  `json:"id,omitempty"`
 	Input                                  string                                  `json:"input"`
 	InternalChatMessageMetadataPassthrough *InternalChatMessageMetadataPassthrough `json:"internal_chat_message_metadata_passthrough,omitempty"`
@@ -427,11 +437,13 @@ type FunctionCallOutputThreadItem struct {
 type FunctionCallResponseItem struct {
 	Arguments                              string                                  `json:"arguments"`
 	CallID                                 string                                  `json:"call_id"`
+	EncryptedContent                       string                                  `json:"encrypted_content,omitempty"`
 	EncryptedFunctionArgs                  []string                                `json:"encrypted_function_args,omitempty"`
 	ID                                     string                                  `json:"id,omitempty"`
 	InternalChatMessageMetadataPassthrough *InternalChatMessageMetadataPassthrough `json:"internal_chat_message_metadata_passthrough,omitempty"`
 	Name                                   string                                  `json:"name"`
 	Namespace                              string                                  `json:"namespace,omitempty"`
+	Status                                 string                                  `json:"status,omitempty"`
 	Type                                   string                                  `json:"type"`
 }
 
@@ -451,13 +463,18 @@ type FunctionDynamicToolSpec struct {
 	Type         string          `json:"type"`
 }
 
+type GcpAccount struct {
+	Type string `json:"type"`
+}
+
 type GetAccountParams struct {
 	RefreshToken bool `json:"refreshToken,omitempty"`
 }
 
 type GetAccountResponse struct {
-	Account            Account `json:"account,omitempty"`
-	RequiresOpenaiAuth bool    `json:"requiresOpenaiAuth"`
+	Account            Account           `json:"account,omitempty"`
+	RequiresOpenaiAuth bool              `json:"requiresOpenaiAuth"`
+	WorkspaceRouting   *WorkspaceRouting `json:"workspaceRouting,omitempty"`
 }
 
 type GitInfo struct {
@@ -514,6 +531,7 @@ type IdleThreadStatus struct {
 type ImageDetail string
 
 type ImageGenerationCallResponseItem struct {
+	EncryptedContent                       string                                  `json:"encrypted_content,omitempty"`
 	ID                                     string                                  `json:"id,omitempty"`
 	InternalChatMessageMetadataPassthrough *InternalChatMessageMetadataPassthrough `json:"internal_chat_message_metadata_passthrough,omitempty"`
 	Result                                 string                                  `json:"result"`
@@ -524,21 +542,25 @@ type ImageGenerationCallResponseItem struct {
 
 type ImageGenerationFailure = json.RawMessage
 
+type ImageGenerationInputImage struct {
+	Path   AbsolutePathBuf `json:"path"`
+	Sha256 string          `json:"sha256"`
+}
+
 type ImageGenerationThreadItem struct {
-	Failure               ImageGenerationFailure `json:"failure,omitempty"`
-	ID                    string                 `json:"id"`
-	Result                string                 `json:"result"`
-	RevisedPrompt         string                 `json:"revisedPrompt,omitempty"`
-	SavedPath             AbsolutePathBuf        `json:"savedPath,omitempty"`
-	Status                string                 `json:"status"`
-	TransparentBackground bool                   `json:"transparentBackground,omitempty"`
-	Type                  string                 `json:"type"`
+	Failure               ImageGenerationFailure      `json:"failure,omitempty"`
+	ID                    string                      `json:"id"`
+	InputImages           []ImageGenerationInputImage `json:"inputImages,omitempty"`
+	RevisedPrompt         string                      `json:"revisedPrompt,omitempty"`
+	SavedPath             AbsolutePathBuf             `json:"savedPath,omitempty"`
+	Status                string                      `json:"status"`
+	TransparentBackground bool                        `json:"transparentBackground,omitempty"`
+	Type                  string                      `json:"type"`
 }
 
 type ImageUserInput struct {
 	Detail ImageDetail `json:"detail,omitempty"`
 	Type   string      `json:"type"`
-	URL    string      `json:"url"`
 }
 
 type ImageViewThreadItem struct {
@@ -549,6 +571,7 @@ type ImageViewThreadItem struct {
 
 type InitializeCapabilities struct {
 	ExperimentalAPI                bool           `json:"experimentalApi,omitempty"`
+	ExplicitGatewayOauth           bool           `json:"explicitGatewayOauth,omitempty"`
 	Extensions                     map[string]any `json:"extensions,omitempty"`
 	MCPServerOpenaiFormElicitation bool           `json:"mcpServerOpenaiFormElicitation,omitempty"`
 	OptOutNotificationMethods      []string       `json:"optOutNotificationMethods,omitempty"`
@@ -578,9 +601,8 @@ type InputAudioDynamicToolCallOutputContentItem struct {
 }
 
 type InputImageContentItem struct {
-	Detail   ImageDetail `json:"detail,omitempty"`
-	ImageURL string      `json:"image_url"`
-	Type     string      `json:"type"`
+	Detail ImageDetail `json:"detail,omitempty"`
+	Type   string      `json:"type"`
 }
 
 type InputImageDynamicToolCallOutputContentItem struct {
@@ -652,6 +674,7 @@ type LocalShellAction = json.RawMessage
 type LocalShellCallResponseItem struct {
 	Action                                 LocalShellAction                        `json:"action"`
 	CallID                                 string                                  `json:"call_id,omitempty"`
+	EncryptedContent                       string                                  `json:"encrypted_content,omitempty"`
 	ID                                     string                                  `json:"id,omitempty"`
 	InternalChatMessageMetadataPassthrough *InternalChatMessageMetadataPassthrough `json:"internal_chat_message_metadata_passthrough,omitempty"`
 	Status                                 LocalShellStatus                        `json:"status"`
@@ -659,6 +682,13 @@ type LocalShellCallResponseItem struct {
 }
 
 type LocalShellStatus string
+
+type MCPAppDisplayMode string
+
+type MCPAppUi struct {
+	PreferredModelDisplayMode MCPAppDisplayMode `json:"preferredModelDisplayMode"`
+	ResourceUri               string            `json:"resourceUri"`
+}
 
 type MCPServerElicitationAction string
 
@@ -695,6 +725,7 @@ type MCPToolCallThreadItem struct {
 	Error             *MCPToolCallError      `json:"error,omitempty"`
 	ID                string                 `json:"id"`
 	MCPAppResourceUri string                 `json:"mcpAppResourceUri,omitempty"`
+	MCPAppUi          *MCPAppUi              `json:"mcpAppUi,omitempty"`
 	PluginID          string                 `json:"pluginId,omitempty"`
 	ReadOnlyHint      bool                   `json:"readOnlyHint,omitempty"`
 	Result            *MCPToolCallResult     `json:"result,omitempty"`
@@ -726,10 +757,12 @@ type MessagePhase = json.RawMessage
 
 type MessageResponseItem struct {
 	Content                                []ContentItem                           `json:"content"`
+	EncryptedContent                       string                                  `json:"encrypted_content,omitempty"`
 	ID                                     string                                  `json:"id,omitempty"`
 	InternalChatMessageMetadataPassthrough *InternalChatMessageMetadataPassthrough `json:"internal_chat_message_metadata_passthrough,omitempty"`
 	Phase                                  MessagePhase                            `json:"phase,omitempty"`
 	Role                                   string                                  `json:"role"`
+	Status                                 string                                  `json:"status,omitempty"`
 	Type                                   string                                  `json:"type"`
 }
 
@@ -740,6 +773,7 @@ type MinimalFileSystemSpecialPath struct {
 type MisalignmentErrorDetails struct {
 	DetailedExplanation string             `json:"detailedExplanation,omitempty"`
 	ErrorType           string             `json:"errorType,omitempty"`
+	ReviewTarget        string             `json:"reviewTarget,omitempty"`
 	Steer               *MisalignmentSteer `json:"steer,omitempty"`
 }
 
@@ -752,6 +786,7 @@ type ModeKind string
 type Model struct {
 	AdditionalSpeedTiers      []string                `json:"additionalSpeedTiers,omitempty"`
 	AvailabilityNux           *ModelAvailabilityNux   `json:"availabilityNux,omitempty"`
+	AvailableAccessPrograms   *ModelAccessPrograms    `json:"availableAccessPrograms,omitempty"`
 	DefaultReasoningEffort    ReasoningEffort         `json:"defaultReasoningEffort"`
 	DefaultServiceTier        string                  `json:"defaultServiceTier,omitempty"`
 	Description               string                  `json:"description"`
@@ -768,6 +803,10 @@ type Model struct {
 	SupportsPersonality       bool                    `json:"supportsPersonality,omitempty"`
 	Upgrade                   string                  `json:"upgrade,omitempty"`
 	UpgradeInfo               *ModelUpgradeInfo       `json:"upgradeInfo,omitempty"`
+}
+
+type ModelAccessPrograms struct {
+	Cyber []CyberAccessProgram `json:"cyber"`
 }
 
 type ModelAvailabilityNux struct {
@@ -859,8 +898,10 @@ type OtherWebSearchAction struct {
 }
 
 type OutputTextContentItem struct {
-	Text string `json:"text"`
-	Type string `json:"type"`
+	Annotations []json.RawMessage `json:"annotations,omitempty"`
+	Logprobs    []json.RawMessage `json:"logprobs,omitempty"`
+	Text        string            `json:"text"`
+	Type        string            `json:"type"`
 }
 
 type PatchApplyStatus string
@@ -1046,15 +1087,15 @@ type SkillInterface struct {
 }
 
 type SkillMetadata struct {
-	Dependencies     *SkillDependencies `json:"dependencies,omitempty"`
-	Description      string             `json:"description"`
-	Enabled          bool               `json:"enabled"`
-	Interface        *SkillInterface    `json:"interface,omitempty"`
-	Name             string             `json:"name"`
-	Path             AbsolutePathBuf    `json:"path"`
-	PluginID         string             `json:"pluginId,omitempty"`
-	Scope            SkillScope         `json:"scope"`
-	ShortDescription string             `json:"shortDescription,omitempty"`
+	Dependencies     *SkillDependencies  `json:"dependencies,omitempty"`
+	Description      string              `json:"description"`
+	Enabled          bool                `json:"enabled"`
+	Interface        *SkillInterface     `json:"interface,omitempty"`
+	Name             string              `json:"name"`
+	Path             LegacyAppPathString `json:"path"`
+	PluginID         string              `json:"pluginId,omitempty"`
+	Scope            SkillScope          `json:"scope"`
+	ShortDescription string              `json:"shortDescription,omitempty"`
 }
 
 type SkillScope string
@@ -1120,11 +1161,13 @@ type SpendControlLimitSnapshot struct {
 type SubAgentActivityKind string
 
 type SubAgentActivityThreadItem struct {
-	AgentPath     string               `json:"agentPath"`
-	AgentThreadID string               `json:"agentThreadId"`
-	ID            string               `json:"id"`
-	Kind          SubAgentActivityKind `json:"kind"`
-	Type          string               `json:"type"`
+	AgentPath       string               `json:"agentPath"`
+	AgentThreadID   string               `json:"agentThreadId"`
+	ID              string               `json:"id"`
+	Kind            SubAgentActivityKind `json:"kind"`
+	Model           string               `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort      `json:"reasoningEffort,omitempty"`
+	Type            string               `json:"type"`
 }
 
 type SubAgentSessionSource struct {
@@ -1240,7 +1283,9 @@ type ThreadResumeResponse struct {
 	ActivePermissionProfile *ActivePermissionProfile `json:"activePermissionProfile,omitempty"`
 	ApprovalPolicy          AskForApproval           `json:"approvalPolicy"`
 	ApprovalsReviewer       ApprovalsReviewer        `json:"approvalsReviewer"`
+	CollaborationMode       *CollaborationMode       `json:"collaborationMode,omitempty"`
 	Cwd                     AbsolutePathBuf          `json:"cwd"`
+	DisabledPluginIds       []string                 `json:"disabledPluginIds,omitempty"`
 	InitialTurnsPage        *TurnsPage               `json:"initialTurnsPage,omitempty"`
 	InstructionSources      []LegacyAppPathString    `json:"instructionSources,omitempty"`
 	ItemsBackwardsCursor    string                   `json:"itemsBackwardsCursor,omitempty"`
@@ -1287,6 +1332,7 @@ type ThreadStartParams struct {
 	BaseInstructions           string                   `json:"baseInstructions,omitempty"`
 	Config                     map[string]any           `json:"config,omitempty"`
 	Cwd                        string                   `json:"cwd,omitempty"`
+	DaybreakEnabled            bool                     `json:"daybreakEnabled,omitempty"`
 	DeveloperInstructions      string                   `json:"developerInstructions,omitempty"`
 	DynamicTools               []DynamicToolSpec        `json:"dynamicTools,omitempty"`
 	Environments               []TurnEnvironmentParams  `json:"environments,omitempty"`
@@ -1314,6 +1360,7 @@ type ThreadStartResponse struct {
 	ApprovalPolicy          AskForApproval           `json:"approvalPolicy"`
 	ApprovalsReviewer       ApprovalsReviewer        `json:"approvalsReviewer"`
 	Cwd                     AbsolutePathBuf          `json:"cwd"`
+	DisabledPluginIds       []string                 `json:"disabledPluginIds,omitempty"`
 	InstructionSources      []LegacyAppPathString    `json:"instructionSources,omitempty"`
 	Model                   string                   `json:"model"`
 	ModelProvider           string                   `json:"modelProvider"`
@@ -1357,6 +1404,7 @@ type TokenUsageBreakdown struct {
 type ToolSearchCallResponseItem struct {
 	Arguments                              json.RawMessage                         `json:"arguments"`
 	CallID                                 string                                  `json:"call_id,omitempty"`
+	EncryptedContent                       string                                  `json:"encrypted_content,omitempty"`
 	Execution                              string                                  `json:"execution"`
 	ID                                     string                                  `json:"id,omitempty"`
 	InternalChatMessageMetadataPassthrough *InternalChatMessageMetadataPassthrough `json:"internal_chat_message_metadata_passthrough,omitempty"`
@@ -1381,6 +1429,7 @@ type Turn struct {
 	ID          string        `json:"id"`
 	Items       []ThreadItem  `json:"items"`
 	ItemsView   TurnItemsView `json:"itemsView,omitempty"`
+	RootTurnID  string        `json:"rootTurnId,omitempty"`
 	StartedAt   int64         `json:"startedAt,omitempty"`
 	Status      TurnStatus    `json:"status"`
 }
@@ -1411,30 +1460,34 @@ type TurnInterruptParams struct {
 type TurnItemsView = json.RawMessage
 
 type TurnStartParams struct {
-	AdditionalContext          map[string]any          `json:"additionalContext,omitempty"`
-	ApprovalPolicy             AskForApproval          `json:"approvalPolicy,omitempty"`
-	ApprovalsReviewer          ApprovalsReviewer       `json:"approvalsReviewer,omitempty"`
-	ClientUserMessageID        string                  `json:"clientUserMessageId,omitempty"`
-	CollaborationMode          *CollaborationMode      `json:"collaborationMode,omitempty"`
-	Cwd                        string                  `json:"cwd,omitempty"`
-	CyberAccessProgram         CyberAccessProgram      `json:"cyberAccessProgram,omitempty"`
-	Effort                     ReasoningEffort         `json:"effort,omitempty"`
-	Environments               []TurnEnvironmentParams `json:"environments,omitempty"`
-	Input                      []UserInput             `json:"input"`
-	Model                      string                  `json:"model,omitempty"`
-	MultiAgentMode             MultiAgentMode          `json:"multiAgentMode,omitempty"`
-	OutputSchema               json.RawMessage         `json:"outputSchema,omitempty"`
-	Permissions                string                  `json:"permissions,omitempty"`
-	Personality                Personality             `json:"personality,omitempty"`
-	ResponsesapiClientMetadata map[string]any          `json:"responsesapiClientMetadata,omitempty"`
-	RuntimeWorkspaceRoots      []AbsolutePathBuf       `json:"runtimeWorkspaceRoots,omitempty"`
-	SandboxPolicy              SandboxPolicy           `json:"sandboxPolicy,omitempty"`
-	ServiceTier                string                  `json:"serviceTier,omitempty"`
-	ServiceTierForTurn         string                  `json:"serviceTierForTurn,omitempty"`
-	Summary                    ReasoningSummary        `json:"summary,omitempty"`
-	ThreadID                   string                  `json:"threadId"`
-	ToolOutput                 *TurnToolOutput         `json:"toolOutput,omitempty"`
-	TurnTrigger                string                  `json:"turnTrigger,omitempty"`
+	AdditionalContext               map[string]any          `json:"additionalContext,omitempty"`
+	ApprovalPolicy                  AskForApproval          `json:"approvalPolicy,omitempty"`
+	ApprovalsReviewer               ApprovalsReviewer       `json:"approvalsReviewer,omitempty"`
+	ClientUserMessageID             string                  `json:"clientUserMessageId,omitempty"`
+	CollaborationMode               *CollaborationMode      `json:"collaborationMode,omitempty"`
+	Cwd                             string                  `json:"cwd,omitempty"`
+	CyberAccessProgram              CyberAccessProgram      `json:"cyberAccessProgram,omitempty"`
+	DisabledPluginIds               []string                `json:"disabledPluginIds,omitempty"`
+	Effort                          ReasoningEffort         `json:"effort,omitempty"`
+	Environments                    []TurnEnvironmentParams `json:"environments,omitempty"`
+	Input                           []UserInput             `json:"input"`
+	Model                           string                  `json:"model,omitempty"`
+	MultiAgentMode                  MultiAgentMode          `json:"multiAgentMode,omitempty"`
+	OutputSchema                    json.RawMessage         `json:"outputSchema,omitempty"`
+	ParentTurnID                    string                  `json:"parentTurnId,omitempty"`
+	Permissions                     string                  `json:"permissions,omitempty"`
+	Personality                     Personality             `json:"personality,omitempty"`
+	ResponsesapiClientMetadata      map[string]any          `json:"responsesapiClientMetadata,omitempty"`
+	ResponsesapiClientMetadataPatch map[string]any          `json:"responsesapiClientMetadataPatch,omitempty"`
+	RootTurnID                      string                  `json:"rootTurnId,omitempty"`
+	RuntimeWorkspaceRoots           []AbsolutePathBuf       `json:"runtimeWorkspaceRoots,omitempty"`
+	SandboxPolicy                   SandboxPolicy           `json:"sandboxPolicy,omitempty"`
+	ServiceTier                     string                  `json:"serviceTier,omitempty"`
+	ServiceTierForTurn              string                  `json:"serviceTierForTurn,omitempty"`
+	Summary                         ReasoningSummary        `json:"summary,omitempty"`
+	ThreadID                        string                  `json:"threadId"`
+	ToolOutput                      *TurnToolOutput         `json:"toolOutput,omitempty"`
+	TurnTrigger                     string                  `json:"turnTrigger,omitempty"`
 }
 
 type TurnStartResponse struct {
@@ -1444,18 +1497,20 @@ type TurnStartResponse struct {
 type TurnStatus string
 
 type TurnSteerParams struct {
-	AdditionalContext          map[string]any `json:"additionalContext,omitempty"`
-	ClientUserMessageID        string         `json:"clientUserMessageId,omitempty"`
-	ExpectedTurnID             string         `json:"expectedTurnId"`
-	Input                      []UserInput    `json:"input"`
-	ResponsesapiClientMetadata map[string]any `json:"responsesapiClientMetadata,omitempty"`
-	ThreadID                   string         `json:"threadId"`
+	AdditionalContext               map[string]any `json:"additionalContext,omitempty"`
+	ClientUserMessageID             string         `json:"clientUserMessageId,omitempty"`
+	ExpectedTurnID                  string         `json:"expectedTurnId"`
+	Input                           []UserInput    `json:"input"`
+	ResponsesapiClientMetadata      map[string]any `json:"responsesapiClientMetadata,omitempty"`
+	ResponsesapiClientMetadataPatch map[string]any `json:"responsesapiClientMetadataPatch,omitempty"`
+	ThreadID                        string         `json:"threadId"`
 }
 
 type TurnToolOutput struct {
 	Name      string                 `json:"name"`
 	Namespace string                 `json:"namespace,omitempty"`
 	Output    FunctionCallOutputBody `json:"output"`
+	Retain    bool                   `json:"retain,omitempty"`
 }
 
 type TurnsPage struct {
@@ -1493,6 +1548,7 @@ type WebSearchAction = json.RawMessage
 
 type WebSearchCallResponseItem struct {
 	Action                                 ResponsesAPIWebSearchAction             `json:"action,omitempty"`
+	EncryptedContent                       string                                  `json:"encrypted_content,omitempty"`
 	ID                                     string                                  `json:"id,omitempty"`
 	InternalChatMessageMetadataPassthrough *InternalChatMessageMetadataPassthrough `json:"internal_chat_message_metadata_passthrough,omitempty"`
 	Status                                 string                                  `json:"status,omitempty"`
@@ -1505,6 +1561,12 @@ type WebSearchThreadItem struct {
 	Query   string            `json:"query"`
 	Results []json.RawMessage `json:"results,omitempty"`
 	Type    string            `json:"type"`
+}
+
+type WorkspaceRouting struct {
+	AccountRoutingOverride AccountRoutingOverride `json:"accountRoutingOverride"`
+	BackendOrigin          string                 `json:"backendOrigin"`
+	ChatgptAccountID       string                 `json:"chatgptAccountId"`
 }
 
 type WorkspaceWriteSandboxPolicy struct {

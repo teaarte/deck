@@ -59,10 +59,7 @@ func TestScenariosOnLinux(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	build := exec.Command("docker", "build", "-q", "-t", "deck2-linux-test", filepath.Join(root, "tests", "linux"))
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("docker build: %v\n%s", err, out)
-	}
+	buildImage(t, root)
 	run := exec.Command("docker", "run", "--rm", "--init", "--security-opt", "seccomp=unconfined", "--security-opt", "apparmor=unconfined",
 		"--security-opt", "systempaths=unconfined", "-v", root+":/src:ro", "-v", "deck2-gomod:/go/pkg/mod", "-v", "deck2-gocache:/cache",
 		"-e", "GOCACHE=/cache", "-e", "GOFLAGS=-buildvcs=false", "-w", "/src", "deck2-linux-test", "sh", "-c",
@@ -88,10 +85,7 @@ func TestScenariosInDecksContainer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	build := exec.Command("docker", "build", "-q", "-t", "deck2-linux-test", filepath.Join(root, "tests", "linux"))
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("docker build: %v\n%s", err, out)
-	}
+	buildImage(t, root)
 	run := exec.Command("docker", "run", "--rm", "--init", "-v", root+":/src:ro", "-v", "deck2-gomod:/go/pkg/mod", "-v", "deck2-gocache:/cache",
 		"-e", "GOCACHE=/cache", "-e", "GOFLAGS=-buildvcs=false", "-e", "DECK_AGENT_USER=agent", "-w", "/src", "deck2-linux-test",
 		"go", "test", "-count=1", "-v", "-run", "^("+strings.Join(containerTests, "|")+")$", "./tests/scenarios")
@@ -103,5 +97,22 @@ func TestScenariosInDecksContainer(t *testing.T) {
 		if !strings.Contains(string(out), "--- PASS: "+name) {
 			t.Errorf("%s did not pass in deck's container:\n%s", name, out)
 		}
+	}
+}
+
+// buildImage builds the image of the tests with the version of Codex deck's own image installs.
+func buildImage(t *testing.T, root string) {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(root, "Dockerfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`(?m)^ARG CODEX_VERSION=(\S+)$`).FindSubmatch(b)
+	if m == nil {
+		t.Fatal("deck's Dockerfile names no CODEX_VERSION")
+	}
+	build := exec.Command("docker", "build", "-q", "--build-arg", "CODEX_VERSION="+string(m[1]), "-t", "deck2-linux-test", filepath.Join(root, "tests", "linux"))
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("docker build: %v\n%s", err, out)
 	}
 }

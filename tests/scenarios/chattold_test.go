@@ -127,6 +127,16 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	if failed.Told.Reason != "агент сообщил об ошибке" || !strings.Contains(failed.Told.Error, "the site is down") || failed.Told.Tone != "error" {
 		t.Fatalf("a work that failed says why in the owner's words: %+v", failed.Told)
 	}
+	e.waitFor("the note of the failed work reads in Russian", func() bool {
+		var notes []feedNote
+		e.must("deck.feed_list", map[string]any{"kind": "note", "lang": "ru"}, &notes)
+		for _, n := range notes {
+			if n.Text == "Команда мастера work не удалась: агент сообщил об ошибке: the site is down" {
+				return true
+			}
+		}
+		return false
+	})
 	e.say(topic, "and now?")
 	e.masterSaid(topic, 3)
 	var after struct {

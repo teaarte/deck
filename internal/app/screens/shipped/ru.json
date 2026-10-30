@@ -243,6 +243,7 @@
   "%s called %s %d times in a row with the same input and got the same answer": "%[1]s %[3]d раза подряд вызвала %[2]s с тем же входом и получила тот же ответ",
   "%s refused a call of the turn: %s": "%s отказала в вызове хода: %s",
   "the agent reported an error: %s": "агент сообщил об ошибке: %s",
+  "The master's command %s failed: %s": "Команда мастера %s не удалась: %s",
   "%s was killed by %s from outside: not deck, a stop of the owner or the ceiling": "%s убит сигналом %s извне: не deck, не остановка владельцем и не потолок времени",
   "%s; the system kills so when memory runs out": "%s; так система убивает, когда не хватает памяти",
   "deck: the request of about %d tokens is past the %d tokens a request of %s holds": "deck: запрос примерно в %d токенов больше %d токенов, которые вмещает %s",

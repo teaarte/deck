@@ -21,7 +21,6 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
-	"deck2/master"
 )
 
 // masterErrorPrefix keys the day a failed command of a project last went to the master; screenErrorPrefix, a
@@ -72,7 +71,7 @@ func (s *Service) toMaster(ctx context.Context, p db.Process) {
 	// The master's own failure goes to the owner's feed instead.
 	s.handOver(ctx, proj, key, 24*time.Hour, input, func(ctx context.Context, q *db.Queries) error {
 		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ProjectID,
-			Text: master.Text("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)})})
+			Text: fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500))})
 	})
 }
 

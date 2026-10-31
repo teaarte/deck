@@ -177,7 +177,7 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
     "far": {"url": %q, "classes": {"ping": "internal"}},
     "fake": {"command": %q, "env": {"DECK_FAKE_MCP": "project", "FAKE_TOKEN": "$secret.fake_token"},
       "toolFilter": ["env", "peek", "dial"], "classes": {"env": "internal", "peek": "internal", "dial": "internal"}}}}}}`, ts.URL, self)))
-	e.Must("deck.secret_set", map[string]any{"name": "fake_token", "value": "t0k-of-the-server"}, nil)
+	e.Secret("srv", "fake_token", "t0k-of-the-server")
 	e.WaitState(e.Start("srv", "work", map[string]any{"step": "srv__far__ping"}), "done")
 	e.WaitState(e.Start("srv", "work", map[string]any{"step": "srv__fake__env"}), "done")
 	if c := got["srv__far__ping"]; c.IsErr || !strings.Contains(c.Out, "pong") {
@@ -359,7 +359,7 @@ func TestSecretAServerPrintsStaysOutOfHealth(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
 
-	e.Must("deck.secret_set", map[string]any{"name": "noisy_key", "value": key}, nil)
+	e.Secret("srv", "noisy_key", key)
 	e.Project("srv", harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
   "tools": {"mcp": {"servers": {"noisy": {"command": "/bin/sh", "args": ["-c", "echo key=$NOISY_KEY >&2; exit 1"],

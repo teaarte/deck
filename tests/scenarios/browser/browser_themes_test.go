@@ -4,19 +4,15 @@ import (
 	"deck2/tests/harness"
 	"fmt"
 	"image/color"
-	"os"
 	"testing"
 )
 
 // TestRealBrowserThemePictures: juce wears its clouds behind the page; a theme with a scene of Today and a pattern
 // shows the scene on the card of Today and repeats the tile behind the page, in both schemes.
 func TestRealBrowserThemePictures(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 820})
 	b.Open(e, "#/")
 	b.until("the clouds of juce behind the tiles", `(() => { const p = document.querySelector('[data-backdrop-picture]');

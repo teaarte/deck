@@ -3,7 +3,6 @@ package browser
 import (
 	"deck2/tests/harness"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -37,10 +36,7 @@ const fitsItsCard = `(() => {
 // TestRealBrowserWidgetsFitTheirCards: on a computer and a phone, cards of every size show only what they hold: no
 // line, number or button goes out of its card or wraps; Today of a low card keeps its last line whole.
 func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	sizes := [][2]int{{1, 1}, {2, 1}, {2, 2}, {3, 2}, {1, 2}, {3, 3}}
@@ -54,7 +50,7 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 		e.Project(name, harness.WidgetsOfWork)
 		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(recs...)}, nil)
 	}
-	b := newPlaywright(t)
+	b := Open(t)
 	for _, phone := range []bool{false, true} {
 		width, height, look := 1400, 1100, "computer"
 		if phone {

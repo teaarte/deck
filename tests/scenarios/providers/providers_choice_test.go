@@ -153,11 +153,9 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 		}
 	}
 	e.MustAgentModel(map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k", "agent": "goose"})
-	_, err := e.App.Store.DB.Exec(`INSERT INTO connection (workspace_id, name, url) VALUES (1, 'old', 'https://api.example/v1?key=sk-stored');
+	// A connection an older deck stored with the key in its URL, which a save now refuses.
+	e.SQL(`INSERT INTO connection (workspace_id, name, url) VALUES (1, 'old', 'https://api.example/v1?key=sk-stored');
 		INSERT INTO model (workspace_id, connection_id, name, model, agent) SELECT 1, id, 'old', 'm', 'goose' FROM connection WHERE name = 'old'`)
-	if err != nil {
-		t.Fatal(err)
-	}
 	var list map[string]any
 	e.Must("deck.models_list", nil, &list)
 	if strings.Contains(fmt.Sprint(list), "sk-stored") {

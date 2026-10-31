@@ -16,27 +16,24 @@ import (
 	"time"
 )
 
-// TestRealBrowserCatalog draws the blocks of a forecast module in the real browser of Playwright MCP:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
+// TestRealBrowserCatalog draws the blocks of a estimate module in the real browser of Playwright MCP:
+// DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserCatalog(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t)
-	e.Project("btc", harness.ForecastManifest)
+	e.Project("coin", harness.EstimateManifest)
 	made := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
-	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices",
+	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "prices",
 		"records": harness.Jsonl(map[string]any{"at": "2026-09-30T10:00:00Z", "price": 60100}, map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5},
-			map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25, "forecast": 63000})}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts",
+			map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25, "estimate": 63000})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "estimates",
 		"records": harness.Jsonl(map[string]any{"at": made, "horizon": "7d", "change": 0.042, "confidence": 0.6, "status": "open", "source": "https://example.com/a"},
 			map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "confidence": 0.3, "status": "missed"})}, nil)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.Open(e, "#/p/btc/main")
-	b.until("the forecast screen", `document.querySelector('[data-stat]') && document.querySelector('[data-format="relative"]')`)
+	b.Open(e, "#/p/coin/main")
+	b.until("the estimate screen", `document.querySelector('[data-stat]') && document.querySelector('[data-format="relative"]')`)
 	b.until("the rows that open under their line", `document.querySelector('[data-row-toggle]')`)
 	b.eval(`(document.querySelectorAll('[data-row-toggle]').forEach((x) => x.click()), '')`)
 	for what, cond := range map[string]string{
@@ -62,7 +59,7 @@ func TestRealBrowserCatalog(t *testing.T) {
 	}
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.eval(`[...document.querySelectorAll('td')].find(x => x.innerText === '7d').click(), ''`)
-	b.until("the forecast page opened by a click on its row", `location.hash.startsWith('#/p/btc/forecast/') && document.body.innerText.includes('Still open')`)
+	b.until("the estimate page opened by a click on its row", `location.hash.startsWith('#/p/coin/estimate/') && document.body.innerText.includes('Still open')`)
 	b.eval(`history.back(), ''`)
 	b.until("the screen again", `document.querySelector('[data-opens]')`)
 	b.eval(`(document.querySelectorAll('[data-row-toggle]').forEach((x) => x.click()), '')`)
@@ -70,38 +67,35 @@ func TestRealBrowserCatalog(t *testing.T) {
 	b.eval(`document.querySelector('a[href="https://example.com/a"]').addEventListener('click', (e) => e.preventDefault()), ''`)
 	b.eval(`document.querySelector('a[href="https://example.com/a"]').click(), ''`)
 	time.Sleep(500 * time.Millisecond)
-	if h := b.eval(`location.hash`); h != "#/p/btc/main" {
+	if h := b.eval(`location.hash`); h != "#/p/coin/main" {
 		t.Fatalf("a link in a row opens the link, not the row: %s", h)
 	}
 
-	e.Project("fresh", strings.ReplaceAll(harness.ForecastManifest, `"title": "BTC"`, `"title": "Fresh"`))
+	e.Project("fresh", strings.ReplaceAll(harness.EstimateManifest, `"title": "COIN"`, `"title": "Fresh"`))
 	b.Open(e, "#/p/fresh/main")
-	b.until("the words of empty blocks", `[...document.querySelectorAll('[data-empty]')].map(x => x.innerText).join('|') === 'No prices yet|No forecasts yet|Nothing here|No prices yet'`)
+	b.until("the words of empty blocks", `[...document.querySelectorAll('[data-empty]')].map(x => x.innerText).join('|') === 'No prices yet|No estimates yet|Nothing here|No prices yet'`)
 	b.shot("catalog-empty")
 	if b.eval(`String(document.body.innerText.includes('Missed'))`) != "false" {
 		t.Fatal("a block whose when does not hold is not drawn")
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "forecasts",
+	e.Must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "estimates",
 		"records": harness.Jsonl(map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "status": "missed"})}, nil)
 	b.until("the block its when now holds for, without a reload", `[...document.querySelectorAll('[data-block] h3')].some(x => x.innerText === 'Missed')`)
-	e.Must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "forecasts", "records": harness.Jsonl(map[string]any{"at": "3", "horizon": "2d"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "estimates", "records": harness.Jsonl(map[string]any{"at": "3", "horizon": "2d"})}, nil)
 	b.until("a time that is not one shown as it is", `[...document.querySelectorAll('[data-format="relative"]')].some(x => x.innerText === '3')`)
 }
 
 // TestRealBrowserMedia shows a picture, a PDF and another file of a module in the real browser of Playwright MCP;
 // a download gives the same file.
 func TestRealBrowserMedia(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t)
-	id := e.Project("btc", harness.ForecastManifest)
+	id := e.Project("coin", harness.EstimateManifest)
 	var pic bytes.Buffer
 	img := image.NewRGBA(image.Rect(0, 0, 64, 48))
 	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
 	_ = png.Encode(&pic, img)
-	scan := e.Upload("btc", "scan.png", "image/png", pic.String())
+	scan := e.Upload("coin", "scan.png", "image/png", pic.String())
 	pdf := "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj " +
 		"3 0 obj<</Type/Page/MediaBox[0 0 200 100]/Parent 2 0 R>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF"
 	data := e.App.Home.Data(id)
@@ -109,14 +103,14 @@ func TestRealBrowserMedia(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(data, "report.pdf"), []byte(pdf), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "notes.csv"), []byte("a,b\n1,2\n"), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "logo.svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`), 0o600)
-	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": harness.Jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "attachments", "records": harness.Jsonl(
 		map[string]any{"title": "a scan", "file": scan}, map[string]any{"title": "b report", "file": "report.pdf"},
 		map[string]any{"title": "c notes", "file": "notes.csv"}, map[string]any{"title": "d gone", "file": "gone.png"},
 		map[string]any{"title": "e logo", "file": "logo.svg"})}, nil)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.Open(e, "#/p/btc/files")
+	b.Open(e, "#/p/coin/files")
 	b.eval(`(localStorage.removeItem('deck-files-view'), '')`)
 	b.until("the files as tiles", `document.querySelectorAll('[data-tile]').length === 5`)
 	b.until("the picture as its thumbnail", `document.querySelector('[data-thumb="image"]')?.naturalWidth === 64`)

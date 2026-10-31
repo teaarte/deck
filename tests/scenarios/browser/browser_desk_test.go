@@ -4,7 +4,6 @@ import (
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -13,17 +12,14 @@ import (
 // TestRealBrowserTheDesk: a long press opens the placing, a card moves and grows by its corner and stays so after a
 // reload; the open chat narrows the grid unsaved; a roomy card offers Deki's view; the phone fits its own.
 func TestRealBrowserTheDesk(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for _, name := range []string{"alpha", "beta"} {
 		e.Project(name, harness.PlainManifest)
 	}
 	e.Project("shelf", harness.WidgetsManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
-	b := newPlaywright(t)
+	b := Open(t)
 	cell := func(id string) string {
 		return `(() => { const r = document.querySelector('[data-cell="` + id + `"]').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)].join(' ') })()`
 	}
@@ -106,17 +102,14 @@ func colsOf(b *playwright) int {
 // TestRealBrowserTenWidgetsStayQuick: ten cards with their views draw at once, and a change of one module reads
 // and draws again only its card.
 func TestRealBrowserTenWidgetsStayQuick(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for i := range 10 {
 		name := fmt.Sprintf("shelf%d", i)
 		e.Project(name, harness.WidgetsManifest)
 		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
 	}
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
 	b.Open(e, "#/deck/schedule")
 	b.until("deck open", `document.querySelector('[data-block]')`)

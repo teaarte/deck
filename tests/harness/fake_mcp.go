@@ -31,18 +31,19 @@ func Stopped(f *os.File) bool {
 	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) == nil
 }
 
-// Main lets the test binary serve as a fake MCP server (DECK_FAKE_MCP picks which), app-server of Codex or ACP agent.
-func Main(m *testing.M) {
+// Serve serves the fake the environment names, an MCP server (DECK_FAKE_MCP picks which), the app-server of Codex,
+// an ACP agent or a model, and reports whether it named one.
+func Serve() bool {
 	if dir := os.Getenv("DECK_FAKE_ACP"); dir != "" {
 		serveACP(dir)
-		return
+		return true
 	}
 	if addr := os.Getenv("DECK_FAKE_RESPONSES"); addr != "" {
 		serveResponses(addr)
 	}
 	if dir := os.Getenv("DECK_FAKE_CODEX"); dir != "" {
 		serveCodex(dir)
-		return
+		return true
 	}
 	var err error
 	switch os.Getenv("DECK_FAKE_MCP") {
@@ -61,13 +62,22 @@ func Main(m *testing.M) {
 		}
 		askApprove(os.Args[1], os.Args[2], os.Args[3])
 	default:
-		TrustTestTLS()
-		os.Exit(runWithFakes(m))
+		return false
 	}
+	return true
 }
 
-// Fakes is the program that serves the fakes: this test binary, or one built without the race detector, whose every
-// start costs a second.
+// Main runs the tests of a package of scenarios; started as a fake, the test binary serves it instead.
+func Main(m *testing.M) {
+	if Serve() {
+		return
+	}
+	TrustTestTLS()
+	os.Exit(runWithFakes(m))
+}
+
+// Fakes is the program that serves the fakes: this test binary, or the command fakes built without the race
+// detector, whose every start would cost a second.
 var Fakes string
 
 func runWithFakes(m *testing.M) int {
@@ -81,7 +91,7 @@ func runWithFakes(m *testing.M) int {
 			return 1
 		}
 		defer os.RemoveAll(dir)
-		build := exec.Command("go", "test", "-c", "-o", filepath.Join(dir, "fakes"), ".")
+		build := exec.Command("go", "build", "-o", filepath.Join(dir, "fakes"), "deck2/tests/harness/fakes")
 		build.Env = append(os.Environ(), "GOFLAGS=")
 		if out, err := build.CombinedOutput(); err != nil {
 			fmt.Fprintf(os.Stderr, "build the fakes: %v\n%s", err, out)

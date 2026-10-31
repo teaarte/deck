@@ -2,10 +2,7 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/docs"
-	"deck2/internal/manifest"
 	"deck2/internal/provider"
-	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
@@ -240,22 +237,22 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 	if code, raw = e.As(tok).Call("deck.manifest_save", map[string]any{"project": "draft", "manifest": wide}); code != 200 {
 		t.Fatalf("save: %d %s", code, raw)
 	}
-	ctx := context.Background()
-	p, _ := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: "draft"})
-	cur, err := docs.Manifest(ctx, e.App.Store.Q, p)
-	if err != nil {
-		t.Fatal(err)
+	e.Project("seen", harness.ScriptManifest("media", "", ""))
+	var granted, inForce struct{ Widens []string }
+	e.Must("deck.manifest_check", map[string]any{"project": "seen", "manifest": wide}, &granted)
+	if len(granted.Widens) < 6 {
+		t.Fatalf("the saved revision widens class, callers, provider, domains, models and servers: %v", granted.Widens)
 	}
-	granted, _ := docs.ManifestAt(ctx, e.App.Store.Q, p.ID, p.GrantedRevision.Int64)
-	inForce, _ := docs.InForce(ctx, e.App.Store.Q, p, cur)
-	if w := manifest.Widens(granted, cur); len(w) < 6 {
-		t.Fatalf("the saved revision widens class, callers, provider, domains, models and servers: %v", w)
+	e.Must("deck.manifest_check", map[string]any{"project": "draft"}, &inForce)
+	for _, w := range granted.Widens {
+		if !heldBack(rightAtoms(inForce.Widens), w) {
+			t.Errorf("what is in force widens nothing the owner did not grant: %s", w)
+		}
 	}
-	for _, w := range manifest.Widens(granted, inForce) {
-		t.Errorf("what is in force widens nothing the owner did not grant: %s", w)
-	}
-	if len(inForce.Tools.MCP.Servers) != 0 {
-		t.Fatalf("a new server does not run before the owner grants it, with a secret or without: %+v", inForce.Tools.MCP.Servers)
+	for _, s := range []string{"MCP server svc: new or changed", "MCP server open: new or changed"} {
+		if !slices.Contains(inForce.Widens, s) {
+			t.Fatalf("a new server does not run before the owner grants it, with a secret or without: %v", inForce.Widens)
+		}
 	}
 }
 
@@ -360,9 +357,10 @@ func TestADomainTheGrantCoversIsNoNewRight(t *testing.T) {
 			t.Fatalf("an address is not under \"*\": %s: %d %s", addr, code, raw)
 		}
 	}
-	ctx := context.Background()
-	p, _ := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: "sketch"})
-	if m, err := docs.Manifest(ctx, e.App.Store.Q, p); err != nil || p.GrantedRevision.Int64 != m.Revision {
-		t.Fatalf("a draft that widens nothing keeps its grant on the new revision: %d, %v", p.GrantedRevision.Int64, err)
+	var granted int64
+	// The revision the owner granted, which deck shows nowhere.
+	err := e.SQLRow(`SELECT granted_revision FROM project WHERE name = 'sketch'`).Scan(&granted)
+	if cur := e.ManifestRevision("sketch"); err != nil || granted != cur {
+		t.Fatalf("a draft that widens nothing keeps its grant on the new revision: %d of %d, %v", granted, cur, err)
 	}
 }

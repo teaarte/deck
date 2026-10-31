@@ -4,7 +4,6 @@ import (
 	"context"
 	"deck2/internal/app"
 	deckhome "deck2/internal/home"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"fmt"
@@ -34,18 +33,9 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("mine", harness.IdeasManifest)
-	ctx := context.Background()
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"theirs", "mine"} {
-		if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			_, err := q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: name, Status: "enabled"})
-			return err
-		}); err != nil {
-			t.Fatalf("a project name is taken only in its own workspace: %v", err)
-		}
-	}
+	// A second workspace with its projects, one named as ours; deck makes no workspace but the owner's.
+	e.SQL(`INSERT INTO workspace (id, name) VALUES (2, 'other');
+		INSERT INTO project (workspace_id, name, status) VALUES (2, 'theirs', 'enabled'), (2, 'mine', 'enabled')`)
 	var projects []struct{ Name string }
 	e.ProjectsOf(&projects)
 	if len(projects) != 1 || projects[0].Name != "mine" {
@@ -57,13 +47,8 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	if code, _ := e.Call("theirs.collect", nil); code != 404 {
 		t.Fatalf("commands of another workspace must look missing, got %d", code)
 	}
-	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), Subject: "command:theirs.collect", Status: "error", Error: "their secret path"})
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// A failing check of another workspace.
+	e.SQL(`INSERT INTO health (workspace_id, subject, status, error) VALUES (2, 'command:theirs.collect', 'error', 'their secret path')`)
 	for _, h := range e.Health() {
 		if strings.Contains(h.Subject, "theirs") {
 			t.Fatalf("health of another workspace's commands must not be listed: %+v", h)
@@ -162,9 +147,8 @@ func TestATableWithoutATopicKeepsDeckFromStarting(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	if _, err := e.App.Store.DB.Exec(`CREATE TABLE stray (id INTEGER PRIMARY KEY, project_id INTEGER)`); err != nil {
-		t.Fatal(err)
-	}
+	// A table a newer deck would add without a topic.
+	e.SQL(`CREATE TABLE stray (id INTEGER PRIMARY KEY, project_id INTEGER)`)
 	_ = e.App.Close()
 	if _, err := app.New(app.Config{Home: home}, &harness.Fake{}); err == nil || !strings.Contains(err.Error(), "table stray publishes no topic") {
 		t.Fatalf("deck does not start with a table it does not know: %v", err)

@@ -170,3 +170,9 @@ func (e *Env) Events(ctx context.Context) <-chan events.Event {
 	<-ready
 	return ch
 }
+
+// Secret sets a secret of the module project, "" for one of deck; deck keeps one set of secrets per workspace yet.
+func (e *Env) Secret(project, name, value string) {
+	e.T.Helper()
+	e.Must("deck.secret_set", map[string]any{"name": name, "value": value}, nil)
+}

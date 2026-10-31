@@ -94,8 +94,8 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 	svc := harness.NewService(t, f.handler)
 	e := harness.New(t)
 	e.Project("svc", oauthManifest(svc.URL))
-	e.Must("deck.secret_set", map[string]any{"name": "svc_id", "value": "client"}, nil)
-	e.Must("deck.secret_set", map[string]any{"name": "svc_secret", "value": "shh"}, nil)
+	e.Secret("svc", "svc_id", "client")
+	e.Secret("svc", "svc_secret", "shh")
 	if code, out := e.Call("svc.me", map[string]any{}); code == 200 || !strings.Contains(string(out), "sign in") {
 		t.Fatalf("a tool that was never signed in to asks for a sign-in: %d %s", code, out)
 	}
@@ -136,7 +136,7 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 	f.mu.Lock()
 	f.access = "gone"
 	f.during = func() {
-		e.Must("deck.secret_set", map[string]any{"name": "svc_token", "value": `{"access_token":"owner"}`}, nil)
+		e.Secret("svc", "svc_token", `{"access_token":"owner"}`)
 	}
 	f.mu.Unlock()
 	_, _ = e.Call("svc.me", map[string]any{})
@@ -149,8 +149,7 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 	f.revoked, f.during = true, nil
 	refresh := f.refresh
 	f.mu.Unlock()
-	e.Must("deck.secret_set", map[string]any{"name": "svc_token",
-		"value": `{"access_token":"old","refresh_token":"` + refresh + `","expiry":"2020-01-01T00:00:00Z"}`}, nil)
+	e.Secret("svc", "svc_token", `{"access_token":"old","refresh_token":"`+refresh+`","expiry":"2020-01-01T00:00:00Z"}`)
 	if code, out := e.Call("svc.me", map[string]any{}); code == 200 || !strings.Contains(string(out), "sign in again") {
 		t.Fatalf("a revoked access is an error that asks for a sign-in: %d %s", code, out)
 	}
@@ -179,7 +178,7 @@ func TestAFailedRefreshAfterARefusalIsNotAnUnknownOutcome(t *testing.T) {
 	m := strings.Replace(oauthManifest(svc.URL), `"class": "internal",`, `"class": "external",`, 1)
 	e.Project("svc", strings.TrimSuffix(m, "}")+`, "allowed_external": ["me"]}`)
 	for k, v := range map[string]string{"svc_id": "c", "svc_secret": "s", "svc_token": `{"access_token":"stale","refresh_token":"r0","expiry":"2099-01-01T00:00:00Z"}`} {
-		e.Must("deck.secret_set", map[string]any{"name": k, "value": v}, nil)
+		e.Secret("svc", k, v)
 	}
 	if code, _ := e.Call("svc.me", map[string]any{}); code == 200 {
 		t.Fatal("the call fails when the service refuses the token and the refresh fails")

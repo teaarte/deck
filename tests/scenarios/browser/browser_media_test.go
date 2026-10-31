@@ -13,15 +13,12 @@ import (
 // lightbox of several files.
 func TestRealBrowserVideo(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg makes the video")
 	}
 	e := harness.New(t)
-	p := e.Project("shorts", strings.Replace(harness.VideosManifest, `"screens": [`, `"screens": [{"name": "scenes", "title": "Scenes", "blocks": [
+	p := e.Project("films", strings.Replace(harness.VideosManifest, `"screens": [`, `"screens": [{"name": "scenes", "title": "Scenes", "blocks": [
     {"type": "media", "title": "All", "source": {"collection": "videos", "sort": "slug"}, "item": {"file": "file", "title": "slug"}}]}, `, 1))
 	data := e.App.Home.Data(p)
 	_ = os.MkdirAll(data, 0o700)
@@ -34,19 +31,19 @@ func TestRealBrowserVideo(t *testing.T) {
 			t.Fatalf("ffmpeg: %v %s", err, out)
 		}
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, nil)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1200, "height": 900})
-	b.Open(e, "#/p/shorts/watch")
+	b.Open(e, "#/p/films/watch")
 	b.until("the video in the browser's own player", `(() => { const v = document.querySelector('video[data-player="video"]'); return v && v.controls && v.readyState >= 1 && Math.abs(v.duration - 3) < 0.1 })()`)
 	b.eval(`(document.querySelector('[data-player="video"]').muted = true, document.querySelector('[data-player="video"]').play(), '')`)
 	b.until("the video playing", `!document.querySelector('[data-player="video"]').paused`)
 	b.shot("video")
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "voice", "file": "voice.wav"})}, nil)
-	b.Open(e, "#/p/shorts/scenes")
+	b.Open(e, "#/p/films/scenes")
 	b.eval(`(localStorage.removeItem('deck-files-view'), '')`)
 	b.until("the files as tiles", `document.querySelectorAll('[data-tile]').length === 2`)
 	b.eval(`([...document.querySelectorAll('[data-tile]')].find((x) => x.innerText.includes('voice')).click(), '')`)

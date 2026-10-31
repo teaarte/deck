@@ -2,8 +2,6 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"strings"
 	"testing"
@@ -80,13 +78,8 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	id := e.Run(p, "work")
 	e.WaitState(id, "needs_login")
 	first := e.Session(id)
-	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(time.Now()), WorkspaceID: 1, ProcessID: store.ID(id), ProjectID: store.ID(p), Tool: "records_upsert", Class: "internal", Outcome: "done"})
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// A call the turn made before its login was lost, which the fake CLI cannot make.
+	e.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'records_upsert', 'internal', 'done')`, id, p)
 	e.Answer(e.WaitAsk().ID, "new_session")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
@@ -129,13 +122,8 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	p := e1.Project("plain", harness.PlainManifest)
 	id := e1.Run(p, "work")
 	e1.WaitState(id, "needs_login")
-	err := e1.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(time.Now()), WorkspaceID: 1, ProcessID: store.ID(id), ProjectID: store.ID(p), Tool: "records_upsert", Class: "internal", Outcome: "done"})
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// A call the turn made before its login was lost, which the fake CLI cannot make.
+	e1.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'records_upsert', 'internal', 'done')`, id, p)
 	e1.Answer(e1.WaitAsk().ID, "new_session")
 	harness.Until(t, "the CLI to start 5 times", func() bool { return c.Calls() >= 5 })
 	_ = e1.App.Close()

@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"database/sql"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 	"encoding/json"
@@ -151,7 +150,7 @@ func TestAManifestCheckOfAProjectAloneChecksItsCurrentManifest(t *testing.T) {
       "topic": "тема", "written": "записано", "fresh": "свежая", "high": "высокая", "Level": "Уровень", "rare": "редко"}},
   "screens": [{
     "name": "main", "title": "Ideas", "params": {"level": "string", "topic": "string"},
-    "side": [{"type": "filter", "title": "Level", "param": "level", "options": ["high", "BTC"]},
+    "side": [{"type": "filter", "title": "Level", "param": "level", "options": ["high", "COIN"]},
       {"type": "filter", "param": "topic", "source": {"collection": "ideas"}, "field": "topic"}],`, 1)
 	m = strings.Replace(m, `{"label": "Score", "bind": "score"}`, `{"label": "Score", "bind": "score > 8 ? 'fresh' : '$0'", "format": "tag"}, {"label": "R:R", "bind": "score"}`, 1)
 	e.Project("notes", m)
@@ -429,16 +428,23 @@ func TestADocumentDeckNoLongerShipsLeavesTheMaster(t *testing.T) {
 		`INSERT INTO document_revision (document_id, n, text, author) SELECT id, 1, 'kept', 'deck' FROM document WHERE name = 'skills/kept/SKILL.md'`,
 		`INSERT INTO document_revision (document_id, n, text, author) SELECT id, 2, 'mine', 'owner' FROM document WHERE name = 'skills/kept/SKILL.md'`,
 	} {
-		if _, err := e.App.Store.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
+		// Skills an older deck wrote into the master, past the checks of a save.
+		e.SQL(q)
 	}
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
+	var ds []struct {
+		Name    string
+		Deleted bool
+	}
+	e.Must("deck.documents_list", map[string]any{"project": "master", "with_deleted": true}, &ds)
+	deleted := map[string]bool{}
+	for _, d := range ds {
+		deleted[d.Name] = d.Deleted
+	}
 	for name, gone := range map[string]bool{"skills/old/SKILL.md": true, "skills/kept/SKILL.md": false, "prompts/reply.md": false} {
-		var deleted sql.NullString
-		if err := e.App.Store.DB.QueryRow(`SELECT deleted_at FROM document WHERE name = ? AND project_id = (SELECT id FROM project WHERE name = 'master')`, name).Scan(&deleted); err != nil || deleted.Valid != gone {
-			t.Fatalf("%s: deleted %v, want %v (%v)", name, deleted.Valid, gone, err)
+		if was, ok := deleted[name]; !ok || was != gone {
+			t.Fatalf("%s: deleted %v, want %v (listed %v)", name, was, gone, ok)
 		}
 	}
 }

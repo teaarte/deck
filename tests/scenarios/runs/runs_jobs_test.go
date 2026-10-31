@@ -89,7 +89,7 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 	home := t.TempDir()
 	clock := &harness.Clock{At: time.Date(2026, 9, 25, 8, 1, 0, 0, time.Local)}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "tok-123"}, nil)
+	e.Secret("clips", "svc", "tok-123")
 	e.Project("clips", jobManifest(svc.URL))
 	e.SaveScript("clips", "scripts/start.py", startScript)
 	e.SaveScript("clips", "scripts/check.py", checkScript)
@@ -133,10 +133,20 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 	if creates.Load() != 1 {
 		t.Fatalf("the job is started once: %d", creates.Load())
 	}
-	var leaked int
-	_ = e2.App.Store.DB.QueryRow(`SELECT count(*) FROM tool_call WHERE params LIKE '%tok-123%' OR error LIKE '%tok-123%'`).Scan(&leaked)
-	var n int
-	_ = e2.App.Store.DB.QueryRow(`SELECT count(*) FROM tool_call WHERE tool = 'clips.create_job' AND outcome = 'done' AND external_id = 'j1'`).Scan(&n)
+	var calls []struct {
+		Tool, Outcome, Params, Error string
+		ExternalID                   string `json:"external_id"`
+	}
+	e2.Must("deck.calls_list", map[string]any{"limit": 500}, &calls)
+	leaked, n := 0, 0
+	for _, c := range calls {
+		if strings.Contains(c.Params, "tok-123") || strings.Contains(c.Error, "tok-123") {
+			leaked++
+		}
+		if c.Tool == "clips.create_job" && c.Outcome == "done" && c.ExternalID == "j1" {
+			n++
+		}
+	}
 	if leaked != 0 || n != 1 {
 		t.Fatalf("the journal has the external call with its outside id and never the secret: leaked %d, done %d", leaked, n)
 	}

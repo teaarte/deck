@@ -57,7 +57,7 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(p), harness.WithConfig(realWaits), harness.WithWait(6*time.Minute))
 	owner := []byte("owner-token-" + fmt.Sprint(time.Now().UnixNano()))
-	if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), owner, 0o600); err != nil {
+	if err := os.WriteFile(harness.DeckSecretPath(home), owner, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {

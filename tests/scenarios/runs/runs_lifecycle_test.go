@@ -294,12 +294,8 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}}
 	e2 := e.Restart(harness.WithProvider(fake2))
-	if err := e2.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		_, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: "rust", ID: a.ID})
-		return err
-	}); err != nil {
-		t.Fatal(err)
-	}
+	// An answer saved as deck stopped, before it reached the process.
+	e2.SQL(`UPDATE ask SET answer = 'rust', state = 'answered' WHERE id = ? AND state = 'open'`, a.ID)
 	e2.Resume()
 	e2.WaitState(id, "done")
 	if calls := fake2.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "rust") {

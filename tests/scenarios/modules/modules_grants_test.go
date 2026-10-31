@@ -2,10 +2,7 @@ package modules
 
 import (
 	"bytes"
-	"context"
-	"deck2/internal/docs"
 	"deck2/internal/manifest"
-	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
@@ -21,7 +18,7 @@ func TestADraftHasOnlyTheRightsTheOwnerGave(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	e := harness.New(t)
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
+	e.Secret("source", "svc", "s3cret")
 	_, tok := e.Token("terminal", "deck.*", "leak.*", "net.*")
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "leak", "manifest": harness.PostManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
@@ -76,20 +73,23 @@ var grantManifest = harness.Manifest(`{
   }]
 }`)
 
-// inForce is the current manifest of a project with the rights the owner granted.
+// inForce is the current manifest of a project, which a check finds all in force: no right of it waits for the owner.
 func inForce(e *harness.Env, project string) *manifest.Manifest {
 	e.T.Helper()
-	ctx := context.Background()
-	p, err := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: project})
+	var cur struct {
+		Revision int64
+		Manifest string
+	}
+	e.Must("deck.manifest_get", map[string]any{"project": project}, &cur)
+	m, err := manifest.Parse([]byte(cur.Manifest))
 	if err != nil {
 		e.T.Fatal(err)
 	}
-	m, err := docs.Manifest(ctx, e.App.Store.Q, p)
-	if err != nil {
-		e.T.Fatal(err)
-	}
-	if m, err = docs.InForce(ctx, e.App.Store.Q, p, m); err != nil {
-		e.T.Fatal(err)
+	m.Revision = cur.Revision
+	var chk struct{ Widens []string }
+	e.Must("deck.manifest_check", map[string]any{"project": project}, &chk)
+	if len(chk.Widens) > 0 {
+		e.T.Fatalf("the current manifest of %s widens what is in force: %v", project, chk.Widens)
 	}
 	return m
 }

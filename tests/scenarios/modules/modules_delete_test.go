@@ -46,17 +46,13 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Must("deck.notify", map[string]any{"project": "gone", "text": "done"}, nil)
-	ctx := t.Context()
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO ask (workspace_id, project_id, kind, text, payload) VALUES (1, ?, 'warning', 'x', '{}')`, id); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO health (workspace_id, project_id, subject, status, error) VALUES (1, ?, 'tool:gone.fetch', 'error', 'x')`, id); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome, params)
-		VALUES (1, NULL, ?, 'gone.publish', 'external', 'done', '{"to": "all"}')`, id); err != nil {
-		t.Fatal(err)
-	}
+	// A warning of the project, as deck leaves one for the owner.
+	e.SQL(`INSERT INTO ask (workspace_id, project_id, kind, text, payload) VALUES (1, ?, 'warning', 'x', '{}')`, id)
+	// A failing check of a tool of the project.
+	e.SQL(`INSERT INTO health (workspace_id, project_id, subject, status, error) VALUES (1, ?, 'tool:gone.fetch', 'error', 'x')`, id)
+	// A call of the project in the journal outside any process.
+	e.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome, params)
+		VALUES (1, NULL, ?, 'gone.publish', 'external', 'done', '{"to": "all"}')`, id)
 	var procs []int64
 	for _, x := range e.Procs() {
 		procs = append(procs, x.ID)
@@ -85,7 +81,8 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	}
 	count := func(table string) int {
 		var n int
-		if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM `+table+` WHERE `+tables[table], id).Scan(&n); err != nil {
+		// The rows of every table of the project, deleted or not, which no read gives once it is gone.
+		if err := e.SQLRow(`SELECT count(*) FROM `+table+` WHERE `+tables[table], id).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		return n

@@ -324,7 +324,8 @@ func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
 	e.SaveScript("chatty", "scripts/main.py", "import sys\nfor i in range(3000):\n    print('line', i, file=sys.stderr, flush=True)\nprint('null')\n")
 	changes := func() int {
 		var n int
-		if err := e.App.Store.DB.QueryRow(`SELECT total_changes()`).Scan(&n); err != nil {
+		// The writes of the base itself, which deck shows nowhere.
+		if err := e.SQLRow(`SELECT total_changes()`).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		return n
@@ -697,7 +698,11 @@ print(json.dumps({"code": code}))
 		t.Fatalf("the script wrote its note: %+v", got)
 	}
 	var author string
-	_ = e.App.Store.DB.QueryRow(`SELECT author FROM feed WHERE text = 'The report is ready'`).Scan(&author)
+	for _, n := range e.Notes() {
+		if n.Text == "The report is ready" {
+			author = n.Author
+		}
+	}
 	if author != "script:"+harness.Itoa(id) {
 		t.Fatalf("the note is signed by the script: %q", author)
 	}

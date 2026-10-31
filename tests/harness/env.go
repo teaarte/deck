@@ -4,12 +4,14 @@ import (
 	"context"
 	"deck2/internal/api"
 	"deck2/internal/app"
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/web"
 	"encoding/json"
 	"net"
 	"net/http/httptest"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -258,3 +260,11 @@ func ProcessInput(t *testing.T, e *Env, id int64) map[string]any {
 	_ = json.Unmarshal([]byte(p.Input), &in)
 	return in
 }
+
+// DeckSecretPath is the file of deck's own secret in home, the one no foreign process may read.
+func DeckSecretPath(home string) string {
+	return filepath.Join(deckhome.Layout(home).State(), "token")
+}
+
+// DeckSecretPath is the file of the secret of this deck.
+func (e *Env) DeckSecretPath() string { return DeckSecretPath(e.Home) }

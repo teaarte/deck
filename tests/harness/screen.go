@@ -30,10 +30,9 @@ func LightEnv(t *testing.T) *Env {
 			e.Upload(name, fmt.Sprintf("file-%02d.txt", i), "text/plain", strings.Repeat("x", 100))
 		}
 		for i := range 20 {
-			if _, err := e.App.Store.DB.Exec(`INSERT INTO process (project_id, command, kind, state, started_at, finished_at) VALUES (?, 'score', 'agent', ?, ?, ?)`,
-				p, []string{"done", "error"}[i%2], time.Now().Add(-time.Duration(i)*time.Hour).UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
-				t.Fatal(err)
-			}
+			// Finished runs of a day, faster than running them.
+			e.SQL(`INSERT INTO process (project_id, command, kind, state, started_at, finished_at) VALUES (?, 'score', 'agent', ?, ?, ?)`,
+				p, []string{"done", "error"}[i%2], time.Now().Add(-time.Duration(i)*time.Hour).UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano))
 		}
 	}
 	topic := e.Say(0, "hello")
@@ -100,7 +99,7 @@ func (e *Env) SideMenu() ([]string, string) {
 
 // WidgetsOfWork is a module whose views mix numbers, lists with buttons, a title too long for one cell and two lists
 // with their titles, as the owner's modules do.
-var WidgetsOfWork = Manifest(`{"i18n": {"ru": {"Laboratory of setups": "Лаборатория сетапов", "Price": "Цена BTC", "Open": "Открыть", "Needs you": "Ждёт вас", "New": "Новое"}},
+var WidgetsOfWork = Manifest(`{"i18n": {"ru": {"Laboratory of setups": "Лаборатория сетапов", "Price": "Цена COIN", "Open": "Открыть", "Needs you": "Ждёт вас", "New": "Новое"}},
   "title": "Laboratory of setups",
   "collections": [{"name": "items", "description": "An item.", "key": "name", "display": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "n": {"type": "integer"}, "at": {"type": "string"}}, "required": ["name"]}}],

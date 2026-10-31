@@ -4,19 +4,15 @@ import (
 	"context"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
 )
 
 // TestRealBrowserShell drives the frame of deck in a real browser, tiles, tabs, chat and columns:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserShell -v.
+// DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserShell -v.
 func TestRealBrowserShell(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	hold := make(chan struct{})
 	t.Cleanup(func() { close(hold) })
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -45,7 +41,7 @@ func TestRealBrowserShell(t *testing.T) {
 	e.WaitState(e.Start("web", "tell", nil), "done")
 	e.WaitState(e.Start("web", "score", map[string]any{"title": "x"}), "running")
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
 	b.Open(e, "")
 	b.until("the tiles are the home of deck", `document.querySelector('[data-apps]') && document.querySelector('[data-module="web"]') && ![...document.querySelectorAll('[data-block]')].some((x) => !x.closest('[data-widget]'))`)

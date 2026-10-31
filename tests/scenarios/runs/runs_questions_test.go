@@ -94,9 +94,8 @@ func TestAnAnswerAfterTheProcessFinishedGoesToTheMaster(t *testing.T) {
 	p := e.Project("ideas", harness.Nullable(harness.IdeasManifest))
 	id := e.Run(p, "collect")
 	e.WaitState(id, "done")
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO ask (workspace_id, project_id, process_id, kind, text) VALUES (1, ?, ?, 'question', 'Which voice?')`, p, id); err != nil {
-		t.Fatal(err)
-	}
+	// A question still open when its process finished in the meantime.
+	e.SQL(`INSERT INTO ask (workspace_id, project_id, process_id, kind, text) VALUES (1, ?, ?, 'question', 'Which voice?')`, p, id)
 	a := e.WaitAsk()
 	e.Answer(a.ID, `{"Which voice?":"the calm one"}`)
 	if n := e.WaitNote("the calm one"); !strings.Contains(n.Text, fmt.Sprintf("#%d", id)) {

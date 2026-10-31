@@ -553,10 +553,9 @@ func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Hi."} }))
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models)
-		SELECT 1, id, 'reply', 'agent', '["gone"]' FROM project WHERE name = 'master'`); err != nil {
-		t.Fatal(err)
-	}
+	// An assignment to a model since removed, which deck.assignment_set refuses.
+	e.SQL(`INSERT INTO assignment (workspace_id, project_id, command, role, models)
+		SELECT 1, id, 'reply', 'agent', '["gone"]' FROM project WHERE name = 'master'`)
 	topic := e.Say(0, "hello")
 	e.Until("the reply that did not start", func() bool {
 		var v struct {

@@ -2,10 +2,8 @@ package runs
 
 import (
 	"context"
-	"database/sql"
 	"deck2/internal/home"
 	"deck2/internal/provider"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"encoding/json"
@@ -37,9 +35,8 @@ func TestAFileGoesOnlyWithItsRowEvenAcrossACrash(t *testing.T) {
 	}); !errors.Is(err, failed) {
 		t.Fatal(err)
 	}
-	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, gone) }); err != nil {
-		t.Fatal(err)
-	}
+	// A delete deck committed just before it died.
+	e.SQL(`DELETE FROM file WHERE id = ?`, gone)
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(dir), harness.WithProvider(&harness.Fake{}))
 	e.App.Sweep(context.Background(), time.Now())
@@ -71,13 +68,9 @@ func TestAProcessThatClosedBeforeACrashIsHeardAfterIt(t *testing.T) {
 		[]string{`{"command": "next", "after": "job"}`}))
 	id := e.Run(p, "job")
 	e.WaitState(id, "running")
-	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		_, err := q.FinishProcess(ctx, db.FinishProcessParams{State: "done", Result: `{"n": 1}`, Error: "",
-			FinishedAt: sql.NullString{String: store.Time(time.Now()), Valid: true}, ID: id})
-		return err
-	}); err != nil {
-		t.Fatal(err)
-	}
+	// A process deck closed just before it died, before it heard of it.
+	e.SQL(`UPDATE process SET state = 'done', result = '{"n": 1}', finished_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+		deadline_ms = NULL, silent_since_ms = NULL WHERE id = ? AND state = 'running'`, id)
 	close(release)
 	_ = e.App.Close()
 	for range 2 {
@@ -199,9 +192,8 @@ func TestAFileThatWillNotGoIsInHealthUntilItGoes(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(stored, "in"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, id) }); err != nil {
-		t.Fatal(err)
-	}
+	// The row of a file gone for good, as the trash leaves it after a day.
+	e.SQL(`DELETE FROM file WHERE id = ?`, id)
 	for range 3 {
 		e.App.Sweep(context.Background(), time.Now())
 	}

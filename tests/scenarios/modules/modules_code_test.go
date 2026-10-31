@@ -65,7 +65,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	})
 	clock := &harness.Clock{At: time.Now()}
 	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock(clock))
-	e.Must("deck.secret_set", map[string]any{"name": "gitlab", "value": "glpat-secret"}, nil)
+	e.Secret("", "gitlab", "glpat-secret")
 	e.ImportEnabled(harness.CodeModule(t, svc.URL), "code")
 	if got := e.WaitState(e.Start("code", "follow_gitlab", map[string]any{"project": "team/app"}), "done", "error"); got.State != "done" {
 		t.Fatalf("follow: %+v", got)
@@ -141,10 +141,10 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	if len(recs) != 1 || recs[0].Data["cursor"] != day+"T14:04:00.000Z" {
 		t.Fatalf("the cursor is in the record: %+v", recs)
 	}
-	var leaked int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM process WHERE result LIKE '%glpat%' OR error LIKE '%glpat%'`).Scan(&leaked)
-	if leaked != 0 {
-		t.Fatal("the token stays in deck")
+	for _, p := range e.Procs() {
+		if strings.Contains(string(p.Result), "glpat") || strings.Contains(p.Error, "glpat") {
+			t.Fatal("the token stays in deck")
+		}
 	}
 }
 

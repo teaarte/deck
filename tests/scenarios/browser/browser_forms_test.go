@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -41,12 +40,9 @@ setTimeout(() => { location.href = %q + "/self"; }, 300);
 </script></body></html>`
 
 // TestRealBrowserWebClientII drives forms, a custom block, sharing and the schedule in the real
-// browser of Playwright MCP: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
+// browser of Playwright MCP: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserWebClientII(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	evil := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("<p>out</p>")) })
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.WebNotesMark)
@@ -55,7 +51,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me"})}, nil)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.Open(e, "#/p/web/main")
 	b.until("the screen", `document.querySelector('[data-form="web.score"]')`)
 
@@ -217,21 +213,4 @@ func (b *playwright) type_(el, text string) {
 	b.eval(fmt.Sprintf(`(() => { const i = %s; i.focus(); const proto = i instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement;
 		Object.getOwnPropertyDescriptor(proto.prototype, 'value').set.call(i, %q);
 		i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); return '' })()`, el, text))
-}
-
-// file puts a file into a file input as picking it does.
-func (b *playwright) file(el, name, content string) {
-	b.t.Helper()
-	b.eval(fmt.Sprintf(`(() => { const i = %s; const dt = new DataTransfer(); dt.items.add(new File([%q], %q, { type: 'text/plain' }));
-		i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); return '' })()`, el, content, name))
-}
-
-// pick opens a select and clicks the option with the label in the list of that select.
-func (b *playwright) pick(sel, label string) {
-	b.t.Helper()
-	b.eval(fmt.Sprintf(`(document.querySelector(%q).click(), '')`, sel))
-	opt := fmt.Sprintf(`(() => { const id = document.querySelector(%q).getAttribute('aria-controls'); const box = id && document.getElementById(id);
-		return [...(box || document).querySelectorAll('[role=option]')].find((o) => o.innerText.trim() === %q) })()`, sel, label)
-	b.until("the option "+label, opt)
-	b.eval(fmt.Sprintf(`(%s.click(), '')`, opt))
 }

@@ -37,9 +37,7 @@ requires_openai_auth = false
 // TestServerFromScratch is deck on a bare docker, docker in docker, from compose.yaml: the token in the log, HTTPS by
 // Caddy, sign-in links, Codex on a model of the test passing its self-check, a script as the user of agents.
 func TestServerFromScratch(t *testing.T) {
-	if os.Getenv("DECK_SERVER") == "" {
-		t.Skip("set DECK_SERVER=1 to run deck's image on a bare docker; needs docker with buildx")
-	}
+	harness.Needs(t, "DECK_SERVER")
 	root := harness.Root
 	run := func(name string, args ...string) string {
 		t.Helper()

@@ -153,7 +153,7 @@ func (e *Env) greenACP(f *fakeACP, llm *FakeLLM) {
 // ended with.
 func (e *Env) AddACP(f *fakeACP, llm *FakeLLM) db.Health {
 	e.T.Helper()
-	e.Must("deck.secret_set", map[string]any{"name": "model_key", "value": "sk-real-model-key"}, nil)
+	e.Secret("", "model_key", "sk-real-model-key")
 	e.MustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": "goose"})
 	var h db.Health
 	e.Until("the self-check of the ACP provider", func() bool {
@@ -206,7 +206,7 @@ func (e *Env) SetACP(f *fakeACP, from int, name, agent string, llm *FakeLLM, noC
 	for i := 1; i <= 3; i++ {
 		f.Stream(from+i-1, "selfcheck_"+strconv.Itoa(i)+".jsonl")
 	}
-	e.Must("deck.secret_set", map[string]any{"name": name + "-key", "value": "sk-" + name}, nil)
+	e.Secret("", name+"-key", "sk-"+name)
 	e.MustAgentModel(map[string]any{"name": name, "url": llm.URL, "model": name, "agent": agent,
 		"key_secret": name + "-key", "no_cloud": noCloud})
 	e.Until("the self-check of "+name, func() bool {

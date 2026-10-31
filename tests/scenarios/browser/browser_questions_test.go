@@ -6,7 +6,6 @@ import (
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -19,10 +18,7 @@ var longQuestion = "The groceries module keeps two lists, and the shop list has 
 // TestRealBrowserMasterQuestions: a long question with options described and two questions one by one, the second of
 // many answers, fit in the chat above the waiting turn on a computer and a phone, and each answer reaches the master.
 func TestRealBrowserMasterQuestions(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	opt := func(label, description string) map[string]any {
 		return map[string]any{"label": label, "description": description}
 	}
@@ -63,7 +59,7 @@ func TestRealBrowserMasterQuestions(t *testing.T) {
 
 	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": harness.TasksManifest}, nil)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	say := func(text string) {
 		b.type_(`document.querySelector('[data-chat-input]')`, text)
 		b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)

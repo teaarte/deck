@@ -4,19 +4,15 @@ import (
 	"context"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
 )
 
 // TestRealBrowserCockpitHistory: History stands in the head of Today and keeps its place while what runs and what
-// waits come in: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserCockpitHistory -v.
+// waits come in: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserCockpitHistory -v.
 func TestRealBrowserCockpitHistory(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	hold := make(chan struct{})
 	t.Cleanup(func() { close(hold) })
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -30,7 +26,7 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 	}))
 
 	e.Project("web", harness.WebNotes)
-	b := newPlaywright(t)
+	b := Open(t)
 	at := `JSON.stringify(document.querySelector('[data-screen-head] [data-dialog-open="changes"]')?.getBoundingClientRect())`
 	for _, size := range []struct {
 		name          string
@@ -66,16 +62,13 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 // TestRealBrowserCards: deck opens on its tiles, Today first, a module with its cover and no icon, one without with
 // its icon, no menu on a tile; a tile opens its module and the way home goes back.
 func TestRealBrowserCards(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", harness.NotesManifest)
 	e.Project("plain", harness.PlainManifest)
 	png := e.Upload("notes", "cover.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
 	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": strconv.FormatInt(png, 10)}, nil)
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "")
 	b.until("the tiles, Today first, then the modules, one with its cover faded in", `(() => { const c = [...document.querySelectorAll('[data-app]')].map((a) => a.dataset.app);

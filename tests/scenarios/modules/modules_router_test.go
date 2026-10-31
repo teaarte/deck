@@ -98,11 +98,8 @@ func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
 		t.Fatalf("an unknown param of a move to a screen fails the save with the params it takes: %d %s", code, out)
 	}
 	e.Project("web", harness.RoutedManifest)
-	doc := `(SELECT id FROM document WHERE name = 'manifest.json' AND project_id = (SELECT id FROM project WHERE name = 'web'))`
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO document_revision (document_id, n, text, author) VALUES (`+doc+`, 2, ?, 'old deck');
-		UPDATE document SET current = 2 WHERE id = `+doc, typo); err != nil {
-		t.Fatal(err)
-	}
+	// A manifest with the typo an older deck saved.
+	e.PlantRevision("web", "manifest.json", typo)
 	e.ScreenMessages("web", "main", nil)
 	var got struct{ Warnings []string }
 	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &got)
@@ -122,11 +119,8 @@ func TestAModuleSavedBeforeANewCheckStillLoads(t *testing.T) {
 	if old == harness.IdeasManifest {
 		t.Fatal("fixture replacement did not apply")
 	}
-	doc := `(SELECT id FROM document WHERE name = 'manifest.json' AND project_id = (SELECT id FROM project WHERE name = 'ideas'))`
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO document_revision (document_id, n, text, author) VALUES (`+doc+`, 2, ?, 'old deck');
-		UPDATE document SET current = 2 WHERE id = `+doc, old); err != nil {
-		t.Fatal(err)
-	}
+	// A manifest a deck before the check of param.<name> saved.
+	e.PlantRevision("ideas", "manifest.json", old)
 	var menu []struct{ Project string }
 	e.MenuOf(&menu)
 	if !slices.ContainsFunc(menu, func(m struct{ Project string }) bool { return m.Project == "ideas" }) {

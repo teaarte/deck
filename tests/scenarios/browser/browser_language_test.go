@@ -4,7 +4,6 @@ import (
 	"context"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
-	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -17,10 +16,7 @@ const english = `((el, names) => (el?.innerText ?? '').split(/[^A-Za-z]+/).filte
 // TestRealBrowserRussianTodayAndChat: in Russian, Today, its card and the chat have no English word of deck; the turn
 // stands over the input, the input has no ring in focus, a button reached by the keyboard has one.
 func TestRealBrowserRussianTodayAndChat(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	var from atomic.Int64
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
@@ -46,7 +42,7 @@ func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 	e.Say(topic, "подумай ещё")
 	names := `['deck', 'shelf', 'master', 'work', 'records_list', 'fake', 'USD']`
 
-	b := newPlaywright(t)
+	b := Open(t)
 	for _, phone := range []bool{false, true} {
 		look := "computer"
 		b.call("browser_resize", map[string]any{"width": 1400, "height": 900})

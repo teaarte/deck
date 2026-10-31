@@ -163,7 +163,7 @@ func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	p := e.Project("shorts", harness.VideosManifest)
+	p := e.Project("films", harness.VideosManifest)
 	png := func(w, h int) string {
 		img := image.NewRGBA(image.Rect(0, 0, w, h))
 		draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{20, 120, 220, 255}}, image.Point{}, draw.Src)
@@ -174,8 +174,8 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		_ = gopng.Encode(&b, img)
 		return b.String()
 	}
-	big := e.Upload("shorts", "big.png", "image/png", png(1600, 900))
-	small := e.Upload("shorts", "small.png", "image/png", png(64, 36))
+	big := e.Upload("films", "big.png", "image/png", png(1600, 900))
+	small := e.Upload("films", "small.png", "image/png", png(64, 36))
 	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "wide.png"), []byte(png(1500, 500)), 0o600)); err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		Thumb, Color  string
 		Width, Height int
 	}
-	e.Must("deck.files_list", map[string]any{"project": "shorts"}, &list)
+	e.Must("deck.files_list", map[string]any{"project": "films"}, &list)
 	seen := map[int64]string{}
 	for _, f := range list {
 		seen[f.ID] = fmt.Sprintf("%s %dx%d %t", f.Thumb, f.Width, f.Height, f.Color != "")
@@ -194,13 +194,13 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		strings.Contains(seen[big], fmt.Sprintf("/api/files/%d ", big)) {
 		t.Fatalf("a picture has its light copy with its size, a small one is its own, and the copies are no files: %v", seen)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "a", "file": fmt.Sprint(big)}, map[string]any{"slug": "b", "file": "wide.png"})}, nil)
 	var files []struct {
 		URL, Thumb    string
 		Width, Height int
 	}
-	_ = json.Unmarshal(e.ScreenData("shorts", "watch", nil)["b0"]["files"], &files)
+	_ = json.Unmarshal(e.ScreenData("films", "watch", nil)["b0"]["files"], &files)
 	if len(files) != 2 || files[0].Thumb == "" || files[0].Thumb == files[0].URL || files[1].Thumb != files[1].URL+"?thumb=1" || files[1].Width != 1500 {
 		t.Fatalf("a media block gives the light copy and the size of each picture: %+v", files)
 	}

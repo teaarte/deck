@@ -1,9 +1,6 @@
 package modules
 
 import (
-	"context"
-	"deck2/internal/docs"
-	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"slices"
 	"strings"
@@ -157,15 +154,10 @@ func TestADeckThatRefusesASavedManifestSaysSoOnce(t *testing.T) {
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Project("clean", harness.PlainManifest)
-	p := e.Project("old", harness.PlainManifest)
+	e.Project("old", harness.PlainManifest)
 	older := strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["https://example.com/feed"]}`, 1)
-	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		_, _, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.Scope{Workspace: 1, Project: p}, Name: docs.ManifestName}, docs.KindManifest, older, "deck", "an older deck")
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// A manifest an older deck saved before the check of domains.read.
+	e.PlantRevision("old", "manifest.json", older)
 	restart := func() {
 		_ = e.App.Close()
 		e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))

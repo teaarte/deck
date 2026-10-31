@@ -4,17 +4,13 @@ import (
 	"context"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
-	"os"
 	"testing"
 )
 
 // TestRealBrowserTheScreensOfManagement: a failed schedule is counted on the tab of Health and is on top of the
 // Schedule; no screen repeats its tab; Files goes into a module and back by its steps, on a phone too.
 func TestRealBrowserTheScreensOfManagement(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the model is down"}
 	}))
@@ -31,7 +27,7 @@ func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 	e.Must("deck.triggers_list", map[string]any{"project": "digest"}, &ts)
 	e.WaitState(ts[0].LastProcess, "error")
 
-	b := newPlaywright(t)
+	b := Open(t)
 	fits := func(what string) {
 		if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 			t.Fatalf("%s fits the width: %s", what, got)

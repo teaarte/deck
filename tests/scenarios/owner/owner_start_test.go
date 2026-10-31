@@ -81,7 +81,7 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 func (d *deckBinary) call(name string, in any) (int, string, error) {
 	b, _ := json.Marshal(in)
 	req, _ := http.NewRequest("POST", d.url+"/api/commands/"+name, bytes.NewReader(b))
-	req.Header.Set("Authorization", "Bearer "+d.token)
+	harness.Bearer(d.token)(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, "", err
@@ -146,15 +146,15 @@ func TestTheHomeAndTheTokenOfDeckAreOnlyTheOwners(t *testing.T) {
 	if err := os.MkdirAll(deckhome.Layout(home).State(), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), []byte(strings.Repeat("ab", 24)+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(harness.DeckSecretPath(home), []byte(strings.Repeat("ab", 24)+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_ = os.Chmod(filepath.Join(deckhome.Layout(home).State(), "token"), 0o644)
+	_ = os.Chmod(harness.DeckSecretPath(home), 0o644)
 	d := startDeck(t, home)
 	if d.token != strings.Repeat("ab", 24) {
 		t.Fatalf("deck keeps the token it has: %s", d.token)
 	}
-	for path, want := range map[string]os.FileMode{home: 0o700, filepath.Join(deckhome.Layout(home).State(), "token"): 0o600} {
+	for path, want := range map[string]os.FileMode{home: 0o700, harness.DeckSecretPath(home): 0o600} {
 		if fi, err := os.Stat(path); err != nil || fi.Mode().Perm() != want {
 			t.Fatalf("%s is only the owner's: %v %v", path, fi.Mode().Perm(), err)
 		}

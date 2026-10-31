@@ -54,10 +54,9 @@ print(json.dumps({"updated": ["a"]}))
 	yesterday := store.Time(harness.T0.Add(-9 * time.Hour))
 	insert := func(n int, finished, key string, wrote int) {
 		for range n {
-			if _, err := e.App.Store.DB.Exec(`INSERT INTO process (project_id, command, kind, state, retry_key, wrote, started_at, finished_at)
-				VALUES (?, 'look', 'script', 'done', ?, ?, ?, ?)`, p, key, wrote, finished, finished); err != nil {
-				t.Fatal(err)
-			}
+			// Runs done earlier, more than a test runs in its time.
+			e.SQL(`INSERT INTO process (project_id, command, kind, state, retry_key, wrote, started_at, finished_at)
+				VALUES (?, 'look', 'script', 'done', ?, ?, ?, ?)`, p, key, wrote, finished, finished)
 		}
 	}
 	insert(600, today, "", 0)
@@ -71,8 +70,12 @@ print(json.dumps({"updated": ["a"]}))
 	e.Clock.Add(time.Hour + time.Minute)
 	e.Tick()
 	e.Until("both runs of the schedule to end", func() bool {
-		var n int
-		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM process WHERE project_id = ? AND trigger_id IS NOT NULL AND finished_at IS NOT NULL`, p).Scan(&n)
+		n := 0
+		for _, r := range e.Procs() {
+			if r.Project == "jobs" && r.Trigger != 0 && slices.Contains([]string{"done", "error", "stopped"}, r.State) {
+				n++
+			}
+		}
 		return n == 2
 	})
 	if got := doneToday(e); got != "Done today: 606" {

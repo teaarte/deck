@@ -97,7 +97,7 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 				t.Fatalf("the agent reads and writes its own folders: %s", path)
 			}
 		}
-		theirs := []string{filepath.Join(deckhome.Layout(h).State(), "token"), filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.json"), filepath.Join(deckhome.Layout(h).State(), "files", "3", "cv.pdf"),
+		theirs := []string{harness.DeckSecretPath(h), filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.json"), filepath.Join(deckhome.Layout(h).State(), "files", "3", "cv.pdf"),
 			filepath.Join(deckhome.Layout(h).State(), "secrets", "svc"), filepath.Join(deckhome.Layout(h).State(), "deck.db-wal"), filepath.Join(deckhome.Layout(h).State(), "backups", "x"),
 			filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.tmp"), filepath.Join(h, "deck.log")}
 		if slices.ContainsFunc(set.Permissions.Deny, func(r string) bool { return strings.Contains(r, deckhome.Layout(h).Work()) }) {

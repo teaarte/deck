@@ -254,14 +254,12 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	}
 	e.Must("deck.document_get", map[string]any{"name": name}, &d)
 	shipped := d.Text
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO document_revision (document_id, n, text, author, reason)
-		SELECT document_id, 0, 'the first skill of deck', 'deck', 'built-in skill' FROM document_revision WHERE document_id = ? AND n = 1`, d.ID); err != nil {
-		t.Fatal(err)
-	}
+	// An earlier text of deck under the shipped one, as an older deck shipped it.
+	e.SQL(`INSERT INTO document_revision (document_id, n, text, author, reason)
+		SELECT document_id, 0, 'the first skill of deck', 'deck', 'built-in skill' FROM document_revision WHERE document_id = ? AND n = 1`, d.ID)
 	e.Must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": shipped + "\nThe master's own line.\n"}, nil)
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET author = 'master' WHERE document_id = ? AND author = 'owner'`, d.ID); err != nil {
-		t.Fatal(err)
-	}
+	// The edit as the master's: its saves go through an agent, this one came through the owner's API.
+	e.SQL(`UPDATE document_revision SET author = 'master' WHERE document_id = ? AND author = 'owner'`, d.ID)
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Must("deck.document_get", map[string]any{"name": name}, &d)
@@ -270,10 +268,9 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	}
 	first, _, _ := strings.Cut(shipped, "\n")
 	older := strings.Replace(shipped, first, "# An older title", 1)
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = CASE author WHEN 'deck' THEN ? ELSE ? END WHERE document_id = ?`,
-		older, older+"\nThe master's own line.\n", d.ID); err != nil {
-		t.Fatal(err)
-	}
+	// A history in which an older deck shipped another title and the master edited that.
+	e.SQL(`UPDATE document_revision SET text = CASE author WHEN 'deck' THEN ? ELSE ? END WHERE document_id = ?`,
+		older, older+"\nThe master's own line.\n", d.ID)
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Must("deck.document_get", map[string]any{"name": name}, &d)
@@ -281,12 +278,12 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 		t.Fatalf("a new version of deck keeps an edit of other lines: %.80q", d.Text)
 	}
 	var notes int
-	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM feed WHERE for_master = 1`).Scan(&notes); err != nil || notes != 0 {
+	// Notes to the master wait for its next turn; no read lists them.
+	if err := e.SQLRow(`SELECT count(*) FROM feed WHERE for_master = 1`).Scan(&notes); err != nil || notes != 0 {
 		t.Fatalf("an edit carried over is no note to the master: %d %v", notes, err)
 	}
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = 'an older skill' WHERE document_id = ? AND author = 'deck'`, d.ID); err != nil {
-		t.Fatal(err)
-	}
+	// A history in which an older deck shipped another skill altogether.
+	e.SQL(`UPDATE document_revision SET text = 'an older skill' WHERE document_id = ? AND author = 'deck'`, d.ID)
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Must("deck.document_get", map[string]any{"name": name}, &d)
@@ -294,13 +291,13 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 		t.Fatalf("a new version of deck replaces the edited skill: %.80q", d.Text)
 	}
 	var note string
-	if err := e.App.Store.DB.QueryRow(`SELECT text FROM feed WHERE for_master = 1 ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil || !strings.Contains(note, name) {
+	// Notes to the master wait for its next turn; no read lists them.
+	if err := e.SQLRow(`SELECT text FROM feed WHERE for_master = 1 ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil || !strings.Contains(note, name) {
 		t.Fatalf("the master is told its edit was replaced: %q %v", note, err)
 	}
 	e.Must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": shipped + "\nThe owner's own line.\n"}, nil)
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = 'an older skill' WHERE document_id = ? AND author = 'deck'`, d.ID); err != nil {
-		t.Fatal(err)
-	}
+	// A history in which an older deck shipped another skill altogether.
+	e.SQL(`UPDATE document_revision SET text = 'an older skill' WHERE document_id = ? AND author = 'deck'`, d.ID)
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	if e.Must("deck.document_get", map[string]any{"name": name}, &d); !strings.Contains(d.Text, "The owner's own line.") {
@@ -325,10 +322,9 @@ func TestAConflictOfAShippedSkillKeepsTheRestOfTheEditAndSendsTheDiff(t *testing
 	older := strings.Replace(shipped, first, "# An older title", 1)
 	edit := strings.Replace(older, "# An older title", "# The master's title", 1) + "\nThe master's own line.\n"
 	e.Must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": edit}, nil)
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET author = CASE author WHEN 'owner' THEN 'master' ELSE author END,
-		text = CASE author WHEN 'deck' THEN ? ELSE text END WHERE document_id = ?`, older, d.ID); err != nil {
-		t.Fatal(err)
-	}
+	// A history in which an older deck shipped the older title and the master edited it.
+	e.SQL(`UPDATE document_revision SET author = CASE author WHEN 'owner' THEN 'master' ELSE author END,
+		text = CASE author WHEN 'deck' THEN ? ELSE text END WHERE document_id = ?`, older, d.ID)
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Must("deck.document_get", map[string]any{"name": name}, &d)
@@ -336,7 +332,8 @@ func TestAConflictOfAShippedSkillKeepsTheRestOfTheEditAndSendsTheDiff(t *testing
 		t.Fatalf("deck's text stands where both changed and the rest of the edit carries over: %.80q", d.Text)
 	}
 	var note string
-	if err := e.App.Store.DB.QueryRow(`SELECT text FROM feed WHERE for_master = 1 ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil {
+	// Notes to the master wait for its next turn; no read lists them.
+	if err := e.SQLRow(`SELECT text FROM feed WHERE for_master = 1 ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{name, "- # An older title", "+ # The master's title", "  " + first} {

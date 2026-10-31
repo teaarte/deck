@@ -124,7 +124,8 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 	e.Clock.Add(31 * 24 * time.Hour)
 	e.Sweep()
 	var n int
-	if err := e.App.Store.DB.QueryRow(`SELECT (SELECT COUNT(*) FROM chat_message WHERE topic_id = ?) + (SELECT COUNT(*) FROM chat_topic WHERE id = ?)
+	// The rows of a deleted topic, which no read shows.
+	if err := e.SQLRow(`SELECT (SELECT COUNT(*) FROM chat_message WHERE topic_id = ?) + (SELECT COUNT(*) FROM chat_topic WHERE id = ?)
 		+ (SELECT COUNT(*) FROM document WHERE name = ?)`, gone, gone, fmt.Sprintf("topics/%d/summary.md", gone)).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("the deleted topic, its messages and summary are gone: %d %v", n, err)
 	}
@@ -196,10 +197,9 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 	id := e.Upload("web", "plan.txt", "text/plain", "the plan")
 	topic := e.Say(0, "hello")
 	e.MasterSaid(topic, 1)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO chat_message (topic_id, role, text, context) VALUES (?, 'owner', 'old plan', ?)`,
-		topic, fmt.Sprintf(`{"files":[%d]}`, id)); err != nil {
-		t.Fatal(err)
-	}
+	// A message an older deck kept with a file of another project, which deck.chat_send refuses.
+	e.SQL(`INSERT INTO chat_message (topic_id, role, text, context) VALUES (?, 'owner', 'old plan', ?)`,
+		topic, fmt.Sprintf(`{"files":[%d]}`, id))
 	e.Say(topic, "and now")
 	e.Until("the message shows the failed reply", func() bool {
 		for _, m := range e.ChatMessages(topic) {
@@ -211,9 +211,7 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 	})
 	// No third reply comes.
 	time.Sleep(300 * time.Millisecond)
-	var n int
-	_ = e.App.Store.DB.QueryRow(`SELECT COUNT(*) FROM process WHERE input LIKE '%"topic"%'`).Scan(&n)
-	if n != 2 {
+	if n := len(e.RunsOf("master", "reply")); n != 2 {
 		t.Fatalf("one reply for the first message and one failed reply: %d", n)
 	}
 }
@@ -255,8 +253,17 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 		t.Fatalf("the result names its file by the id it was kept under: %s", got.Result)
 	}
 	id := res.Files[0].File
+	var fs []struct {
+		ID   int64
+		Name string
+	}
+	e.Must("deck.files_list", map[string]any{"process": got.ID}, &fs)
 	var name string
-	_ = e.App.Store.DB.QueryRow(`SELECT name FROM file WHERE id = ?`, id).Scan(&name)
+	for _, f := range fs {
+		if f.ID == id {
+			name = f.Name
+		}
+	}
 	e.Must("deck.records_upsert", map[string]any{"project": "art", "collection": "pics", "records": harness.Jsonl(
 		map[string]any{"title": "a number", "file": id}, map[string]any{"title": "b digits", "file": fmt.Sprint(id)},
 		map[string]any{"title": "c name", "file": name})}, nil)

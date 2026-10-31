@@ -2,21 +2,17 @@ package browser
 
 import (
 	"deck2/tests/harness"
-	"os"
 	"testing"
 )
 
 // TestRealBrowserRouter: a button opens a dialog with its form filled from the address, back closes it, a tab
-// lives in the address and back returns to it: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserRouter -v.
+// lives in the address and back returns to it: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserRouter -v.
 func TestRealBrowserRouter(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.RoutedManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/p/web/main")
 	b.until("the screen", `document.querySelector('[data-dialog-open="rescore"]') && document.querySelector('[data-verb], button')`)

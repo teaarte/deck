@@ -22,9 +22,7 @@ import (
 // DECK_ACP_URL with DECK_ACP_MODEL and the key in DECK_ACP_KEY.
 func realACP(t *testing.T) (map[string]string, string, string) {
 	t.Helper()
-	if os.Getenv("DECK_REAL_ACP") != "1" {
-		t.Skip("set DECK_REAL_ACP=1 to run the installed ACP agents on a local Ollama")
-	}
+	harness.Needs(t, "DECK_REAL_ACP")
 	bins := map[string]string{}
 	if p, err := exec.LookPath("goose"); err == nil {
 		bins["goose"] = p
@@ -76,7 +74,7 @@ func TestRealACPAgents(t *testing.T) {
 			start := time.Now()
 			add := map[string]any{"name": "acp", "url": url, "model": model, "no_cloud": true, "agent": agent}
 			if key := os.Getenv("DECK_ACP_KEY"); key != "" {
-				e.Must("deck.secret_set", map[string]any{"name": "model_key", "value": key}, nil)
+				e.Secret("", "model_key", key)
 				add["key_secret"], add["no_cloud"] = "model_key", false
 			}
 			e.MustAgentModel(add)
@@ -100,7 +98,7 @@ func TestRealACPAgents(t *testing.T) {
 			}
 			home := e.App.Cfg.Home
 			owner := "owner-token-" + fmt.Sprint(time.Now().UnixNano())
-			if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), []byte(owner), 0o600); err != nil {
+			if err := os.WriteFile(harness.DeckSecretPath(home), []byte(owner), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			var all []struct{ ID int64 }

@@ -2,7 +2,6 @@ package browser
 
 import (
 	"deck2/tests/harness"
-	"os"
 	"strings"
 	"testing"
 )
@@ -12,12 +11,9 @@ const filledShown = `String([...document.querySelectorAll('.mantine-Button-root[
 	return x.checkVisibility() && r.width > 0 && r.bottom > 0 && r.top < innerHeight }).length)`
 
 // TestRealBrowserOneAccent: one filled button at most on the cockpit and the chat, decisions in words on Today's tile,
-// clouds only in moments: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserOneAccent -v.
+// clouds only in moments: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserOneAccent -v.
 func TestRealBrowserOneAccent(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("web", harness.WebNotes)
 	for _, name := range []string{"first", "second"} {
@@ -26,7 +22,7 @@ func TestRealBrowserOneAccent(t *testing.T) {
 			t.Fatalf("a token's model waits for the owner: %d %s", code, out)
 		}
 	}
-	b := newPlaywright(t)
+	b := Open(t)
 	for _, size := range []struct {
 		name          string
 		width, height int

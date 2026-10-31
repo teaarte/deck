@@ -217,7 +217,7 @@ func TestAButtonOpensTheChatOfTheMaster(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	m := strings.Replace(harness.BoardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "Talk it over", "command": "move", "params": {"id": "=_id"}, "chat": true}, {"label": "Move"`, 1)
-	pid := e.Project("work", m)
+	e.Project("work", m)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	raw, _ := json.Marshal(e.ScreenData("work", "board", nil))
 	if !strings.Contains(string(raw), `"chat":true`) || !strings.Contains(string(raw), `"label":"Talk it over"`) {
@@ -233,10 +233,8 @@ func TestAButtonOpensTheChatOfTheMaster(t *testing.T) {
 			t.Fatalf("%s refuses a button that only opens the chat: %d %s", cmd, code, out)
 		}
 	}
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = ?
-		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, alone, pid); err != nil {
-		t.Fatal(err)
-	}
+	// A button an older deck saved before the check of the button of Deki.
+	e.PlantRevision("work", "manifest.json", alone)
 	var read struct{ Warnings []string }
 	e.Must("deck.manifest_get", map[string]any{"project": "work"}, &read)
 	if !slices.ContainsFunc(read.Warnings, func(w string) bool { return strings.Contains(w, "repeats the button of Deki") }) {

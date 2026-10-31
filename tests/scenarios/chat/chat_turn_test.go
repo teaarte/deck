@@ -51,7 +51,7 @@ func TestTheTopicShowsWhatItsTurnWaitsToBeAllowed(t *testing.T) {
 
 		harness.WithTTL))
 
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("notes", "svc", "k")
 	e.Project("notes", harness.PostManifest(svc.URL, ""))
 	topic := e.Say(0, "post a note")
 	filter := fmt.Sprintf(`{"b0": {"topic": "%d"}}`, topic)

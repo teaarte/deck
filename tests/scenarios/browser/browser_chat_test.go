@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -23,10 +22,7 @@ import (
 // TestRealBrowserMasterChat talks to the master from the side panel in the real browser: a topic and its reply,
 // a question answered in the feed, a turn stopped, and the panel on the whole screen of a phone.
 func TestRealBrowserMasterChat(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
 		case strings.Contains(c.Req.Prompt, "which list"):
@@ -53,10 +49,10 @@ func TestRealBrowserMasterChat(t *testing.T) {
 
 	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": harness.TasksManifest}, nil)
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "x"}`) })
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("notes", "svc", "k")
 	e.Project("notes", harness.PostManifest(svc.URL, ""))
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/p/groceries/tasks")
 	b.until("the tasks", `document.querySelector('[data-block]')`)
@@ -157,10 +153,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 // TestRealBrowserVoice records the microphone in the chat of the real browser: the recording goes to the whisper
 // server as WAV, and its text lands in the input, where the owner sends it.
 func TestRealBrowserVoice(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	heard := make(chan []byte, 1)
 	whisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f, _, err := r.FormFile("file")
@@ -181,7 +174,7 @@ func TestRealBrowserVoice(t *testing.T) {
 	}))
 
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
@@ -230,7 +223,7 @@ func voiceEnv(t *testing.T, answer func(n int, wav []byte) (int, string)) *playw
 	t.Cleanup(whisper.Close)
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
@@ -243,9 +236,7 @@ func voiceEnv(t *testing.T, answer func(n int, wav []byte) (int, string)) *playw
 // TestRealBrowserVoiceOfMinutes: a recording of more than three minutes reaches whisper in pieces of at most a
 // minute while it goes on, and after Stop its whole text lands in the input in order.
 func TestRealBrowserVoiceOfMinutes(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	checkBuiltClient(t)
 	var seconds []float64
 	b := voiceEnv(t, func(n int, wav []byte) (int, string) {
@@ -266,9 +257,7 @@ func TestRealBrowserVoiceOfMinutes(t *testing.T) {
 // TestRealBrowserVoiceKeptOnFailure: a recording whisper did not turn into text stays with why, and Recognize again
 // sends the same recording once more, whose text lands in the input.
 func TestRealBrowserVoiceKeptOnFailure(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	checkBuiltClient(t)
 	var got [][]byte
 	b := voiceEnv(t, func(n int, wav []byte) (int, string) {
@@ -293,9 +282,7 @@ func TestRealBrowserVoiceKeptOnFailure(t *testing.T) {
 // TestRealBrowserVoiceAfterAFailedOne: a second tap while the microphone starts records once; a recording made while
 // a failed one waits lands in the input, and Discard drops only the failed one.
 func TestRealBrowserVoiceAfterAFailedOne(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	checkBuiltClient(t)
 	b := voiceEnv(t, func(n int, wav []byte) (int, string) {
 		if n == 1 {
@@ -324,10 +311,7 @@ func TestRealBrowserVoiceAfterAFailedOne(t *testing.T) {
 // TestRealBrowserVoiceWithoutAMicrophone: a page the browser gives no microphone, such as deck on http over the
 // network, says why and takes a recording as a file, which reaches whisper as 16 kHz WAV.
 func TestRealBrowserVoiceWithoutAMicrophone(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	heard := make(chan []byte, 1)
 	whisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f, _, err := r.FormFile("file")
@@ -345,7 +329,7 @@ func TestRealBrowserVoiceWithoutAMicrophone(t *testing.T) {
 	t.Cleanup(whisper.Close)
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
@@ -376,10 +360,7 @@ func TestRealBrowserVoiceWithoutAMicrophone(t *testing.T) {
 // TestRealBrowserChatDeletesAWaitingMessage: a message the master has not taken has a delete button, which takes
 // it away; the message its waiting reply took has none.
 func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -395,7 +376,7 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	e.WaitState(e.Run(e.Project("busy", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil)), "work"), "running")
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-block]')`)
@@ -425,10 +406,7 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 // TestRealBrowserChatInput: pasted and dropped files attach as the plus does, the field has no focus ring, the turn is
 // one line that opens in place, and a message tells its model, cost and time on hover or a press.
 func TestRealBrowserChatInput(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "think long") {
 			c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Reading the list"})
@@ -444,7 +422,7 @@ func TestRealBrowserChatInput(t *testing.T) {
 	e.Must("deck.theme_save", map[string]any{"name": "ringed", "text": `{"version": 1, "title": {"en": "Ringed"}, "mood": "flat", "radius": "md",
 		"css": ".field:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }"}`}, nil)
 	e.Must("deck.theme_use", map[string]any{"name": "ringed"}, nil)
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
@@ -547,18 +525,15 @@ const openedTurn = `(() => { const t = document.querySelector('[data-turn="runni
 		inner.every((l) => l.getBoundingClientRect().left - r.left <= 20) })()`
 
 // TestRealBrowserChatStaysOnTheLastReply: the feed of the master opens, reloads and grows at its last reply:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserChatStaysOnTheLastReply -v.
+// DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserChatStaysOnTheLastReply -v.
 func TestRealBrowserChatStaysOnTheLastReply(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Text: "## Done\n\n" + strings.Repeat("A long line of the reply that takes room in the feed. ", 12)}
 	}))
 
 	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n"}, nil)
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 800})
 	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
@@ -588,19 +563,16 @@ func TestRealBrowserChatStaysOnTheLastReply(t *testing.T) {
 }
 
 // TestRealBrowserChatTopicsFollowTheModuleFilter: the module picked above the chat narrows its topics, without a
-// module too: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserChatTopicsFollowTheModuleFilter -v.
+// module too: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserChatTopicsFollowTheModuleFilter -v.
 func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "ok"} }))
 	e.Project("web", harness.WebNotes)
 	e.MasterSaid(e.Say(0, "about web", map[string]any{"screen": `{"project":"web","screen":"main"}`}), 1)
 	e.MasterSaid(e.Say(0, "about master", map[string]any{"screen": `{"project":"master","screen":"documents"}`}), 1)
 	e.MasterSaid(e.Say(0, "about nothing"), 1)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
@@ -655,10 +627,7 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 // TestRealBrowserAWorkToldInItsTopic: a work of the master that failed says so in its topic with a button that goes
 // on; gone on, its long result comes whole, folded with a button that shows all, on a computer and a phone.
 func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	long := strings.Repeat("Шаг сделан, одна фраза — одно дело. ", 90) + "Что заводить первым?"
 	var from atomic.Int64
 	var works atomic.Int32
@@ -678,7 +647,7 @@ func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
 	e.Project("plain", harness.PlainManifest)
 	topic := e.Say(0, "сделай")
 	e.Told(topic, "error", "ru")
-	b := newPlaywright(t)
+	b := Open(t)
 	open := func(phone bool) {
 		if phone {
 			b.call("browser_resize", map[string]any{"width": 390, "height": 844})

@@ -16,9 +16,7 @@ import (
 
 func realCodex(t *testing.T) {
 	t.Helper()
-	if os.Getenv("DECK_REAL_CODEX") != "1" {
-		t.Skip("set DECK_REAL_CODEX=1 to run against the installed Codex")
-	}
+	harness.Needs(t, "DECK_REAL_CODEX")
 	if _, err := exec.LookPath("codex"); err != nil {
 		t.Skip("codex is not installed")
 	}

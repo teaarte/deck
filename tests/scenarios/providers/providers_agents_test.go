@@ -72,7 +72,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 
 	e.App.Providers.Checks(t.Context(), time.Now())
 	e.WaitHealth("agent:goose", "error")
-	e.Must("deck.secret_set", map[string]any{"name": "wiki", "value": "w"}, nil)
+	e.Secret("", "wiki", "w")
 	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic", "kind": "image", "call_usd": 0.04}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "acp", "agent": "goose"}, nil)
@@ -155,9 +155,8 @@ func TestAModelInNoAgentRunsNoCommand(t *testing.T) {
 	if code, out := e.Call("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"free"}}); code != 422 || !strings.Contains(string(out), "goose") {
 		t.Fatalf("a model in no agent is not assigned: %d %s", code, out)
 	}
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'work', 'agent', '["free"]' FROM project WHERE name = 'plain'`); err != nil {
-		t.Fatal(err)
-	}
+	// An assignment an older deck took of a model in no agent, which assignment_set now refuses.
+	e.SQL(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'work', 'agent', '["free"]' FROM project WHERE name = 'plain'`)
 	if code, out := e.Call("plain.work", map[string]any{}); code == 200 || !strings.Contains(string(out), "goose") {
 		t.Fatalf("a command on it refuses with the reason: %d %s", code, out)
 	}
@@ -176,13 +175,10 @@ func TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls(t *testing.T) {
 
 	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "qwen", "kind": "text"}, nil)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO health (subject, workspace_id, status, error) VALUES ('model:qwen', 1, 'error', 'did not answer')`); err != nil {
-		t.Fatal(err)
-	}
+	// The red row failed calls of the model left before it ran in an agent.
+	e.SQL(`INSERT INTO health (subject, workspace_id, status, error) VALUES ('model:qwen', 1, 'error', 'did not answer')`)
 	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "qwen", "agent": "goose"}, nil)
-	var n int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'model:qwen'`).Scan(&n)
-	if n != 0 {
+	if e.HealthRowOf("model:qwen") != nil {
 		t.Fatal("the red row of the calls of the model goes once it runs in an agent")
 	}
 }

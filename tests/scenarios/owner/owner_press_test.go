@@ -26,12 +26,12 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	for _, m := range []string{"qwen", "gemma", "llama"} {
 		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
 	}
-	e.Project("shorts", harness.PlainManifest)
+	e.Project("films", harness.PlainManifest)
 	e.Project("picker", harness.PickerManifest)
 	e.SaveScript("picker", "scripts/apply.py", harness.ApplyScript)
-	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/gemma"}}, nil)
 	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals",
-		"records": harness.Jsonl(map[string]any{"name": "a", "project": "shorts", "models": "openrouter/qwen,openrouter/gemma"})}, nil)
+		"records": harness.Jsonl(map[string]any{"name": "a", "project": "films", "models": "openrouter/qwen,openrouter/gemma"})}, nil)
 
 	apply := e.RowAction("picker", "main", "picker.apply", nil)
 	code, out := e.Press(apply)
@@ -43,7 +43,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	if p := e.WaitState(run.Process, "done", "error"); p.State != "done" || strings.Contains(string(p.Result), "waiting") {
 		t.Fatalf("the call the button names is made at once: %+v", p)
 	}
-	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen", "openrouter/gemma"}) {
+	if got := e.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/qwen", "openrouter/gemma"}) {
 		t.Fatalf("the press applies the models its row shows: %v", got)
 	}
 	var asks []harness.Ask
@@ -53,7 +53,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	}
 	var feed []feedChange
 	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
-	if len(feed) != 1 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "deck.assignment_set by your press: text of shorts: openrouter/gemma → openrouter/qwen, openrouter/gemma") {
+	if len(feed) != 1 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "deck.assignment_set by your press: text of films: openrouter/gemma → openrouter/qwen, openrouter/gemma") {
 		t.Fatalf("the change is listed with its undo: %+v", feed)
 	}
 	var ru []feedChange
@@ -62,7 +62,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 		t.Fatalf("the change is told in the owner's words: %+v", ru)
 	}
 	e.Must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
-	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
+	if got := e.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("the undo sets the models back: %v", got)
 	}
 
@@ -74,7 +74,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 		e.Must("deck.asks_list", nil, &as)
 		return len(as) == 1
 	})
-	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
+	if got := e.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("the schedule changes nothing without the owner: %v", got)
 	}
 	e.Must("deck.asks_list", nil, &asks)
@@ -82,7 +82,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 
 	// A row whose run calls with other params than the button named still asks.
 	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals",
-		"records": harness.Jsonl(map[string]any{"name": "a", "project": "shorts", "models": "openrouter/llama"})}, nil)
+		"records": harness.Jsonl(map[string]any{"name": "a", "project": "films", "models": "openrouter/llama"})}, nil)
 	other := e.RowAction("picker", "main", "picker.apply", nil)
 	params := other["params"].(map[string]any)
 	params["allows"] = apply["params"].(map[string]any)["allows"]
@@ -100,7 +100,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	if relay := e.WaitState(run.Process, "done", "error"); !strings.Contains(string(relay.Result), "allows comes only with a press of the owner") {
 		t.Fatalf("a run another caller started is no press of the owner: %+v", relay)
 	}
-	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
+	if got := e.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("nothing but the press changed the models: %v", got)
 	}
 }

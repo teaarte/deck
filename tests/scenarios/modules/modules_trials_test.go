@@ -216,7 +216,7 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
 
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
+	e.Secret("notes", "svc", "s3cret")
 	e.Project("notes", harness.PostManifest(svc.URL, ""))
 	_, tok := e.Token("terminal", "deck.command_try")
 	for _, call := range []func() (int, []byte){
@@ -278,7 +278,7 @@ func TestATrialOfAToolCommandWaitsForTheOwner(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	e := harness.New(t)
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
+	e.Secret("notes", "svc", "s3cret")
 	send := strings.Replace(harness.PostManifest(svc.URL, ""), `"commands": [`, `"commands": [{"name": "send", "title": "Send",
     "description": "Sends the note.", "class": "external", "executor": {"type": "tool", "tool": "post"},
     "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}},`, 1)

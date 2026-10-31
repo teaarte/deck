@@ -153,7 +153,8 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 		t.Fatalf("the script writes a record with a document and a file: %+v", p)
 	}
 	var created string
-	_ = e.App.Store.DB.QueryRow(`SELECT created_at FROM record`).Scan(&created)
+	// When the record was made: retention counts from it, and records_list shows only updated_at.
+	_ = e.SQLRow(`SELECT created_at FROM record`).Scan(&created)
 	if !strings.HasPrefix(created, harness.T0.UTC().Format("2006-01-02T15:04")) {
 		t.Fatalf("a record is dated by the deck clock: %s", created)
 	}

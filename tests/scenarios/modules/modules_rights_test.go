@@ -2,11 +2,9 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
-	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
@@ -156,13 +154,61 @@ func rightsManifest(r *rand.Rand) string {
 	return "{" + strings.Join(parts, ", ") + "}"
 }
 
-// asksEachTime reports whether widening w of what is in force asks the owner on every call: a command on another
-// executor with class external, a secret only tools that ask or granted servers use.
-func asksEachTime(g, in *manifest.Manifest, w string) bool {
+// rightAtom is one right a line of what widens names, without what it had before.
+func rightAtom(w string) string {
+	if i := strings.Index(w, " instead of "); i >= 0 {
+		w = w[:i]
+	}
+	if name, rest, ok := strings.Cut(w, ": new without "); ok {
+		return name + ": no longer requires " + rest
+	}
+	if name, rest, ok := strings.Cut(w, ": new with class "); ok {
+		return name + ": class " + rest
+	}
+	return w
+}
+
+// heldBack reports whether what widens beyond what is in force, held, keeps right w out: the line itself, or the
+// read of its whole project or the whole server it is part of.
+func heldBack(held []string, w string) bool {
+	w = rightAtom(w)
+	if slices.Contains(held, w) {
+		return true
+	}
+	if rest, ok := strings.CutPrefix(w, "reads collection "); ok {
+		return slices.Contains(held, "reads project "+rest[:strings.LastIndex(rest, ".")])
+	}
+	if rest, ok := strings.CutPrefix(w, "reads document "); ok {
+		return slices.Contains(held, "reads project "+rest[:strings.Index(rest, "/")])
+	}
+	for _, prefix := range []string{"MCP server ", "MCP tool "} {
+		if rest, ok := strings.CutPrefix(w, prefix); ok {
+			server := rest[:strings.IndexAny(rest, ".:")]
+			return slices.Contains(held, "MCP server "+server+": new or changed")
+		}
+	}
+	return false
+}
+
+func rightAtoms(ws []string) []string {
+	out := make([]string, 0, len(ws))
+	for _, w := range ws {
+		out = append(out, rightAtom(w))
+	}
+	return out
+}
+
+// asksEachTime reports whether right w the grant lacks asks the owner on every call as it is in force in project:
+// a command on another executor or a tool that widens is external, a secret is only of such tools or granted servers.
+func asksEachTime(e *harness.Env, project string, g, next *manifest.Manifest, w string) bool {
+	external := func(name string) bool {
+		var c harness.CommandView
+		code, raw := e.Call("deck.command_describe", map[string]any{"command": project + "." + name})
+		return code == 200 && json.Unmarshal(raw, &c) == nil && c.Class == registry.External
+	}
 	if secret, ok := strings.CutPrefix(w, "secret: "); ok {
-		for _, tool := range in.Tools.HTTP {
-			asks := tool.Class == registry.External && !slices.Contains(in.AllowedExternal, tool.Name)
-			if !asks && strings.Contains(fmt.Sprint(tool.Headers, string(tool.Auth)), "$secret."+secret) {
+		for _, tool := range next.Tools.HTTP {
+			if strings.Contains(fmt.Sprint(tool.Headers, string(tool.Auth)), "$secret."+secret) && !external(tool.Name) {
 				return false
 			}
 		}
@@ -171,11 +217,13 @@ func asksEachTime(g, in *manifest.Manifest, w string) bool {
 				return strings.Contains(fmt.Sprint(s.Env, s.Args, s.URL, s.Command), "$secret."+secret)
 			})
 		}
-		return !uses(in) || uses(g)
+		return !uses(next) || uses(g)
 	}
 	if name, ok := strings.CutPrefix(w, "command "); ok && strings.Contains(w, ": runs ") {
-		c := in.Command(name[:strings.Index(name, ":")])
-		return c != nil && c.Class == registry.External && !slices.Contains(in.AllowedExternal, c.Name)
+		return external(name[:strings.Index(name, ":")])
+	}
+	if name, ok := strings.CutPrefix(w, "tool "); ok && strings.Contains(w, " runs without asking") {
+		return external(name[:strings.Index(name, " ")])
 	}
 	return false
 }
@@ -185,7 +233,6 @@ func asksEachTime(g, in *manifest.Manifest, w string) bool {
 func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	ctx := context.Background()
 	e.Project("other", harness.Manifest(`{"collections": [
     {"name": "items", "description": "An item.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
     {"name": "notes", "description": "A note.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`))
@@ -193,39 +240,35 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 	read := 0
 	for i := range harness.RightsPairs {
 		granted, next := rightsManifest(r), rightsManifest(r)
-		if _, err := manifest.Parse([]byte(granted)); err != nil {
+		g, err := manifest.Parse([]byte(granted))
+		if err != nil {
 			t.Fatalf("a generated manifest does not read: %v\n%s", err, granted)
 		}
-		if _, err := manifest.Parse([]byte(next)); err != nil {
+		n, err := manifest.Parse([]byte(next))
+		if err != nil {
 			t.Fatalf("a generated manifest does not read: %v\n%s", err, next)
 		}
 		name := fmt.Sprintf("p%d", i)
 		e.Project(name, granted)
-		p, err := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: name})
-		if err != nil {
-			t.Fatal(err)
+		var beyond, inForce struct {
+			Refused []string
+			Widens  []string
 		}
-		err = e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			_, _, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}, docs.KindManifest, next, "test", "a revision never granted")
-			return err
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		g, err := docs.ManifestAt(ctx, e.App.Store.Q, p.ID, p.GrantedRevision.Int64)
-		if err != nil {
-			t.Fatal(err)
-		}
-		in, err := docs.For(ctx, e.App.Store.Q, registry.Actor{}, p.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if in.Revision == g.Revision {
+		e.Must("deck.manifest_check", map[string]any{"project": name, "manifest": next}, &beyond)
+		before := e.ManifestRevision(name)
+		// A revision of a deck before that the owner never granted.
+		e.PlantRevision(name, "manifest.json", next)
+		if e.ManifestRevision(name) == before {
 			continue
 		}
 		read++
-		for _, w := range manifest.Widens(g, in) {
-			if asksEachTime(g, in, w) {
+		e.Must("deck.manifest_check", map[string]any{"project": name}, &inForce)
+		if len(beyond.Widens) == 0 && len(beyond.Refused) > 0 {
+			t.Fatalf("pair %d: the check reads no rights of the revision: %v\n%s", i, beyond.Refused, next)
+		}
+		held := rightAtoms(inForce.Widens)
+		for _, w := range beyond.Widens {
+			if heldBack(held, w) || asksEachTime(e, name, g, n, w) {
 				continue
 			}
 			t.Errorf("pair %d: what is in force widens %q\ngranted: %s\nnext: %s", i, w, granted, next)

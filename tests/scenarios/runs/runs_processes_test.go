@@ -4,7 +4,6 @@ import (
 	"context"
 	"deck2/internal/app"
 	"deck2/internal/provider"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"encoding/json"
@@ -383,42 +382,16 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 	pgids = append(pgids, orphan.Process.Pid)
 	t.Cleanup(func() { _ = syscall.Kill(-orphan.Process.Pid, syscall.SIGKILL) })
 	var id int64
-	err := e1.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		pr, err := q.CreateProcess(ctx, db.CreateProcessParams{StartedAt: store.Time(time.Now()), ProjectID: p, Command: "work", State: "running", Provider: "claude-code",
-			Input: "{}", SessionID: "11111111-1111-1111-1111-111111111111", Depth: 1, CeilingMs: time.Hour.Milliseconds()})
-		if err != nil {
-			return err
-		}
-		id = pr.ID
-		if err := q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[0]), ID: pr.ID}); err != nil {
-			return err
-		}
-		done, err := q.CreateProcess(ctx, db.CreateProcessParams{StartedAt: store.Time(time.Now()), ProjectID: p, Command: "work", State: "done", Input: "{}",
-			SessionID: "22222222-2222-2222-2222-222222222222", Depth: 1})
-		if err != nil {
-			return err
-		}
-		if err := q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[1]), ID: done.ID}); err != nil {
-			return err
-		}
-		other, err := q.CreateProcess(ctx, db.CreateProcessParams{StartedAt: store.Time(time.Now()), ProjectID: p, Command: "work", State: "done", Input: "{}",
-			SessionID: "33333333-3333-3333-3333-333333333333", Depth: 1})
-		if err != nil {
-			return err
-		}
-		if err := q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[3]), ID: other.ID}); err != nil {
-			return err
-		}
-		gone, err := q.CreateProcess(ctx, db.CreateProcessParams{StartedAt: store.Time(time.Now()), ProjectID: p, Command: "work", State: "done", Input: "{}", Provider: "removed",
-			SessionID: "44444444-4444-4444-4444-444444444444", Depth: 1})
-		if err != nil {
-			return err
-		}
-		return q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[2]), ID: gone.ID})
-	})
-	if err != nil {
+	// The process a crashed deck left running in a CLI group, which deck makes only beside a live CLI.
+	if err := e1.SQLRow(`INSERT INTO process (project_id, command, state, provider, session_id, ceiling_ms, pgid)
+		VALUES (?, 'work', 'running', 'claude-code', '11111111-1111-1111-1111-111111111111', ?, ?) RETURNING id`, p, time.Hour.Milliseconds(), pgids[0]).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
+	// Finished processes whose groups the crashed deck left behind, one of a provider the owner removed since.
+	e1.SQL(`INSERT INTO process (project_id, command, state, provider, session_id, pgid) VALUES
+		(?, 'work', 'done', '', '22222222-2222-2222-2222-222222222222', ?),
+		(?, 'work', 'done', '', '33333333-3333-3333-3333-333333333333', ?),
+		(?, 'work', 'done', 'removed', '44444444-4444-4444-4444-444444444444', ?)`, p, pgids[1], p, pgids[3], p, pgids[2])
 	_ = e1.App.Close()
 
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)))

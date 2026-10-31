@@ -3,7 +3,6 @@ package browser
 import (
 	"deck2/tests/harness"
 	"encoding/json"
-	"os"
 	"strconv"
 	"testing"
 )
@@ -37,12 +36,9 @@ const worstContrast = `(() => {
 })()`
 
 // TestRealBrowserGlass picks the glass theme in Settings → Interface and checks where the glass is and is not:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
+// DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserGlass(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Example("glass")
 	e.Example("default")
@@ -51,7 +47,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "source": "mail"}, map[string]any{"title": "beta", "source": "web"})}, nil)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.Open(e, "#/deck/look")
 	b.until("the appearance tab with juce for a new device", `document.querySelector('[data-look="theme"][data-value="juce"]')`)

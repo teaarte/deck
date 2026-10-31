@@ -36,7 +36,7 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 	t.Cleanup(svc.Close)
 	e := harness.New(t)
 	link := svc.URL + "/owa/calendar/me@x.com/tok-0123456789/calendar.ics"
-	e.Must("deck.secret_set", map[string]any{"name": "outlook", "value": link}, nil)
+	e.Secret("cal", "outlook", link)
 	tool := func(extra string) string {
 		return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [{"name": "ics", "description": "d", "method": "GET", "class": "internal",
       "url": "$secret.outlook?from={from}"%s, "input": {"type": "object", "properties": {"from": {"type": "string"}}, "required": ["from"]}}]}}`, extra))
@@ -72,13 +72,13 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 		t.Fatalf("a page that echoes only the path keeps the token out of the error: %d %s", code, out)
 	}
 	for _, bad := range []string{link + "#x", strings.Replace(link, "https://", "http://", 1), "https://evil.example/tok-0123456789/calendar.ics"} {
-		e.Must("deck.secret_set", map[string]any{"name": "outlook", "value": bad}, nil)
+		e.Secret("cal", "outlook", bad)
 		code, out := e.Call("cal.ics", map[string]any{"from": "x"})
 		if code == 200 || !strings.Contains(string(out), "no https address on the hosts of the tool, 127.0.0.1") || strings.Contains(string(out), "0123456789") {
 			t.Fatalf("a link that is not https on the hosts of the tool is refused without showing it: %d %s", code, out)
 		}
 	}
-	e.Must("deck.secret_set", map[string]any{"name": "outlook", "value": link}, nil)
+	e.Secret("cal", "outlook", link)
 	svc.Close()
 	code, out := e.Call("cal.ics", map[string]any{"from": "x"})
 	var hs []map[string]any

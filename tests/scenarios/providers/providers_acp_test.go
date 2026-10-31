@@ -111,8 +111,8 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	e := harness.New(t, harness.WithACP(f, llm), harness.WithConfig(func(c *app.Config) {
 		state := deckhome.Layout(c.Home).State()
-		if err := errors.Join(os.MkdirAll(state, 0o700), os.WriteFile(filepath.Join(state, "token"), []byte("owner-token-value"), 0o600),
-			os.WriteFile(filepath.Join(f.Dir, "probe"), []byte(filepath.Join(state, "token")), 0o600)); err != nil {
+		if err := errors.Join(os.MkdirAll(state, 0o700), os.WriteFile(harness.DeckSecretPath(c.Home), []byte("owner-token-value"), 0o600),
+			os.WriteFile(filepath.Join(f.Dir, "probe"), []byte(harness.DeckSecretPath(c.Home)), 0o600)); err != nil {
 			t.Fatal(err)
 		}
 	}))
@@ -122,7 +122,7 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 		`{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Painting."}}}`,
 		`{"shell": "echo painted > canvas.txt"}`,
-		`{"shell": "cat ` + filepath.Join(deckhome.Layout(home).State(), "token") + `"}`,
+		`{"shell": "cat ` + harness.DeckSecretPath(home) + `"}`,
 		`{"shell": "echo tampered > \"$HOME/../session\""}`,
 		harness.AcpModel,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`,
@@ -276,7 +276,7 @@ func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 	f.StreamText(5, harness.AcpStream(harness.AcpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"posted": true}}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("", "svc", "k")
 	id := e.Run(e.AcpProject("notes", harness.PostManifest(svc.URL, "")), "work")
 	a := e.WaitAsk()
 	if a.Kind != "call" || len(svc.Requests()) != 0 {
@@ -494,16 +494,10 @@ func TestACPStopDuringSetupEndsTheAgent(t *testing.T) {
 func TestACPProviderNameIsUniqueAcrossWorkspaces(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	ctx := t.Context()
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO connection (id, workspace_id, name, url) VALUES (9, 2, 'x', 'http://x/v1')`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO model (workspace_id, connection_id, name, model, agent) VALUES (2, 9, 'shared', 'm', 'goose')`); err != nil {
-		t.Fatal(err)
-	}
+	// Another workspace with a model in an agent, which no command of this one makes.
+	e.SQL(`INSERT INTO workspace (id, name) VALUES (2, 'other');
+		INSERT INTO connection (id, workspace_id, name, url) VALUES (9, 2, 'x', 'http://x/v1');
+		INSERT INTO model (workspace_id, connection_id, name, model, agent) VALUES (2, 9, 'shared', 'm', 'goose')`)
 	code, out := e.AgentModel(map[string]any{"name": "shared", "url": "http://localhost:1/v1", "model": "m", "agent": "goose"})
 	if code != 422 || !strings.Contains(string(out), "another workspace") {
 		t.Fatalf("a provider name of another workspace is refused: %d %s", code, out)
@@ -558,7 +552,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 	}))
 
 	p := e.Project("paint", harness.ColorManifest)
-	e.Must("deck.secret_set", map[string]any{"name": "k", "value": "v"}, nil)
+	e.Secret("paint", "k", "v")
 	go func() {
 		_, _ = e.AgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose"})
 	}()

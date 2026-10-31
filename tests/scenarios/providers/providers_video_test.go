@@ -62,16 +62,17 @@ func TestAVideoModelMakesAClipOfTheJobItStarted(t *testing.T) {
 	}
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan", "kind": "video"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "video", "models": []string{"local-video", "wan"}}, nil)
-	e.Project("shorts", videoManifest)
+	e.Project("films", videoManifest)
 	frame := func(name, body string) string {
 		var f struct{ ID int64 }
-		e.Must("deck.file_upload", map[string]any{"project": "shorts", "name": name, "content": base64.StdEncoding.EncodeToString([]byte(body))}, &f)
+		e.Must("deck.file_upload", map[string]any{"project": "films", "name": name, "content": base64.StdEncoding.EncodeToString([]byte(body))}, &f)
 		return fmt.Sprint(f.ID)
 	}
 	first, last := frame("first.png", "\x89PNG\r\n\x1a\nfirst"), frame("last.png", "\x89PNG\r\n\x1a\nlast")
-	id := e.Start("shorts", "clip", map[string]any{"scene": "a knight meets a snail", "first_frame": first, "last_frame": last})
+	id := e.Start("films", "clip", map[string]any{"scene": "a knight meets a snail", "first_frame": first, "last_frame": last})
 	var ceiling int64
-	_ = e.App.Store.DB.QueryRow(`SELECT ceiling_ms FROM process WHERE id = ?`, id).Scan(&ceiling)
+	// The ceiling of a process, which deck shows nowhere.
+	_ = e.SQLRow(`SELECT ceiling_ms FROM process WHERE id = ?`, id).Scan(&ceiling)
 	if ceiling != time.Hour.Milliseconds() {
 		t.Fatalf("a video command waits for its clip as long as an agent may work, not as a script: %d ms", ceiling)
 	}
@@ -102,12 +103,16 @@ func TestAVideoModelMakesAClipOfTheJobItStarted(t *testing.T) {
 		t.Fatalf("the job gets the model, the prompt with the input, the frames as pictures and the options: %s %v", frames, body)
 	}
 	var spend []harness.SpendRow
-	e.ModelCalls("shorts", 0, &spend)
+	e.ModelCalls("films", 0, &spend)
 	if len(spend) != 1 || spend[0].Provider != "wan" || spend[0].Cost == nil || *spend[0].Cost != 0.25 {
 		t.Fatalf("the clip is counted once, with the cost its job reported: %+v", spend)
 	}
 	var status, text string
-	_ = e.App.Store.DB.QueryRow(`SELECT status, error FROM health WHERE subject = 'model:local-video' AND workspace_id IS NOT NULL`).Scan(&status, &text)
+	for _, h := range e.Health() {
+		if h.Subject == "model:local-video" {
+			status, text = h.Status, h.Error
+		}
+	}
 	if status != "error" || text != "answered HTTP 503; wan takes its work" {
 		t.Fatalf("the model that did not take the job is red and names the one that took it: %s %q", status, text)
 	}
@@ -125,10 +130,10 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 		e.Must("deck.connection_set", map[string]any{"name": name, "api": "openai", "url": api.URL + "/api/v1"}, nil)
 		e.Must("deck.model_set", map[string]any{"connection": name, "model": "veo", "name": name, "kind": "video", "call_usd": 0.4}, nil)
 	}
-	e.Project("shorts", videoManifest)
+	e.Project("films", videoManifest)
 	for _, c := range []struct{ first, want string }{{"failed", "the prompt was refused"}, {"stuck", "not ready in 1s"}} {
 		e.Must("deck.assignment_set", map[string]any{"role": "video", "models": []string{c.first, "spare"}}, nil)
-		got := e.WaitState(e.Start("shorts", "clip", map[string]any{"scene": "a knight"}), "done", "error")
+		got := e.WaitState(e.Start("films", "clip", map[string]any{"scene": "a knight"}), "done", "error")
 		if got.State != "error" || !strings.Contains(got.Error, c.want) || !strings.Contains(got.Error, "job-1") {
 			t.Fatalf("%s: the job is an error with what happened and its id: %+v", c.first, got)
 		}
@@ -137,7 +142,7 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 		t.Fatalf("a job a service took goes to no other model: %d calls", n)
 	}
 	var spend []harness.SpendRow
-	e.ModelCalls("shorts", 0, &spend)
+	e.ModelCalls("films", 0, &spend)
 	costs := map[string]float64{}
 	for _, s := range spend {
 		if s.Cost != nil {
@@ -155,19 +160,17 @@ func TestAVideoCommandOfAManifestTakesAPromptAndItsFrames(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	noPrompt := strings.Replace(videoManifest, `"prompt": "Slow camera push, no text.", `, "", 1)
-	e.Refused("deck.project_create", map[string]any{"name": "shorts", "manifest": noPrompt}, 422, "a video model needs prompt or prompt_file")
+	e.Refused("deck.project_create", map[string]any{"name": "films", "manifest": noPrompt}, 422, "a video model needs prompt or prompt_file")
 	otherFile := strings.Replace(videoManifest, `"last_frame": {"type": "string", "format": "file"}`, `"sound": {"type": "string", "format": "file"}`, 1)
-	e.Refused("deck.project_create", map[string]any{"name": "shorts", "manifest": otherFile}, 422, "first_frame and last_frame")
+	e.Refused("deck.project_create", map[string]any{"name": "films", "manifest": otherFile}, 422, "first_frame and last_frame")
 	frames := strings.Replace(videoManifest, `"last_frame": {"type": "string", "format": "file"}`,
 		`"last_frame": {"type": "array", "items": {"type": "string", "format": "file"}}`, 1)
-	e.Refused("deck.project_create", map[string]any{"name": "shorts", "manifest": frames}, 422, "input field last_frame is a list of files")
-	e.Project("shorts", videoManifest)
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = ?
-		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = (SELECT id FROM project WHERE name = 'shorts'))`, frames); err != nil {
-		t.Fatal(err)
-	}
+	e.Refused("deck.project_create", map[string]any{"name": "films", "manifest": frames}, 422, "input field last_frame is a list of files")
+	e.Project("films", videoManifest)
+	// A manifest an older deck saved before it refused a list of files.
+	e.PlantRevision("films", "manifest.json", frames)
 	var got struct{ Warnings []string }
-	e.Must("deck.manifest_get", map[string]any{"project": "shorts"}, &got)
+	e.Must("deck.manifest_get", map[string]any{"project": "films"}, &got)
 	if !strings.Contains(strings.Join(got.Warnings, "\n"), "last_frame is a list of files") {
 		t.Fatalf("a saved module with a list of files still loads, with a warning: %v", got.Warnings)
 	}

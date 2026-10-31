@@ -394,7 +394,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	p := e.Project("notes", harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
-	e.Must("deck.secret_set", map[string]any{"name": "gate-key", "value": "k"}, nil)
+	e.Secret("notes", "gate-key", "k")
 	e.Must("deck.connection_set", map[string]any{"name": "gate", "api": "openai", "url": "http://127.0.0.1:9/v1", "key_secret": "gate-key"}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "plain", "api": "raw", "url": "http://127.0.0.1:9/raw"}, nil)
 	for i, kind := range []string{"text", "image", "tts", "stt", "music", "video", "search"} {
@@ -415,9 +415,8 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at) VALUES (%d, 'work', 'agent', 'running', '2026-10-25T08:01:00.000Z')`, p),
 		fmt.Sprintf(`INSERT INTO feed (workspace_id, project_id, kind, author, text) VALUES (1, %d, 'change', 'master', 'master changed the manifest of notes')`, p),
 	} {
-		if _, err := e.App.Store.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
+		// Checks of models, running processes and a change of the master, as deck leaves them, without running any.
+		e.SQL(q)
 	}
 	e.App.Snapshots.CheckDisk(context.Background(), time.Now())
 	e.Resume()

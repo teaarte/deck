@@ -404,6 +404,24 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	}
 }
 
+// pushDevices is the count of the devices that get pushes.
+func pushDevices(e *harness.Env) int {
+	var ds []map[string]any
+	e.Must("deck.push_devices", nil, &ds)
+	return len(ds)
+}
+
+// stoppedNotes is the count of the notes that pushes stopped.
+func stoppedNotes(e *harness.Env) int {
+	n := 0
+	for _, f := range e.Notes() {
+		if strings.HasPrefix(f.Text, "Pushes stopped") {
+			n++
+		}
+	}
+	return n
+}
+
 // TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow: a refusal for good, such as 400, says how to turn
 // the pushes of that device on again, and the row of the health opens where that is done.
 func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.T) {
@@ -423,15 +441,17 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	if !strings.Contains(h.Error, "MacIntel") || !strings.Contains(h.Error, "on again on this device") {
 		t.Fatalf("the health says how to turn the pushes of the device on again: %+v", h)
 	}
-	var subs, notes int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM push_subscription`).Scan(&subs)
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM feed WHERE text LIKE 'Pushes stopped%'`).Scan(&notes)
+	subs, notes := pushDevices(e), stoppedNotes(e)
 	if subs != 0 || notes != 1 {
 		t.Fatalf("a refused subscription is forgotten, and the owner gets one note: %d subscriptions, %d notes", subs, notes)
 	}
-	var machine int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'push' AND workspace_id IS NULL`).Scan(&machine)
-	if machine != 0 {
+	rows := 0
+	for _, r := range e.Health() {
+		if r.Subject == "push" {
+			rows++
+		}
+	}
+	if rows != 1 {
 		t.Fatal("the devices are of a workspace, and so is the health of their pushes")
 	}
 	if a := e.Button("", "settings", map[string]any{"dialog": "checks"}, "", map[string]any{"tab": "Advanced"}); a["screen"] != "settings" {
@@ -457,7 +477,7 @@ func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 		t.Fatalf("the key of pushes lives in state/push: %v", keys)
 	}
 	var again struct{ Key string }
-	e.Must("deck.secret_set", map[string]any{"name": "push.vapid", "value": "the owner's"}, nil)
+	e.Secret("", "push.vapid", "the owner's")
 	e.Must("deck.push_key", nil, &again)
 	if again.Key != first.Key {
 		t.Fatal("a secret of the owner named like it does not change the key of pushes")
@@ -482,9 +502,7 @@ func TestAPushRefusedForDecksOwnSignatureKeepsTheDevice(t *testing.T) {
 	if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, "BadJwtToken") {
 		t.Fatalf("the health says why the service refused: %+v", h)
 	}
-	var subs int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM push_subscription`).Scan(&subs)
-	if subs != 1 {
+	if subs := pushDevices(e); subs != 1 {
 		t.Fatalf("the device stays subscribed: %d", subs)
 	}
 }
@@ -498,11 +516,7 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 		_, _ = w.Write([]byte(`{"reason":"VapidPkHashMismatch"}`))
 	}))
 	t.Cleanup(refusing.Close)
-	notes := func(e *harness.Env) int {
-		var n int
-		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM feed WHERE text LIKE 'Pushes stopped%'`).Scan(&n)
-		return n
-	}
+	notes := stoppedNotes
 	e := harness.New(t)
 	e.Project("work", harness.PlainManifest)
 	for i, name := range []string{"MacIntel", "iPad"} {
@@ -523,9 +537,8 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 	dev, _ := newPushDevice(t)
 	dev.subscribe(e, refusing, "MacIntel")
 	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
-	if _, err := e.App.Store.DB.Exec(`CREATE TRIGGER no_notes BEFORE INSERT ON feed WHEN NEW.text LIKE 'Pushes stopped%' BEGIN SELECT RAISE(FAIL, 'no notes'); END`); err != nil {
-		t.Fatal(err)
-	}
+	// A base that refuses the note, as a full disk would.
+	e.SQL(`CREATE TRIGGER no_notes BEFORE INSERT ON feed WHEN NEW.text LIKE 'Pushes stopped%' BEGIN SELECT RAISE(FAIL, 'no notes'); END`)
 	e.App.Sweep(context.Background(), time.Now())
 	if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, "MacIntel") || notes(e) != 0 {
 		t.Fatalf("the health of pushes is written apart from the note: %+v", h)

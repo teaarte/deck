@@ -130,21 +130,22 @@ func TestTheJournalKeepsHalfAYear(t *testing.T) {
 	e.Must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
 	e.Project("old", harness.PlainManifest)
 	e.Must("deck.project_delete", map[string]any{"project": "old"}, nil)
-	count := func(table string) (n int) {
-		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM ` + table).Scan(&n)
-		return n
+	journal := func() int {
+		var rows []struct{ ID int64 }
+		e.Must("deck.calls_list", map[string]any{"limit": 500}, &rows)
+		return len(rows)
 	}
-	calls, notes := count("tool_call"), count("feed WHERE kind = 'note'")
+	calls, notes := journal(), len(e.Notes())
 	if calls == 0 || notes != 1 {
 		t.Fatalf("the calls and the line are kept: %d %d", calls, notes)
 	}
 	e.App.Sweep(context.Background(), time.Now().Add(91*24*time.Hour))
-	if count("tool_call") != calls || count("feed WHERE kind = 'note'") != 0 {
-		t.Fatalf("after 91 days the calls stay and the note goes: %d %d", count("tool_call"), count("feed WHERE kind = 'note'"))
+	if journal() != calls || len(e.Notes()) != 0 {
+		t.Fatalf("after 91 days the calls stay and the note goes: %d %d", journal(), len(e.Notes()))
 	}
 	e.App.Sweep(context.Background(), time.Now().Add(3*181*24*time.Hour))
-	if count("tool_call") != 0 {
-		t.Fatalf("after 181 days the calls go: %d", count("tool_call"))
+	if n := journal(); n != 0 {
+		t.Fatalf("after 181 days the calls go: %d", n)
 	}
 }
 
@@ -241,9 +242,8 @@ func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
 		   (%d, 'work', 'agent', 'done', '2026-10-05T18:20:00.000Z', '2026-10-05T18:21:00.000Z'),
 		   (%d, 'work', 'agent', 'done', '2026-10-05T18:40:00.000Z', '2026-10-05T18:41:00.000Z')`, p, p),
 	} {
-		if _, err := e.App.Store.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
+		// Calls and runs of the days before, which deck writes only at the time of its clock.
+		e.SQL(q)
 	}
 	var spend []struct {
 		Day    string
@@ -263,11 +263,19 @@ func TestTheJournalKeepsTimeByTheClockOfDeck(t *testing.T) {
 	e.Project("notes", harness.PlainManifest)
 	e.Must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
 	var at string
-	_ = e.App.Store.DB.QueryRow(`SELECT created_at FROM feed WHERE kind = 'note' ORDER BY id DESC LIMIT 1`).Scan(&at)
+	if ns := e.Notes(); len(ns) > 0 {
+		at = ns[0].CreatedAt
+	}
 	if !strings.HasPrefix(at, harness.T0.UTC().Format("2006-01-02")) {
 		t.Fatalf("a note is written at the time of deck's clock: %s", at)
 	}
-	_ = e.App.Store.DB.QueryRow(`SELECT created_at FROM tool_call ORDER BY id DESC LIMIT 1`).Scan(&at)
+	var calls []struct {
+		CreatedAt string `json:"created_at"`
+	}
+	e.Must("deck.calls_list", nil, &calls)
+	if len(calls) > 0 {
+		at = calls[0].CreatedAt
+	}
 	if !strings.HasPrefix(at, harness.T0.UTC().Format("2006-01-02")) {
 		t.Fatalf("a call is journaled at the time of deck's clock: %s", at)
 	}

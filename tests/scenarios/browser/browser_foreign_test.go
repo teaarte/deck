@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -16,9 +15,7 @@ import (
 // TestRealBrowserForeignRenderer draws screens of deck with the stock renderer of @a2ui/react and deck's catalog alone,
 // none of deck's host: the standard components pass its checks, a dialog reads its blocks, presses are A2UI actions.
 func TestRealBrowserForeignRenderer(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	dir := filepath.Join(harness.Root, "web")
 	out := t.TempDir()
 	build := exec.Command(filepath.Join(dir, "node_modules/.bin/vite"), "build", "foreign", "--outDir", out, "--emptyOutDir")
@@ -40,7 +37,7 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 	}))
 	t.Cleanup(page.Close)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.OpenVia(page.URL, e, "&project=web&screen=main")
 	b.until("the screen drawn by the stock renderer", `document.querySelector('[data-foreign] [data-screen]') && !document.body.hasAttribute('data-foreign-error') && document.body.innerText.includes('alpha')`)

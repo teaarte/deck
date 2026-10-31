@@ -68,9 +68,7 @@ func TestATurnOnAModelOfAConnectionOnASubscriptionCostsNoMoney(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	if _, err := e.App.Store.DB.Exec(`UPDATE model SET subscription = 1, input_usd = 1000, output_usd = 1000 WHERE name = 'acp'`); err != nil {
-		t.Fatal(err)
-	}
+	e.Must("deck.model_set", map[string]any{"connection": "acp", "model": "m", "name": "acp", "subscription": true, "input_usd": 1000, "output_usd": 1000}, nil)
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
 	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")

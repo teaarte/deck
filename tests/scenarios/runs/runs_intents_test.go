@@ -79,8 +79,14 @@ func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) 
 	}
 	release(1)
 	e.App.Runner.Wait()
+	var calls []struct{ Tool, Outcome string }
+	e2.Must("deck.calls_list", map[string]any{"limit": 500}, &calls)
 	var outcome string
-	_ = e2.App.Store.DB.QueryRow(`SELECT outcome FROM tool_call WHERE tool = 'clips.generate' ORDER BY id LIMIT 1`).Scan(&outcome)
+	for _, c := range calls {
+		if c.Tool == "clips.generate" {
+			outcome = c.Outcome
+		}
+	}
 	if outcome != "unknown" {
 		t.Fatalf("a late answer to the lost deck does not rewrite the unknown outcome: %q", outcome)
 	}
@@ -138,7 +144,7 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first))
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("notes", "svc", "k")
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
@@ -148,10 +154,9 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(second))
-	if _, err := e2.App.Store.DB.Exec(`UPDATE ask SET state = 'answered', answer = 'allow' WHERE id = ?;
-UPDATE tool_call SET run = 'running' WHERE ask_id = ?`, a.ID, a.ID); err != nil {
-		t.Fatal(err)
-	}
+	// A deck that died after the owner's yes and before it sent the call.
+	e2.SQL(`UPDATE ask SET state = 'answered', answer = 'allow' WHERE id = ?;
+UPDATE tool_call SET run = 'running' WHERE ask_id = ?`, a.ID, a.ID)
 	e2.Resume()
 	got := e2.WaitAsk()
 	if got.ID == a.ID || got.Kind != "unknown" || !strings.Contains(got.Text, "Outcome unknown") || len(svc.Requests()) != 0 {
@@ -179,7 +184,7 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 	tid, tok := e.Token("shortcuts", "clips.*")
 	go func() {
 		req, _ := http.NewRequest("POST", e.URL+"/api/commands/clips.generate", strings.NewReader(`{"topic": "owls"}`))
-		req.Header.Set("Authorization", "Bearer "+tok)
+		harness.Bearer(tok)(req)
 		if r, err := http.DefaultClient.Do(req); err == nil {
 			r.Body.Close()
 		}
@@ -215,7 +220,7 @@ func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 	}}
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("notes", "svc", "k")
 	id := e.Run(e.Project("notes", harness.PostManifest(svc.URL, "")), "work")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()

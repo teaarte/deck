@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"database/sql"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
@@ -85,7 +84,7 @@ func TestUploadsNeedTheProjectAndGoWhenNoCommandTookThem(t *testing.T) {
 		_, _ = io.WriteString(w, "a")
 		_ = mw.Close()
 		req, _ := http.NewRequest("POST", e.URL+"/api/files?project=docs", &buf)
-		req.Header.Set("Authorization", "Bearer "+tok)
+		harness.Bearer(tok)(req)
 		req.Header.Set("Content-Type", mw.FormDataContentType())
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -104,8 +103,17 @@ func TestUploadsNeedTheProjectAndGoWhenNoCommandTookThem(t *testing.T) {
 	e.WaitState(e.Start("docs", "read", map[string]any{"doc": fmt.Sprint(kept)}), "done", "error")
 	e.App.Sweep(context.Background(), e.Clock.Add(25*time.Hour))
 	var uploads, all int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'upload'`).Scan(&uploads)
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file`).Scan(&all)
+	var listed []struct {
+		OwnerKind string `json:"owner_kind"`
+	}
+	e.Must("deck.files_list", nil, &listed)
+	for _, f := range listed {
+		if f.OwnerKind == "upload" {
+			uploads++
+		}
+	}
+	// Every file, also those in the trash and mid-move that no list shows.
+	_ = e.SQLRow(`SELECT count(*) FROM file`).Scan(&all)
 	if uploads != 0 || all != 1 {
 		t.Fatalf("an upload no command took is gone after a day, the one a process took stays: %d uploads, %d files", uploads, all)
 	}
@@ -126,12 +134,12 @@ print(json.dumps({"files": [{"path": "a.txt"}]}))
 	if len(kept) != 1 {
 		t.Fatalf("a result file is kept: %+v", kept)
 	}
-	res, err := e.App.Store.DB.Exec(`INSERT INTO file (project_id, owner_kind, owner_id, name, created_at)
-		SELECT project_id, 'keeping', id, 'b.txt', ? FROM process WHERE id = ?`, e.Clock.Now().UTC().Format(time.RFC3339Nano), id)
-	if err != nil {
+	var left int64
+	// A file a crash left mid-move into a process.
+	if err := e.SQLRow(`INSERT INTO file (project_id, owner_kind, owner_id, name, created_at)
+		SELECT project_id, 'keeping', id, 'b.txt', ? FROM process WHERE id = ? RETURNING id`, e.Clock.Now().UTC().Format(time.RFC3339Nano), id).Scan(&left); err != nil {
 		t.Fatal(err)
 	}
-	left, _ := res.LastInsertId()
 	path := filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", fmt.Sprint(left))
 	_ = os.WriteFile(path, []byte("b"), 0o600)
 	var shown []struct{ ID int64 }
@@ -142,7 +150,8 @@ print(json.dumps({"files": [{"path": "a.txt"}]}))
 	e.App.Sweep(context.Background(), e.Clock.Add(25*time.Hour))
 	e.Drained()
 	var n int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE id = ?`, left).Scan(&n)
+	// The row of a file mid-move, which no list shows.
+	_ = e.SQLRow(`SELECT count(*) FROM file WHERE id = ?`, left).Scan(&n)
 	if _, err := os.Stat(path); n != 0 || err == nil {
 		t.Fatalf("the daily sweep drops what a crash left mid-move: row %d, file %v", n, err)
 	}
@@ -363,15 +372,14 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 	if got.Cover == "" || got.Cover == fmt.Sprintf("/api/files/%d", red) || got.CoverDark != got.Cover || !strings.HasPrefix(got.CoverColor, "#d") {
 		t.Fatalf("a cover for every theme shows its light copy in both schemes, with its main color: %+v", got)
 	}
-	var kind string
 	var width int
-	_ = e.App.Store.DB.QueryRow(`SELECT f.type FROM file f JOIN picture p ON p.thumb_id = f.id`).Scan(&kind)
 	req, _ := http.NewRequest("GET", e.URL+got.Cover, nil)
 	e.Sign(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
+	kind := resp.Header.Get("Content-Type")
 	if cfg, err := jpeg.DecodeConfig(resp.Body); err == nil {
 		width = cfg.Width
 	}
@@ -410,7 +418,15 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 		t.Fatalf("remove takes off the covers for every theme alone; the card shows any other: %+v", got)
 	}
 	var files int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'picture'`).Scan(&files)
+	var listed []struct {
+		OwnerKind string `json:"owner_kind"`
+	}
+	e.Must("deck.files_list", map[string]any{"project": "notes"}, &listed)
+	for _, f := range listed {
+		if f.OwnerKind == "picture" {
+			files++
+		}
+	}
 	if files != 2 {
 		t.Fatalf("a picture taken off takes its files with it: %d", files)
 	}
@@ -460,7 +476,8 @@ func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
 	}
 	trashed := func() []int64 {
 		var ids []int64
-		rows, _ := e.App.Store.DB.Query(`SELECT id FROM file WHERE owner_kind = 'trash' ORDER BY id`)
+		// The files in the trash, which no list shows.
+		rows := e.SQLRows(`SELECT id FROM file WHERE owner_kind = 'trash' ORDER BY id`)
 		defer rows.Close()
 		for rows.Next() {
 			var id int64
@@ -494,15 +511,14 @@ func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
 
 	e.Project("old", harness.PlainManifest)
 	old := e.Upload("old", "old.png", "image/png", picture(color.RGBA{10, 10, 10, 255}))
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'old'`, old); err != nil {
-		t.Fatal(err)
-	}
+	// A cover a deck before covers by theme kept.
+	e.SQL(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'old'`, old)
 	var out struct{ Cover int64 }
 	e.Must("deck.project_cover", map[string]any{"project": "old", "file": fmt.Sprint(e.Upload("old", "new.png", "image/png", picture(color.RGBA{200, 200, 10, 255})))}, &out)
-	var theme string
-	_ = e.App.Store.DB.QueryRow(`SELECT theme FROM picture WHERE file_id = ?`, old).Scan(&theme)
-	if theme != "pixel" {
-		t.Fatalf("a cover kept before deck knew its theme goes to the theme in use: %q", theme)
+	var oldCovers []row
+	e.Must("deck.project_covers", map[string]any{"project": "old"}, &oldCovers)
+	if !slices.Contains(oldCovers, row{"pixel", old}) {
+		t.Fatalf("a cover kept before deck knew its theme goes to the theme in use: %+v", oldCovers)
 	}
 }
 
@@ -516,15 +532,26 @@ func TestAPictureWithoutALightCopyGetsOne(t *testing.T) {
 	var b bytes.Buffer
 	_ = png.Encode(&b, img)
 	id := e.Upload("notes", "old.png", "image/png", b.String())
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'notes'`, id); err != nil {
-		t.Fatal(err)
-	}
+	// A cover a deck before light copies kept.
+	e.SQL(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'notes'`, id)
 	e.App.Sweep(context.Background(), time.Now())
-	var thumb sql.NullInt64
-	var c string
-	_ = e.App.Store.DB.QueryRow(`SELECT thumb_id, color FROM picture`).Scan(&thumb, &c)
-	if !thumb.Valid || thumb.Int64 == 0 || c != "#ffffff" {
-		t.Fatalf("the sweep makes the light copy and the color: %v %q", thumb, c)
+	var covers []struct{ File int64 }
+	e.Must("deck.project_covers", map[string]any{"project": "notes"}, &covers)
+	var m struct {
+		Projects []struct {
+			Project    string
+			CoverColor string `json:"cover_color"`
+		}
+	}
+	e.Must("deck.menu", nil, &m)
+	c := ""
+	for _, p := range m.Projects {
+		if p.Project == "notes" {
+			c = p.CoverColor
+		}
+	}
+	if len(covers) != 1 || covers[0].File == id || covers[0].File == 0 || c != "#ffffff" {
+		t.Fatalf("the sweep makes the light copy and the color: %+v %q", covers, c)
 	}
 }
 

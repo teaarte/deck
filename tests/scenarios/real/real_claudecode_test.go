@@ -73,9 +73,7 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 }
 
 func realCLI(t *testing.T) {
-	if os.Getenv("DECK_REAL_CLI") == "" {
-		t.Skip("set DECK_REAL_CLI=1 to run against the real Claude Code CLI")
-	}
+	harness.Needs(t, "DECK_REAL_CLI")
 }
 
 // TestRealClaudeCodeKeepsSubscription checks that API variables of deck's environment do not reach the CLI.
@@ -205,9 +203,7 @@ func TestRealClaudeCodeKnowsFakeFlags(t *testing.T) {
 
 // TestRealClaudeCodeSelfCheck runs the adapter's self-check on the installed CLI.
 func TestRealClaudeCodeSelfCheck(t *testing.T) {
-	if os.Getenv("DECK_REAL_CLI") == "" {
-		t.Skip("set DECK_REAL_CLI=1 to run against the real Claude Code CLI")
-	}
+	harness.Needs(t, "DECK_REAL_CLI")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	c := claudecode.New(t.TempDir()).SelfCheck(ctx)

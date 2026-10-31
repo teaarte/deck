@@ -125,7 +125,7 @@ keys = [k for k, v in os.environ.items() if "sk-or" in v]
 print(json.dumps({"status": status, "answer": text[:4000], "keys": keys}))
 `
 
-// picture is the body the shorts module sends for a picture, as its script builds it.
+// picture is the body the films module sends for a picture, as its script builds it.
 const picture = `{"model": "google/gemini-3.1-flash-lite-image", "messages": [{"role": "user", "content": "A medieval manuscript painter"}],
   "modalities": ["image", "text"], "image_config": {"aspect_ratio": "9:16"}}`
 
@@ -139,13 +139,13 @@ func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 		},
 	})
 	e := harness.New(t)
-	e.Must("deck.secret_set", map[string]any{"name": "openrouter", "value": "sk-or-real"}, nil)
+	e.Secret("films", "openrouter", "sk-or-real")
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
-	e.Project("shorts", harness.ScriptManifest("media", "", `, "models": ["openrouter"]`))
-	e.SaveScript("shorts", "scripts/main.py", modelScript)
+	e.Project("films", harness.ScriptManifest("media", "", `, "models": ["openrouter"]`))
+	e.SaveScript("films", "scripts/main.py", modelScript)
 	for i := range 3 {
-		got := e.WaitState(e.Start("shorts", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
+		got := e.WaitState(e.Start("films", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
 		var out map[string]any
 		if got.State != "done" || json.Unmarshal(got.Result, &out) != nil {
 			t.Fatalf("the script ran: %+v", got)
@@ -160,7 +160,7 @@ func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 		t.Fatalf("deck put in the key and passed the body on: %+v", calls)
 	}
 	var spend []harness.SpendRow
-	e.ModelCalls("shorts", 0, &spend)
+	e.ModelCalls("films", 0, &spend)
 	if len(spend) != 3 || spend[0].Provider != "painter" || spend[0].Model != "google/gemini-3.1-flash-lite-image" || spend[0].Command != "media" ||
 		spend[0].Process == 0 || spend[0].Cost == nil || *spend[0].Cost != 0.033631 {
 		t.Fatalf("each call is in the journal of model calls with what OpenRouter said it cost: %+v", spend)
@@ -214,10 +214,10 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "busy", "model": "voice-1", "kind": "tts", "call_usd": 0.01}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "spare", "model": "voice-2", "kind": "tts", "call_usd": 0.02}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"busy/voice-1", "spare/voice-2"}}, nil)
-	e.Project("shorts", harness.ScriptManifest("voice", "", `, "models": ["@tts", "spare"]`))
-	e.SaveScript("shorts", "scripts/main.py", modelScript)
+	e.Project("films", harness.ScriptManifest("voice", "", `, "models": ["@tts", "spare"]`))
+	e.SaveScript("films", "scripts/main.py", modelScript)
 	speech := `{"model": "@tts", "input": "Knights against snails", "voice": "alloy", "response_format": "mp3"}`
-	got := e.WaitState(e.Start("shorts", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
+	got := e.WaitState(e.Start("films", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
 	var out map[string]any
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 200.0 || out["answer"] != "ID3-voice" {
 		t.Fatalf("the fallback answers after the refusal of the first: %+v", got)
@@ -226,16 +226,16 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 		t.Fatalf("each model got the body with its own name in place of the role: %+v %+v", b, s)
 	}
 	var spend []harness.SpendRow
-	e.ModelCalls("shorts", 0, &spend)
+	e.ModelCalls("films", 0, &spend)
 	if len(spend) != 1 || spend[0].Provider != "spare/voice-2" || spend[0].Cost == nil || *spend[0].Cost != 0.02 {
 		t.Fatalf("the call is counted on the model that made it, by its price per call: %+v", spend)
 	}
 
-	got = e.WaitState(e.Start("shorts", "voice", map[string]any{"key": "@/files", "other": `{"model": "@tts"}`}), "done", "error")
+	got = e.WaitState(e.Start("films", "voice", map[string]any{"key": "@/files", "other": `{"model": "@tts"}`}), "done", "error")
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "not a call of a model") {
 		t.Fatalf("a role reaches only the paths of model calls, not the rest of the connection behind it: %+v", got)
 	}
-	got = e.WaitState(e.Start("shorts", "voice", map[string]any{"key": "spare/images/generations", "other": `{"model": "@image"}`}), "done", "error")
+	got = e.WaitState(e.Start("films", "voice", map[string]any{"key": "spare/images/generations", "other": `{"model": "@image"}`}), "done", "error")
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 422.0 || !strings.Contains(out["answer"].(string), "no model is assigned to image") {
 		t.Fatalf("a role nothing is assigned to is refused with what to do: %+v", got)
 	}
@@ -384,10 +384,10 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.02}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "gemini", "model": "gemma", "kind": "text", "call_usd": 0.03}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "svc", "model": "track", "kind": "text", "name": "svc-track", "call_usd": 0.05}, nil)
-	e.Project("shorts", harness.ScriptManifest("media", "", `, "models": ["openrouter", "gemini", "svc"]`))
-	e.SaveScript("shorts", "scripts/main.py", modelScript)
+	e.Project("films", harness.ScriptManifest("media", "", `, "models": ["openrouter", "gemini", "svc"]`))
+	e.SaveScript("films", "scripts/main.py", modelScript)
 	call := func(in map[string]any) map[string]any {
-		got := e.WaitState(e.Start("shorts", "media", in), "done", "error")
+		got := e.WaitState(e.Start("films", "media", in), "done", "error")
 		var out map[string]any
 		if json.Unmarshal(got.Result, &out) != nil {
 			t.Fatalf("the script ran: %+v", got)
@@ -450,7 +450,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	e.Refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions",
 		"body": `{"model": "qwen", "messages": []}`}, 404, "model_request")
 	var spend []harness.SpendRow
-	e.ModelCalls("shorts", 0, &spend)
+	e.ModelCalls("films", 0, &spend)
 	got := map[string]float64{}
 	for _, s := range spend {
 		if s.Cost != nil {
@@ -462,7 +462,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	}
 	e.Project("plain", harness.PlainManifest)
 	var models []string
-	for _, r := range harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("shorts", "settings", "Model calls", nil)["rows"]) {
+	for _, r := range harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("films", "settings", "Model calls", nil)["rows"]) {
 		models = append(models, fmt.Sprint(r.Cells[1]))
 	}
 	slices.Sort(models)
@@ -475,7 +475,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	}
 	e.Must("deck.projects_list", nil, &ps)
 	for _, p := range ps {
-		if p.Name == "shorts" && !slices.Equal(p.Models, []string{"openrouter", "gemini", "svc"}) {
+		if p.Name == "films" && !slices.Equal(p.Models, []string{"openrouter", "gemini", "svc"}) {
 			t.Fatalf("the project says what it may call: %+v", p)
 		}
 	}
@@ -491,15 +491,15 @@ func TestAModuleDoesNotHoldTheKeyOfAConnection(t *testing.T) {
 	e := harness.New(t)
 	tool := `, "tools": {"http": [{"name": "image", "description": "A picture.", "class": "internal", "method": "POST",
 	  "url": "https://openrouter.ai/api/v1/chat/completions", "auth": {"type": "secret", "secret": "openrouter"}, "input": {"type": "object"}}]}`
-	e.Project("shorts", harness.ScriptManifest("media", "", tool))
+	e.Project("films", harness.ScriptManifest("media", "", tool))
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "sk-or"}, nil)
 	var m struct{ Warnings []string }
-	e.Must("deck.manifest_get", map[string]any{"project": "shorts"}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "films"}, &m)
 	if len(m.Warnings) != 1 || !strings.Contains(m.Warnings[0], "key of connection openrouter") {
 		t.Fatalf("a manifest that hands the key of a connection to a tool is read with a warning: %+v", m)
 	}
-	e.Refused("deck.manifest_save", map[string]any{"project": "shorts", "manifest": harness.ScriptManifest("media", "", tool)}, 422, "key of connection openrouter")
-	e.Must("deck.manifest_save", map[string]any{"project": "shorts", "manifest": harness.ScriptManifest("media", "", "")}, nil)
+	e.Refused("deck.manifest_save", map[string]any{"project": "films", "manifest": harness.ScriptManifest("media", "", tool)}, 422, "key of connection openrouter")
+	e.Must("deck.manifest_save", map[string]any{"project": "films", "manifest": harness.ScriptManifest("media", "", "")}, nil)
 }
 
 // TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton: an agent of a module that needs a model deck lacks calls
@@ -517,7 +517,7 @@ func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
 	}))
 
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
-	p := e.Project("shorts", harness.PlainManifest)
+	p := e.Project("films", harness.PlainManifest)
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
 	var m harness.ModelsOut
@@ -534,8 +534,13 @@ func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
 		t.Fatalf("no model before the owner's yes: %+v", m.Models)
 	}
 	var ask int64
-	if err := e.App.Store.DB.QueryRow(`SELECT id FROM ask WHERE kind = 'call' AND state = 'open' AND payload LIKE '%model_set%'`).Scan(&ask); err != nil {
-		t.Fatalf("the owner has the proposal to answer: %v", err)
+	for _, a := range e.Asks() {
+		if a.Kind == "call" && strings.Contains(a.Text, "model_set") {
+			ask = a.ID
+		}
+	}
+	if ask == 0 {
+		t.Fatalf("the owner has the proposal to answer: %+v", e.Asks())
 	}
 	e.Answer(ask, "allow")
 	if got := e.WaitState(id, "done"); got.State != "done" || bad {
@@ -555,9 +560,9 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "klein", "name": "local-image", "kind": "image", "free": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "cloud", "name": "cloud-image", "kind": "image", "call_usd": 0.03}, nil)
-	e.Project("shorts", harness.ScriptManifest("media", "", `, "models": ["@image"]`))
+	e.Project("films", harness.ScriptManifest("media", "", `, "models": ["@image"]`))
 	e.Project("plain", harness.PlainManifest)
-	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"local-image", "cloud-image"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "films", "models": []string{"local-image", "cloud-image"}}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"cloud-image"}}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"cloud-image"}}, nil)
 	e.Project("pics", harness.ScriptManifest("media", "", `, "models": ["@image"]`))
@@ -565,7 +570,7 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	if len(pics) != 2 || fmt.Sprint(pics[1].Cells[:3]...) != "imagecloud-imagedefault" {
 		t.Fatalf("a kind of work on the model deck's settings give everywhere is the default, not the module's own: %+v", pics)
 	}
-	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("shorts", "settings", "Models", nil)["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("films", "settings", "Models", nil)["rows"])
 	if len(rows) != 2 || fmt.Sprint(rows[0].Cells[0], rows[0].Cells[2]) != "Publishdefault" || fmt.Sprint(rows[1].Cells...) != "imagelocal-imageherefree" {
 		t.Fatalf("the settings of a module show the models of its commands and scripts and only its own: %+v", rows)
 	}
@@ -581,9 +586,9 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	params := pick["params"].(map[string]any)
 	params["model"] = "cloud-image"
 	e.Must(pick["command"].(string), params, nil)
-	rows = harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("shorts", "settings", "Models", nil)["rows"])[1:]
+	rows = harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("films", "settings", "Models", nil)["rows"])[1:]
 	var list harness.ModelsOut
-	e.Must("deck.models_list", map[string]any{"project": "shorts"}, &list)
+	e.Must("deck.models_list", map[string]any{"project": "films"}, &list)
 	if fmt.Sprint(rows[0].Cells...) != "imagecloud-imagehere$0.03 a call" || fmt.Sprint(list.Assignments[0].Models) != "[cloud-image local-image]" {
 		t.Fatalf("a picked model goes first and the one before stays its fallback: %v %+v", rows[0].Cells, list.Assignments)
 	}
@@ -597,16 +602,16 @@ func TestAModuleScriptReadsTheModelsOfDeck(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "sk-or-hidden"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.02}, nil)
-	e.Project("shorts", harness.ScriptManifest("media", "", ""))
+	e.Project("films", harness.ScriptManifest("media", "", ""))
 	e.Project("plain", harness.PlainManifest)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"openrouter/qwen"}}, nil)
-	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"openrouter/painter"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "films", "models": []string{"openrouter/painter"}}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"openrouter/painter"}}, nil)
-	e.SaveScript("shorts", "scripts/main.py", harness.PythonLib+`
+	e.SaveScript("films", "scripts/main.py", harness.PythonLib+`
 status, out = deck("deck.models_list", {})
 print(json.dumps({"status": status, "out": out}))
 `)
-	got := e.WaitState(e.Start("shorts", "media", nil), "done", "error")
+	got := e.WaitState(e.Start("films", "media", nil), "done", "error")
 	var res struct {
 		Status int
 		Out    harness.ModelsOut
@@ -631,7 +636,7 @@ print(json.dumps({"status": status, "out": out}))
 		where = append(where, a.Role+":"+a.Project)
 	}
 	slices.Sort(where)
-	if !slices.Equal(where, []string{"image:shorts", "stt:", "text:"}) {
+	if !slices.Equal(where, []string{"image:films", "stt:", "text:"}) {
 		t.Fatalf("a module sees the assignments of the workspace and its own, not of other projects: %v", where)
 	}
 }
@@ -657,17 +662,15 @@ func TestAssignmentsGoWithTheirCommandsAndModels(t *testing.T) {
 	e.Must("deck.manifest_save", map[string]any{"project": "plain", "manifest": harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil)}, nil)
 	e.Until("the assignment of a command the manifest dropped goes", func() bool { return assigned("spare") == nil })
 
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'gone', 'agent', '["other"]' FROM project WHERE name = 'plain'`); err != nil {
-		t.Fatal(err)
-	}
+	// An assignment an older deck left to a command no manifest has, which assignment_set refuses.
+	e.SQL(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'gone', 'agent', '["other"]' FROM project WHERE name = 'plain'`)
 	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "gone", "models": []string{}}, nil)
 	if assigned("gone") != nil {
 		t.Fatal("an assignment of a command that is gone is removed")
 	}
 
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'work', 'agent', '["vanished", "other"]' FROM project WHERE name = 'plain'`); err != nil {
-		t.Fatal(err)
-	}
+	// An assignment left to a model deck no longer has, which assignment_set refuses.
+	e.SQL(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'work', 'agent', '["vanished", "other"]' FROM project WHERE name = 'plain'`)
 	if a := assigned("work"); a == nil || a.Using != "other" || !strings.Contains(a.Why, "vanished") {
 		t.Fatalf("a model deck has none of is not the one that works, and the assignment says why: %+v", a)
 	}

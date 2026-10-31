@@ -5,7 +5,6 @@ import (
 	"deck2/tests/harness"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"regexp"
 	"strings"
 	"sync/atomic"
@@ -14,11 +13,9 @@ import (
 
 var refOf = regexp.MustCompile(`Send.{0,4} \[ref=(e\d+)\]`)
 
-// TestRealBrowser drives the real Playwright MCP server: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v
+// TestRealBrowser drives the real Playwright MCP server: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v
 func TestRealBrowser(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	var pixel, leaks atomic.Int32
 	router := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { pixel.Add(1) }))
 	t.Cleanup(router.Close)

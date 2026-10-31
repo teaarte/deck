@@ -3,7 +3,6 @@ package modules
 import (
 	"archive/zip"
 	"bytes"
-	deckdocs "deck2/internal/docs"
 	"deck2/internal/store"
 	"deck2/tests/harness"
 	"encoding/json"
@@ -87,11 +86,11 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	}
 
 	bad := t.TempDir()
-	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(harness.Manifest(`{"commands": [{"name": "x"}]}`)), 0o644)
+	_ = os.WriteFile(filepath.Join(bad, "manifest.json"), []byte(harness.Manifest(`{"commands": [{"name": "x"}]}`)), 0o644)
 	if code, out := e.Call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "manifest") {
 		t.Fatalf("an invalid manifest is refused with the reason: %d %s", code, out)
 	}
-	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(harness.Manifest(`{}`)), 0o644)
+	_ = os.WriteFile(filepath.Join(bad, "manifest.json"), []byte(harness.Manifest(`{}`)), 0o644)
 	_ = os.WriteFile(filepath.Join(bad, "logo.png"), []byte{0x89, 'P', 'N', 'G', 0xff, 0xfe}, 0o644)
 	if code, out := e.Call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "logo.png: not text") {
 		t.Fatalf("a folder with a file deck cannot take is refused: %d %s", code, out)
@@ -151,7 +150,7 @@ func TestImportTakesNoLinks(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	dir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, deckdocs.ManifestName), []byte(harness.Manifest(`{}`)), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(harness.Manifest(`{}`)), 0o644)
 	secret := filepath.Join(t.TempDir(), "secret.txt")
 	_ = os.WriteFile(secret, []byte("owner's secret"), 0o600)
 	_ = os.Symlink(secret, filepath.Join(dir, "notes.md"))
@@ -185,13 +184,13 @@ func TestBuiltInSkillsReachEveryWorkspace(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	first := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{Script: harness.Ok}))
-	if _, err := first.App.Store.DB.Exec(`INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
-		t.Fatal(err)
-	}
+	// A second workspace: deck has no command that makes one.
+	first.SQL(`INSERT INTO workspace (id, name) VALUES (2, 'other')`)
 	_ = first.App.Close()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{Script: harness.Ok}))
 	var n int
-	err := e.App.Store.DB.QueryRow(`SELECT COUNT(*) FROM document WHERE workspace_id = 2 AND name = 'skills/module-builder/SKILL.md'`).Scan(&n)
+	// The documents of another workspace, which the owner of this one reads nowhere.
+	err := e.SQLRow(`SELECT COUNT(*) FROM document WHERE workspace_id = 2 AND name = 'skills/module-builder/SKILL.md'`).Scan(&n)
 	if err != nil || n != 1 {
 		t.Fatalf("the built-in skill is stored for every workspace: %d %v", n, err)
 	}
@@ -216,7 +215,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 	var up struct{ IDs []int64 }
 	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
 	e.Must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
-	e.Must("deck.secret_set", map[string]any{"name": "feed", "value": "s3cret-feed-value"}, nil)
+	e.Secret("links", "feed", "s3cret-feed-value")
 
 	a := e.RowAction("", "settings", "deck.project_export", map[string]any{"project": "links"})
 	if a == nil || a["download"] != true {

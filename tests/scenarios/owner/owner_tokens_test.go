@@ -213,7 +213,7 @@ func TestEmptyTokenDoesNotOpenTheAPI(t *testing.T) {
 	ts := httptest.NewServer(api.New(e.App, "", web.FS()).Handler())
 	defer ts.Close()
 	req, _ := http.NewRequest("POST", ts.URL+"/api/commands/deck.projects_list", nil)
-	req.Header.Set("Authorization", "Bearer ")
+	harness.Bearer("")(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

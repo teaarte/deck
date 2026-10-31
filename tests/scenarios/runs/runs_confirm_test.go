@@ -34,7 +34,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 
 		harness.WithTTL))
 
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret-value\n"}, nil)
+	e.Secret("notes", "svc", "s3cret-value\n")
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 
 	for _, c := range e.Commands() {
@@ -109,7 +109,7 @@ func TestNoBecauseReachesTheAgentAndTheToolKeepsItsOwnTerm(t *testing.T) {
 
 		harness.WithTTL))
 
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("notes", "svc", "k")
 	p := e.Project("notes", harness.PostManifest(svc.URL, `, "confirm_ttl_minutes": 10`))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
@@ -208,7 +208,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 
 		harness.WithTTL))
 
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("notes", "svc", "k")
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
@@ -271,7 +271,7 @@ func TestConfirmationNamesTheMethodAndHost(t *testing.T) {
 
 		harness.WithTTL))
 
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("notes", "svc", "k")
 	e.Run(e.Project("notes", harness.PostManifest(svc.URL, "")), "work")
 	host := strings.TrimPrefix(svc.URL, "http://")
 	if a := e.WaitAsk(); !strings.Contains(a.Text, "POST http://"+host+"/items/x)") {
@@ -330,7 +330,7 @@ func TestACallWaitingForTheOwnerWaitsAcrossARestart(t *testing.T) {
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "x"}`) })
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
+	e.Secret("notes", "svc", "s3cret")
 	e.Project("notes", harness.PostManifest(svc.URL, ""))
 	_, tok := e.Token("terminal", "notes.*")
 	code, out := e.As(tok).Call("notes.post", map[string]any{"id": "a", "text": "hi"})
@@ -342,7 +342,8 @@ func TestACallWaitingForTheOwnerWaitsAcrossARestart(t *testing.T) {
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Answer(held.Waiting, "allow")
 	var waited int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM tool_call WHERE ask_id = ? AND outcome = 'waiting'`, held.Waiting).Scan(&waited)
+	// The ask of a call in the journal, which calls_list does not show.
+	_ = e.SQLRow(`SELECT count(*) FROM tool_call WHERE ask_id = ? AND outcome = 'waiting'`, held.Waiting).Scan(&waited)
 	if len(svc.Requests()) != 1 || waited != 1 {
 		t.Fatalf("the owner's yes makes the call and the journal keeps its ask: %d requests, %d waiting rows", len(svc.Requests()), waited)
 	}
@@ -361,7 +362,7 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 
 		harness.WithTTL, func(c *app.Config) { c.ConfirmWait = 50 * time.Millisecond }))
 
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("notes", "svc", "k")
 	stopped := e.Run(e.Project("notes", harness.PostManifest(svc.URL, "")), "work")
 	e.WaitAsk()
 	e.Must("deck.process_stop", map[string]any{"process": stopped}, nil)

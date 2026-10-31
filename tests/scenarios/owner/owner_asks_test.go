@@ -31,14 +31,14 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "gemma", "kind": "text", "call_usd": 0.02}, nil)
-	e.Project("shorts", harness.PlainManifest)
+	e.Project("films", harness.PlainManifest)
 	e.Project("picker", harness.ScriptManifest("main", "", ""))
 	e.SaveScript("picker", "scripts/main.py", harness.PressScript)
-	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/gemma"}}, nil)
 
-	run := pressRun(e, "picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
+	run := pressRun(e, "picker", "deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/qwen"}})
 	asks := pressAsks(e, run)
-	if len(asks) != 1 || asks[0].Kind != "call" || asks[0].What != "Assign models" || asks[0].Where != "text of shorts: openrouter/gemma → openrouter/qwen" {
+	if len(asks) != 1 || asks[0].Kind != "call" || asks[0].What != "Assign models" || asks[0].Where != "text of films: openrouter/gemma → openrouter/qwen" {
 		t.Fatalf("the button gets the call its run waits for, before and after: %+v", asks)
 	}
 	if got := pressAsks(e, e.Start("picker", "main", map[string]any{"n": asks[0].ID})); len(got) != 1 || got[0].ID != asks[0].ID {
@@ -47,7 +47,7 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	if code, out := e.Press(asks[0].Allow); code != 200 {
 		t.Fatalf("the button that allows comes with the ask: %d %s", code, out)
 	}
-	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+	if got := e.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("yes at the button applies the call: %v", got)
 	}
 	var left []struct{ Kind string }
@@ -68,7 +68,7 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	}
 	two := e.Start("picker", "main", map[string]any{"method": "many", "form": string(harness.MustJSON([]map[string]any{
 		{"method": "deck.model_set", "form": map[string]any{"connection": "openrouter", "model": "mistral", "kind": "text", "free": true}},
-		{"method": "deck.assignment_set", "form": map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}}}))})
+		{"method": "deck.assignment_set", "form": map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/gemma"}}}}))})
 	twoAsks := pressAsks(e, two)
 	if len(twoAsks) != 2 || twoAsks[0].Where != "openrouter/mistral → free true, kind text" {
 		t.Fatalf("a run that waits for two calls gives the button both: %+v", twoAsks)

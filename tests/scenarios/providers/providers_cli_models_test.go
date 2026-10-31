@@ -69,10 +69,9 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	}
 	unchecked := func(when string) {
 		t.Helper()
-		var n int
-		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'provider:sonnet-low'`).Scan(&n)
-		if i := onModel(); i >= 0 || n != 0 {
-			t.Fatalf("%s, a model of the CLI is not checked: it spends turns of the subscription (call %d, %d rows)", when, i, n)
+		h := e.HealthRowOf("provider:sonnet-low")
+		if i := onModel(); i >= 0 || h != nil {
+			t.Fatalf("%s, a model of the CLI is not checked: it spends turns of the subscription (call %d, %v)", when, i, h)
 		}
 	}
 	unchecked("on model_set")
@@ -101,10 +100,13 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	}
 	var calls []map[string]any
 	e.ModelCalls("", id, &calls)
-	var sub int
-	_ = e.App.Store.DB.QueryRow(`SELECT subscription FROM llm_call WHERE process_id = ?`, id).Scan(&sub)
-	if len(calls) != 1 || calls[0]["gen_ai.provider.name"] != "sonnet-low" || sub != 1 {
-		t.Fatalf("its spend goes by the model, on the subscription: %v %d", calls, sub)
+	var spend []struct {
+		Provider     string
+		Subscription bool
+	}
+	e.Must("deck.spend_list", map[string]any{"project": "plain"}, &spend)
+	if len(calls) != 1 || calls[0]["gen_ai.provider.name"] != "sonnet-low" || len(spend) != 1 || spend[0].Provider != "sonnet-low" || !spend[0].Subscription {
+		t.Fatalf("its spend goes by the model, on the subscription: %v %+v", calls, spend)
 	}
 	var views struct {
 		Models []struct{ Name, Price string }

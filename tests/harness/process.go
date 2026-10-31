@@ -10,17 +10,14 @@ import (
 // AskState is the state of an ask as the store keeps it.
 func (e *Env) AskState(id int64) string {
 	var state string
-	_ = e.App.Store.DB.QueryRow(`SELECT state FROM ask WHERE id = ?`, id).Scan(&state)
+	_ = e.SQLRow(`SELECT state FROM ask WHERE id = ?`, id).Scan(&state)
 	return state
 }
 
 // Calls lists the gateway journal of a process as "tool outcome external_id error" lines with params.
 func (e *Env) Calls(process int64) string {
 	e.T.Helper()
-	rows, err := e.App.Store.DB.Query(`SELECT tool || ' ' || outcome || ' ' || external_id || ' ' || params || ' ' || error FROM tool_call WHERE process_id = ? ORDER BY id`, process)
-	if err != nil {
-		e.T.Fatal(err)
-	}
+	rows := e.SQLRows(`SELECT tool || ' ' || outcome || ' ' || external_id || ' ' || params || ' ' || error FROM tool_call WHERE process_id = ? ORDER BY id`, process)
 	defer rows.Close()
 	var b strings.Builder
 	for rows.Next() {
@@ -171,7 +168,7 @@ func (e *Env) Drained() {
 	e.T.Helper()
 	e.Until("the outbox drained", func() bool {
 		var n int
-		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM outbox WHERE tries = 0`).Scan(&n)
+		_ = e.SQLRow(`SELECT count(*) FROM outbox WHERE tries = 0`).Scan(&n)
 		return n == 0
 	})
 }

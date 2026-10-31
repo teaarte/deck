@@ -81,7 +81,15 @@ func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
 	e.Clock.Add(time.Hour)
 	e.Sweep()
 	var uploads int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'upload'`).Scan(&uploads)
+	var listed []struct {
+		OwnerKind string `json:"owner_kind"`
+	}
+	e.Must("deck.files_list", nil, &listed)
+	for _, f := range listed {
+		if f.OwnerKind == "upload" {
+			uploads++
+		}
+	}
 	if uploads != 0 {
 		t.Fatalf("the cleanup runs a day after the last one, whatever snapshot came between: %d uploads left", uploads)
 	}
@@ -219,27 +227,14 @@ func TestASnapshotBeforeADeleteHoldsOnlyThatProject(t *testing.T) {
 	h := deckhome.Layout(e.App.Cfg.Home)
 	stored := map[string]string{}
 	for _, name := range []string{"keep", "gone"} {
-		e.Project(name, harness.PlainManifest)
-		var id int64
-		if err := e.App.Store.DB.QueryRow(`SELECT id FROM project WHERE name = ?`, name).Scan(&id); err != nil {
-			t.Fatal(err)
-		}
+		id := e.Project(name, harness.PlainManifest)
 		if err := os.MkdirAll(h.Data(id), 0o700); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(filepath.Join(h.Data(id), name+".txt"), []byte(name), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		var file int64
-		if err := e.App.Store.DB.QueryRow(`INSERT INTO file (project_id, owner_kind, owner_id, name) VALUES (?, 'project', ?, ?) RETURNING id`,
-			id, id, name+".bin").Scan(&file); err != nil {
-			t.Fatal(err)
-		}
-		_ = os.MkdirAll(h.Files(), 0o700)
-		if err := os.WriteFile(filepath.Join(h.Files(), fmt.Sprint(file)), []byte(name), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		stored[name] = fmt.Sprint(file)
+		stored[name] = fmt.Sprint(e.Upload(name, name+".bin", "application/octet-stream", name))
 	}
 	var out struct{ Snapshot string }
 	e.Must("deck.project_delete", map[string]any{"project": "gone"}, &out)
@@ -329,11 +324,7 @@ func TestSnapshotsKeepToTheirBudget(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) { c.SnapshotBudget = 4 << 20 }))
 	h := deckhome.Layout(e.App.Cfg.Home)
-	e.Project("notes", harness.PlainManifest)
-	var id int64
-	if err := e.App.Store.DB.QueryRow(`SELECT id FROM project WHERE name = 'notes'`).Scan(&id); err != nil {
-		t.Fatal(err)
-	}
+	id := e.Project("notes", harness.PlainManifest)
 	data := h.Data(id)
 	random := make([]byte, 3<<20)
 	_, _ = rand.Read(random)

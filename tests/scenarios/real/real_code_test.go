@@ -25,9 +25,7 @@ func TestRealCodeModule(t *testing.T) {
 		{"codex", "DECK_REAL_CODEX", "codex", func(home string) provider.Provider { return codex.New(home) }},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if os.Getenv(c.env) != "1" {
-				t.Skipf("set %s=1 to rehearse the code module on the installed %s", c.env, c.name)
-			}
+			harness.Needs(t, c.env)
 			if _, err := exec.LookPath(c.bin); err != nil {
 				t.Skipf("%s is not installed", c.bin)
 			}
@@ -185,16 +183,9 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		t.Fatalf("in auto the agent merges its run itself: %s\n%s", subject, git("log", "--oneline", "main"))
 	}
 	var notes []string
-	rows, err := e.App.Store.DB.Query(`SELECT text FROM feed WHERE kind = 'note'`)
-	if err != nil {
-		t.Fatal(err)
+	for _, n := range e.Notes() {
+		notes = append(notes, n.Text)
 	}
-	for rows.Next() {
-		var s string
-		_ = rows.Scan(&s)
-		notes = append(notes, s)
-	}
-	_ = rows.Close()
 	t.Logf("notifications: %v", notes)
 	if len(notes) != 1 {
 		t.Fatalf("in auto the merge is one line in the cockpit feed: %v", notes)

@@ -7,7 +7,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,17 +15,14 @@ import (
 // TestRealBrowserTheTilesStandOnTheWayBack: back from a module the tiles stand as they were at once, nothing in them
 // moves or comes in; a card of another size settles softly.
 func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for i := range 3 {
 		name := fmt.Sprintf("lab%d", i)
 		e.Project(name, strings.Replace(harness.WidgetsOfWork, `"screens": [`, `"screens": [{"name": "main", "title": "Main", "blocks": [{"type": "table", "source": {"collection": "items"}, "columns": [{"label": "Name", "bind": "name"}]}]}, `, 1))
 		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(map[string]any{"name": "one", "n": 1})}, nil)
 	}
-	b := newPlaywright(t)
+	b := Open(t)
 	// back goes back to the tiles and watches them for a second: they stand in the first frames the address is theirs,
 	// then no card moves and nothing in them plays but Deki at rest; it says what went otherwise.
 	const back = `new Promise((done) => {
@@ -70,15 +66,12 @@ func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
 }
 
 // TestRealBrowserThemeStylesTheCards: the cards wear a theme of white cards, a meadow and its own grid on a desktop and a
-// phone: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserThemeStylesTheCards -v.
+// phone: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserThemeStylesTheCards -v.
 func TestRealBrowserThemeStylesTheCards(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("web", harness.WebNotes)
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/deck/apps")
 	b.until("the cockpit's card in the accent", `(() => { const c = document.querySelector('[data-app-tile][data-big]'); return c && getComputedStyle(c).backgroundImage.includes('gradient') })()`)
@@ -134,8 +127,8 @@ var labManifest = harness.Manifest(`{"title": "Laboratory",
     {"name": "main", "title": "Main", "blocks": [
       {"type": "table", "title": "Prices", "source": {"collection": "prices", "sort": "-at", "limit": 5}, "columns": [{"label": "At", "bind": "at"}, {"label": "Price", "bind": "price"}],
         "head": [{"label": "Collect now", "command": "collect", "primary": true}]},
-      {"type": "chart", "title": "BTC, 7 days", "span": "full", "source": {"collection": "prices", "sort": "at"}, "x": "at", "series": [{"label": "Price", "y": "price"}], "format": "compact"},
-      {"type": "chart", "title": "BTC in dollars", "source": {"collection": "prices", "sort": "at"}, "x": "at", "series": [{"label": "Price", "y": "price"}], "format": "money", "currency": "USD"}]},
+      {"type": "chart", "title": "COIN, 7 days", "span": "full", "source": {"collection": "prices", "sort": "at"}, "x": "at", "series": [{"label": "Price", "y": "price"}], "format": "compact"},
+      {"type": "chart", "title": "COIN in dollars", "source": {"collection": "prices", "sort": "at"}, "x": "at", "series": [{"label": "Price", "y": "price"}], "format": "money", "currency": "USD"}]},
     {"name": "board", "title": "Board", "blocks": [
       {"type": "list", "title": "Tasks", "board": "status", "source": {"collection": "tasks", "sort": "order"}, "item": {"title": "title", "tone": "status == 'done' ? 'muted' : ''"},
         "actions": [{"label": "Open", "screen": "task", "primary": true}, {"label": "Move", "command": "move", "params": {"id": "=_id"}, "input": "status"}]}]},
@@ -149,7 +142,7 @@ var labManifest = harness.Manifest(`{"title": "Laboratory",
       {"type": "stat", "title": "Open trades", "source": {"collection": "tasks", "where": "status != 'done'"}}]},
     {"min": "2x2", "blocks": [
       {"type": "stat", "title": "Price", "source": {"collection": "prices", "sort": "-at", "limit": 1}, "value": "rows[0].price", "format": "money", "currency": "USD"},
-      {"type": "stat", "title": "Forecast", "source": {"collection": "prices", "sort": "-at", "limit": 1}, "value": "rows[0].price * 1.01", "format": "money", "currency": "USD"},
+      {"type": "stat", "title": "Estimate", "source": {"collection": "prices", "sort": "-at", "limit": 1}, "value": "rows[0].price * 1.01", "format": "money", "currency": "USD"},
       {"type": "chart", "title": "Week", "source": {"collection": "prices", "sort": "at"}, "x": "at", "series": [{"label": "Price", "y": "price"}], "format": "compact"},
       {"type": "stat", "title": "Open trades", "source": {"collection": "tasks", "where": "status != 'done'"}}]}
   ]}`
@@ -177,10 +170,7 @@ func console() string {
 // TestRealBrowserTilesAndCharts: cards take the view of their size with the chart grown and what has no room said;
 // Today reads over its picture; axes cut and repeat no label; the board's accent is at work; a table has a head.
 func TestRealBrowserTilesAndCharts(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	e.Project("lab", labManifest)
@@ -202,7 +192,7 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 		e.Must("deck.theme_image", map[string]any{"theme": "pult", "slot": "cockpit", "scheme": scheme, "file": fmt.Sprint(id)}, nil)
 	}
 	e.Must("deck.theme_use", map[string]any{"name": "pult"}, nil)
-	b := newPlaywright(t)
+	b := Open(t)
 	for _, phone := range []bool{false, true} {
 		width, height, look := 1280, 900, "pc"
 		if phone {

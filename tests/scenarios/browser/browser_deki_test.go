@@ -2,33 +2,29 @@ package browser
 
 import (
 	"deck2/tests/harness"
-	"os"
 	"testing"
 )
 
 // TestRealBrowserDekiAndMotion: Deki greets, points at what waits, moves a few times, rests and wakes; a card grows
 // into its module's screen and back, still with the motion off: DECK_REAL_BROWSER=1, -run this test.
 func TestRealBrowserDekiAndMotion(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
-	e.Project("shorts", harness.PlainManifest)
+	e.Project("films", harness.PlainManifest)
 	e.Project("picker", harness.ScriptManifest("main", "", `, "screens": [{"name": "main", "title": "Picker", "blocks": [
     {"type": "actions", "title": "Run", "actions": [{"label": "Run", "command": "main", "params": {"method": "deck.models_list", "form": "{}"}}]}]}], "menu": ["main"]`))
 	e.SaveScript("picker", "scripts/main.py", harness.DeckCallScript)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/")
 	deki := `document.querySelector('[data-card-deki] [data-pose]:not([data-leaving])')`
 	b.until("Deki greeting on the first open of the device", deki+`?.dataset.pose === 'hello'`)
 	b.until("Deki at rest after the greeting", `['chill', 'sleepy'].includes(`+deki+`?.dataset.pose)`)
 
-	e.ScriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
+	e.ScriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/qwen"}})
 	b.until("Deki pointing at the decision", deki+`?.dataset.pose === 'point' && `+deki+`.dataset.deki === 'point'`)
 	b.shot("deki-point")
 	b.until("the motion of the pose playing", deki+`.getAnimations().some((a) => a.playState === 'running')`)

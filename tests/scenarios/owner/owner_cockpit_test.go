@@ -50,16 +50,16 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 		return provider.Result{Text: "voiced"}
 	}))
 
-	e.Project("shorts", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Project("films", jobsModule)
+	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
-	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
 	failed := func() []cockpitRun {
 		var out []cockpitRun
 		e.Must("deck.processes_list", map[string]any{"failed": true}, &out)
 		return out
 	}
-	id := e.Start("shorts", "voice", map[string]any{"record": recs[0].ID})
+	id := e.Start("films", "voice", map[string]any{"record": recs[0].ID})
 	e.WaitState(id, "done", "error")
 	if got := failed(); len(got) != 1 || got[0].ID != id || got[0].RecordTitle != "Knights" || got[0].Error == "" {
 		t.Fatalf("the failed run is in the cockpit with its record and why: %+v", got)
@@ -71,7 +71,7 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 		t.Fatalf("a retry runs it again with its input, and a run that went well takes it off: %+v %+v", got, failed())
 	}
 	fail.Store(true)
-	id = e.Start("shorts", "voice", map[string]any{"record": recs[0].ID})
+	id = e.Start("films", "voice", map[string]any{"record": recs[0].ID})
 	e.WaitState(id, "done", "error")
 	e.Must("deck.process_dismiss", map[string]any{"process": id}, nil)
 	if got := failed(); len(got) != 0 {
@@ -111,11 +111,11 @@ func TestARunThatTakesLongerThanUsualIsMarked(t *testing.T) {
 				return provider.Result{Text: "voiced"}
 			}}), harness.WithClock(clock))
 
-			e.Project("shorts", jobsModule)
+			e.Project("films", jobsModule)
 			for range tc.runs {
-				e.WaitState(e.Start("shorts", "voice", nil), "done", "error")
+				e.WaitState(e.Start("films", "voice", nil), "done", "error")
 			}
-			id := e.Start("shorts", "voice", nil)
+			id := e.Start("films", "voice", nil)
 			e.WaitState(id, "running")
 			clock.Add(tc.at)
 			var open []cockpitRun
@@ -144,8 +144,8 @@ func TestARunSentBackCountsFromThenAndFailsAnew(t *testing.T) {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	}}), harness.WithClock(clock))
 
-	e.Project("shorts", jobsModule)
-	id := e.Start("shorts", "voice", nil)
+	e.Project("films", jobsModule)
+	id := e.Start("films", "voice", nil)
 	e.WaitState(id, "error")
 	e.Must("deck.process_dismiss", map[string]any{"process": id}, nil)
 	clock.Add(8 * 24 * time.Hour)
@@ -180,11 +180,11 @@ func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 		return provider.Result{Text: "voiced"}
 	}}), harness.WithClock(clock))
 
-	e.Project("shorts", jobsModule)
+	e.Project("films", jobsModule)
 	for range usualRunsForTest {
-		e.WaitState(e.Start("shorts", "voice", nil), "done", "error")
+		e.WaitState(e.Start("films", "voice", nil), "done", "error")
 	}
-	id := e.Start("shorts", "voice", nil)
+	id := e.Start("films", "voice", nil)
 	e.WaitState(id, "rate_limited")
 	clock.Add(3 * time.Minute)
 	var open []cockpitRun
@@ -352,11 +352,11 @@ func TestFailedRunsStayInTheHistoryOfTheSchedule(t *testing.T) {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	}))
 
-	e.Project("shorts", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Project("films", jobsModule)
+	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
-	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
-	id := e.Start("shorts", "voice", map[string]any{"record": recs[0].ID})
+	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
+	id := e.Start("films", "voice", map[string]any{"record": recs[0].ID})
 	e.WaitState(id, "done", "error")
 	e.Must("deck.process_dismiss", map[string]any{"process": id}, nil)
 	failed := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
@@ -386,15 +386,15 @@ func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 	if h := today(e, ""); h.State != "calm" || !strings.HasPrefix(h.Line, "Tell Deki what to do") {
 		t.Fatalf("a quiet empty deck says what to do: %+v", h)
 	}
-	e.Project("shorts", jobsModule)
+	e.Project("films", jobsModule)
 	if h := today(e, ""); h.Line != "All is well: nothing to decide, no failures." || h.Mark != "check" {
 		t.Fatalf("a quiet deck with a module says all is well: %+v", h)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
-	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
-	e.WaitState(e.Start("shorts", "voice", map[string]any{"record": recs[0].ID}), "error")
-	e.Must("deck.notify", map[string]any{"project": "shorts", "text": "a new video is ready"}, nil)
+	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
+	e.WaitState(e.Start("films", "voice", map[string]any{"record": recs[0].ID}), "error")
+	e.Must("deck.notify", map[string]any{"project": "films", "text": "a new video is ready"}, nil)
 	if h := today(e, ""); h.State != "errors" || h.Failed != 1 || h.Notes != 1 || h.Line != "Nothing to decide. One failure is in the feed below." || h.Mark != "alert-circle" {
 		t.Fatalf("a failure alone is said to be in the feed: %+v", h)
 	}
@@ -423,16 +423,16 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	}))
 
-	e.Project("shorts", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
+	e.Project("films", jobsModule)
+	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "knights", "title": "Knights"}, map[string]any{"slug": "dragons", "title": "Dragons"})}, nil)
 	var recs []struct{ ID int64 }
-	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
 	for _, r := range recs {
-		e.WaitState(e.Start("shorts", "voice", map[string]any{"record": r.ID}), "error")
+		e.WaitState(e.Start("films", "voice", map[string]any{"record": r.ID}), "error")
 	}
 	for _, text := range []string{"one", "two", "three"} {
-		e.Must("deck.notify", map[string]any{"project": "shorts", "text": text}, nil)
+		e.Must("deck.notify", map[string]any{"project": "films", "text": text}, nil)
 	}
 	feed := e.ScreenData("", "cockpit", nil)["b2"]
 	items := harness.BlockData[[]harness.ListItem](t, feed["items"])
@@ -488,19 +488,19 @@ func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 		return provider.Result{Text: "voiced"}
 	}))
 
-	e.Project("shorts", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
+	e.Project("films", jobsModule)
+	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "knights"}, map[string]any{"slug": "dragons"}, map[string]any{"slug": "castles"})}, nil)
 	var recs []struct{ ID int64 }
-	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
 	var ids []int64
 	for _, r := range recs {
-		id := e.Start("shorts", "voice", map[string]any{"record": r.ID})
+		id := e.Start("films", "voice", map[string]any{"record": r.ID})
 		e.WaitState(id, "error")
 		ids = append(ids, id)
 	}
 	e.Must("deck.process_dismiss", map[string]any{"process": ids[1]}, nil)
-	e.WaitState(e.Start("shorts", "voice", map[string]any{"record": recs[2].ID}), "done")
+	e.WaitState(e.Start("films", "voice", map[string]any{"record": recs[2].ID}), "done")
 
 	var open []struct{ ID int64 }
 	e.Must("deck.processes_list", map[string]any{"failed": true}, &open)

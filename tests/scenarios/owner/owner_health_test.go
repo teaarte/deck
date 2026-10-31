@@ -1,10 +1,7 @@
 package owner
 
 import (
-	"context"
 	"deck2/internal/health"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"fmt"
 	"net/http"
@@ -44,11 +41,9 @@ func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	pid := e.Project("broken", harness.Manifest(`{}`))
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 13, "nonsense": true}'
-		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
-		t.Fatal(err)
-	}
+	e.Project("broken", harness.Manifest(`{}`))
+	// A manifest an older deck read and this one does not.
+	e.PlantRevision("broken", "manifest.json", harness.Manifest(`{"nonsense": true}`))
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	before := pulseErrors(e)
@@ -85,17 +80,15 @@ func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	pid := e.Project("shorts", harness.ModelManifest)
-	if h := e.HealthRowOf("command:shorts.factcheck"); h == nil {
+	e.Project("films", harness.ModelManifest)
+	if h := e.HealthRowOf("command:films.factcheck"); h == nil {
 		t.Fatal("a model command no model takes is a row of health")
 	}
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 13, "nonsense": true}'
-		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
-		t.Fatal(err)
-	}
+	// A manifest an older deck read and this one does not.
+	e.PlantRevision("films", "manifest.json", harness.Manifest(`{"nonsense": true}`))
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	if h := e.HealthRowOf("command:shorts.factcheck"); h != nil || e.HealthRowOf("project:shorts") == nil {
+	if h := e.HealthRowOf("command:films.factcheck"); h != nil || e.HealthRowOf("project:films") == nil {
 		t.Fatalf("the manifest that does not read is the row, not its commands: %v", h)
 	}
 }
@@ -106,17 +99,15 @@ func TestTheBuiltInMasterOnceFreeIsWell(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	if _, err := e.App.Store.DB.Exec(`UPDATE project SET builtin = 0 WHERE name = 'master'`); err != nil {
-		t.Fatal(err)
-	}
+	// A project of the owner named master, as a deck before the built-in one left it.
+	e.SQL(`UPDATE project SET builtin = 0 WHERE name = 'master'`)
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	if h := e.HealthRowOf("master"); h == nil || h["status"] != "error" {
 		t.Fatalf("a project of the owner named master is red in health: %v", h)
 	}
-	if _, err := e.App.Store.DB.Exec(`UPDATE project SET name = 'mine' WHERE name = 'master'`); err != nil {
-		t.Fatal(err)
-	}
+	// The owner's project renamed while deck was off; no command renames a project.
+	e.SQL(`UPDATE project SET name = 'mine' WHERE name = 'master'`)
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	if h := e.HealthRowOf("master"); h != nil {
@@ -129,30 +120,17 @@ func TestTheBuiltInMasterOnceFreeIsWell(t *testing.T) {
 func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	ctx := context.Background()
 	mine := e.Project("x", harness.PlainManifest)
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
-		t.Fatal(err)
-	}
-	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		theirs, err := q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: "x", Status: "enabled"})
-		if err != nil {
-			return err
-		}
-		for _, h := range []db.SetHealthParams{{WorkspaceID: store.ID(1), ProjectID: store.ID(mine), Subject: "tool:x.get", Status: "error"},
-			{WorkspaceID: store.ID(2), ProjectID: store.ID(theirs.ID), Subject: "tool:x.get", Status: "error"}} {
-			if _, err := q.SetHealth(ctx, h); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// A second workspace with a namesake project; deck makes no workspace but the owner's.
+	e.SQL(`INSERT INTO workspace (id, name) VALUES (2, 'other');
+		INSERT INTO project (workspace_id, name, status) VALUES (2, 'x', 'enabled')`)
+	// A failing check of each namesake.
+	e.SQL(`INSERT INTO health (workspace_id, project_id, subject, status) VALUES (1, ?, 'tool:x.get', 'error'),
+		(2, (SELECT id FROM project WHERE workspace_id = 2 AND name = 'x'), 'tool:x.get', 'error')`, mine)
 	e.Must("deck.project_delete", map[string]any{"project": "x"}, nil)
 	var n int
-	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM health WHERE subject = 'tool:x.get' AND workspace_id = 2`).Scan(&n)
+	// The health of another workspace, which the owner of this one does not read.
+	_ = e.SQLRow(`SELECT count(*) FROM health WHERE subject = 'tool:x.get' AND workspace_id = 2`).Scan(&n)
 	if n != 1 {
 		t.Fatalf("the namesake in the other workspace keeps its health: %d", n)
 	}

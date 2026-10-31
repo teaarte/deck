@@ -9,8 +9,6 @@ import (
 	deckhome "deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
@@ -193,7 +191,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	if form.Commands[0].Input.Properties["value"]["writeOnly"] != true {
 		t.Fatalf("the value of a secret is a field that hides what is typed: %+v", form.Commands[0].Input.Properties)
 	}
-	e.Must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
+	e.Secret("", "mail-key", "s3cret-value")
 	harness.WaitEvent(t, stream, events.Event{Topic: "secrets"})
 	secrets := e.SettingsBlock("Secrets", map[string]any{"topic": "secrets"})
 	got := harness.BlockData[[]harness.ScreenRow](t, secrets["rows"])
@@ -314,9 +312,9 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	e := harness.New(t)
 	e.Project("web", harness.WebNotes)
 	ctx := t.Context()
-	for _, h := range []db.SetHealthParams{{Subject: "mcp:web.search", Status: "ok"}, {Subject: "tool:web.fetch", Status: "error", Error: "the server exited: 1"},
-		{Subject: "provider:elsewhere", Status: "error", Error: "a provider of another workspace"}} {
-		if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { _, err := q.SetHealth(ctx, h); return err }); err != nil {
+	for _, h := range [][3]string{{"mcp:web.search", "ok", ""}, {"tool:web.fetch", "error", "the server exited: 1"},
+		{"provider:elsewhere", "error", "a provider of another workspace"}} {
+		if err := health.Write(ctx, e.App.Store, health.Of{}, h[0], h[1], h[2]); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -333,11 +331,8 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	if !strings.Contains(string(block["filters"]), `"error"`) {
 		t.Fatalf("health narrows by state: %s", block["filters"])
 	}
-	web := store.ID(e.ProjectID("web"))
-	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3"})
-		return err
-	}); err != nil {
+	web := health.Of{Workspace: 1, Project: e.ProjectID("web")}
+	if err := health.Write(ctx, e.App.Store, web, "command:web.digest", "error", "no python3"); err != nil {
 		t.Fatal(err)
 	}
 	failing := harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Broken now", nil)["items"])
@@ -384,10 +379,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	if code, _ := e.Call("deck.health_seen", map[string]any{"subject": "mcp:web.search", "project": "web"}); code == 200 {
 		t.Fatal("only a failing check is marked read")
 	}
-	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3.12"})
-		return err
-	}); err != nil {
+	if err := health.Write(ctx, e.App.Store, web, "command:web.digest", "error", "no python3.12"); err != nil {
 		t.Fatal(err)
 	}
 	if webErrors() != 1 || unread() != 2 {
@@ -453,7 +445,7 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
+	e.Secret("", "mail-key", "s3cret-value")
 	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.secrets_list", []byte(`{}`))
 	raw, _ := json.Marshal(out)
 	if err != nil || string(raw) != `[{"name":"mail-key","set":true}]` {
@@ -584,7 +576,7 @@ func TestTheNamesOfSettingsFollowTheLanguageOfTheScreen(t *testing.T) {
 func TestASecretDeleteStaysInTheFolderOfSecrets(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.Secret("", "svc", "k")
 	dir := deckhome.Layout(e.App.Cfg.Home).Secrets(1)
 	above := filepath.Join(filepath.Dir(dir), "x")
 	if err := os.WriteFile(above, []byte("keep"), 0o600); err != nil {
@@ -606,10 +598,7 @@ func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("daily", harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
-	if err := e.App.Store.Tx(t.Context(), func(ctx context.Context, q *db.Queries) error {
-		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: store.ID(e.ProjectID("daily")), Subject: "trigger:daily.work", Status: "error", Error: "did not start"})
-		return err
-	}); err != nil {
+	if err := health.Write(t.Context(), e.App.Store, health.Of{Workspace: 1, Project: e.ProjectID("daily")}, "trigger:daily.work", "error", "did not start"); err != nil {
 		t.Fatal(err)
 	}
 	var feed []struct{ Check, Model string }

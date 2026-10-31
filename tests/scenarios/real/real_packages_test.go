@@ -2,7 +2,6 @@ package real
 
 import (
 	"deck2/tests/harness"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -26,9 +25,7 @@ console.log(JSON.stringify({ value: leftPad("7", 3, "0") }));
 
 // TestRealScriptPackages installs packages from PyPI and npm through the proxy of deck with the registries in domains.read.
 func TestRealScriptPackages(t *testing.T) {
-	if os.Getenv("DECK_REAL_PACKAGES") == "" {
-		t.Skip("set DECK_REAL_PACKAGES=1 to install from PyPI and npm")
-	}
+	harness.Needs(t, "DECK_REAL_PACKAGES")
 	for _, prog := range []string{"uv", "npm"} {
 		if _, err := exec.LookPath(prog); err != nil {
 			t.Skipf("%s is not installed", prog)
@@ -108,9 +105,7 @@ const path = require("node:path");
 // TestRealReferenceScripts runs what modules do in the sandbox of scripts: packages from PyPI and npm, a model of
 // Hugging Face, git over https, ffmpeg, Remotion with Chrome, and an MCP server run by npx.
 func TestRealReferenceScripts(t *testing.T) {
-	if os.Getenv("DECK_REAL_PACKAGES") == "" {
-		t.Skip("set DECK_REAL_PACKAGES=1 to run the reference scripts against the network")
-	}
+	harness.Needs(t, "DECK_REAL_PACKAGES")
 	for _, prog := range []string{"uv", "npm", "npx", "git", "ffmpeg", "curl", "unzip"} {
 		if _, err := exec.LookPath(prog); err != nil {
 			t.Skipf("%s is not installed", prog)

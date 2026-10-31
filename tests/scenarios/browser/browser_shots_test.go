@@ -19,9 +19,7 @@ import (
 // TestRealBrowserTheMasterSeesAScreen: deck draws a screen in its own browser under the master's rights, as a
 // computer and as a phone, and the master gets the picture and how long it took.
 func TestRealBrowserTheMasterSeesAScreen(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	checkBuiltClient(t)
 	shots := make(chan string, 2)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -73,9 +71,7 @@ await app.connect();
 // TestRealBrowserAShotDrawsACustomBlock: a shot the master takes draws a custom block of a module as the owner sees
 // it, its HTML whole and run.
 func TestRealBrowserAShotDrawsACustomBlock(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	checkBuiltClient(t)
 	shots := make(chan string, 1)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -143,9 +139,7 @@ await app.connect();
 // TestRealBrowserAShotWaitsForThePicturesACustomBlockReads: a shot of a screen waits for the pictures a custom block
 // reads itself, on a computer and on a phone.
 func TestRealBrowserAShotWaitsForThePicturesACustomBlockReads(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	checkBuiltClient(t)
 	shots := make(chan string, 2)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {

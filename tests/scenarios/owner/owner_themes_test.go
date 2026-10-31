@@ -2,8 +2,6 @@ package owner
 
 import (
 	"context"
-	"deck2/internal/docs"
-	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"fmt"
 	"image/color"
@@ -49,7 +47,8 @@ func TestAThemeHasItsPictures(t *testing.T) {
 	}
 	e.Must("deck.theme_delete", map[string]any{"name": "paper"}, nil)
 	var left int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM picture WHERE theme = 'paper'`).Scan(&left)
+	// The pictures of a deleted theme, which no read shows.
+	_ = e.SQLRow(`SELECT count(*) FROM picture WHERE theme = 'paper'`).Scan(&left)
 	if left != 0 {
 		t.Fatalf("a deleted theme takes its pictures along: %d left", left)
 	}
@@ -73,12 +72,9 @@ func TestTheMasterIsAskedForThePicturesOfTheTheme(t *testing.T) {
 func TestAGoneThemeGivesWayToJuceAndSaysSo(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: 1, Key: "theme", Value: "glass"})
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The theme glass an older deck shipped and the owner wore.
+	e.SQL(`INSERT INTO setting (workspace_id, key, value) VALUES (1, 'theme', 'glass')
+		ON CONFLICT (workspace_id, key) DO UPDATE SET value = excluded.value`)
 	e.App.Themes.Settle(context.Background())
 	e.App.Themes.Settle(context.Background())
 	var l themeLook
@@ -207,14 +203,9 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 	e.Refused("deck.theme_delete", map[string]any{"name": "juce"}, 422, "deck ships the theme juce")
 
 	// A theme stored before a check of today: worn, without what the check refuses.
-	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		old := strings.Replace(nightTheme, `.nav .asks { color: var(--accent-3); }`, `.nav .asks { color: var(--accent-3); background: url(x.png); } .gone { color: red }`, 1)
-		_, _, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.Scope{Workspace: 1}, Name: "themes/night.json"}, docs.KindTheme, old, "owner", "")
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	old := strings.Replace(nightTheme, `.nav .asks { color: var(--accent-3); }`, `.nav .asks { color: var(--accent-3); background: url(x.png); } .gone { color: red }`, 1)
+	// A theme a deck before today's check stored.
+	e.PlantRevision("", "themes/night.json", old)
 	e.Must("deck.theme", map[string]any{}, &l)
 	if l.Name != "night" || len(l.Problems) != 2 || strings.Contains(l.CSS, "url(") || !strings.Contains(l.CSS, "[data-phone-tabs] [data-asks]") {
 		t.Fatalf("an old theme is worn without what a check refuses: %+v", l)

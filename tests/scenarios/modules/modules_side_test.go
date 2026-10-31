@@ -14,8 +14,8 @@ func TestASideFilterNarrowsTheBlocksOfItsScreen(t *testing.T) {
 	e := harness.New(t)
 	e.Project("lab", harness.SideManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
-		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
-		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
+		map[string]any{"title": "a", "coin": "COIN", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
+		map[string]any{"title": "c", "coin": "COIN", "side": "short"})}, nil)
 
 	msgs := e.ScreenMessages("lab", "lab", map[string]any{"lang": "ru"})
 	raw, _ := json.Marshal(msgs)
@@ -28,7 +28,7 @@ func TestASideFilterNarrowsTheBlocksOfItsScreen(t *testing.T) {
 		Options, Labels     []string
 	}
 	coin := harness.BlockData[[]filter](t, all["s0"]["filters"])
-	if len(coin) != 1 || coin[0].Field != "coin" || coin[0].Label != "Монета" || strings.Join(coin[0].Options, ",") != "BTC,ETH" || coin[0].Value != "" {
+	if len(coin) != 1 || coin[0].Field != "coin" || coin[0].Label != "Монета" || strings.Join(coin[0].Options, ",") != "COIN,ETH" || coin[0].Value != "" {
 		t.Fatalf("a filter offers the values of its field: %+v", coin)
 	}
 	side := harness.BlockData[[]filter](t, all["s1"]["filters"])
@@ -39,14 +39,14 @@ func TestASideFilterNarrowsTheBlocksOfItsScreen(t *testing.T) {
 		t.Fatalf("no pick, every row: %+v", rows)
 	}
 
-	picked := e.ScreenData("lab", "lab", map[string]any{"params": `{"coin": "BTC", "side": "short"}`})
+	picked := e.ScreenData("lab", "lab", map[string]any{"params": `{"coin": "COIN", "side": "short"}`})
 	if rows := harness.BlockData[[]harness.ScreenRow](t, picked["b0"]["rows"]); len(rows) != 1 {
 		t.Fatalf("the picks narrow the table: %+v", rows)
 	}
 	if v := string(picked["s2"]["value"]); v != "2" {
 		t.Fatalf("a small block of the panel reads the param too: %s", v)
 	}
-	if coin := harness.BlockData[[]filter](t, picked["s0"]["filters"]); coin[0].Value != "BTC" {
+	if coin := harness.BlockData[[]filter](t, picked["s0"]["filters"]); coin[0].Value != "COIN" {
 		t.Fatalf("the filter shows its pick: %+v", coin)
 	}
 }
@@ -61,7 +61,7 @@ func TestTheSidePanelHoldsFiltersButtonsAndSmallBlocks(t *testing.T) {
 			`{"type": "table", "source": {"collection": "trades"}, "columns": [{"label": "Title", "bind": "title"}]}]`, "the side panel holds filter, actions, stat, list blocks, not table"},
 		{`"params": {"coin": "string", "side": "string"}`, `"params": {"coin": "string"}`, `the filter sets param "side"`},
 		{`"options": ["long", "short"]}`, `"options": ["long", "short"], "field": "side"}`, "not both"},
-		{`"blocks": [{"type": "table"`, `"blocks": [{"type": "filter", "param": "coin", "options": ["BTC"]}, {"type": "table"`, "a filter stands in side of its screen"},
+		{`"blocks": [{"type": "table"`, `"blocks": [{"type": "filter", "param": "coin", "options": ["COIN"]}, {"type": "table"`, "a filter stands in side of its screen"},
 		{`"field": "coin"}`, `"field": "price"}`, `"price" is no field of its source`},
 		{`"param": "side", "options"`, `"param": "tab", "options"`, "tab is a param only the client reads"},
 	} {
@@ -78,13 +78,13 @@ func TestTheSidePanelHoldsFiltersButtonsAndSmallBlocks(t *testing.T) {
 func TestAFilterStartsOnTheDefaultOfItsParam(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("lab", strings.Replace(harness.SideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
+	e.Project("lab", strings.Replace(harness.SideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "COIN"}, "side": "string"}`, 1))
 	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
-		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
-		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
+		map[string]any{"title": "a", "coin": "COIN", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
+		map[string]any{"title": "c", "coin": "COIN", "side": "short"})}, nil)
 	type filter struct{ Value string }
 	first := e.ScreenData("lab", "lab", nil)
-	if rows := harness.BlockData[[]harness.ScreenRow](t, first["b0"]["rows"]); len(rows) != 2 || harness.BlockData[[]filter](t, first["s0"]["filters"])[0].Value != "BTC" {
+	if rows := harness.BlockData[[]harness.ScreenRow](t, first["b0"]["rows"]); len(rows) != 2 || harness.BlockData[[]filter](t, first["s0"]["filters"])[0].Value != "COIN" {
 		t.Fatalf("the screen starts on the default of its param: %+v", rows)
 	}
 	all := e.ScreenData("lab", "lab", map[string]any{"params": `{"coin": ""}`})
@@ -93,7 +93,7 @@ func TestAFilterStartsOnTheDefaultOfItsParam(t *testing.T) {
 	}
 	var cur struct{ Manifest string }
 	e.Must("deck.manifest_get", map[string]any{"project": "lab"}, &cur)
-	if !strings.Contains(cur.Manifest, `"default": "BTC"`) || !strings.Contains(cur.Manifest, `"side": "string"`) {
+	if !strings.Contains(cur.Manifest, `"default": "COIN"`) || !strings.Contains(cur.Manifest, `"side": "string"`) {
 		t.Fatalf("a param keeps its form: %s", cur.Manifest)
 	}
 	bad := strings.Replace(harness.SideManifest, `"side": "string"}`, `"side": "string", "n": {"type": "integer", "default": "many"}}`, 1)

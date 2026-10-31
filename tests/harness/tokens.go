@@ -89,10 +89,7 @@ type JournalRow struct {
 
 func (e *Env) Journal() []JournalRow {
 	e.T.Helper()
-	rows, err := e.App.Store.DB.Query(`SELECT actor, tool, class, outcome FROM tool_call ORDER BY id`)
-	if err != nil {
-		e.T.Fatal(err)
-	}
+	rows := e.SQLRows(`SELECT actor, tool, class, outcome FROM tool_call ORDER BY id`)
 	defer rows.Close()
 	var out []JournalRow
 	for rows.Next() {
@@ -105,10 +102,7 @@ func (e *Env) Journal() []JournalRow {
 
 func (e *Env) TokenRows() []string {
 	e.T.Helper()
-	rows, err := e.App.Store.DB.Query(`SELECT name || ' ' || hash || ' ' || commands FROM automation_token`)
-	if err != nil {
-		e.T.Fatal(err)
-	}
+	rows := e.SQLRows(`SELECT name || ' ' || hash || ' ' || commands FROM automation_token`)
 	defer rows.Close()
 	var out []string
 	for rows.Next() {

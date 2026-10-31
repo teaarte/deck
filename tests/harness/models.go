@@ -34,14 +34,11 @@ func (e *Env) MustAgentModel(in map[string]any) {
 // ModelCalls reads the journal of model calls, newest first, of a project and a process when they are given.
 func (e *Env) ModelCalls(project string, process int64, out any) {
 	e.T.Helper()
-	rows, err := e.App.Store.DB.Query(`SELECT c.id, COALESCE(c.process_id, 0), c.command, c.gen_ai_provider_name, c.gen_ai_request_model,
+	rows := e.SQLRows(`SELECT c.id, COALESCE(c.process_id, 0), c.command, c.gen_ai_provider_name, c.gen_ai_request_model,
 		c.gen_ai_response_model, c.gen_ai_usage_input_tokens, c.gen_ai_usage_output_tokens, c.gen_ai_usage_cache_read_input_tokens,
 		c.gen_ai_usage_cache_creation_input_tokens, c.duration_ms, c.cost_usd, c.created_at
 		FROM llm_call c LEFT JOIN project p ON p.id = c.project_id
 		WHERE (? = '' OR p.name = ?) AND (? = 0 OR c.process_id = ?) ORDER BY c.id DESC`, project, project, process, process)
-	if err != nil {
-		e.T.Fatal(err)
-	}
 	defer rows.Close()
 	var calls []map[string]any
 	for rows.Next() {

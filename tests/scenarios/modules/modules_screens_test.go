@@ -577,10 +577,8 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
     {"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "name"}},
     {"type": "list", "source": {"from": "deck.models_list", "rows": "models"}, "item": {"title": "name"}}]}]}`)
 	e.Project("old", m)
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = replace(text, 'deck.models_list', 'deck.providers_list')
-		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = (SELECT id FROM project WHERE name = 'old'))`); err != nil {
-		t.Fatal(err)
-	}
+	// A screen saved when deck still had deck.providers_list.
+	e.PlantRevision("old", "manifest.json", strings.ReplaceAll(m, "deck.models_list", "deck.providers_list"))
 	var ps []struct {
 		Name          string
 		ManifestError string `json:"manifest_error"`

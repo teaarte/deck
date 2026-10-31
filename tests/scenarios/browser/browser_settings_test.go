@@ -2,21 +2,17 @@ package browser
 
 import (
 	"deck2/tests/harness"
-	"os"
 	"testing"
 )
 
 // TestRealBrowserProjectSettings opens the settings of a project from the Projects tab in the real browser: its
 // commands with a picker of their model, its tools beside its folders, and its pause button pauses it.
 func TestRealBrowserProjectSettings(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", harness.NotesManifest)
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
 	b.Open(e, "#/deck/settings?tab=Modules")
 	item := itemOf("notes", "")

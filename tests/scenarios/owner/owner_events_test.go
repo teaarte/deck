@@ -196,29 +196,23 @@ func TestAChangeOfAnotherWorkspaceStaysThere(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	ctx := t.Context()
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
-		t.Fatal(err)
-	}
-	var theirs db.Project
-	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		if theirs, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: "theirs", Status: "enabled"}); err != nil {
-			return err
-		}
-		_, err = q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), ProjectID: store.ID(theirs.ID), Subject: "tool:theirs.get", Status: "error"})
-		return err
-	})
-	if err != nil {
+	// A second workspace with a project and its failing check; deck makes no workspace but the owner's.
+	e.SQL(`INSERT INTO workspace (id, name) VALUES (2, 'other');
+		INSERT INTO project (workspace_id, name, status) VALUES (2, 'theirs', 'enabled');
+		INSERT INTO health (workspace_id, project_id, subject, status) VALUES (2, (SELECT id FROM project WHERE name = 'theirs'), 'tool:theirs.get', 'error')`)
+	var theirs int64
+	// The project of another workspace, which no reader of this one lists.
+	if err := e.SQLRow(`SELECT id FROM project WHERE workspace_id = 2 AND name = 'theirs'`).Scan(&theirs); err != nil {
 		t.Fatal(err)
 	}
 	live := e.Events(ctx)
-	err = e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), Subject: "push", Status: "error", Error: "their pushes"})
 		return err
 	})
 	if err == nil {
 		err = e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			_, err := q.DeleteProject(ctx, theirs.ID)
+			_, err := q.DeleteProject(ctx, theirs)
 			return err
 		})
 	}

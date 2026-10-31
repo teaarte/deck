@@ -2,7 +2,6 @@ package browser
 
 import (
 	"deck2/tests/harness"
-	"os"
 	"strings"
 	"testing"
 )
@@ -10,15 +9,12 @@ import (
 // TestRealBrowserCodeProject walks the owner's way to a code project in the real browser: create a project, import
 // the code example, enable it, give it a repo folder, mark a task ready on its page and press Run.
 func TestRealBrowserCodeProject(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
+	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	repo := harness.RepoFolder(t)
 	module := harness.CodeModule(t, "")
 
-	b := newPlaywright(t)
+	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
 	b.Open(e, "#/deck/settings?tab=Modules")
 	form := func(cmd, field string) string {

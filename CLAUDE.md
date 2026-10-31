@@ -63,10 +63,15 @@ hold; look inside a package for the rest.
   process left (`left.go`); what it needs from deck is `Deps`.
 - `internal/provider` — model providers behind one interface and one `Outcome` of a turn: `claudecode`, `codex`
   (generated protocol), `acp` (an ACP agent in deck's sandbox on a model through deck's proxy); self-checks.
-- `internal/gateway` — deck's MCP server of a process (permissions, questions, confirmations, commands as tools),
-  the HTTP entry of scripts, and the proxy of models: `SendHops` is the one loop of fallbacks. `Egress` is the one
-  way to the web: a name resolves once, the proxy dials its addresses, a name reaches only public ones; `Fetch` a
-  page the same way — new outbound HTTP goes through it.
+- `internal/gateway` — one work over one call: deck's MCP server of a process (permissions, questions,
+  confirmations, commands as tools), the HTTP entry of scripts and automations, `Permit` by the rules of a command.
+- `internal/egress` — the one way to the web: a name resolves once, a request dials its addresses (`Pin`,
+  `Client`, each redirect checked), a name reaches only public ones (NAT64 and 6to4 by the IPv4 they carry), the host
+  of a URL a manifest names only when public (`With`); `Proxy` of the Door, `Fetch` a page — new outbound HTTP goes
+  through it. `AsPublic` lets a test's service on loopback stand for a public one.
+- `internal/models` — deck's proxy of models: what a call asks (`AskOf`), one `Handler(Policy)` for scripts and
+  agent turns, `SendHops` the one loop of fallbacks, the usage of an answer; every connection, a local one too, goes
+  through the transport of its `Target` (`providers.target`), the place a node's connection takes.
 - `internal/fault` — the one form of a failure: a type of a closed set, whose it is, text and details; a script
   reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit. A refusal of a call at its entry is
   `registry.Error` (its constructors add `deck: `), any other failure `*fault.F`; `fault.Status` is the HTTP status of
@@ -85,11 +90,15 @@ hold; look inside a package for the rest.
 - `internal/untrusted` — text deck did not write, shaped (`Cut`, `Line`, `Block`) before a prompt, an ask or a
   journal.
 - `internal/files` — the files a command input points to and tools answer with (the files service is `app/files`).
-- `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/paths`, `internal/release`,
-  `internal/home`, `internal/nonce` — what their names say.
+- `internal/home` — the layout of deck's folder, the one check that a path is inside a folder (`Within`, `Real`,
+  `Resolve`) and the one way to write a file whole (`WriteFile`, `Create`/`Keep`, `Fresh`).
+- `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/release`,
+  `internal/nonce` — what their names say.
 - `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet`.
-- `internal/lint` — code rules checked by `tests/lint`; the rules of Go (`rules.go`) keep their current exceptions by
-  file:line in `exceptions.go`, a list that only shrinks.
+- `internal/lint` — code rules checked by `tests/lint`; `layers.go` is the table of layers L0–L9 (an import goes only
+  down, a domain only `internal/app` imports, a package in no layer is an error); the rules of Go (`rules.go`: os/exec
+  only in sandbox, HTTP clients only in egress, file writes only in home, the environment only in cmd/deck, …) keep
+  their current exceptions by file:line in `exceptions.go`, a list that only shrinks.
 - `desktop` — the launcher on the desktop (Wails, a Go module of its own): tray, window on deck's address, start at
   login; on Windows deck runs in its WSL2 distribution `deck` (`docs/spikes/windows.md`). deck knows nothing of it.
 - `starters` — the modules deck offers on its first run, a folder each as `deck.project_export` makes it; data, no

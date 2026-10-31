@@ -2,7 +2,6 @@ package themes
 
 import (
 	"context"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -13,6 +12,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 // Exists reports whether a theme of the name is there, shipped or the owner's.

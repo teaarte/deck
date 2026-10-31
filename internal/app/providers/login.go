@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/words"
 	"fmt"
 	"io"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
+	"deck2/internal/words"
 )
 
 // loginCeiling is how long a sign-in from deck waits for the owner, as long as a device code of Codex lives.

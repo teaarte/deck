@@ -88,7 +88,7 @@ func (s *Service) derive(ctx context.Context, ws int64, projects []string) error
 		for _, name := range m.Keys() {
 			if !s.Secret(ws, name) {
 				want[health.Secret(p.Name, name)] = derived{health.Project(p), health.Error,
-					"not set, so the tools that send it fail; set it in Settings → Advanced → Secrets"}
+					"not set, so the tools that send it fail"}
 			}
 		}
 	}

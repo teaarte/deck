@@ -4,7 +4,6 @@ package secrets
 
 import (
 	"context"
-	"deck2/internal/app/access"
 	"errors"
 	"io/fs"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/provider"
@@ -173,7 +173,7 @@ func (s *Service) projectSecrets(ctx context.Context, act registry.Actor, projec
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("secret_set", "Set a secret",
-			"Stores a secret for tools (a header, or the whole URL of a private link) as a file only deck reads; agents and scripts never see it.",
+			"Stores a secret for tools (a header, or the whole URL of a private link) as a file only deck reads.",
 			registry.OwnerOnly, s.secretSet),
 		registry.Def("secret_delete", "Delete secret",
 			"Deletes a stored secret; the tools and providers that name it fail until it is set again.",

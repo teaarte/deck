@@ -1,8 +1,6 @@
 package screens
 
 import (
-	"deck2/internal/manifest"
-	"deck2/internal/words"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -11,6 +9,9 @@ import (
 	"path"
 	"strings"
 	"sync"
+
+	"deck2/internal/manifest"
+	"deck2/internal/words"
 )
 
 // shippedFiles are deck's screens (project-<name> for every project) and the menu.

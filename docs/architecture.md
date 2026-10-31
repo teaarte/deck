@@ -63,7 +63,7 @@ one place.
   file manager, tabs, columns and dialogs. A screen can also have a side panel. The client only draws them, and a
   button sends an A2UI action back. Anything the catalog lacks, a model writes as an MCP App: a `custom` block in a
   sandboxed frame on a second origin. deck's own screens (Today, Schedule, Spend, Files, Look, Settings) are data
-  as well, in `internal/app/screens/shipped/`.
+  as well, in `internal/app/screens/shipped/`; what deck says to people is one dictionary, `internal/words/ru.json`.
 - **Tiles and widgets.** The home grid stores one layout per device and number of columns: free sizes in cells,
   written by the grid and by Settings → Modules alike. A widget is a small screen, not a new kind of data: up to
   eight views in a manifest, each with a least size (`2x1`) and up to four `stat`, `list` and `chart` blocks, read
@@ -78,8 +78,9 @@ one place.
 - **The master.** Deki is a built-in project (`master/`): its prompts, skills and commands such as reply, long
   work, daily review and memory upkeep. It works through the same registry with its own rights. It builds and
   changes modules with the skills in `skills/`: `module-builder` (what a manifest can do), `module-conventions` (the
-  layout, script contract, checks and review of a module's code), `code-project` and `memory`. A skill deck ships
-  merges with the master's own edits of it on update.
+  layout, script contract, checks and review of a module's code), `code-project` and `memory`. What deck ships (the master and the skills) one
+  function lays out on start, `docs.Ship`: an edit of the master or the owner merges into deck's new text, a
+  conflict is a note to the master, and a file deck ships no more goes.
 - **Failures** have one form (`internal/fault`): a type from a closed set, whose failure it is, a text and
   details. A script reports its own failure as `{"error", "type", "details"}`.
 

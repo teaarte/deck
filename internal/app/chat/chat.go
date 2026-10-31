@@ -6,15 +6,6 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"deck2/internal/app/access"
-	"deck2/internal/ask"
-	"deck2/internal/events"
-	"deck2/internal/manifest"
-	"deck2/internal/process"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +15,16 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"deck2/internal/app/access"
+	"deck2/internal/ask"
+	"deck2/internal/events"
+	"deck2/internal/manifest"
+	"deck2/internal/process"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 )
 
 const (

@@ -3,19 +3,19 @@ package devices
 import (
 	"cmp"
 	"context"
-	"deck2/internal/app/access"
-	"deck2/internal/manifest"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"slices"
 	"strings"
 
+	"deck2/internal/app/access"
 	"deck2/internal/docs"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 // Changed lists a change of a document by someone other than the owner in an enabled project, with its undo; what is

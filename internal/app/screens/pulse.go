@@ -2,12 +2,13 @@ package screens
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/words"
 	"deck2/master"
-	"fmt"
-	"log/slog"
 )
 
 // pulse is what waits for the owner, runs and fails in the workspace, State which Today says first (asks, errors,

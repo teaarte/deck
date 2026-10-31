@@ -5,6 +5,14 @@ package processes
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"slices"
+	"strings"
+	"time"
+
 	"deck2/internal/app/access"
 	"deck2/internal/ask"
 	"deck2/internal/fault"
@@ -17,13 +25,6 @@ import (
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 	"deck2/internal/words"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"math"
-	"slices"
-	"strings"
-	"time"
 )
 
 // Service keeps the commands of processes.

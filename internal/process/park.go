@@ -12,7 +12,9 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/fault"
 	"deck2/internal/health"
+	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
@@ -21,7 +23,7 @@ import (
 // picks how to continue; the self-check of the provider sees when the login is back.
 func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID int64, text string) {
 	payload, _ := json.Marshal(map[string]any{"answers": ask.LoginAnswers})
-	what, fix := "the model API refused the key of its connection", "Set a new value of the secret of its key in Settings → Advanced → Secrets"
+	what, fix := "the model API refused the key of its connection", "Give the connection a new key in its form ("+manifest.DeckForm(registry.Builtin+".connection_set", map[string]string{"name": pv.Name()})+")"
 	if _, ok := pv.(provider.Subscribed); ok {
 		what, fix = "needs a login", "Log in again in a terminal"
 	}

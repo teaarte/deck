@@ -13,11 +13,11 @@
         {"label": "State", "bind": "done ? 'ready' : (optional ?? false) ? 'optional' : 'needed'", "format": "tag", "tone": "done ? 'ok' : (optional ?? false) ? 'muted' : 'warn'"}
       ],
       "actions": [
-        {"label": "Secrets", "icon": "key", "screen": "settings", "params": {"tab": "Advanced"}, "when": "kind == 'secret' && !done"},
+        {"label": "Set a secret", "icon": "key", "screen": "settings", "params": {"tab": "Advanced", "dialog": "secret", "name": "=what"}, "when": "kind == 'secret' && !done"},
         {"label": "Models", "icon": "cpu", "screen": "settings", "params": {"tab": "Models"}, "when": "kind == 'model'"}
       ]},
     {"type": "table", "title": "What it may do once enabled", "span": "full", "source": {"from": "deck.project_rights", "input": {"project": "=param.project"}},
-      "description": "Install modules only from authors you know. Once enabled, a module does what is listed here without asking you again: it reaches these sites, reads these secrets, works in these folders and calls these models. deck checks nothing more.",
+      "description": "Install modules only from authors you know. Once enabled, a module does what is listed here without asking you again.",
       "empty": "Nothing beyond its own records: it reaches no site, reads no secret and calls no model",
       "columns": [
         {"label": "What", "bind": "what"},

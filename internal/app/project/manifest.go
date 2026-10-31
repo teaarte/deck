@@ -2,6 +2,10 @@ package project
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"strings"
+
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/events"
@@ -11,9 +15,6 @@ import (
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 	"deck2/master"
-	"fmt"
-	"log/slog"
-	"strings"
 )
 
 type manifestGetIn struct {

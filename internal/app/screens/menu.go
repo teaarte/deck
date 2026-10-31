@@ -2,14 +2,15 @@ package screens
 
 import (
 	"context"
+	"slices"
+	"sync"
+
 	"deck2/internal/docs"
 	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/words"
-	"slices"
-	"sync"
 )
 
 type menuEntry struct {

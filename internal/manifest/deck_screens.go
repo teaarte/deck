@@ -2,15 +2,18 @@ package manifest
 
 import (
 	"bytes"
-	"deck2/internal/registry"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"slices"
+	"strings"
 	"sync/atomic"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"deck2/internal/registry"
 )
 
 // ReadCommand is what a screen block needs of a command it reads: the schemas of its input and result and the
@@ -121,4 +124,52 @@ func DeckScreen(name string) *Screen {
 		return &(*all)[i]
 	}
 	return nil
+}
+
+// FormAddress is the address of the form of command in s at, such as #/deck/settings?dialog=secret&tab=Advanced, with
+// the parameters its values read; false when s has none.
+func FormAddress(at string, s *Screen, command string) (string, []string, bool) {
+	f, ok := FormOf(s, command)
+	if !ok || s.Record != "" {
+		return "", nil, false
+	}
+	q := url.Values{}
+	for i, t := range f.Tabs {
+		q.Set([]string{"tab", "sub"}[min(i, 1)], t)
+	}
+	if f.Dialog != "" {
+		q.Set("dialog", f.Dialog)
+	}
+	at += s.Name
+	if len(q) > 0 {
+		at += "?" + q.Encode()
+	}
+	return at, f.Params, true
+}
+
+// DeckForm is the address of the form of a command of deck on its screens, settings first, filled with values; ""
+// when no screen of deck has it.
+func DeckForm(command string, values map[string]string) string {
+	all := deckScreens.Load()
+	if all == nil {
+		return ""
+	}
+	order := slices.Clone(*all)
+	slices.SortStableFunc(order, func(a, b Screen) int { return btoi(b.Name == "settings") - btoi(a.Name == "settings") })
+	for i := range order {
+		at, _, ok := FormAddress("#/deck/", &order[i], command)
+		if !ok {
+			continue
+		}
+		path, query, _ := strings.Cut(at, "?")
+		q, _ := url.ParseQuery(query)
+		for k, v := range values {
+			q.Set(k, v)
+		}
+		if len(q) == 0 {
+			return path
+		}
+		return path + "?" + q.Encode()
+	}
+	return ""
 }

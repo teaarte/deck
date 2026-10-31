@@ -3,11 +3,11 @@ package devices
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
 	"strings"
 
+	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"

@@ -2,6 +2,11 @@ package project
 
 import (
 	"context"
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+
 	"deck2/internal/app/folders"
 	"deck2/internal/docs"
 	"deck2/internal/files"
@@ -10,10 +15,6 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/words"
-	"fmt"
-	"maps"
-	"slices"
-	"strings"
 )
 
 type projectView struct {

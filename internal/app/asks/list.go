@@ -3,7 +3,6 @@ package asks
 import (
 	"cmp"
 	"context"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -18,6 +17,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
+	"deck2/internal/words"
 )
 
 type asksListIn struct {

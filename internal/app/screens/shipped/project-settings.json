@@ -76,7 +76,7 @@
               {"verb": "remove", "confirm": true, "command": "deck.folder_remove", "params": {"name": "=name"}}
             ]},
           {"type": "table", "title": "Secrets", "when": "len(rows) > 0", "source": {"from": "deck.secrets_list"},
-            "description": "Keys and passwords its tools need; its agents and scripts never see them.",
+            "description": "Keys and passwords its tools need.",
             "columns": [
               {"label": "Secret", "bind": "name", "format": "copy"},
               {"label": "State", "bind": "set ? 'set' : 'not set'", "format": "tag", "tone": "set ? 'ok' : 'warn'"}

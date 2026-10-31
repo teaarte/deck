@@ -3,10 +3,6 @@ package project
 import (
 	"cmp"
 	"context"
-	"deck2/internal/app/access"
-	"deck2/internal/app/documents"
-	"deck2/internal/app/folders"
-	"deck2/internal/paths"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,8 +10,12 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"deck2/internal/app/access"
+	"deck2/internal/app/documents"
+	"deck2/internal/app/folders"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
+	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"

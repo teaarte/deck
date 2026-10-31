@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"deck2/internal/words"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/words"
 )
 
 // Units are what a price per million of a model counts: tokens in and out, characters deck sent, or seconds of a

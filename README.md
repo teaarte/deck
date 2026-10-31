@@ -33,8 +33,7 @@ answer the one or two things that need you.
 - **Your models, your bill.** Subscriptions (Claude Code, Codex) or any model on OpenRouter, Google, Anthropic,
   Groq, a local server or Ollama. Pick the model of each command in its row, with fallbacks. **Spend** shows what
   every module costs.
-- **Yours.** One program, one folder, no account, no cloud. Keys stay in deck's secret store; agents and scripts
-  never see them.
+- **Yours.** One program, one folder, no account, no cloud. Keys stay in deck's secret store.
 
 ## Tiles and live widgets
 

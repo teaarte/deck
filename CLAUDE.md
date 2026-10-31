@@ -37,8 +37,9 @@ hold; look inside a package for the rest.
   is left unset), registers their commands, runs `Loop`/`Sweep`; background work goes through `Go(func(ctx)) bool`.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
   `internal/app`. Who may touch what is `app/access`. Deck's screens are data in `app/screens/shipped/` (a file a
-  screen, `ru.json` the one dictionary of deck's words — of screens, of commands and of the sentences deck writes,
-  phrases with verbs too, `manifest.TrText`).
+  screen).
+- `internal/words` — `ru.json`, the one dictionary of deck's words — of screens, of commands and of the sentences
+  deck writes, phrases with verbs too (`manifest.TrText`); `words.In(lang)`. One phrase a meaning (`lint.Words`).
 - `internal/registry` — every input (API, MCP, triggers) calls commands through it; input schemas are limited to
   App Intents types; `Def` takes the schema from a tagged input struct, `Read` declares a read with its result type
   and event topics (screens read only these; a read without topics panics, `registry.Static` for none).
@@ -51,7 +52,7 @@ hold; look inside a package for the rest.
   part, expressions (`Where`, `Resolve`), the table of rights (`grants.go`: `Widens` and `Clip` by one table), the
   structural merge of a grant (`merge.go`), texts and their translation.
 - `internal/docs` — documents with revisions, skill files, the manifest reader and what is in force (`For`,
-  `InForce`).
+  `InForce`); `Ship` lays out what deck ships (master, skills) with a merge of others' edits and removal.
 - `internal/process` — the runner of processes: turns of agents, scripts, tools and models, slots, resume, the
   deadlines (`Due`), the hand-on of a refused or silent turn to the next model (`handon.go`, `watch.go`), what a
   process left (`left.go`); what it needs from deck is `Deps`.
@@ -84,10 +85,12 @@ hold; look inside a package for the rest.
   file:line in `exceptions.go`, a list that only shrinks.
 - `desktop` — the launcher on the desktop (Wails, a Go module of its own): tray, window on deck's address, start at
   login; on Windows deck runs in its WSL2 distribution `deck` (`docs/spikes/windows.md`). deck knows nothing of it.
-- `starters` — the modules deck offers on its first run, each a `.zip` as `deck.project_export` makes it; data, no
-  code of deck for any of them.
-- `master` — the built-in project master (manifest, prompts, skills, deck's texts for its agents).
-- `skills` — the skills deck ships to agents; `schemas` — manifest schema, screen block catalog, App Intents rules.
+- `starters` — the modules deck offers on its first run, a folder each as `deck.project_export` makes it; data, no
+  code of deck for any of them, roles rather than the connections of their author.
+- `master` — the built-in project master (manifest, prompts, skills) and `templates`, deck's texts for agents: the
+  rule every agent follows (`agent.md`), the prompt of a command, the words of a chat turn.
+- `skills` — the skills deck ships to agents; `schemas` — manifest schema, screen block catalog, App Intents rules;
+  `deck_only` marks what only deck's own screens use (the format a model reads drops it, a module with it warns).
 - `web` — the client: Vite + React + Mantine v9 + `@a2ui/react` v0.9 — import from `@a2ui/react/v0_9` and
   `@a2ui/web_core/v0_9` (the root export is v0.8); folders by owner in `src/` (`app` the frame,
   `screen`, `cockpit`, `apps` the cards that stand for the side menu in that look, `blocks` a folder or file per block,

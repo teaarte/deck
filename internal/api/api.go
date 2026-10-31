@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"crypto/subtle"
-	"deck2/internal/words"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +24,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/theme"
+	"deck2/internal/words"
 )
 
 type Server struct {

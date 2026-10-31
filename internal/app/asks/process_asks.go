@@ -3,7 +3,6 @@ package asks
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/words"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -15,6 +14,7 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 type processAsksIn struct {

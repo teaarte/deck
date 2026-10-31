@@ -4,17 +4,17 @@ package journal
 import (
 	"cmp"
 	"context"
-	"deck2/internal/app/access"
-	"deck2/internal/words"
 	"math"
 	"slices"
 	"time"
 
+	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 // Service reads the journal.

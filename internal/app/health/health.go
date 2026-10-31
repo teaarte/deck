@@ -3,7 +3,6 @@ package health
 
 import (
 	"context"
-	"deck2/internal/words"
 	"slices"
 	"strings"
 	"sync"
@@ -15,6 +14,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 // healthRow is the health of something deck runs or reaches: a provider, a command, a tool, a server or a project.

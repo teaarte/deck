@@ -2,16 +2,17 @@ package screens
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"slices"
+	"strings"
+
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/screen"
 	"deck2/internal/store/db"
-	"encoding/json"
-	"fmt"
-	"slices"
-	"strings"
 )
 
 type screenGetIn struct {

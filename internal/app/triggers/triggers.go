@@ -4,12 +4,11 @@ package triggers
 import (
 	"cmp"
 	"context"
-	"deck2/internal/app/access"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"time"
 
+	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/health"
@@ -20,6 +19,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/trigger"
+	"deck2/internal/words"
 )
 
 // Service keeps the triggers; the scheduler fires them, the gateway runs a trigger now.

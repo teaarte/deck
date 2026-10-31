@@ -2,7 +2,6 @@ package themes
 
 import (
 	"context"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -14,6 +13,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/theme"
+	"deck2/internal/words"
 )
 
 type drawPicturesIn struct {

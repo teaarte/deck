@@ -3,7 +3,6 @@ package files
 import (
 	"cmp"
 	"context"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/words"
 )
 
 // The folders inside a module in the file manager: its stored files, its documents and its data folder.

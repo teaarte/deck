@@ -5,7 +5,6 @@ package settings
 import (
 	"cmp"
 	"context"
-	"deck2/internal/words"
 	"fmt"
 	"slices"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 // Service keeps the settings; DefaultTTL is deck's own wait of a confirmation, Wake lets turns waiting for a

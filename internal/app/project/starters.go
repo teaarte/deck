@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"deck2/internal/words"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -17,6 +16,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/script"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 	"deck2/starters"
 )
 
@@ -150,7 +150,7 @@ func (pj *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest
 		return out
 	}
 	for _, s := range m.Secrets() {
-		out = append(out, needRow{Kind: "secret", What: s, Detail: manifest.Tr(ws, "Set it in Settings → Advanced → Secrets."), Done: pj.Secret(p.WorkspaceID, s)})
+		out = append(out, needRow{Kind: "secret", What: s, Done: pj.Secret(p.WorkspaceID, s)})
 	}
 	missing := script.Check(m)
 	for _, name := range slices.Sorted(maps.Keys(missing)) {

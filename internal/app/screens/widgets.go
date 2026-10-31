@@ -2,7 +2,6 @@ package screens
 
 import (
 	"context"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 // widgetRole is the role of the models that draw a view of the card of a module; the master's model without one.

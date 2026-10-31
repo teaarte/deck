@@ -3,15 +3,15 @@ package folders
 
 import (
 	"context"
-	"deck2/internal/app/access"
-	"deck2/internal/home"
-	"deck2/internal/paths"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"deck2/internal/app/access"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
+	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"

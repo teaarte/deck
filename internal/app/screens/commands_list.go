@@ -3,16 +3,16 @@ package screens
 import (
 	"cmp"
 	"context"
+	"encoding/json"
+	"slices"
+	"strings"
+
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
-	"encoding/json"
-	"net/url"
-	"slices"
-	"strings"
 )
 
 // commandRow is a command the caller may call, with its project, its file fields and what runs it: an executor
@@ -190,25 +190,9 @@ func formOf(command, project string, m *manifest.Manifest) (string, []string) {
 		all = append(all, screen{"#/p/" + cmp.Or(project, "<project>") + "/", command, &shipped().Project[i]})
 	}
 	for _, s := range all {
-		if s.s.Record != "" {
-			continue
+		if at, params, ok := manifest.FormAddress(s.at, s.s, s.command); ok {
+			return at, params
 		}
-		f, ok := manifest.FormOf(s.s, s.command)
-		if !ok {
-			continue
-		}
-		q := url.Values{}
-		for i, t := range f.Tabs {
-			q.Set([]string{"tab", "sub"}[min(i, 1)], t)
-		}
-		if f.Dialog != "" {
-			q.Set("dialog", f.Dialog)
-		}
-		at := s.at + s.s.Name
-		if len(q) > 0 {
-			at += "?" + q.Encode()
-		}
-		return at, f.Params
 	}
 	return "", nil
 }

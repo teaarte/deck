@@ -3,7 +3,6 @@ package screens
 import (
 	"cmp"
 	"context"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 type todayIn struct {

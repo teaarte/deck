@@ -555,6 +555,13 @@ func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T)
 			clock.Add(31 * time.Minute)
 			id := e.Run(e.Project("plain", harness.PlainManifest), "work")
 			e.WaitState(id, "rate_limited", "needs_login")
+			if c.status == "needs_login" {
+				var asks []struct{ Text string }
+				e.Must("deck.asks_list", nil, &asks)
+				if len(asks) != 1 || !strings.Contains(asks[0].Text, "#/deck/settings?dialog=connections&name=fake&tab=Models") {
+					t.Fatalf("a refused key sends the owner to the form of its connection: %+v", asks)
+				}
+			}
 			e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 			e.App.Providers.Checks(ctx, clock.Add(c.after))
 			if h := e.WaitHealth("provider:fake", "ok"); h.Status != "ok" {

@@ -121,7 +121,7 @@
               "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
             {"verb": "open", "screen": "process", "record": "=process", "when": "(process ?? 0) != 0"},
             {"label": "Got it", "icon": "check", "command": "deck.process_dismiss", "params": {"process": "=process"}, "when": "(process ?? 0) != 0"},
-            {"verb": "open", "screen": "settings", "params": {"tab": "Advanced"}, "when": "check == 'push'"},
+            {"verb": "open", "screen": "settings", "params": {"tab": "Advanced"}, "when": "check == 'push'"}, {"verb": "set", "primary": true, "screen": "settings", "params": {"tab": "Advanced", "dialog": "secret", "name": "=trimPrefix(check, 'secret:' + project + '.')"}, "when": "hasPrefix(check ?? '', 'secret:')"},
             {"label": "Got it", "icon": "check", "command": "deck.health_seen", "params": {"subject": "=check", "project": "=project != '' ? project : nil"}, "when": "(check ?? '') != ''"}
           ]},
         {"type": "stat", "title": "Checks that pass", "icon": "circle-check", "span": 2, "tone": "'ok'",
@@ -179,7 +179,7 @@
             {"verb": "turn_on", "command": "deck.provider_off", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"}
           ]},
         {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
-          "description": "Keys and passwords of connections and tools; agents and scripts never see them.",
+          "description": "Keys and passwords of connections and tools.",
           "empty": "No secrets yet: a module names the ones it needs",
           "columns": [{"label": "Name", "bind": "name", "format": "copy"}],
           "actions": [

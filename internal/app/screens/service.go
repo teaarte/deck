@@ -2,11 +2,12 @@ package screens
 
 import (
 	"context"
+	"time"
+
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"time"
 )
 
 // Service draws deck's screens and the menu: it reads as the viewer through the registry and counts through the

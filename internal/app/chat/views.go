@@ -3,7 +3,6 @@ package chat
 import (
 	"cmp"
 	"context"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -19,6 +18,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
+	"deck2/internal/words"
 )
 
 // chatLines is how many lines of the log of a running reply the chat shows.

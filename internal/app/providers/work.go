@@ -3,7 +3,6 @@ package providers
 import (
 	"cmp"
 	"context"
-	"deck2/internal/words"
 	"fmt"
 	"slices"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 // Price is how the price of a model reads in the owner's words: by subscription, free, what it costs by its unit, or

@@ -3,7 +3,6 @@ package processes
 import (
 	"cmp"
 	"context"
-	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -19,6 +18,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
+	"deck2/internal/words"
 )
 
 // ofRecord names the record the input field record of a process gives, with its title.

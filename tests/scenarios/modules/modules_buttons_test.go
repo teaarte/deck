@@ -310,7 +310,9 @@ func TestAFieldOnlyDecksScreensUseIsAWarningOnReadAndRefusedOnSave(t *testing.T)
 	e.PlantRevision("work", "manifest.json", verb)
 	var read struct{ Warnings []string }
 	e.Must("deck.manifest_get", map[string]any{"project": "work"}, &read)
-	if !slices.ContainsFunc(read.Warnings, func(w string) bool { return strings.Contains(w, "only on deck's own screens") && strings.Contains(w, "verb") }) {
+	if !slices.ContainsFunc(read.Warnings, func(w string) bool {
+		return strings.Contains(w, "only on deck's own screens") && strings.Contains(w, "verb")
+	}) {
 		t.Fatalf("a stored verb is a warning on read: %v", read.Warnings)
 	}
 }

@@ -18,14 +18,10 @@ the fields you need (`fields`; of `records_list` they are the fields of the data
 `secret_set`, `oauth_start`, `browser_login`, `project_enable`; say which one and why when the module needs it.
 `model_set` and `assignment_set` a module or the master calls itself as a proposal: the call waits for the owner's
 button and applies exactly what it sent; deck closes it by itself as done when it is in force already, and as out of
-date when the assignment changed meanwhile (the caller hears so and asks again if it still needs it). The owner does them in two places. The Settings of the project (Settings →
-Projects → "Settings" on its row): "Enable" with the rights enabling grants, pause, the models of
-each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
-Models (assignments, a model and its agent), Connections (where models are reached, and the other secrets: a
-name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name
-the place and the value ("Settings → Advanced → Secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
-these forms are the input of their command, which `command_describe` gives; `commands_list` marks these commands
-`owner_only` with `form`, the address of the form to link to, and `form_params` that fill it.
+date when the assignment changed meanwhile (the caller hears so and asks again if it still needs it). Send the owner
+to the form of a command only they call: `commands_list` marks it `owner_only` with `form`, the address of its form,
+and `form_params`, the parameters after `?` that fill it; give that link with the values (the secret `mail-key`, the
+API key of …), never a `curl`. The fields of a form are the input of its command, which `command_describe` gives.
 
 When the module needs something only the owner gives — an API key or token, an account or sign-in, a right of
 the manifest, a program installed on the machine, a paid call in a trial — stop and ask the owner in the chat:
@@ -102,7 +98,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   for the run that waits for it.
 - **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
   input (path or query, never the host), `headers` with `$secret.<name>` (the owner stores it with
-  `secret_set`; scripts and agents never see it, and deck cuts it out of what the service answers), `body`
+  `secret_set`; deck cuts it out of what the service answers), `body`
   template, `input` and `result` schemas. A tool without `class` is `external`. An external call outside
   `allowed_external` waits for the owner; after yes deck makes that exact call and hands the result back. Give
   a paid or risky tool `confirm_ttl_minutes`. A service that gives a private link whose token is the URL itself (a
@@ -685,8 +681,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 Ask only for what the module needs. A module asks for roles (`@text`, `@image`, `@tts`, `@stt`) for its own work,
 not for the owner's connections or model names: another owner has their own, and a module that moves works on their
 assignments. A connection it names (a source whose models it tries) is optional; a model named in `provider` is a
-suggestion. `allowed_external`, domains, secrets, `models`, milder classes
-of tools, `reads` of other projects, `writes` of its own documents and removing `no_network` are rights: in a draft they are part of what the owner enables; in an
+suggestion. What widens its rights `manifest_check` names in `widens`: in a draft that is part of what the owner enables; in an
 enabled project a change that widens them waits for the owner's button, with only what it widens; check
 `projects_list` first, since a project you were told is a draft may be enabled. Go on with other changes
 meanwhile: an edit that widens nothing saves at once, and the owner's yes merges the waiting change into the

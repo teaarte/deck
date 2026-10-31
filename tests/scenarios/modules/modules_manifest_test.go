@@ -511,7 +511,7 @@ func TestASliceOfTextCutsCharacters(t *testing.T) {
 }
 
 // TestTheFormatAModelReadsHasOnlyWhatAModuleUses: manifest_format leaves out the blocks and button fields only deck's
-// screens use, so a model learns one way to do each thing; a manifest that has them still loads.
+// screens use, so a model learns one way to do each thing.
 func TestTheFormatAModelReadsHasOnlyWhatAModuleUses(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
@@ -528,7 +528,6 @@ func TestTheFormatAModelReadsHasOnlyWhatAModuleUses(t *testing.T) {
 			t.Fatalf("the format a model reads keeps %s", kept)
 		}
 	}
-	e.Project("work", strings.Replace(harness.BoardManifest, `{"label": "Move"`, `{"verb": "open", "screen": "board"}, {"label": "Move"`, 1))
 }
 
 // TestARefusalOfAScreenSaysWhereByPointerAndWhatFits: a refusal names the block by the JSON Pointer a patch edits,

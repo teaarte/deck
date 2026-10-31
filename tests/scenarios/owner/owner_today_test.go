@@ -197,7 +197,7 @@ func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 	}
 	own := harness.Manifest(`{"collections": [{"name": "notes", "description": "Notes.", "key": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}],
-  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "list", "source": {"collection": "notes"}, "item": {"title": "title", "actions": "actions"}}]}]}`)
+  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "list", "source": {"collection": "notes"}, "item": {"title": "title", "actions": "title"}}]}]}`)
 	if code, out := e.Call("deck.manifest_check", map[string]any{"manifest": own}); code != 200 || !strings.Contains(string(out), "only on deck's own screens") {
 		t.Fatalf("a module names its buttons itself: %d %s", code, out)
 	}

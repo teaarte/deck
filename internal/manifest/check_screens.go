@@ -186,9 +186,6 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s tab %q: duplicate; the tabs of a screen have their own titles, the names of the address", where, t.Title)
 		}
 		c.tabs[t.Title] = true
-		if t.Count != "" && !c.deck {
-			c.fail("%s tab %q count: a count of deck, only on deck's own screens", where, t.Title)
-		}
 	}
 	var fields []string
 	switch b.Type {
@@ -228,11 +225,6 @@ func (c *screenCheck) block(where string, b Block) {
 	case "chat":
 		if b.Source == nil || b.Source.From != ChatSource {
 			c.fail("%s: a chat reads %s", where, ChatSource)
-		}
-		return
-	case "appearance":
-		if !c.deck {
-			c.fail("%s: appearance is only on deck's own screens", where)
 		}
 		return
 	case "document":
@@ -312,9 +304,6 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 			if b.Type == "media" && b.Item.File == "" && b.Item.Icon == "" {
 				c.fail("%s item: a media line needs file, or icon for a line that is no file", where)
-			}
-			if b.Item.Actions != "" && !c.deck {
-				c.fail("%s item actions: the buttons a read of deck gives its items are only on deck's own screens; a module names its buttons in actions", where)
 			}
 		}
 		if b.Value != "" {

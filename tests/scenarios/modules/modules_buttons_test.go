@@ -278,3 +278,39 @@ func TestACellPicksTheInputOfAButtonOfItsRow(t *testing.T) {
 		t.Fatalf("a picked cell keeps the value, its options say each in the owner's language, and an expression of one field is translated: %+v", rows)
 	}
 }
+
+// TestAFieldOnlyDecksScreensUseIsAWarningOnReadAndRefusedOnSave: a module a model writes never sees what is marked
+// deck_only; one an older deck saved with such a field still loads and says so, and a save refuses it.
+func TestAFieldOnlyDecksScreensUseIsAWarningOnReadAndRefusedOnSave(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("work", harness.BoardManifest)
+	var format struct {
+		Defs map[string]struct {
+			Properties map[string]any `json:"properties"`
+		} `json:"$defs"`
+	}
+	e.Must("deck.manifest_format", nil, &format)
+	for _, f := range []string{"verb", "until", "record", "project"} {
+		if _, ok := format.Defs["action"].Properties[f]; ok {
+			t.Fatalf("the format a model reads has no %s of a button", f)
+		}
+	}
+	if _, ok := format.Defs["action"].Properties["label"]; !ok {
+		t.Fatal("the format a model reads keeps the label of a button")
+	}
+	verb := strings.Replace(harness.BoardManifest, `{"label": "Move", "command": "move"`, `{"verb": "move", "command": "move"`, 1)
+	if verb == harness.BoardManifest {
+		t.Fatal("the fixture lost its button Move")
+	}
+	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "work", "manifest": verb}); code != 422 || !strings.Contains(string(out), "only on deck's own screens") {
+		t.Fatalf("a save refuses a verb of a module: %d %s", code, out)
+	}
+	// A button an older deck saved before verb was marked deck_only.
+	e.PlantRevision("work", "manifest.json", verb)
+	var read struct{ Warnings []string }
+	e.Must("deck.manifest_get", map[string]any{"project": "work"}, &read)
+	if !slices.ContainsFunc(read.Warnings, func(w string) bool { return strings.Contains(w, "only on deck's own screens") && strings.Contains(w, "verb") }) {
+		t.Fatalf("a stored verb is a warning on read: %v", read.Warnings)
+	}
+}

@@ -11,6 +11,7 @@ import (
 
 type blockForm struct {
 	Description string         `json:"description"`
+	DeckOnly    bool           `json:"deck_only"`
 	Block       map[string]any `json:"block"`
 }
 
@@ -46,7 +47,8 @@ var Blocks = func() []string {
 // Format is the manifest schema with the blocks of the catalog and the sources deck knows.
 var Format = format()
 
-// Taught is Format as a model reads it to write a module: without the blocks and fields only deck's screens use.
+// Taught is Format as a model reads it to write a module: without the blocks and fields marked deck_only, which
+// only deck's own screens use.
 var Taught = taught(Format)
 
 func taught(format []byte) []byte {
@@ -54,30 +56,46 @@ func taught(format []byte) []byte {
 	if err := json.Unmarshal(format, &m); err != nil {
 		panic(err)
 	}
-	defs := m["$defs"].(map[string]any)
-	for _, f := range []string{"verb", "until", "record", "project"} {
-		delete(defs["action"].(map[string]any)["properties"].(map[string]any), f)
-	}
-	deckOnly := []string{"appearance", "chat", "log"}
-	block := defs["block"].(map[string]any)
-	block["properties"] = map[string]any{"type": map[string]any{"enum": slices.DeleteFunc(slices.Clone(Blocks), func(b string) bool { return slices.Contains(deckOnly, b) })}}
+	block := m["$defs"].(map[string]any)["block"].(map[string]any)
 	var kept []any
+	var types []any
 	for _, br := range block["allOf"].([]any) {
-		name := br.(map[string]any)["if"].(map[string]any)["properties"].(map[string]any)["type"].(map[string]any)["const"]
-		if slices.Contains(deckOnly, name.(string)) {
+		then := br.(map[string]any)["then"].(map[string]any)
+		if then["deck_only"] == true {
 			continue
 		}
-		if name == "form" {
-			delete(br.(map[string]any)["then"].(map[string]any)["properties"].(map[string]any), "keep_open")
-		}
 		kept = append(kept, br)
+		types = append(types, br.(map[string]any)["if"].(map[string]any)["properties"].(map[string]any)["type"].(map[string]any)["const"])
 	}
 	block["allOf"] = kept
+	block["properties"] = map[string]any{"type": map[string]any{"enum": types}}
+	dropDeckOnly(m)
 	out, err := json.Marshal(m)
 	if err != nil {
 		panic(err)
 	}
 	return out
+}
+
+// dropDeckOnly takes the properties marked deck_only out of a schema, wherever they are.
+func dropDeckOnly(v any) {
+	switch v := v.(type) {
+	case map[string]any:
+		if props, ok := v["properties"].(map[string]any); ok {
+			for name, p := range props {
+				if p, ok := p.(map[string]any); ok && p["deck_only"] == true {
+					delete(props, name)
+				}
+			}
+		}
+		for _, x := range v {
+			dropDeckOnly(x)
+		}
+	case []any:
+		for _, x := range v {
+			dropDeckOnly(x)
+		}
+	}
 }
 
 func format() []byte {
@@ -98,6 +116,9 @@ func format() []byte {
 		props["span"] = map[string]any{"enum": []any{1, 2, "full"}, "description": "Cells of the grid of the screen the block takes; tables, lists, forms, documents, logs, chats, custom blocks, tabs and columns take the full width by default, charts two cells, the rest one."}
 		rules, _ := form["description"].(string)
 		form["properties"], form["type"], form["additionalProperties"] = props, "object", false
+		if c.DeckOnly {
+			form["deck_only"] = true
+		}
 		form["description"] = strings.TrimSpace(c.Description + " " + rules)
 		branches = append(branches, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": name}}}, "then": form})
 	}

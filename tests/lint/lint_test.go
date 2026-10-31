@@ -79,3 +79,42 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		}
 	}
 }
+
+func TestRepositoryKeepsTheRulesOfTests(t *testing.T) {
+	vs, err := lint.Tests("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range vs {
+		t.Error(v)
+	}
+}
+
+func TestRulesOfTestsCatchViolations(t *testing.T) {
+	vs, err := lint.Tests("testdata/tests")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, v := range vs {
+		got = append(got, v.String())
+	}
+	all := strings.Join(got, "\n")
+	for _, want := range []string{
+		"tests/scenarios/loose_test.go:1: a scenario outside the package of its area",
+		"tests/scenarios/runs/stray_test.go:1: a file of scenarios is named runs_<topic>_test.go",
+		"tests/scenarios/runs/runs_bad_test.go:4: the version of the manifest format as a literal",
+		"tests/scenarios/runs/runs_bad_test.go:5: a token header by hand",
+		"tests/scenarios/runs/runs_bad_test.go:6: a switch of real programs by hand",
+		"tests/scenarios/runs/runs_bad_test.go:8: the base by hand",
+		"tests/scenarios/runs/runs_bad_test.go:9: SQL in a test needs a comment above it",
+		"tests/scenarios/runs/runs_bad_test.go:1: TestRealBrowserHere drives the real browser",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing violation %q in:\n%s", want, all)
+		}
+	}
+	if len(vs) != 8 {
+		t.Errorf("want exactly 8 violations, got %d:\n%s", len(vs), all)
+	}
+}

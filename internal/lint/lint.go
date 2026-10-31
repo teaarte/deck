@@ -18,13 +18,14 @@ var (
 		not  *regexp.Regexp
 	}{".sql": {"--", regexp.MustCompile(`^--\s*(\+goose|name:)`)}, ".py": {"#", regexp.MustCompile(`^#!`)}}
 	// textDirs are where texts other than code are checked for vertical names: the schemas and the master.
-	textDirs     = []string{"schemas/", "master/"}
-	textExt      = []string{".json", ".md"}
-	skipDirs     = []string{".git", ".claude", "node_modules", "dist", "testdata"}
-	requirement  = regexp.MustCompile(`\b(FR|NFR)-\d+|\bR\d{1,3}\b`)
-	reasoning    = regexp.MustCompile(`(?i)\b(we|let's|i think|note that|basically|actually|obviously|for now|hack|in order to|probably|seems|i guess|turns out)\b`)
-	verticals    = regexp.MustCompile(`(?i)vacanc|forecast|mailbox|brier|recruit|\bshorts\b|\bbtc\b`)
-	verticalFree = []string{"tests/", "internal/tools/"}
+	textDirs    = []string{"schemas/", "master/"}
+	textExt     = []string{".json", ".md"}
+	skipDirs    = []string{".git", ".claude", "node_modules", "dist", "testdata"}
+	requirement = regexp.MustCompile(`\b(FR|NFR)-\d+|\bR\d{1,3}\b`)
+	reasoning   = regexp.MustCompile(`(?i)\b(we|let's|i think|note that|basically|actually|obviously|for now|hack|in order to|probably|seems|i guess|turns out)\b`)
+	verticals   = regexp.MustCompile(`(?i)vacanc|forecast|mailbox|brier|recruit|\bshorts\b|\bbtc\b`)
+	// verticalFree are the built-in tools and the tests of the checks themselves; fixtures are in testdata.
+	verticalFree = []string{"internal/tools/", "tests/lint/"}
 	untyped      = regexp.MustCompile(`^\t\w+\s+interface\{\}`)
 )
 
@@ -37,7 +38,7 @@ type Violation struct {
 func (v Violation) String() string { return fmt.Sprintf("%s:%d: %s", v.File, v.Line, v.Text) }
 
 // Check scans code under root for long comment blocks, requirement references and reasoning words in
-// comments, vertical names outside built-in tools and test fixtures, and sqlc parameters without a type.
+// comments, vertical names outside built-in tools and the fixtures of tests, and sqlc parameters without a type.
 func Check(root string) ([]Violation, error) {
 	var out []Violation
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -76,7 +77,7 @@ func Check(root string) ([]Violation, error) {
 			return nil
 		}
 		out = append(out, checkComments(rel, string(src))...)
-		if !strings.HasSuffix(rel, "_test.go") && !slices.ContainsFunc(verticalFree, func(p string) bool { return strings.HasPrefix(rel, p) }) {
+		if !slices.ContainsFunc(verticalFree, func(p string) bool { return strings.HasPrefix(rel, p) }) {
 			out = append(out, verticalNames(rel, string(src))...)
 		}
 		return nil

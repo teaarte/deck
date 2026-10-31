@@ -11,47 +11,40 @@ import (
 	"testing"
 )
 
-// TestAcceptanceIsTraced checks that every acceptance item of the spec has a row in docs/acceptance.md whose
-// tests exist, or a manual check, or a later step.
+// TestAcceptanceIsTraced checks that every row of docs/acceptance.md names tests that exist, a manual check or a
+// later step, and, where docs/spec.md is on the disk, that the rows are the acceptance items of the spec.
 func TestAcceptanceIsTraced(t *testing.T) {
-	spec, err := os.ReadFile("../../docs/spec.md")
-	if errors.Is(err, fs.ErrNotExist) {
-		t.Skip("docs/spec.md lives only on the owner's disk")
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
 	trace, err := os.ReadFile("../../docs/acceptance.md")
-	if errors.Is(err, fs.ErrNotExist) {
-		t.Skip("docs/acceptance.md lives only on the owner's disk")
-	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, sec, _ := strings.Cut(string(spec), "\n## Приёмка\n")
-	sec, _, _ = strings.Cut(sec, "\n## ")
-	var items []string
-	for _, l := range strings.Split(sec, "\n") {
-		if item, ok := strings.CutPrefix(l, "- [ ] "); ok {
-			items = append(items, strings.TrimSpace(item))
-		}
-	}
-	if len(items) == 0 {
-		t.Fatal("no acceptance items found in the spec")
-	}
-	m := regexp.MustCompile(`Сделаны шаги: 1–(\d+)\.`).FindStringSubmatch(string(trace))
-	if m == nil {
-		t.Fatal("docs/acceptance.md must say which steps are done")
-	}
-	done, _ := strconv.Atoi(m[1])
 	rows := map[string]string{}
+	var items []string
 	for _, l := range strings.Split(string(trace), "\n") {
 		cells := strings.Split(strings.Trim(l, "| "), " | ")
 		if !strings.HasPrefix(l, "| ") || len(cells) != 2 || cells[0] == "Пункт" {
 			continue
 		}
 		rows[cells[0]] = cells[1]
+		items = append(items, cells[0])
 	}
+	if len(items) == 0 {
+		t.Fatal("docs/acceptance.md has no rows")
+	}
+	spec, err := os.ReadFile("../../docs/spec.md")
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		t.Log("docs/spec.md lives only on the owner's disk: the rows are not checked against its items")
+	case err != nil:
+		t.Fatal(err)
+	default:
+		items = specItems(t, string(spec))
+	}
+	m := regexp.MustCompile(`Сделаны шаги: 1–(\d+)\.`).FindStringSubmatch(string(trace))
+	if m == nil {
+		t.Fatal("docs/acceptance.md must say which steps are done")
+	}
+	done, _ := strconv.Atoi(m[1])
 	tests := testNames(t)
 	for _, item := range items {
 		cov, ok := rows[item]
@@ -80,6 +73,22 @@ func TestAcceptanceIsTraced(t *testing.T) {
 	for item := range rows {
 		t.Errorf("row for an item the spec does not have: %s", item)
 	}
+}
+
+// specItems are the items of the section of acceptance of the spec.
+func specItems(t *testing.T, spec string) []string {
+	_, sec, _ := strings.Cut(spec, "\n## Приёмка\n")
+	sec, _, _ = strings.Cut(sec, "\n## ")
+	var items []string
+	for _, l := range strings.Split(sec, "\n") {
+		if item, ok := strings.CutPrefix(l, "- [ ] "); ok {
+			items = append(items, strings.TrimSpace(item))
+		}
+	}
+	if len(items) == 0 {
+		t.Fatal("no acceptance items found in the spec")
+	}
+	return items
 }
 
 func testNames(t *testing.T) map[string]bool {

@@ -10,4 +10,5 @@
 # docs stay on the owner's disk; git keeps only what README links to
 /docs/*
 !/docs/architecture.md
+!/docs/acceptance.md
 !/docs/screenshots/

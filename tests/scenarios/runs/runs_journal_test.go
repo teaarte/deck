@@ -157,9 +157,10 @@ func TestStoppingAProcessJournalsTheCallsItDropped(t *testing.T) {
 	id := e.Start("pics", "send", map[string]any{"text": "hi"})
 	e.WaitState(id, "waiting_answer")
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
-	if j := e.Calls(id); !strings.Contains(j, "pics.note rejected") || !strings.Contains(j, "stopped") {
-		t.Fatalf("a call dropped by a stop is in the journal:\n%s", j)
-	}
+	e.Until("a call dropped by a stop in the journal", func() bool {
+		j := e.Calls(id)
+		return strings.Contains(j, "pics.note rejected") && strings.Contains(j, "stopped")
+	})
 }
 
 // TestTheJournalFollowsCallsAndSpendLive: a call of the gateway and a model call are heard live, and each

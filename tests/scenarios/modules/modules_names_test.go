@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -37,7 +39,7 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 	// The manifest of format 13 an older deck kept.
 	e.PlantRevision("ideas", "manifest.json", harness.ManifestVersion(calls("notify"), "13"))
 	// A script of before that calls deck by the old names.
-	e.PlantRevision("ideas", "scripts/tell.py", `deck("notify", {"text": "x"}); deck("deck.process_log", {})`+"\n")
+	e.PlantRevision("ideas", "scripts/tell.py", `deck("notify", {"text": "x"}); deck("deck.process_log", {}); seen = {"notify": True}`+"\n")
 	const name = "prompts/on_error.md"
 	raw, err := os.ReadFile(filepath.Join(harness.Root, "master", name))
 	if err != nil {
@@ -63,8 +65,8 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 	}
 	var s struct{ Text string }
 	e.Must("deck.document_get", map[string]any{"project": "ideas", "name": "scripts/tell.py"}, &s)
-	if s.Text != `deck("owner_notify", {"text": "x"}); deck("deck.process_log_get", {})`+"\n" {
-		t.Fatalf("the script calls the new names: %q", s.Text)
+	if s.Text != `deck("owner_notify", {"text": "x"}); deck("deck.process_log_get", {}); seen = {"notify": True}`+"\n" {
+		t.Fatalf("the script calls the new names and keeps its own words: %q", s.Text)
 	}
 	e.WaitState(e.Run(p, "collect"), "done")
 	mu.Lock()
@@ -81,5 +83,55 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 	// Notes to the master wait for its next turn; no read lists them.
 	if err := e.SQLRow(`SELECT count(*) FROM feed WHERE for_master = 1 AND text LIKE '%' || ? || '%'`, name).Scan(&notes); err != nil || notes != 0 {
 		t.Fatalf("a renamed command is no conflict for the master: %d notes, %v", notes, err)
+	}
+}
+
+// TestATrialTakesNoReservedFieldIntoItsInput: the retry key and the calls a press allows are the registry's, so a
+// trial that names them starts with neither in its input.
+func TestATrialTakesNoReservedFieldIntoItsInput(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("ideas", strings.Replace(harness.IdeasManifest, `"class": "internal",`,
+		`"class": "internal", "input": {"type": "object", "properties": {"topic": {"type": "string"}}},`, 1))
+	var r struct{ Process int64 }
+	e.Must("deck.command_try", map[string]any{"command": "ideas.collect",
+		"input": `{"topic": "go", "retry_key": "k", "allows": "[]"}`, "live": true}, &r)
+	var p struct{ Input json.RawMessage }
+	e.Must("deck.process_get", map[string]any{"process": r.Process}, &p)
+	if !strings.Contains(string(p.Input), `"topic"`) || strings.Contains(string(p.Input), "retry_key") || strings.Contains(string(p.Input), "allows") {
+		t.Fatalf("the trial's input is the command's own: %s", p.Input)
+	}
+}
+
+// TestEveryCommandOfDeckItsTextsNameIsOne: a name of deck's command in the code, the client, the texts deck ships
+// and its dictionary names a command deck has, so a renamed one leaves no old name behind.
+func TestEveryCommandOfDeckItsTextsNameIsOne(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	// Types of a failure, files of deck and a block of the client, not commands.
+	others := []string{"deck.tools", "deck.internal", "deck.restart", "deck.stopped", "deck.db", "deck.lock", "deck.app", "deck.unknown"}
+	name := regexp.MustCompile(`\bdeck\.[a-z][a-z0-9_]*\b[^(.]`)
+	seen := map[string]string{}
+	for _, dir := range []string{"internal", "cmd", "master", "skills", "starters", "schemas", "web/src", "web/foreign"} {
+		_ = filepath.WalkDir(filepath.Join(harness.Root, dir), func(p string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() || strings.HasSuffix(p, "_test.go") || !slices.Contains([]string{".go", ".md", ".json", ".py", ".ts", ".tsx", ".js", ".sh"}, filepath.Ext(p)) {
+				return err
+			}
+			b, _ := os.ReadFile(p)
+			for _, m := range name.FindAllString(string(b), -1) {
+				if n := m[:len(m)-1]; !slices.Contains(others, n) {
+					seen[n] = p
+				}
+			}
+			return nil
+		})
+	}
+	if len(seen) < 50 {
+		t.Fatalf("the texts name deck's commands: %d found", len(seen))
+	}
+	for n, p := range seen {
+		if code, out := e.Call("deck.command_describe", map[string]any{"command": n}); code == 404 {
+			t.Errorf("%s names %s, which is no command of deck: %s", p, n, out)
+		}
 	}
 }

@@ -33,7 +33,7 @@ var renamed = map[string]string{
 // plain are the old names that are also plain words or fields of a manifest, renamed only as deck.<name>.
 var plain = []string{"chat", "screen", "theme", "menu", "layout", "today", "version", "update", "transcribe"}
 
-var qualified, quoted *regexp.Regexp
+var qualified, called, ticked *regexp.Regexp
 
 // deck is the prefix of the names of deck's commands.
 const deck = schemas.Builtin + "."
@@ -50,22 +50,22 @@ func init() {
 	slices.SortFunc(all, long)
 	slices.SortFunc(bare, long)
 	qualified = regexp.MustCompile(`\b` + regexp.QuoteMeta(deck) + `(` + strings.Join(all, "|") + `)\b`)
-	quoted = regexp.MustCompile("([\"'`])(" + strings.Join(bare, "|") + ")([\"'`])")
+	called = regexp.MustCompile(`\bdeck\(\s*["'](` + strings.Join(all, "|") + `)["']`)
+	ticked = regexp.MustCompile("`(" + strings.Join(bare, "|") + ")`")
 }
 
-// rename names deck's commands anew: deck.<old> everywhere, and in a text that is no manifest also a quoted old
-// name, as a script or a prompt calls a tool.
+// rename names deck's commands anew: deck.<old> everywhere; in a text that is no manifest also an old name a script
+// calls, deck("<old>", …), and one a prompt names, `<old>`.
 func rename(text string, manifest bool) string {
 	text = qualified.ReplaceAllStringFunc(text, func(m string) string { return deck + renamed[strings.TrimPrefix(m, deck)] })
 	if manifest {
 		return text
 	}
-	return quoted.ReplaceAllStringFunc(text, func(m string) string {
-		if m[0] != m[len(m)-1] {
-			return m
-		}
-		return m[:1] + renamed[m[1:len(m)-1]] + m[len(m)-1:]
+	text = called.ReplaceAllStringFunc(text, func(m string) string {
+		at := called.FindStringSubmatchIndex(m)
+		return m[:at[2]] + renamed[m[at[2]:at[3]]] + m[at[3]:]
 	})
+	return ticked.ReplaceAllStringFunc(text, func(m string) string { return "`" + renamed[m[1:len(m)-1]] + "`" })
 }
 
 // format14 raises a manifest of format 13 to 14: its version, the one thing format 14 changed beside the names.

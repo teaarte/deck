@@ -255,13 +255,17 @@ func withRetryKey(in json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(s)
 }
 
-// keyed is a handler that gets the retry key of its input as Actor.Key and the input without it.
+// keyed is a handler that gets the retry key of its input as Actor.Key and the input without it or the calls a press
+// allows, which a call that skips Invoke may still carry.
 func keyed(h Handler) Handler {
 	return func(ctx context.Context, a Actor, input json.RawMessage) (any, error) {
 		var in map[string]json.RawMessage
-		if json.Unmarshal(input, &in) == nil && in[RetryKey] != nil {
-			_ = json.Unmarshal(in[RetryKey], &a.Key)
+		if json.Unmarshal(input, &in) == nil && (in[RetryKey] != nil || in[AllowsKey] != nil) {
+			if in[RetryKey] != nil {
+				_ = json.Unmarshal(in[RetryKey], &a.Key)
+			}
 			delete(in, RetryKey)
+			delete(in, AllowsKey)
 			input, _ = json.Marshal(in)
 		}
 		return h(ctx, a, input)

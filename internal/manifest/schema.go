@@ -1,8 +1,8 @@
 package manifest
 
 import (
-	"bytes"
 	"cmp"
+	"deck2/schemas"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,16 +17,7 @@ func compileSchema(name string, raw json.RawMessage) (*jsonschema.Schema, error)
 	if len(raw) == 0 {
 		return nil, errors.New("schema is required")
 	}
-	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
-	if err != nil {
-		return nil, err
-	}
-	c := jsonschema.NewCompiler()
-	url := "mem://" + name + ".json"
-	if err := c.AddResource(url, doc); err != nil {
-		return nil, err
-	}
-	return c.Compile(url)
+	return schemas.Compile(raw, "mem://"+name+".json")
 }
 
 // Object is an object schema as deck reads it: its properties and those it requires.

@@ -53,6 +53,9 @@ func ClassRank(class string) int {
 	return 0
 }
 
+// EmptyInput is the input schema of a command that takes nothing.
+var EmptyInput = json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
+
 type Handler func(ctx context.Context, a Actor, in json.RawMessage) (any, error)
 
 type Command struct {
@@ -214,7 +217,7 @@ func Prepare(c *Command) error {
 		return fmt.Errorf("command %q: unknown class %q", c.Name, c.Class)
 	}
 	if len(c.Input) == 0 {
-		c.Input = json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
+		c.Input = EmptyInput
 	}
 	if err := schemas.CheckInput(c.Input); err != nil && !c.foreign {
 		return fmt.Errorf("command %q input: %w", c.Name, err)
@@ -533,14 +536,5 @@ func Typed[T any](f func(ctx context.Context, a Actor, in T) (any, error)) Handl
 }
 
 func compile(name string, raw json.RawMessage) (*jsonschema.Schema, error) {
-	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
-	if err != nil {
-		return nil, err
-	}
-	c := jsonschema.NewCompiler()
-	url := "mem://input/" + name + ".json"
-	if err := c.AddResource(url, doc); err != nil {
-		return nil, err
-	}
-	return c.Compile(url)
+	return schemas.Compile(raw, "mem://input/"+name+".json")
 }

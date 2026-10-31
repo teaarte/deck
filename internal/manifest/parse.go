@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"bytes"
+	"deck2/schemas"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,15 +24,16 @@ var formatSchema, screenSchema = compile(Format)
 var moduleSchema, _ = compile(Taught)
 
 func compile(format []byte) (*jsonschema.Schema, *jsonschema.Schema) {
-	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(format))
+	const url = "mem://deck-manifest.json"
+	whole, err := schemas.Compile(format, url)
 	if err != nil {
 		panic(err)
 	}
-	c := jsonschema.NewCompiler()
-	if err := c.AddResource("mem://deck-manifest.json", doc); err != nil {
+	screen, err := schemas.Compile(format, url+"#/$defs/screen")
+	if err != nil {
 		panic(err)
 	}
-	return c.MustCompile("mem://deck-manifest.json"), c.MustCompile("mem://deck-manifest.json#/$defs/screen")
+	return whole, screen
 }
 
 // Parse checks the format, the manifest schema, then references, expressions and schemas.

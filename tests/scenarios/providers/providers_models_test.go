@@ -376,6 +376,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": ok, "/v1/images/edits": ok, "/v1/key": ok, "/v1/models/gemma:generateContent": ok, "/svc/v1/generate": ok,
 		"/v1/models/other:generateContent": ok, "/v1/videos/job-1": ok,
+		"/v1/videos": func(int, map[string]any) (int, string, string) { return 200, "application/json", `{"id": "job-1"}` },
 	})
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
@@ -383,6 +384,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "svc", "api": "raw", "url": api.URL + "/svc"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.02}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "veo", "kind": "video", "call_usd": 0.5}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "gemini", "model": "gemma", "kind": "text", "call_usd": 0.03}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "svc", "model": "track", "kind": "text", "name": "svc-track", "call_usd": 0.05}, nil)
 	e.Project("films", harness.ScriptManifest("media", "", `, "models": ["openrouter", "gemini", "svc"]`))
@@ -401,6 +403,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 		{"key": "openrouter/images/edits", "form": form, "type": "multipart/form-data; boundary=b"},
 		{"key": "gemini/models/gemma:generateContent", "other": `{"contents": []}`},
 		{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`, "use": "track"},
+		{"key": "openrouter/videos", "other": `{"model": "veo", "prompt": "a knight"}`},
 		{"key": "openrouter/videos/job-1", "method": "GET"},
 	} {
 		if out := call(in); out["status"] != 200.0 {
@@ -458,7 +461,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 			got[s.Provider] += *s.Cost
 		}
 	}
-	if len(spend) != 5 || got["openrouter/qwen"] != 0.01 || got["openrouter/painter"] != 0.02 || got["gemini/gemma"] != 0.03 || got["svc-track"] != 0.05 {
+	if len(spend) != 6 || got["openrouter/veo"] != 0.5 || got["openrouter/qwen"] != 0.01 || got["openrouter/painter"] != 0.02 || got["gemini/gemma"] != 0.03 || got["svc-track"] != 0.05 {
 		t.Fatalf("each call is counted on its model of deck's settings: %+v", spend)
 	}
 	e.Project("plain", harness.PlainManifest)
@@ -467,7 +470,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 		models = append(models, fmt.Sprint(r.Cells[1]))
 	}
 	slices.Sort(models)
-	if !slices.Equal(models, []string{"gemini/gemma", "openrouter", "openrouter/painter", "openrouter/qwen", "svc-track"}) {
+	if !slices.Equal(models, []string{"gemini/gemma", "openrouter", "openrouter/painter", "openrouter/qwen", "openrouter/veo", "svc-track"}) {
 		t.Fatalf("the settings of a module show the models its scripts called, a poll of a job on its connection: %v", models)
 	}
 	var ps []struct {

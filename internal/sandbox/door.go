@@ -111,7 +111,10 @@ func (d *Door) under(w http.ResponseWriter, r *http.Request) (*http.Request, boo
 		return nil, false
 	}
 	r = r.Clone(r.Context())
-	r.URL.Path, r.URL.RawPath = "/"+rest, ""
+	r.URL.Path = "/" + rest
+	if r.URL.RawPath != "" {
+		r.URL.RawPath = strings.TrimPrefix(r.URL.RawPath, "/"+d.key)
+	}
 	return r, true
 }
 

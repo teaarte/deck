@@ -81,9 +81,9 @@ func Within(act registry.Actor, projectID int64) error {
 	return nil
 }
 
-// DocScope is where a document call works: a project, or the workspace for the owner side.
+// DocScope is where a document call works: a project, or the workspace for the owner side and a token.
 func DocScope(ctx context.Context, q *db.Queries, act registry.Actor, project string) (docs.Scope, error) {
-	if project == "" && act.OwnerSide() {
+	if project == "" && (act.OwnerSide() || act.Kind == registry.Token) {
 		return docs.Scope{Workspace: act.Workspace}, nil
 	}
 	p, err := Project(ctx, q, act, project)

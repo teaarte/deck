@@ -36,7 +36,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 	e.Project("web", choicesManifest)
 	e.Project("tools", harness.ScriptManifest("take", "", ""))
 	var recs struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "beta"}, map[string]any{"title": "alpha"})}, &recs)
 
 	check.Messages(t, e.ScreenMessages("web", "main", nil))
@@ -128,7 +128,7 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	if len(rows) != 2 || rows[1]["score"] != float64(5) {
 		t.Fatalf("the form shows the result of the process: %s", p.Result)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": `{"title": "alpha", "score": 3, "source": "form"}` + "\n" + `{"title": "beta", "score": 5, "source": "import"}`}, nil)
 
 	table := e.Screen("web", "main", nil)["b3"]

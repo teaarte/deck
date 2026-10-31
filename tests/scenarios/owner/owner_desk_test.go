@@ -72,7 +72,7 @@ func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	for i := range 12 {
 		recs = append(recs, map[string]any{"name": fmt.Sprintf("item %d", i), "n": i})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(recs...)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(recs...)}, nil)
 	var m struct{ Projects []struct{ Widgets []string } }
 	e.Must("deck.menu_get", nil, &m)
 	if len(m.Projects) != 1 || !slices.Equal(m.Projects[0].Widgets, []string{"1x1", "2x2"}) {
@@ -90,7 +90,7 @@ func TestACardShowsTheLargestViewItFits(t *testing.T) {
 		t.Fatalf("a large card shows the list as long as it holds, three lines a row less the head and the title: %d %+v", len(big), big)
 	}
 	e.Project("lab", harness.WidgetsOfWork)
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "items", "records": harness.Jsonl(recs...)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "lab", "collection": "items", "records": harness.Jsonl(recs...)}, nil)
 	low := e.Screen("lab", "widget", map[string]any{"widget": "2x1"})
 	if n := len(harness.BlockData[[]harness.ListItem](t, low["b1"]["items"])); n != 1 || low["b0"] == nil {
 		t.Fatalf("a low card shows its number and one line under it: %d", n)

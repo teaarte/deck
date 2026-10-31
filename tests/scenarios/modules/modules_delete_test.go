@@ -37,7 +37,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 
 	withTrigger := strings.Replace(harness.WebNotes, `"screens": [`, `"triggers": [{"command": "tell", "cron": "0 9 * * *"}], "screens": [`, 1)
 	id := e.Project("gone", withTrigger)
-	e.Must("deck.records_upsert", map[string]any{"project": "gone", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "gone", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	e.Must("deck.document_save", map[string]any{"project": "gone", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	scan := e.Upload("gone", "scan.txt", "text/plain", "a page")
 	e.WaitState(e.Start("gone", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")

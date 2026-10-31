@@ -41,7 +41,7 @@ func TestSchemaMigrationAppliesRecordsWithTheManifestAndRevertsBoth(t *testing.T
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("people", peopleV1)
-	e.Must("deck.records_upsert", map[string]any{"project": "people", "collection": "people",
+	e.Must("deck.record_upsert", map[string]any{"project": "people", "collection": "people",
 		"records": "{\"name\": \"ada\"}\n{\"name\": \"bob\"}"}, nil)
 	before := people(e)
 
@@ -91,7 +91,7 @@ func TestRevertBringsBackRecordsAMigrationDropped(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("people", peopleV1)
-	e.Must("deck.records_upsert", map[string]any{"project": "people", "collection": "people", "records": `{"name": "ada"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "people", "collection": "people", "records": `{"name": "ada"}`}, nil)
 	before := people(e)
 	e.Must("deck.document_save", map[string]any{"project": "people", "record": before[0].ID, "name": "notes.md", "kind": "doc", "text": "met her"}, nil)
 	e.SaveScript("people", "scripts/rename.py", "import sys\nsys.stdin.read()\n")

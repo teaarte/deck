@@ -96,7 +96,7 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 	e := harness.New(t)
 	e.Project("web", harness.WebNotes)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "a", "score": 3}, map[string]any{"title": "b"})}, nil)
 	column := func(bind string) []string {
 		var saved struct{ Screens []string }

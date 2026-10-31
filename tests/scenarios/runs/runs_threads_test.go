@@ -38,7 +38,7 @@ func TestAStepAfterACommandGoesOnWithItsRecord(t *testing.T) {
 	t.Parallel()
 	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "new" {
-			if out, bad := c.Tool(ctx, "records_upsert", map[string]any{"project": "clips", "collection": "clips", "records": `{"slug": "made"}`}); bad {
+			if out, bad := c.Tool(ctx, "record_upsert", map[string]any{"project": "clips", "collection": "clips", "records": `{"slug": "made"}`}); bad {
 				return provider.Result{Outcome: provider.Failed, Text: out}
 			}
 		}

@@ -69,7 +69,7 @@ def text_model(mid, modality):
 def upsert(rows):
     if not rows:
         return {"ids": [], "errors": []}
-    return call("deck.records_upsert", {"collection": "models",
+    return call("deck.record_upsert", {"collection": "models",
                                         "records": "\n".join(json.dumps(r, ensure_ascii=False) for r in rows)})
 
 
@@ -133,7 +133,7 @@ def main(inp):
         call("deck.owner_notify", {"text": f"Новые сильные бесплатные модели ({len(named)}): " + ", ".join(named)[:240],
                              "screen": "models"})
     if res.get("summary"):
-        call("deck.records_upsert", {"collection": "digests", "records": json.dumps(
+        call("deck.record_upsert", {"collection": "digests", "records": json.dumps(
             {"day": today, "text": res["summary"], "rated": len(seen), "cards": len(named)}, ensure_ascii=False)})
     return {"rated": len(seen), "skipped": len(rows) - len(seen), "new_strong": len(named), "errors": errors}
 

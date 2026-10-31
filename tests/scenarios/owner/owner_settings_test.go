@@ -65,7 +65,7 @@ func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 	foreign := strings.Replace(harness.FilesManifest(), `"commands": [`, `"screens": [{"name": "wall", "title": "Wall", "blocks": [{"type": "list", "source": {"collection": "items"},
     "item": {"title": "name", "cover": "{'light': 'https://example.com/x.png'}"}}]}], "commands": [`, 1)
 	e.Project("wall", foreign)
-	e.Must("deck.records_upsert", map[string]any{"project": "wall", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "wall", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a"})}, nil)
 	if wall := e.Screen("wall", "wall", nil)["b0"]; strings.Contains(string(wall["items"]), "example.com") {
 		t.Fatalf("a screen of a module names no address of a cover: %s", wall["items"])
 	}
@@ -475,7 +475,7 @@ func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
 	}
 }
 
-// TestEverySettingIsEditedFromItsOneDefinition: settings_set names each setting of the list, and each has the one
+// TestEverySettingIsEditedFromItsOneDefinition: setting_set names each setting of the list, and each has the one
 // edit button of the General tab, which sets it by its name.
 func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	t.Parallel()
@@ -490,7 +490,7 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 			Properties struct{ Name struct{ Enum []string } }
 		}
 	}
-	e.Must("deck.command_describe", map[string]any{"command": "deck.settings_set"}, &set)
+	e.Must("deck.command_describe", map[string]any{"command": "deck.setting_set"}, &set)
 	var rows []struct {
 		ID      string
 		Actions []struct {
@@ -502,10 +502,10 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	if len(rows) != len(list)-1 {
 		t.Fatalf("the Limits of the health tab list every setting but the language of the interface: %+v", rows)
 	}
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	for _, s := range list {
 		if !slices.Contains(set.Input.Properties.Name.Enum, s.Name) {
-			t.Fatalf("settings_set names %s: %+v", s.Name, set)
+			t.Fatalf("setting_set names %s: %+v", s.Name, set)
 		}
 		if s.Name == "language" {
 			continue
@@ -541,8 +541,8 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 			t.Fatalf("the button set %s: %+v", s.Name, after)
 		}
 	}
-	e.Refused("deck.settings_set", map[string]any{"name": "agent_limit", "value": "50"}, 422, "1 to 20")
-	e.Refused("deck.settings_set", map[string]any{"name": "nothing", "value": "1"}, 422, "")
+	e.Refused("deck.setting_set", map[string]any{"name": "agent_limit", "value": "50"}, 422, "1 to 20")
+	e.Refused("deck.setting_set", map[string]any{"name": "nothing", "value": "1"}, 422, "")
 }
 
 // TestTheNamesOfSettingsFollowTheLanguageOfTheScreen: the names of settings come in the language the screen asks for,

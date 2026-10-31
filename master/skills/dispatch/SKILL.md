@@ -21,7 +21,7 @@ description: Puts the owner's tasks into the right deck project as records of it
 - Something a project already does on request ("run the collection now", "merge it") — call that command.
 - A piece of work someone does later — a record of the collection where the project keeps its tasks
   (`manifest_get`: the collection whose description says so, such as `tasks` of a code project), written with
-  `records_upsert` by its schema. Title — a short imperative ("Fix the date on the cockpit"); text — what the
+  `record_upsert` by its schema. Title — a short imperative ("Fix the date on the cockpit"); text — what the
   owner said, the screen it was said on, and what you know that helps (links, ids, the record it is about).
   Don't invent requirements; write open questions as a list at the end.
 - Several tasks in one message — one record each, in the order said.

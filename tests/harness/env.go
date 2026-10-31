@@ -35,7 +35,7 @@ type Env struct {
 	// Browser is the folder of the fake browser server: its log of what it did.
 	Browser string
 	Names   map[int64]string
-	// Probes counts the reads of deck.probe, a read every test deck has.
+	// Probes counts the reads of deck.probe_list, a read every test deck has.
 	Probes *atomic.Int64
 	opts   []Option
 	wait   time.Duration
@@ -50,9 +50,9 @@ type ProbeRow struct {
 	Name string `json:"name"`
 }
 
-// probe is deck.probe: two rows, and a count of its reads.
+// probe is deck.probe_list: two rows, and a count of its reads.
 func probe(n *atomic.Int64) *registry.Command {
-	return registry.Read("probe", "Probe", "Gives two rows and counts its reads.", registry.OwnerSide,
+	return registry.Read("probe_list", "Probe", "Gives two rows and counts its reads.", registry.OwnerSide,
 		func(context.Context, registry.Actor, probeIn) ([]ProbeRow, error) {
 			n.Add(1)
 			return []ProbeRow{{1, "a"}, {2, "b"}}, nil

@@ -25,7 +25,7 @@ import (
 const collectScript = harness.PythonLib + `
 inp = json.load(sys.stdin)
 checks = {}
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a", "size": inp["n"]})})
+st, out = deck("deck.record_upsert", {"collection": "items", "records": json.dumps({"name": "a", "size": inp["n"]})})
 checks["internal_call"] = st == 200 and out["written"] == 1
 try:
     urllib.request.urlopen(urllib.request.Request(URL + "/commands", headers={"Authorization": "Bearer " + TOKEN}), timeout=20)
@@ -540,7 +540,7 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 	if err := harness.WriteProgram(filepath.Join(bin, "deck-later-tool"), []byte("#!/bin/sh\necho here\n")); err != nil {
 		t.Fatal(err)
 	}
-	if code, out := e.Press(e.RowAction("progs", "settings", "deck.programs_check", nil)); code != 200 {
+	if code, out := e.Press(e.RowAction("progs", "settings", "deck.program_check", nil)); code != 200 {
 		t.Fatalf("the check button of the health row of the command works: %d %s", code, out)
 	}
 	if h := e.WaitHealth("command:progs.use", ""); h.Status != "ok" {
@@ -579,7 +579,7 @@ func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
 	e.Project("tools", harness.ScriptManifest("collect", "", ""))
 	e.SaveScript("tools", "scripts/main.py", "print('{}')\n")
 	var w struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "tools", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a"}, map[string]any{"name": "b"})}, &w)
+	e.Must("deck.record_upsert", map[string]any{"project": "tools", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a"}, map[string]any{"name": "b"})}, &w)
 	mine := e.WaitState(e.Start("tools", "collect", map[string]any{"record": w.IDs[0]}), "done")
 	e.WaitState(e.Start("tools", "collect", map[string]any{"record": w.IDs[1], "n": w.IDs[0]}), "done")
 	e.WaitState(e.Start("tools", "collect", nil), "done")
@@ -639,7 +639,7 @@ func TestAScriptThatFailsForItsOwnReasonGetsNoHintOfFolders(t *testing.T) {
 	e := harness.New(t)
 	e.Project("tools", harness.ScriptManifest("collect", "", ""))
 	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
-st, out = deck("deck.records_upsert", {"collection": "items", "records": [{"name": "a"}]})
+st, out = deck("deck.record_upsert", {"collection": "items", "records": [{"name": "a"}]})
 sys.exit("deck answered %d: %s" % (st, out))
 `)
 	p := e.WaitState(e.Start("tools", "collect", nil), "done", "error")

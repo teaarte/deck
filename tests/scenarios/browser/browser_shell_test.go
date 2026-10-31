@@ -37,7 +37,7 @@ func TestRealBrowserShell(t *testing.T) {
 	for _, n := range []string{"glass", "pixel", "neon", "paper", "default"} {
 		e.Example(n)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "source": "mail", "note": strings.Repeat("the model did not finish the self-check within the ceiling ", 6)}, map[string]any{"title": "a-very-long-title-without-any-spaces-that-would-push-the-table-out-of-its-block-" + strings.Repeat("x", 120), "source": "web"})}, nil)
 	e.WaitState(e.Start("web", "tell", nil), "done")
 	e.WaitState(e.Start("web", "score", map[string]any{"title": "x"}), "running")
@@ -263,7 +263,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("no scheme in neon, only its note", `!document.querySelector('[data-look="scheme"]') && document.querySelector('[data-look-note="scheme"]')?.innerText.includes('Neon') && document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.look("theme", "juce")
 	b.until("juce gives the device its accent", `JSON.parse(localStorage.getItem('deck-look')).accent === 'coral'`)
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-places]')?.innerText.includes('Настройки') && document.querySelector('[data-places]')?.innerText.includes('Сегодня') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Деки')`)
 	b.shot("shell-ru")
 	b.open(e.URL + "/#/deck/spend?tab=7 days")

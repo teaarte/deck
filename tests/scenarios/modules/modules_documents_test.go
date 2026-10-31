@@ -56,7 +56,7 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 	crit := save("notes/criteria.md", "doc", "# Criteria\n\n- **short**", map[string]any{"reason": "tighter"})
 	save("custom/chart.html", "custom", "<p>x</p>", nil)
 	var recs struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "note": "**bold** note"})}, &recs)
 	save("report.md", "doc", "report", map[string]any{"record": recs.IDs[0]})
 
@@ -158,7 +158,7 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 	check := harness.NewCatalogCheck(t)
 	e.Project("web", harness.DocsManifest)
 	var recs struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "note": "**bold** note"})}, &recs)
 	rec := recs.IDs[0]
 
@@ -229,7 +229,7 @@ func TestDocumentIDsAreNotReused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Project("nums", harness.CalcManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums", "records": harness.Jsonl(map[string]any{"n": 1})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "nums", "collection": "nums", "records": harness.Jsonl(map[string]any{"n": 1})}, nil)
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: e.ProjectID("nums"), Collection: "nums"})
 	var old struct{ ID int64 }
 	e.Must("deck.document_save", map[string]any{"project": "nums", "name": "a.md", "kind": "artifact", "text": "mine", "record": recs[0].ID}, &old)

@@ -41,7 +41,7 @@ inp = json.load(sys.stdin)
 st, job = deck("clips.create_job", {"topic": inp["topic"]})
 if st != 200:
     raise SystemExit("create_job: %s %s" % (st, job))
-deck("deck.records_upsert", {"collection": "jobs", "records": json.dumps({"topic": inp["topic"], "job": job["id"], "status": "waiting"})})
+deck("deck.record_upsert", {"collection": "jobs", "records": json.dumps({"topic": inp["topic"], "job": job["id"], "status": "waiting"})})
 print(json.dumps({"job": job["id"], "secret_seen": any("tok-123" in v for v in os.environ.values())}))
 `
 
@@ -57,7 +57,7 @@ for r in recs:
         continue
     st, f = deck("clips.job_file", {"job": d["job"]})
     d["status"] = "done"
-    deck("deck.records_upsert", {"collection": "jobs", "records": json.dumps(d)})
+    deck("deck.record_upsert", {"collection": "jobs", "records": json.dumps(d)})
     files.append({"path": f["file"], "record": r["id"]})
 print(json.dumps({"files": files}))
 `

@@ -131,7 +131,7 @@ def main(inp):
             if (cur.get("score") or 0) >= 7:
                 gone.append(cur.get("name") or key)
     if write:
-        res = call("deck.records_upsert", {"collection": "models",
+        res = call("deck.record_upsert", {"collection": "models",
                                            "records": "\n".join(json.dumps(r, ensure_ascii=False) for r in write)})
         errors += res.get("errors") or []
     if gone:

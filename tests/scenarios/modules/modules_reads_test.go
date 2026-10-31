@@ -31,7 +31,7 @@ func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	p := e.Project("source", sourceManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "source", "collection": "items",
+	e.Must("deck.record_upsert", map[string]any{"project": "source", "collection": "items",
 		"records": "{\"name\": \"a\", \"size\": 3}\n{\"name\": \"b\", \"size\": 5}"}, nil)
 
 	var rows []map[string]any
@@ -96,7 +96,7 @@ func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 		t.Fatalf("a read shows its optional fields: %+v", d.Input)
 	}
 	d.Input.Properties = nil
-	e.Must("deck.command_describe", map[string]any{"command": "deck.records_upsert"}, &d)
+	e.Must("deck.command_describe", map[string]any{"command": "deck.record_upsert"}, &d)
 	if _, ok := d.Input.Properties["fields"]; ok {
 		t.Fatalf("a command that writes takes no fields: %+v", d.Input)
 	}
@@ -155,7 +155,7 @@ func TestListsOfRecordsAndProcessesNarrowToWhatTheCallerAsks(t *testing.T) {
 	}))
 
 	p := e.Project("web", harness.WebNotes)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(
 		map[string]any{"title": "a", "score": 3, "source": "x", "note": "long"},
 		map[string]any{"title": "b", "score": 1, "source": "x"},
 		map[string]any{"title": "c", "score": 3, "source": "y"})}, nil)
@@ -229,7 +229,7 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 		}
 		try(prefix+"list", "records_list", map[string]any{"project": "source", "collection": "items"})
 		try(prefix+"private", "records_list", map[string]any{"project": "source", "collection": "private"})
-		try(prefix+"write", "records_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "evil"}`})
+		try(prefix+"write", "record_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "evil"}`})
 		try(prefix+"doc", "document_get", map[string]any{"project": "source", "name": "notes/shared.md"})
 		try(prefix+"hidden", "document_get", map[string]any{"project": "source", "name": "notes/other.md"})
 		try(prefix+"docs", "documents_list", map[string]any{"project": "source"})
@@ -237,7 +237,7 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 	}))
 
 	e.Project("source", sourceManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a", "size": 3}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a", "size": 3}`}, nil)
 	for _, n := range []string{"notes/shared.md", "notes/other.md"} {
 		e.Must("deck.document_save", map[string]any{"project": "source", "name": n, "kind": "doc", "text": "text of " + n}, nil)
 	}
@@ -280,7 +280,7 @@ func TestATrialOfADraftReadsWhatItsReadsList(t *testing.T) {
 	e.Project("source", sourceManifest)
 	e.Project("vault", strings.Replace(sourceManifest, harness.Manifest(`{`), harness.Manifest(`{"no_network": true,`), 1))
 	for _, p := range []string{"source", "vault"} {
-		e.Must("deck.records_upsert", map[string]any{"project": p, "collection": "items", "records": `{"name": "a"}`}, nil)
+		e.Must("deck.record_upsert", map[string]any{"project": p, "collection": "items", "records": `{"name": "a"}`}, nil)
 	}
 	e.Must("deck.document_save", map[string]any{"project": "source", "name": "notes/shared.md", "kind": "doc", "text": "shared"}, nil)
 	_, tok := e.Token("terminal", "deck.*", "draft.*")
@@ -294,7 +294,7 @@ out = {}
 for key, cmd, body in [("doc", "deck.document_get", {"project": "source", "name": "notes/shared.md"}),
                        ("list", "deck.records_list", {"project": "source", "collection": "items"}),
                        ("vault", "deck.records_list", {"project": "vault", "collection": "items"}),
-                       ("write", "deck.records_upsert", {"project": "source", "collection": "items", "records": '{"name": "evil"}'})]:
+                       ("write", "deck.record_upsert", {"project": "source", "collection": "items", "records": '{"name": "evil"}'})]:
     st, res = deck(cmd, body)
     out[key] = [st, res if st != 200 else ""]
 print(json.dumps(out))
@@ -338,7 +338,7 @@ func TestAScreenReadsAnotherProjectOnlyByItsReads(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("source", sourceManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a"}`}, nil)
 	screen := `, "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table",
     "source": {"from": "deck.records_list", "input": {"project": "source", "collection": "items"}}, "columns": [{"label": "Data", "bind": "data"}]}]}]`
 	e.Project("peek", readerManifest(screen))
@@ -358,7 +358,7 @@ func TestAWhereKeepsTheSameRecordsOnAScreenAndInAList(t *testing.T) {
 	e := harness.New(t)
 	where := `topic == 'x' ? true : nil`
 	p := e.Project("ideas", strings.Replace(harness.IdeasManifest, `"where": "score >= 5"`, `"where": "`+where+`"`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "ideas", "collection": "ideas", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "ideas", "collection": "ideas", "records": harness.Jsonl(
 		map[string]any{"title": "alpha", "score": 7, "topic": "x"}, map[string]any{"title": "beta", "score": 8, "topic": "y"})}, nil)
 	var listed []struct{ Data map[string]any }
 	e.Must("deck.records_list", map[string]any{"project": "ideas", "collection": "ideas", "where": where}, &listed)

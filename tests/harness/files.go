@@ -42,7 +42,7 @@ func (e *Env) Upload(project, name, ctype, content string) int64 {
 }
 
 const SeedScript = PythonLib + `
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
+st, out = deck("deck.record_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 with open(os.path.join(os.environ["DECK_RESULTS"], "photo.jpg"), "w") as f:
     f.write("record photo")
 print(json.dumps({"record": out["ids"][0], "files": [{"path": "photo.jpg", "record": out["ids"][0]}]}))

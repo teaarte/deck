@@ -396,7 +396,7 @@ func TestAnAgentDeletesTheRecordsOfItsOwnProject(t *testing.T) {
 	})
 	e.Project("reels", harness.ClipsModule)
 	own = e.Clip("a")
-	e.Must("deck.records_upsert", map[string]any{"project": "reels", "collection": "clips", "records": harness.Jsonl(map[string]any{"slug": "b"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "reels", "collection": "clips", "records": harness.Jsonl(map[string]any{"slug": "b"})}, nil)
 	var reels []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "reels", "collection": "clips"}, &reels)
 	other = reels[0].ID

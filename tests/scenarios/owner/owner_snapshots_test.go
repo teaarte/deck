@@ -53,7 +53,7 @@ func TestFilesOfDeletedRecordsGoInTheDailyCleanup(t *testing.T) {
 	e := harness.New(t, harness.WithClock())
 	e.Project("files", harness.ScriptManifest("make", "", ""))
 	e.SaveScript("files", "scripts/main.py", harness.PythonLib+`
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
+st, out = deck("deck.record_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 open(os.path.join(os.environ["DECK_RESULTS"], "f.txt"), "w").write("f")
 print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 `)
@@ -99,7 +99,7 @@ func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
 const manyFilesScript = harness.PythonLib + `
 files = []
 for i in range(40):
-    st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "r%d" % i})})
+    st, out = deck("deck.record_upsert", {"collection": "items", "records": json.dumps({"name": "r%d" % i})})
     with open(os.path.join(os.environ["DECK_RESULTS"], "f%d.bin" % i), "wb") as f:
         f.write(os.urandom(256 << 10))
     files.append({"path": "f%d.bin" % i, "record": out["ids"][0]})

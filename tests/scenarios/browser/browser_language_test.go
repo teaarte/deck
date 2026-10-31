@@ -35,9 +35,9 @@ func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 		return provider.Result{Text: "Готово."}
 	}))
 
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	e.Project("shelf", harness.WidgetsManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
 	topic := e.Say(0, "посчитай записи")
 	e.Told(topic, "done", "ru")
 	e.Say(topic, "подумай ещё")

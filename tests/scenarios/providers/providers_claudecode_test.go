@@ -191,7 +191,7 @@ func TestPromptMentionsOnlyConnectedTools(t *testing.T) {
 		p := e.Project("ideas", harness.IdeasManifest)
 		e.WaitState(e.Run(p, "collect"), "done")
 		prompt := fake.Calls()[0].Prompt
-		if strings.Contains(prompt, "AskUserQuestion") == noQuestions || !strings.Contains(prompt, "records_upsert") {
+		if strings.Contains(prompt, "AskUserQuestion") == noQuestions || !strings.Contains(prompt, "record_upsert") {
 			t.Fatalf("question tool present=%v, prompt:\n%s", !noQuestions, prompt)
 		}
 	}

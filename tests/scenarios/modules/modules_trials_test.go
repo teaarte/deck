@@ -20,7 +20,7 @@ var leftManifest = harness.Manifest(`{"collections": [{"name": "items", "descrip
   "scripts": [{"name": "collect", "file": "scripts/collect.py", "runtime": "python"}]}`)
 
 const leftScript = harness.PythonLib + `
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
+st, out = deck("deck.record_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 assert st == 200, out
 st, out = deck("deck.document_save", {"name": "notes.md", "kind": "doc", "text": "the trial wrote this"})
 assert st == 200, out
@@ -129,7 +129,7 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 }
 
 const trialScript = harness.PythonLib + `
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
+st, out = deck("deck.record_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 internal = st == 200
 st, out = deck("tried.publish", {})
 print(json.dumps({"internal": internal, "external": [st, out]}))

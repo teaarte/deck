@@ -28,7 +28,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 	clock := &harness.Clock{At: time.Now()}
 	e := harness.New(t, harness.WithAgent(harness.WebAgent()), harness.WithClock(clock), harness.WithConfig(harness.WithTTL))
 	p := e.Project("notes", harness.WebManifest(svc.URL))
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)
 	e.WaitState(e.Run(p, "work"), "waiting_answer", "done")
 	e.App.Sweep(context.Background(), clock.Add(24*time.Hour+time.Minute))
@@ -300,7 +300,7 @@ func TestRealBrowserClientKeepsWhatItShows(t *testing.T) {
 	svc := harness.NewService(t, nil)
 	e := harness.New(t)
 	e.Project("notes", harness.WebManifest(svc.URL))
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)
 	var d struct{ ID int64 }
 	e.Must("deck.document_save", map[string]any{"project": "notes", "name": "plan.md", "kind": "doc", "text": "# Plan"}, &d)

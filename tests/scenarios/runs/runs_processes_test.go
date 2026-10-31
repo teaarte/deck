@@ -601,7 +601,7 @@ func TestFinishedProcessSessionIsClosed(t *testing.T) {
 
 	p := e.Project("nums", harness.CalcManifest)
 	e.WaitState(e.Run(p, "calc"), "done")
-	body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"records_upsert","arguments":{"collection":"nums","records":"{\"n\": 5}"}}}`
+	body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"record_upsert","arguments":{"collection":"nums","records":"{\"n\": 5}"}}}`
 	req, _ := http.NewRequest("POST", url, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
@@ -808,7 +808,7 @@ func TestASecondPressWithARetryKeyReturnsTheRunningProcess(t *testing.T) {
 
 	e.Project("web", strings.Replace(harness.WebNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
 		`"actions": [{"label": "Open", "screen": "note"}, {"label": "Touch", "command": "touch", "params": {"note": "=_id", "retry_key": "='touch:' + string(_id)"}}]`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	a := e.RowAction("web", "main", "web.touch", nil)
 	var first, second struct{ Process int64 }
 	for _, out := range []*struct{ Process int64 }{&first, &second} {

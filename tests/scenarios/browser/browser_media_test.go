@@ -32,7 +32,7 @@ func TestRealBrowserVideo(t *testing.T) {
 			t.Fatalf("ffmpeg: %v %s", err, out)
 		}
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, nil)
 
 	b := Open(t)
@@ -42,7 +42,7 @@ func TestRealBrowserVideo(t *testing.T) {
 	b.eval(`(document.querySelector('[data-player="video"]').muted = true, document.querySelector('[data-player="video"]').play(), '')`)
 	b.until("the video playing", `!document.querySelector('[data-player="video"]').paused`)
 	b.shot("video")
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "voice", "file": "voice.wav"})}, nil)
 	b.Open(e, "#/p/films/scenes")
 	b.eval(`(localStorage.removeItem('deck-files-view'), '')`)

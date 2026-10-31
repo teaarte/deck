@@ -72,7 +72,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 		return st[3] == "running" && st[4] == "waiting_slot" && strings.Count(states(e, ids[:3]), "done") == 1
 	})
 	stream := e.Events(t.Context())
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "5"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "5"}, nil)
 	harness.WaitEvent(t, stream, events.Event{Topic: "settings"})
 	e.Until("a raised limit to run the last one", func() bool { return e.Proc(ids[4]).State == "running" })
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Limits", nil)["rows"])
@@ -80,7 +80,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 		t.Fatalf("the limits show the limit and its default: %+v", rows)
 	}
 
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	extra := e.Run(p, "job")
 	e.Until("the new process to wait for a slot", func() bool { return e.Proc(extra).State == "waiting_slot" })
 	e.Must("deck.process_stop", map[string]any{"process": extra}, nil)
@@ -94,8 +94,8 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 	if n := len(e.Fake.Calls()); n != 5 {
 		t.Fatalf("a stopped process that waited for a slot never ran: %d calls", n)
 	}
-	e.Refused("deck.settings_set", map[string]any{"name": "agent_limit", "value": "21"}, 422, "1 to 20")
-	e.Refused("deck.settings_set", map[string]any{"name": "confirm_hours", "value": ""}, 422, "give confirm_hours a value")
+	e.Refused("deck.setting_set", map[string]any{"name": "agent_limit", "value": "21"}, 422, "1 to 20")
+	e.Refused("deck.setting_set", map[string]any{"name": "confirm_hours", "value": ""}, 422, "give confirm_hours a value")
 }
 
 // TestAProcessWaitingForASlotStillWaitsAfterARestart: the wait is in the base, so a restarted deck runs no more
@@ -107,7 +107,7 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	first := &harness.Fake{Script: held(hang)}
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	e.Until("one running, one waiting", func() bool {
@@ -146,7 +146,7 @@ func TestConfirmationTermIsASettingOfTheWorkspace(t *testing.T) {
 
 		func(c *app.Config) { c.ConfirmTTL = 24 * time.Hour }))
 
-	e.Must("deck.settings_set", map[string]any{"name": "confirm_hours", "value": "2"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "confirm_hours", "value": "2"}, nil)
 	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	e.Run(p, "job")
 	var asks []struct {
@@ -175,7 +175,7 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 	clock := &harness.Clock{At: harness.T0}
 	first := &harness.Fake{Script: held(make(chan struct{}))}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	e.Until("one running, one waiting", func() bool {
@@ -201,7 +201,7 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(held(make(chan struct{}))))
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	either := func(got string) bool { return got == "running waiting_slot" || got == "waiting_slot running" }
@@ -231,7 +231,7 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
 
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("boss", ""), harness.AgentCommand("job", "")}, nil))
 	boss := e.Run(p, "boss")
 	e.Until("the boss to hold the slot", func() bool { return len(e.Fake.Calls()) == 1 })

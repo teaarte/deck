@@ -21,7 +21,7 @@ func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
 	for i := range 3 {
 		name := fmt.Sprintf("lab%d", i)
 		e.Project(name, strings.Replace(harness.WidgetsOfWork, `"screens": [`, `"screens": [{"name": "main", "title": "Main", "blocks": [{"type": "table", "source": {"collection": "items"}, "columns": [{"label": "Name", "bind": "name"}]}]}, `, 1))
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(map[string]any{"name": "one", "n": 1})}, nil)
+		e.Must("deck.record_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(map[string]any{"name": "one", "n": 1})}, nil)
 	}
 	b := Open(t)
 	// back goes back to the tiles and watches them for a second: they stand in the first frames the address is theirs,
@@ -173,20 +173,20 @@ func console() string {
 func TestRealBrowserTilesAndCharts(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	e.Project("lab", labManifest)
 	start := time.Now().UTC().Truncate(time.Hour).Add(-7 * 24 * time.Hour)
 	var prices []map[string]any
 	for h := range 7 * 24 {
 		prices = append(prices, map[string]any{"at": start.Add(time.Duration(h) * time.Hour).Format(time.RFC3339), "price": 80000 + 1200*float64(h%37)/37 + float64(h)*3})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "prices", "records": harness.Jsonl(prices...)}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "tasks", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "lab", "collection": "prices", "records": harness.Jsonl(prices...)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "lab", "collection": "tasks", "records": harness.Jsonl(
 		map[string]any{"title": "Finished long ago", "order": 1, "status": "done"},
 		map[string]any{"title": "Next to do", "order": 2, "status": "todo"},
 		map[string]any{"title": "Doing now", "order": 3, "status": "doing"})}, nil)
 	e.Project("lab2", labManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "lab2", "collection": "prices", "records": harness.Jsonl(prices...)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "lab2", "collection": "prices", "records": harness.Jsonl(prices...)}, nil)
 	e.Must("deck.theme_save", map[string]any{"name": "pult", "text": `{"version": 1, "title": {"en": "Pult"}, "mood": "m", "accent": "orange"}`}, nil)
 	for _, scheme := range []string{"light", "dark"} {
 		id := e.Upload("master", "cockpit.png", "image/png", console())

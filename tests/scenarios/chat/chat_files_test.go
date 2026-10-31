@@ -156,7 +156,7 @@ func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 		return provider.Result{Text: "Hi."}
 	}))
 
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	busy := e.Run(e.Project("busy", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil)), "work")
 	e.WaitState(busy, "running")
 	topic := e.Say(0, "first")
@@ -272,7 +272,7 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 			name = f.Name
 		}
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "art", "collection": "pics", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "art", "collection": "pics", "records": harness.Jsonl(
 		map[string]any{"title": "a number", "file": id}, map[string]any{"title": "b digits", "file": fmt.Sprint(id)},
 		map[string]any{"title": "c name", "file": name})}, nil)
 	raw, _ := json.Marshal(e.ScreenMessages("art", "main", nil))

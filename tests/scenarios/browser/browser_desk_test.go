@@ -19,7 +19,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		e.Project(name, harness.PlainManifest)
 	}
 	e.Project("shelf", harness.WidgetsManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
 	b := Open(t)
 	cell := func(id string) string {
 		return `(() => { const r = document.querySelector('[data-cell="` + id + `"]').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)].join(' ') })()`
@@ -108,7 +108,7 @@ func TestRealBrowserTenWidgetsStayQuick(t *testing.T) {
 	for i := range 10 {
 		name := fmt.Sprintf("shelf%d", i)
 		e.Project(name, harness.WidgetsManifest)
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
+		e.Must("deck.record_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
 	}
 	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
@@ -125,7 +125,7 @@ func TestRealBrowserTenWidgetsStayQuick(t *testing.T) {
 		t.Errorf("ten views take %d ms to draw", n)
 	}
 	b.eval(`(window.deckDraws = {}, '')`)
-	e.Must("deck.records_upsert", map[string]any{"project": "shelf3", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "b", "n": 2})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "shelf3", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "b", "n": 2})}, nil)
 	b.until("the changed card read again", `[...document.querySelectorAll('[data-module="shelf3"] [data-widget]')].some((x) => x.innerText.includes('2'))`)
 	time.Sleep(800 * time.Millisecond)
 	var got map[string]float64

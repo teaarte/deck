@@ -26,7 +26,7 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 	}
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.RoutedManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	deck, _ := url.Parse(e.URL)
 	api, files := httputil.NewSingleHostReverseProxy(deck), http.FileServer(http.Dir(out))
 	page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

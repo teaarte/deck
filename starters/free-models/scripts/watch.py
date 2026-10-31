@@ -152,7 +152,7 @@ def main(inp):
             d["alert"] = "наблюдаю после замены"
         rows.append(d)
     if rows:
-        call("deck.records_upsert", {"collection": "proposals", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in rows)})
+        call("deck.record_upsert", {"collection": "proposals", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in rows)})
     if worse:
         call("deck.owner_notify", {"text": "После замены модели стало хуже: " + ", ".join(worse)[:200]
                              + ". Предлагаю вернуть прежние — «Применить» в «Предложениях».", "screen": "proposals"})

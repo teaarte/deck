@@ -13,7 +13,8 @@ import (
 	"deck2/schemas"
 )
 
-// renamed are deck's commands that format 14 of manifests named anew, old to new.
+// renamed are deck's commands that format 14 of manifests named anew, old to new; the second renaming, of a plural
+// beside a verb, also from the name the first gave.
 var renamed = map[string]string{
 	"agent_logins": "agent_logins_list", "agent_login_code": "agent_login_finish",
 	"browser_login_done": "browser_login_finish", "browser_needs_login": "browser_login_request",
@@ -22,12 +23,13 @@ var renamed = map[string]string{
 	"files_folder": "files_folder_list", "layout": "layout_get", "manifest_format": "manifest_format_get",
 	"theme_format": "theme_format_get", "menu": "menu_get", "notify": "owner_notify", "process_asks": "process_asks_list",
 	"process_chat": "process_chat_get", "process_left": "process_left_list", "process_log": "process_log_get",
-	"project_cover": "project_cover_set", "project_covers": "project_covers_list", "project_needs": "project_needs_get",
+	"project_cover": "project_cover_set", "project_covers": "project_covers_list", "project_needs": "project_readiness_get", "project_needs_get": "project_readiness_get",
 	"project_rights": "project_rights_list", "provider_off": "provider_switch", "push_devices": "push_devices_list",
 	"push_key": "push_key_get", "push_reset": "push_key_reset", "record_parts": "record_parts_list", "screen": "screen_get",
 	"screen_shot": "screen_capture", "secure_address": "secure_address_get", "spend_daily": "spend_days_list",
 	"theme": "theme_get", "theme_image": "theme_image_set", "today": "today_get", "transcribe": "recording_transcribe",
 	"update": "update_install", "version": "version_get", "health_seen": "health_mark_seen", "feed_read": "feed_mark_read",
+	"covers_draw": "cover_draw", "programs_check": "program_check", "records_upsert": "record_upsert", "settings_set": "setting_set",
 }
 
 // plain are the old names that are also plain words or fields of a manifest, renamed only as deck.<name>.
@@ -101,8 +103,14 @@ var columns = map[string][]string{
 	"ask": {"payload"}, "assignment": {"command"},
 }
 
-// commandsRenamed moves what deck keeps to the new names of its commands and stored manifests to format 14.
-var commandsRenamed = goose.NewGoMigration(54, &goose.GoFunc{RunTx: func(ctx context.Context, tx *sql.Tx) error {
+// commandsRenamed moves what deck keeps to the new names of its commands and stored manifests to format 14; 55
+// does it again for a base that took 54 before the second renaming.
+var commandsRenamed = []*goose.Migration{
+	goose.NewGoMigration(54, &goose.GoFunc{RunTx: renameCommands}, nil),
+	goose.NewGoMigration(55, &goose.GoFunc{RunTx: renameCommands}, nil),
+}
+
+func renameCommands(ctx context.Context, tx *sql.Tx) error {
 	for table, cols := range columns {
 		for _, c := range cols {
 			if err := renameColumn(ctx, tx, table, c, func(_ int64, v string) string { return rename(v, true) }); err != nil {
@@ -133,7 +141,7 @@ var commandsRenamed = goose.NewGoMigration(54, &goose.GoFunc{RunTx: func(ctx con
 		}
 		return rename(v, false)
 	})
-}}, nil)
+}
 
 // renameColumn writes f of each value of a column back where it changed.
 func renameColumn(ctx context.Context, tx *sql.Tx, table, column string, f func(id int64, v string) string) error {

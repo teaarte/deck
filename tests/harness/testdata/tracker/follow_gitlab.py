@@ -33,7 +33,7 @@ record = {"project": project, "labels": inp.get("labels", "").strip()}
 if old.get("cursor"):
     record["cursor"] = old["cursor"]
     record["seen"] = old.get("seen", [])
-out = deck("deck.records_upsert", {"collection": "intake", "records": json.dumps(record)})
+out = deck("deck.record_upsert", {"collection": "intake", "records": json.dumps(record)})
 if out.get("errors"):
     raise SystemExit("intake: %s" % out["errors"])
 print(json.dumps({"project": project}))

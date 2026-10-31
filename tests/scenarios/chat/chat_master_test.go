@@ -114,7 +114,7 @@ func TestTheChangesOfARunAreOneLine(t *testing.T) {
 
 	e.Project("notes", harness.IdeasManifest)
 	for i := range 4 {
-		e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": fmt.Sprint("idea ", i), "score": i})}, nil)
+		e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": fmt.Sprint("idea ", i), "score": i})}, nil)
 	}
 	e.WaitState(e.Start("notes", "collect", nil), "done")
 	e.WaitState(e.Start("notes", "collect", nil), "done")
@@ -155,7 +155,7 @@ func TestAManifestCheckOfAProjectAloneChecksItsCurrentManifest(t *testing.T) {
       {"type": "filter", "param": "topic", "source": {"collection": "ideas"}, "field": "topic"}],`, 1)
 	m = strings.Replace(m, `{"label": "Score", "bind": "score"}`, `{"label": "Score", "bind": "score > 8 ? 'fresh' : '$0'", "format": "tag"}, {"label": "R:R", "bind": "score"}`, 1)
 	e.Project("notes", m)
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "a", "score": 9, "topic": "Биткоин"}, map[string]any{"title": "b", "score": 1, "topic": "ETH"}, map[string]any{"title": "c", "score": 2, "topic": "rare"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "a", "score": 9, "topic": "Биткоин"}, map[string]any{"title": "b", "score": 1, "topic": "ETH"}, map[string]any{"title": "c", "score": 2, "topic": "rare"})}, nil)
 	var c struct {
 		Ok           bool
 		Refused      []string
@@ -365,7 +365,7 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 	for _, name := range []string{"web", "web2"} {
 		e.Project(name, broken)
 		e.Must("deck.document_save", map[string]any{"project": name, "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "b"})}, nil)
+		e.Must("deck.record_upsert", map[string]any{"project": name, "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "b"})}, nil)
 	}
 	e.ScreenMessages("web", "main", nil)
 	e.Until("on_error", func() bool { return len(e.RunsOf("master", "on_error")) == 1 })
@@ -405,7 +405,7 @@ func TestABlockThatFailsIsInTheHealthOfItsModule(t *testing.T) {
 	broken := strings.Replace(harness.WebNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
 	e.Project("web", broken)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "b"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "b"})}, nil)
 	e.ScreenMessages("web", "main", nil)
 	e.ScreenMessages("web", "main", map[string]any{"topic": "asks"})
 	hs := e.Health("web")

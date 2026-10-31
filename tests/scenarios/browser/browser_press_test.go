@@ -75,7 +75,7 @@ func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 	for i := range 10 {
 		rows = append(rows, map[string]any{"name": fmt.Sprint("p", i), "project": "films", "models": []string{"openrouter/qwen", "openrouter/gemma"}[i%2]})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals", "records": harness.Jsonl(rows...)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "picker", "collection": "proposals", "records": harness.Jsonl(rows...)}, nil)
 
 	b := Open(t)
 	applies := `[...document.querySelectorAll('[data-block] button')].filter((x) => x.innerText.trim() === 'Apply')`

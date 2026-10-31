@@ -15,7 +15,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.WebAgent()))
 	e.Project("notes", harness.WebManifest("http://127.0.0.1:1"))
 	var up struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 3})}, &up)
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 3})}, &up)
 	score := func(topic string) any {
 		in := map[string]any{"record": up.IDs[0]}
 		var block map[string]json.RawMessage
@@ -39,7 +39,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 	if got := fmt.Sprint(score("")); got != "3" {
 		t.Fatalf("the button of the page takes the field of its record: %v", got)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 9})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 9})}, nil)
 	if got := fmt.Sprint(score("collection")); got != "9" {
 		t.Fatalf("after a change of the record its buttons are read again with the rest: %v", got)
 	}
@@ -59,7 +59,7 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
     "columns": [{"label": "Title", "bind": "title"}],
     "actions": [{"label": "Boost", "command": "touch", "params": {"note": "=_id", "score": "=string(score * 2)"}, "when": "score >= 5", "confirm": true},
       {"label": "Rate", "command": "touch", "params": {"note": "=_id"}, "input": "score"}]}]}]}`))
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 7})}, nil)
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.Screen("notes", "main", nil)["b0"]["rows"])
 	if len(rows) != 2 || len(rows[0].Actions) != 1 || rows[0].Actions[0]["label"] != "Rate" || rows[0].Actions[0]["input"] != "score" {
@@ -97,7 +97,7 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 		e.Refused("deck.project_create", map[string]any{"name": "bad", "manifest": with(undo)}, 422, want)
 	}
 	e.Project("web", with(`, "undo": {"command": "tag", "params": {"tag": "=title"}}`))
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
 	found := false
 	for _, v := range e.Screen("web", "main", nil) {
 		for _, raw := range v {
@@ -124,7 +124,7 @@ func TestAFormKeepsItsFixedFieldsFromTheOwner(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	check := harness.NewCatalogCheck(t)
 	e.Project("clips", fmt.Sprintf(fixedClips, `"slug"`))
-	e.Must("deck.records_upsert", map[string]any{"project": "clips", "collection": "clips",
+	e.Must("deck.record_upsert", map[string]any{"project": "clips", "collection": "clips",
 		"records": harness.Jsonl(map[string]any{"slug": "a-1", "title": "First"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "clips", "collection": "clips"}, &recs)
@@ -158,7 +158,7 @@ func TestAButtonOfAModuleOpensAScreenOfDeckFilled(t *testing.T) {
 		return strings.Replace(harness.WebNotes, open, `"actions": [{"label": "Open", "screen": "note"}, `+button+`]`, 1)
 	}
 	e.Project("web", add(`{"label": "Add", "screen": "deck/settings", "params": {"tab": "Models", "dialog": "model", "model": "=title", "connection": "openrouter"}, "when": "score == nil"}`))
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "qwen"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "qwen"}`}, nil)
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "main", "Notes", nil)["rows"])
 	if len(rows) != 1 || len(rows[0].Actions) != 2 {
 		t.Fatalf("the row has both buttons: %+v", rows)
@@ -194,7 +194,7 @@ func TestTheOwnerDeletesARecordFromAButtonOfItsModule(t *testing.T) {
 			t.Fatalf("%s is refused: %d %s", bad.to, code, out)
 		}
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a"}` + "\n" + `{"title": "b"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a"}` + "\n" + `{"title": "b"}`}, nil)
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "main", "Notes", nil)["rows"])
 	var act map[string]any
 	for _, a := range rows[0].Actions {
@@ -219,7 +219,7 @@ func TestAButtonOpensTheChatOfTheMaster(t *testing.T) {
 	e := harness.New(t)
 	m := strings.Replace(harness.BoardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "Talk it over", "command": "move", "params": {"id": "=_id"}, "chat": true}, {"label": "Move"`, 1)
 	e.Project("work", m)
-	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	raw, _ := json.Marshal(e.Screen("work", "board", nil))
 	if !strings.Contains(string(raw), `"chat":true`) || !strings.Contains(string(raw), `"label":"Talk it over"`) {
 		t.Fatalf("a chat button with a command is drawn with chat: %s", raw)
@@ -264,7 +264,7 @@ func TestACellPicksTheInputOfAButtonOfItsRow(t *testing.T) {
 		t.Fatalf("a pick of no button of the row is refused: %d %s", code, out)
 	}
 	e.Project("work", table)
-	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "todo"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "todo"}`}, nil)
 	drawn, _ := json.Marshal(e.ScreenMessages("work", "board", nil))
 	if !strings.Contains(string(drawn), `{"label":"Status","pick":"Move"}`) {
 		t.Fatalf("the column says what it picks: %s", drawn)

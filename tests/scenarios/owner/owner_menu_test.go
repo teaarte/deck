@@ -52,7 +52,7 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 	manifest = strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1)
 	p := e.Project("web", manifest)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	drawn, _ := json.Marshal(e.ScreenMessages("web", "main", nil))
 	for _, want := range []string{`"icon":"chart-line"`, `"icon":"notes"`, `"icon":"arrow-right"`} {
 		if !strings.Contains(string(drawn), want) {

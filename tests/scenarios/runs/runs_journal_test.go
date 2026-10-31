@@ -288,7 +288,7 @@ func TestAnEmptyProcessThatWroteRecordsStays(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "write" {
-			c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": `{"title": "kept", "score": 1}`})
+			c.Tool(ctx, "record_upsert", map[string]any{"collection": "ideas", "records": `{"title": "kept", "score": 1}`})
 		}
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	}), harness.WithClock())

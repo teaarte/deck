@@ -126,7 +126,7 @@ func TestAFolderAndAnAssignmentTellOnlyTheirReaders(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("web", harness.WebNotes)
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "2"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "2"}, nil)
 	seen := func(write func()) []string {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
@@ -150,7 +150,7 @@ func TestAFolderAndAnAssignmentTellOnlyTheirReaders(t *testing.T) {
 	}); !slices.Contains(got, "assignments") || slices.Contains(got, "projects") {
 		t.Fatalf("an assignment tells the readers of assignments, not of projects: %v", got)
 	}
-	if got := seen(func() { e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "2"}, nil) }); len(got) != 0 {
+	if got := seen(func() { e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "2"}, nil) }); len(got) != 0 {
 		t.Fatalf("a write that changes nothing tells no one: %v", got)
 	}
 }
@@ -222,7 +222,7 @@ func TestAChangeOfAnotherWorkspaceStaysThere(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	for ev := range live {
 		switch ev.Topic {
 		case "settings":
@@ -243,7 +243,7 @@ func TestSavingTheSameManifestTellsNoOne(t *testing.T) {
 	e.Must("deck.manifest_get", map[string]any{"project": "work"}, &m)
 	live := e.Events(t.Context())
 	e.Must("deck.manifest_save", map[string]any{"project": "work", "manifest": m.Manifest}, nil)
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	for ev := range live {
 		switch ev.Topic {
 		case "settings":

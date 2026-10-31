@@ -44,7 +44,7 @@ func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"n": "integer"}, "blocks": [
       {"type": "list", "title": "Latest", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n ?? 5"}}, "item": {"title": "text"}},
-      {"type": "stat", "title": "Many", "when": "(param.n ?? 0) > 1", "source": {"from": "deck.probe"}},
+      {"type": "stat", "title": "Many", "when": "(param.n ?? 0) > 1", "source": {"from": "deck.probe_list"}},
       {"type": "list", "title": "Exact", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n"}}, "item": {"title": "text"}},`, 1))
 	for _, params := range []map[string]any{{"params": `{"n": "2"}`}, nil} {
 		drawn, _ := json.Marshal(e.Screen("web", "main", params)["b0"])
@@ -69,10 +69,10 @@ func TestEachSourceOfAScreenIsReadOnce(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
-      {"type": "stat", "title": "Today", "source": {"from": "deck.probe", "input": {"days": 1}}},
-      {"type": "stat", "title": "Today again", "source": {"from": "deck.probe", "input": {"days": 1}}, "value": "len(rows) * 2"},
-      {"type": "table", "title": "All", "source": {"from": "deck.probe", "sort": "-name"}, "columns": [{"label": "Name", "bind": "name"}]},
-      {"type": "stat", "title": "Some", "source": {"from": "deck.probe", "where": "name == 'a'"}},`, 1))
+      {"type": "stat", "title": "Today", "source": {"from": "deck.probe_list", "input": {"days": 1}}},
+      {"type": "stat", "title": "Today again", "source": {"from": "deck.probe_list", "input": {"days": 1}}, "value": "len(rows) * 2"},
+      {"type": "table", "title": "All", "source": {"from": "deck.probe_list", "sort": "-name"}, "columns": [{"label": "Name", "bind": "name"}]},
+      {"type": "stat", "title": "Some", "source": {"from": "deck.probe_list", "where": "name == 'a'"}},`, 1))
 	e.Probes.Store(0)
 	data := e.Screen("web", "main", nil)
 	if n := e.Probes.Load(); n != 2 {
@@ -89,7 +89,7 @@ func TestAnEventReadsNoBlockItDoesNotChange(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
-      {"type": "stat", "title": "Some", "when": "len(rows) > 0", "source": {"from": "deck.probe"}},`, 1))
+      {"type": "stat", "title": "Some", "when": "len(rows) > 0", "source": {"from": "deck.probe_list"}},`, 1))
 	e.Probes.Store(0)
 	e.ScreenMessages("web", "main", map[string]any{"topic": "asks"})
 	if n := e.Probes.Load(); n != 0 {
@@ -103,8 +103,8 @@ func TestAParamReachesEveryExpressionOfAScreen(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"k": "integer"}, "blocks": [
-      {"type": "chart", "title": "Scaled", "source": {"from": "deck.probe"}, "x": "name", "series": [{"label": "N", "y": "id * param.k"}]},
-      {"type": "stat", "title": "Toned", "source": {"from": "deck.probe"}, "tone": "param.k > 1 ? 'warn' : 'ok'"},`, 1))
+      {"type": "chart", "title": "Scaled", "source": {"from": "deck.probe_list"}, "x": "name", "series": [{"label": "N", "y": "id * param.k"}]},
+      {"type": "stat", "title": "Toned", "source": {"from": "deck.probe_list"}, "tone": "param.k > 1 ? 'warn' : 'ok'"},`, 1))
 	data := e.Screen("web", "main", map[string]any{"params": `{"k": "3"}`})
 	chart, _ := json.Marshal(data["b0"])
 	if !strings.Contains(string(chart), `"values":[3,6]`) || string(data["b1"]["tone"]) != `"warn"` {
@@ -151,10 +151,10 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 	m := strings.Replace(harness.BoardManifest, `"item": {"title": "title"}`, `"item": {"title": "title + note"}`, 1)
 	m = strings.Replace(m, `"status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}]`, `"status": {"type": "string", "enum": ["todo", "doing", "done"]}, "note": {"type": "string"}}}}]`, 1)
 	e.Project("work", m)
-	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	e.Screen("work", "board", nil)
 	e.WaitHealth("screen:work.board", "error")
-	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing", "note": "!"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing", "note": "!"}`}, nil)
 	e.Screen("work", "board", nil)
 	for _, h := range e.Health() {
 		if h.Subject == "screen:work.board" {
@@ -165,7 +165,7 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
     {"type": "list"`, `"blocks": [
     {"type": "dialog", "name": "more", "title": "More", "blocks": [{"type": "table", "title": "Broken", "source": {"collection": "tasks"}, "columns": [{"label": "X", "bind": "title + note"}]}]},
     {"type": "list"`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "dialogs", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "dialogs", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	e.ScreenMessages("dialogs", "board", map[string]any{"dialog": "more", "block": "b0-in"})
 	e.WaitHealth("screen:dialogs.board", "error")
 	e.Screen("dialogs", "board", nil)
@@ -176,7 +176,7 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 	if !red {
 		t.Fatal("a draw that left the dialog unread does not say the screen is healthy")
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "dialogs", "collection": "tasks", "records": `{"title": "a", "status": "doing", "note": "!"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "dialogs", "collection": "tasks", "records": `{"title": "a", "status": "doing", "note": "!"}`}, nil)
 	e.ScreenMessages("dialogs", "board", map[string]any{"dialog": "more", "block": "b0-in"})
 	for _, h := range e.Health() {
 		if h.Subject == "screen:dialogs.board" {
@@ -192,7 +192,7 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.WebAgent()))
 	check := harness.NewCatalogCheck(t)
 	e.Project("notes", harness.WebManifest("http://127.0.0.1:1"))
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7},
 			map[string]any{"title": "gamma", "score": 5})}, nil)
 
@@ -465,7 +465,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
     {"name": "note", "title": "Note", "record": "notes", "blocks": [{"type": "form", "title": "Again", "command": "touch",
       "values": {"note": "%[1]s", "score": "%[2]s"}}]}]}`)
 	e.Project("notes", fmt.Sprintf(m, "=_id", "=title"))
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.Screen("notes", "main", nil)["b0"]["rows"])
 	params, _ := rows[0].Actions[0]["params"].(map[string]any)
 	if len(rows) != 1 || params["note"] != rows[0].ID || params["score"] != "a" {
@@ -497,7 +497,7 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
       "actions": [{"label": "Touch", "command": "touch", "params": {"process": "=_id"}}]},
     {"type": "table", "title": "Notes", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
       "actions": [{"label": "Who", "command": "touch", "params": {"who": "=$env[\"first-name\"]"}}, {"label": "Where", "command": "touch", "params": {"who": "=$env[\"in\"]"}}]}]}]}`))
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "first-name": "Ann", "in": "Oslo"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "first-name": "Ann", "in": "Oslo"})}, nil)
 	e.Run(pid, "touch")
 	data := e.Screen("notes", "main", nil)
 	runs := harness.BlockData[[]harness.ScreenRow](t, data["b0"]["rows"])
@@ -529,7 +529,7 @@ func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	p := e.Project("items", numbersManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "items", "collection": "items",
+	e.Must("deck.record_upsert", map[string]any{"project": "items", "collection": "items",
 		"records": harness.Jsonl(map[string]any{"id": 1, "name": "nine", "score": 9}, map[string]any{"id": 2, "name": "hundred", "score": 100},
 			map[string]any{"id": 3, "name": "twenty", "score": 20})}, nil)
 	rows := e.ScreenRows(p, "main")
@@ -658,7 +658,7 @@ func TestATableSendsOnlyWhatItsColumnsShow(t *testing.T) {
 	e := harness.New(t)
 	id := e.Project("ocr", ocrManifest)
 	text := strings.Repeat("recognized ", 400) + "THE-TAIL"
-	e.Must("deck.records_upsert", map[string]any{"project": "ocr", "collection": "docs", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "ocr", "collection": "docs", "records": harness.Jsonl(
 		map[string]any{"key": "a", "name": "scan.pdf", "status": "done", "text": text, "private": "NOT-SHOWN"})}, nil)
 	var raw []json.RawMessage
 	e.Must("deck.screen_get", map[string]any{"project": "ocr", "screen": "docs"}, &raw)

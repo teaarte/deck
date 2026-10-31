@@ -199,7 +199,7 @@ func TestRecordWithoutKeyIsRejected(t *testing.T) {
 	t.Parallel()
 	var out string
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		out, _ = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"score": 5})})
+		out, _ = c.Tool(ctx, "record_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"score": 5})})
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 

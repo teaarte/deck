@@ -12,7 +12,7 @@ func TestRealBrowserRouter(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.RoutedManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/p/web/main")

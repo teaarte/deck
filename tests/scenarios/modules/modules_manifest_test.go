@@ -136,7 +136,7 @@ func TestAFixedParamOfAButtonTakesTheTypeOfItsField(t *testing.T) {
 	e := harness.New(t)
 	e.Project("links", strings.Replace(fullManifest, `{"label": "Share", "command": "share", "params": {"url": "=url"}}`,
 		`{"label": "Share", "command": "share", "params": {"url": "=url"}}, {"label": "Parse", "command": "parse", "params": {"source": "7"}}`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "u", "title": "t", "score": 8}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "u", "title": "t", "score": 8}`}, nil)
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.Screen("links", "main", nil)["b0"]["rows"])
 	if len(rows) != 1 || len(rows[0].Actions) != 2 {
 		t.Fatalf("the row has both buttons: %+v", rows)
@@ -244,7 +244,7 @@ func TestSchemaChangesAreCheckedAgainstRecords(t *testing.T) {
 	for i := range 25 {
 		lines = append(lines, map[string]any{"url": fmt.Sprintf("https://x.example/%d", i), "title": fmt.Sprintf("t%d", i), "found_at": "2026-09-25"})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": harness.Jsonl(lines...)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "links", "records": harness.Jsonl(lines...)}, nil)
 
 	compatible := strings.Replace(fullManifest, `"found_at": {"type": "string"}}`, `"found_at": {"type": "string"}, "note": {"type": "string"}}`, 1)
 	e.Must("deck.manifest_save", map[string]any{"project": "links", "manifest": compatible}, nil)
@@ -299,14 +299,14 @@ func TestImmutableFieldsCannotChange(t *testing.T) {
 	e := harness.New(t)
 	e.Project("links", fullManifest)
 	rec := map[string]any{"url": "https://x.example/1", "title": "one", "found_at": "2026-09-25"}
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": harness.Jsonl(rec)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "links", "records": harness.Jsonl(rec)}, nil)
 
 	rec["found_at"] = "2026-09-26"
 	var up struct {
 		Written int
 		Errors  []string
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": harness.Jsonl(rec)}, &up)
+	e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "links", "records": harness.Jsonl(rec)}, &up)
 	if up.Written != 0 || len(up.Errors) != 1 || !strings.Contains(up.Errors[0], "found_at") {
 		t.Fatalf("upsert must not change an immutable field: %+v", up)
 	}
@@ -334,7 +334,7 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	if !strings.Contains(cur.Manifest, "<all> & more") {
 		t.Fatalf("a stored manifest keeps its text as is:\n%s", cur.Manifest)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "contacts", "collection": "contacts", "records": `{"email": "A@x.example"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "contacts", "collection": "contacts", "records": `{"email": "A@x.example"}`}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "contacts", "collection": "contacts"}, &recs)
 	code, out := e.Call("deck.record_update", map[string]any{"record": recs[0].ID, "data": `{"email": "a@x.example"}`})
@@ -502,7 +502,7 @@ func TestASliceOfTextCutsCharacters(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Project("ru", strings.Replace(harness.WebNotes, `"display": "title"`, `"display": "title[:3] + '|' + title[-2:] + '|' + string(len(title))"`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "ru", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "Привет мир 😀"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "ru", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "Привет мир 😀"})}, nil)
 	var recs []struct{ Title string }
 	e.Must("deck.records_list", map[string]any{"project": "ru", "collection": "notes"}, &recs)
 	if len(recs) != 1 || recs[0].Title != "При| 😀|12" {

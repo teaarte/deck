@@ -49,7 +49,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
 		"text": fmt.Sprintf(customProbe, e.URL, e.OwnerToken(), evil.URL, evil.URL)}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me"})}, nil)
 
 	b := Open(t)
@@ -132,7 +132,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	if len(files) != 1 || files[0].Name != "scan.txt" {
 		t.Fatalf("the file of the form reaches the command: %+v", files)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "source": "form"}, map[string]any{"title": "beta", "source": "form"})}, nil)
 	var notes []struct{ Title string }
 	e.Must("deck.records_list", map[string]any{"project": "web", "collection": "notes"}, &notes)
@@ -148,7 +148,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	if got := b.eval(`String(document.querySelector('[data-form="deck.record_update"] input[data-field="source"]').disabled && document.querySelector('[data-form="deck.record_update"] input[data-field="title"]').disabled)`); got != "true" {
 		t.Fatalf("fields that do not change, the key too, are read only: %s", got)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me", "note": "fresh"})}, nil)
 	b.until("the fresh value in the open form", `document.querySelector('[data-form="deck.record_update"] input[data-field="note"]')?.value === 'fresh'`)
 	b.type_(`document.querySelector('[data-form="deck.record_update"] input[data-field="score"]')`, "42")
@@ -165,7 +165,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	if !edited {
 		t.Fatalf("the form saves the record, keeps the fields it does not show and the fresh values of those the owner left: %+v", rec)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 7, "source": "seed", "extra": "keep me", "note": "fresh"})}, nil)
 	b.until("the saved field following the record again", `document.querySelector('[data-form="deck.record_update"] input[data-field="score"]')?.value === '7'`)
 

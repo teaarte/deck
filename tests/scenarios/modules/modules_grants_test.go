@@ -45,7 +45,7 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 	}
 
 	e.Project("source", sourceManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a"}`}, nil)
 	reads := `, "reads": [{"project": "source", "collections": ["items"]}],
   "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "source": {"from": "deck.records_list", "input": {"project": "source", "collection": "items"}},
     "columns": [{"label": "Name", "bind": "data.name"}]}]}]`

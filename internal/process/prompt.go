@@ -48,7 +48,7 @@ func commandPrompt(process int64, project, instructions, body string, m *manifes
 		Input: inputData(input), Submit: slices.Contains(tools, "result_submit"), TakesNull: cmd.TakesNull(),
 		Ask: questionTool, AskDeck: questionTool == provider.AskTool}
 	v.NullResult = !v.Submit && len(cmd.Result) > 0 && v.TakesNull
-	if slices.Contains(tools, "records_upsert") {
+	if slices.Contains(tools, "record_upsert") {
 		for _, c := range m.Collections {
 			v.Collections = append(v.Collections, collection{c.Name, c.Description, string(c.Schema)})
 		}

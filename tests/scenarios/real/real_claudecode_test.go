@@ -27,7 +27,7 @@ var realManifest = harness.Manifest(`{
   }],
   "commands": [{
     "name": "collect", "title": "Collect ideas", "description": "Writes ideas", "class": "internal",
-    "executor": {"type": "agent", "prompt": "First ask the owner with the AskUserQuestion tool which topic to use, with exactly two options: go and rust. Then write two short project ideas about the chosen topic into the ideas collection using the records_upsert tool (score 1-10, topic = the chosen topic). Do not use any other tools. Finish with the number of records written."},
+    "executor": {"type": "agent", "prompt": "First ask the owner with the AskUserQuestion tool which topic to use, with exactly two options: go and rust. Then write two short project ideas about the chosen topic into the ideas collection using the record_upsert tool (score 1-10, topic = the chosen topic). Do not use any other tools. Finish with the number of records written."},
     "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}
   }],
   "triggers": [],

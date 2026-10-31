@@ -38,7 +38,7 @@ def task(issue):
     labels = ", ".join(issue.get("labels") or [])
     text = "%s\n\nGitLab: %s%s" % (body, issue["web_url"], "\nLabels: " + labels if labels else "")
     rec = {"title": "#%d %s" % (issue["iid"], issue["title"]), "text": text.strip(), "status": "backlog"}
-    out = deck("deck.records_upsert", {"collection": "tasks", "records": json.dumps(rec)})
+    out = deck("deck.record_upsert", {"collection": "tasks", "records": json.dumps(rec)})
     if out.get("errors"):
         raise SystemExit("tasks: %s" % out["errors"])
     return out["ids"][0]
@@ -65,7 +65,7 @@ def poll(tool, d):
                 cursor, seen = issue["created_at"], set()
             seen.add(issue["iid"])
             d["cursor"], d["seen"] = cursor, sorted(seen)
-            out = deck("deck.records_upsert", {"collection": "intake", "records": json.dumps(d)})
+            out = deck("deck.record_upsert", {"collection": "intake", "records": json.dumps(d)})
             if out.get("errors"):
                 raise SystemExit("intake: %s" % out["errors"])
         if len(got) < 50:

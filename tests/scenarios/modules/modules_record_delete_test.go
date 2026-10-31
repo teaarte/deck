@@ -48,7 +48,7 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 // videos writes videos to the cascade module and gives the id of each by its slug.
 func videos(e *harness.Env, recs ...map[string]any) map[string]int64 {
 	e.T.Helper()
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(recs...)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(recs...)}, nil)
 	var all []struct {
 		ID  int64
 		Key string
@@ -236,7 +236,7 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 		text = strings.Split(text, "\n")[1]
 		slug, _ := strings.CutPrefix(text, "write ")
 		if slug != text {
-			out, _ := c.Tool(ctx, "records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": slug, "dir": slug})})
+			out, _ := c.Tool(ctx, "record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": slug, "dir": slug})})
 			mu.Lock()
 			said["write "+slug] = out
 			mu.Unlock()
@@ -262,7 +262,7 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	if got := e.WaitState(e.Start("films", "render", map[string]any{"record": ids["knights"]}), "done", "error"); got.State != "done" {
 		t.Fatalf("the render runs: %+v", got)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "scenes", "records": harness.Jsonl(map[string]any{"video": "snails", "n": 1})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "scenes", "records": harness.Jsonl(map[string]any{"video": "snails", "n": 1})}, nil)
 
 	e.Say(topic, fmt.Sprintf("delete %d", ids["snails"]))
 	e.MasterSaid(topic, 3)
@@ -330,7 +330,7 @@ func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
 		var id int64
 		var out string
 		if slug, ok := strings.CutPrefix(text, "write "); ok {
-			out, _ = c.Tool(ctx, "records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": slug})})
+			out, _ = c.Tool(ctx, "record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": slug})})
 		} else if _, err := fmt.Sscanf(text, "render %d", &id); err == nil {
 			out, _ = c.Tool(ctx, "films__render", map[string]any{"record": id})
 		} else if _, err := fmt.Sscanf(text, "delete %d", &id); err == nil {
@@ -408,13 +408,13 @@ func TestRetentionAndCollectionDeleteTakeWhatBelongsToARecord(t *testing.T) {
 		return len(rs)
 	}
 	videos(e, map[string]any{"slug": "old", "dir": "old"})
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "scenes", "records": harness.Jsonl(map[string]any{"video": "old", "n": 1})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "scenes", "records": harness.Jsonl(map[string]any{"video": "old", "n": 1})}, nil)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "old"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	e.Clock.Add(31 * 24 * time.Hour)
 	videos(e, map[string]any{"slug": "new", "dir": "new"})
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "scenes", "records": harness.Jsonl(map[string]any{"video": "new", "n": 1})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "scenes", "records": harness.Jsonl(map[string]any{"video": "new", "n": 1})}, nil)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "new"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -513,7 +513,7 @@ func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
 	module := strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1)
 	for _, name := range []string{"films", "clips"} {
 		e.Project(name, module)
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "nodir-" + name})}, nil)
+		e.Must("deck.record_upsert", map[string]any{"project": name, "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "nodir-" + name})}, nil)
 	}
 	e.Clock.Add(31 * 24 * time.Hour)
 	e.Sweep()
@@ -600,7 +600,7 @@ open(os.path.join(res, "frame.png"), "w").write("png")
 open(os.path.join(res, "log.txt"), "w").write("log")
 print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"path": "log.txt"}]}))
 `)
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "knights", "title": "Knights"}, map[string]any{"slug": "snails", "title": "Snails"})}, nil)
 	var video int64
 	var all []struct {
@@ -613,7 +613,7 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 			video = v.ID
 		}
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "scenes", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "scenes", "records": harness.Jsonl(
 		map[string]any{"video": "knights", "n": 1}, map[string]any{"video": "snails", "n": 1})}, nil)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "knights"), 0o700); err != nil {

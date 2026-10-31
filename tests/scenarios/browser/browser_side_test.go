@@ -17,7 +17,7 @@ func TestRealBrowserTheSidePanelOfAScreen(t *testing.T) {
 	e := harness.New(t)
 	e.Project("lab", strings.Replace(harness.SideManifest, `"screens": [`, `"menu": ["lab", "all"], "screens": [{"name": "all", "title": "All",
     "blocks": [{"type": "stat", "title": "All", "source": {"collection": "trades"}}]}, `, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
 		map[string]any{"title": "a", "coin": "COIN", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "COIN", "side": "short"})}, nil)
 
@@ -66,7 +66,7 @@ func TestRealBrowserAFilterStartsOnItsDefault(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t)
 	e.Project("lab", strings.Replace(harness.SideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "COIN"}, "side": "string"}`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
 		map[string]any{"title": "a", "coin": "COIN", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "COIN", "side": "short"})}, nil)
 	b := Open(t)

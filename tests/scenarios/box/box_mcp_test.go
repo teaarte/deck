@@ -382,7 +382,7 @@ func TestMCPSessionNeedsItsOwnToken(t *testing.T) {
 	t.Parallel()
 	var status int
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"records_upsert","arguments":{"collection":"nums","records":"{\"n\": 5}"}}}`
+		body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"record_upsert","arguments":{"collection":"nums","records":"{\"n\": 5}"}}}`
 		req, _ := http.NewRequestWithContext(ctx, "POST", strings.Replace(c.Req.MCPURL, "/mcp/", "/mcp/not-a-valid-token-", 1), strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")

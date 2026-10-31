@@ -45,7 +45,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	e.Example("default")
 	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "source": "mail"}, map[string]any{"title": "beta", "source": "web"})}, nil)
 
 	b := Open(t)

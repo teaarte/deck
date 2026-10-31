@@ -54,13 +54,13 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 		Value   any
 		Options []string
 	}
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, &set)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, &set)
 	for _, s := range set {
 		if s.Name == "language" && (s.Value != "ru" || len(s.Options) != 3) {
 			t.Fatalf("the language of the interface is a setting with its options: %+v", s)
 		}
 	}
-	e.Refused("deck.settings_set", map[string]any{"name": "language", "value": "klingon"}, 422, "")
+	e.Refused("deck.setting_set", map[string]any{"name": "language", "value": "klingon"}, 422, "")
 }
 
 // TestATabKeepsItsKeyInEveryLanguage: a tab is named in the address by its title as written, so a link to it
@@ -211,7 +211,7 @@ func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
       "tags": {"type": "array", "items": {"type": "string", "enum": ["open", "closed"]}}`,
 		`"note": {"type": "string"}}`, `"note": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed"]}}`).Replace(harness.WebNotes))
 	var recs struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, &recs)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, &recs)
 	want := `"state":[{"label":"открыта","value":"open"},{"label":"закрыта","value":"closed"}]`
 	for _, s := range []struct {
 		screen string
@@ -353,7 +353,7 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 		`"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Source", "bind": "source"}]`).Replace(harness.WebNotes)
 	e.Project("web", m)
 	var recs struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(
 		map[string]any{"title": "alpha", "source": "web"}, map[string]any{"title": "beta", "source": "mail"}, map[string]any{"title": "gamma", "source": "paper"})}, &recs)
 	main := e.Screen("web", "main", map[string]any{"lang": "ru"})
 	var filters []struct {

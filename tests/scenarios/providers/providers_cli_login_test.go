@@ -80,7 +80,7 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	e.WaitState(id, "needs_login")
 	first := e.Session(id)
 	// A call the turn made before its login was lost, which the fake CLI cannot make.
-	e.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'records_upsert', 'internal', 'done')`, id, p)
+	e.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'record_upsert', 'internal', 'done')`, id, p)
 	e.Answer(e.WaitAsk().ID, "new_session")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
@@ -90,7 +90,7 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	if !ok || sid == first || sid != e.Session(id) {
 		t.Fatalf("new_session must start a new session deck assigns: %v, first %s", second.Args, first)
 	}
-	if !strings.Contains(second.Stdin, "Do the work.") || !strings.Contains(second.Stdin, "- records_upsert: done") {
+	if !strings.Contains(second.Stdin, "Do the work.") || !strings.Contains(second.Stdin, "- record_upsert: done") {
 		t.Fatalf("the new session needs the task and the journal of the old one: %q", second.Stdin)
 	}
 }
@@ -124,7 +124,7 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	id := e1.Run(p, "work")
 	e1.WaitState(id, "needs_login")
 	// A call the turn made before its login was lost, which the fake CLI cannot make.
-	e1.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'records_upsert', 'internal', 'done')`, id, p)
+	e1.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'record_upsert', 'internal', 'done')`, id, p)
 	e1.Answer(e1.WaitAsk().ID, "new_session")
 	harness.Until(t, "the CLI to start 5 times", func() bool { return c.Calls() >= 5 })
 	_ = e1.App.Close()
@@ -135,7 +135,7 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 		t.Fatalf("want done, got %+v", got)
 	}
 	fourth := c.Call(7)
-	if sid, _ := harness.Flag(fourth.Args, "--session-id"); sid != e2.Session(id) || !strings.Contains(fourth.Stdin, "- records_upsert: done") {
+	if sid, _ := harness.Flag(fourth.Args, "--session-id"); sid != e2.Session(id) || !strings.Contains(fourth.Stdin, "- record_upsert: done") {
 		t.Fatalf("the restarted new session must still get the report: %v %q", fourth.Args, fourth.Stdin)
 	}
 }

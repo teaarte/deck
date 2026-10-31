@@ -145,7 +145,7 @@ func TestRecordsGoAfterTheirRetention(t *testing.T) {
 	e.Project("files", strings.Replace(harness.ScriptManifest("make", "", ""), `"key": "name",`,
 		`"key": "name", "retention_days": 30,`, 1))
 	e.SaveScript("files", "scripts/main.py", harness.PythonLib+`
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
+st, out = deck("deck.record_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 deck("deck.document_save", {"name": "notes/a.md", "kind": "doc", "text": "a", "record": out["ids"][0]})
 open(os.path.join(os.environ["DECK_RESULTS"], "f.txt"), "w").write("f")
 print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
@@ -182,7 +182,7 @@ func TestLargeIntegerKeysStayDistinct(t *testing.T) {
 	e := harness.New(t)
 	p := e.Project("items", numbersManifest)
 	var up struct{ Written int }
-	e.Must("deck.records_upsert", map[string]any{"project": "items", "collection": "items",
+	e.Must("deck.record_upsert", map[string]any{"project": "items", "collection": "items",
 		"records": `{"id": 9007199254740992, "name": "a"}` + "\n" + `{"id": 9007199254740993.0, "name": "b"}`}, &up)
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "items"})
 	if up.Written != 2 || len(recs) != 2 || recs[1].Key != "9007199254740993" || !strings.Contains(recs[1].Data, "9007199254740993") {
@@ -194,7 +194,7 @@ func TestRecordIDsAreNotReusedAndArtifactsGoWithRecords(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("links", fullManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "https://a.example", "title": "a"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "https://a.example", "title": "a"}`}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "links", "collection": "links"}, &recs)
 	first := recs[0].ID
@@ -205,7 +205,7 @@ func TestRecordIDsAreNotReusedAndArtifactsGoWithRecords(t *testing.T) {
 	if len(docs) != 0 {
 		t.Fatalf("artifacts of deleted records must go with them, got %+v", docs)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "https://b.example", "title": "b"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "https://b.example", "title": "b"}`}, nil)
 	e.Must("deck.records_list", map[string]any{"project": "links", "collection": "links"}, &recs)
 	if recs[0].ID == first {
 		t.Fatalf("a new record must not reuse id %d", first)
@@ -222,7 +222,7 @@ func TestConcurrentCreatesKeepTheFirstImmutableValue(t *testing.T) {
 	for i := range 8 {
 		wg.Go(func() {
 			var up struct{ Written int }
-			e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links",
+			e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "links",
 				"records": fmt.Sprintf(`{"url": "https://a.example", "title": "a", "found_at": "day-%d"}`, i)}, &up)
 			mu.Lock()
 			written += up.Written
@@ -241,7 +241,7 @@ func TestKeyFieldsStayImmutableWithReferencedSchemas(t *testing.T) {
 	m := harness.Manifest(`{"collections": [{"name": "people", "description": "A person", "key": "lower(email)",
 	  "schema": {"$ref": "#/$defs/p", "$defs": {"p": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}}]}`)
 	e.Project("people", m)
-	e.Must("deck.records_upsert", map[string]any{"project": "people", "collection": "people", "records": `{"email": "A@x.example"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "people", "collection": "people", "records": `{"email": "A@x.example"}`}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "people", "collection": "people"}, &recs)
 	if code, _ := e.Call("deck.record_update", map[string]any{"record": recs[0].ID, "data": `{"email": "a@x.example"}`}); code != 422 {
@@ -268,7 +268,7 @@ func TestTheMasterDeletesWhatItsOwnProcessesWrote(t *testing.T) {
 	var mu sync.Mutex
 	said := map[string]string{}
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		out, _ := c.Tool(ctx, "records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "trial", "score": 1}`})
+		out, _ := c.Tool(ctx, "record_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "trial", "score": 1}`})
 		var w struct{ IDs []int64 }
 		_ = json.Unmarshal([]byte(out), &w)
 		mine, _ := c.Tool(ctx, "record_delete", map[string]any{"record": w.IDs[0]})
@@ -283,7 +283,7 @@ func TestTheMasterDeletesWhatItsOwnProcessesWrote(t *testing.T) {
 	}))
 
 	e.Project("notes", harness.IdeasManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "the owner's", "score": 2}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "the owner's", "score": 2}`}, nil)
 	e.MasterSaid(e.Say(0, "Clean up after the trial"), 1)
 	mu.Lock()
 	defer mu.Unlock()

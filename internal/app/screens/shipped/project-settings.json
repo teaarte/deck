@@ -23,7 +23,7 @@
           {"type": "dialog", "name": "cover", "title": "Upload a cover", "icon": "photo-up", "blocks": [
             {"type": "form", "command": "deck.project_cover_set", "fixed": ["remove"], "description": "A picture for the card of the module: for one theme or for every theme, one for the light scheme, one for the dark."}]},
           {"type": "dialog", "name": "draw-cover", "title": "Draw the cover for this theme", "icon": "sparkles", "blocks": [
-            {"type": "form", "command": "deck.covers_draw", "fixed": ["project"], "values": {"project": "=param.name"},
+            {"type": "form", "command": "deck.cover_draw", "fixed": ["project"], "values": {"project": "=param.name"},
               "description": "The master draws the pictures of the schemes of the theme in use in its mood. Without a model it takes a free one of deck.",
               "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + (free ? ' · free' : '')"}}}]},
           {"type": "media", "title": "Covers", "description": "The picture of the module's card in each theme, light and dark; the card shows the one of the theme in use, else one for every theme, else any.",
@@ -98,7 +98,7 @@
             "actions": [
               {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
               {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
-              {"verb": "check", "command": "deck.programs_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}
+              {"verb": "check", "command": "deck.program_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}
             ]},
           {"type": "table", "title": "Failed runs", "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(failure ?? '') != ''", "sort": "command"},
             "description": "What runs by itself and failed its last run; change its model and run it again.",

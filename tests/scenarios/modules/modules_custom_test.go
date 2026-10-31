@@ -24,7 +24,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 		t.Fatalf("a custom block without its document shows why: %s", b["error"])
 	}
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a", "score": 2}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a", "score": 2}`}, nil)
 	v := harness.BlockData[struct {
 		HTML    string           `json:"html"`
 		Items   []map[string]any `json:"items"`
@@ -115,7 +115,7 @@ func TestCustomBlockGetsItsParamsResolved(t *testing.T) {
 	e.Project("web", m)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	var put struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}`}, &put)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}`}, &put)
 	type custom struct {
 		Params map[string]any   `json:"params"`
 		Items  []map[string]any `json:"items"`
@@ -160,7 +160,7 @@ func TestACustomBlockGetsOnlyTheFieldsItsSourceNames(t *testing.T) {
 	cut := `"document": "custom/chart.html", "source": {"collection": "notes", "where": "score > 1", "sort": "-score", "fields": ["title"]},`
 	e.Project("web", strings.Replace(harness.WebNotes, chart, cut, 1))
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}` + "\n" + `{"title": "b", "score": 3}` + "\n" + `{"title": "c", "score": 1}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}` + "\n" + `{"title": "b", "score": 3}` + "\n" + `{"title": "c", "score": 1}`}, nil)
 	v := harness.BlockData[struct {
 		Items []map[string]any `json:"items"`
 	}](t, e.Screen("web", "main", nil)["b2"]["value"])
@@ -219,7 +219,7 @@ func TestATableAndACustomBlockHaveButtonsInTheirHead(t *testing.T) {
 	if h := head("b3"); len(h) != 1 || h[0]["label"] != "Mark (0)" || h[0]["command"] != "web.mark" {
 		t.Fatalf("an empty table keeps the button of its head: %+v", h)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a"}`}, nil)
 	if h := head("b3"); len(h) != 1 || h[0]["label"] != "Mark (2)" {
 		t.Fatalf("the head of a table reads its rows: %+v", h)
 	}

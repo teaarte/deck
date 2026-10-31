@@ -82,7 +82,7 @@ brings tasks from a tracker:
 - a script on a `cron` trigger that keeps a cursor in a record: the creation time of the newest issue taken and
   the ids taken at that very time (a "since" filter usually includes that time); each page is asked again from
   the moved cursor, so an issue closed meanwhile shifts nothing past a page; one task in `backlog` per new issue
-  (`records_upsert` into `tasks`) with its text and link, the cursor written after each task; any failure is an error of the script;
+  (`record_upsert` into `tasks`) with its text and link, the cursor written after each task; any failure is an error of the script;
 - the first poll takes a window the owner agrees to (the last two weeks, say); ask which issues come (all
   open ones, or with a label; mind what the API means by several labels);
 - the tracker gets nothing back: the owner closes an issue there, or a commit message closes it on push.

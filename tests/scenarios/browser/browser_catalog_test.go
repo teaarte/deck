@@ -24,10 +24,10 @@ func TestRealBrowserCatalog(t *testing.T) {
 	e := harness.New(t)
 	e.Project("coin", harness.EstimateManifest)
 	made := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "prices",
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "prices",
 		"records": harness.Jsonl(map[string]any{"at": "2026-09-30T10:00:00Z", "price": 60100}, map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5},
 			map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25, "estimate": 63000})}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "estimates",
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "estimates",
 		"records": harness.Jsonl(map[string]any{"at": made, "horizon": "7d", "change": 0.042, "confidence": 0.6, "status": "open", "source": "https://example.com/a"},
 			map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "confidence": 0.3, "status": "missed"})}, nil)
 
@@ -79,10 +79,10 @@ func TestRealBrowserCatalog(t *testing.T) {
 	if b.eval(`String(document.body.innerText.includes('Missed'))`) != "false" {
 		t.Fatal("a block whose when does not hold is not drawn")
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "estimates",
+	e.Must("deck.record_upsert", map[string]any{"project": "fresh", "collection": "estimates",
 		"records": harness.Jsonl(map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "status": "missed"})}, nil)
 	b.until("the block its when now holds for, without a reload", `[...document.querySelectorAll('[data-block] h3')].some(x => x.innerText === 'Missed')`)
-	e.Must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "estimates", "records": harness.Jsonl(map[string]any{"at": "3", "horizon": "2d"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "fresh", "collection": "estimates", "records": harness.Jsonl(map[string]any{"at": "3", "horizon": "2d"})}, nil)
 	b.until("a time that is not one shown as it is", `[...document.querySelectorAll('[data-format="relative"]')].some(x => x.innerText === '3')`)
 }
 
@@ -104,7 +104,7 @@ func TestRealBrowserMedia(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(data, "report.pdf"), []byte(pdf), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "notes.csv"), []byte("a,b\n1,2\n"), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "logo.svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`), 0o600)
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "attachments", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "attachments", "records": harness.Jsonl(
 		map[string]any{"title": "a scan", "file": scan}, map[string]any{"title": "b report", "file": "report.pdf"},
 		map[string]any{"title": "c notes", "file": "notes.csv"}, map[string]any{"title": "d gone", "file": "gone.png"},
 		map[string]any{"title": "e logo", "file": "logo.svg"})}, nil)

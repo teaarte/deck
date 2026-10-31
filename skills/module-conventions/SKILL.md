@@ -46,7 +46,7 @@ Style:
   `domains.read`. A failed page of a service is `network` with the status and the start of the body in `details`.
 - Calls of deck: `$DECK_URL/commands/<command>` with `Authorization: Bearer $DECK_TOKEN`; a refusal's body says
   what is missing — keep it in `details`. Models only through `$DECK_MODELS` or `deck.model_call`, never a key.
-- Idempotent: records by a key that identifies an item for good (`records_upsert`), a cursor of the source kept
+- Idempotent: records by a key that identifies an item for good (`record_upsert`), a cursor of the source kept
   in a record, so a second run after a lost one writes nothing twice.
 - Many records are a script's work: filter, batch and merge in code; an agent gets only the slice it judges.
 - A file of `$DECK_DATA` rewritten whole goes through a temporary name of its own run and `os.replace`; a
@@ -75,7 +75,7 @@ Style:
    `new` only, and the folder kept in step.
 3. `command_try` each command, the chain after it too; `process_get` gives the result and in `left` what the trial
    wrote; `process_log_get` with `only: errors` what failed. A run that ends `done` is checked by what it made.
-4. `screen_capture` each screen on a phone and a computer; `project_needs_get` says what the module still lacks.
+4. `screen_capture` each screen on a phone and a computer; `project_readiness_get` says what the module still lacks.
 5. Delete what the trials left that the owner should not start with, and say what you kept.
 
 ## Review of a change

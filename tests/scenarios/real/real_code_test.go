@@ -84,7 +84,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		{"Add subtract", "Add a function subtract(a, b) to calc.py that returns a - b, with a test in test_calc.py."},
 		{"Add multiply", "Add a function multiply(a, b) to calc.py that returns a * b, with a test in test_calc.py."},
 	} {
-		e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
+		e.Must("deck.record_upsert", map[string]any{"project": "code", "collection": "tasks",
 			"records": harness.Jsonl(map[string]any{"title": c.title, "text": c.text, "status": "ready"})}, nil)
 	}
 	owner := func(what string) {
@@ -172,7 +172,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	var prompt struct{ Text string }
 	e.Must("deck.document_get", map[string]any{"project": "code", "name": "prompt.md"}, &prompt)
 	e.Must("deck.document_save", map[string]any{"project": "code", "name": "prompt.md", "kind": "prompt", "text": prompt.Text + "\nMerge: yourself.\n"}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks", "records": harness.Jsonl(map[string]any{"title": "Add divide",
+	e.Must("deck.record_upsert", map[string]any{"project": "code", "collection": "tasks", "records": harness.Jsonl(map[string]any{"title": "Add divide",
 		"status": "ready", "text": "Add a function divide(a, b) to calc.py that returns a / b, with a test in test_calc.py."})}, nil)
 	before := git("rev-parse", "main")
 	var auto struct{ Process int64 }

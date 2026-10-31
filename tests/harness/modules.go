@@ -150,7 +150,7 @@ type StarterView struct {
 // Clip writes a clip and gives its record.
 func (e *Env) Clip(slug string) int64 {
 	e.T.Helper()
-	e.Must("deck.records_upsert", map[string]any{"project": "clips", "collection": "clips", "records": Jsonl(map[string]any{"slug": slug})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "clips", "collection": "clips", "records": Jsonl(map[string]any{"slug": slug})}, nil)
 	var all []struct {
 		ID  int64
 		Key string

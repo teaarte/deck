@@ -60,7 +60,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Run') && r.querySelector('input[data-pick="model"]'))`)
 	b.shot("code-settings")
 
-	e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
+	e.Must("deck.record_upsert", map[string]any{"project": "code", "collection": "tasks",
 		"records": harness.Jsonl(map[string]any{"title": "Fix the login button", "status": "backlog"})}, nil)
 	b.open(e.URL + "/#/p/code/tasks")
 	b.until("the task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Fix the login button'))`)

@@ -39,7 +39,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 		return provider.Result{Text: "Counted: **3 records**."}
 	}))
 
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	topic := e.Say(0, "count the records")
 	done := e.Told(topic, "done", "ru")
 	for _, c := range e.Fake.Calls()[:2] {

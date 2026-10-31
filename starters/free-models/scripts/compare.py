@@ -236,7 +236,7 @@ def main(inp):
         if name not in problems and a["data"].get("active"):
             alert_rows.append(dict(a["data"], active=False))
     if alert_rows:
-        call("deck.records_upsert", {"collection": "alerts", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in alert_rows)})
+        call("deck.record_upsert", {"collection": "alerts", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in alert_rows)})
     if fresh:
         call("deck.owner_notify", {"text": "Модели в работе сломались: " + ", ".join(fresh) + ". Подберу замену — смотрите «Предложения».",
                              "screen": "proposals"})
@@ -258,7 +258,7 @@ def main(inp):
                          "until": (datetime.date.fromisoformat(d["day"]) + datetime.timedelta(days=COOLDOWN[0])).isoformat()}
             seed.append(trials[k])
     if seed:
-        call("deck.records_upsert", {"collection": "trials", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in seed)})
+        call("deck.record_upsert", {"collection": "trials", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in seed)})
 
     def cooling(tid, model):
         return any(tr.get("until", "") >= day and (tt == tid or tr.get("whole")) for (tt, mm), tr in trials.items() if mm == model)
@@ -290,7 +290,7 @@ def main(inp):
             if d.get("status") == "asked" and (d.get("ask_day") or "") < yesterday:
                 changed.append(dict(d, status="ready", test="ok"))  # the owner said no, or the ask expired: the button is back
     if changed:
-        call("deck.records_upsert", {"collection": "proposals", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in changed)})
+        call("deck.record_upsert", {"collection": "proposals", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in changed)})
     latest = {tid: dict(r["data"]) for tid, r in props.items()}
     latest.update({c["target"]: c for c in changed})
 
@@ -322,7 +322,7 @@ def main(inp):
         if new != old:
             rows_out.append(new)
     if rows_out:
-        call("deck.records_upsert", {"collection": "proposals", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in rows_out)})
+        call("deck.record_upsert", {"collection": "proposals", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in rows_out)})
 
     # (b) for each piece of work: the free or cheaper models that could do it
     plan = []

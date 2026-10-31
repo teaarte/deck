@@ -191,7 +191,7 @@ func TestALostSessionStartsAgainWithTheRetelling(t *testing.T) {
 func TestMasterActsAsMasterAcrossProjects(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		out, bad := c.Tool(ctx, "records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "Buy milk"}`})
+		out, bad := c.Tool(ctx, "record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "Buy milk"}`})
 		if bad {
 			return provider.Result{Text: "refused: " + out}
 		}
@@ -211,7 +211,7 @@ func TestMasterActsAsMasterAcrossProjects(t *testing.T) {
 	}
 	found := false
 	for _, r := range e.Journal() {
-		if r.Tool == "deck.records_upsert" && r.Actor == "master" && r.Outcome == "done" {
+		if r.Tool == "deck.record_upsert" && r.Actor == "master" && r.Outcome == "done" {
 			found = true
 		}
 	}
@@ -307,7 +307,7 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 	e.MasterSaid(a, 2)
 	e.MasterSaid(b, 1)
 
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	c := e.Say(0, "C1 first")
 	e.Until("the reply of C", func() bool { return len(e.Fake.Calls()) == 4 })
 	d := e.Say(0, "D1 first")
@@ -582,7 +582,7 @@ func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 		var ps []struct{ Name, Description string }
 		_ = json.Unmarshal([]byte(list), &ps)
 		if strings.Contains(c.Req.Prompt, "move it to garden") {
-			c.Tool(ctx, "records_upsert", map[string]any{"project": "garden", "collection": "tasks", "records": `{"title": "Buy a rake"}`})
+			c.Tool(ctx, "record_upsert", map[string]any{"project": "garden", "collection": "tasks", "records": `{"title": "Buy a rake"}`})
 			if out, bad := c.Tool(ctx, "record_delete", map[string]any{"record": 1}); !bad {
 				return provider.Result{Text: "deleted: " + out}
 			}
@@ -590,7 +590,7 @@ func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 		}
 		for _, p := range ps {
 			if strings.Contains(p.Description, "shopping") {
-				c.Tool(ctx, "records_upsert", map[string]any{"project": p.Name, "collection": "tasks", "records": `{"title": "Buy a rake"}`})
+				c.Tool(ctx, "record_upsert", map[string]any{"project": p.Name, "collection": "tasks", "records": `{"title": "Buy a rake"}`})
 				return provider.Result{Text: "Put it into " + p.Name + ". Move it?"}
 			}
 		}
@@ -628,7 +628,7 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 	var turns atomic.Int32
 	main := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		if turns.Add(1) == 1 {
-			c.Tool(ctx, "records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "half a ta", "score": 1}`})
+			c.Tool(ctx, "record_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "half a ta", "score": 1}`})
 			return provider.Result{Outcome: provider.Failed, Text: "the turn was stopped mid-way"}
 		}
 		return provider.Result{Text: "main again"}
@@ -650,7 +650,7 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 		return m.Reply != nil && m.Reply.Cut != nil
 	})
 	cut := m.Reply.Cut
-	if len(cut.Did) != 1 || !strings.Contains(cut.Did[0], "records_upsert") || len(cut.Undo) != 1 || cut.Undo[0].Action.Command != "deck.record_delete" ||
+	if len(cut.Did) != 1 || !strings.Contains(cut.Did[0], "record_upsert") || len(cut.Undo) != 1 || cut.Undo[0].Action.Command != "deck.record_delete" ||
 		len(cut.Retry) != 1 || cut.Retry[0].Label != "other" {
 		t.Fatalf("a broken reply lists its calls, the record it left and the other provider: %+v", cut)
 	}
@@ -664,7 +664,7 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 		t.Fatalf("the other provider answers the messages again: %+v", said)
 	}
 	mu.Lock()
-	if !strings.Contains(told, "This continues process") || !strings.Contains(told, "records_upsert") || !strings.Contains(told, "write half a task") {
+	if !strings.Contains(told, "This continues process") || !strings.Contains(told, "record_upsert") || !strings.Contains(told, "write half a task") {
 		t.Fatalf("the other provider is told what the broken reply did: %s", told)
 	}
 	mu.Unlock()

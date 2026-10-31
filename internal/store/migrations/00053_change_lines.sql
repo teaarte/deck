@@ -5,7 +5,7 @@ ALTER TABLE feed ADD COLUMN line_id INTEGER REFERENCES feed(id) ON DELETE CASCAD
 ALTER TABLE feed ADD COLUMN what TEXT NOT NULL DEFAULT '';
 
 UPDATE feed SET what = CASE
-    WHEN command = 'deck.records_upsert' AND text LIKE 'deleted %' THEN 'deleted records of ' || json_extract(params, '$.collection')
+    WHEN command = 'deck.record_upsert' AND text LIKE 'deleted %' THEN 'deleted records of ' || json_extract(params, '$.collection')
     WHEN instr(text, ' by your press: ') > 0 THEN substr(text, 1, instr(text, ' by your press: ') - 1) || ' by your press'
     WHEN instr(text, ' changed ') > 0 AND instr(substr(text, instr(text, ' changed ') + 1), ': ') > 0
         THEN substr(substr(text, instr(text, ' changed ') + 1), 1, instr(substr(text, instr(text, ' changed ') + 1), ': ') - 1)

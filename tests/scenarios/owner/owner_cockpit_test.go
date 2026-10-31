@@ -52,7 +52,7 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 	}))
 
 	e.Project("films", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
 	failed := func() []cockpitRun {
@@ -354,7 +354,7 @@ func TestFailedRunsStayInTheHistoryOfTheSchedule(t *testing.T) {
 	}))
 
 	e.Project("films", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
 	id := e.Start("films", "voice", map[string]any{"record": recs[0].ID})
@@ -391,7 +391,7 @@ func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 	if h := today(e, ""); h.Line != "All is well: nothing to decide, no failures." || h.Mark != "check" {
 		t.Fatalf("a quiet deck with a module says all is well: %+v", h)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
 	e.WaitState(e.Start("films", "voice", map[string]any{"record": recs[0].ID}), "error")
@@ -425,7 +425,7 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	}))
 
 	e.Project("films", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "knights", "title": "Knights"}, map[string]any{"slug": "dragons", "title": "Dragons"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
@@ -490,7 +490,7 @@ func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 	}))
 
 	e.Project("films", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "knights"}, map[string]any{"slug": "dragons"}, map[string]any{"slug": "castles"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
@@ -678,7 +678,7 @@ func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	p := e.Project("web", harness.WebNotes)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
 	var rec []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "web", "collection": "notes"}, &rec)
 	done := e.WaitState(e.Run(p, "tell"), "done")

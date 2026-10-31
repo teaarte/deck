@@ -39,7 +39,7 @@ const fitsItsCard = `(() => {
 func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	sizes := [][2]int{{1, 1}, {2, 1}, {2, 2}, {3, 2}, {1, 2}, {3, 3}}
 	at := time.Now().Add(-39 * time.Second).UTC().Format(time.RFC3339)
 	var recs []map[string]any
@@ -49,7 +49,7 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 	for i := range sizes {
 		name := fmt.Sprintf("lab%d", i)
 		e.Project(name, harness.WidgetsOfWork)
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(recs...)}, nil)
+		e.Must("deck.record_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(recs...)}, nil)
 	}
 	b := Open(t)
 	for _, phone := range []bool{false, true} {

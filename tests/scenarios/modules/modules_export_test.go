@@ -35,7 +35,7 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 		e.Must("deck.document_save", d, nil)
 	}
 	var up struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
+	e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
 	e.Must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
 	_, tok := e.Token("terminal", "deck.*")
 	s, err := e.Terminal(tok)
@@ -214,7 +214,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		e.Must("deck.document_save", d, nil)
 	}
 	var up struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
+	e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
 	e.Must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
 	e.Secret("links", "feed", "s3cret-feed-value")
 

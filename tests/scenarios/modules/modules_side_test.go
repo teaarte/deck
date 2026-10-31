@@ -14,7 +14,7 @@ func TestASideFilterNarrowsTheBlocksOfItsScreen(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("lab", harness.SideManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
 		map[string]any{"title": "a", "coin": "COIN", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "COIN", "side": "short"})}, nil)
 
@@ -80,7 +80,7 @@ func TestAFilterStartsOnTheDefaultOfItsParam(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("lab", strings.Replace(harness.SideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "COIN"}, "side": "string"}`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
 		map[string]any{"title": "a", "coin": "COIN", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "COIN", "side": "short"})}, nil)
 	type filter struct{ Value string }

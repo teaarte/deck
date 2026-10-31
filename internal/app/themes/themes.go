@@ -356,7 +356,7 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("theme_delete", "Delete theme",
 			"Deletes the owner's theme; over a shipped one, the shipped one comes back.",
 			registry.OwnerSide, s.remove),
-		registry.Def("covers_draw", "Draw covers",
+		registry.Def("cover_draw", "Draw covers",
 			"Asks the master to draw the covers of a module's card in the mood of the theme in use, for its schemes; without a module, of every module that has none in this theme.",
 			registry.OwnerOnly, s.draw),
 		registry.Def("theme_draw", "Draw theme pictures",

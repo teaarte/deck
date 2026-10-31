@@ -25,7 +25,7 @@ func LightEnv(t *testing.T) *Env {
 		for i := range 200 {
 			recs = append(recs, map[string]any{"title": fmt.Sprintf("%s note %03d", name, i), "source": "web", "note": strings.Repeat("words ", 20)})
 		}
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": Jsonl(recs...)}, nil)
+		e.Must("deck.record_upsert", map[string]any{"project": name, "collection": "notes", "records": Jsonl(recs...)}, nil)
 		for i := range 60 {
 			e.Upload(name, fmt.Sprintf("file-%02d.txt", i), "text/plain", strings.Repeat("x", 100))
 		}

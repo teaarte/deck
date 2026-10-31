@@ -39,7 +39,7 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 	// The manifest of format 13 an older deck kept.
 	e.PlantRevision("ideas", "manifest.json", harness.ManifestVersion(calls("notify"), "13"))
 	// A script of before that calls deck by the old names.
-	e.PlantRevision("ideas", "scripts/tell.py", `deck("notify", {"text": "x"}); deck("deck.process_log", {}); seen = {"notify": True}`+"\n")
+	e.PlantRevision("ideas", "scripts/tell.py", `deck("notify", {"text": "x"}); deck("deck.process_log", {}); deck("records_upsert", {}); deck("deck.project_needs_get", {}); seen = {"notify": True}`+"\n")
 	const name = "prompts/on_error.md"
 	raw, err := os.ReadFile(filepath.Join(harness.Root, "master", name))
 	if err != nil {
@@ -55,7 +55,7 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 	e.Must("deck.document_save", map[string]any{"project": "master", "name": name, "kind": "doc",
 		"text": older + "\nThe owner's line names `notify` and deck.notify.\n"}, nil)
 	// A base an older deck left: format 14 and its names not yet applied.
-	e.SQL(`DELETE FROM goose_db_version WHERE version_id = 54`)
+	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 54`)
 
 	e = e.Restart()
 	var m struct{ Text string }
@@ -65,7 +65,7 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 	}
 	var s struct{ Text string }
 	e.Must("deck.document_get", map[string]any{"project": "ideas", "name": "scripts/tell.py"}, &s)
-	if s.Text != `deck("owner_notify", {"text": "x"}); deck("deck.process_log_get", {}); seen = {"notify": True}`+"\n" {
+	if s.Text != `deck("owner_notify", {"text": "x"}); deck("deck.process_log_get", {}); deck("record_upsert", {}); deck("deck.project_readiness_get", {}); seen = {"notify": True}`+"\n" {
 		t.Fatalf("the script calls the new names and keeps its own words: %q", s.Text)
 	}
 	e.WaitState(e.Run(p, "collect"), "done")
@@ -132,6 +132,29 @@ func TestEveryCommandOfDeckItsTextsNameIsOne(t *testing.T) {
 	for n, p := range seen {
 		if code, out := e.Call("deck.command_describe", map[string]any{"command": n}); code == 404 {
 			t.Errorf("%s names %s, which is no command of deck: %s", p, n, out)
+		}
+	}
+}
+
+// TestACommandOfDeckIsNamedByOneThing: deck's command is <entity>_<verb>; a plural names only a list.
+func TestACommandOfDeckIsNamedByOneThing(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	// Singular words that end in s.
+	singular := []string{"process", "address", "access", "status", "data", "readiness"}
+	for _, c := range e.Commands() {
+		name, ok := strings.CutPrefix(c.Name, "deck.")
+		if !ok {
+			continue
+		}
+		words := strings.Split(name, "_")
+		if len(words) < 2 {
+			t.Errorf("%s names no verb", c.Name)
+		}
+		for _, w := range words[:len(words)-1] {
+			if strings.HasSuffix(w, "s") && !slices.Contains(singular, w) && words[len(words)-1] != "list" {
+				t.Errorf("%s: a plural, %s, names only a list", c.Name, w)
+			}
 		}
 	}
 }

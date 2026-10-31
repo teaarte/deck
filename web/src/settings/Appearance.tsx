@@ -95,7 +95,7 @@ function Theme() {
     <Stack gap={4}>
       <Choice label={t('look.theme')} name="theme" value={current} options={rows.map((r) => r.name)}
         labels={Object.fromEntries(rows.map((r) => [r.name, r.title]))} onChange={(v) => void pick(v)} />
-      <Button variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void ask('deck.covers_draw', t('look.fill_covers'))}
+      <Button variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void ask('deck.cover_draw', t('look.fill_covers'))}
         data-fill-covers style={{ alignSelf: 'flex-start' }}>{t('look.fill_covers')}</Button>
       <Button variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void ask('deck.theme_draw', t('look.draw_pictures'))}
         data-draw-pictures style={{ alignSelf: 'flex-start' }}>{t('look.draw_pictures')}</Button>
@@ -110,7 +110,7 @@ function Language() {
   const pick = async (v: string) => {
     setValue(v);
     try {
-      await call('deck.settings_set', { name: 'language', value: v });
+      await call('deck.setting_set', { name: 'language', value: v });
     } catch (e) {
       notifyError(e, t('look.language'));
     }

@@ -568,7 +568,7 @@ func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
 
 	var out struct{ Topic int64 }
-	e.Must("deck.covers_draw", map[string]any{"project": "notes", "wish": "a fox with a notebook"}, &out)
+	e.Must("deck.cover_draw", map[string]any{"project": "notes", "wish": "a fox with a notebook"}, &out)
 	said := e.ChatMessages(out.Topic)
 	var mood themeLook
 	e.Must("deck.theme_get", map[string]any{}, &mood)
@@ -580,8 +580,8 @@ func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
 
 	e.Example("pixel")
 	e.Must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	e.Must("deck.covers_draw", map[string]any{"model": "openrouter/painter"}, &out)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.cover_draw", map[string]any{"model": "openrouter/painter"}, &out)
 	said = e.ChatMessages(out.Topic)
 	if len(said) == 0 || !strings.Contains(said[0].Text, "Нарисуй обложки модулей notes, у которых их нет в теме deck «Пиксели»") ||
 		!strings.Contains(said[0].Text, "тема pixel") ||

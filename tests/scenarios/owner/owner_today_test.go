@@ -48,7 +48,7 @@ st, out = deck("deck.records_list", {"collection": "items"})
 print(json.dumps({"updated": []}))
 `)
 	e.SaveScript("jobs", "scripts/keep.py", harness.PythonLib+`
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
+st, out = deck("deck.record_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 print(json.dumps({"updated": ["a"]}))
 `)
 	today := store.Time(harness.T0.Add(-time.Hour))

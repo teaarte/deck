@@ -31,7 +31,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	e.Project("picker", harness.PickerManifest)
 	e.SaveScript("picker", "scripts/apply.py", harness.ApplyScript)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/gemma"}}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals",
+	e.Must("deck.record_upsert", map[string]any{"project": "picker", "collection": "proposals",
 		"records": harness.Jsonl(map[string]any{"name": "a", "project": "films", "models": "openrouter/qwen,openrouter/gemma"})}, nil)
 
 	apply := e.RowAction("picker", "main", "picker.apply", nil)
@@ -82,7 +82,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	e.Answer(asks[0].ID, "deny")
 
 	// A row whose run calls with other params than the button named still asks.
-	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals",
+	e.Must("deck.record_upsert", map[string]any{"project": "picker", "collection": "proposals",
 		"records": harness.Jsonl(map[string]any{"name": "a", "project": "films", "models": "openrouter/llama"})}, nil)
 	other := e.RowAction("picker", "main", "picker.apply", nil)
 	params := other["params"].(map[string]any)

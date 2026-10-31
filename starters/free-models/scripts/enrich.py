@@ -136,7 +136,7 @@ def main(inp):
         if any(new.get(k) != d.get(k) for k in ("vendor", "logo", "in_deck", "family", "text_ok")):
             rows.append(new)
     if rows:
-        call("deck.records_upsert", {"collection": "models",
+        call("deck.record_upsert", {"collection": "models",
                                      "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in rows)})
     out = {"changed": len(rows), "in_deck": sum(1 for r in recs if (r["data"].get("source"), r["data"].get("model_id")) in (deck or ()))}
     if deck is None:

@@ -36,7 +36,7 @@ func TestAManifestRefusesWhatNoModuleUsed(t *testing.T) {
 	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "eu-solar.webm"), []byte("webm"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "eu-solar", "file": "eu-solar.webm", "length": 75})}, nil)
 	check.Messages(t, e.ScreenMessages("films", "watch", nil))
 	var files []map[string]any
@@ -66,7 +66,7 @@ func TestAMediaBlockOnARecordPageShowsAFileOfTheRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	var w struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, &w)
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, &w)
 	var files []struct{ Type, Name, Title string }
 	_ = json.Unmarshal(e.Screen("films", "video", map[string]any{"record": w.IDs[0]})["b0"]["files"], &files)
 	if len(files) != 1 || files[0].Name != "eu-solar.webm" || files[0].Type != "video/webm" || files[0].Title != "eu-solar" {
@@ -80,7 +80,7 @@ func TestALineOfMediaSaysWhyItHasNoFileInWords(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("coin", strings.Replace(harness.EstimateManifest, `"item": {"file": "file", "title": "title"}`, `"item": {"file": "int(file)", "title": "title"}`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "attachments",
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "attachments",
 		"records": harness.Jsonl(map[string]any{"title": "a", "file": "image-1b946491.png"})}, nil)
 	raw, _ := json.Marshal(e.ScreenMessages("coin", "files", nil))
 	if s := string(raw); !strings.Contains(s, `the file of this line: int(file): `) || strings.Contains(s, `| ^`) || strings.Contains(s, `(1:1)`) {

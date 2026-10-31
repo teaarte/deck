@@ -102,7 +102,7 @@ func Nav(url string) Step { return Step{"browser_navigate", map[string]any{"url"
 func Click(ref string) Step { return Step{"browser_click", map[string]any{"target": ref}} }
 
 func WriteIdeas(ctx context.Context, c *Call, topic string) {
-	c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": Jsonl(
+	c.Tool(ctx, "record_upsert", map[string]any{"collection": "ideas", "records": Jsonl(
 		map[string]any{"title": "alpha", "score": 7, "topic": topic}, map[string]any{"title": "beta", "score": 3, "topic": topic},
 		map[string]any{"title": "gamma", "score": 9, "topic": topic}, map[string]any{"title": "broken"})})
 }

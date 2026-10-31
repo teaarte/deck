@@ -8,7 +8,7 @@ Command instructions:
 
 {{.Input}}
 {{with .Collections}}
-Collections of this project (write with the records_upsert tool of the deck MCP server, records as JSONL):
+Collections of this project (write with the record_upsert tool of the deck MCP server, records as JSONL):
 {{range .}}- {{.Name}}: {{.Description}}. Record JSON schema: {{.Schema}}
 {{end}}{{end}}{{if .Submit}}
 Hand in the final result by calling the result_submit tool of the deck MCP server once, then end your turn.{{if .TakesNull}} When there is nothing to do, hand in null.{{end}}

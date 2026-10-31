@@ -21,9 +21,9 @@ import (
 
 func seedEstimates(e *harness.Env) {
 	e.T.Helper()
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "prices",
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "prices",
 		"records": harness.Jsonl(map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5}, map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25, "estimate": 63000})}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "estimates",
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "estimates",
 		"records": harness.Jsonl(map[string]any{"at": "2026-10-02T09:00:00Z", "horizon": "7d", "change": 0.042, "confidence": 0.6, "status": "open",
 			"source": "https://example.com/a"},
 			map[string]any{"at": "2026-10-01T09:00:00Z", "horizon": "1d", "change": -0.01, "confidence": 0.3, "status": "missed"})}, nil)
@@ -117,7 +117,7 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 	if len(lines) != 2 || lines[0]["tone"] != nil || lines[1]["tone"] != "muted" {
 		t.Fatalf("a list line takes its tone; an empty one is none: %+v", lines)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "estimates", "records": harness.Jsonl(map[string]any{"at": "2026-09-01T09:00:00Z"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "estimates", "records": harness.Jsonl(map[string]any{"at": "2026-09-01T09:00:00Z"})}, nil)
 	if got := e.Screen("coin", "main", nil)["b1"]; string(got["state"]) != `"ready"` || len(harness.BlockData[[]harness.ScreenRow](t, got["rows"])) != 3 {
 		t.Fatalf("a tone that fails over a row, such as change < 0 without change, is no tone: %s %s", got["state"], got["error"])
 	}
@@ -263,7 +263,7 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 	for i := range 600 {
 		many = append(many, map[string]any{"at": fmt.Sprintf("2026-%02d-%02dT%02d:00:00Z", 1+i/240, 1+i/24%10, i%24), "price": float64(i)})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "prices", "records": harness.Jsonl(many...)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "prices", "records": harness.Jsonl(many...)}, nil)
 	v = harness.BlockData[chartV](t, e.Screen("coin", "main", nil)["b4"]["value"])
 	if len(v.X) != 500 || len(v.Series[0].Values) != 500 || v.X[499] != "2026-10-02T10:00:00Z" {
 		t.Fatalf("a chart draws the last 500 points: %d, last %v", len(v.X), v.X[len(v.X)-1])
@@ -310,7 +310,7 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(data, "charts", "today 1.pdf"), []byte("%PDF-1.4 fake"), 0o600)
 	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.txt"), []byte("top-secret-content"), 0o600)
 	_ = os.Symlink(filepath.Join(filepath.Dir(data), "secret.txt"), filepath.Join(data, "link.txt"))
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "attachments", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "attachments", "records": harness.Jsonl(
 		map[string]any{"title": "a scan", "file": mine}, map[string]any{"title": "b theirs", "file": theirs},
 		map[string]any{"title": "c chart", "file": "charts/today 1.pdf"}, map[string]any{"title": "d escape", "file": "../secret.txt"},
 		map[string]any{"title": "e link", "file": "link.txt"}, map[string]any{"title": "f gone", "file": "nope.pdf"})}, nil)
@@ -384,7 +384,7 @@ func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
 	if err := syscall.Mkfifo(filepath.Join(data, "pipe.png"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "attachments", "records": harness.Jsonl(map[string]any{"title": "pipe", "file": "pipe.png"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "coin", "collection": "attachments", "records": harness.Jsonl(map[string]any{"title": "pipe", "file": "pipe.png"})}, nil)
 	done := make(chan []map[string]any, 1)
 	go func() {
 		var files []map[string]any
@@ -441,7 +441,7 @@ func TestAListGoesOneAtATimeWithButtonsInItsHead(t *testing.T) {
         "head": [{"label": "='Touch all (' + string(len(rows)) + ')'", "command": "touch", "when": "len(rows) > 1"}],
         "actions": [{"label": "Touch", "command": "touch", "params": {"note": "=_id"}, "hold": true}]},`, 1)
 	e.Project("web", m)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha"}, map[string]any{"title": "beta"})}, nil)
 	data := e.Screen("web", "main", nil)["b0"]
 	var items []struct {
@@ -472,7 +472,7 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 		}
 	}
 	e.Project("work", harness.BoardManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
 	block := e.Screen("work", "board", map[string]any{"lang": "ru"})
 	var data struct {
 		Board struct {
@@ -544,7 +544,7 @@ func TestValuesOfAnEnumSpeakTheLanguageOfTheOwnerAndListsFilterByEachValue(t *te
 	m = strings.Replace(m, `"screens": [`, `"screens": [{"name": "table", "title": "Table", "blocks": [{"type": "table", "title": "All", "source": {"collection": "tasks"},
 	  "filter": ["status", "tags"], "columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "status"}]}]}, `, 1)
 	e.Project("work", m)
-	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing", "tags": ["x", "y"]}` + "\n" + `{"title": "b", "status": "todo", "tags": ["y"]}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing", "tags": ["x", "y"]}` + "\n" + `{"title": "b", "status": "todo", "tags": ["y"]}`}, nil)
 	raw, _ := json.Marshal(e.Screen("work", "table", map[string]any{"lang": "ru"}))
 	if !strings.Contains(string(raw), `"в работе"`) || strings.Contains(string(raw), `"cells":["a","doing"]`) {
 		t.Fatalf("a cell of an enum field speaks the owner's language: %s", raw)

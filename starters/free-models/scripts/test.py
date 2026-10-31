@@ -342,10 +342,10 @@ def main(inp):
         rows.append({k: v for k, v in row.items() if v is not None})
     rows = [dict(old.get(r["target"]) or {}, **r) for r in rows]  # keep the work row: the model now, its health, the watch
     if rows:
-        call("deck.records_upsert", {"collection": "proposals", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in rows)})
+        call("deck.record_upsert", {"collection": "proposals", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in rows)})
     fresh = [{k: v for k, v in x.items() if k != "new"} for x in trials.values() if x.get("new")]
     if fresh:
-        call("deck.records_upsert", {"collection": "trials", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in fresh)})
+        call("deck.record_upsert", {"collection": "trials", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in fresh)})
     ready = sum(1 for r in rows if r["status"] == "ready")
     if ready:
         call("deck.owner_notify", {"text": f"Подобрал модели: {ready} готовы к применению.", "screen": "proposals"})

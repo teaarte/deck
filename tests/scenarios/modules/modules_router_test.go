@@ -16,7 +16,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.RoutedManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 
 	data := e.Screen("web", "main", map[string]any{"params": `{"title": "alpha"}`, "dialog": "rescore"})
 	var form struct {

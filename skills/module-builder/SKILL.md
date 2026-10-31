@@ -12,7 +12,7 @@ and presses "enable". Its scripts, prompts and their review follow the module-co
 
 You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format_get`,
 `project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
-`command_try`, `process_get`, `process_log_get`, `records_list`, `records_upsert`, `files_list`,
+`command_try`, `process_get`, `process_log_get`, `records_list`, `record_upsert`, `files_list`,
 `projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Ask a read for only
 the fields you need (`fields`; of `records_list` they are the fields of the data of each record). Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `project_enable`; say which one and why when the module needs it.
@@ -381,10 +381,10 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   something outside the module, such as a model or a connection, names it in `cause` as the subject of its row
   of health (`model:groq/llama-70b`, `provider:claude-code`): the unread notes of one cause of a day, of any
   module, are one note with each module's part.
-- **Remembering what was seen**: `records_upsert` replaces a whole record by its key, so write every
+- **Remembering what was seen**: `record_upsert` replaces a whole record by its key, so write every
   required field. `record_get` reads one record by its id ; `records_list` gives the newest. `retention_days` deletes records with their documents: a collection that remembers what the
   owner has already seen, or holds what they asked for, gets none.
-- **Starting records** (the first sources, say) are written after the import with `records_upsert`, or by the
+- **Starting records** (the first sources, say) are written after the import with `record_upsert`, or by the
   first run of the script that needs them.
 
 ## 3. Typical techniques
@@ -459,10 +459,10 @@ runs in a sandbox:
 - a script runs alone: its folder holds only its own file, so a helper shared by scripts is repeated in each
   (or read with `document_get` into the work folder); the helpers of this skill, `helpers/deck_helper.py` and
   `helpers/deck_helper.mjs`, are the ones module-conventions names;
-- deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
+- deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.record_upsert"`
   (`command_describe` gives the input and `result` schemas while you write the script; works through the proxy or without it).
   A 200 body is the command's result itself, with no wrapper; an error is plain text with a 4xx/5xx status, 410
-  when the process has finished; `records_upsert` takes JSONL
+  when the process has finished; `record_upsert` takes JSONL
   and returns `{"written", "ids", "errors"}`; `records_list` returns `[{"id", "key", "title", "data": {…}}]`,
   newest last, `process_get` `{"id", "command", "state", "result", "error", …}`, `documents_list`
   `[{"id", "name", "kind", "owner_kind", "owner_id"}]` (an artifact of a record has `owner_kind` `record`); a script may call commands and tools of its own project that
@@ -628,7 +628,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    manifest alone (an old `.zip`). Check before you save, and fix a module from a `.zip` before its import.
    To see a screen as the owner does, `screen_capture` draws it (`#/p/<module>/<screen>?tab=…`, a phone or a
    computer, light or dark) and answers the picture's `path` to read and `ms` it took to draw.
-   `project_needs_get` is what the module needs to work, which deck counts from the manifest: rights that enabling
+   `project_readiness_get` is what the module needs to work, which deck counts from the manifest: rights that enabling
    grants, secrets and whether they are set, programs its scripts miss, roles without a model and work no model
    takes; a connection it names that deck lacks is `optional`. Build on it, not on your own list: tell the owner
    what is not `done`, and hand over a module whose needs are only rights.

@@ -375,7 +375,7 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 		return provider.Result{Text: "Hi."}
 	}))
 
-	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	e.WaitState(e.Run(e.Project("busy", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil)), "work"), "running")
 
 	b := Open(t)
@@ -401,7 +401,7 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 		t.Fatalf("only the message the master took stays: %+v", ms)
 	}
 	b.until("what the reply waits for, in the language of the interface", `document.querySelector('[data-turn="waiting_slot"]')?.innerText.includes('waits for a slot')`)
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	b.until("what the reply waits for, in Russian", `(() => { const x = document.querySelector('[data-turn="waiting_slot"]')?.innerText ?? ''; return x.includes('свободного места') && !x.includes('slot') })()`)
 }
 
@@ -645,7 +645,7 @@ func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
 		return provider.Result{Text: "a second fresh run"}
 	}))
 
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	e.Project("plain", harness.PlainManifest)
 	topic := e.Say(0, "сделай")
 	e.Told(topic, "error", "ru")

@@ -335,7 +335,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 	for _, text := range []string{"<p>one</p>", "<p>two</p>"} {
 		e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": text}, nil)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "note": "a **bold** note"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "note": "a **bold** note"})}, nil)
 
 	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
@@ -553,7 +553,7 @@ func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("work", harness.BoardManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
 	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/p/work/board")
@@ -574,7 +574,7 @@ func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
 	for i := range 40 {
 		many += fmt.Sprintf(`{"title": "t%d", "status": "todo"}`+"\n", i)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": many}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": many}, nil)
 	b.until("a long lane no higher than the screen, with a scroll of its own", `(() => { const l = document.querySelector('[data-lane="todo"]');
 		return l.querySelectorAll('[data-card]').length >= 40 && l.getBoundingClientRect().height <= innerHeight && l.scrollHeight > l.clientHeight })()`)
 	b.shot("board")
@@ -708,7 +708,7 @@ func TestRealBrowserTheChatOpensBesideTheScreenInANewTopic(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("work", harness.BoardManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/p/work/board")
@@ -866,7 +866,7 @@ func TestRealBrowserReadableTable(t *testing.T) {
 	e := harness.New(t)
 	e.Project("ops", readableManifest)
 	now := time.Now().UTC().Format(time.RFC3339)
-	e.Must("deck.records_upsert", map[string]any{"project": "ops", "collection": "jobs", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "ops", "collection": "jobs", "records": harness.Jsonl(
 		map[string]any{"name": "backup", "status": "error", "why": "the disk is full: 0 bytes left on /backup", "note": strings.Repeat("a long note that goes on and on ", 20),
 			"host": "nas", "region": "home", "started": now},
 		map[string]any{"name": "mail", "status": "ok", "host": "vps", "started": now})}, nil)

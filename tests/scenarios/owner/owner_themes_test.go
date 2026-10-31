@@ -59,7 +59,7 @@ func TestAThemeHasItsPictures(t *testing.T) {
 func TestTheMasterIsAskedForThePicturesOfTheTheme(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	var out struct{ Topic int64 }
 	e.Must("deck.theme_draw", map[string]any{"wish": "облака потеплее"}, &out)
 	msgs := e.ChatMessages(out.Topic)

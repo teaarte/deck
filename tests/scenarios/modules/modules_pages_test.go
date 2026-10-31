@@ -34,7 +34,7 @@ func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("web", pagedNotes)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 1}, map[string]any{"title": "c", "score": 1},
 			map[string]any{"title": "d", "score": 1}, map[string]any{"title": "e", "score": 1})}, nil)
 
@@ -61,7 +61,7 @@ func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 		}
 	}
 
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "f"})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "f"})}, nil)
 	var saved struct{ Screens []string }
 	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": pagedNotes}, &saved)
 	if len(saved.Screens) == 0 || !strings.Contains(strings.Join(saved.Screens, "\n"), `table block "Broken"`) {
@@ -97,7 +97,7 @@ func TestATabNotShownIsReadWhenShown(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("notes", harness.WebManifest("http://127.0.0.1:1"))
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 7})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 7})}, nil)
 	read := func(extra map[string]any) []string {
 		return slices.Sorted(maps.Keys(harness.DataOf(t, e.ScreenMessages("notes", "main", extra))))
 	}
@@ -135,7 +135,7 @@ func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 	for i := range 60 {
 		recs = append(recs, map[string]any{"title": fmt.Sprintf("note %02d", i), "source": "web", "note": "longer"})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(recs...)}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(recs...)}, nil)
 	data := harness.DataOf(t, e.ScreenMessages("web", "main", nil))
 	rows := harness.BlockData[[]harness.ScreenRow](t, data["b3"]["rows"])
 	if len(rows) != 50 || string(data["b3"]["more"]) != "10" || len(harness.BlockData[[]map[string]any](t, data["b0"]["items"])) != 50 {
@@ -195,7 +195,7 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		strings.Contains(seen[big], fmt.Sprintf("/api/files/%d ", big)) {
 		t.Fatalf("a picture has its light copy with its size, a small one is its own, and the copies are no files: %v", seen)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
+	e.Must("deck.record_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "a", "file": fmt.Sprint(big)}, map[string]any{"slug": "b", "file": "wide.png"})}, nil)
 	var files []struct {
 		URL, Thumb    string

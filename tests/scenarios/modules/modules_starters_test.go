@@ -52,7 +52,7 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 		t.Fatalf("the draft stays offered until it is enabled: %+v", ss)
 	}
 	var needs []needView
-	e.Must("deck.project_needs_get", map[string]any{"project": "free-models", "lang": "ru"}, &needs)
+	e.Must("deck.project_readiness_get", map[string]any{"project": "free-models", "lang": "ru"}, &needs)
 	kinds := map[string]int{}
 	for _, n := range needs {
 		kinds[n.Kind]++
@@ -72,7 +72,7 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 		t.Fatalf("the starter names no local connection of its author: %+v", needs)
 	}
 	e.Must("deck.connection_set", map[string]any{"name": "nvidia", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
-	e.Must("deck.project_needs_get", map[string]any{"project": "free-models"}, &needs)
+	e.Must("deck.project_readiness_get", map[string]any{"project": "free-models"}, &needs)
 	if slices.ContainsFunc(needs, func(n needView) bool { return n.What == "nvidia" }) {
 		t.Fatalf("a connection deck has is no need: %+v", needs)
 	}

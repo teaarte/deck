@@ -19,7 +19,7 @@ asks, as a theme of its own name.
 2. Write the tokens of both schemes (`tokens` for both, `light`, `dark` over them). Text and dimmed need 4.5:1
    on canvas, body, island and block with every accent: give those tokens as #hex, rgb() or color-mix().
 3. `mood` is the style of pictures in this theme in one or two sentences — the covers of modules are drawn by it,
-   each kept for its theme: `deck.covers_draw` without a module draws those this theme lacks.
+   each kept for its theme: `deck.cover_draw` without a module draws those this theme lacks.
 4. The cards of modules have their own tokens: `cockpit` (the cockpit's card; the accent by default), `tile` (a
    card without a cover), `tile-shade`, `tile-text`, `tile-veil` (under each line of Today over its picture; empty
    for the color opposite to `tile-text`), `tile-icon`, `tile-shadow`, `tile-lift`, and of their grid

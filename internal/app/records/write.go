@@ -137,13 +137,13 @@ func (s *Service) writeRecords(ctx context.Context, p db.Project, f func(ctx con
 	})
 }
 
-type recordsUpsertIn struct {
+type recordUpsertIn struct {
 	Project    string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
 	Collection string `desc:"Collection name"`
 	Records    string `type:"text" desc:"Records as JSONL: one JSON object per line"`
 }
 
-func (s *Service) recordsUpsert(ctx context.Context, act registry.Actor, in recordsUpsertIn) (any, error) {
+func (s *Service) recordUpsert(ctx context.Context, act registry.Actor, in recordUpsertIn) (any, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err

@@ -28,7 +28,7 @@ func TestACommandCallLargerThan32MBIsRefusedWhole(t *testing.T) {
 	}
 	e.Project("big", harness.ScriptManifest("send", "", ""))
 	e.SaveScript("big", "scripts/main.py", harness.PythonLib+`
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "x" * (33 << 20)})})
+st, out = deck("deck.record_upsert", {"collection": "items", "records": json.dumps({"name": "x" * (33 << 20)})})
 print(json.dumps({"status": st}))
 `)
 	// The script hears the 413, or a reset when deck closes the upload first; then deck's note of what it refused names it.
@@ -106,7 +106,7 @@ func TestEveryCommandFitsAppIntents(t *testing.T) {
 			}
 		}
 	}
-	for _, want := range []string{"deck.project_create", "deck.document_save", "deck.records_upsert", "deck.ask_answer", "ideas.collect"} {
+	for _, want := range []string{"deck.project_create", "deck.document_save", "deck.record_upsert", "deck.ask_answer", "ideas.collect"} {
 		if !names[want] {
 			t.Errorf("command %s is missing from the registry", want)
 		}
@@ -307,7 +307,7 @@ func TestRecordCommands(t *testing.T) {
 		Written int
 		Errors  []string
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "ideas", "collection": "ideas",
+	e.Must("deck.record_upsert", map[string]any{"project": "ideas", "collection": "ideas",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 7}, map[string]any{"title": "beta", "score": 3}) + "not json\n"}, &up)
 	if up.Written != 2 || len(up.Errors) != 1 || !strings.Contains(up.Errors[0], "line 3") {
 		t.Fatalf("upsert: %+v", up)
@@ -377,9 +377,9 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 		for _, tl := range res.Tools {
 			s.tools = append(s.tools, tl.Name)
 		}
-		s.foreign, _ = c.Tool(ctx, "records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "x", "score": 1})})
+		s.foreign, _ = c.Tool(ctx, "record_upsert", map[string]any{"project": "other", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "x", "score": 1})})
 		s.skill, _ = c.Tool(ctx, "document_save", map[string]any{"name": "x/SKILL.md", "kind": "skill", "text": "---\nname: x\ndescription: y\n---\n"})
-		c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 7})})
+		c.Tool(ctx, "record_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 7})})
 		recs, _ := c.Tool(ctx, "records_list", map[string]any{"collection": "ideas"})
 		var rs []struct{ ID int64 }
 		_ = json.Unmarshal([]byte(recs), &rs)
@@ -394,7 +394,7 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 	e.Project("other", harness.IdeasManifest)
 	e.WaitState(e.Run(p, "collect"), "done")
 
-	for _, want := range []string{"records_upsert", "document_save", "ideas__collect", "process_get"} {
+	for _, want := range []string{"record_upsert", "document_save", "ideas__collect", "process_get"} {
 		if !slices.Contains(s.tools, want) {
 			t.Errorf("agent must see tool %s, got %v", want, s.tools)
 		}
@@ -438,7 +438,7 @@ func TestOutOfRangeIntegersAreRefused(t *testing.T) {
 		Written int
 		Errors  []string
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums",
+	e.Must("deck.record_upsert", map[string]any{"project": "nums", "collection": "nums",
 		"records": "{\"n\": 18446744073709551614}\n{\"n\": 18446744073709551615}\n"}, &res)
 	if res.Written != 0 || len(res.Errors) != 2 || !strings.Contains(res.Errors[0], "does not fit") {
 		t.Fatalf("integers beyond 64 bits must be refused, not rounded into one key: %+v", res)
@@ -480,7 +480,7 @@ func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
 		Written int
 		Errors  []string
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums",
+	e.Must("deck.record_upsert", map[string]any{"project": "nums", "collection": "nums",
 		"records": "{\"n\": 18446744073709551614.0}\n{\"n\": 1.0}\n"}, &res)
 	if res.Written != 1 || len(res.Errors) != 1 || !strings.Contains(res.Errors[0], "does not fit") {
 		t.Fatalf("a whole number beyond 64 bits is refused in any spelling: %+v", res)
@@ -524,7 +524,7 @@ func TestAnAgentCallsOnlyWhatItsCommandLists(t *testing.T) {
 	var wrote string
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		_, listedBad = c.Tool(ctx, "records_list", map[string]any{"collection": "ideas"})
-		wrote, written = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "x", "score": 1})})
+		wrote, written = c.Tool(ctx, "record_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "x", "score": 1})})
 		written = !written
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
@@ -562,7 +562,7 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 
 	p := e.Project("ideas", harness.IdeasManifest)
 	other := e.Project("other", harness.IdeasManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "theirs", "score": 1})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "other", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "theirs", "score": 1})}, nil)
 	theirs := e.WaitState(e.Run(other, "collect"), "done").ID
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: other, Collection: "ideas"})
 	if len(recs) != 1 {

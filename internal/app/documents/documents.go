@@ -443,7 +443,7 @@ func (dc *Service) Commands() []*registry.Command {
 		registry.Def("document_revert", "Revert document",
 			"Makes an earlier revision current again as a new revision.",
 			registry.OwnerSide, dc.documentRevert),
-		registry.Def("programs_check", "Check programs",
+		registry.Def("program_check", "Check programs",
 			"Looks again for the programs the scripts of a project need, after the owner installed one, and updates the health of its commands.",
 			registry.OwnerSide, dc.programsCheck),
 	}

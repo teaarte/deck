@@ -87,7 +87,7 @@
         {"type": "dialog", "name": "import-project", "title": "Import module", "icon": "file-import", "blocks": [
           {"type": "form", "command": "deck.project_import", "description": "A .zip of a module or a folder of this machine; it comes as a draft, and deck shows what it may do before you enable it."}]},
         {"type": "dialog", "name": "draw-cover", "title": "Draw covers", "icon": "sparkles", "blocks": [
-          {"type": "form", "command": "deck.covers_draw", "values": {"project": "=param.project"},
+          {"type": "form", "command": "deck.cover_draw", "values": {"project": "=param.project"},
             "description": "Deki draws the cover of the module in the mood of the theme in use, for its schemes; without a module, of every module that has none in this theme.",
             "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + ' · ' + price"}}}]},
         {"type": "list", "title": "Modules", "empty": "No modules yet: tell Deki what to do, or import a module", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
@@ -165,7 +165,7 @@
             {"label": "Default", "bind": "default"}
           ],
           "actions": [
-            {"verb": "edit", "command": "deck.settings_set", "params": {"name": "=name"}, "input": "value", "options": "=options"}
+            {"verb": "edit", "command": "deck.setting_set", "params": {"name": "=name"}, "input": "value", "options": "=options"}
           ]},
         {"type": "table", "title": "Agents", "empty": "No agent found: install Claude Code or Codex, or add an ACP agent", "source": {"from": "deck.models_list", "rows": "agents"},
           "description": "The programs agent commands run in, with their version; change them only when an agent breaks.",

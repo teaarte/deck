@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/internal/app/folders"
 	"deck2/internal/docs"
 	"deck2/internal/files"
 	"deck2/internal/manifest"
@@ -16,6 +15,12 @@ import (
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 )
+
+// folderView is a folder of the owner a project works in.
+type folderView struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
 
 type projectView struct {
 	ID            int64                 `json:"id"`
@@ -31,9 +36,9 @@ type projectView struct {
 	// Asks are the tools and commands of a draft that will wait for the owner on every call once it is enabled.
 	Asks []string `json:"asks"`
 	// Models are what the manifest in force lets the project call: connections, models and @kinds.
-	Models   []string      `json:"models"`
-	Revision int64         `json:"revision"`
-	Folders  []folders.Row `json:"folders"`
+	Models   []string     `json:"models"`
+	Revision int64        `json:"revision"`
+	Folders  []folderView `json:"folders"`
 	// NoNetwork is of the manifest; false when it does not load.
 	NoNetwork bool `json:"no_network"`
 	// Network is what its agents reach beyond its domains, in words; empty when nothing.
@@ -76,7 +81,11 @@ func (pj *Service) projectsList(ctx context.Context, act registry.Actor, in proj
 func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error, lang string) projectView {
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []manifest.ScreenLink{},
 		Rights: []string{}, Asks: []string{}, Models: []string{}}
-	v.Folders, _ = pj.Folders(ctx, p.ID)
+	fs, _ := pj.St.Q.ListProjectFolders(ctx, p.ID)
+	v.Folders = make([]folderView, 0, len(fs))
+	for _, f := range fs {
+		v.Folders = append(v.Folders, folderView{Name: f.Name, Path: f.Path})
+	}
 	if prompt, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}

@@ -76,6 +76,10 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		"internal/app/x/x.go:8: the wall clock",
 		"internal/app/x/x.go:9: a bare go statement",
 		"internal/app/x/x.go:10: the wall clock",
+		"internal/tools/t.go:6: a process started outside the sandbox",
+		"internal/tools/t.go:9: an HTTP client or transport built outside internal/egress",
+		"internal/tools/t.go:10: a file written by hand",
+		"internal/tools/t.go:11: the environment of deck read outside cmd/deck",
 	} {
 		if !strings.Contains(all, want) {
 			t.Errorf("missing violation %q in:\n%s", want, all)
@@ -142,5 +146,40 @@ func TestDictionaryCheckCatchesTwoPhrasesSaidAlike(t *testing.T) {
 	vs = slices.DeleteFunc(vs, func(v lint.Violation) bool { return strings.Contains(v.Text, "sameWords lists") })
 	if len(vs) != 1 || !strings.Contains(vs[0].String(), `"Create module" and "Create project"`) {
 		t.Fatalf("one violation of two phrases, not of a phrase and its field: %v", vs)
+	}
+}
+
+func TestRepositoryKeepsItsLayers(t *testing.T) {
+	vs, err := lint.Layers("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range vs {
+		t.Error(v)
+	}
+}
+
+func TestLayersCatchAnImportUp(t *testing.T) {
+	vs, err := lint.Layers("testdata/layers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, v := range vs {
+		got = append(got, v.String())
+	}
+	all := strings.Join(got, "\n")
+	for _, want := range []string{
+		"internal/store/store.go:6: internal/store (L1) imports internal/manifest (L2): an import goes only to a lower layer",
+		"internal/stray/stray.go:1: package internal/stray is in no layer",
+		"internal/app/a/a.go:4: internal/app/a imports the domain internal/app/b: only internal/app wires domains",
+		"internal/api/api.go:3: internal/api imports the domain internal/app/tokens",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing violation %q in:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "a.go:5") {
+		t.Errorf("a domain imports a lower layer freely:\n%s", all)
 	}
 }

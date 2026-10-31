@@ -40,6 +40,9 @@ const (
 	PromptName   = "prompt.md"
 )
 
+// MaxFile is the largest file deck takes into a document from a folder.
+const MaxFile = 1 << 20
+
 var docSegment = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 // Scope is where documents live: a project of a workspace, or the workspace itself when Project is 0.

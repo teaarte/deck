@@ -14,7 +14,6 @@ import (
 	"unicode/utf8"
 
 	"deck2/internal/access"
-	"deck2/internal/app/documents"
 	"deck2/internal/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -73,7 +72,7 @@ func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, sk
 			skipped = append(skipped, p+": not a regular file")
 			continue
 		}
-		if e.UncompressedSize64 > documents.MaxFile {
+		if e.UncompressedSize64 > docs.MaxFile {
 			skipped = append(skipped, p+": larger than 1 MB")
 			continue
 		}
@@ -81,12 +80,12 @@ func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, sk
 		if err != nil {
 			return nil, nil, "", registry.Invalid("%s: %s: %v", fileName, p, err)
 		}
-		b, err := io.ReadAll(io.LimitReader(r, documents.MaxFile+1))
+		b, err := io.ReadAll(io.LimitReader(r, docs.MaxFile+1))
 		_ = r.Close()
 		switch {
 		case err != nil:
 			return nil, nil, "", registry.Invalid("%s: %s: %v", fileName, p, err)
-		case len(b) > documents.MaxFile:
+		case len(b) > docs.MaxFile:
 			skipped = append(skipped, p+": larger than 1 MB")
 			continue
 		case !utf8.Valid(b):

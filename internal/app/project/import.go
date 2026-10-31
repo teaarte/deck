@@ -11,8 +11,6 @@ import (
 	"unicode/utf8"
 
 	"deck2/internal/access"
-	"deck2/internal/app/documents"
-	"deck2/internal/app/folders"
 	"deck2/internal/docs"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
@@ -99,9 +97,9 @@ func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in pro
 		}
 		from = "file " + name
 	default:
-		dir, err := folders.Abs(in.Folder)
+		dir, err := home.Abs(in.Folder)
 		if err != nil {
-			return nil, err
+			return nil, registry.Invalid("%v", err)
 		}
 		if act.Kind != registry.Owner {
 			if err := pj.importable(ctx, act, dir); err != nil {
@@ -209,7 +207,7 @@ func readFolder(root string) (files []folderFile, skipped []string, err error) {
 			skipped = append(skipped, rel+": not a regular file")
 			return nil
 		}
-		if info.Size() > documents.MaxFile {
+		if info.Size() > docs.MaxFile {
 			skipped = append(skipped, rel+": larger than 1 MB")
 			return nil
 		}

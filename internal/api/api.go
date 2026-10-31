@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"deck2/internal/app"
-	"deck2/internal/app/tokens"
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -126,7 +125,7 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var out any
-	if lentTo(r) && !tokens.Reads(r.PathValue("name")) {
+	if lentTo(r) && !s.app.Tokens.Reads(r.PathValue("name")) {
 		http.Error(w, "deck: a page deck opens itself only reads", http.StatusForbidden)
 		return
 	}

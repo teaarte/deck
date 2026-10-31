@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"deck2/internal/access"
-	"deck2/internal/app/records"
 	"deck2/internal/docs"
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
@@ -40,7 +39,7 @@ func (s *Service) ofRecord(ctx context.Context, p db.Process, v *processView) {
 			c = m.Collection(rec.Collection)
 		}
 	}
-	v.RecordTitle = records.ViewOf(rec, c).Name()
+	v.RecordTitle = c.RecordName(rec.Data, rec.Key)
 }
 
 // usualRuns is how many finished runs of a command it takes to know how long it usually works.

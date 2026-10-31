@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"deck2/internal/app/folders"
 	"deck2/internal/ask"
 	"deck2/internal/events"
 	"deck2/internal/gateway"
@@ -40,7 +39,6 @@ type Service struct {
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
 	Host      *mcphost.Host
-	Folders   func(ctx context.Context, projectID int64) ([]folders.Row, error)
 	// Snapshot writes a snapshot before a delete.
 	Snapshot func(ctx context.Context, project int64) (string, error)
 	// Keep stores a file a command made for the owner to download.

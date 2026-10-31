@@ -32,6 +32,14 @@ var rules = []rule{
 		[]string{"internal/registry/"}, refusalLit},
 	{"secret", "a reference to a secret written out: take manifest.SecretRef or SecretPrefix", []string{"internal/", "cmd/"},
 		[]string{"internal/manifest/", "internal/lint/"}, secretLit},
+	{"exec", "a process started outside the sandbox: os/exec and Setpgid are internal/sandbox's", []string{"internal/", "cmd/"},
+		[]string{"internal/sandbox/"}, execUse},
+	{"client", "an HTTP client or transport built outside internal/egress: take one of egress", []string{"internal/", "cmd/"},
+		[]string{"internal/egress/"}, clientLit},
+	{"write", "a file written by hand: take home.WriteFile, home.Create or home.Fresh", []string{"internal/", "cmd/"},
+		[]string{"internal/home/"}, fileWrite},
+	{"env", "the environment of deck read outside cmd/deck: take it from the config", []string{"internal/", "cmd/"},
+		[]string{"cmd/deck/"}, envRead},
 }
 
 // Rules finds what breaks the conventions of the Go code under root outside the exceptions, and the exceptions
@@ -188,6 +196,72 @@ func secretLit(f *ast.File, fset *token.FileSet) []int {
 	ast.Inspect(f, func(n ast.Node) bool {
 		if l, ok := n.(*ast.BasicLit); ok && l.Kind == token.STRING && !tags[l] && strings.Contains(l.Value, "$secret.") {
 			out = append(out, fset.Position(l.Pos()).Line)
+		}
+		return true
+	})
+	return out
+}
+
+// execUse are the lines that import os/exec or set Setpgid.
+func execUse(f *ast.File, fset *token.FileSet) []int {
+	var out []int
+	for _, im := range f.Imports {
+		if p, _ := strconv.Unquote(im.Path.Value); p == "os/exec" {
+			out = append(out, fset.Position(im.Pos()).Line)
+		}
+	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == "Setpgid" {
+			out = append(out, fset.Position(id.Pos()).Line)
+		}
+		return true
+	})
+	return out
+}
+
+// clientLit are the lines of composite literals of http.Client and http.Transport.
+func clientLit(f *ast.File, fset *token.FileSet) []int {
+	return composite(f, fset, "net/http", "Client", "Transport")
+}
+
+// fileWrite are the lines that call os.Rename, os.CreateTemp or os.WriteFile.
+func fileWrite(f *ast.File, fset *token.FileSet) []int { return calls(f, fset, "os", "Rename", "CreateTemp", "WriteFile") }
+
+// envRead are the lines that read the environment of deck.
+func envRead(f *ast.File, fset *token.FileSet) []int { return calls(f, fset, "os", "Getenv", "LookupEnv", "Environ") }
+
+// composite are the lines of composite literals of the named types of the package at path.
+func composite(f *ast.File, fset *token.FileSet, path string, names ...string) []int {
+	pkg := importName(f, path)
+	if pkg == "" {
+		return nil
+	}
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if c, ok := n.(*ast.CompositeLit); ok {
+			if s, ok := c.Type.(*ast.SelectorExpr); ok && slices.Contains(names, s.Sel.Name) {
+				if x, ok := s.X.(*ast.Ident); ok && x.Name == pkg {
+					out = append(out, fset.Position(c.Pos()).Line)
+				}
+			}
+		}
+		return true
+	})
+	return out
+}
+
+// calls are the lines that name the functions of the package at path.
+func calls(f *ast.File, fset *token.FileSet, path string, names ...string) []int {
+	pkg := importName(f, path)
+	if pkg == "" {
+		return nil
+	}
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if s, ok := n.(*ast.SelectorExpr); ok && slices.Contains(names, s.Sel.Name) {
+			if x, ok := s.X.(*ast.Ident); ok && x.Name == pkg && x.Obj == nil {
+				out = append(out, fset.Position(s.Pos()).Line)
+			}
 		}
 		return true
 	})

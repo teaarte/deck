@@ -14,9 +14,6 @@ import (
 	"deck2/skills"
 )
 
-// MaxFile is the largest file deck takes into a document from a folder.
-const MaxFile = 1 << 20
-
 // Skills returns the files of the named skills by path under the skill folder; a project skill hides a
 // workspace skill of the same name.
 func (dc *Service) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error) {

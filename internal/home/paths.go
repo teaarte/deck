@@ -2,6 +2,7 @@ package home
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -30,6 +31,14 @@ func Under(path, dir string) bool {
 func Within(dir, path string) bool {
 	rel, err := filepath.Rel(dir, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// Abs is a path that must be absolute, cleaned.
+func Abs(path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		return "", fmt.Errorf("%q is not an absolute path", path)
+	}
+	return filepath.Clean(path), nil
 }
 
 // Real is path with its links resolved, as the kernel sees it; a missing path resolves through its nearest existing

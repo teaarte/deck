@@ -189,7 +189,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
 	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
-		MCP: a.MCP, Host: a.Host, Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
+		MCP: a.MCP, Host: a.Host, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.Screens.CheckScreens,
 		Unassigned: a.Providers.Unassigned, Secret: a.Secrets.Has,
 		Theme: func(ctx context.Context, ws int64) string { return a.Themes.Current(ctx, ws) }}

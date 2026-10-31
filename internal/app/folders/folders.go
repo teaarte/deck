@@ -29,19 +29,11 @@ type Row struct {
 	Path string `json:"path"`
 }
 
-// Abs is a path that must be absolute, cleaned.
-func Abs(path string) (string, error) {
-	if !filepath.IsAbs(path) {
-		return "", registry.Invalid("%q is not an absolute path", path)
-	}
-	return filepath.Clean(path), nil
-}
-
 // realFolder is the real path of an existing folder outside deck's own.
 func (s *Service) realFolder(path string) (string, error) {
-	dir, err := Abs(path)
+	dir, err := home.Abs(path)
 	if err != nil {
-		return "", err
+		return "", registry.Invalid("%v", err)
 	}
 	real, err := filepath.EvalSymlinks(dir)
 	if err != nil {

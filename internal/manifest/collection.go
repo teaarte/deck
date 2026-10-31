@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"cmp"
 	"fmt"
 	"reflect"
 	"slices"
@@ -59,6 +60,18 @@ func (c *Collection) RecordTitle(data map[string]any) string {
 		return ""
 	}
 	return fmt.Sprint(out)
+}
+
+// RecordName is the display name of a record of c by its data, or its key when c, or its title, gives none.
+func (c *Collection) RecordName(data, key string) string {
+	if c == nil {
+		return key
+	}
+	d, err := DecodeObject([]byte(data))
+	if err != nil {
+		return key
+	}
+	return cmp.Or(c.RecordTitle(d), key)
 }
 
 // FolderOf is the folder of a record in the data folder, relative and inside it; empty when the collection names

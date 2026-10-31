@@ -98,10 +98,9 @@ func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 // gooseInit is the initialize of Goose: no session/resume, session/load instead.
 const gooseInit = `{"reply": "initialize", "result": {"protocolVersion": 1, "agentCapabilities": {"loadSession": true, "mcpCapabilities": {"http": true}, "sessionCapabilities": {"list": {}, "close": {}}}, "authMethods": []}}`
 
-const writtenManifest = `{"version": 13,
-  "commands": [{"name": "work", "title": "Work", "description": "Writes a file", "class": "internal",
+var writtenManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Writes a file", "class": "internal",
     "result": {"type": "object", "required": ["written"], "properties": {"written": {"type": "integer"}}},
-    "executor": {"type": "agent", "prompt": "Write the file."}}]}`
+    "executor": {"type": "agent", "prompt": "Write the file."}}]}`)
 
 // TestACPCommandAgentWorksThroughTheGateway: an ACP agent in the sandbox of deck writes in its folder, cannot read
 // what deck hides, calls the model with the key only deck's proxy knows and hands its result in with result_submit.
@@ -629,7 +628,7 @@ func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
 		`{"shell": "curl -s -m 5 -o /dev/null -w '%{http_code}' http://`+addr+`/"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	m := strings.Replace(writtenManifest, `{"version": 13,`, fmt.Sprintf(`{"version": 13, "domains": {"read": [%q]},`, addr), 1)
+	m := strings.Replace(writtenManifest, harness.Manifest(`{`), harness.Manifest(fmt.Sprintf(`{"domains": {"read": [%q]},`, addr)), 1)
 	e.WaitState(e.Run(e.AcpProject("paint", m), "work"), "done")
 	if got := f.Call(4).Shell[0]["out"]; got != "200" || len(local.Requests()) != 1 {
 		t.Fatalf("the shell reaches the service its project names: %q, %d requests", got, len(local.Requests()))

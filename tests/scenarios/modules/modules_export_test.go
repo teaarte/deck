@@ -87,11 +87,11 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	}
 
 	bad := t.TempDir()
-	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(`{"version": 13, "commands": [{"name": "x"}]}`), 0o644)
+	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(harness.Manifest(`{"commands": [{"name": "x"}]}`)), 0o644)
 	if code, out := e.Call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "manifest") {
 		t.Fatalf("an invalid manifest is refused with the reason: %d %s", code, out)
 	}
-	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(`{"version": 13}`), 0o644)
+	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(harness.Manifest(`{}`)), 0o644)
 	_ = os.WriteFile(filepath.Join(bad, "logo.png"), []byte{0x89, 'P', 'N', 'G', 0xff, 0xfe}, 0o644)
 	if code, out := e.Call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "logo.png: not text") {
 		t.Fatalf("a folder with a file deck cannot take is refused: %d %s", code, out)
@@ -151,7 +151,7 @@ func TestImportTakesNoLinks(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	dir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, deckdocs.ManifestName), []byte(`{"version": 13}`), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, deckdocs.ManifestName), []byte(harness.Manifest(`{}`)), 0o644)
 	secret := filepath.Join(t.TempDir(), "secret.txt")
 	_ = os.WriteFile(secret, []byte("owner's secret"), 0o600)
 	_ = os.Symlink(secret, filepath.Join(dir, "notes.md"))
@@ -308,10 +308,10 @@ func TestAZipThatLeavesItsFolderIsRefused(t *testing.T) {
 		return buf.String()
 	}
 	for _, evil := range []string{"../evil.md", "a/../../evil.md", "/etc/evil.md"} {
-		id := e.Upload("", "evil.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, evil: "x"}))
+		id := e.Upload("", "evil.zip", "application/zip", pack(map[string]string{"manifest.json": harness.Manifest(`{}`), evil: "x"}))
 		e.Refused("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, 422, "leaves the module folder")
 	}
-	id := e.Upload("", "plain.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, ".hidden/x.md": "x", "__MACOSX/._manifest.json": "x"}))
+	id := e.Upload("", "plain.zip", "application/zip", pack(map[string]string{"manifest.json": harness.Manifest(`{}`), ".hidden/x.md": "x", "__MACOSX/._manifest.json": "x"}))
 	var im struct{ Name string }
 	e.Must("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, &im)
 	if im.Name != "plain" {

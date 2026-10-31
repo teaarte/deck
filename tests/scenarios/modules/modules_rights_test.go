@@ -114,7 +114,7 @@ func rightsManifest(r *rand.Rand) string {
 		reads = append(reads, rd+"}")
 	}
 	var parts []string
-	parts = append(parts, `"version": 13`, `"scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}]`)
+	parts = append(parts, fmt.Sprintf(`"version": %d`, manifest.FormatVersion), `"scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}]`)
 	if len(cmds) > 0 {
 		parts = append(parts, `"commands": [`+strings.Join(cmds, ", ")+`]`)
 	}
@@ -186,9 +186,9 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	ctx := context.Background()
-	e.Project("other", `{"version": 13, "collections": [
+	e.Project("other", harness.Manifest(`{"collections": [
     {"name": "items", "description": "An item.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
-    {"name": "notes", "description": "A note.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`)
+    {"name": "notes", "description": "A note.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`))
 	r := rand.New(rand.NewPCG(1, 2))
 	read := 0
 	for i := range harness.RightsPairs {
@@ -237,11 +237,10 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 }
 
 // studioModule has one agent command that edits the code of the module.
-const studioModule = `{"version": 13,
-  "writes": ["code/"],
+var studioModule = harness.Manifest(`{"writes": ["code/"],
   "commands": [
     {"name": "build", "title": "Build", "description": "Edits the code.", "class": "internal",
-     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Edit the code."}}]}`
+     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Edit the code."}}]}`)
 
 // TestAnAgentWritesTheDocumentsItsManifestNames: an agent saves a document writes names and changes it without its
 // kind, is refused another with what to add, knows both from its prompt, and a wider writes waits for the owner.
@@ -362,10 +361,9 @@ func TestAnAgentDeletesTheRecordsOfItsOwnProject(t *testing.T) {
 	}
 }
 
-const probeModule = `{"version": 13,
-  "commands": [{"name": "probe", "title": "Probe", "description": "Reads settings.", "class": "internal",
+var probeModule = harness.Manifest(`{"commands": [{"name": "probe", "title": "Probe", "description": "Reads settings.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "script", "script": "probe"}}],
-  "scripts": [{"name": "probe", "file": "scripts/probe.py", "runtime": "python"}]}`
+  "scripts": [{"name": "probe", "file": "scripts/probe.py", "runtime": "python"}]}`)
 
 // probeScript calls a command of the owner side and fails on the bare status, as a script that reads no body does.
 const probeScript = `import json, os, urllib.request

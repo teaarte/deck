@@ -5,9 +5,101 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 )
+
+// Assigned are the models of a role of a project as the owner reads them.
+func (e *Env) Assigned(project, role string) []string {
+	e.T.Helper()
+	var m ModelsOut
+	e.Must("deck.models_list", map[string]any{"project": project}, &m)
+	for _, a := range m.Assignments {
+		if a.Project == project && a.Command == "" && a.Role == role {
+			return a.Models
+		}
+	}
+	return nil
+}
+
+// MustAgentModel is agentModel that must succeed.
+func (e *Env) MustAgentModel(in map[string]any) {
+	e.T.Helper()
+	if code, out := e.AgentModel(in); code != 200 {
+		e.T.Fatalf("add model %v: %d %s", in["name"], code, out)
+	}
+}
+
+// ModelCalls reads the journal of model calls, newest first, of a project and a process when they are given.
+func (e *Env) ModelCalls(project string, process int64, out any) {
+	e.T.Helper()
+	rows, err := e.App.Store.DB.Query(`SELECT c.id, COALESCE(c.process_id, 0), c.command, c.gen_ai_provider_name, c.gen_ai_request_model,
+		c.gen_ai_response_model, c.gen_ai_usage_input_tokens, c.gen_ai_usage_output_tokens, c.gen_ai_usage_cache_read_input_tokens,
+		c.gen_ai_usage_cache_creation_input_tokens, c.duration_ms, c.cost_usd, c.created_at
+		FROM llm_call c LEFT JOIN project p ON p.id = c.project_id
+		WHERE (? = '' OR p.name = ?) AND (? = 0 OR c.process_id = ?) ORDER BY c.id DESC`, project, project, process, process)
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	defer rows.Close()
+	var calls []map[string]any
+	for rows.Next() {
+		var id, proc, in, outT, read, created, ms int64
+		var command, prov, req, resp, at string
+		var cost *float64
+		if err := rows.Scan(&id, &proc, &command, &prov, &req, &resp, &in, &outT, &read, &created, &ms, &cost, &at); err != nil {
+			e.T.Fatal(err)
+		}
+		c := map[string]any{"id": id, "process": proc, "command": command, "gen_ai.provider.name": prov, "gen_ai.request.model": req,
+			"gen_ai.response.model": resp, "gen_ai.usage.input_tokens": in, "gen_ai.usage.output_tokens": outT,
+			"gen_ai.usage.cache_read.input_tokens": read, "gen_ai.usage.cache_creation.input_tokens": created,
+			"duration_ms": ms, "created_at": at}
+		if cost != nil {
+			c["cost_usd"] = *cost
+		}
+		calls = append(calls, c)
+	}
+	raw, _ := json.Marshal(calls)
+	if err := json.Unmarshal(raw, out); err != nil {
+		e.T.Fatal(err)
+	}
+}
+
+// useModels assigns the models an agent command, project.command, runs on, as the owner does on the Models tab; none
+// goes back to the default.
+func (e *Env) UseModels(command string, models ...string) {
+	e.T.Helper()
+	project, cmd, _ := strings.Cut(command, ".")
+	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": project, "command": cmd, "models": append([]string{}, models...)}, nil)
+}
+
+// AgentModel adds a model an ACP agent runs on a connection of the same name, as the owner does in Settings, from
+// name, url, model, agent, key_secret, no_cloud and check_minutes; it gives the outcome of the first call that failed.
+func (e *Env) AgentModel(in map[string]any) (int, []byte) {
+	e.T.Helper()
+	conn := map[string]any{"name": in["name"], "api": "openai", "url": in["url"]}
+	if v, ok := in["key_secret"]; ok {
+		conn["key_secret"] = v
+	}
+	if v, ok := in["no_cloud"]; ok {
+		conn["local"] = v
+	}
+	if code, out := e.Call("deck.connection_set", conn); code != 200 {
+		return code, out
+	}
+	model := map[string]any{"connection": in["name"], "name": in["name"], "model": in["model"], "agent": in["agent"]}
+	if v, ok := in["check_minutes"]; ok {
+		model["check_minutes"] = v
+	}
+	return e.Call("deck.model_set", model)
+}
+
+func ChatText(content string) string {
+	b, _ := json.Marshal(map[string]any{"id": "c-1", "model": "fact-model", "choices": []any{map[string]any{"message": map[string]any{"role": "assistant", "content": content}}},
+		"usage": map[string]any{"prompt_tokens": 200, "completion_tokens": 20}})
+	return string(b)
+}
 
 type ModelsOut struct {
 	Agents []struct {
@@ -112,4 +204,17 @@ type SpendRow struct {
 	Process  int64    `json:"process"`
 	Command  string   `json:"command"`
 	Cost     *float64 `json:"cost_usd"`
+}
+
+type AgentsV struct {
+	Agents []struct{ Name, Status string }
+	Models []struct {
+		Name, Status string
+		Builtin      bool
+	}
+}
+
+type SignInRow struct {
+	Provider, URL, Code, Error string
+	Paste                      bool
 }

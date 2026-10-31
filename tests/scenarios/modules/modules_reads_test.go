@@ -200,16 +200,14 @@ func TestListsOfRecordsAndProcessesNarrowToWhatTheCallerAsks(t *testing.T) {
 	}
 }
 
-const sourceManifest = `{"version": 13,
-  "collections": [{"name": "items", "description": "An item.", "key": "name",
+var sourceManifest = harness.Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "integer"}}, "required": ["name"]}},
     {"name": "private", "description": "Not shared.", "key": "name",
-    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`
+    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`)
 
 func readerManifest(reads string) string {
-	return `{"version": 13,
-  "commands": [{"name": "look", "title": "Look", "description": "Looks at the other project.", "class": "internal",
-    "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Look."}}]` + reads + `}`
+	return harness.Manifest(`{"commands": [{"name": "look", "title": "Look", "description": "Looks at the other project.", "class": "internal",
+    "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Look."}}]`) + reads + `}`
 }
 
 func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
@@ -278,7 +276,7 @@ func TestATrialOfADraftReadsWhatItsReadsList(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("source", sourceManifest)
-	e.Project("vault", strings.Replace(sourceManifest, `{"version": 13,`, `{"version": 13, "no_network": true,`, 1))
+	e.Project("vault", strings.Replace(sourceManifest, harness.Manifest(`{`), harness.Manifest(`{"no_network": true,`), 1))
 	for _, p := range []string{"source", "vault"} {
 		e.Must("deck.records_upsert", map[string]any{"project": p, "collection": "items", "records": `{"name": "a"}`}, nil)
 	}

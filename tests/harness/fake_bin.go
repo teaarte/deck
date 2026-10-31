@@ -75,20 +75,6 @@ func (b *fakeBin) Files(n int) func(string) string {
 	}
 }
 
-// JsonLines decodes a JSON value per line.
-func JsonLines[T any](text string) []T {
-	var out []T
-	for _, l := range strings.Split(strings.TrimSpace(text), "\n") {
-		if l == "" {
-			continue
-		}
-		var v T
-		_ = json.Unmarshal([]byte(l), &v)
-		out = append(out, v)
-	}
-	return out
-}
-
 // fakeServer is the part of a fake JSON-RPC agent on stdio that records a call and talks to deck.
 type fakeServer struct {
 	name, dir, call, cwd string

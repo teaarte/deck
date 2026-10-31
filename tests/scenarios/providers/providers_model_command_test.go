@@ -617,10 +617,10 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "chat", "api": "openai", "url": srv.URL + "/chat/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "flux-edit", "kind": "image"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "chat", "model": "gemini-image", "kind": "image"}, nil)
-	e.Project("shorts", `{"version": 13, "commands": [
+	e.Project("shorts", harness.Manifest(`{"commands": [
 	  {"name": "redraw", "title": "Redraw", "description": "Edits a picture.", "class": "internal",
 	   "input": {"type": "object", "properties": {"picture": {"type": "string", "format": "file"}}, "required": ["picture"]},
-	   "executor": {"type": "model", "kind": "image", "prompt": "Make the cube blue.", "options": {"steps": 4}}}]}`)
+	   "executor": {"type": "model", "kind": "image", "prompt": "Make the cube blue.", "options": {"steps": 4}}}]}`))
 	var f struct{ ID int64 }
 	e.Must("deck.file_upload", map[string]any{"project": "shorts", "name": "cube.png", "content": base64.StdEncoding.EncodeToString([]byte(png))}, &f)
 	for _, model := range []string{"media/flux-edit", "chat/gemini-image"} {

@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// settle gives deck a moment to start whatever it would, for a check that nothing more happens.
+func (e *Env) Settle() {
+	time.Sleep(100 * time.Millisecond)
+	e.App.Runner.Wait()
+}
+
 // wait is how long a test waits for what deck does: long, since a wait that holds returns at once and a loaded
 // machine runs several sandboxed programs one after another slowly.
 const wait = 2 * time.Minute

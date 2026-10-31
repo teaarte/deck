@@ -12,7 +12,7 @@ import (
 
 // unused are parts deck dropped since no module used them, each as a change of videosManifest; a manifest has none.
 var unused = [][2]string{
-	{`{"version": 13,`, `{"version": 13, "master_errors": false,`},
+	{harness.Manifest(`{`), harness.Manifest(`{"master_errors": false,`)},
 	{`"display": "slug",`, `"display": "slug", "file_retention_days": 10,`},
 	{`"item": {"file": "file", "title": "slug"}}`, `"item": {"file": "file", "title": "slug", "marks": "marks"},
       "mark": {"verb": "mark", "command": "note", "params": {"video": "=slug"}, "input": "note"}}`},

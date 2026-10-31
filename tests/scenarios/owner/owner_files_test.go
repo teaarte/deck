@@ -248,9 +248,9 @@ func TestAgentGetsACopyOfItsInputFile(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
 
-	e.Project("docs", `{"version": 13, "commands": [{"name": "look", "title": "Look", "description": "Looks at a file.", "class": "internal",
+	e.Project("docs", harness.Manifest(`{"commands": [{"name": "look", "title": "Look", "description": "Looks at a file.", "class": "internal",
 	  "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}, "result": {"type": "object"},
-	  "executor": {"type": "agent", "prompt": "Look."}}]}`)
+	  "executor": {"type": "agent", "prompt": "Look."}}]}`))
 	doc := e.Upload("docs", "a.txt", "text/plain", "hello")
 	e.WaitState(e.Start("docs", "look", map[string]any{"doc": fmt.Sprint(doc)}), "done")
 	if !read || same {

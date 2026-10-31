@@ -209,7 +209,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		t.Fatalf("removed trigger must be dropped, got %+v", ts)
 	}
 
-	code, out := e.Call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": `{"version": 13, "commands": [{"name": "x"}]}`})
+	code, out := e.Call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": harness.Manifest(`{"commands": [{"name": "x"}]}`)})
 	if code != 422 || !strings.Contains(string(out), "title") || !strings.Contains(string(out), "executor") {
 		t.Fatalf("invalid manifest: want 422 with reason, got %d %s", code, out)
 	}
@@ -587,10 +587,10 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	cmd := strings.Replace(harness.AgentCommand("tune", `{"type": "object", "properties": {"level": {"type": "string"}}}`), `"executor":`, `"callers": ["owner"], "executor":`, 1)
-	e.Project("radio", fmt.Sprintf(`{"version": 13, "commands": [%s, %s],
+	e.Project("radio", harness.Manifest(fmt.Sprintf(`{"commands": [%s, %s],
   "screens": [{"name": "main", "title": "Main", "params": {"level": "string"}, "blocks": [
     {"type": "dialog", "name": "tune", "title": "Tune", "blocks": [{"type": "form", "command": "tune", "values": {"level": "=param.level"}}]}]}]}`,
-		cmd, harness.AgentCommand("play", "")))
+		cmd, harness.AgentCommand("play", ""))))
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
 	out, err := e.App.Registry.Invoke(t.Context(), master, "deck.commands_list", json.RawMessage(`{}`))
 	if err != nil {

@@ -49,8 +49,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("notes", `{"version": 13,
-  "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
+	e.Project("notes", harness.Manifest(`{"collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
     "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}, "score": {"type": "string"}}, "required": ["note"]},
@@ -58,7 +57,7 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
   "screens": [{"name": "main", "title": "Notes", "blocks": [{"type": "table", "title": "Notes", "source": {"collection": "notes", "sort": "title"},
     "columns": [{"label": "Title", "bind": "title"}],
     "actions": [{"label": "Boost", "command": "touch", "params": {"note": "=_id", "score": "=string(score * 2)"}, "when": "score >= 5", "confirm": true},
-      {"label": "Rate", "command": "touch", "params": {"note": "=_id"}, "input": "score"}]}]}]}`)
+      {"label": "Rate", "command": "touch", "params": {"note": "=_id"}, "input": "score"}]}]}]}`))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 7})}, nil)
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("notes", "main", nil)["b0"]["rows"])
@@ -109,14 +108,13 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 	}
 }
 
-const fixedClips = `{"version": 13,
-  "collections": [{"name": "clips", "description": "Clips", "key": "slug", "display": "title",
+var fixedClips = harness.Manifest(`{"collections": [{"name": "clips", "description": "Clips", "key": "slug", "display": "title",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug"]}}],
   "commands": [{"name": "retitle", "title": "Retitle", "description": "Retitles a clip.", "class": "internal", "result": {"type": "object"},
     "input": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug", "title"]},
     "executor": {"type": "agent", "prompt": "Retitle."}}],
   "screens": [{"name": "clip", "title": "Clip", "record": "clips", "blocks": [
-    {"type": "form", "command": "retitle", "values": {"slug": "=slug", "title": "=title"}, "fixed": [%s]}]}]}`
+    {"type": "form", "command": "retitle", "values": {"slug": "=slug", "title": "=title"}, "fixed": [%s]}]}]}`)
 
 // TestAFormKeepsItsFixedFieldsFromTheOwner: a fixed field of a form is not in the input the form shows; its value,
 // resolved by the server, goes apart for the call; a fixed field without a value is refused on save.

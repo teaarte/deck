@@ -279,11 +279,6 @@ func (f *fakeResponses) say(text string) map[string]any {
 	return map[string]any{"type": "message", "role": "assistant", "id": "msg", "content": []any{map[string]any{"type": "output_text", "text": text}}}
 }
 
-func quoteJSON(s string) string {
-	b, _ := json.Marshal(s)
-	return string(b)
-}
-
 // HomeTemp is a folder of the test in the home, as deck's and Codex's are: Codex puts no helper of its sandbox under
 // /tmp, and on Linux its sandbox shows /tmp only where it may write; with a user of agents it is in theirs, as theirs.
 func HomeTemp(t *testing.T) string {

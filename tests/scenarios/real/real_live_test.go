@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-const liveManifest = `{"version": 13, "commands": [{"name": "wait", "title": "Wait", "description": "Waits for a code word", "class": "internal",
-  "executor": {"type": "agent", "prompt": "Run the shell command sleep 20; echo waited with your shell tool in the foreground, not as a background task. When it finishes, reply with exactly the code word the owner gave you meanwhile, or NONE if the owner gave none. Do nothing else."}}]}`
+var liveManifest = harness.Manifest(`{"commands": [{"name": "wait", "title": "Wait", "description": "Waits for a code word", "class": "internal",
+  "executor": {"type": "agent", "prompt": "Run the shell command sleep 20; echo waited with your shell tool in the foreground, not as a background task. When it finishes, reply with exactly the code word the owner gave you meanwhile, or NONE if the owner gave none. Do nothing else."}}]}`)
 
 // realLive starts the waiting command on a real provider, tells it the code word while it sleeps and reads the result.
 func realLive(t *testing.T, pv provider.Provider, home string) {

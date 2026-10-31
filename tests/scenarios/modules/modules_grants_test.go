@@ -67,15 +67,14 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 	}
 }
 
-const grantManifest = `{
-  "version": 13,
+var grantManifest = harness.Manifest(`{
   "domains": {"read": ["a.example"]},
   "writes": [],
   "commands": [{
     "name": "work", "title": "Work", "description": "Does work", "class": "internal",
     "executor": {"type": "agent", "prompt": "Do the work."}
   }]
-}`
+}`)
 
 // inForce is the current manifest of a project with the rights the owner granted.
 func inForce(e *harness.Env, project string) *manifest.Manifest {
@@ -252,14 +251,13 @@ func TestARequestForRightsListsWhatItWidens(t *testing.T) {
 }
 
 // mergeManifest has two commands for requests and edits to change apart.
-const mergeManifest = `{
-  "version": 13,
+var mergeManifest = harness.Manifest(`{
   "commands": [
     {"name": "alpha", "title": "Alpha", "description": "Does alpha", "class": "external", "executor": {"type": "agent", "prompt": "Do alpha."}},
     {"name": "beta", "title": "Beta", "description": "Does beta", "class": "internal", "executor": {"type": "agent", "prompt": "Do beta."}}
   ],
   "domains": {"read": ["a.example"]}
-}`
+}`)
 
 // TestAGrantMergesIntoTheManifestByItsStructure: edits of other commands, the same edit, the order of keys and an earlier
 // grant stay when a request merges; an edit of the same field another way outdates the request with its path.
@@ -285,8 +283,7 @@ func TestAGrantMergesIntoTheManifestByItsStructure(t *testing.T) {
 	}
 	domain := save(strings.Replace(mergeManifest, `"a.example"`, `"a.example", "d.example"`, 1))
 	edited := strings.Replace(strings.Replace(mergeManifest, `"Does beta"`, `"Does beta now"`, 1), `"Does alpha"`, `"Does alpha well"`, 1)
-	edited = strings.Replace(edited, `"version": 13,`, `"version": 13,
-  "title": "Notes",`, 1)
+	edited = harness.ManifestWith(edited, `"title": "Notes"`)
 	if save(edited) != 0 {
 		t.Fatal("an edit that widens nothing saves at once")
 	}

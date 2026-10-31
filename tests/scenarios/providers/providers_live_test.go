@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-const tellManifest = `{"version": 13, "commands": [{"name": "work", "title": "Work", "description": "Works a while", "class": "internal",
-  "executor": {"type": "agent", "prompt": "Work."}}]}`
+var tellManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works a while", "class": "internal",
+  "executor": {"type": "agent", "prompt": "Work."}}]}`)
 
 func TestOwnerMessageReachesTheLiveTurn(t *testing.T) {
 	t.Parallel()

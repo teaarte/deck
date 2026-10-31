@@ -236,8 +236,8 @@ func TestConcurrentCreatesKeepTheFirstImmutableValue(t *testing.T) {
 func TestKeyFieldsStayImmutableWithReferencedSchemas(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := `{"version": 13, "collections": [{"name": "people", "description": "A person", "key": "lower(email)",
-	  "schema": {"$ref": "#/$defs/p", "$defs": {"p": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}}]}`
+	m := harness.Manifest(`{"collections": [{"name": "people", "description": "A person", "key": "lower(email)",
+	  "schema": {"$ref": "#/$defs/p", "$defs": {"p": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}}]}`)
 	e.Project("people", m)
 	e.Must("deck.records_upsert", map[string]any{"project": "people", "collection": "people", "records": `{"email": "A@x.example"}`}, nil)
 	var recs []struct{ ID int64 }
@@ -247,8 +247,7 @@ func TestKeyFieldsStayImmutableWithReferencedSchemas(t *testing.T) {
 	}
 }
 
-const numbersManifest = `{
-  "version": 13,
+var numbersManifest = harness.Manifest(`{
   "collections": [{"name": "items", "description": "Items", "key": "id", "display": "name",
     "schema": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "score": {"type": "number"}}, "required": ["id"]}}],
   "commands": [{"name": "pick", "title": "Pick", "description": "Picks an item", "class": "internal",
@@ -258,7 +257,7 @@ const numbersManifest = `{
     "source": {"collection": "items", "sort": "-score", "limit": 1},
     "columns": [{"label": "Name", "bind": "name"}],
     "actions": [{"label": "Pick", "command": "pick", "params": {"item": "=_id", "name": "=name", "why": "best"}}]}]}]
-}`
+}`)
 
 // TestTheMasterDeletesWhatItsOwnProcessesWrote: in an enabled module the master deletes a record a process of its
 // own wrote, never one of the owner, and the owner can undo it from the feed.

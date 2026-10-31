@@ -287,11 +287,11 @@ func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
 		domains string
 		sandbox bool
 	}{
-		{`"domains": {"read": ["data.example.org"]},`, false},
-		{`"domains": {"read": ["*"]},`, false},
-		{`"no_network": true,`, true},
+		{`"domains": {"read": ["data.example.org"]}`, false},
+		{`"domains": {"read": ["*"]}`, false},
+		{`"no_network": true`, true},
 	} {
-		p := e.Project(fmt.Sprintf("ideas%d", i), strings.Replace(harness.IdeasManifest, `"version": 13,`, `"version": 13, `+tc.domains, 1))
+		p := e.Project(fmt.Sprintf("ideas%d", i), harness.ManifestWith(harness.IdeasManifest, tc.domains))
 		e.WaitState(e.Run(p, "collect"), "done", "error")
 		var set struct {
 			Sandbox *struct {

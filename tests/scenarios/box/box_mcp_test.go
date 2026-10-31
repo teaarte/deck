@@ -170,14 +170,13 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 	got := map[string]harness.ToolCall{}
 	e := harness.New(t, harness.WithAgent(stepAgent(got, nil)))
 	self := harness.Fakes
-	e.Project("srv", fmt.Sprintf(`{"version": 13,
-  "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+	e.Project("srv", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "input": {"type": "object", "properties": {"step": {"type": "string"}}}, "result": {"type": "object"},
     "executor": {"type": "agent", "prompt": "Work."}}],
   "tools": {"mcp": {"servers": {
     "far": {"url": %q, "classes": {"ping": "internal"}},
     "fake": {"command": %q, "env": {"DECK_FAKE_MCP": "project", "FAKE_TOKEN": "$secret.fake_token"},
-      "toolFilter": ["env", "peek", "dial"], "classes": {"env": "internal", "peek": "internal", "dial": "internal"}}}}}}`, ts.URL, self))
+      "toolFilter": ["env", "peek", "dial"], "classes": {"env": "internal", "peek": "internal", "dial": "internal"}}}}}}`, ts.URL, self)))
 	e.Must("deck.secret_set", map[string]any{"name": "fake_token", "value": "t0k-of-the-server"}, nil)
 	e.WaitState(e.Start("srv", "work", map[string]any{"step": "srv__far__ping"}), "done")
 	e.WaitState(e.Start("srv", "work", map[string]any{"step": "srv__fake__env"}), "done")
@@ -233,11 +232,10 @@ func TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut(t *testing.T) {
 	got := map[string]harness.ToolCall{}
 	e := harness.New(t, harness.WithAgent(stepAgent(got, nil)))
 	script, _ := json.Marshal(oddServer)
-	e.Project("odd", fmt.Sprintf(`{"version": 13,
-  "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+	e.Project("odd", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "input": {"type": "object", "properties": {"step": {"type": "string"}}}, "result": {"type": "object"},
     "executor": {"type": "agent", "prompt": "Work."}}],
-  "tools": {"mcp": {"servers": {"odd": {"command": "python3", "args": ["-c", %s], "classes": {"free": "internal", "fine": "internal"}}}}}}`, script))
+  "tools": {"mcp": {"servers": {"odd": {"command": "python3", "args": ["-c", %s], "classes": {"free": "internal", "fine": "internal"}}}}}}`, script)))
 	e.WaitState(e.Start("odd", "work", map[string]any{"step": "odd__odd__fine"}), "done")
 	if c := got["odd__odd__fine"]; c.IsErr || !strings.Contains(c.Out, "called fine") {
 		t.Fatalf("the tool with an object schema works: %+v", c)
@@ -284,7 +282,7 @@ func TestMCPServersOfADraftDoNotStart(t *testing.T) {
 func TestNewMCPServerWaitsForTheOwnersButton(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	e.Project("srv", `{"version": 13}`)
+	e.Project("srv", harness.Manifest(`{}`))
 	_, tok := e.Token("terminal", "deck.*")
 	var w struct {
 		Waiting int64
@@ -362,11 +360,10 @@ func TestSecretAServerPrintsStaysOutOfHealth(t *testing.T) {
 	}))
 
 	e.Must("deck.secret_set", map[string]any{"name": "noisy_key", "value": key}, nil)
-	e.Project("srv", `{"version": 13,
-  "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+	e.Project("srv", harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
   "tools": {"mcp": {"servers": {"noisy": {"command": "/bin/sh", "args": ["-c", "echo key=$NOISY_KEY >&2; exit 1"],
-    "env": {"NOISY_KEY": "$secret.noisy_key"}}}}}}`)
+    "env": {"NOISY_KEY": "$secret.noisy_key"}}}}}}`))
 	e.Start("srv", "work", nil)
 	var h string
 	e.Until("the server's health", func() bool {

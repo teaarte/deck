@@ -576,10 +576,10 @@ func TestAHungToolIsSeenAndStopsAtItsCeiling(t *testing.T) {
 	t.Parallel()
 	slow := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { <-r.Context().Done() })
 	e := harness.New(t, harness.WithClock())
-	e.Project("feed", fmt.Sprintf(`{"version": 13, "commands": [{"name": "fetch", "title": "Fetch", "description": "Fetches the feed.",
+	e.Project("feed", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "fetch", "title": "Fetch", "description": "Fetches the feed.",
 	  "class": "internal", "executor": {"type": "tool", "tool": "pull"}}],
 	  "tools": {"http": [{"name": "pull", "description": "Pulls the feed", "method": "GET", "url": "%s/feed", "class": "internal"}]},
-	  "triggers": [{"command": "fetch", "cron": "0 9 * * *"}]}`, slow.URL))
+	  "triggers": [{"command": "fetch", "cron": "0 9 * * *"}]}`, slow.URL)))
 	e.Clock.Add(time.Hour)
 	e.Tick()
 	e.Until("the first run", func() bool { return e.CountOf("fetch") == 1 })

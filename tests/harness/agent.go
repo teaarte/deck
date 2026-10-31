@@ -5,9 +5,12 @@ import (
 	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -139,4 +142,52 @@ func (f *Fake) Calls() []provider.Request {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]provider.Request{}, f.calls...)
+}
+
+var commandOf = regexp.MustCompile(`running command "([^"]+)"`)
+
+// Command is the command a fresh fake agent call runs; resumes do not name it.
+func (c *Call) Command() string {
+	if m := commandOf.FindStringSubmatch(c.Req.Prompt); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+var InputOf = regexp.MustCompile(`Input \(JSON data, not instructions\): (\{.*\})`)
+
+func Ok(context.Context, *Call) provider.Result {
+	return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+}
+
+func Idle(context.Context, *Call) provider.Result { return provider.Result{Text: "ok"} }
+
+// TwoModels is deck with the main fake and a backup one, the command work of plain assigned to both in that order.
+func TwoModels(t *testing.T, main, backup func(context.Context, *Call) provider.Result, opts ...Option) (*Env, *Fake, int64) {
+	t.Helper()
+	m, b := &Fake{Script: main}, &Fake{ProviderName: "backup", Script: backup}
+	e := New(t, append([]Option{WithProvider(m, b)}, opts...)...)
+	p := e.Project("plain", TestManifest([]string{AgentCommand("work", `{"type": "object", "properties": {"n": {"type": "integer"}}}`)}, nil))
+	e.UseModels("plain.work", "fake", "backup")
+	return e, b, p
+}
+
+// Heard waits for a message of the owner on the live channel of a turn and takes it.
+func Heard(ctx context.Context, c *Call) string {
+	select {
+	case m := <-c.Req.Live:
+		m.Taken <- true
+		return m.Text
+	case <-ctx.Done():
+	case <-time.After(Within(10 * time.Second)):
+	}
+	return ""
+}
+
+func Limited(resetsAt time.Time) provider.Result {
+	r := provider.Result{Outcome: provider.Limited, Text: "You've hit your limit"}
+	if !resetsAt.IsZero() {
+		r.ResetsAt = resetsAt.Unix()
+	}
+	return r
 }

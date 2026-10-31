@@ -122,13 +122,13 @@ func TestRealBrowserThemeStylesTheCards(t *testing.T) {
 
 // labManifest is a module of a price by the hour: its widgets put numbers over a chart, its screen charts a week and
 // lays its tasks on a board, and a table has its one button in its head.
-var labManifest = `{"version": 13, "title": "Laboratory",
+var labManifest = harness.Manifest(`{"title": "Laboratory",
   "collections": [
     {"name": "prices", "description": "The price by the hour.", "key": "at", "display": "at",
       "schema": {"type": "object", "properties": {"at": {"type": "string"}, "price": {"type": "number"}}, "required": ["at"]}},
     {"name": "tasks", "description": "Tasks.", "key": "title", "display": "title",
       "schema": {"type": "object", "properties": {"title": {"type": "string"}, "order": {"type": "integer"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}],
-  "commands": [` + harness.AgentCommand("collect", "") + `, ` + harness.AgentCommand("move", `{"type": "object", "properties": {"id": {"type": "integer"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}`) + `],
+  "commands": [`) + harness.AgentCommand("collect", "") + `, ` + harness.AgentCommand("move", `{"type": "object", "properties": {"id": {"type": "integer"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}`) + `],
   "triggers": [{"command": "collect", "cron": "0 * * * *"}],
   "screens": [
     {"name": "main", "title": "Main", "blocks": [

@@ -82,10 +82,10 @@ func (f *fakeOAuth) handler(w http.ResponseWriter, r *http.Request, _ int) {
 }
 
 func oauthManifest(url string) string {
-	return fmt.Sprintf(`{"version": 13, "tools": {"http": [
+	return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
     {"name": "me", "description": "Who am I", "method": "GET", "url": "%[1]s/me", "class": "internal",
      "auth": {"type": "oauth2", "auth_url": "%[1]s/authorize", "token_url": "%[1]s/token", "client_id": "svc_id",
-       "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}]}}`, url)
+       "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}]}}`, url))
 }
 
 func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {

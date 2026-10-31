@@ -878,8 +878,7 @@ try { const f = frame("root", document.createElement(F)); document.removeChild(d
 	}
 }
 
-const readableManifest = `{
-  "version": 13,
+var readableManifest = harness.Manifest(`{
   "collections": [{"name": "jobs", "description": "Jobs", "key": "name", "display": "name", "schema": {"type": "object", "required": ["name"],
     "properties": {"name": {"type": "string"}, "status": {"type": "string"}, "why": {"type": "string"}, "note": {"type": "string"},
       "owner": {"type": "string"}, "host": {"type": "string"}, "region": {"type": "string"}, "started": {"type": "string"}}}}],
@@ -895,7 +894,7 @@ const readableManifest = `{
     ]}
   ]}],
   "menu": ["jobs"]
-}`
+}`)
 
 // TestRealBrowserReadableTable: a line shows four columns (two on a phone) but an empty one, a long text in two lines,
 // a status as a badge with why as its hint; the rest opens under it without empty values.

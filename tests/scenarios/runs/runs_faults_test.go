@@ -233,11 +233,10 @@ func TestTheHelpersOfTheSkillRunAsScripts(t *testing.T) {
 			e.Must("deck.document_get", map[string]any{"name": "skills/module-builder/helpers/" + c.file}, &doc)
 			name := "h" + c.runtime
 			script := "scripts/main" + filepath.Ext(c.file)
-			e.Project(name, fmt.Sprintf(`{"version": 13,
-  "commands": [{"name": "step", "title": "Step", "description": "Adds a value.", "class": "internal",
+			e.Project(name, harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "step", "title": "Step", "description": "Adds a value.", "class": "internal",
     "input": {"type": "object", "properties": {"record": {"type": "integer"}, "value": {"type": "string"}}},
     "result": {"type": "object"}, "executor": {"type": "script", "script": "main"}}],
-  "scripts": [{"name": "main", "file": %q, "runtime": %q}]}`, script, c.runtime))
+  "scripts": [{"name": "main", "file": %q, "runtime": %q}]}`, script, c.runtime)))
 			e.SaveScript(name, script, doc.Text)
 
 			f := e.Fault(e.WaitState(e.Start(name, "step", map[string]any{"record": 987654}), "error").ID)

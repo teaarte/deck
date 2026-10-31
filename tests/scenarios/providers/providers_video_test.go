@@ -16,13 +16,12 @@ import (
 	"time"
 )
 
-const videoManifest = `{"version": 13,
-  "commands": [
+var videoManifest = harness.Manifest(`{"commands": [
     {"name": "clip", "title": "Clip", "description": "Brings a scene to life.", "class": "internal",
      "input": {"type": "object", "properties": {"scene": {"type": "string"}, "first_frame": {"type": "string", "format": "file"},
        "last_frame": {"type": "string", "format": "file"}}},
      "executor": {"type": "model", "kind": "video", "prompt": "Slow camera push, no text.", "options": {"duration": 4, "aspect_ratio": "9:16"}}}
-  ]}`
+  ]}`)
 
 // quickVideo polls a job of a video often and gives it a ceiling of a second.
 func quickVideo(c *app.Config) { c.VideoPoll, c.VideoCeiling = 20*time.Millisecond, time.Second }
@@ -192,8 +191,8 @@ func TestALongCallOfAnAgentTellsItThatItStillRuns(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan", "kind": "video", "call_usd": 0.1}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "video", "models": []string{"wan"}}, nil)
-	e.Project("studio", `{"version": 13, "models": ["@video"], "commands": [{"name": "animate", "title": "Animate",
-	  "description": "Brings a scene to life.", "class": "internal", "executor": {"type": "agent", "prompt": "Make the clip."}}]}`)
+	e.Project("studio", harness.Manifest(`{"models": ["@video"], "commands": [{"name": "animate", "title": "Animate",
+	  "description": "Brings a scene to life.", "class": "internal", "executor": {"type": "agent", "prompt": "Make the clip."}}]}`))
 	if got := e.WaitState(e.Start("studio", "animate", map[string]any{}), "done", "error"); got.State != "done" || bad || !strings.Contains(out, `"type":"video/mp4"`) {
 		t.Fatalf("the agent gets the clip: %+v %s", got, out)
 	}

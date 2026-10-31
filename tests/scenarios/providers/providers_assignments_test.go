@@ -185,11 +185,10 @@ func TestAToolCommandOfAModuleDoesNotClearAnAssignment(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	e.Project("shorts", harness.PlainManifest)
-	e.Project("picker", `{"version": 13,
-  "commands": [{"name": "propose", "title": "Propose", "description": "Proposes an assignment.", "class": "external",
+	e.Project("picker", harness.Manifest(`{"commands": [{"name": "propose", "title": "Propose", "description": "Proposes an assignment.", "class": "external",
     "input": {"type": "object", "properties": {"role": {"type": "string"}, "project": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}}}, "required": ["role"]},
     "executor": {"type": "tool", "tool": "deck.assignment_set"}}],
-  "allowed_external": ["propose"]}`)
+  "allowed_external": ["propose"]}`))
 	_, tok := e.Token("terminal", "picker.*")
 	var r struct{ Process int64 }
 	if code, out := e.As(tok).Call("picker.propose", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}); code != 200 || json.Unmarshal(out, &r) != nil {

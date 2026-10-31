@@ -1,12 +1,17 @@
 package harness
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
 )
 
 // Upload sends a file to deck as a form would and returns its id.
@@ -36,21 +41,6 @@ func (e *Env) Upload(project, name, ctype, content string) int64 {
 	return files[0].ID
 }
 
-func FilesManifest() string {
-	return `{"version": 13,
-  "collections": [{"name": "items", "description": "An item.", "key": "name",
-    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
-  "commands": [
-    {"name": "seed", "title": "Seed", "description": "Makes a record with a file.", "class": "internal",
-     "result": {"type": "object"}, "executor": {"type": "script", "script": "seed"}},
-    {"name": "read", "title": "Read", "description": "Reads the files of its input.", "class": "internal",
-     "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}, "photo": {"type": "string", "format": "file"},
-       "rec": {"type": "integer", "format": "record"}}},
-     "result": {"type": "object"}, "executor": {"type": "script", "script": "read"}}],
-  "scripts": [{"name": "seed", "file": "scripts/seed.py", "runtime": "python"},
-    {"name": "read", "file": "scripts/read.py", "runtime": "python"}]}`
-}
-
 const SeedScript = PythonLib + `
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 with open(os.path.join(os.environ["DECK_RESULTS"], "photo.jpg"), "w") as f:
@@ -70,4 +60,123 @@ checks = {
 }
 files = [{"file": int(os.path.basename(doc).split("-")[0]), "record": inp["rec"]}] if inp.get("rec") else []
 print(json.dumps({"checks": checks, "files": files}))
+`
+
+// RepoFolder is a folder that looks like a git repo to deck, by its real path.
+func RepoFolder(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "My Repo")
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return real
+}
+
+func (e *Env) SaveScript(project, name, text string) {
+	e.T.Helper()
+	e.Must("deck.document_save", map[string]any{"project": project, "name": name, "kind": "script", "text": text}, nil)
+}
+
+// Wheel builds a python package and returns the path of the wheel.
+func Wheel(t *testing.T, pkg string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), pkg+"-0.1-py3-none-any.whl")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+	info := pkg + "-0.1.dist-info/"
+	files := map[string]string{
+		pkg + "/__init__.py": "VALUE = 42\n",
+		info + "METADATA":    "Metadata-Version: 2.1\nName: " + pkg + "\nVersion: 0.1\n",
+		info + "WHEEL":       "Wheel-Version: 1.0\nGenerator: deck-test\nRoot-Is-Purelib: true\nTag: py3-none-any\n",
+	}
+	record := ""
+	for name, text := range files {
+		w, _ := zw.Create(name)
+		_, _ = w.Write([]byte(text))
+		record += name + ",,\n"
+	}
+	w, _ := zw.Create(info + "RECORD")
+	_, _ = w.Write([]byte(record + info + "RECORD,,\n"))
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	return path
+}
+
+// PythonLib is the part of test scripts that calls deck and fetches through the proxy.
+const PythonLib = `import json, os, sys, urllib.request, urllib.error
+URL, TOKEN = os.environ["DECK_URL"], os.environ["DECK_TOKEN"]
+
+def deck(name, body):
+    req = urllib.request.Request(URL + "/commands/" + name, data=json.dumps(body).encode(), method="POST",
+        headers={"Authorization": "Bearer " + TOKEN, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status, json.load(r)
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+def fetch(url, proxy=True):
+    if proxy is True:
+        proxy = os.environ["HTTP_PROXY"]
+    handler = urllib.request.ProxyHandler({"http": proxy, "https": proxy} if proxy else {})
+    try:
+        with urllib.request.build_opener(handler).open(url, timeout=10) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except Exception as e:
+        return str(e)
+
+def can_write(path):
+    try:
+        with open(path, "w") as f:
+            f.write("x")
+        return True
+    except OSError:
+        return False
+
+def can_read(path):
+    try:
+        with open(path) as f:
+            f.read()
+        return True
+    except OSError:
+        return False
+`
+
+func Served(t *testing.T) *httptest.Server {
+	t.Helper()
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("hello")) }))
+	t.Cleanup(s.Close)
+	return s
+}
+
+// OwnerHome is a home of the owner outside the temp folders, which the Linux sandbox empties anyway.
+func OwnerHome(t *testing.T) string {
+	t.Helper()
+	cache, err := os.UserCacheDir()
+	if err == nil {
+		_ = os.MkdirAll(cache, 0o700)
+	}
+	dir, err := os.MkdirTemp(cache, "deck2-owner-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
+const ClipsRender = `import json, sys, time
+inp = json.load(sys.stdin)
+time.sleep(inp.get("wait", 0))
+print(json.dumps({"n": inp.get("n", 0), "record": inp.get("record")}))
 `

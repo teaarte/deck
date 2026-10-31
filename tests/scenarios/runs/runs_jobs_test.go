@@ -12,8 +12,7 @@ import (
 )
 
 func jobManifest(url string) string {
-	return fmt.Sprintf(`{"version": 13,
-  "collections": [{"name": "jobs", "description": "A generation job.", "key": "topic",
+	return harness.Manifest(fmt.Sprintf(`{"collections": [{"name": "jobs", "description": "A generation job.", "key": "topic",
     "schema": {"type": "object", "properties": {"topic": {"type": "string"}, "job": {"type": "string"}, "status": {"type": "string"}},
       "required": ["topic"]}}],
   "commands": [
@@ -33,7 +32,7 @@ func jobManifest(url string) string {
      "result": {"type": "object", "properties": {"status": {"type": "string"}}, "required": ["status"]}},
     {"name": "job_file", "description": "Job file", "method": "GET", "url": "%[1]s/jobs/{job}/file", "class": "internal",
      "auth": {"type": "secret", "secret": "svc"}, "input": {"type": "object", "properties": {"job": {"type": "string"}}, "required": ["job"]}}]},
-  "allowed_external": ["create_job"]}`, url)
+  "allowed_external": ["create_job"]}`, url))
 }
 
 const startScript = harness.PythonLib + `

@@ -11,13 +11,12 @@ import (
 	"testing"
 )
 
-const leftManifest = `{"version": 13,
-  "collections": [{"name": "items", "description": "An item.", "key": "name",
+var leftManifest = harness.Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
   "commands": [{"name": "collect", "title": "Collect", "description": "Collects an item.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "script", "script": "collect"}}],
   "writes": ["notes.md"],
-  "scripts": [{"name": "collect", "file": "scripts/collect.py", "runtime": "python"}]}`
+  "scripts": [{"name": "collect", "file": "scripts/collect.py", "runtime": "python"}]}`)
 
 const leftScript = harness.PythonLib + `
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})

@@ -70,9 +70,9 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 
 	useSearch(e, "searxng", search.URL)
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
-	open := `{"version": 13, "domains": {"read": ["127.0.0.1"]}, "commands": [` + harness.AgentCommand("look", "") + `]}`
+	open := harness.Manifest(`{"domains": {"read": ["127.0.0.1"]}, "commands": [`) + harness.AgentCommand("look", "") + `]}`
 	e.WaitState(e.Run(e.Project("open", open), "look"), "done")
-	closed := `{"version": 13, "no_network": true, "commands": [` + harness.AgentCommand("hide", "") + `]}`
+	closed := harness.Manifest(`{"no_network": true, "commands": [`) + harness.AgentCommand("hide", "") + `]}`
 	e.WaitState(e.Run(e.Project("closed", closed), "hide"), "done")
 
 	mu.Lock()
@@ -129,7 +129,7 @@ func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithACP(harness.NewACP(t), harness.AcpLLM(t)))
 	scout := strings.Replace(harness.AgentCommand("scout", ""), `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.web_search"]`, 1)
-	e.Project("scout", `{"version": 13, "commands": [`+scout+`]}`)
+	e.Project("scout", harness.Manifest(`{"commands": [`)+scout+`]}`)
 	e.UseModels("scout.scout", "acp")
 	warned := func() string {
 		for _, r := range e.Health("scout") {
@@ -165,7 +165,7 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "paid", "api": "raw", "url": search.URL}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "paid", "model": "paid", "name": "paid", "kind": "search", "call_usd": 0.01}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"paid"}}, nil)
-	e.Project("sketch", `{"version": 13, "commands": [`+harness.AgentCommand("look", "")+`]}`)
+	e.Project("sketch", harness.Manifest(`{"commands": [`)+harness.AgentCommand("look", "")+`]}`)
 	var try struct{ Process int64 }
 	e.Must("deck.command_try", map[string]any{"live": true, "command": "sketch.look"}, &try)
 	e.WaitState(try.Process, "done")

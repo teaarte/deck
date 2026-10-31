@@ -219,8 +219,7 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 }
 
 // pictureModule is a module whose model command draws a picture, and a collection of pictures a media block shows.
-const pictureModule = `{"version": 13,
-  "collections": [{"name": "pics", "description": "Pictures", "key": "title", "display": "title",
+var pictureModule = harness.Manifest(`{"collections": [{"name": "pics", "description": "Pictures", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "file": {}}, "required": ["title"]}}],
   "commands": [
     {"name": "picture", "title": "Picture", "description": "Draws a scene.", "class": "internal",
@@ -228,7 +227,7 @@ const pictureModule = `{"version": 13,
      "executor": {"type": "model", "kind": "image", "prompt": "Draw the scene."}}],
   "screens": [{"name": "main", "title": "Pictures", "blocks": [
     {"type": "media", "title": "Pictures", "source": {"collection": "pics", "sort": "title"}, "item": {"file": "file", "title": "title"}}]}],
-  "menu": ["main"]}`
+  "menu": ["main"]}`)
 
 // TestAFileOfAResultIsNamedByTheIdMediaTakes: a result names the file it made by the id it was kept under, and a
 // media block takes that id as a number or as digits; the name the file had is no file.

@@ -29,7 +29,7 @@ func TestRealBrowserShell(t *testing.T) {
 		return harness.WebNotesAgent()(ctx, c)
 	}))
 
-	manifest := strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "icon": "rocket",`, 1)
+	manifest := strings.Replace(harness.WebNotes, harness.Manifest(`{`), harness.Manifest(`{"icon": "rocket",`), 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "source"}, {"label": "Note", "bind": "note"}]`, 1)
 	manifest = strings.Replace(manifest, `{"name": "note", "title": "Note", "record": "notes",`, `{"name": "more", "title": "More", "blocks": [{"type": "list", "title": "Same", "source": {"collection": "notes"}, "item": {"title": "title"}}]},

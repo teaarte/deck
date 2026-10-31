@@ -42,12 +42,12 @@ func TestAManifestIsCheckedWithoutASave(t *testing.T) {
 	if c.Ok || !slices.ContainsFunc(c.Refused, func(r string) bool { return strings.Contains(r, "button of Deki") }) {
 		t.Fatalf("a chat button is refused by the check: %+v", c)
 	}
-	wider := strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "domains": {"read": ["example.com"]},`, 1)
+	wider := strings.Replace(harness.WebNotes, harness.Manifest(`{`), harness.Manifest(`{"domains": {"read": ["example.com"]},`), 1)
 	e.Must("deck.manifest_check", map[string]any{"project": "web", "manifest": wider}, &c)
 	if !c.Ok || len(c.Widens) == 0 {
 		t.Fatalf("the check says what a manifest widens: %+v", c)
 	}
-	e.Must("deck.manifest_check", map[string]any{"manifest": `{"version": 13, "commands": [{"name": "x"}]}`}, &c)
+	e.Must("deck.manifest_check", map[string]any{"manifest": harness.Manifest(`{"commands": [{"name": "x"}]}`)}, &c)
 	if c.Ok || len(c.Refused) == 0 {
 		t.Fatalf("a manifest alone is checked too: %+v", c)
 	}
@@ -59,8 +59,7 @@ func TestAManifestIsCheckedWithoutASave(t *testing.T) {
 	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": chat}, 422, "button of Deki")
 }
 
-const fullManifest = `{
-  "version": 13,
+var fullManifest = harness.Manifest(`{
   "collections": [
     {"name": "sources", "description": "A page to watch", "key": "url", "display": "url",
      "schema": {"type": "object", "properties": {"url": {"type": "string"}, "status": {"type": "string"}}, "required": ["url"]}},
@@ -103,7 +102,7 @@ const fullManifest = `{
     "columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
     "actions": [{"label": "Share", "command": "share", "params": {"url": "=url"}}]}]}],
   "menu": ["main"]
-}`
+}`)
 
 func TestFullManifestIsAccepted(t *testing.T) {
 	t.Parallel()
@@ -324,11 +323,10 @@ func TestImmutableFieldsCannotChange(t *testing.T) {
 func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	contacts := `{"version": 13,
-	  "collections": [{"name": "contacts", "description": "People", "key": "lower(email)",
+	contacts := harness.Manifest(`{"collections": [{"name": "contacts", "description": "People", "key": "lower(email)",
 	    "schema": {"type": "object", "properties": {"email": {"type": "string"}, "big": {"type": "integer"}}, "required": ["email"]}}],
 	  "commands": [{"name": "fetch-all", "title": "Fetch", "description": "Fetches <all> & more", "class": "internal",
-	    "executor": {"type": "agent", "prompt": "Fetch."}}]}`
+	    "executor": {"type": "agent", "prompt": "Fetch."}}]}`)
 	e.Project("contacts", contacts)
 	var cur struct{ Manifest string }
 	e.Must("deck.manifest_get", map[string]any{"project": "contacts"}, &cur)
@@ -355,8 +353,8 @@ func TestAManifestOfAnyFormatButThirteenIsRefused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	for _, v := range []string{"12", "4", "3"} {
-		m := strings.Replace(harness.IdeasManifest, `"version": 13,`, `"version": `+v+`,`, 1)
-		e.Refused("deck.project_create", map[string]any{"name": "old" + v, "manifest": m}, 422, "manifest: version must be the number 13, got "+v)
+		m := harness.ManifestVersion(harness.IdeasManifest, v)
+		e.Refused("deck.project_create", map[string]any{"name": "old" + v, "manifest": m}, 422, fmt.Sprintf("manifest: version must be the number %d, got %s", manifest.FormatVersion, v))
 	}
 	e.Project("ideas", harness.IdeasManifest)
 }
@@ -375,7 +373,7 @@ func TestOnlyTheBuiltInProjectAnswersEventsOfDeck(t *testing.T) {
 func TestAManifestWithMasterEventsIsRefused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := strings.Replace(harness.PlainManifest, `"version": 13,`, `"version": 13, "master_events": true,`, 1)
+	m := harness.ManifestWith(harness.PlainManifest, `"master_events": true`)
 	if m == harness.PlainManifest {
 		t.Fatal("fixture replacement did not apply")
 	}
@@ -439,9 +437,9 @@ func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	for i, c := range []struct{ version, want string }{{`"6"`, `the text "6"`}, {`6.0`, `6.0`}} {
-		m := strings.Replace(harness.WebNotes, `"version": 13`, `"version": `+c.version, 1)
+		m := harness.ManifestVersion(harness.WebNotes, c.version)
 		code, out := e.Call("deck.project_create", map[string]any{"name": fmt.Sprintf("v%d", i), "manifest": m})
-		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 13") {
+		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), fmt.Sprintf("the number %d", manifest.FormatVersion)) {
 			t.Errorf("%s: want 422 naming %s, got %d %s", c.version, c.want, code, out)
 		}
 	}

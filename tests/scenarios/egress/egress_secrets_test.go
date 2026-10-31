@@ -38,13 +38,13 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 	link := svc.URL + "/owa/calendar/me@x.com/tok-0123456789/calendar.ics"
 	e.Must("deck.secret_set", map[string]any{"name": "outlook", "value": link}, nil)
 	tool := func(extra string) string {
-		return fmt.Sprintf(`{"version": 13, "tools": {"http": [{"name": "ics", "description": "d", "method": "GET", "class": "internal",
-      "url": "$secret.outlook?from={from}"%s, "input": {"type": "object", "properties": {"from": {"type": "string"}}, "required": ["from"]}}]}}`, extra)
+		return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [{"name": "ics", "description": "d", "method": "GET", "class": "internal",
+      "url": "$secret.outlook?from={from}"%s, "input": {"type": "object", "properties": {"from": {"type": "string"}}, "required": ["from"]}}]}}`, extra))
 	}
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "nohosts", "manifest": tool("")}); code != 422 || !strings.Contains(string(out), "needs hosts") {
 		t.Fatalf("a url from a secret without hosts is refused: %d %s", code, out)
 	}
-	fixed := `{"version": 13, "tools": {"http": [{"name": "t", "description": "d", "method": "GET", "url": "https://a.com/x", "hosts": ["a.com"]}]}}`
+	fixed := harness.Manifest(`{"tools": {"http": [{"name": "t", "description": "d", "method": "GET", "url": "https://a.com/x", "hosts": ["a.com"]}]}}`)
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "fixed", "manifest": fixed}); code != 422 || !strings.Contains(string(out), "hosts go only with a url from a secret") {
 		t.Fatalf("hosts beside a written url are refused: %d %s", code, out)
 	}

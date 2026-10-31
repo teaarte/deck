@@ -128,9 +128,9 @@ func TestAPressStandsForNoMoneyAndNoFrame(t *testing.T) {
 		t.Fatalf("a model with its price waits for the owner's own yes, press or not: %+v", p)
 	}
 
-	frame := strings.Replace(harness.ScriptManifest("main", "", `, "screens": [{"name": "main", "title": "Models", "blocks": [
+	frame := harness.ManifestWith(harness.ScriptManifest("main", "", `, "screens": [{"name": "main", "title": "Models", "blocks": [
     {"type": "custom", "document": "custom/x.html", "actions": [{"label": "Add", "command": "main", "params": {"method": "x"},
-      "allows": [{"command": "deck.model_set", "params": {"model": "llama"}}]}]}]}]`), `"version": 13`, `"version": 13, "title": "Frame"`, 1)
+      "allows": [{"command": "deck.model_set", "params": {"model": "llama"}}]}]}]}]`), `"title": "Frame"`)
 	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "picker", "manifest": frame}); code < 400 || !strings.Contains(string(out), "custom block") {
 		t.Fatalf("a custom block names no call its press allows: %d %s", code, out)
 	}

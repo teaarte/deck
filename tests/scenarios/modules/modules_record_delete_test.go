@@ -21,8 +21,7 @@ import (
 
 // cascadeModule keeps videos, each with a folder of the data folder its field dir names, the scenes of each video,
 // a script that renders by a record and an agent that watches one.
-const cascadeModule = `{"version": 13,
-  "collections": [
+var cascadeModule = harness.Manifest(`{"collections": [
     {"name": "videos", "description": "A video.", "key": "slug", "display": "title", "folder": "'videos/' + dir",
       "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}, "dir": {"type": "string"}}, "required": ["slug"]}},
     {"name": "scenes", "description": "A scene of a video.", "key": "video + '-' + string(n)", "parent": {"collection": "videos", "key": "video"},
@@ -34,7 +33,7 @@ const cascadeModule = `{"version": 13,
     {"name": "watch", "title": "Watch", "description": "Watches a video.", "class": "internal",
      "input": {"type": "object", "properties": {"record": {"type": "integer"}}, "required": ["record"]},
      "executor": {"type": "agent", "prompt": "Watch it."}}],
-  "scripts": [{"name": "render", "file": "scripts/render.py", "runtime": "python"}]}`
+  "scripts": [{"name": "render", "file": "scripts/render.py", "runtime": "python"}]}`)
 
 // renderScript writes a frame of the record it renders and a log of its own run.
 const renderScript = `import json, os, sys
@@ -573,8 +572,7 @@ func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
 }
 
 // shortsModule keeps videos, each with a folder of its own in the data folder, and the scenes of each video.
-const shortsModule = `{"version": 13,
-  "collections": [
+var shortsModule = harness.Manifest(`{"collections": [
     {"name": "videos", "description": "A video.", "key": "slug", "display": "title", "folder": "'videos/' + slug",
       "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug"]}},
     {"name": "scenes", "description": "A scene of a video.", "key": "video + '-' + string(n)", "parent": {"collection": "videos", "key": "video"},
@@ -583,7 +581,7 @@ const shortsModule = `{"version": 13,
     {"name": "render", "title": "Render", "description": "Renders a video.", "class": "internal",
      "input": {"type": "object", "properties": {"record": {"type": "integer"}}, "required": ["record"]},
      "result": {"type": "object"}, "executor": {"type": "script", "script": "render"}}],
-  "scripts": [{"name": "render", "file": "scripts/render.py", "runtime": "python"}]}`
+  "scripts": [{"name": "render", "file": "scripts/render.py", "runtime": "python"}]}`)
 
 // TestDeletingARecordTakesWhatBelongsToIt: a record goes with its child records, files, folder and the files of its
 // processes, which the owner sees listed first.

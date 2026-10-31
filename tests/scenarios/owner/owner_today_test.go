@@ -14,8 +14,7 @@ import (
 )
 
 // twoRunsManifest has two commands of the schedule: look only reads, keep writes a record.
-const twoRunsManifest = `{"version": 13,
-  "collections": [{"name": "items", "description": "An item.", "key": "name",
+var twoRunsManifest = harness.Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
   "commands": [
     {"name": "look", "title": "Look", "description": "Reads the items.", "class": "internal", "result": {"type": "object"},
@@ -23,7 +22,7 @@ const twoRunsManifest = `{"version": 13,
     {"name": "keep", "title": "Keep", "description": "Writes an item.", "class": "internal", "result": {"type": "object"},
      "executor": {"type": "script", "script": "keep"}}],
   "scripts": [{"name": "look", "file": "scripts/look.py", "runtime": "python"}, {"name": "keep", "file": "scripts/keep.py", "runtime": "python"}],
-  "triggers": [{"command": "look", "cron": "0 9 * * *"}, {"command": "keep", "cron": "0 9 * * *"}]}`
+  "triggers": [{"command": "look", "cron": "0 9 * * *"}, {"command": "keep", "cron": "0 9 * * *"}]}`)
 
 // doneToday is the number the line of the day of Today says.
 func doneToday(e *harness.Env) string {
@@ -192,9 +191,9 @@ func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 	if len(items) != 1 || !slices.Equal(verbs(items[0].Actions), verbs(asks[0].Actions)) {
 		t.Fatalf("Today shows the buttons of the row: %v, the row %v", verbs(items[0].Actions), verbs(asks[0].Actions))
 	}
-	own := `{"version": 13, "collections": [{"name": "notes", "description": "Notes.", "key": "title",
+	own := harness.Manifest(`{"collections": [{"name": "notes", "description": "Notes.", "key": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}],
-  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "list", "source": {"collection": "notes"}, "item": {"title": "title", "actions": "actions"}}]}]}`
+  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "list", "source": {"collection": "notes"}, "item": {"title": "title", "actions": "actions"}}]}]}`)
 	if code, out := e.Call("deck.manifest_check", map[string]any{"manifest": own}); code != 200 || !strings.Contains(string(out), "only on deck's own screens") {
 		t.Fatalf("a module names its buttons itself: %d %s", code, out)
 	}

@@ -17,12 +17,11 @@ import (
 )
 
 // jobsModule renders an item of its collection by an agent command whose input names the record.
-const jobsModule = `{"version": 13,
-  "collections": [{"name": "videos", "description": "A video.", "key": "slug", "display": "title",
+var jobsModule = harness.Manifest(`{"collections": [{"name": "videos", "description": "A video.", "key": "slug", "display": "title",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug"]}}],
   "commands": [{"name": "voice", "title": "Voice", "description": "Voices a video.", "class": "internal",
     "input": {"type": "object", "properties": {"record": {"type": "integer"}}},
-    "executor": {"type": "agent", "prompt": "Voice the video."}}]}`
+    "executor": {"type": "agent", "prompt": "Voice the video."}}]}`)
 
 type cockpitRun struct {
 	ID          int64
@@ -196,14 +195,13 @@ func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 }
 
 // cutModule cuts a clip by name; trim is a step the master calls, not the owner.
-const cutModule = `{"version": 13,
-  "commands": [
+var cutModule = harness.Manifest(`{"commands": [
     {"name": "cut", "title": "Cut", "description": "Cuts a clip.", "class": "internal",
       "input": {"type": "object", "properties": {"clip": {"type": "string"}}},
       "executor": {"type": "agent", "prompt": "Cut the clip."}},
     {"name": "trim", "title": "Trim", "description": "Trims a clip.", "class": "internal", "callers": ["master"],
       "input": {"type": "object", "properties": {"clip": {"type": "string"}}},
-      "executor": {"type": "agent", "prompt": "Trim the clip."}}]}`
+      "executor": {"type": "agent", "prompt": "Trim the clip."}}]}`)
 
 // TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks: a failure of a command without a record outlives other
 // inputs and trials, goes once its own input works; one the owner may not call has no retry.

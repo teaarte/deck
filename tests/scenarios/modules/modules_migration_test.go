@@ -12,15 +12,13 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const peopleV1 = `{"version": 13,
-  "collections": [{"name": "people", "description": "A person.", "key": "name",
-    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`
+var peopleV1 = harness.Manifest(`{"collections": [{"name": "people", "description": "A person.", "key": "name",
+    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`)
 
 func peopleV2(migration string) string {
-	m := `{"version": 13,
-  "collections": [{"name": "people", "description": "A person.", "key": "full_name", MIGRATION
+	m := harness.Manifest(`{"collections": [{"name": "people", "description": "A person.", "key": "full_name", MIGRATION
     "schema": {"type": "object", "properties": {"full_name": {"type": "string"}}, "required": ["full_name"], "additionalProperties": false}}],
-  "scripts": [{"name": "rename", "file": "scripts/rename.py", "runtime": "python"}]}`
+  "scripts": [{"name": "rename", "file": "scripts/rename.py", "runtime": "python"}]}`)
 	if migration == "" {
 		return strings.Replace(m, "MIGRATION", "", 1)
 	}
@@ -134,10 +132,10 @@ func TestDeckKeepsNoBoards(t *testing.T) {
 	for _, name := range []string{"deck.cards_list", "deck.card_create", "deck.card_move", "deck.card_transfer", "deck.chat_interview"} {
 		e.Refused(name, map[string]any{"project": "work", "card": 1, "title": "x"}, 404, "unknown command")
 	}
-	plain := `{"version": 13, "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+	plain := harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "executor": {"type": "agent", "prompt": "Work."}}],
   "triggers": [{"command": "work", "cron": "0 9 * * *"}],
-  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Work", "actions": [{"label": "Work", "command": "work"}]}]}], "menu": ["main"]}`
+  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Work", "actions": [{"label": "Work", "command": "work"}]}]}], "menu": ["main"]}`)
 	e.Project("work", plain)
 	for _, c := range []struct{ old, new, says string }{
 		{`"triggers": [`, `"board": {"lanes": [{"name": "doing", "title": "Doing", "role": "inbox"}]}, "triggers": [`, "board"},

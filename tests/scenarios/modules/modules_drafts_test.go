@@ -296,9 +296,9 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 func TestTheProjectShowsAgentsReachTheWholeNetwork(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("open", `{"version": 13, "domains": {"read": ["example.com"]}, "commands": [`+harness.AgentCommand("work", "")+`]}`)
-	e.Project("closed", `{"version": 13, "no_network": true, "commands": [`+harness.AgentCommand("work", "")+`]}`)
-	e.Project("empty", `{"version": 13}`)
+	e.Project("open", harness.Manifest(`{"domains": {"read": ["example.com"]}, "commands": [`)+harness.AgentCommand("work", "")+`]}`)
+	e.Project("closed", harness.Manifest(`{"no_network": true, "commands": [`)+harness.AgentCommand("work", "")+`]}`)
+	e.Project("empty", harness.Manifest(`{}`))
 	var ps []struct{ Name, Network string }
 	e.Must("deck.projects_list", map[string]any{}, &ps)
 	for _, p := range ps {

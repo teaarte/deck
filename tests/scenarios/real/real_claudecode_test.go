@@ -18,8 +18,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const realManifest = `{
-  "version": 13,
+var realManifest = harness.Manifest(`{
   "collections": [{
     "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},
@@ -33,7 +32,7 @@ const realManifest = `{
   "triggers": [],
   "screens": [{"name": "main", "title": "Ideas", "blocks": [{"type": "table", "title": "Ideas",
     "source": {"collection": "ideas"}, "columns": [{"label": "Idea", "bind": "title"}, {"label": "Topic", "bind": "topic"}]}]}]
-}`
+}`)
 
 // TestRealClaudeCodeQuestionResume runs the stage 0 acceptance scenario on the installed Claude Code CLI.
 func TestRealClaudeCodeQuestionResume(t *testing.T) {
@@ -127,7 +126,7 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.", "class": "internal",
 		"result":   map[string]any{"type": "object", "required": []string{"markers"}, "properties": map[string]any{"markers": map[string]any{"type": "string"}}},
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": prompt + " The result is those words in markers."}})
-	p := e.Project("code", `{"version": 13, "commands": [`+string(cmd)+`]}`)
+	p := e.Project("code", harness.Manifest(`{"commands": [`)+string(cmd)+`]}`)
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
 	id := e.Run(p, "markers")
 	got := e.WaitState(id, "done", "error")

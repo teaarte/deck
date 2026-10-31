@@ -4,7 +4,92 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 )
+
+// AskState is the state of an ask as the store keeps it.
+func (e *Env) AskState(id int64) string {
+	var state string
+	_ = e.App.Store.DB.QueryRow(`SELECT state FROM ask WHERE id = ?`, id).Scan(&state)
+	return state
+}
+
+// Calls lists the gateway journal of a process as "tool outcome external_id error" lines with params.
+func (e *Env) Calls(process int64) string {
+	e.T.Helper()
+	rows, err := e.App.Store.DB.Query(`SELECT tool || ' ' || outcome || ' ' || external_id || ' ' || params || ' ' || error FROM tool_call WHERE process_id = ? ORDER BY id`, process)
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	defer rows.Close()
+	var b strings.Builder
+	for rows.Next() {
+		var s string
+		_ = rows.Scan(&s)
+		b.WriteString(s + "\n")
+	}
+	return b.String()
+}
+
+type faultView struct {
+	ID           int64
+	State        string
+	Error        string
+	ErrorType    string  `json:"error_type"`
+	Whose        string  `json:"whose"`
+	ErrorDetails string  `json:"error_details"`
+	Follows      int64   `json:"follows"`
+	FollowedBy   []int64 `json:"followed_by"`
+	Repeats      int64   `json:"repeats"`
+	Retry        bool
+}
+
+func (e *Env) Fault(id int64) faultView {
+	e.T.Helper()
+	var v faultView
+	e.Must("deck.process_get", map[string]any{"process": id}, &v)
+	return v
+}
+
+func (e *Env) FailedRuns() []faultView {
+	e.T.Helper()
+	var out []faultView
+	e.Must("deck.processes_list", map[string]any{"failed": true}, &out)
+	return out
+}
+
+func (e *Env) StartWork(n int) int64 {
+	e.T.Helper()
+	var r struct{ Process int64 }
+	e.Must("plain.work", map[string]any{"n": n}, &r)
+	return r.Process
+}
+
+// Following waits for the one process that goes on with the work of id.
+func (e *Env) Following(id int64) int64 {
+	e.T.Helper()
+	var next int64
+	e.Until("the process that goes on", func() bool {
+		if got := e.Fault(id); len(got.FollowedBy) == 1 {
+			next = got.FollowedBy[0]
+		}
+		return next != 0
+	})
+	return next
+}
+
+func Itoa(n int64) string { b, _ := json.Marshal(n); return string(b) }
+
+func (e *Env) RunsOf(project, command string) []Proc {
+	e.T.Helper()
+	var out []Proc
+	for _, p := range e.Procs() {
+		if p.Project == project && p.Command == command {
+			out = append(out, p)
+		}
+	}
+	return out
+}
 
 // Proc is a process as deck.process_get and deck.processes_list show it.
 type Proc struct {
@@ -89,4 +174,52 @@ func (e *Env) Drained() {
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM outbox WHERE tries = 0`).Scan(&n)
 		return n == 0
 	})
+}
+
+type PressAsk struct {
+	ID    int64          `json:"id"`
+	Kind  string         `json:"kind"`
+	What  string         `json:"what"`
+	Where string         `json:"where"`
+	Allow map[string]any `json:"allow"`
+	Deny  map[string]any `json:"deny"`
+}
+
+func (e *Env) Log(id int64) []map[string]any {
+	var l []map[string]any
+	e.Must("deck.process_log", map[string]any{"process": id}, &l)
+	return l
+}
+
+type triggerV struct {
+	ID        int64  `json:"id"`
+	Project   string `json:"project"`
+	Command   string `json:"command"`
+	Kind      string `json:"kind"`
+	NextRunAt string `json:"next_at"`
+	Paused    bool   `json:"paused"`
+	Last      int64  `json:"last_process"`
+}
+
+// Triggers are the triggers of every project but the built-in master.
+func (e *Env) Triggers() []triggerV {
+	e.T.Helper()
+	var all, ts []triggerV
+	e.Must("deck.triggers_list", map[string]any{}, &all)
+	for _, t := range all {
+		if t.Project != "master" {
+			ts = append(ts, t)
+		}
+	}
+	return ts
+}
+
+func (e *Env) CountOf(command string) int {
+	n := 0
+	for _, p := range e.Procs() {
+		if p.Command == command {
+			n++
+		}
+	}
+	return n
 }

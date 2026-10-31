@@ -163,7 +163,7 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 	if strings.Contains(fmt.Sprint(list), "sk-stored") {
 		t.Fatalf("a provider stored with a key in its url is neither shown nor used: %v", list)
 	}
-	srv := `{"version": 13, "tools": {"mcp": {"servers": {"far": {"url": "https://mcp.example/mcp?key=sk-1"}}}}}`
+	srv := harness.Manifest(`{"tools": {"mcp": {"servers": {"far": {"url": "https://mcp.example/mcp?key=sk-1"}}}}}`)
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "far", "manifest": srv}); code == 200 || !strings.Contains(string(out), "secret") {
 		t.Fatalf("an MCP server url with a key in it is refused: %d %s", code, out)
 	}

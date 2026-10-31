@@ -141,8 +141,7 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}), harness.WithClock())
 
-	p := e.Project("feed", fmt.Sprintf(`{"version": 13,
-  "commands": [
+	p := e.Project("feed", harness.Manifest(fmt.Sprintf(`{"commands": [
     {"name": "send", "title": "Send", "description": "Sends out.", "class": "external",
      "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "executor": {"type": "tool", "tool": "note"}},
@@ -150,7 +149,7 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
      "executor": {"type": "agent", "prompt": "Work."}}],
   "triggers": [{"command": "send", "after": "work"}, {"command": "send", "cron": "0 9 * * *"}],
   "tools": {"http": [{"name": "note", "description": "d", "method": "POST", "url": "%s/n",
-    "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}}}]}}`, svc.URL))
+    "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}}}]}}`, svc.URL)))
 	if got := e.WaitState(e.Run(p, "work"), "done", "waiting_answer"); got.State != "done" {
 		t.Fatalf("the agent whose finish starts a trigger does not wait for its confirmation: %+v", got)
 	}

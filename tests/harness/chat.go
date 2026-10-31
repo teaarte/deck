@@ -1,20 +1,16 @@
 package harness
 
 import (
+	"context"
+	"deck2/internal/provider"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
-
-// TasksManifest is a project that keeps its tasks in a collection, as the master puts them there.
-const TasksManifest = `{"version": 13,
-  "collections": [{"name": "tasks", "description": "A task of the project: what to do.", "key": "title",
-    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "text": {"type": "string"}}, "required": ["title"]}}],
-  "screens": [{"name": "tasks", "title": "Tasks", "blocks": [{"type": "table", "title": "Tasks", "source": {"collection": "tasks"},
-    "columns": [{"label": "Task", "bind": "title"}]}]}],
-  "menu": ["tasks"]}`
 
 type TopicReply struct {
 	Process  int64  `json:"process"`
@@ -128,23 +124,6 @@ func LastLine(s string) string {
 	return lines[len(lines)-1]
 }
 
-// ProjectsOf lists the projects other than the built-in one into out.
-func (e *Env) ProjectsOf(out any) {
-	e.T.Helper()
-	var all []map[string]any
-	e.Must("deck.projects_list", nil, &all)
-	mine := []map[string]any{}
-	for _, p := range all {
-		if p["builtin"] != true {
-			mine = append(mine, p)
-		}
-	}
-	b, _ := json.Marshal(mine)
-	if err := json.Unmarshal(b, out); err != nil {
-		e.T.Fatal(err)
-	}
-}
-
 // MenuOf is the menu as one list without the built-in master: deck's screens, then the projects.
 func (e *Env) MenuOf(out any) {
 	e.T.Helper()
@@ -200,4 +179,96 @@ func ChatData(t testing.TB, data map[string]map[string]json.RawMessage) json.Raw
 	}
 	raw, _ := json.Marshal(all)
 	return raw
+}
+
+type ToldMessage struct {
+	Role    string `json:"role"`
+	Text    string `json:"text"`
+	Process int64  `json:"process"`
+	Told    *struct {
+		ID      int64  `json:"id"`
+		Project string `json:"project"`
+		Command string `json:"command"`
+		State   string `json:"state"`
+		Word    string `json:"word"`
+		Tone    string `json:"tone"`
+		Reason  string `json:"reason"`
+		Error   string `json:"error"`
+		Open    struct {
+			Screen string `json:"screen"`
+			Record int64  `json:"record"`
+		} `json:"open"`
+	} `json:"told"`
+}
+
+// Told waits for the message deck writes into topic of a work in state, read in lang.
+func (e *Env) Told(topic int64, state, lang string) ToldMessage {
+	e.T.Helper()
+	var got ToldMessage
+	e.Until("deck tells the topic of a work "+state, func() bool {
+		var view struct{ Messages []ToldMessage }
+		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic), "lang": lang}, &view)
+		for _, m := range view.Messages {
+			if m.Role == "deck" && m.Told != nil && m.Told.State == state {
+				got = m
+				return true
+			}
+		}
+		return false
+	})
+	return got
+}
+
+// HandOver is a reply of the master that hands the owner's task to master.work with its topic; a resumed reply
+// names no command, and its topic is the one the first named.
+func HandOver(ctx context.Context, c *Call, topic *atomic.Int64) provider.Result {
+	var in struct{ Topic int64 }
+	if m := InputOf.FindStringSubmatch(c.Req.Prompt); m != nil && json.Unmarshal([]byte(m[1]), &in) == nil && in.Topic != 0 {
+		topic.Store(in.Topic)
+	}
+	if out, bad := c.Tool(ctx, "master__work", map[string]any{"task": "count the records", "topic": topic.Load()}); bad {
+		return provider.Result{Text: "refused: " + out}
+	}
+	return provider.Result{Text: "Handed it over."}
+}
+
+// ChatD5 is what the chat block gives beside the topic: suggestions, decisions of the turn and how replies ended.
+type ChatD5 struct {
+	Suggest []struct{ Icon, Text string } `json:"suggest"`
+	Asks    []struct {
+		ID      int64
+		Kind    string
+		What    string
+		Actions []struct {
+			Verb, Label, Command, Until string
+			Primary, Hold               bool
+			Params                      map[string]any
+		} `json:"actions"`
+	} `json:"asks"`
+	Messages []struct {
+		ID    int64
+		Role  string
+		Reply *struct {
+			Cut *struct {
+				Stopped bool
+				Reason  string
+				Steps   int
+				Said    string
+				Retry   []struct {
+					Verb, Command string
+					Params        map[string]any
+				}
+			}
+		}
+	} `json:"messages"`
+}
+
+func (e *Env) MasterAwake() {
+	e.T.Helper()
+	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": false}, nil)
+	e.UseModels("master.on_error")
+}
+
+func Fact(name, typ, body string) string {
+	return fmt.Sprintf("---\nname: %s\ndescription: %s\ntype: %s\n---\n\n%s\n", name, body, typ, body)
 }

@@ -447,8 +447,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := `{"version": 13,
-  "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
+	m := harness.Manifest(`{"collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "id": {"type": "string"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
     "input": {"type": "object", "properties": {"score": {"type": "string"}, "note": {"type": "integer", "format": "record"}}, "required": ["note"]},
@@ -457,7 +456,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
     "columns": [{"label": "Title", "bind": "title"}],
     "actions": [{"label": "Touch", "command": "touch", "params": {"note": "%[1]s", "score": "%[2]s"}}, {"label": "Open", "screen": "note"}]}]},
     {"name": "note", "title": "Note", "record": "notes", "blocks": [{"type": "form", "title": "Again", "command": "touch",
-      "values": {"note": "%[1]s", "score": "%[2]s"}}]}]}`
+      "values": {"note": "%[1]s", "score": "%[2]s"}}]}]}`)
 	e.Project("notes", fmt.Sprintf(m, "=_id", "=title"))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("notes", "main", nil)["b0"]["rows"])
@@ -481,8 +480,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	pid := e.Project("notes", `{"version": 13,
-  "collections": [{"name": "notes", "description": "Notes", "key": "title",
+	pid := e.Project("notes", harness.Manifest(`{"collections": [{"name": "notes", "description": "Notes", "key": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "first-name": {"type": "string"}, "in": {"type": "string"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal", "result": {"type": "object"},
     "input": {"type": "object", "properties": {"process": {"type": "integer"}, "who": {"type": "string"}}},
@@ -491,7 +489,7 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
     {"type": "table", "title": "Runs", "source": {"from": "deck.processes_list"}, "columns": [{"label": "Command", "bind": "command"}],
       "actions": [{"label": "Touch", "command": "touch", "params": {"process": "=_id"}}]},
     {"type": "table", "title": "Notes", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
-      "actions": [{"label": "Who", "command": "touch", "params": {"who": "=$env[\"first-name\"]"}}, {"label": "Where", "command": "touch", "params": {"who": "=$env[\"in\"]"}}]}]}]}`)
+      "actions": [{"label": "Who", "command": "touch", "params": {"who": "=$env[\"first-name\"]"}}, {"label": "Where", "command": "touch", "params": {"who": "=$env[\"in\"]"}}]}]}]}`))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "first-name": "Ann", "in": "Oslo"})}, nil)
 	e.Run(pid, "touch")
 	data := e.ScreenData("notes", "main", nil)
@@ -510,10 +508,10 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
 func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := `{"version": 13, "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
+	m := harness.Manifest(`{"commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
     "result": {"type": "object"}, "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Runs",
-    "description": "Old screens wrote $param.n", "actions": [{"label": "Touch", "command": "touch", "params": {"n": "%s"}}]}]}]}`
+    "description": "Old screens wrote $param.n", "actions": [{"label": "Touch", "command": "touch", "params": {"n": "%s"}}]}]}]}`)
 	e.Project("notes", fmt.Sprintf(m, "7"))
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "old", "manifest": fmt.Sprintf(m, "$param.n")}); code != 422 || !strings.Contains(string(out), "=param.n") {
 		t.Fatalf("a value of the old form is refused with the new one: %d %s", code, out)
@@ -575,9 +573,9 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := `{"version": 13, "screens": [{"name": "main", "title": "Main", "blocks": [
+	m := harness.Manifest(`{"screens": [{"name": "main", "title": "Main", "blocks": [
     {"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "name"}},
-    {"type": "list", "source": {"from": "deck.models_list", "rows": "models"}, "item": {"title": "name"}}]}]}`
+    {"type": "list", "source": {"from": "deck.models_list", "rows": "models"}, "item": {"title": "name"}}]}]}`)
 	e.Project("old", m)
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = replace(text, 'deck.models_list', 'deck.providers_list')
 		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = (SELECT id FROM project WHERE name = 'old'))`); err != nil {
@@ -635,8 +633,7 @@ func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 	}
 }
 
-const ocrManifest = `{
-  "version": 13,
+var ocrManifest = harness.Manifest(`{
   "collections": [{"name": "docs", "description": "Recognized files", "key": "key", "display": "name", "schema": {"type": "object", "required": ["key", "name"],
     "properties": {"key": {"type": "string"}, "name": {"type": "string"}, "status": {"type": "string"}, "text": {"type": "string"}, "private": {"type": "string"}}}}],
   "screens": [{"name": "docs", "title": "OCR", "blocks": [
@@ -647,7 +644,7 @@ const ocrManifest = `{
     {"type": "media", "title": "Shelf", "source": {"collection": "docs"}, "item": {"title": "name", "icon": "'file-text'"}}
   ]}, {"name": "doc", "title": "File", "record": "docs", "blocks": [{"type": "card", "fields": [{"label": "Text", "bind": "text"}]}]}],
   "menu": ["docs"]
-}`
+}`)
 
 // TestATableSendsOnlyWhatItsColumnsShow: a table, a list and a media block send the values their columns and items
 // show, never the record: a long recognized text goes only as far as its column cuts it, a field no block shows not at all.

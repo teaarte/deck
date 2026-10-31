@@ -24,7 +24,7 @@ import (
 func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
-	manifest := strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`, 1)
+	manifest := strings.Replace(harness.WebNotes, harness.Manifest(`{`), harness.Manifest(`{"title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`), 1)
 	e.Project("web", manifest)
 
 	var menu []harness.MenuView
@@ -147,8 +147,8 @@ func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 	var saved struct {
 		Unused []string `json:"unused_i18n"`
 	}
-	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(harness.WebNotes, `{"version": 13,`,
-		`{"version": 13, "i18n": {"ru": {"Notes": "Заметки", "Old title": "Старое"}},`, 1)}, &saved)
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(harness.WebNotes, harness.Manifest(`{`),
+		harness.Manifest(`{"i18n": {"ru": {"Notes": "Заметки", "Old title": "Старое"}},`), 1)}, &saved)
 	if !slices.Equal(saved.Unused, []string{"ru: Old title"}) {
 		t.Fatalf("the translation of no text is named: %v", saved.Unused)
 	}
@@ -159,8 +159,8 @@ func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
-	e.Project("web", strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "i18n": {"ru": {"Score": "Оценить",
-      "Scores a title.": "Оценивает заголовок.", "title": "Заголовок", "source": "Источник"}},`, 1))
+	e.Project("web", strings.Replace(harness.WebNotes, harness.Manifest(`{`), harness.Manifest(`{"i18n": {"ru": {"Score": "Оценить",
+      "Scores a title.": "Оценивает заголовок.", "title": "Заголовок", "source": "Источник"}},`), 1))
 	drawn, _ := json.Marshal(e.ScreenMessages("web", "main", map[string]any{"lang": "ru"}))
 	for _, want := range []string{`"title":"Оценить"`, `"description":"Оценивает заголовок."`, `"title":"Заголовок"`, `"label":"Источник"`} {
 		if !strings.Contains(string(drawn), want) {
@@ -199,7 +199,7 @@ func TestEveryParamADeckScreenReadsIsDeclared(t *testing.T) {
 func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
-	e.Project("web", strings.NewReplacer(`{"version": 13,`, `{"version": 13, "i18n": {"ru": {"open": "открыта", "closed": "закрыта"}},`,
+	e.Project("web", strings.NewReplacer(harness.Manifest(`{`), harness.Manifest(`{"i18n": {"ru": {"open": "открыта", "closed": "закрыта"}},`),
 		`"n": {"type": "integer"}`, `"n": {"type": "integer"}, "state": {"type": "string", "enum": ["open", "closed"]},
       "tags": {"type": "array", "items": {"type": "string", "enum": ["open", "closed"]}}`,
 		`"note": {"type": "string"}}`, `"note": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed"]}}`).Replace(harness.WebNotes))
@@ -225,9 +225,9 @@ func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
 func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := strings.Replace(harness.TestManifest([]string{harness.AgentCommand("work", ""), harness.AgentCommand("send", `{"type": "object", "properties": {"process": {"type": "integer"}}}`)},
+	m := harness.ManifestWith(harness.TestManifest([]string{harness.AgentCommand("work", ""), harness.AgentCommand("send", `{"type": "object", "properties": {"process": {"type": "integer"}}}`)},
 		[]string{`{"command": "send", "after": "work"}`}),
-		`"version": 13,`, `"version": 13, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "work": "Работа"}},`, 1)
+		`"title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "work": "Работа"}}`)
 	p := e.Project("web", m)
 	e.Project("video", harness.TestManifest([]string{harness.AgentCommand("search", "")}, []string{`{"command": "search", "cron": "0 9 * * *"}`}))
 	var ps []struct{ Name, Title, Meta string }
@@ -341,7 +341,7 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := strings.NewReplacer(`{"version": 13,`, `{"version": 13, "i18n": {"ru": {"source": "Источник", "web": "веб", "mail": "почта", "Source": "Источник", "a": "один"}},`,
+	m := strings.NewReplacer(harness.Manifest(`{`), harness.Manifest(`{"i18n": {"ru": {"source": "Источник", "web": "веб", "mail": "почта", "Source": "Источник", "a": "один"}},`),
 		`"note": {"type": "string"}}, "required": ["title"]}`, `"note": {"type": "string"}, "kind": {"type": "string", "enum": ["a", "b", ""]}}, "required": ["title"]}`,
 		`"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Source", "bind": "source"}]`).Replace(harness.WebNotes)
 	e.Project("web", m)

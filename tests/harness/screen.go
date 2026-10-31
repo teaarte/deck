@@ -2,8 +2,6 @@ package harness
 
 import (
 	"bytes"
-	"context"
-	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -12,9 +10,114 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
+
+// LightEnv is deck with a working week behind it: modules with many records and files, runs and a long chat.
+func LightEnv(t *testing.T) *Env {
+	t.Helper()
+	e := New(t)
+	for _, name := range []string{"notes", "clips", "jobs"} {
+		p := e.Project(name, strings.Replace(WebNotes, `"menu": ["main"]}`, `"menu": ["main"]}`, 1))
+		var recs []map[string]any
+		for i := range 200 {
+			recs = append(recs, map[string]any{"title": fmt.Sprintf("%s note %03d", name, i), "source": "web", "note": strings.Repeat("words ", 20)})
+		}
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": Jsonl(recs...)}, nil)
+		for i := range 60 {
+			e.Upload(name, fmt.Sprintf("file-%02d.txt", i), "text/plain", strings.Repeat("x", 100))
+		}
+		for i := range 20 {
+			if _, err := e.App.Store.DB.Exec(`INSERT INTO process (project_id, command, kind, state, started_at, finished_at) VALUES (?, 'score', 'agent', ?, ?, ?)`,
+				p, []string{"done", "error"}[i%2], time.Now().Add(-time.Duration(i)*time.Hour).UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	topic := e.Say(0, "hello")
+	e.MasterSaid(topic, 1)
+	return e
+}
+
+type TodayPulse struct {
+	State, Line, Mark string
+	Failed, Notes     int64
+}
+
+type DeskCard struct {
+	ID         string
+	X, Y, W, H int64
+}
+
+type deskView struct {
+	Columns int64
+	Own     bool
+	Cards   []DeskCard
+}
+
+func (e *Env) Desk(device string, columns int) deskView {
+	e.T.Helper()
+	var v deskView
+	e.Must("deck.layout", map[string]any{"device": device, "columns": columns}, &v)
+	return v
+}
+
+func (e *Env) Place(device string, columns int, cards ...DeskCard) {
+	e.T.Helper()
+	raw, _ := json.Marshal(cards)
+	e.Must("deck.layout_set", map[string]any{"device": device, "columns": columns, "cards": string(raw)}, nil)
+}
+
+type MenuView struct {
+	Project string
+	Icon    string
+	Screens []struct{ Name, Title, Icon string }
+	Open    *struct{ Name string }
+	Running int64
+	Asks    int64
+	Errors  int64
+}
+
+// SideMenu is the projects of the side list of deck.menu by name, in their order, and the master's project.
+func (e *Env) SideMenu() ([]string, string) {
+	e.T.Helper()
+	var menu struct {
+		Projects []struct{ Project string }
+		Master   *struct{ Project string }
+	}
+	e.Must("deck.menu", map[string]any{}, &menu)
+	names := []string{}
+	for _, p := range menu.Projects {
+		names = append(names, p.Project)
+	}
+	if menu.Master == nil {
+		return names, ""
+	}
+	return names, menu.Master.Project
+}
+
+// WidgetsOfWork is a module whose views mix numbers, lists with buttons, a title too long for one cell and two lists
+// with their titles, as the owner's modules do.
+var WidgetsOfWork = Manifest(`{"i18n": {"ru": {"Laboratory of setups": "Лаборатория сетапов", "Price": "Цена BTC", "Open": "Открыть", "Needs you": "Ждёт вас", "New": "Новое"}},
+  "title": "Laboratory of setups",
+  "collections": [{"name": "items", "description": "An item.", "key": "name", "display": "name",
+    "schema": {"type": "object", "properties": {"name": {"type": "string"}, "n": {"type": "integer"}, "at": {"type": "string"}}, "required": ["name"]}}],
+  "screens": [{"name": "item", "title": "Item", "record": "items", "blocks": [{"type": "card", "fields": [{"label": "Name", "bind": "name"}]}]}],
+  "widgets": [
+    {"min": "1x1", "blocks": [{"type": "stat", "title": "Price", "description": "The last price of the hour, as the exchange gave it", "icon": "currency-bitcoin", "source": {"collection": "items", "limit": 1}, "format": "money", "currency": "USD", "value": "80484.37"}]},
+    {"min": "1x2", "blocks": [{"type": "list", "focus": true, "title": "Needs you", "source": {"collection": "items", "where": "n > 100"}, "item": {"title": "name"}},
+      {"type": "stat", "title": "Price", "source": {"collection": "items", "limit": 1}, "format": "money", "currency": "USD", "value": "80484.37"}]},
+    {"min": "2x1", "blocks": [
+      {"type": "stat", "title": "Price", "icon": "currency-bitcoin", "source": {"collection": "items", "limit": 1}, "format": "money", "currency": "USD", "value": "80484.37"},
+      {"type": "list", "source": {"collection": "items", "sort": "-n"}, "item": {"title": "name", "meta": "'step ' + string(n)", "since": "at", "icon": "'sparkles'"},
+        "actions": [{"label": "Open", "screen": "item", "primary": true}]}]},
+    {"min": "2x2", "blocks": [
+      {"type": "list", "title": "Needs you", "source": {"collection": "items", "sort": "-n", "limit": 2}, "item": {"title": "name", "meta": "'step ' + string(n)", "icon": "'hand-finger'"},
+        "actions": [{"label": "Open", "screen": "item", "primary": true}]},
+      {"type": "list", "title": "New", "source": {"collection": "items", "sort": "n"}, "item": {"title": "name", "meta": "'step ' + string(n)", "since": "at", "icon": "'sparkles'"}}]}
+  ]}`)
 
 type ScreenRow struct {
 	ID      any              `json:"id"`
@@ -113,75 +216,6 @@ func (e *Env) ScreenRows(project int64, screen string) []ScreenRow {
 		e.T.Fatalf("the rows of screen %s: %v", screen, err)
 	}
 	return rows
-}
-
-// WebNotes is a project with a list, a form that can keep its result, a custom block and a record
-// page whose form edits the record.
-const WebNotes = `{"version": 13,
-  "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title", "immutable": ["source"],
-    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "source": {"type": "string"},
-      "note": {"type": "string"}}, "required": ["title"]}}],
-  "commands": [
-    {"name": "score", "title": "Score", "description": "Scores a title.", "class": "internal",
-      "input": {"type": "object", "properties": {"title": {"type": "string"}, "n": {"type": "integer"}, "scan": {"type": "string", "format": "file"}},
-        "required": ["title"]},
-      "result": {"type": "array", "items": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}}},
-      "executor": {"type": "agent", "prompt": "Score it."}},
-    {"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
-      "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}}},
-      "executor": {"type": "agent", "prompt": "Touch."}},
-    {"name": "tell", "title": "Tell", "description": "Tells the owner.", "class": "internal", "result": {"type": "object"},
-      "executor": {"type": "agent", "prompt": "Tell."}},
-    {"name": "ingest", "title": "Ingest", "description": "Reads a file for agents.", "class": "internal", "callers": ["agent"],
-      "result": {"type": "object"}, "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}},
-      "executor": {"type": "agent", "prompt": "Ingest."}},
-    {"name": "tag", "title": "Tag", "description": "Tags what a custom block saw.", "class": "internal", "result": {"type": "object"},
-      "input": {"type": "object", "properties": {"tag": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Tag."}},
-    {"name": "publish", "title": "Publish", "description": "Publishes outside deck.", "class": "external", "result": {"type": "object"},
-      "executor": {"type": "agent", "prompt": "Publish."}},
-    {"name": "mark", "title": "Mark", "description": "Marks what a custom block saw.", "class": "internal", "result": {"type": "object"},
-      "input": {"type": "object", "properties": {"text": {"type": "string"}}},
-      "executor": {"type": "agent", "prompt": "Mark."}}],
-  "screens": [
-    {"name": "main", "title": "Web", "blocks": [
-      {"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},
-      {"type": "form", "title": "Score a title", "command": "score"},
-      {"type": "custom", "title": "Chart", "document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},
-        "actions": [{"label": "Mark", "command": "mark"}, {"label": "Tag a", "command": "tag", "params": {"tag": "a"}},
-          {"label": "Tag b", "command": "tag", "params": {"tag": "b"}}, {"label": "Publish", "command": "publish"}]},
-      {"type": "table", "title": "Notes", "source": {"collection": "notes"}, "filter": ["source"],
-        "columns": [{"label": "Title", "bind": "title"}], "actions": [{"label": "Open", "screen": "note"}]}]},
-    {"name": "note", "title": "Note", "record": "notes", "blocks": [
-      {"type": "form", "title": "Edit", "command": "deck.record_update"}]}],
-  "menu": ["main"]}`
-
-// WebNotesMark is webNotes whose custom block fills the text of Mark itself.
-var WebNotesMark = strings.Replace(WebNotes, `{"label": "Mark", "command": "mark"}`, `{"label": "Mark", "command": "mark", "from_block": ["text"]}`, 1)
-
-// WebNotesAgent scores a title into two rows, and on tell notifies the owner with the note page and a button.
-func WebNotesAgent() Script {
-	return func(ctx context.Context, c *Call) provider.Result {
-		switch c.Command() {
-		case "score":
-			return provider.Result{Structured: json.RawMessage(`[{"title": "alpha", "score": 3}, {"title": "beta", "score": 5}]`)}
-		case "mark", "tag":
-			var in struct{ Text, Tag string }
-			if m := InputOf.FindStringSubmatch(c.Req.Prompt); m != nil {
-				_ = json.Unmarshal([]byte(m[1]), &in)
-			}
-			out, _ := json.Marshal(map[string]string{"seen": in.Text + in.Tag})
-			return provider.Result{Structured: out}
-		case "tell":
-			var recs []struct{ ID int64 }
-			out, _ := c.Tool(ctx, "records_list", map[string]any{"collection": "notes"})
-			_ = json.Unmarshal([]byte(out), &recs)
-			if text, bad := c.Tool(ctx, "notify", map[string]any{"text": "alpha scored high", "screen": "note", "record": recs[0].ID,
-				"actions": fmt.Sprintf(`[{"label": "Touch it", "icon": "hand-finger", "confirm": true, "command": "touch", "params": {"note": %d}}]`, recs[0].ID)}); bad {
-				return provider.Result{Structured: json.RawMessage(fmt.Sprintf(`{"error": %q}`, text))}
-			}
-		}
-		return provider.Result{Structured: json.RawMessage(`{}`)}
-	}
 }
 
 type FormV struct {
@@ -291,22 +325,6 @@ func NewCatalogCheck(t *testing.T) *catalogCheck {
 	return &catalogCheck{c: c, data: data, Comps: map[string]string{}, basic: cat.Basic.Components}
 }
 
-func roundTrip(v any) any {
-	b, _ := json.Marshal(v)
-	var out any
-	_ = json.Unmarshal(b, &out)
-	return out
-}
-
-func BlockData[T any](t *testing.T, raw json.RawMessage) T {
-	t.Helper()
-	var v T
-	if err := json.Unmarshal(raw, &v); err != nil {
-		t.Fatalf("%s: %v", raw, err)
-	}
-	return v
-}
-
 type ListItem struct {
 	ID        any              `json:"id"`
 	Title     string           `json:"title"`
@@ -326,17 +344,6 @@ func (e *Env) AllModels(extra map[string]any) []ListItem {
 	return BlockData[[]ListItem](e.T, e.SettingsBlock("All models", extra)["items"])
 }
 
-func Merge(a, b map[string]any) map[string]any {
-	out := map[string]any{}
-	for k, v := range a {
-		out[k] = v
-	}
-	for k, v := range b {
-		out[k] = v
-	}
-	return out
-}
-
 func (e *Env) CockpitItems() []ListItem {
 	e.T.Helper()
 	var items []ListItem
@@ -349,14 +356,6 @@ func (e *Env) CockpitRunning() []ListItem {
 	var items []ListItem
 	_ = json.Unmarshal(e.ScreenData("", "cockpit", nil)["b1"]["items"], &items)
 	return items
-}
-
-func Keys(m map[string]map[string]json.RawMessage) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
 }
 
 // DialogsOf are the inputs of deck.screen that open each dialog of a screen.
@@ -373,4 +372,202 @@ func (e *Env) DialogsOf(project, screen string) []map[string]any {
 		}
 	}
 	return out
+}
+
+func (k *catalogCheck) Messages(t *testing.T, msgs []map[string]json.RawMessage) {
+	t.Helper()
+	for _, m := range msgs {
+		if string(m["version"]) != `"v0.9"` {
+			t.Fatalf("every message carries protocol v0.9: %s", m["version"])
+		}
+		if raw, ok := m["updateComponents"]; ok {
+			var uc struct{ Components []map[string]any }
+			_ = json.Unmarshal(raw, &uc)
+			for _, comp := range uc.Components {
+				name := comp["component"].(string)
+				k.Comps[comp["id"].(string)] = name
+				if slices.Contains(k.basic, name) {
+					continue
+				}
+				s, err := k.c.Compile("https://deck2.test/catalog.json#/components/" + name)
+				if err != nil {
+					t.Fatalf("component %s is not in the catalog: %v", name, err)
+				}
+				props := map[string]any{}
+				for key, v := range comp {
+					if key != "id" && key != "component" {
+						props[key] = v
+					}
+					// A block that reads data at other paths too, as a chat its parts, has its value at each.
+					if m, ok := v.(map[string]any); ok && key != "data" && m["path"] != nil {
+						at, _ := m["path"].(string)
+						k.Comps[strings.TrimPrefix(at, "/")] = name
+					}
+				}
+				if err := s.Validate(roundTrip(props)); err != nil {
+					t.Fatalf("component %s does not match the catalog: %v", comp["id"], err)
+				}
+			}
+		}
+		if raw, ok := m["updateDataModel"]; ok {
+			var dm struct {
+				Path  string
+				Value any
+			}
+			_ = json.Unmarshal(raw, &dm)
+			values := map[string]any{dm.Path: dm.Value}
+			for id, v := range values {
+				if err := k.data.Validate(v); err != nil {
+					t.Fatalf("data of %s does not match the catalog: %v", id, err)
+				}
+				value, ok := v.(map[string]any)["value"]
+				if !ok {
+					continue
+				}
+				s, err := k.c.Compile("https://deck2.test/catalog.json#/$defs/values/" + k.Comps[strings.TrimPrefix(id, "/")])
+				if err != nil {
+					t.Fatalf("the catalog has no value of block %s (%s): %v", id, k.Comps[strings.TrimPrefix(id, "/")], err)
+				}
+				if err := s.Validate(value); err != nil {
+					t.Fatalf("value of %s does not match the catalog: %v", id, err)
+				}
+			}
+		}
+	}
+}
+
+// SettingsBlock is the data of the block of deck's settings with this title, found by its component.
+func (e *Env) SettingsBlock(title string, extra map[string]any) map[string]json.RawMessage {
+	e.T.Helper()
+	return e.ScreenBlock("", "settings", title, extra)
+}
+
+// ScreenBlock is the data of the block of a screen with this title, found by its component in the tab it is in.
+func (e *Env) ScreenBlock(project, screen, title string, extra map[string]any) map[string]json.RawMessage {
+	e.T.Helper()
+	id, shown := e.FindBlock(project, screen, title)
+	if id == "" {
+		e.T.Fatalf("%s has no block %q", screen, title)
+	}
+	extra = Merge(extra, shown)
+	if extra["topic"] == nil {
+		return e.ScreenData(project, screen, extra)[id]
+	}
+	for _, m := range e.ScreenMessages(project, screen, extra) {
+		var dm struct {
+			Path  string
+			Value map[string]json.RawMessage
+		}
+		if json.Unmarshal(m["updateDataModel"], &dm) == nil && dm.Path == "/"+id {
+			return dm.Value
+		}
+	}
+	e.T.Fatalf("topic %v does not read block %q", extra["topic"], title)
+	return nil
+}
+
+// FindBlock is the id of the block of a screen with this title and the tabs and dialog that show it: a block shown by a when in
+// a tab is drawn only with its tab shown.
+func (e *Env) FindBlock(project, screen, title string) (string, map[string]any) {
+	e.T.Helper()
+	comps := func(extra map[string]any) []map[string]any {
+		var out []map[string]any
+		for _, m := range e.ScreenMessages(project, screen, extra) {
+			var uc struct{ Components []map[string]any }
+			if json.Unmarshal(m["updateComponents"], &uc) == nil {
+				out = append(out, uc.Components...)
+			}
+		}
+		return out
+	}
+	all := comps(nil)
+	shown := func(drawn []map[string]any, id string) map[string]any {
+		out := map[string]any{}
+		n := 0
+		for _, c := range drawn {
+			p, _ := c["id"].(string)
+			if name, _ := c["name"].(string); name != "" {
+				p = strings.TrimSuffix(p, "-in")
+			}
+			if c["component"] != "screen" || id != p && !strings.HasPrefix(id, p+"-") {
+				continue
+			}
+			if c["key"] != nil {
+				out[[]string{"tab", "sub"}[min(n, 1)]] = c["key"]
+				n++
+			} else if name, _ := c["name"].(string); name != "" {
+				out["dialog"] = name
+			}
+		}
+		return out
+	}
+	find := func(cs []map[string]any) string {
+		for _, c := range cs {
+			if c["title"] == title {
+				return c["id"].(string)
+			}
+		}
+		for _, c := range cs {
+			if c["component"] == "Text" && c["text"] == title {
+				return c["id"].(string)
+			}
+		}
+		return ""
+	}
+	if id := find(all); id != "" {
+		return id, shown(all, id)
+	}
+	for _, c := range all {
+		if p, _ := c["id"].(string); c["component"] == "screen" && c["key"] != nil {
+			drawn := comps(shown(all, p))
+			if id := find(drawn); id != "" {
+				return id, shown(drawn, id)
+			}
+		}
+	}
+	return "", nil
+}
+
+// ScreenForm is the data of the form of a screen that calls this command, in a dialog or not.
+func (e *Env) ScreenForm(project, screen, command string) map[string]json.RawMessage {
+	e.T.Helper()
+	for _, extra := range append([]map[string]any{nil}, e.DialogsOf(project, screen)...) {
+		for _, d := range e.ScreenData(project, screen, extra) {
+			if strings.Contains(string(d["value"]), `"commands":[{`) && strings.Contains(string(d["value"]), `"name":"`+command+`"`) {
+				return d
+			}
+		}
+	}
+	e.T.Fatalf("%s has no form of %s", screen, command)
+	return nil
+}
+
+func FindItem(t *testing.T, items []ListItem, prefix string) ListItem {
+	t.Helper()
+	for _, it := range items {
+		if strings.HasPrefix(it.Title, prefix) {
+			return it
+		}
+	}
+	t.Fatalf("no item %q in %+v", prefix, items)
+	return ListItem{}
+}
+
+func Verb(t *testing.T, acts []map[string]any, v string) map[string]any {
+	t.Helper()
+	for _, a := range acts {
+		if a["verb"] == v {
+			return a
+		}
+	}
+	t.Fatalf("no %s button in %+v", v, acts)
+	return nil
+}
+
+func HasVerb(acts []map[string]any, v string) bool {
+	return slices.ContainsFunc(acts, func(a map[string]any) bool { return a["verb"] == v })
+}
+
+type ScreenTable struct {
+	Rows []ScreenRow `json:"rows"`
 }

@@ -3,6 +3,7 @@ package real
 import (
 	"deck2/internal/app"
 	deckhome "deck2/internal/home"
+	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
@@ -24,13 +25,13 @@ const (
 )
 
 func autoManifest(prompt, name, url, extra, home string) string {
-	return fmt.Sprintf(`{"version": 13%s,
+	return fmt.Sprintf(`{"version": %d%s,
   "commands": [{"name": "work", "title": "Work", "description": "Writes a file, searches the web and posts a note", "class": "internal",
     "result": {"type": "object", "required": ["title", "web", "curl", "token"], "properties": {"title": {"type": "string"}, "web": {"type": "boolean"}, "curl": {"type": "string"}, "token": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "`+prompt+`"}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",
     "body": {"text": "{text}"},
-    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}}]}}`, extra, name, home, url)
+    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}}]}}`, manifest.FormatVersion, extra, name, home, url)
 }
 
 // realWaits gives the owner of a real run minutes to answer.

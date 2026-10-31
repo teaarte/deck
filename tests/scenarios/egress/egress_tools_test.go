@@ -20,8 +20,7 @@ import (
 )
 
 func bodiesManifest(url string) string {
-	return fmt.Sprintf(`{"version": 13,
-  "commands": [
+	return harness.Manifest(fmt.Sprintf(`{"commands": [
     {"name": "put", "title": "Put", "description": "Sends a file as it is.", "class": "internal",
      "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}, "required": ["doc"]},
      "executor": {"type": "tool", "tool": "put_file"}},
@@ -36,7 +35,7 @@ func bodiesManifest(url string) string {
      "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}, "required": ["doc"]}},
     {"name": "post_form", "description": "Posts a form", "method": "POST", "url": "%[1]s/form", "class": "internal",
      "body": {"multipart": {"upload": "{doc}", "title": "Title: {title}"}},
-     "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}, "title": {"type": "string"}}, "required": ["doc"]}}]}}`, url)
+     "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}, "title": {"type": "string"}}, "required": ["doc"]}}]}}`, url))
 }
 
 const makeScript = harness.PythonLib + `
@@ -112,8 +111,8 @@ func TestATextAnswerOverTheLimitIsNotPassedOnCut(t *testing.T) {
 		_, _ = w.Write([]byte(strings.Repeat("x", 11<<20)))
 	})
 	e := harness.New(t)
-	e.Project("big", fmt.Sprintf(`{"version": 13, "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET",
-  "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, svc.URL+"/page"))
+	e.Project("big", harness.Manifest(fmt.Sprintf(`{"tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET",
+  "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, svc.URL+"/page")))
 	if code, out := e.Call("big.page", map[string]any{}); code == 200 || !strings.Contains(string(out), "cut answer") {
 		t.Fatalf("an answer over 10 MB is an error, not its first 10 MB: %d %.200s", code, out)
 	}
@@ -122,8 +121,7 @@ func TestATextAnswerOverTheLimitIsNotPassedOnCut(t *testing.T) {
 // jsonToolManifest is a project with an HTTP tool whose input field messages is JSON text, put into the body as
 // the list it holds, and one that sends its whole input as the body.
 func jsonToolManifest(url string) string {
-	return fmt.Sprintf(`{"version": 13,
-  "commands": [{"name": "ask", "title": "Ask", "description": "Asks a model.", "class": "internal",
+	return harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "ask", "title": "Ask", "description": "Asks a model.", "class": "internal",
     "input": {"type": "object", "properties": {"messages": {"type": "string", "format": "json"}}},
     "executor": {"type": "script", "script": "main"}}],
   "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}],
@@ -132,7 +130,7 @@ func jsonToolManifest(url string) string {
      "input": {"type": "object", "properties": {"model": {"type": "string"}, "messages": {"type": "string", "format": "json"}}, "required": ["model", "messages"]},
      "body": {"model": "{model}", "messages": "{messages}", "modalities": ["image", "text"], "note": "for {model}"}},
     {"name": "plain", "title": "Plain", "description": "Posts its input.", "class": "internal", "method": "POST", "url": "%[1]s/v1/plain",
-     "input": {"type": "object", "properties": {"options": {"type": "string", "format": "json"}}}}]}}`, url)
+     "input": {"type": "object", "properties": {"options": {"type": "string", "format": "json"}}}}]}}`, url))
 }
 
 // TestAJSONFieldGoesIntoTheBodyOfAToolAsItsValue: a field of format json is text for the caller (an App Intents
@@ -294,8 +292,8 @@ func TestAReversibleCommandRunsAtOnceAndAManifestHasNoAutonomy(t *testing.T) {
 	if !strings.Contains(out, `"process"`) {
 		t.Fatalf("a reversible command runs at once: %s", out)
 	}
-	for _, extra := range []string{`"autonomy": "auto", `, `"autonomy": "suggest", `} {
-		if code, body := e.Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(m, `"version": 13,`, `"version": 13, `+extra, 1)}); code != 422 || !strings.Contains(string(body), "autonomy") {
+	for _, extra := range []string{`"autonomy": "auto"`, `"autonomy": "suggest"`} {
+		if code, body := e.Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": harness.ManifestWith(m, extra)}); code != 422 || !strings.Contains(string(body), "autonomy") {
 			t.Fatalf("a manifest has no autonomy: %d %s", code, body)
 		}
 	}
@@ -317,15 +315,15 @@ func TestHTTPToolTemplatesStayOnTheirHost(t *testing.T) {
 		{`{"name": "t", "description": "d", "method": "GET", "url": "https://a.com/{id}"}`, "{id} is not an input field"},
 		{`{"name": "t", "description": "d", "method": "GET", "url": "ftp://a.com/x"}`, "absolute http"},
 	} {
-		code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": `{"version": 13, "tools": {"http": [` + c.tool + `]}}`})
+		code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": harness.Manifest(`{"tools": {"http": [`) + c.tool + `]}}`})
 		if code != 422 || !strings.Contains(string(out), c.want) {
 			t.Fatalf("%s: want 422 with %q, got %d %s", c.tool, c.want, code, out)
 		}
 	}
-	unfit := `{"version": 13, "commands": [{"name": "c", "title": "C", "description": "d", "class": "external",
+	unfit := harness.Manifest(`{"commands": [{"name": "c", "title": "C", "description": "d", "class": "external",
     "input": {"type": "object", "properties": {"other": {"type": "string"}}}, "executor": {"type": "tool", "tool": "t"}}],
   "tools": {"http": [{"name": "t", "description": "d", "method": "POST", "url": "https://a.com/x",
-    "input": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}}]}}`
+    "input": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}}]}}`)
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": unfit}); code != 422 ||
 		!strings.Contains(string(out), `"other" is not an input field of tool`) || !strings.Contains(string(out), `requires input field "id"`) {
 		t.Fatalf("a tool command's input must fit its tool: %d %s", code, out)
@@ -350,11 +348,11 @@ func TestHTTPToolKeepsSecretsInItsOwnHeaders(t *testing.T) {
 	e := harness.New(t)
 	e.Must("deck.secret_set", map[string]any{"name": "k", "value": "the-key"}, nil)
 	e.Must("deck.secret_set", map[string]any{"name": "other", "value": "other-key"}, nil)
-	e.Project("svc", fmt.Sprintf(`{"version": 13, "tools": {"http": [
+	e.Project("svc", harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
     {"name": "echo", "description": "d", "method": "GET", "url": "%[1]s/echo", "class": "internal",
      "headers": {"X-Key": "$secret.k", "X-Title": "{title}"}, "input": {"type": "object", "properties": {"title": {"type": "string"}}}},
     {"name": "moved", "description": "d", "method": "GET", "url": "%[1]s/moved", "class": "internal", "headers": {"X-Key": "$secret.k"}},
-    {"name": "unset", "description": "d", "method": "POST", "url": "%[1]s/x", "headers": {"X-Key": "$secret.nope"}}]}}`, svc.URL))
+    {"name": "unset", "description": "d", "method": "POST", "url": "%[1]s/x", "headers": {"X-Key": "$secret.nope"}}]}}`, svc.URL)))
 	e.Must("svc.echo", map[string]any{"title": "$secret.other"}, nil)
 	if h := svc.Requests()[0].Header; h.Get("X-Title") != "$secret.other" || h.Get("X-Key") != "the-key" {
 		t.Fatalf("a field value is sent as it is, never read as a secret: %v", h)
@@ -382,10 +380,10 @@ func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 	e := harness.New(t)
 	e.Must("deck.secret_set", map[string]any{"name": "cid", "value": "c"}, nil)
 	e.Must("deck.secret_set", map[string]any{"name": "csec", "value": "s"}, nil)
-	e.Project("stock", fmt.Sprintf(`{"version": 13, "tools": {"http": [
+	e.Project("stock", harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
     {"name": "photos", "description": "d", "method": "GET", "url": "%[1]s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}},
     {"name": "signed", "description": "d", "method": "GET", "url": "%[1]s/s", "class": "internal", "auth": {"type": "oauth2",
-     "auth_url": "https://auth.example/a", "token_url": "https://auth.example/t", "client_id": "cid", "client_secret": "csec", "token": "tok"}}]}}`, svc.URL))
+     "auth_url": "https://auth.example/a", "token_url": "https://auth.example/t", "client_id": "cid", "client_secret": "csec", "token": "tok"}}]}}`, svc.URL)))
 	rows := func() map[string]string {
 		out := map[string]string{}
 		for _, h := range e.Health("stock") {
@@ -503,7 +501,7 @@ func TestSecretEchoedByAServiceNeverReachesTheAgent(t *testing.T) {
 	}))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": key}, nil)
-	m := strings.Replace(harness.PostManifest(svc.URL, ""), `{"version": 13,`, `{"version": 13, "allowed_external": ["post"],`, 1)
+	m := strings.Replace(harness.PostManifest(svc.URL, ""), harness.Manifest(`{`), harness.Manifest(`{"allowed_external": ["post"],`), 1)
 	id := e.Run(e.Project("notes", m), "work")
 	e.WaitState(id, "done")
 	mu.Lock()

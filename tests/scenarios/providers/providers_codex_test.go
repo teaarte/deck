@@ -139,7 +139,7 @@ func TestCodexProjectWithoutNetworkHasNoWebAndNoNetwork(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("paint", strings.Replace(harness.ColorManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
+	p := e.Project("paint", harness.ManifestWith(harness.ColorManifest, `"no_network": true`))
 	id := e.Run(p, "work")
 	got := e.WaitState(id, "done", "error")
 	cc := c.Call(1)
@@ -150,10 +150,9 @@ func TestCodexProjectWithoutNetworkHasNoWebAndNoNetwork(t *testing.T) {
 	}
 }
 
-const outsideManifest = `{"version": 13,
-  "commands": [{"name": "work", "title": "Work", "description": "Writes outside", "class": "internal",
+var outsideManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Writes outside", "class": "internal",
     "result": {"type": "object", "required": ["written"], "properties": {"written": {"type": "boolean"}}},
-    "executor": {"type": "agent", "prompt": "Write the word hi into a file outside your folder."}}]}`
+    "executor": {"type": "agent", "prompt": "Write the word hi into a file outside your folder."}}]}`)
 
 // TestCodexEscalationWaitsForTheOwner hands what Codex would ask a person to deck as a confirmation of exactly
 // that call: yes accepts it, no with a reason declines it and steers the reason into the turn.
@@ -272,7 +271,7 @@ func TestCodexNetworkEscalationInAProjectWithoutNetworkIsDeclined(t *testing.T) 
 	c := harness.NewCodex(t)
 	c.Stream(1, "escalation_network.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("outside", strings.Replace(outsideManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
+	p := e.Project("outside", harness.ManifestWith(outsideManifest, `"no_network": true`))
 	id := e.Run(p, "work")
 	got := e.WaitState(id, "done", "error")
 	cc := c.Call(1)
@@ -328,7 +327,7 @@ func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	c.Stream(1, "ok.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	listed := e.Project("paint", strings.Replace(harness.ColorManifest, `"version": 13,`, `"version": 13, "domains": {"read": ["data.example.org"]},`, 1))
+	listed := e.Project("paint", harness.ManifestWith(harness.ColorManifest, `"domains": {"read": ["data.example.org"]}`))
 	e.WaitState(e.Run(listed, "work"), "done", "error")
 	cc := c.Call(1)
 	mode, _ := cc.Config("permissions.deck.network.mode")
@@ -337,7 +336,7 @@ func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
 	if mode != "" || proxy != "" || net != "true" {
 		t.Fatalf("the shell has the whole network without the proxy of Codex: %s %s %s", mode, proxy, net)
 	}
-	closed := e.Project("closed", strings.Replace(harness.ColorManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
+	closed := e.Project("closed", harness.ManifestWith(harness.ColorManifest, `"no_network": true`))
 	e.WaitState(e.Run(closed, "work"), "done", "error")
 	if net, _ := c.Call(2).Config("permissions.deck.network.enabled"); net != "false" {
 		t.Fatalf("a project without network gives the shell none: %s", net)
@@ -353,7 +352,7 @@ func TestCodexIsNotOfferedACommandThatNeedsALocalBrowser(t *testing.T) {
 	browser := strings.Replace(harness.ColorManifest, `"class": "internal",`, `"class": "internal", "requires": ["local_browser"],`, 1)
 	e.Project("paint", browser)
 	e.Refused("paint.work", map[string]any{}, 422, "local_browser")
-	if code, out := e.Call("deck.project_create", map[string]any{"name": "quiet", "manifest": strings.Replace(browser, `"version": 13,`, `"version": 13, "no_network": true,`, 1)}); code != 422 || !strings.Contains(string(out), "requires local_browser") {
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "quiet", "manifest": harness.ManifestWith(browser, `"no_network": true`)}); code != 422 || !strings.Contains(string(out), "requires local_browser") {
 		t.Fatalf("a project without network cannot require a local browser: %d %s", code, out)
 	}
 }

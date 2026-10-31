@@ -25,8 +25,8 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
 	e := harness.New(t)
 	for _, name := range []string{"stock", "photos"} {
-		e.Project(name, fmt.Sprintf(`{"version": 13, "tools": {"http": [
-    {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL))
+		e.Project(name, harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
+    {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL)))
 	}
 	e.Must("deck.health_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
 	if seen, failing := e.HealthSeen("photos", "secret:photos.pexels"); !seen || !failing {
@@ -44,7 +44,7 @@ func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	pid := e.Project("broken", `{"version": 13}`)
+	pid := e.Project("broken", harness.Manifest(`{}`))
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 13, "nonsense": true}'
 		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
 		t.Fatal(err)

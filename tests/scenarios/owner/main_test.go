@@ -1,4 +1,4 @@
-package scenarios
+package owner
 
 import (
 	"testing"

@@ -1,9 +1,10 @@
-package scenarios
+package owner
 
 import (
 	"context"
 	"deck2/internal/app/providers"
 	"deck2/internal/manifest"
+	"deck2/internal/provider"
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
@@ -526,4 +527,42 @@ func withoutForms(v any) any {
 		return out
 	}
 	return v
+}
+
+// TestATranslationOfAnEnumValueIsUsed: a translation of a value of an enum of a collection is no unused word, since
+// the cells, lines, lanes and filters of the module show it.
+func TestATranslationOfAnEnumValueIsUsed(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("work", harness.BoardManifest)
+	var saved struct {
+		Unused []string `json:"unused_i18n"`
+	}
+	e.Must("deck.manifest_save", map[string]any{"project": "work", "manifest": harness.BoardManifest}, &saved)
+	if len(saved.Unused) != 0 {
+		t.Fatalf("the translation of an enum value is used: %v", saved.Unused)
+	}
+}
+
+// TestDecksOwnSentencesSpeakTheLanguageOfTheScreen: what deck writes itself — the failure of a process, a row of
+// health, a note, a phrase inside another — reads in the owner's language; the words of a model API stay as they came.
+func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
+	t.Parallel()
+	e, _, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+		return provider.Result{Outcome: provider.Unavailable, Text: "API Error: overloaded"}
+	}, harness.Ok)
+	id := e.StartWork(1)
+	e.WaitState(e.Following(id), "done")
+	var run struct{ Error string }
+	e.Must("deck.process_get", map[string]any{"process": id, "lang": "ru"}, &run)
+	if run.Error != "fake не ответила: API Error: overloaded" {
+		t.Fatalf("a failure deck wrote reads in Russian, the words of the API as they came: %q", run.Error)
+	}
+	e.Until("a note of deck in Russian, without numbers of processes", func() bool {
+		var notes []struct{ Text string }
+		e.Must("deck.feed_list", map[string]any{"lang": "ru", "kind": "note"}, &notes)
+		return slices.ContainsFunc(notes, func(n struct{ Text string }) bool {
+			return strings.HasPrefix(n.Text, "fake не закончила «work», продолжает backup: fake не ответила: API Error")
+		})
+	})
 }

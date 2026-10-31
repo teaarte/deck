@@ -1,6 +1,7 @@
-package scenarios
+package owner
 
 import (
+	"bytes"
 	"context"
 	"deck2/internal/app"
 	"deck2/internal/events"
@@ -13,6 +14,10 @@ import (
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,6 +25,59 @@ import (
 	"testing"
 	"time"
 )
+
+// TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme: a module in Settings and in Files shows the cover its card
+// wears in the theme in use, with buttons to draw another and to take it off.
+func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("notes", harness.FilesManifest())
+	img := image.NewRGBA(image.Rect(0, 0, 800, 450))
+	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
+	var b bytes.Buffer
+	_ = png.Encode(&b, img)
+	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(e.Upload("notes", "blue.png", "image/png", b.String()))}, nil)
+	var m struct {
+		Projects []struct{ Project, Cover string }
+	}
+	e.Must("deck.menu", nil, &m)
+	type card struct {
+		Title, Text, Meta string
+		Cover             map[string]string
+		Actions           []map[string]any
+	}
+	var cards []card
+	_ = json.Unmarshal(e.SettingsBlock("Modules", nil)["items"], &cards)
+	i := slices.IndexFunc(cards, func(c card) bool { return c.Title == "notes" })
+	if m := slices.IndexFunc(cards, func(c card) bool { return c.Title != "notes" }); m < 0 || cards[m].Cover["light"] != "/deki/chill.webp" || cards[i].Text != "" || cards[i].Meta != "" {
+		t.Fatalf("a card of a module says only its name, the master's wears Deki: %+v", cards)
+	}
+	if i < 0 || len(m.Projects) != 1 || cards[i].Cover["light"] != m.Projects[0].Cover || !strings.HasPrefix(cards[i].Cover["color"], "#") {
+		t.Fatalf("the card of the module wears the cover of its tile: %+v %+v", cards, m)
+	}
+	if !hasLabel(cards[i].Actions, "Draw a cover") || !hasLabel(cards[i].Actions, "Take off the cover") || !slices.ContainsFunc(cards[i].Actions, func(a map[string]any) bool { return a["verb"] == "pause" }) {
+		t.Fatalf("a module card pauses, draws its cover anew and takes it off: %+v", cards[i].Actions)
+	}
+	var files []card
+	_ = json.Unmarshal(e.ScreenBlock("", "files", "Modules", nil)["files"], &files)
+	if j := slices.IndexFunc(files, func(c card) bool { return c.Title == "notes" }); j < 0 || files[j].Cover["light"] != m.Projects[0].Cover {
+		t.Fatalf("the folder of the module wears its cover too: %+v", files)
+	}
+	foreign := strings.Replace(harness.FilesManifest(), `"commands": [`, `"screens": [{"name": "wall", "title": "Wall", "blocks": [{"type": "list", "source": {"collection": "items"},
+    "item": {"title": "name", "cover": "{'light': 'https://example.com/x.png'}"}}]}], "commands": [`, 1)
+	e.Project("wall", foreign)
+	e.Must("deck.records_upsert", map[string]any{"project": "wall", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a"})}, nil)
+	if wall := e.ScreenData("wall", "wall", nil)["b0"]; strings.Contains(string(wall["items"]), "example.com") {
+		t.Fatalf("a screen of a module names no address of a cover: %s", wall["items"])
+	}
+	off := cards[i].Actions[slices.IndexFunc(cards[i].Actions, func(a map[string]any) bool { return a["label"] == "Take off the cover" })]
+	e.Must(fmt.Sprint(off["command"]), off["params"], nil)
+	cards = nil
+	_ = json.Unmarshal(e.SettingsBlock("Modules", nil)["items"], &cards)
+	if i := slices.IndexFunc(cards, func(c card) bool { return c.Title == "notes" }); cards[i].Cover != nil {
+		t.Fatalf("a cover taken off is gone from the card: %+v", cards[i])
+	}
+}
 
 // TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice: the look is the client's, so the block
 // carries no data, and a project screen cannot hold it.

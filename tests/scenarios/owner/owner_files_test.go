@@ -1,4 +1,4 @@
-package scenarios
+package owner
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -558,5 +559,81 @@ func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
 		!strings.Contains(said[0].Text, "тема pixel") ||
 		!strings.Contains(said[0].Text, "8-bit pixel art") || !strings.Contains(said[0].Text, "вида image на openrouter/painter") {
 		t.Fatalf("every cover again for the new theme, in the owner's language: %+v", said)
+	}
+}
+
+// TestTheFileManagerHoldsEveryModuleInOnePlace: Files opens the folders of the modules, in each its files, documents
+// and data folder, by steps of its own; the master is a folder with what it holds, and a search finds a file by name.
+func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	p := e.Project("inbox", harness.FilesManifest())
+	e.Upload("inbox", "invoice-october.pdf", "application/pdf", "%PDF-1.4")
+	e.Upload("inbox", "notes.txt", "text/plain", "hello")
+	data := e.App.Home.Data(p)
+	if err := errors.Join(os.MkdirAll(filepath.Join(data, "cache", "empty"), 0o700), os.WriteFile(filepath.Join(data, "cache", "seen.json"), []byte("{}"), 0o600)); err != nil {
+		t.Fatal(err)
+	}
+	type line struct {
+		ID         any
+		Title      string
+		Meta, Icon string
+		Actions    []map[string]any
+	}
+	type crumb struct{ Label string }
+	at := func(path string) ([]line, []crumb, string) {
+		b := e.ScreenBlock("", "files", "Modules", map[string]any{"lang": "ru", "params": fmt.Sprintf(`{"path": %q}`, path)})
+		var ls []line
+		var cs []crumb
+		_ = json.Unmarshal(b["files"], &ls)
+		_ = json.Unmarshal(b["crumbs"], &cs)
+		var state string
+		_ = json.Unmarshal(b["state"], &state)
+		return ls, cs, state
+	}
+	root, _, _ := at("")
+	i := slices.IndexFunc(root, func(l line) bool { return l.Title == "inbox" })
+	m := slices.IndexFunc(root, func(l line) bool { return l.Title == "Деки" || l.Title == "master" })
+	if i < 0 || !strings.Contains(root[i].Meta, "файлов: 2") || m < 0 || !strings.Contains(root[m].Meta, "Память Деки") {
+		t.Fatalf("the root holds the folders of the modules, the master's says what it holds: %+v", root)
+	}
+	inside, crumbs, _ := at("inbox")
+	names := []string{}
+	for _, l := range inside {
+		names = append(names, l.Title)
+	}
+	if !slices.Equal(names, []string{"Файлы", "Документы", "Папка данных"}) || len(crumbs) != 2 || crumbs[1].Label != "inbox" {
+		t.Fatalf("a module holds its files, documents and data folder, its step named as the module: %v %+v", names, crumbs)
+	}
+	files, crumbs, _ := at("inbox/files")
+	if len(files) != 2 || len(crumbs) != 3 || crumbs[2].Label != "Файлы" {
+		t.Fatalf("its files, the steps by their names: %+v %+v", files, crumbs)
+	}
+	docs, _, _ := at("inbox/documents")
+	d := slices.IndexFunc(docs, func(l line) bool { return l.Title == "manifest.json" })
+	if d < 0 || !slices.ContainsFunc(docs[d].Actions, func(a map[string]any) bool { return a["screen"] == "document" && a["project"] == "inbox" }) {
+		t.Fatalf("a document opens on its page in the module: %+v", docs)
+	}
+	folder, crumbs, _ := at("inbox/data/cache")
+	if len(folder) != 2 || len(crumbs) != 4 || crumbs[3].Label != "cache" || slices.ContainsFunc(folder, func(l line) bool { return l.Title == ".." }) {
+		t.Fatalf("the data folder by its folders, the way up by its steps alone: %+v %+v", folder, crumbs)
+	}
+	if _, crumbs, state := at("inbox/data/cache/empty"); state != "empty" || len(crumbs) != 5 {
+		t.Fatalf("an empty folder keeps its steps back: %s %+v", state, crumbs)
+	}
+	id, _ := e.FindBlock("", "files", "All files")
+	found := e.ScreenData("", "files", map[string]any{"filter": `{"` + id + `": {"~": "invoice oct"}}`})[id]
+	var hits []line
+	_ = json.Unmarshal(found["files"], &hits)
+	if len(hits) != 1 || hits[0].Title != "invoice-october.pdf" {
+		t.Fatalf("the search finds a file by the words of its name: %+v", hits)
+	}
+	var all []struct{ Name string }
+	e.Must("deck.files_list", map[string]any{"search": "INVOICE pdf"}, &all)
+	if len(all) != 1 || all[0].Name != "invoice-october.pdf" {
+		t.Fatalf("files_list looks for the words through every file: %+v", all)
+	}
+	if mod := e.ScreenData("inbox", "documents", map[string]any{"params": `{"path": "files"}`})["b0"]; !strings.Contains(string(mod["files"]), "invoice-october.pdf") {
+		t.Fatalf("the files of a module are the same manager inside it: %s", mod["files"])
 	}
 }

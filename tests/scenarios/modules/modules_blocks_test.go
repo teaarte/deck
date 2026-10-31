@@ -575,18 +575,3 @@ func TestAStatOpensAScreenAndNoCommand(t *testing.T) {
 		t.Fatalf("a command on a stat is refused on save: %d %s", code, out)
 	}
 }
-
-// TestATranslationOfAnEnumValueIsUsed: a translation of a value of an enum of a collection is no unused word, since
-// the cells, lines, lanes and filters of the module show it.
-func TestATranslationOfAnEnumValueIsUsed(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	e.Project("work", harness.BoardManifest)
-	var saved struct {
-		Unused []string `json:"unused_i18n"`
-	}
-	e.Must("deck.manifest_save", map[string]any{"project": "work", "manifest": harness.BoardManifest}, &saved)
-	if len(saved.Unused) != 0 {
-		t.Fatalf("the translation of an enum value is used: %v", saved.Unused)
-	}
-}

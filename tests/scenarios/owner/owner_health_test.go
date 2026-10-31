@@ -1,7 +1,10 @@
-package scenarios
+package owner
 
 import (
+	"context"
 	"deck2/internal/health"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"fmt"
 	"net/http"
@@ -118,5 +121,39 @@ func TestTheBuiltInMasterOnceFreeIsWell(t *testing.T) {
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	if h := e.HealthRowOf("master"); h != nil {
 		t.Fatalf("once the name is free the row goes: %v", h)
+	}
+}
+
+// TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere: health rows are keyed by workspace and project, so a
+// project of the same name in another workspace keeps its own.
+func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	ctx := context.Background()
+	mine := e.Project("x", harness.PlainManifest)
+	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
+		t.Fatal(err)
+	}
+	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		theirs, err := q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: "x", Status: "enabled"})
+		if err != nil {
+			return err
+		}
+		for _, h := range []db.SetHealthParams{{WorkspaceID: store.ID(1), ProjectID: store.ID(mine), Subject: "tool:x.get", Status: "error"},
+			{WorkspaceID: store.ID(2), ProjectID: store.ID(theirs.ID), Subject: "tool:x.get", Status: "error"}} {
+			if _, err := q.SetHealth(ctx, h); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.Must("deck.project_delete", map[string]any{"project": "x"}, nil)
+	var n int
+	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM health WHERE subject = 'tool:x.get' AND workspace_id = 2`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("the namesake in the other workspace keeps its health: %d", n)
 	}
 }

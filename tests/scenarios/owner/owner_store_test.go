@@ -1,4 +1,4 @@
-package scenarios
+package owner
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -100,40 +100,6 @@ func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
 	_, _ = e.App.Store.Q.SetHealth(context.Background(), db.SetHealthParams{Subject: "x", Status: "ok"})
 }
 
-// TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere: health rows are keyed by workspace and project, so a
-// project of the same name in another workspace keeps its own.
-func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	ctx := context.Background()
-	mine := e.Project("x", harness.PlainManifest)
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
-		t.Fatal(err)
-	}
-	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		theirs, err := q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: "x", Status: "enabled"})
-		if err != nil {
-			return err
-		}
-		for _, h := range []db.SetHealthParams{{WorkspaceID: store.ID(1), ProjectID: store.ID(mine), Subject: "tool:x.get", Status: "error"},
-			{WorkspaceID: store.ID(2), ProjectID: store.ID(theirs.ID), Subject: "tool:x.get", Status: "error"}} {
-			if _, err := q.SetHealth(ctx, h); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	e.Must("deck.project_delete", map[string]any{"project": "x"}, nil)
-	var n int
-	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM health WHERE subject = 'tool:x.get' AND workspace_id = 2`).Scan(&n)
-	if n != 1 {
-		t.Fatalf("the namesake in the other workspace keeps its health: %d", n)
-	}
-}
-
 // TestADeckOfAnOlderLayoutDoesNotStart: a folder with deck's files outside state/ and work/ is refused, so nothing of
 // it lies open next to the folders agents work in.
 func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
@@ -205,25 +171,40 @@ func TestATableWithoutATopicKeepsDeckFromStarting(t *testing.T) {
 	}
 }
 
-// TestATokenInTheAddressOpensOnlyReads: the token in an address, which links and logs may carry, opens the page, its
-// events and its files, but no command; a command takes the token in its header.
-func TestATokenInTheAddressOpensOnlyReads(t *testing.T) {
+// TestNewLeavesNoServiceHalfBuilt: after New every service of deck has each dependency it names, so none is
+// filled in later by hand.
+func TestNewLeavesNoServiceHalfBuilt(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	r, err := http.Post(e.URL+"/api/commands/deck.projects_list?token="+e.OwnerToken(), "application/json", strings.NewReader("{}"))
-	if err != nil {
-		t.Fatal(err)
+	app := reflect.ValueOf(e.App).Elem()
+	var missing []string
+	for i := range app.NumField() {
+		f, name := app.Field(i), app.Type().Field(i).Name
+		if !app.Type().Field(i).IsExported() {
+			continue
+		}
+		if f.Kind() == reflect.Pointer && f.IsNil() {
+			missing = append(missing, name)
+			continue
+		}
+		if f.Kind() != reflect.Struct || !strings.HasPrefix(f.Type().PkgPath(), "deck2/internal/app/") {
+			continue
+		}
+		s := f
+		for j := range s.NumField() {
+			sf := s.Type().Field(j)
+			if !sf.IsExported() {
+				continue
+			}
+			switch v := s.Field(j); v.Kind() {
+			case reflect.Func, reflect.Pointer, reflect.Interface:
+				if v.IsNil() {
+					missing = append(missing, name+"."+sf.Name)
+				}
+			}
+		}
 	}
-	r.Body.Close()
-	if r.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("a command with the token only in its address is refused: %d", r.StatusCode)
-	}
-	g, err := http.Get(e.URL + "/api/events?token=" + e.OwnerToken())
-	if err != nil {
-		t.Fatal(err)
-	}
-	g.Body.Close()
-	if g.StatusCode != http.StatusOK {
-		t.Fatalf("the events of the page open with the token in the address: %d", g.StatusCode)
+	if len(missing) > 0 {
+		t.Fatalf("New leaves dependencies of services unset: %v", missing)
 	}
 }

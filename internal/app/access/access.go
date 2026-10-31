@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"deck2/internal/docs"
-	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/master"
@@ -161,10 +160,8 @@ func ReadModels(ctx context.Context, q *db.Queries, act registry.Actor, name str
 	if err != nil {
 		return p, err
 	}
-	for _, r := range m.Reads {
-		if r.Models && (r.Project == p.Name || r.Project == manifest.AnyProject) {
-			return p, nil
-		}
+	if m.ReadOf(p.Name).Models {
+		return p, nil
 	}
 	return p, registry.Refuse("this project does not read which models do the work of %s; a reads entry of its manifest with \"models\": true gives that", p.Name)
 }
@@ -182,10 +179,8 @@ func ReadRuns(ctx context.Context, q *db.Queries, act registry.Actor, p db.Proje
 	if err != nil {
 		return err
 	}
-	for _, r := range m.Reads {
-		if r.Runs && (r.Project == p.Name || r.Project == manifest.AnyProject) {
-			return nil
-		}
+	if m.ReadOf(p.Name).Runs {
+		return nil
 	}
 	return registry.Refuse("this process cannot touch another project; a reads entry of its manifest with \"runs\": true reads its runs in brief")
 }

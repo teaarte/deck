@@ -18,6 +18,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/health"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -172,15 +173,15 @@ func (c *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 }
 
 // auth is the sign-in of a tool of the project's manifest in force.
-func (c *Service) auth(ctx context.Context, p db.Project, tool string) (tools.Auth, error) {
-	var auth tools.Auth
+func (c *Service) auth(ctx context.Context, p db.Project, tool string) (manifest.Auth, error) {
+	var auth manifest.Auth
 	m, err := docs.For(ctx, c.St.Q, registry.Actor{}, p.ID)
 	if err != nil {
 		return auth, err
 	}
 	for _, t := range m.Tools.HTTP {
 		if t.Name == tool {
-			_ = json.Unmarshal(t.Auth, &auth)
+			auth = t.AuthOf()
 		}
 	}
 	return auth, nil

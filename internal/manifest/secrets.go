@@ -27,8 +27,7 @@ func (m *Manifest) Secrets() []string {
 func (m *Manifest) Keys() []string {
 	var signed []string
 	for _, t := range m.Tools.HTTP {
-		var a struct{ Type, Token string }
-		if json.Unmarshal(t.Auth, &a) == nil && a.Type == "oauth2" {
+		if a := t.AuthOf(); a.Type == "oauth2" {
 			signed = append(signed, a.Token)
 		}
 	}
@@ -52,13 +51,7 @@ func toolSecrets(t HTTPTool) []string {
 	for _, s := range SecretRef.FindAllSubmatch(b, -1) {
 		out = append(out, string(s[1]))
 	}
-	var a struct {
-		Secret       string `json:"secret"`
-		ClientID     string `json:"client_id"`
-		ClientSecret string `json:"client_secret"`
-		Token        string `json:"token"`
-	}
-	_ = json.Unmarshal(t.Auth, &a)
+	a := t.AuthOf()
 	for _, n := range []string{a.Secret, a.ClientID, a.ClientSecret, a.Token} {
 		if n != "" {
 			out = append(out, n)

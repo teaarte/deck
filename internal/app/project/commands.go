@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"slices"
 
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
@@ -84,7 +83,7 @@ func (pj *Service) prepared(ctx context.Context, p db.Project, m, granted *manif
 		}
 		cmds = append(cmds, cmd)
 	}
-	domains := append(slices.Clone(granted.Domains.Read), granted.Domains.Act...)
+	domains := granted.Domains.All()
 	for _, t := range granted.Tools.HTTP {
 		cmd := pj.Tools.Command(p, t, domains)
 		if err := registry.Prepare(cmd); err != nil {

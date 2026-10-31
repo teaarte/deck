@@ -11,7 +11,7 @@ var exceptions = map[string][]string{
 		"internal/app/tokens/lent.go:63", "internal/gateway/model_hops.go:145", "internal/gateway/model_hops.go:155",
 		"internal/gateway/model_meter.go:23", "internal/gateway/model_meter.go:32", "internal/mcphost/host.go:71",
 		"internal/provider/acp/acp.go:207", "internal/script/run.go:216", "internal/script/run.go:220",
-		"internal/tools/oauth.go:91", "internal/tools/oauth.go:102",
+		"internal/tools/oauth.go:78", "internal/tools/oauth.go:89",
 	},
 	"go": {
 		"internal/app/providers/login.go:113", "internal/app/providers/login.go:150",

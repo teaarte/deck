@@ -81,11 +81,7 @@ func checkTemplate(t HTTPTool) []error {
 			fail("{%s} is not an input field", m[1])
 		}
 	}
-	var auth struct{ AuthURL, TokenURL string }
-	_ = json.Unmarshal(t.Auth, &struct {
-		A *string `json:"auth_url"`
-		T *string `json:"token_url"`
-	}{&auth.AuthURL, &auth.TokenURL})
+	auth := t.AuthOf()
 	for _, raw := range []string{auth.AuthURL, auth.TokenURL} {
 		if u, err := url.Parse(raw); raw != "" && (err != nil || u.Scheme != "https" && !(u.Scheme == "http" && loopback(u.Hostname()))) {
 			fail("oauth2 addresses must be https: %q", raw)
@@ -147,3 +143,24 @@ func FileFields(input json.RawMessage) []string {
 
 // FieldsOf are the input fields of a format, such as json: text with JSON a tool sends on as the value itself.
 func FieldsOf(input json.RawMessage, format string) []string { return ObjectOf(input).Format(format) }
+
+// Auth is how an HTTP tool signs its calls: a secret in a header, or an oauth2 sign-in.
+type Auth struct {
+	Type         string   `json:"type"`
+	Secret       string   `json:"secret"`
+	Header       string   `json:"header"`
+	Prefix       string   `json:"prefix"`
+	AuthURL      string   `json:"auth_url"`
+	TokenURL     string   `json:"token_url"`
+	ClientID     string   `json:"client_id"`
+	ClientSecret string   `json:"client_secret"`
+	Token        string   `json:"token"`
+	Scopes       []string `json:"scopes"`
+}
+
+// AuthOf is the auth of the tool; a secret goes as Authorization: Bearer unless it names its header and prefix.
+func (t HTTPTool) AuthOf() Auth {
+	a := Auth{Header: "Authorization", Prefix: "Bearer "}
+	_ = json.Unmarshal(t.Auth, &a)
+	return a
+}

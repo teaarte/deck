@@ -250,6 +250,9 @@ type Domains struct {
 	Act  []string `json:"act,omitempty"`
 }
 
+// All are the domains read and acted on, read first.
+func (d Domains) All() []string { return append(slices.Clone(d.Read), d.Act...) }
+
 type Read struct {
 	Project     string   `json:"project"`
 	Collections []string `json:"collections,omitempty"`
@@ -259,6 +262,20 @@ type Read struct {
 	// Runs reads the runs of the project in brief, or of every one under AnyProject: command, state, failure, model,
 	// times; never input, result or log.
 	Runs bool `json:"runs,omitempty"`
+}
+
+// ReadOf is what the reads entries naming project give together: models and runs also under AnyProject.
+func (m *Manifest) ReadOf(project string) Read {
+	out := Read{Project: project}
+	for _, r := range m.Reads {
+		if r.Project == project || r.Project == AnyProject {
+			out.Models, out.Runs = out.Models || r.Models, out.Runs || r.Runs
+		}
+		if r.Project == project {
+			out.Collections, out.Documents = append(out.Collections, r.Collections...), append(out.Documents, r.Documents...)
+		}
+	}
+	return out
 }
 
 // Data says the entry reads data of its project, not only which models do its work or its runs.

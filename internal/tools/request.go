@@ -30,7 +30,7 @@ var headerRef = regexp.MustCompile(manifest.SecretRef.String() + `|\{[A-Za-z0-9_
 type outgoing struct {
 	req   *http.Request
 	body  *body
-	oauth *Auth
+	oauth *manifest.Auth
 	// secrets are the values the call carries; the answer reaches the caller without them.
 	secrets []string
 }
@@ -89,8 +89,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 		req.Header.Set(k, v)
 	}
 	if len(t.Auth) > 0 {
-		a := Auth{Header: "Authorization", Prefix: "Bearer "}
-		_ = json.Unmarshal(t.Auth, &a)
+		a := t.AuthOf()
 		switch a.Type {
 		case "oauth2":
 			out.oauth = &a

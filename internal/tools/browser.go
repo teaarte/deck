@@ -270,7 +270,7 @@ func (b *Browser) reader(tool string) registry.Handler {
 			return nil, err
 		}
 		if tool == "browser_navigate" || tool == "browser_tabs" && args.Action == "new" && args.URL != "" {
-			if !on(append(slices.Clone(m.Domains.Read), m.Domains.Act...), args.URL) {
+			if !on(m.Domains.All(), args.URL) {
 				return nil, registry.Refuse("%s is not on a read or act domain of this project; the owner adds domains to its manifest (\"*\" in read reads any site)", args.URL)
 			}
 		}
@@ -281,7 +281,7 @@ func (b *Browser) reader(tool string) registry.Handler {
 			return nil, fmt.Errorf("deck: %s: %v", tool, err)
 		}
 		if tool == "browser_tabs" && args.Action == "list" {
-			ownTabs(res, append(slices.Clone(m.Domains.Read), m.Domains.Act...))
+			ownTabs(res, m.Domains.All())
 		} else if tool != "browser_close" && tool != "browser_resize" {
 			if page, off := b.offDomains(ctx, act.ProjectID); off {
 				return nil, registry.Refuse("the browser shows %s, which is not on a read or act domain of this project; what it shows is withheld", untrusted.Line(page, 300))
@@ -319,7 +319,7 @@ func (b *Browser) offDomains(ctx context.Context, project int64) (string, bool) 
 	if perr != nil {
 		return page, true
 	}
-	return page, !on(append(slices.Clone(m.Domains.Read), m.Domains.Act...), page)
+	return page, !on(m.Domains.All(), page)
 }
 
 // Login opens a window of deck's browser at the page, for the owner to sign in with deck's profile.

@@ -13,23 +13,10 @@ import (
 	"golang.org/x/oauth2"
 
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
 )
-
-// Auth is the auth entry of an HTTP tool.
-type Auth struct {
-	Type         string   `json:"type"`
-	Secret       string   `json:"secret"`
-	Header       string   `json:"header"`
-	Prefix       string   `json:"prefix"`
-	AuthURL      string   `json:"auth_url"`
-	TokenURL     string   `json:"token_url"`
-	ClientID     string   `json:"client_id"`
-	ClientSecret string   `json:"client_secret"`
-	Token        string   `json:"token"`
-	Scopes       []string `json:"scopes"`
-}
 
 // ErrSignIn is an access that ran out or was revoked: only the owner's sign-in brings it back.
 type ErrSignIn struct{ Why string }
@@ -49,7 +36,7 @@ type OAuth struct {
 	locks map[string]*sync.Mutex
 }
 
-func (o *OAuth) config(workspace int64, a Auth, redirect string) (*oauth2.Config, error) {
+func (o *OAuth) config(workspace int64, a manifest.Auth, redirect string) (*oauth2.Config, error) {
 	id, err := o.Secrets(workspace, a.ClientID)
 	if err != nil {
 		return nil, err
@@ -76,7 +63,7 @@ func (o *OAuth) lock(workspace int64, name string) *sync.Mutex {
 }
 
 // Access is a valid access token, refreshed first when it ran out or when force says the service refused it.
-func (o *OAuth) Access(ctx context.Context, workspace int64, a Auth, force bool) (string, error) {
+func (o *OAuth) Access(ctx context.Context, workspace int64, a manifest.Auth, force bool) (string, error) {
 	l := o.lock(workspace, a.Token)
 	l.Lock()
 	defer l.Unlock()
@@ -124,7 +111,7 @@ func (o *OAuth) Access(ctx context.Context, workspace int64, a Auth, force bool)
 
 // Start begins a sign-in: a one-time state, a PKCE verifier and a callback listener on localhost that
 // live for FlowTTL. done runs with the outcome once the service called back or the flow ran out.
-func (o *OAuth) Start(ctx context.Context, workspace int64, a Auth, done func(error)) (string, error) {
+func (o *OAuth) Start(ctx context.Context, workspace int64, a manifest.Auth, done func(error)) (string, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", err
@@ -174,7 +161,7 @@ func (o *OAuth) Start(ctx context.Context, workspace int64, a Auth, done func(er
 	return conf.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), nil
 }
 
-func (o *OAuth) exchange(ctx context.Context, workspace int64, a Auth, conf *oauth2.Config, code, refused, verifier string) error {
+func (o *OAuth) exchange(ctx context.Context, workspace int64, a manifest.Auth, conf *oauth2.Config, code, refused, verifier string) error {
 	if refused != "" || code == "" {
 		return fmt.Errorf("deck: the service did not grant access: %s", refused)
 	}

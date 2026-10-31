@@ -19,8 +19,14 @@ func TestQuestionAnsweredLive(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{
 			{"question": "Which topic?", "header": "Topic", "options": []map[string]any{{"label": "go"}, {"label": "rust"}}}}})
-		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
-		harness.WriteIdeas(ctx, c, answers["Which topic?"].(string))
+		// A turn cut when the test ends gets no decision.
+		in, _ := d["updatedInput"].(map[string]any)
+		answers, _ := in["answers"].(map[string]any)
+		topic, ok := answers["Which topic?"].(string)
+		if !ok {
+			return provider.Result{Outcome: provider.Failed, Text: "no answer"}
+		}
+		harness.WriteIdeas(ctx, c, topic)
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 	}))
 
@@ -30,13 +36,14 @@ func TestQuestionAnsweredLive(t *testing.T) {
 	if a.Kind != "question" || a.Text != "Which topic?" {
 		t.Fatalf("unexpected ask %+v", a)
 	}
-	if items := e.CockpitItems(); len(items) != 1 || items[0].Title != "Topic" {
-		t.Fatalf("a question the picker shows in full is headed by its header, not its text twice: %+v", items)
-	}
-	if running := e.CockpitRunning(); len(running) != 1 || !strings.Contains(running[0].Text, "waits for your answer") ||
-		!strings.Contains(running[0].Text, "Which topic?") {
-		t.Fatalf("a process that waits for the owner says so in Running now, with its question: %+v", running)
-	}
+	e.Until("a question the picker shows in full is headed by its header, not its text twice", func() bool {
+		items := e.CockpitItems()
+		return len(items) == 1 && items[0].Title == "Topic"
+	})
+	e.Until("a process that waits for the owner says so in Running now, with its question", func() bool {
+		running := e.CockpitRunning()
+		return len(running) == 1 && strings.Contains(running[0].Text, "waits for your answer") && strings.Contains(running[0].Text, "Which topic?")
+	})
 	if b, _ := json.Marshal(e.ScreenMessages("", "cockpit", map[string]any{"topic": "asks"})); !strings.Contains(string(b), "waits for your answer") {
 		t.Fatalf("a question that opens reads Running now again: %s", b)
 	}

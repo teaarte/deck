@@ -30,7 +30,8 @@ func TestRealBrowserMasterChat(t *testing.T) {
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "records_list", Text: "{}"})
 			d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?",
 				"options": []any{map[string]any{"label": "shop"}, map[string]any{"label": "market"}}}}})
-			answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
+			upd, _ := d["updatedInput"].(map[string]any)
+			answers, _ := upd["answers"].(map[string]any)
 			return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
 		case strings.Contains(c.Req.Prompt, "post it") && !strings.Contains(c.Req.Prompt, "This continues"):
 			out, _ := c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "milk"})

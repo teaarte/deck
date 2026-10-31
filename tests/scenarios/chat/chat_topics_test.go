@@ -406,7 +406,8 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?", "header": "List",
 			"options": []any{map[string]any{"label": "shop", "description": "The shop by the house"}, map[string]any{"label": "market"}}},
 			map[string]any{"question": "What shows?", "multiSelect": true, "options": []any{map[string]any{"label": "price"}, map[string]any{"label": "photo"}}}}})
-		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
+		upd, _ := d["updatedInput"].(map[string]any)
+		answers, _ := upd["answers"].(map[string]any)
 		return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
 	}), harness.WithConfig(
 
@@ -527,7 +528,8 @@ func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?"}}})
-		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
+		upd, _ := d["updatedInput"].(map[string]any)
+		answers, _ := upd["answers"].(map[string]any)
 		return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
 	}), harness.WithConfig(
 

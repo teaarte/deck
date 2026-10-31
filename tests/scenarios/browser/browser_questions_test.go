@@ -48,7 +48,8 @@ func TestRealBrowserMasterQuestions(t *testing.T) {
 			return provider.Result{Text: "Done."}
 		}
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": questions})
-		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
+		upd, _ := d["updatedInput"].(map[string]any)
+		answers, _ := upd["answers"].(map[string]any)
 		var got []string
 		for _, q := range questions {
 			got = append(got, fmt.Sprint(answers[q.(map[string]any)["question"].(string)]))

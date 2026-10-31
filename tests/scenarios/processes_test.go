@@ -525,7 +525,7 @@ func TestProcessGetWaitsForTheEnd(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 1}`)}
 	}))
 
-	id := e.Run(e.Project("ideas", ideasManifest), "collect")
+	id := e.Run(e.Project("ideas", harness.IdeasManifest), "collect")
 	time.AfterFunc(time.Second, func() { close(release) })
 	var p struct{ State string }
 	began := time.Now()

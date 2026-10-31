@@ -301,7 +301,7 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}), harness.WithClock())
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	e.PassState(id, "waiting_answer")
 	e.Answer(e.WaitAsk().ID, "allow")

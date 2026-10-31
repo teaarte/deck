@@ -261,7 +261,7 @@ func TestASnapshotBeforeADeleteHoldsOnlyThatProject(t *testing.T) {
 func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
-	e.Project("notes", ideasManifest)
+	e.Project("notes", harness.IdeasManifest)
 	h := deckhome.Layout(e.App.Cfg.Home)
 	data, _ := filepath.Glob(filepath.Join(h.Projects(), "*", "data"))
 	if len(data) == 0 {

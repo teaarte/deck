@@ -96,3 +96,12 @@ func (f *FakeModels) Calls() []ModelCall {
 	defer f.mu.Unlock()
 	return append([]ModelCall{}, f.got...)
 }
+
+// PictureAnswer is how OpenRouter answers chat completions with an image: the picture in base64, the usage with its cost.
+func PictureAnswer(cost float64) string {
+	b, _ := json.Marshal(map[string]any{"id": "gen-1", "model": "google/gemini-3.1-flash-lite-image", "choices": []any{map[string]any{
+		"message": map[string]any{"role": "assistant", "content": "", "images": []any{map[string]any{"type": "image_url",
+			"image_url": map[string]any{"url": "data:image/png;base64,iVBORw0KGgo="}}}}}},
+		"usage": map[string]any{"prompt_tokens": 58, "completion_tokens": 1290, "total_tokens": 1348, "cost": cost}})
+	return string(b)
+}

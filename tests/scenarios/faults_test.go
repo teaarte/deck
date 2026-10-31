@@ -143,17 +143,17 @@ func TestTheMasterGetsTheTypeOfAFailure(t *testing.T) {
 		if c.Command() == "work" {
 			return provider.Result{Outcome: provider.Unavailable, Text: "API Error: 529 overloaded"}
 		}
-		return masterScript(ctx, c)
+		return harness.MasterScript(ctx, c)
 	}), harness.WithClock())
 
-	masterAwake(e)
+	e.MasterAwake()
 	p := e.Project("work", harness.PlainManifest)
 	failed := e.WaitState(e.Run(p, "work"), "error")
 	if got := e.Fault(failed.ID); got.ErrorType != "model.unavailable" || got.Whose != "model" {
 		t.Fatalf("a model that does not answer is the model's failure: %+v", got)
 	}
 	e.App.Runner.Wait()
-	if n := len(runsOf(e, "master", "on_error")); n != 0 {
+	if n := len(e.RunsOf("master", "on_error")); n != 0 {
 		t.Fatalf("a failure of a model does not go to the master: %d", n)
 	}
 	e.Project("other", harness.ScriptManifest("run", "", ""))
@@ -161,8 +161,8 @@ func TestTheMasterGetsTheTypeOfAFailure(t *testing.T) {
 	for range 3 {
 		e.WaitState(e.Start("other", "run", nil), "error")
 	}
-	e.Until("on_error", func() bool { return len(runsOf(e, "master", "on_error")) == 1 })
-	got, _ := e.App.Store.Q.GetProcess(context.Background(), runsOf(e, "master", "on_error")[0].ID)
+	e.Until("on_error", func() bool { return len(e.RunsOf("master", "on_error")) == 1 })
+	got, _ := e.App.Store.Q.GetProcess(context.Background(), e.RunsOf("master", "on_error")[0].ID)
 	if !strings.Contains(got.Input, `"type":"script.failed"`) || !strings.Contains(got.Input, `"whose":"module"`) {
 		t.Fatalf("the master gets the type and whose it is: %s", got.Input)
 	}

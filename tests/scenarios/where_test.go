@@ -12,7 +12,7 @@ func TestAWhereKeepsTheSameRecordsOnAScreenAndInAList(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	where := `topic == 'x' ? true : nil`
-	p := e.Project("ideas", strings.Replace(ideasManifest, `"where": "score >= 5"`, `"where": "`+where+`"`, 1))
+	p := e.Project("ideas", strings.Replace(harness.IdeasManifest, `"where": "score >= 5"`, `"where": "`+where+`"`, 1))
 	e.Must("deck.records_upsert", map[string]any{"project": "ideas", "collection": "ideas", "records": harness.Jsonl(
 		map[string]any{"title": "alpha", "score": 7, "topic": "x"}, map[string]any{"title": "beta", "score": 8, "topic": "y"})}, nil)
 	var listed []struct{ Data map[string]any }

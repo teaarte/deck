@@ -105,7 +105,7 @@ func TestAFixedParamOfAButtonTakesTheTypeOfItsField(t *testing.T) {
 func TestManifestReferencesAreChecked(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("other", ideasManifest)
+	e.Project("other", harness.IdeasManifest)
 	cases := []struct{ name, old, new, want string }{
 		{"unknown field", `"menu": ["main"]`, `"menu": ["main"], "colour": "red"`, "colour"},
 		{"trigger cycle", `{"command": "rate", "after": "collect", "params": {"limit": 20}}`,
@@ -307,10 +307,10 @@ func TestAManifestOfAnyFormatButThirteenIsRefused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	for _, v := range []string{"12", "4", "3"} {
-		m := strings.Replace(ideasManifest, `"version": 13,`, `"version": `+v+`,`, 1)
+		m := strings.Replace(harness.IdeasManifest, `"version": 13,`, `"version": `+v+`,`, 1)
 		e.Refused("deck.project_create", map[string]any{"name": "old" + v, "manifest": m}, 422, "manifest: version must be the number 13, got "+v)
 	}
-	e.Project("ideas", ideasManifest)
+	e.Project("ideas", harness.IdeasManifest)
 }
 
 // TestOnlyTheBuiltInProjectAnswersEventsOfDeck: a trigger on a message or a failure belongs to project master.
@@ -341,7 +341,7 @@ func TestProjectPromptReachesTheAgent(t *testing.T) {
 	}))
 
 	var p struct{ ID int64 }
-	e.Must("deck.project_create", map[string]any{"name": "ideas", "manifest": ideasManifest, "prompt": "Ideas for a solo developer.\nPrefer Go."}, &p)
+	e.Must("deck.project_create", map[string]any{"name": "ideas", "manifest": harness.IdeasManifest, "prompt": "Ideas for a solo developer.\nPrefer Go."}, &p)
 	e.Names[p.ID] = "ideas"
 	e.WaitState(e.Run(p.ID, "collect"), "done")
 	if calls := e.Fake.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "Prefer Go.") {
@@ -404,7 +404,7 @@ func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("ideas", ideasManifest)
+	e.Project("ideas", harness.IdeasManifest)
 	e.WaitState(e.Start("ideas", "collect", nil), "done", "error")
 	runs := strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"project": "string"}, "blocks": [
       {"type": "table", "title": "Runs", "source": {"from": "deck.processes_list", "input": {"project": "=param.project"}}, "columns": [{"label": "Command", "bind": "command"}]},

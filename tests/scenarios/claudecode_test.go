@@ -86,7 +86,7 @@ func TestLargeValuesAreNotArguments(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
 	desc := strings.Repeat("d", 200*1024)
-	m := strings.Replace(ideasManifest, `"properties": {"written": {"type": "integer"}}`,
+	m := strings.Replace(harness.IdeasManifest, `"properties": {"written": {"type": "integer"}}`,
 		`"properties": {"written": {"type": "integer", "description": "`+desc+`"}}`, 1)
 	p := e.Project("ideas", m)
 	e.WaitState(e.Run(p, "collect"), "done", "error")
@@ -187,7 +187,7 @@ func TestPromptMentionsOnlyConnectedTools(t *testing.T) {
 			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 		}}
 		e := harness.New(t, harness.WithProvider(fake))
-		p := e.Project("ideas", ideasManifest)
+		p := e.Project("ideas", harness.IdeasManifest)
 		e.WaitState(e.Run(p, "collect"), "done")
 		prompt := fake.Calls()[0].Prompt
 		if strings.Contains(prompt, "AskUserQuestion") == noQuestions || !strings.Contains(prompt, "records_upsert") {
@@ -291,7 +291,7 @@ func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
 		{`"domains": {"read": ["*"]},`, false},
 		{`"no_network": true,`, true},
 	} {
-		p := e.Project(fmt.Sprintf("ideas%d", i), strings.Replace(ideasManifest, `"version": 13,`, `"version": 13, `+tc.domains, 1))
+		p := e.Project(fmt.Sprintf("ideas%d", i), strings.Replace(harness.IdeasManifest, `"version": 13,`, `"version": 13, `+tc.domains, 1))
 		e.WaitState(e.Run(p, "collect"), "done", "error")
 		var set struct {
 			Sandbox *struct {
@@ -320,7 +320,7 @@ func TestClaudeCodeReadsInItsFoldersAndShowsWhatItRefused(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(0, "denied.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
-	id := e.Run(e.Project("ideas", ideasManifest), "collect")
+	id := e.Run(e.Project("ideas", harness.IdeasManifest), "collect")
 	e.WaitState(id, "done", "error")
 	call := c.Call(c.Calls())
 	var set struct {

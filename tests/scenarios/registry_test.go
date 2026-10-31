@@ -59,7 +59,7 @@ func intentType(p paramSchema, list bool) bool {
 func TestEveryCommandFitsAppIntents(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("ideas", ideasManifest)
+	e.Project("ideas", harness.IdeasManifest)
 	if code, _ := e.Do("GET", "/api/commands", nil); code != 404 && code != 405 {
 		t.Fatalf("the list of commands is commands_list alone: %d", code)
 	}
@@ -94,7 +94,7 @@ func TestEveryCommandFitsAppIntents(t *testing.T) {
 func TestCommandsListDeckSelectsBuiltins(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	e.Project("ideas", ideasManifest)
+	e.Project("ideas", harness.IdeasManifest)
 	for _, kind := range []string{registry.Owner, registry.Master} {
 		act := registry.Actor{Kind: kind, Workspace: 1}
 		out, err := e.App.Registry.Invoke(t.Context(), act, "deck.commands_list", json.RawMessage(`{"project":"deck","fields":["name","description","owner_only","form","form_params"]}`))
@@ -149,7 +149,7 @@ func TestUnknownCommandAndBadInput(t *testing.T) {
 	if code != 422 || !strings.Contains(string(out), "color") {
 		t.Fatalf("unknown parameter: want 422, got %d %s", code, out)
 	}
-	code, out = e.Call("deck.project_create", map[string]any{"name": "Deck", "manifest": ideasManifest})
+	code, out = e.Call("deck.project_create", map[string]any{"name": "Deck", "manifest": harness.IdeasManifest})
 	if code != 422 {
 		t.Fatalf("bad project name: want 422, got %d %s", code, out)
 	}
@@ -168,7 +168,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	var created struct{ ID int64 }
-	e.Must("deck.project_create", map[string]any{"name": "ideas", "manifest": ideasManifest, "prompt": "# Ideas of the day\nShort ideas for a solo developer."}, &created)
+	e.Must("deck.project_create", map[string]any{"name": "ideas", "manifest": harness.IdeasManifest, "prompt": "# Ideas of the day\nShort ideas for a solo developer."}, &created)
 	p := created.ID
 	var projects []struct {
 		Name, Description string
@@ -179,7 +179,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		t.Fatalf("projects_list: %+v", projects)
 	}
 
-	noTrigger := strings.Replace(ideasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`, `"triggers": []`, 1)
+	noTrigger := strings.Replace(harness.IdeasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`, `"triggers": []`, 1)
 	var saved struct{ Revision int64 }
 	e.Must("deck.manifest_save", map[string]any{"project": "ideas", "manifest": noTrigger, "reason": "no schedule"}, &saved)
 	if saved.Revision != 2 {
@@ -217,7 +217,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 	}
 	e.Must("deck.document_revert", map[string]any{"document": cur.Document, "revision": 1}, &saved)
 	e.Must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if saved.Revision != 3 || cur.Manifest != manifest.Canonical(ideasManifest) {
+	if saved.Revision != 3 || cur.Manifest != manifest.Canonical(harness.IdeasManifest) {
 		t.Fatalf("revert must bring revision 1 back as revision 3, got %d", saved.Revision)
 	}
 	if ts, _ := e.App.Store.Q.ListProjectTriggers(context.Background(), p); len(ts) != 1 {
@@ -280,7 +280,7 @@ func TestDocumentsWithRevisions(t *testing.T) {
 func TestRecordCommands(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("ideas", ideasManifest)
+	e.Project("ideas", harness.IdeasManifest)
 	var up struct {
 		Written int
 		Errors  []string
@@ -324,8 +324,8 @@ func TestProcessCommands(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 
-	p := e.Project("ideas", ideasManifest)
-	e.Project("other", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
+	e.Project("other", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	e.WaitState(id, "done")
 	var ps []harness.Proc
@@ -368,8 +368,8 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 1}`)}
 	}))
 
-	p := e.Project("ideas", ideasManifest)
-	e.Project("other", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
+	e.Project("other", harness.IdeasManifest)
 	e.WaitState(e.Run(p, "collect"), "done")
 
 	for _, want := range []string{"records_upsert", "document_save", "ideas__collect", "process_get"} {
@@ -507,7 +507,7 @@ func TestAnAgentCallsOnlyWhatItsCommandLists(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 
-	p := e.Project("ideas", strings.Replace(ideasManifest, `"prompt": "Write three ideas into the ideas collection."`,
+	p := e.Project("ideas", strings.Replace(harness.IdeasManifest, `"prompt": "Write three ideas into the ideas collection."`,
 		`"prompt": "Read the ideas.", "calls": ["deck.records_list"]`, 1))
 	e.WaitState(e.Run(p, "collect"), "done")
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
@@ -538,8 +538,8 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 
-	p := e.Project("ideas", ideasManifest)
-	other := e.Project("other", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
+	other := e.Project("other", harness.IdeasManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "theirs", "score": 1})}, nil)
 	theirs := e.WaitState(e.Run(other, "collect"), "done").ID
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: other, Collection: "ideas"})

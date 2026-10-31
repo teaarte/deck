@@ -284,7 +284,7 @@ func TestAnEmptyProcessThatWroteRecordsStays(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	}), harness.WithClock())
 
-	m := strings.Replace(ideasManifest, `"commands": [{`, `"commands": [`+harness.AgentCommand("write", "")+`, `+harness.AgentCommand("idle", "")+`, {`, 1)
+	m := strings.Replace(harness.IdeasManifest, `"commands": [{`, `"commands": [`+harness.AgentCommand("write", "")+`, `+harness.AgentCommand("idle", "")+`, {`, 1)
 	p := e.Project("notes", harness.Nullable(m))
 	wrote, idle := e.Run(p, "write"), e.Run(p, "idle")
 	e.WaitState(wrote, "done")

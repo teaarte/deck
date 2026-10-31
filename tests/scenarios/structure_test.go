@@ -33,7 +33,7 @@ func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {
 func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("mine", ideasManifest)
+	e.Project("mine", harness.IdeasManifest)
 	ctx := context.Background()
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 			t.Fatalf("health of another workspace's commands must not be listed: %+v", h)
 		}
 	}
-	e.Project("theirs", ideasManifest)
+	e.Project("theirs", harness.IdeasManifest)
 	if code, out := e.Call("deck.manifest_get", map[string]any{"project": "theirs"}); code != 200 || !strings.Contains(string(out), "collect") {
 		t.Fatalf("a name finds the project of the caller's workspace: %d %s", code, out)
 	}
@@ -78,7 +78,7 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 func TestCoreDocumentNamesKeepTheirKind(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("ideas", ideasManifest)
+	e.Project("ideas", harness.IdeasManifest)
 	for _, name := range []string{"prompt.md", "manifest.json"} {
 		if code, _ := e.Call("deck.document_save", map[string]any{"project": "ideas", "name": name, "kind": "artifact", "text": "Injected"}); code != 422 {
 			t.Errorf("%s must be reserved for its kind, got %d", name, code)
@@ -94,7 +94,7 @@ func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	e.Project("mine", ideasManifest)
+	e.Project("mine", harness.IdeasManifest)
 	if _, err := os.Stat(filepath.Join(deckhome.Layout(home).State(), "deck.db")); err != nil {
 		t.Fatalf("the database lives in the home of deck: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
 func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("mine", ideasManifest)
+	e.Project("mine", harness.IdeasManifest)
 	hold, held := make(chan struct{}), make(chan struct{})
 	go func() {
 		_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {

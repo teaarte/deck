@@ -32,7 +32,7 @@ func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 	}), harness.WithClock())
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	a := e.WaitAsk()
 	e.PassWaits("the question's wait to pass while the turn still runs", func() bool {
@@ -72,7 +72,7 @@ func TestTwoLateAnswersResumeOnce(t *testing.T) {
 		return provider.Result{Text: "stopped"}
 	}), harness.WithClock())
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	e.PassState(id, "waiting_answer")
 	var asks []harness.Ask
@@ -99,7 +99,7 @@ func TestProviderErrorMarksProcessError(t *testing.T) {
 	e.Fake.Script = func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "boom"}
 	}
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	got := e.WaitState(e.Run(p, "collect"), "error", "done")
 	if got.State != "error" {
 		t.Fatalf("want error, got %+v", got)
@@ -120,7 +120,7 @@ func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}), harness.WithClock())
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	e.PassState(id, "waiting_answer")
 	a := e.WaitAsk()
@@ -151,7 +151,7 @@ func TestConfirmationExpiresAndProcessIsTold(t *testing.T) {
 
 		func(c *app.Config) { c.ConfirmTTL = time.Hour }))
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	e.PassState(id, "waiting_answer")
 	a := e.WaitAsk()
@@ -177,7 +177,7 @@ func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
 		return provider.Result{}
 	}}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(fake), harness.WithConfig(func(c *app.Config) { c.QuestionWait, c.ConfirmWait = time.Second, time.Second }))
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	<-started
 	_ = e.App.Close()
@@ -202,7 +202,7 @@ func TestRecordWithoutKeyIsRejected(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 
-	p := e.Project("ideas", strings.Replace(ideasManifest, `"required": ["title", "score"]`, `"required": ["score"]`, 1))
+	p := e.Project("ideas", strings.Replace(harness.IdeasManifest, `"required": ["title", "score"]`, `"required": ["score"]`, 1))
 	e.WaitState(e.Run(p, "collect"), "done")
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
 	if len(recs) != 0 || !strings.Contains(out, "key") {
@@ -213,7 +213,7 @@ func TestRecordWithoutKeyIsRejected(t *testing.T) {
 func TestDuplicateTriggerIsRejected(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := strings.Replace(ideasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`,
+	m := strings.Replace(harness.IdeasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`,
 		`"triggers": [{"command": "collect", "cron": "0 9 * * *"}, {"command": "collect", "cron": "0 9 * * *"}]`, 1)
 	code, out := e.Call("deck.project_create", map[string]any{"name": "dup", "manifest": m})
 	if code != 422 || !strings.Contains(string(out), "duplicate trigger") {
@@ -284,7 +284,7 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 		return provider.Result{Text: "stopped"}
 	}}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(fake), harness.WithConfig(func(c *app.Config) { c.QuestionWait, c.ConfirmWait = time.Second, time.Second }))
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()
@@ -317,11 +317,11 @@ func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
 		return provider.Result{Text: "stopped"}
 	}), harness.WithClock())
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	e.PassState(id, "waiting_answer")
 	a := e.WaitAsk()
-	renamed := strings.NewReplacer(`"name": "collect"`, `"name": "gather"`, `"command": "collect"`, `"command": "gather"`).Replace(ideasManifest)
+	renamed := strings.NewReplacer(`"name": "collect"`, `"name": "gather"`, `"command": "collect"`, `"command": "gather"`).Replace(harness.IdeasManifest)
 	e.Must("deck.manifest_save", map[string]any{"project": "ideas", "manifest": renamed}, nil)
 	e.Answer(a.ID, "go")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {

@@ -24,7 +24,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		{"name": "skills/reader/SKILL.md", "kind": "skill", "text": "---\nname: reader\ndescription: Reads.\n---\nRead.\n"},
 		{"name": "custom/chart.html", "kind": "custom", "text": "<div></div>"},
 		{"name": "reports/today.md", "kind": "artifact", "text": "an artifact is data"},
-		{"name": "memory/owner-tea.md", "kind": "memory", "text": fact("owner-tea", "user", "The owner likes tea")},
+		{"name": "memory/owner-tea.md", "kind": "memory", "text": harness.Fact("owner-tea", "user", "The owner likes tea")},
 	} {
 		d["project"] = "links"
 		e.Must("deck.document_save", d, nil)

@@ -5,6 +5,28 @@ import (
 	"strings"
 )
 
+const IdeasManifest = `{
+  "version": 13,
+  "collections": [{
+    "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
+    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},
+               "required": ["title", "score"]}
+  }],
+  "commands": [{
+    "name": "collect", "title": "Collect ideas", "description": "Writes ideas", "class": "internal",
+    "executor": {"type": "agent", "prompt": "Write three ideas into the ideas collection."},
+    "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}
+  }],
+  "triggers": [{"command": "collect", "cron": "0 9 * * *"}],
+  "screens": [{
+    "name": "main", "title": "Ideas",
+    "blocks": [{"type": "table", "title": "Best ideas",
+      "source": {"collection": "ideas", "where": "score >= 5", "sort": "-score", "limit": 10},
+      "columns": [{"label": "Idea", "bind": "title"}, {"label": "Score", "bind": "score"}],
+      "actions": [{"label": "Again", "command": "collect"}]}]
+  }]
+}`
+
 func Jsonl(recs ...map[string]any) string {
 	var b strings.Builder
 	for _, r := range recs {

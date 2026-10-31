@@ -47,15 +47,6 @@ func TestAnAssignmentTakesItsFallbackWhileTheFirstIsDown(t *testing.T) {
 	e.Refused("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "models": []string{"nobody"}}, 404, "no provider")
 }
 
-// pictureAnswer is how OpenRouter answers chat completions with an image: the picture in base64, the usage with its cost.
-func pictureAnswer(cost float64) string {
-	b, _ := json.Marshal(map[string]any{"id": "gen-1", "model": "google/gemini-3.1-flash-lite-image", "choices": []any{map[string]any{
-		"message": map[string]any{"role": "assistant", "content": "", "images": []any{map[string]any{"type": "image_url",
-			"image_url": map[string]any{"url": "data:image/png;base64,iVBORw0KGgo="}}}}}},
-		"usage": map[string]any{"prompt_tokens": 58, "completion_tokens": 1290, "total_tokens": 1348, "cost": cost}})
-	return string(b)
-}
-
 // modelScript is a script that posts a body to a path under DECK_MODELS, as a module calls a model, and returns
 // what came back.
 const modelScript = `import json, os, sys, urllib.request, urllib.error
@@ -93,7 +84,7 @@ func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 	t.Parallel()
 	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
-			return 200, "application/json", pictureAnswer(0.033631)
+			return 200, "application/json", harness.PictureAnswer(0.033631)
 		},
 	})
 	e := harness.New(t)

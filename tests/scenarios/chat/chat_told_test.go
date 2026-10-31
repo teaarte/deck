@@ -1,4 +1,4 @@
-package scenarios
+package chat
 
 import (
 	"context"

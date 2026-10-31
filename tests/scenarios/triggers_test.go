@@ -35,7 +35,7 @@ func TestANewModuleWithoutCode(t *testing.T) {
 		}
 	}), harness.WithClock())
 
-	m := strings.Replace(ideasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`,
+	m := strings.Replace(harness.IdeasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`,
 		`"triggers": [{"command": "collect", "cron": "0 9 * * *"}, {"command": "digest", "after": "collect"}]`, 1)
 	m = strings.Replace(m, `"commands": [{`, `"commands": [{"name": "digest", "title": "Digest", "description": "Sums up a collection run", "class": "internal",
     "input": `+harness.ProcessField+`, "executor": {"type": "agent", "prompt": "Sum up."},

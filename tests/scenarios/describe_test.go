@@ -3,40 +3,8 @@ package scenarios
 import (
 	"deck2/tests/harness"
 	"encoding/json"
-	"strings"
 	"testing"
 )
-
-// TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn: command_describe gives the master the schema of a
-// command closed to it, and a call that misses a field says which one in plain words.
-func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	_, tok := e.Token("helper", "deck.command_describe", "deck.connection_set")
-	code, out := e.As(tok).Call("deck.command_describe", map[string]any{"command": "deck.connection_set"})
-	var spec struct {
-		Name    string
-		Callers []string
-		Input   struct {
-			Properties map[string]struct{ Enum []string }
-			Required   []string
-		}
-	}
-	if code != 200 || json.Unmarshal(out, &spec) != nil {
-		t.Fatalf("command_describe: %d %s", code, out)
-	}
-	if spec.Name != "deck.connection_set" || len(spec.Callers) != 1 || spec.Callers[0] != "owner" ||
-		strings.Join(spec.Input.Properties["api"].Enum, ",") != "openai,google,anthropic,raw" {
-		t.Fatalf("the master sees the fields of the connection form and the APIs to pick: %s", out)
-	}
-	if code, out := e.As(tok).Call("deck.connection_set", map[string]any{"name": "x", "api": "openai", "url": "https://x.example/v1"}); code != 403 {
-		t.Fatalf("describing a command does not open it: %d %s", code, out)
-	}
-	e.Refused("deck.model_set", map[string]any{"connection": "x"}, 422,
-		"input of deck.model_set: missing property 'model'; deck.command_describe gives its parameters")
-	e.Refused("deck.model_set", map[string]any{"connection": "x", "model": "m", "agent": "foo"}, 422,
-		"agent: value must be 'goose'")
-}
 
 // TestReadsGiveTheirResultSchema: commands that only read are reads, with the schema of their result, so a
 // screen can show them.

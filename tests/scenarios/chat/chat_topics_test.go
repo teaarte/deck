@@ -1,4 +1,4 @@
-package scenarios
+package chat
 
 import (
 	"context"
@@ -638,7 +638,7 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 		return provider.Result{Text: "Done on other."}
 	}}
 	e := harness.New(t, harness.WithProvider(main, other))
-	e.Project("notes", ideasManifest)
+	e.Project("notes", harness.IdeasManifest)
 	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "master", "command": "reply", "models": []string{"fake", "other"}}, nil)
 	topic := e.Say(0, "write half a task")
 	var m harness.ChatMessage

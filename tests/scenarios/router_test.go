@@ -116,10 +116,10 @@ func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
 func TestAModuleSavedBeforeANewCheckStillLoads(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("ideas", ideasManifest)
-	old := strings.Replace(ideasManifest, `{"type": "table", "title": "Best ideas",`,
+	e.Project("ideas", harness.IdeasManifest)
+	old := strings.Replace(harness.IdeasManifest, `{"type": "table", "title": "Best ideas",`,
 		`{"type": "table", "title": "Best ideas", "description": "Open with param.day to see a day.",`, 1)
-	if old == ideasManifest {
+	if old == harness.IdeasManifest {
 		t.Fatal("fixture replacement did not apply")
 	}
 	doc := `(SELECT id FROM document WHERE name = 'manifest.json' AND project_id = (SELECT id FROM project WHERE name = 'ideas'))`

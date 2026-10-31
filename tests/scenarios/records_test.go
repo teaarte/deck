@@ -257,7 +257,7 @@ func TestTheMasterDeletesWhatItsOwnProcessesWrote(t *testing.T) {
 		return provider.Result{Text: "Cleaned up."}
 	}))
 
-	e.Project("notes", ideasManifest)
+	e.Project("notes", harness.IdeasManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "the owner's", "score": 2}`}, nil)
 	e.MasterSaid(e.Say(0, "Clean up after the trial"), 1)
 	mu.Lock()

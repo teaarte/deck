@@ -15,28 +15,6 @@ import (
 	"time"
 )
 
-const ideasManifest = `{
-  "version": 13,
-  "collections": [{
-    "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
-    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},
-               "required": ["title", "score"]}
-  }],
-  "commands": [{
-    "name": "collect", "title": "Collect ideas", "description": "Writes ideas", "class": "internal",
-    "executor": {"type": "agent", "prompt": "Write three ideas into the ideas collection."},
-    "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}
-  }],
-  "triggers": [{"command": "collect", "cron": "0 9 * * *"}],
-  "screens": [{
-    "name": "main", "title": "Ideas",
-    "blocks": [{"type": "table", "title": "Best ideas",
-      "source": {"collection": "ideas", "where": "score >= 5", "sort": "-score", "limit": 10},
-      "columns": [{"label": "Idea", "bind": "title"}, {"label": "Score", "bind": "score"}],
-      "actions": [{"label": "Again", "command": "collect"}]}]
-  }]
-}`
-
 func writeIdeas(ctx context.Context, c *harness.Call, topic string) {
 	c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(
 		map[string]any{"title": "alpha", "score": 7, "topic": topic}, map[string]any{"title": "beta", "score": 3, "topic": topic},
@@ -46,7 +24,7 @@ func writeIdeas(ctx context.Context, c *harness.Call, topic string) {
 func TestManifestIsValidatedOnSave(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(context.Context, *harness.Call) provider.Result { return provider.Result{} }))
-	bad := strings.NewReplacer(`"collection": "ideas", "where"`, `"collection": "nope", "where"`, `"0 9 * * *"`, `"every day"`).Replace(ideasManifest)
+	bad := strings.NewReplacer(`"collection": "ideas", "where"`, `"collection": "nope", "where"`, `"0 9 * * *"`, `"every day"`).Replace(harness.IdeasManifest)
 	code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": bad})
 	if code != 422 || !strings.Contains(string(out), "unknown collection") || !strings.Contains(string(out), "cron") {
 		t.Fatalf("want 422 with reasons, got %d %s", code, out)
@@ -60,7 +38,7 @@ func TestCommandWritesRecordsAndScreenShowsThem(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 	}))
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	got := e.WaitState(id, "done")
 	if got.NotBySchema || string(got.Result) != `{"written":3}` {
@@ -87,7 +65,7 @@ func TestQuestionAnsweredLive(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 	}))
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	a := e.WaitAsk()
 	if a.Kind != "question" || a.Text != "Which topic?" {
@@ -124,7 +102,7 @@ func TestAnAnswerTheProcessDidNotActOnGoesToTheMaster(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	}))
 
-	p := e.Project("ideas", harness.Nullable(ideasManifest))
+	p := e.Project("ideas", harness.Nullable(harness.IdeasManifest))
 	id := e.Run(p, "collect")
 	a := e.WaitAsk()
 	e.Answer(a.ID, `{"The voice reads the style aloud; how should I fix it?":"regenerate the voice"}`)
@@ -155,7 +133,7 @@ func TestAnAnswerAfterTheProcessFinishedGoesToTheMaster(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	}))
 
-	p := e.Project("ideas", harness.Nullable(ideasManifest))
+	p := e.Project("ideas", harness.Nullable(harness.IdeasManifest))
 	id := e.Run(p, "collect")
 	e.WaitState(id, "done")
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO ask (workspace_id, project_id, process_id, kind, text) VALUES (1, ?, ?, 'question', 'Which voice?')`, p, id); err != nil {
@@ -191,7 +169,7 @@ func TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 	}))
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	e.WaitState(id, "waiting_answer", "error")
 	a := e.WaitAsk()
@@ -228,7 +206,7 @@ func TestQuestionAnsweredLateResumesSession(t *testing.T) {
 
 		func(c *app.Config) { c.QuestionWait = 100 * time.Millisecond }))
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()
@@ -253,7 +231,7 @@ func TestConfirmationRejectedWithReason(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	a := e.WaitAsk()
 	if a.Kind != "confirm" || !strings.Contains(a.Text, "git push") {
@@ -276,7 +254,7 @@ func TestResultNotBySchemaAfterOneRetry(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"count": 1}`)}
 	}))
 
-	p := e.Project("ideas", ideasManifest)
+	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	got := e.WaitState(id, "done")
 	if !got.NotBySchema || string(got.Result) != `{"count":1}` {

@@ -81,8 +81,10 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing.T) {
 	t.Parallel()
 	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
-		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
-		"/api/v1/audio/speech":     func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
+		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.PictureAnswer(0.04)
+		},
+		"/api/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
 		"/api/v1/audio/transcriptions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", `{"text": "Knights against snails", "words": [{"word": "Knights", "start": 0.1, "end": 0.5}]}`
 		},
@@ -289,7 +291,9 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	t.Parallel()
 	cloud := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
-		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
+		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.PictureAnswer(0.04)
+		},
 	})
 	local := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/images/generations": func(int, map[string]any) (int, string, string) {
@@ -625,7 +629,7 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 			_, _ = io.WriteString(w, `{"data": [{"b64_json": "iVBORw0KGgo="}]}`)
 		case "/chat/v1/chat/completions":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = io.WriteString(w, pictureAnswer(0.04))
+			_, _ = io.WriteString(w, harness.PictureAnswer(0.04))
 		default:
 			http.NotFound(w, r)
 		}
@@ -776,8 +780,8 @@ func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 			return 429, "application/json", `{"error": {"message": "rate limited"}}`
 		},
 	})
-	e := harness.New(t, harness.WithAgent(masterScript), harness.WithClock())
-	masterAwake(e)
+	e := harness.New(t, harness.WithAgent(harness.MasterScript), harness.WithClock())
+	e.MasterAwake()
 	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "keyless", "kind": "text"}, nil)
@@ -795,7 +799,7 @@ func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 		t.Fatalf("a refused key is the model's login: %+v", got)
 	}
 	e.App.Runner.Wait()
-	if n := len(runsOf(e, "master", "on_error")); n != 0 {
+	if n := len(e.RunsOf("master", "on_error")); n != 0 {
 		t.Fatalf("a failure of a model does not go to the master: %d", n)
 	}
 	for tok, challenged := range map[string]bool{"": false, "deck_nope": true} {

@@ -248,7 +248,7 @@ func TestAHungSelfCheckDoesNotStopTheSchedule(t *testing.T) {
 	// The loop starts the self-check that hangs; its health need not show it.
 	time.Sleep(200 * time.Millisecond)
 	clock.Add(time.Hour)
-	e.Until("the run that came due", func() bool { return len(runsOf(e, "plain", "work")) == 1 })
+	e.Until("the run that came due", func() bool { return len(e.RunsOf("plain", "work")) == 1 })
 }
 
 // slowCheck is the fake provider whose self-check finds a model too slow for its ceiling; it counts its checks.
@@ -346,7 +346,7 @@ fi`)
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "without deck's tools") || !strings.Contains(h.Error, "mcp__deck__approve") {
 		t.Fatalf("the provider is red with why: %+v", h)
 	}
-	if runs := runsOf(e, "master", "on_error"); len(runs) != 0 {
+	if runs := e.RunsOf("master", "on_error"); len(runs) != 0 {
 		t.Fatalf("a turn deck holds to run again is no failure for the master: %+v", runs)
 	}
 	if err := os.Remove(nomcp); err != nil {
@@ -403,7 +403,7 @@ if [ -f "$d/nomcp" ] && ! grep -q 'deck-check-' "$c/stdin" && ! grep -q -- --res
   exit 1
 fi`)
 	e := harness.ClockCLIEnv(t, c)
-	masterAwake(e)
+	e.MasterAwake()
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
 	e.WaitHealth("provider:claude-code", "ok")
@@ -425,7 +425,7 @@ fi`)
 		t.Fatalf("a turn without deck's tools is deck's failure: %+v", got)
 	}
 	e.App.Runner.Wait()
-	if runs := runsOf(e, "master", "on_error"); len(runs) != 0 {
+	if runs := e.RunsOf("master", "on_error"); len(runs) != 0 {
 		t.Fatalf("deck's failure is in health, not a run of the master that would fail the same way: %+v", runs)
 	}
 	if rows := failedRuns(e); len(rows) != 0 {

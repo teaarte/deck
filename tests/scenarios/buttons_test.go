@@ -11,8 +11,8 @@ import (
 
 func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 	t.Parallel()
-	e := harness.New(t, harness.WithAgent(webAgent()))
-	e.Project("notes", webManifest("http://127.0.0.1:1"))
+	e := harness.New(t, harness.WithAgent(harness.WebAgent()))
+	e.Project("notes", harness.WebManifest("http://127.0.0.1:1"))
 	var up struct{ IDs []int64 }
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 3})}, &up)
 	score := func(topic string) any {

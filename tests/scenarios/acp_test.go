@@ -845,7 +845,7 @@ func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
 	p := e.Project("music", harness.TestManifest([]string{cmd}, nil))
 	e.Must("deck.document_save", map[string]any{"project": "music", "name": "skills/reader/SKILL.md", "kind": "skill",
 		"text": "---\nname: reader\ndescription: Reads.\n---\nRead.\n"}, nil)
-	folder := repoFolder(t)
+	folder := harness.RepoFolder(t)
 	own := filepath.Join(folder, ".agents", "skills", "own", "SKILL.md")
 	if err := errors.Join(os.MkdirAll(filepath.Dir(own), 0o700), os.WriteFile(own, []byte("the owner's"), 0o600)); err != nil {
 		t.Fatal(err)

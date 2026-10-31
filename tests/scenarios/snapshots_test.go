@@ -73,7 +73,7 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
-	e.Project("docs", filesManifest())
+	e.Project("docs", harness.FilesManifest())
 	e.Sweep()
 	e.Upload("docs", "left.txt", "text/plain", "left")
 	e.Clock.Add(24*time.Hour + 30*time.Minute)

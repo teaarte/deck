@@ -18,44 +18,6 @@ import (
 	"testing"
 )
 
-// forecastManifest is a module that tracks a price and forecasts its change: a stat of the last price, a table
-// of forecasts and a forecast page, each value shown by its format.
-const forecastManifest = `{"version": 13,
-  "collections": [
-    {"name": "prices", "description": "Prices", "key": "at", "display": "at",
-      "schema": {"type": "object", "properties": {"at": {"type": "string"}, "price": {"type": "number"}, "forecast": {"type": "number"}}, "required": ["at"]}},
-    {"name": "forecasts", "description": "Forecasts", "key": "at", "display": "at",
-      "schema": {"type": "object", "properties": {"at": {"type": "string"}, "horizon": {"type": "string"}, "change": {"type": "number"},
-        "confidence": {"type": "number"}, "status": {"type": "string"}, "source": {"type": "string"}}, "required": ["at"]}},
-    {"name": "attachments", "description": "Files", "key": "title", "display": "title",
-      "schema": {"type": "object", "properties": {"title": {"type": "string"}, "file": {}}, "required": ["title"]}}],
-  "screens": [
-    {"name": "main", "title": "BTC", "blocks": [
-      {"type": "stat", "title": "Last price", "source": {"collection": "prices", "sort": "-at", "limit": 1}, "value": "rows[0].price",
-        "format": "money", "currency": "USD", "tone": "rows[0].price >= 60000 ? 'ok' : 'warn'", "empty": "No prices yet"},
-      {"type": "table", "title": "Forecasts", "source": {"collection": "forecasts", "sort": "-at"},
-        "columns": [{"label": "Made", "bind": "at", "format": "relative"}, {"label": "Horizon", "bind": "horizon"},
-          {"label": "Change", "bind": "change", "format": "percent", "tone": "change < 0 ? 'error' : 'ok'"},
-          {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'missed' ? 'warn' : 'none'"},
-          {"label": "Source", "bind": "source", "format": "link"}],
-        "actions": [{"label": "Open", "screen": "forecast", "primary": true}], "empty": "No forecasts yet"},
-      {"type": "list", "title": "Horizons", "source": {"collection": "forecasts", "sort": "-at"},
-        "item": {"title": "horizon", "tone": "status == 'missed' ? 'muted' : ''"}},
-      {"type": "list", "title": "Missed", "when": "len(rows) > 0", "source": {"collection": "forecasts", "where": "status == 'missed'"},
-        "item": {"title": "horizon"}},
-      {"type": "chart", "title": "Price", "source": {"collection": "prices", "sort": "at"}, "x": "at",
-        "series": [{"label": "BTC", "y": "price"}, {"label": "Forecast", "y": "forecast"}], "currency": "USD", "format": "money", "empty": "No prices yet"}]},
-    {"name": "files", "title": "Files", "blocks": [
-      {"type": "media", "title": "Attachments", "source": {"collection": "attachments", "sort": "title"}, "item": {"file": "file", "title": "title"},
-        "empty": "No files yet"}]},
-    {"name": "projects", "title": "Projects", "blocks": [
-      {"type": "chart", "kind": "bar", "title": "Revisions", "source": {"from": "deck.projects_list"}, "x": "name", "series": [{"label": "Revision", "y": "revision"}]}]},
-    {"name": "forecast", "title": "Forecast", "record": "forecasts", "blocks": [
-      {"type": "card", "fields": [{"label": "Made", "bind": "at", "format": "datetime"}, {"label": "Change", "bind": "change", "format": "percent", "tone": "change < 0 ? 'error' : 'ok'"},
-        {"label": "Confidence", "bind": "confidence", "format": "percent"}]},
-      {"type": "card", "title": "Still open", "when": "status == 'open'", "fields": [{"label": "Horizon", "bind": "horizon"}]}]}],
-  "menu": ["main"]}`
-
 func seedForecasts(e *harness.Env) {
 	e.T.Helper()
 	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices",
@@ -72,7 +34,7 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
-	e.Project("btc", forecastManifest)
+	e.Project("btc", harness.ForecastManifest)
 	seedForecasts(e)
 
 	msgs := e.ScreenMessages("btc", "main", nil)
@@ -113,10 +75,10 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 		{`{"label": "Confidence", "bind": "confidence", "format": "percent"}`, `{"label": "Confidence", "bind": "confidence", "format": "money"}`,
 			`field "Confidence": format money needs currency`},
 	} {
-		if strings.Count(forecastManifest, tc.from) != 1 {
+		if strings.Count(harness.ForecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(harness.ForecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -134,7 +96,7 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
-	e.Project("btc", forecastManifest)
+	e.Project("btc", harness.ForecastManifest)
 	seedForecasts(e)
 	check.Messages(t, e.ScreenMessages("btc", "main", nil))
 	data := e.ScreenData("btc", "main", nil)
@@ -171,10 +133,10 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 		{`"tone": "rows[0].price >= 60000 ? 'ok' : 'warn'"`, `"tone": "price >= 60000 ? 'ok' : 'warn'"`, `tone: unknown field "price"`},
 		{`"tone": "status == 'missed' ? 'muted' : ''"`, `"tone": "state == 'missed' ? 'muted' : ''"`, `item tone: unknown field "state"`},
 	} {
-		if strings.Count(forecastManifest, tc.from) != 1 {
+		if strings.Count(harness.ForecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(harness.ForecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -187,7 +149,7 @@ func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
-	e.Project("btc", forecastManifest)
+	e.Project("btc", harness.ForecastManifest)
 	check.Messages(t, e.ScreenMessages("btc", "main", nil))
 	data := e.ScreenData("btc", "main", nil)
 	for id, want := range map[string]string{"b0": "No prices yet", "b1": "No forecasts yet", "b2": ""} {
@@ -203,10 +165,10 @@ func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
 		{`{"label": "Confidence", "bind": "confidence", "format": "percent"}]}`, `{"label": "Confidence", "bind": "confidence", "format": "percent"}], "empty": "None"}`,
 			`additional properties 'empty' not allowed`},
 	} {
-		if strings.Count(forecastManifest, tc.from) != 1 {
+		if strings.Count(harness.ForecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(harness.ForecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -219,7 +181,7 @@ func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
-	e.Project("btc", forecastManifest)
+	e.Project("btc", harness.ForecastManifest)
 	blocks := func(screen string, extra map[string]any) (string, map[string]map[string]json.RawMessage) {
 		msgs := e.ScreenMessages("btc", screen, extra)
 		check.Messages(t, msgs)
@@ -258,10 +220,10 @@ func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 		{`"when": "len(rows) > 0"`, `"when": "status == 'missed'"`, `when: unknown field "status"`},
 		{`"when": "status == 'open'"`, `"when": "len(rows) > 0"`, `when: unknown field "rows"`},
 	} {
-		if strings.Count(forecastManifest, tc.from) != 1 {
+		if strings.Count(harness.ForecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(harness.ForecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -274,7 +236,7 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
-	e.Project("btc", forecastManifest)
+	e.Project("btc", harness.ForecastManifest)
 	if got := e.ScreenData("btc", "main", nil)["b4"]; string(got["state"]) != `"empty"` || string(got["empty"]) != `"No prices yet"` {
 		t.Fatalf("a chart without points says so: %s", got["state"])
 	}
@@ -318,10 +280,10 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 		{`"series": [{"label": "Revision", "y": "revision"}]`, `"series": []`, `minItems`},
 		{`"x": "name", `, ``, `missing property 'x'`},
 	} {
-		if strings.Count(forecastManifest, tc.from) != 1 {
+		if strings.Count(harness.ForecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(harness.ForecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -334,8 +296,8 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
-	id := e.Project("btc", forecastManifest)
-	e.Project("other", forecastManifest)
+	id := e.Project("btc", harness.ForecastManifest)
+	e.Project("other", harness.ForecastManifest)
 	if got := e.ScreenData("btc", "files", nil)["b0"]; string(got["empty"]) != `"No files yet"` {
 		t.Fatalf("media without files says so: %s", got["empty"])
 	}
@@ -401,10 +363,10 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 		{`"item": {"file": "file", "title": "title"}`, `"item": {"file": "path", "title": "title"}`, `unknown field "path"`},
 		{`"item": {"file": "file", "title": "title"}`, `"item": {"title": "title"}`, `a media line needs file, or icon`},
 	} {
-		if strings.Count(forecastManifest, tc.from) != 1 {
+		if strings.Count(harness.ForecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(harness.ForecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -415,7 +377,7 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	id := e.Project("btc", forecastManifest)
+	id := e.Project("btc", harness.ForecastManifest)
 	data := e.App.Home.Data(id)
 	_ = os.MkdirAll(data, 0o700)
 	if err := syscall.Mkfifo(filepath.Join(data, "pipe.png"), 0o600); err != nil {

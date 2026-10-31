@@ -131,7 +131,7 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 	if code != 422 || !regexp.MustCompile(`line \d+, column \d+`).Match(out) || !strings.Contains(string(out), `Web\",,`) {
 		t.Fatalf("a JSON error gives its line, column and the text around it: %d %s", code, out)
 	}
-	lost := strings.Replace(routedManifest, `"screen": "main", "params"`, `"screen": "process", "params"`, 1)
+	lost := strings.Replace(harness.RoutedManifest, `"screen": "main", "params"`, `"screen": "process", "params"`, 1)
 	code, out = e.Call("deck.project_create", map[string]any{"name": "web", "manifest": lost})
 	if code != 422 || !strings.Contains(string(out), `unknown screen "process"`) || !strings.Contains(string(out), "#/deck/") {
 		t.Fatalf("a button to a screen the module lacks says how to open a screen of deck: %d %s", code, out)

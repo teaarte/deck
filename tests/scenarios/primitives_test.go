@@ -46,18 +46,6 @@ func TestTheOwnerDeletesARecordFromAButtonOfItsModule(t *testing.T) {
 	}
 }
 
-// boardManifest is a module whose tasks move across the lanes of their status.
-const boardManifest = `{"version": 13, "i18n": {"ru": {"doing": "в работе"}},
-  "collections": [{"name": "tasks", "description": "Tasks.", "key": "title", "schema": {"type": "object",
-    "properties": {"title": {"type": "string"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}],
-  "commands": [{"name": "move", "title": "Move", "description": "Moves a task.", "class": "internal",
-    "input": {"type": "object", "properties": {"id": {"type": "integer"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}},
-    "executor": {"type": "agent", "prompt": "Move it."}}],
-  "screens": [{"name": "board", "title": "Board", "blocks": [
-    {"type": "list", "title": "Tasks", "board": "status", "source": {"collection": "tasks"}, "item": {"title": "title"},
-     "actions": [{"label": "Move", "command": "move", "params": {"id": "=_id"}, "input": "status"}]}]}],
-  "menu": ["board"]}`
-
 // TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum: a list with board names an enum field of its collection; its lanes
 // are the values of the enum in order, in the owner's language, and each item says its lane.
 func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
@@ -67,12 +55,12 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 		{`"board": "status"`, `"board": "title"`, "board: title is not an enum field"},
 		{`"source": {"collection": "tasks"}`, `"source": {"from": "deck.projects_list"}`, "board: lays out a collection of the module"},
 	} {
-		code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": strings.Replace(boardManifest, bad.from, bad.to, 1)})
+		code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": strings.Replace(harness.BoardManifest, bad.from, bad.to, 1)})
 		if code != 422 || !strings.Contains(string(out), bad.want) {
 			t.Fatalf("%s is refused: %d %s", bad.to, code, out)
 		}
 	}
-	e.Project("work", boardManifest)
+	e.Project("work", harness.BoardManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
 	block := e.ScreenData("work", "board", map[string]any{"lang": "ru"})
 	var data struct {
@@ -111,14 +99,14 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 func TestAButtonOpensTheChatOfTheMaster(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := strings.Replace(boardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "Talk it over", "command": "move", "params": {"id": "=_id"}, "chat": true}, {"label": "Move"`, 1)
+	m := strings.Replace(harness.BoardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "Talk it over", "command": "move", "params": {"id": "=_id"}, "chat": true}, {"label": "Move"`, 1)
 	pid := e.Project("work", m)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	raw, _ := json.Marshal(e.ScreenData("work", "board", nil))
 	if !strings.Contains(string(raw), `"chat":true`) || !strings.Contains(string(raw), `"label":"Talk it over"`) {
 		t.Fatalf("a chat button with a command is drawn with chat: %s", raw)
 	}
-	alone := strings.Replace(boardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "New task", "chat": true}, {"label": "Move"`, 1)
+	alone := strings.Replace(harness.BoardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "New task", "chat": true}, {"label": "Move"`, 1)
 	for _, cmd := range []string{"deck.manifest_save", "deck.project_create"} {
 		in := map[string]any{"project": "work", "manifest": alone}
 		if cmd == "deck.project_create" {
@@ -147,11 +135,11 @@ func TestAButtonOpensTheChatOfTheMaster(t *testing.T) {
 func TestABoardShowsItsLanesEmptyAndOnlyThoseItsButtonOffers(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	if code, out := e.Call("deck.project_create", map[string]any{"name": "still", "manifest": strings.Replace(boardManifest,
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "still", "manifest": strings.Replace(harness.BoardManifest,
 		`, "input": "status"}`, `}`, 1)}); code != 422 || !strings.Contains(string(out), `input "status"`) {
 		t.Fatalf("a board without a button that moves an item is refused with what to add: %d %s", code, out)
 	}
-	e.Project("work", strings.Replace(boardManifest, `"input": "status"}`, `"input": "status", "options": "=['todo', 'doing']"}`, 1))
+	e.Project("work", strings.Replace(harness.BoardManifest, `"input": "status"}`, `"input": "status", "options": "=['todo', 'doing']"}`, 1))
 	var lanes []string
 	for _, b := range e.ScreenData("work", "board", nil) {
 		var d struct {
@@ -175,7 +163,7 @@ func TestABoardShowsItsLanesEmptyAndOnlyThoseItsButtonOffers(t *testing.T) {
 func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := strings.Replace(boardManifest, `"item": {"title": "title"}`, `"item": {"title": "title + note"}`, 1)
+	m := strings.Replace(harness.BoardManifest, `"item": {"title": "title"}`, `"item": {"title": "title + note"}`, 1)
 	m = strings.Replace(m, `"status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}]`, `"status": {"type": "string", "enum": ["todo", "doing", "done"]}, "note": {"type": "string"}}}}]`, 1)
 	e.Project("work", m)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
@@ -217,7 +205,7 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 func TestValuesOfAnEnumSpeakTheLanguageOfTheOwnerAndListsFilterByEachValue(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := strings.Replace(boardManifest, `"properties": {"title": {"type": "string"}, "status"`, `"properties": {"title": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string", "enum": ["x", "y"]}}, "status"`, 1)
+	m := strings.Replace(harness.BoardManifest, `"properties": {"title": {"type": "string"}, "status"`, `"properties": {"title": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string", "enum": ["x", "y"]}}, "status"`, 1)
 	m = strings.Replace(m, `"menu": ["board"]`, `"menu": ["board", "table"]`, 1)
 	m = strings.Replace(m, `{"ru": {"doing": "в работе"}}`, `{"ru": {"doing": "в работе", "x": "икс"}}`, 1)
 	m = strings.Replace(m, `"screens": [`, `"screens": [{"name": "table", "title": "Table", "blocks": [{"type": "table", "title": "All", "source": {"collection": "tasks"},
@@ -261,7 +249,7 @@ func TestTheFormatAModelReadsHasOnlyWhatAModuleUses(t *testing.T) {
 			t.Fatalf("the format a model reads keeps %s", kept)
 		}
 	}
-	e.Project("work", strings.Replace(boardManifest, `{"label": "Move"`, `{"verb": "open", "screen": "board"}, {"label": "Move"`, 1))
+	e.Project("work", strings.Replace(harness.BoardManifest, `{"label": "Move"`, `{"verb": "open", "screen": "board"}, {"label": "Move"`, 1))
 }
 
 // TestARefusalOfAScreenSaysWhereByPointerAndWhatFits: a refusal names the block by the JSON Pointer a patch edits,
@@ -269,7 +257,7 @@ func TestTheFormatAModelReadsHasOnlyWhatAModuleUses(t *testing.T) {
 func TestARefusalOfAScreenSaysWhereByPointerAndWhatFits(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	bad := strings.Replace(boardManifest, `"item": {"title": "title"},`, `"item": {"title": "title"}, "filter": ["colour"],`, 1)
+	bad := strings.Replace(harness.BoardManifest, `"item": {"title": "title"},`, `"item": {"title": "title"}, "filter": ["colour"],`, 1)
 	code, out := e.Call("deck.project_create", map[string]any{"name": "work", "manifest": bad})
 	if code != 422 || !strings.Contains(string(out), `/screens/0/blocks/0`) || !strings.Contains(string(out), "status") || !strings.Contains(string(out), "title") {
 		t.Fatalf("a refusal says where by pointer and lists the fields: %d %s", code, out)
@@ -281,7 +269,7 @@ func TestARefusalOfAScreenSaysWhereByPointerAndWhatFits(t *testing.T) {
 func TestAStatOpensAScreenAndNoCommand(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := strings.Replace(boardManifest, `"screens": [`, `"screens": [{"name": "count", "title": "Count", "blocks": [{"type": "stat", "title": "Tasks", "source": {"collection": "tasks"},
+	m := strings.Replace(harness.BoardManifest, `"screens": [`, `"screens": [{"name": "count", "title": "Count", "blocks": [{"type": "stat", "title": "Tasks", "source": {"collection": "tasks"},
 	  "actions": [{"label": "Move", "command": "move", "params": {"id": "1", "status": "done"}}]}]}, `, 1)
 	code, out := e.Call("deck.project_create", map[string]any{"name": "work", "manifest": m})
 	if code != 422 || !strings.Contains(string(out), "a stat opens a screen") {
@@ -294,11 +282,11 @@ func TestAStatOpensAScreenAndNoCommand(t *testing.T) {
 func TestATranslationOfAnEnumValueIsUsed(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("work", boardManifest)
+	e.Project("work", harness.BoardManifest)
 	var saved struct {
 		Unused []string `json:"unused_i18n"`
 	}
-	e.Must("deck.manifest_save", map[string]any{"project": "work", "manifest": boardManifest}, &saved)
+	e.Must("deck.manifest_save", map[string]any{"project": "work", "manifest": harness.BoardManifest}, &saved)
 	if len(saved.Unused) != 0 {
 		t.Fatalf("the translation of an enum value is used: %v", saved.Unused)
 	}
@@ -309,12 +297,12 @@ func TestATranslationOfAnEnumValueIsUsed(t *testing.T) {
 func TestACellPicksTheInputOfAButtonOfItsRow(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	table := strings.Replace(boardManifest, `{"type": "list", "title": "Tasks", "board": "status", "source": {"collection": "tasks"}, "item": {"title": "title"},
+	table := strings.Replace(harness.BoardManifest, `{"type": "list", "title": "Tasks", "board": "status", "source": {"collection": "tasks"}, "item": {"title": "title"},
      "actions": [{"label": "Move", "command": "move", "params": {"id": "=_id"}, "input": "status"}]}`,
 		`{"type": "table", "title": "Tasks", "source": {"collection": "tasks"},
      "columns": [{"label": "Task", "bind": "title"}, {"label": "Status", "bind": "status", "pick": "Move"}, {"label": "Next", "bind": "status == 'todo' ? 'doing' : status"}],
      "actions": [{"label": "Move", "command": "move", "params": {"id": "=_id"}, "input": "status", "options": "=['todo', 'doing', 'done']"}]}`, 1)
-	if table == boardManifest {
+	if table == harness.BoardManifest {
 		t.Fatal("fixture lacks the board list")
 	}
 	code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": strings.Replace(table, `"pick": "Move"`, `"pick": "Drop"`, 1)})

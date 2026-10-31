@@ -1,26 +1,14 @@
 package scenarios
 
 import (
-	"bytes"
 	"context"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 	"fmt"
-	"image"
 	"image/color"
-	"image/draw"
-	"image/png"
 	"strings"
 	"testing"
 )
-
-func solid(c color.RGBA) string {
-	img := image.NewRGBA(image.Rect(0, 0, 640, 360))
-	draw.Draw(img, img.Bounds(), &image.Uniform{c}, image.Point{}, draw.Src)
-	var b bytes.Buffer
-	_ = png.Encode(&b, img)
-	return b.String()
-}
 
 // A theme has its pictures apart from its text: the scene of Today and the backdrop by scheme, which the client gets
 // with the theme; the words of Today are checked over the scene, and a deleted theme takes its pictures along.
@@ -29,7 +17,7 @@ func TestAThemeHasItsPictures(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Must("deck.theme_save", map[string]any{"name": "paper", "text": `{"version": 1, "title": {"en": "Paper"}, "mood": "m", "tokens": {"tile-shade": "none", "cockpit": "#1b1b21"}}`}, nil)
 	put := func(slot, scheme string, c color.RGBA) {
-		id := e.Upload("master", slot+".png", "image/png", solid(c))
+		id := e.Upload("master", slot+".png", "image/png", harness.Solid(c))
 		e.Must("deck.theme_image", map[string]any{"theme": "paper", "slot": slot, "scheme": scheme, "file": fmt.Sprint(id)}, nil)
 	}
 	put("cockpit", "light", color.RGBA{250, 250, 245, 255})

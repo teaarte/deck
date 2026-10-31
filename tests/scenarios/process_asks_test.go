@@ -3,30 +3,10 @@ package scenarios
 import (
 	"deck2/tests/harness"
 	"encoding/json"
-	"os"
 	"slices"
 	"strings"
 	"testing"
 )
-
-// pressScript makes the deck calls of its input, one or many, and prints deck's last answer as its result; with n it
-// only names ask n as the one its work waits for.
-const pressScript = `import json, os, sys, urllib.request, urllib.error
-inp = json.load(sys.stdin)
-if inp.get("n"):
-    print(json.dumps({"waiting": inp["n"]}))
-    sys.exit(0)
-calls = json.loads(inp["form"]) if inp["method"] == "many" else [{"method": inp["method"], "form": json.loads(inp["form"])}]
-body = "{}"
-for c in calls:
-    req = urllib.request.Request(os.environ["DECK_URL"] + "/commands/" + c["method"], data=json.dumps(c["form"]).encode(),
-        headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
-    try:
-        body = urllib.request.urlopen(req, timeout=30).read().decode()
-    except urllib.error.HTTPError as e:
-        body = json.dumps({"status": e.code, "body": e.read().decode()})
-print(body if body.strip() else "{}")
-`
 
 // pressAsks are the calls a run the owner started waits to make, as the button reads them.
 func pressAsks(e *harness.Env, process int64) []harness.PressAsk {
@@ -53,7 +33,7 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "gemma", "kind": "text", "call_usd": 0.02}, nil)
 	e.Project("shorts", harness.PlainManifest)
 	e.Project("picker", harness.ScriptManifest("main", "", ""))
-	e.SaveScript("picker", "scripts/main.py", pressScript)
+	e.SaveScript("picker", "scripts/main.py", harness.PressScript)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
 
 	run := pressRun(e, "picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
@@ -67,7 +47,7 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	if code, out := e.Press(asks[0].Allow); code != 200 {
 		t.Fatalf("the button that allows comes with the ask: %d %s", code, out)
 	}
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("yes at the button applies the call: %v", got)
 	}
 	var left []struct{ Kind string }
@@ -102,59 +82,12 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	}
 
 	e.Project("other", harness.ScriptManifest("main", "", ""))
-	e.SaveScript("other", "scripts/main.py", pressScript)
+	e.SaveScript("other", "scripts/main.py", harness.PressScript)
 	theirs := twoAsks[0].ID
 	if got := pressAsks(e, e.Start("other", "main", map[string]any{"n": theirs})); len(got) != 0 {
 		t.Fatalf("a run names no ask of another project to the button: %+v", got)
 	}
 	if code, out := e.Call("deck.process_asks", map[string]any{"process": 99999}); code != 404 || !strings.Contains(string(out), "no process") {
 		t.Fatalf("no asks of a process that is not there: %d %s", code, out)
-	}
-}
-
-// TestRealBrowserPressAnswersItsAsk: the call the run of Apply waits for comes up over the screen, yes applies it:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowserPressAnswersItsAsk -v.
-func TestRealBrowserPressAnswersItsAsk(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
-	e := harness.New(t)
-	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
-	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
-	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "gemma", "kind": "text", "call_usd": 0.02}, nil)
-	e.Project("shorts", harness.PlainManifest)
-	form, _ := json.Marshal(map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
-	params, _ := json.Marshal(map[string]string{"method": "deck.assignment_set", "form": string(form)})
-	e.Project("picker", harness.ScriptManifest("main", "", `, "screens": [{"name": "main", "title": "Proposals", "blocks": [
-    {"type": "actions", "title": "Proposal", "actions": [{"label": "Apply", "command": "main", "params": `+string(params)+`}]}]}], "menu": ["main"]`))
-	e.SaveScript("picker", "scripts/main.py", pressScript)
-	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
-
-	b := newPlaywright(t)
-	for _, size := range []struct {
-		name          string
-		width, height int
-	}{{"desktop", 1400, 900}, {"phone", 390, 844}} {
-		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
-		b.Open(e, "#/deck/cockpit")
-		b.until("the cockpit", `document.querySelector('[data-today-line]')`)
-		b.open(e.URL + "/?size=" + size.name + "#/p/picker/main")
-		b.until("the Apply button", `[...document.querySelectorAll('button')].some((x) => x.innerText === 'Apply')`)
-		b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Apply').click(), '')`)
-		b.until("the call of the run over the screen", `document.querySelector('[data-press-where]')?.innerText.includes('text of shorts:') && document.querySelector('[data-press-where]').innerText.includes('→ openrouter/qwen')
-			&& document.querySelector('[data-press-input]')?.innerText.includes('"role": "text"')`)
-		b.shot("press-ask-" + size.name)
-		b.eval(`(document.querySelector('[data-press-answer="allow"]').click(), '')`)
-		b.until("the window gone after yes", `!document.querySelector('[data-press-ask] [data-press-answer]')`)
-		if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
-			t.Fatalf("yes at the button applies the call on a %s: %v", size.name, got)
-		}
-		var left []struct{ Kind string }
-		e.Must("deck.asks_list", nil, &left)
-		if len(left) != 0 {
-			t.Fatalf("nothing waits in the cockpit on a %s: %+v", size.name, left)
-		}
-		e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
 	}
 }

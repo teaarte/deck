@@ -37,7 +37,7 @@ func TestADraftsScheduleSaysItDoesNotRun(t *testing.T) {
 func TestALineOfMediaSaysWhyItHasNoFileInWords(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("btc", strings.Replace(forecastManifest, `"item": {"file": "file", "title": "title"}`, `"item": {"file": "int(file)", "title": "title"}`, 1))
+	e.Project("btc", strings.Replace(harness.ForecastManifest, `"item": {"file": "file", "title": "title"}`, `"item": {"file": "int(file)", "title": "title"}`, 1))
 	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments",
 		"records": harness.Jsonl(map[string]any{"title": "a", "file": "image-1b946491.png"})}, nil)
 	raw, _ := json.Marshal(e.ScreenMessages("btc", "files", nil))

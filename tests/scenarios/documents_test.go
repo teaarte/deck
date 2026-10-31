@@ -35,24 +35,13 @@ type documentV struct {
 	} `json:"revisions"`
 }
 
-// docsManifest is the web project with a document block on its main screen and one of the record on its page,
-// a list and a card with a field in markdown.
-var docsManifest = strings.NewReplacer(
-	`{"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},`, `{"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},
-      {"type": "document", "title": "Criteria", "document": "notes/criteria.md"},
-      {"type": "list", "title": "Posts", "source": {"collection": "notes"}, "item": {"title": "title", "text": "note"}},`,
-	`{"type": "form", "title": "Edit", "command": "deck.record_update"}]}`, `{"type": "form", "title": "Edit", "command": "deck.record_update"},
-      {"type": "card", "fields": [{"label": "Note", "bind": "note", "markdown": true}, {"label": "Title", "bind": "title"}]},
-      {"type": "document", "title": "Report", "document": "report.md"}]}`,
-).Replace(harness.WebNotes)
-
 // TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage: every project gets a documents
 // screen; a document page shows the text and revisions, and only md documents are edited on screen.
 func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
-	e.Project("web", docsManifest)
+	e.Project("web", harness.DocsManifest)
 	e.Project("other", harness.WebNotes)
 	save := func(name, kind, text string, extra map[string]any) (d struct{ ID int64 }) {
 		in := map[string]any{"project": "web", "name": name, "kind": kind, "text": text}
@@ -166,7 +155,7 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 	t.Parallel()
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
-	e.Project("web", docsManifest)
+	e.Project("web", harness.DocsManifest)
 	var recs struct{ IDs []int64 }
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "note": "**bold** note"})}, &recs)
@@ -225,10 +214,10 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 		{`{"type": "document", "title": "Criteria", "document": "notes/criteria.md"}`, `{"type": "document", "title": "Criteria"}`, "names the document it shows"},
 		{`{"label": "Title", "bind": "title"}], "actions"`, `{"label": "Title", "bind": "title", "markdown": true}], "actions"`, "additional properties 'markdown' not allowed"},
 	} {
-		if !strings.Contains(docsManifest, tc.from) {
+		if !strings.Contains(harness.DocsManifest, tc.from) {
 			t.Fatalf("fixture lacks %s", tc.from)
 		}
-		code, out := e.Call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(docsManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(harness.DocsManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}

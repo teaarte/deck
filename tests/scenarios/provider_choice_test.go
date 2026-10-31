@@ -15,21 +15,12 @@ import (
 	"testing"
 )
 
-const notesManifest = `{"version": 13,
-  "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
-    "schema": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}],
-  "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "https://example.invalid/post",
-    "class": "external", "body": {"text": "{text}"}, "input": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}}]},
-  "commands": [{"name": "collect", "title": "Collect", "description": "Collects notes.", "class": "internal", "requires": ["no_cloud"],
-    "executor": {"type": "agent", "prompt": "Collect notes."},
-    "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}}]}`
-
 func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 	t.Parallel()
 	cloud, local := harness.NewACP(t), harness.NewACP(t)
 	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithACPPair(cloud, local))
 	e.SetACP(cloud, 1, "cloud", "goose", harness.AcpLLM(t), false)
-	p := e.Project("notes", notesManifest)
+	p := e.Project("notes", harness.NotesManifest)
 	if code, body := e.Call("notes.collect", map[string]any{}); code == 200 || !strings.Contains(string(body), "no provider fits") ||
 		!strings.Contains(string(body), "add a model that has it in Settings → Models") {
 		t.Fatalf("with no provider on own hardware the command does not start, and the owner reads where to add one: %d %s", code, body)
@@ -69,7 +60,7 @@ func TestProviderThatLeftTheOwnersHardwareStopsTheNextTurn(t *testing.T) {
 	e := harness.New(t, harness.WithACPPair(local, harness.NewACP(t)))
 	e.SetACP(local, 1, "acp", "goose", harness.AcpLLM(t), true)
 	local.StreamText(4, harness.AcpTurn(`{"written": 1}`))
-	id := e.Run(e.AcpProject("notes", notesManifest), "collect")
+	id := e.Run(e.AcpProject("notes", harness.NotesManifest), "collect")
 	e.WaitState(id, "done")
 	e.SetACP(local, 5, "acp", "goose", harness.AcpLLM(t), false)
 	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "one more"}, nil)
@@ -140,7 +131,7 @@ func TestResultSubmitGetsOneRebuild(t *testing.T) {
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": "one"}}}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": "still one"}}}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 3}}}}`, `{"end": "end_turn"}`))
-	got := e.WaitState(e.Run(e.AcpProject("notes", notesManifest), "collect"), "done", "error")
+	got := e.WaitState(e.Run(e.AcpProject("notes", harness.NotesManifest), "collect"), "done", "error")
 	if got.State != "done" || !got.NotBySchema || string(got.Result) != `{"written":"still one"}` {
 		t.Fatalf("one rebuild, then the result stays marked as off the schema and nothing more is taken: %+v", got)
 	}
@@ -205,7 +196,7 @@ func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithACPPair(cloud, local))
 	e.SetACP(cloud, 1, "cloud", "goose", harness.AcpLLM(t), false)
 	e.SetACP(local, 1, "local", "goose", harness.AcpLLM(t), true)
-	e.Project("notes", notesManifest)
+	e.Project("notes", harness.NotesManifest)
 	var rows []struct {
 		Name    string   `json:"name"`
 		Model   string   `json:"model"`

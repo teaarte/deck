@@ -26,7 +26,7 @@ import (
 func TestATabNotShownIsReadWhenShown(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("notes", webManifest("http://127.0.0.1:1"))
+	e.Project("notes", harness.WebManifest("http://127.0.0.1:1"))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 7})}, nil)
 	read := func(extra map[string]any) []string {
 		return slices.Sorted(maps.Keys(harness.DataOf(t, e.ScreenMessages("notes", "main", extra))))
@@ -94,7 +94,7 @@ func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	p := e.Project("shorts", videosManifest)
+	p := e.Project("shorts", harness.VideosManifest)
 	png := func(w, h int) string {
 		img := image.NewRGBA(image.Rect(0, 0, w, h))
 		draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{20, 120, 220, 255}}, image.Point{}, draw.Src)

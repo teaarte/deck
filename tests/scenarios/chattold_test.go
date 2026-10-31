@@ -12,37 +12,6 @@ import (
 	"time"
 )
 
-// told waits for the message deck writes into topic of a work in state, read in lang.
-func told(e *harness.Env, topic int64, state, lang string) harness.ToldMessage {
-	e.T.Helper()
-	var got harness.ToldMessage
-	e.Until("deck tells the topic of a work "+state, func() bool {
-		var view struct{ Messages []harness.ToldMessage }
-		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic), "lang": lang}, &view)
-		for _, m := range view.Messages {
-			if m.Role == "deck" && m.Told != nil && m.Told.State == state {
-				got = m
-				return true
-			}
-		}
-		return false
-	})
-	return got
-}
-
-// handOver is a reply of the master that hands the owner's task to master.work with its topic; a resumed reply
-// names no command, and its topic is the one the first named.
-func handOver(ctx context.Context, c *harness.Call, topic *atomic.Int64) provider.Result {
-	var in struct{ Topic int64 }
-	if m := harness.InputOf.FindStringSubmatch(c.Req.Prompt); m != nil && json.Unmarshal([]byte(m[1]), &in) == nil && in.Topic != 0 {
-		topic.Store(in.Topic)
-	}
-	if out, bad := c.Tool(ctx, "master__work", map[string]any{"task": "count the records", "topic": topic.Load()}); bad {
-		return provider.Result{Text: "refused: " + out}
-	}
-	return provider.Result{Text: "Handed it over."}
-}
-
 // A work the master started from a chat topic tells that topic how it ended, in the owner's language it was told:
 // its result when done, why in the owner's words when it failed, and the note it left in the feed is read then.
 func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
@@ -55,7 +24,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 			if replies.Add(1) == 3 {
 				return provider.Result{Text: "ok"}
 			}
-			return handOver(ctx, c, &from)
+			return harness.HandOver(ctx, c, &from)
 		}
 		switch works.Add(1) {
 		case 2:
@@ -71,7 +40,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 
 	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	topic := e.Say(0, "count the records")
-	done := told(e, topic, "done", "ru")
+	done := e.Told(topic, "done", "ru")
 	for _, c := range e.Fake.Calls()[:2] {
 		if !strings.Contains(c.Prompt, "The owner reads deck in Russian") {
 			t.Fatalf("the reply and the work it handed over are told the owner's language:\n%s", c.Prompt)
@@ -104,7 +73,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	}
 
 	e.Say(topic, "count again")
-	failed := told(e, topic, "error", "ru")
+	failed := e.Told(topic, "error", "ru")
 	if failed.Told.Reason != "агент сообщил об ошибке" || !strings.Contains(failed.Told.Error, "the site is down") || failed.Told.Tone != "error" {
 		t.Fatalf("a work that failed says why in the owner's words: %+v", failed.Told)
 	}
@@ -131,7 +100,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	}
 
 	e.Say(topic, "count the notes")
-	waits := told(e, topic, "waiting_answer", "ru")
+	waits := e.Told(topic, "waiting_answer", "ru")
 	if !strings.HasPrefix(waits.Told.Word, "ждёт вашего ответа") || !strings.Contains(waits.Told.Word, "Which collection?") || waits.Told.Tone != "warn" {
 		t.Fatalf("a work that waits for the owner says what it waits for: %+v", waits.Told)
 	}
@@ -148,11 +117,11 @@ func TestAWorkSentBackTellsItsTopicAgain(t *testing.T) {
 		case c.Command() == "work":
 			return provider.Result{Text: "Counted: 3 records."}
 		}
-		return handOver(ctx, c, &from)
+		return harness.HandOver(ctx, c, &from)
 	}))
 
 	topic := e.Say(0, "count the records")
-	done := told(e, topic, "done", "")
+	done := e.Told(topic, "done", "")
 	e.Must("deck.process_rework", map[string]any{"process": done.Process, "remark": "count the drafts too"}, nil)
 	e.Until("the new result in the topic", func() bool {
 		var view struct{ Messages []harness.ToldMessage }
@@ -182,7 +151,7 @@ func TestAWorkTellsItsTopicItsWholeResult(t *testing.T) {
 		}
 		if replies.Add(1) == 1 {
 
-			res := handOver(ctx, c, &from)
+			res := harness.HandOver(ctx, c, &from)
 			<-worked
 			time.Sleep(300 * time.Millisecond)
 			return res
@@ -192,7 +161,7 @@ func TestAWorkTellsItsTopicItsWholeResult(t *testing.T) {
 	}))
 
 	topic := e.Say(0, "plan it")
-	if done := told(e, topic, "done", ""); done.Text != long {
+	if done := e.Told(topic, "done", ""); done.Text != long {
 		t.Fatalf("the topic gets the whole result of %d bytes, not %d", len(long), len(done.Text))
 	}
 	e.Say(topic, "and?")
@@ -212,7 +181,7 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 		case strings.Contains(c.Req.Prompt, "go on where you stopped"):
 			return provider.Result{Text: "Finished the rest."}
 		case c.Command() != "work":
-			return handOver(ctx, c, &from)
+			return harness.HandOver(ctx, c, &from)
 		case works.Add(1) == 1:
 			return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
 		}
@@ -220,7 +189,7 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 	}))
 
 	topic := e.Say(0, "do it")
-	failed := told(e, topic, "error", "")
+	failed := e.Told(topic, "error", "")
 	var view struct{ Messages []json.RawMessage }
 	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 	var goOn struct {
@@ -240,7 +209,7 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 		t.Fatalf("a failed work offers to go on: %+v", view.Messages)
 	}
 	e.Must(goOn.Told.Go.Command, goOn.Told.Go.Params, nil)
-	if done := told(e, topic, "done", ""); done.Text != "Finished the rest." || done.Process != failed.Process {
+	if done := e.Told(topic, "done", ""); done.Text != "Finished the rest." || done.Process != failed.Process {
 		t.Fatalf("the same work goes on in its session: %+v", done)
 	}
 }

@@ -35,3 +35,18 @@ func (e *Env) Upload(project, name, ctype, content string) int64 {
 	}
 	return files[0].ID
 }
+
+func FilesManifest() string {
+	return `{"version": 13,
+  "collections": [{"name": "items", "description": "An item.", "key": "name",
+    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
+  "commands": [
+    {"name": "seed", "title": "Seed", "description": "Makes a record with a file.", "class": "internal",
+     "result": {"type": "object"}, "executor": {"type": "script", "script": "seed"}},
+    {"name": "read", "title": "Read", "description": "Reads the files of its input.", "class": "internal",
+     "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}, "photo": {"type": "string", "format": "file"},
+       "rec": {"type": "integer", "format": "record"}}},
+     "result": {"type": "object"}, "executor": {"type": "script", "script": "read"}}],
+  "scripts": [{"name": "seed", "file": "scripts/seed.py", "runtime": "python"},
+    {"name": "read", "file": "scripts/read.py", "runtime": "python"}]}`
+}

@@ -23,20 +23,6 @@ func folderCommand(name, folder string) string {
 	return strings.Replace(harness.AgentCommand(name, ""), `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": `+folder+`,`, 1)
 }
 
-// repoFolder is a folder that looks like a git repo to deck, by its real path.
-func repoFolder(t *testing.T) string {
-	t.Helper()
-	dir := filepath.Join(t.TempDir(), "My Repo")
-	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	real, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return real
-}
-
 // TestAgentCommandWorksInTheProjectFolder: an agent command with folder runs in the project folder the owner
 // added, as a repo when it is one, and a rework goes back to the same folder; the Projects tab lists folders.
 func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
@@ -46,7 +32,7 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 		folderCommand("docs", `"notes"`)}, nil))
 	e.Refused("code.run", map[string]any{}, 422, "has no folder yet")
 
-	repo := repoFolder(t)
+	repo := harness.RepoFolder(t)
 	var added struct{ Name, Path string }
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, &added)
 	if added.Name != "my-repo" || added.Path != repo {
@@ -120,7 +106,7 @@ func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{}, 10)
 	e := harness.New(t, harness.WithAgent(held(release)))
-	repo := repoFolder(t)
+	repo := harness.RepoFolder(t)
 	link := filepath.Join(t.TempDir(), "link")
 	if err := os.Symlink(repo, link); err != nil {
 		t.Fatal(err)
@@ -175,7 +161,7 @@ func TestFolderLockSurvivesARestart(t *testing.T) {
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
 	p := e.Project("code", harness.TestManifest([]string{folderCommand("run", "true")}, nil))
-	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": harness.RepoFolder(t)}, nil)
 	a := e.Run(p, "run")
 	e.Until("the first at its provider", func() bool { return len(first.Calls()) == 1 })
 	b := e.Run(p, "run")
@@ -246,7 +232,7 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	e := harness.New(t, harness.WithCodex(c))
 	home := e.Home
 	p := e.Project("paint", strings.Replace(colorManifest, `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": "main",`, 1))
-	repo := repoFolder(t)
+	repo := harness.RepoFolder(t)
 	e.Must("deck.folder_add", map[string]any{"project": "paint", "path": repo, "name": "main"}, nil)
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
@@ -311,7 +297,7 @@ func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
 	e := harness.New(t, harness.WithProvider(main, other), harness.WithClock(clock))
 	p := e.Project("code", harness.TestManifest([]string{folderCommand("run", "true")}, nil))
 	e.UseModels("code.run", "fake")
-	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": harness.RepoFolder(t)}, nil)
 	a := e.Run(p, "run")
 	e.WaitState(a, "rate_limited")
 	e.UseModels("code.run", "fake", "other")
@@ -346,7 +332,7 @@ func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
 
 	t.Cleanup(let)
 	p := e.Project("code", harness.TestManifest([]string{folderCommand("run", "true")}, nil))
-	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": harness.RepoFolder(t)}, nil)
 	first := e.Run(p, "run")
 	<-inside
 	second := e.Run(p, "run")

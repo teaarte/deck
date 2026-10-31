@@ -136,7 +136,7 @@ func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
 	}
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithProvider(cf), harness.WithClock(clock))
-	p := e.Project("notes", strings.Replace(notesManifest, `"requires": ["no_cloud"],`, "", 1))
+	p := e.Project("notes", strings.Replace(harness.NotesManifest, `"requires": ["no_cloud"],`, "", 1))
 	id := e.Run(p, "collect")
 	e.WaitState(id, "waiting_answer")
 	cf.set(errors.New("broken"))

@@ -17,20 +17,6 @@ import (
 	"time"
 )
 
-const draftManifest = `{
-  "version": 13,
-  "commands": [
-    {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {}},
-     "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object"}},
-    {"name": "child", "title": "Child", "description": "Helps.", "class": "internal", "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
-     "executor": {"type": "agent", "prompt": "Help."}, "result": {"type": "object"}},
-    {"name": "send", "title": "Send", "description": "Sends it out.", "class": "external",
-     "executor": {"type": "agent", "prompt": "Send."}, "result": {"type": "object"}}
-  ],
-  "triggers": [{"command": "work", "cron": "0 9 * * *"}, {"command": "child", "after": "work"}],
-  "domains": {"read": ["example.com"]}
-}`
-
 // trialAgent tries an external built-in tool and an external command, and starts a child command, until
 // quiet is set.
 func trialAgent(quiet *atomic.Bool) harness.Script {
@@ -55,7 +41,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	var quiet atomic.Bool
 	e := harness.New(t, harness.WithAgent(trialAgent(&quiet)), harness.WithClock())
 	_, tok := e.Token("terminal", "deck.*", "notes.*")
-	code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest})
+	code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": harness.DraftManifest})
 	if code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
@@ -105,7 +91,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	if code, out := e.As(tok).Call("deck.project_enable", map[string]any{"project": "notes", "revision": shown.Revision}); code != 403 {
 		t.Fatalf("only the owner enables a draft: %d %s", code, out)
 	}
-	wider := strings.Replace(draftManifest, `"domains": {"read": ["example.com"]}`, `"domains": {"read": ["example.com"], "act": ["example.com"]}`, 1)
+	wider := strings.Replace(harness.DraftManifest, `"domains": {"read": ["example.com"]}`, `"domains": {"read": ["example.com"], "act": ["example.com"]}`, 1)
 	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": wider}); code != 200 {
 		t.Fatalf("manifest_save: %d %s", code, out)
 	}

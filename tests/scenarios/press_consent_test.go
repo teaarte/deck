@@ -9,47 +9,6 @@ import (
 	"time"
 )
 
-// applyScript applies the proposal of its id, or with none every proposal, by deck.assignment_set; with relay it
-// starts apply itself, as another caller, with the allows it was given.
-const applyScript = `import json, os, sys, urllib.request, urllib.error
-inp = json.load(sys.stdin)
-def call(m, f):
-    req = urllib.request.Request(os.environ["DECK_URL"] + "/commands/" + m, data=json.dumps(f).encode(),
-        headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
-    try:
-        body = urllib.request.urlopen(req, timeout=30).read().decode()
-        return json.loads(body) if body.strip() else None
-    except urllib.error.HTTPError as e:
-        return {"status": e.code, "body": e.read().decode()}
-if inp.get("relay"):
-    print(json.dumps(call("picker.apply", {"id": inp["id"], "allows": inp["relay"]})))
-    sys.exit(0)
-ids = [inp["id"]] if inp.get("id") else [r["id"] for r in call("deck.records_list", {"collection": "proposals"})]
-out = []
-for i in ids:
-    d = call("deck.record_get", {"record": i})["data"]
-    out.append(call("deck.assignment_set", {"role": "text", "project": d["project"], "models": d["models"].split(","), "command": d.get("command", "")}))
-print(json.dumps({"calls": out}))
-`
-
-// pickerManifest has proposals of models with an Apply button whose press allows the assignment its row shows, and
-// a daily run of apply over all of them.
-const pickerManifest = `{"version": 13,
-  "collections": [{"name": "proposals", "description": "A proposal of models.", "key": "name",
-    "schema": {"type": "object", "properties": {"name": {"type": "string"}, "project": {"type": "string"}, "models": {"type": "string"},
-      "command": {"type": "string"}}, "required": ["name"]}}],
-  "commands": [
-    {"name": "apply", "title": "Apply", "description": "Applies a proposal.", "class": "internal",
-     "input": {"type": "object", "properties": {"id": {"type": "integer"}, "relay": {"type": "string"}}},
-     "result": {"type": "object"}, "executor": {"type": "script", "script": "apply"}}],
-  "scripts": [{"name": "apply", "file": "scripts/apply.py", "runtime": "python"}],
-  "triggers": [{"command": "apply", "cron": "0 9 * * *"}],
-  "screens": [{"name": "main", "title": "Proposals", "blocks": [{"type": "table", "title": "Proposals", "source": {"collection": "proposals"},
-    "columns": [{"label": "Models", "bind": "models"}],
-    "actions": [{"label": "Apply", "command": "apply", "params": {"id": "=_id"},
-      "allows": [{"command": "deck.assignment_set", "params": {"role": "text", "project": "=project", "command": "=command ?? ''", "models": "=split(models, ',')"}}]}]}]}],
-  "menu": ["main"]}`
-
 type feedChange struct {
 	ID      int64  `json:"id"`
 	Kind    string `json:"kind"`
@@ -68,8 +27,8 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
 	}
 	e.Project("shorts", harness.PlainManifest)
-	e.Project("picker", pickerManifest)
-	e.SaveScript("picker", "scripts/apply.py", applyScript)
+	e.Project("picker", harness.PickerManifest)
+	e.SaveScript("picker", "scripts/apply.py", harness.ApplyScript)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
 	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals",
 		"records": harness.Jsonl(map[string]any{"name": "a", "project": "shorts", "models": "openrouter/qwen,openrouter/gemma"})}, nil)
@@ -84,7 +43,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	if p := e.WaitState(run.Process, "done", "error"); p.State != "done" || strings.Contains(string(p.Result), "waiting") {
 		t.Fatalf("the call the button names is made at once: %+v", p)
 	}
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen", "openrouter/gemma"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen", "openrouter/gemma"}) {
 		t.Fatalf("the press applies the models its row shows: %v", got)
 	}
 	var asks []harness.Ask
@@ -103,7 +62,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 		t.Fatalf("the change is told in the owner's words: %+v", ru)
 	}
 	e.Must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("the undo sets the models back: %v", got)
 	}
 
@@ -115,7 +74,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 		e.Must("deck.asks_list", nil, &as)
 		return len(as) == 1
 	})
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("the schedule changes nothing without the owner: %v", got)
 	}
 	e.Must("deck.asks_list", nil, &asks)
@@ -141,7 +100,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	if relay := e.WaitState(run.Process, "done", "error"); !strings.Contains(string(relay.Result), "allows comes only with a press of the owner") {
 		t.Fatalf("a run another caller started is no press of the owner: %+v", relay)
 	}
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("nothing but the press changed the models: %v", got)
 	}
 }
@@ -157,7 +116,7 @@ func TestAPressStandsForNoMoneyAndNoFrame(t *testing.T) {
 	e.Project("picker", harness.ScriptManifest("main", "", `, "screens": [{"name": "main", "title": "Models", "blocks": [
     {"type": "actions", "title": "Model", "actions": [{"label": "Add", "command": "main", "params": `+string(params)+`,
       "allows": [{"command": "deck.model_set", "params": {"connection": "openrouter", "model": "llama", "kind": "text", "free": "true"}}]}]}]}], "menu": ["main"]`))
-	e.SaveScript("picker", "scripts/main.py", pressScript)
+	e.SaveScript("picker", "scripts/main.py", harness.PressScript)
 	add := e.RowAction("picker", "main", "picker.main", nil)
 	if _, ok := add["params"].(map[string]any)["allows"]; !ok {
 		t.Fatalf("the button names its call: %+v", add)

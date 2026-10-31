@@ -7,26 +7,12 @@ import (
 	"testing"
 )
 
-const sideManifest = `{"version": 13, "i18n": {"ru": {"Trades": "Сделки", "Coin": "Монета", "Side": "Сторона", "long": "в рост", "short": "в падение"}},
-  "collections": [{"name": "trades", "description": "Trades", "key": "title", "display": "title",
-    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "coin": {"type": "string"}, "side": {"type": "string"}}, "required": ["title"]}}],
-  "commands": [],
-  "screens": [{"name": "lab", "title": "Trades", "params": {"coin": "string", "side": "string"},
-    "side": [
-      {"type": "filter", "title": "Coin", "param": "coin", "source": {"collection": "trades"}, "field": "coin"},
-      {"type": "filter", "title": "Side", "param": "side", "options": ["long", "short"]},
-      {"type": "stat", "title": "Open", "source": {"collection": "trades", "where": "param.coin == nil || coin == param.coin"}},
-      {"type": "actions", "actions": [{"label": "All coins", "screen": "lab"}]}],
-    "blocks": [{"type": "table", "title": "Trades", "source": {"collection": "trades", "sort": "title",
-        "where": "(param.coin == nil || coin == param.coin) && (param.side == nil || side == param.side)"},
-      "columns": [{"label": "Title", "bind": "title"}]}]}]}`
-
 // A filter of the side panel of a screen sets a param of the screen, and every block that reads it in its where is
 // narrowed by it; the filter offers the values its source has, in the owner's words.
 func TestASideFilterNarrowsTheBlocksOfItsScreen(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("lab", sideManifest)
+	e.Project("lab", harness.SideManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
 		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
@@ -79,8 +65,8 @@ func TestTheSidePanelHoldsFiltersButtonsAndSmallBlocks(t *testing.T) {
 		{`"field": "coin"}`, `"field": "price"}`, `"price" is no field of its source`},
 		{`"param": "side", "options"`, `"param": "tab", "options"`, "tab is a param only the client reads"},
 	} {
-		bad := strings.Replace(sideManifest, c.from, c.to, 1)
-		if bad == sideManifest {
+		bad := strings.Replace(harness.SideManifest, c.from, c.to, 1)
+		if bad == harness.SideManifest {
 			t.Fatalf("the case did not apply: %s", c.from)
 		}
 		e.Refused("deck.project_create", map[string]any{"name": "lab", "manifest": bad}, 422, c.want)
@@ -92,7 +78,7 @@ func TestTheSidePanelHoldsFiltersButtonsAndSmallBlocks(t *testing.T) {
 func TestAFilterStartsOnTheDefaultOfItsParam(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("lab", strings.Replace(sideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
+	e.Project("lab", strings.Replace(harness.SideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
 	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
 		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
@@ -110,6 +96,6 @@ func TestAFilterStartsOnTheDefaultOfItsParam(t *testing.T) {
 	if !strings.Contains(cur.Manifest, `"default": "BTC"`) || !strings.Contains(cur.Manifest, `"side": "string"`) {
 		t.Fatalf("a param keeps its form: %s", cur.Manifest)
 	}
-	bad := strings.Replace(sideManifest, `"side": "string"}`, `"side": "string", "n": {"type": "integer", "default": "many"}}`, 1)
+	bad := strings.Replace(harness.SideManifest, `"side": "string"}`, `"side": "string", "n": {"type": "integer", "default": "many"}}`, 1)
 	e.Refused("deck.manifest_save", map[string]any{"project": "lab", "manifest": bad}, 422, "the default many is no integer")
 }

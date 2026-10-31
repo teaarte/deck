@@ -9,72 +9,16 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"testing"
 )
-
-// webManifest is a project with every block of the catalog, a record page and an external tool.
-func webManifest(url string) string {
-	return fmt.Sprintf(`{"version": 13,
-  "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
-    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
-  "commands": [
-    {"name": "work", "title": "Work", "description": "Posts a note.", "class": "internal", "result": {"type": "object"},
-      "executor": {"type": "agent", "prompt": "Post the note."}},
-    {"name": "ask", "title": "Ask", "description": "Asks the owner.", "class": "internal", "result": {"type": "object"},
-      "executor": {"type": "agent", "prompt": "Ask."}},
-    {"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
-      "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}, "score": {"type": "string"}}, "required": ["note"]},
-      "executor": {"type": "agent", "prompt": "Touch."}}],
-  "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",
-    "body": {"text": "{text}"},
-    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}}]},
-  "screens": [
-    {"name": "main", "title": "Notes", "blocks": [
-      {"type": "columns", "blocks": [
-        {"type": "stat", "title": "Notes", "source": {"collection": "notes"}},
-        {"type": "stat", "title": "Score", "source": {"collection": "notes", "where": "score > 1"}, "value": "sum(rows, .score)"}]},
-      {"type": "tabs", "title": "Views", "tabs": [
-        {"title": "All", "blocks": [{"type": "table", "title": "All notes", "source": {"collection": "notes", "sort": "-score"},
-          "columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
-          "actions": [{"label": "Open", "screen": "note"}, {"label": "Touch", "command": "touch", "params": {"note": "=_id"}}]}]},
-        {"title": "Top", "blocks": [{"type": "list", "source": {"collection": "notes", "where": "score >= 5"},
-          "item": {"title": "title", "meta": "'score ' + string(score)"}}]}]},
-      {"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}},
-      {"type": "actions", "title": "Run", "actions": [{"label": "Work", "command": "work"}]}]},
-    {"name": "note", "title": "Note", "record": "notes", "blocks": [
-      {"type": "card", "fields": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
-        "actions": [{"label": "Touch", "command": "touch", "params": {"note": "=_id"}}]},
-      {"type": "list", "title": "Better", "source": {"collection": "notes", "where": "score > record.score"}, "item": {"title": "title"}},
-      {"type": "actions", "title": "Rate", "actions": [{"label": "Rate", "command": "touch", "params": {"note": "=_id", "score": "=score"}}]}]}],
-  "menu": ["main"]}`, url)
-}
-
-// webAgent posts a new note through the external tool on work and asks a question with options on ask.
-func webAgent() harness.Script {
-	var n atomic.Int32
-	return func(ctx context.Context, c *harness.Call) provider.Result {
-		if c.Req.Resume {
-			return provider.Result{Structured: json.RawMessage(`{}`)}
-		}
-		switch c.Command() {
-		case "work":
-			c.Tool(ctx, "notes__post", map[string]any{"id": fmt.Sprintf("n%d", n.Add(1)), "text": "hi"})
-		case "ask":
-			c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{
-				{"question": "Which topic?", "options": []map[string]any{{"label": "go"}, {"label": "rust"}}}}})
-		}
-		return provider.Result{Structured: json.RawMessage(`{}`)}
-	}
-}
 
 // TestScreenBlocksFollowTheCatalog: a screen resolves into components of the catalog with data by its schema:
 // containers, an aggregate, tabs, a record page and moves to it.
 func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	t.Parallel()
-	e := harness.New(t, harness.WithAgent(webAgent()))
+	e := harness.New(t, harness.WithAgent(harness.WebAgent()))
 	check := harness.NewCatalogCheck(t)
-	e.Project("notes", webManifest("http://127.0.0.1:1"))
+	e.Project("notes", harness.WebManifest("http://127.0.0.1:1"))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7},
 			map[string]any{"title": "gamma", "score": 5})}, nil)
@@ -150,7 +94,7 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	good := webManifest("http://127.0.0.1:1")
+	good := harness.WebManifest("http://127.0.0.1:1")
 	e.Project("notes", good)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}`, `{"type": "hologram"}`,
@@ -192,8 +136,8 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 // TestScreenTopicReadsOnlyTheBlocksItChanges: after an event the client reads only the blocks of its topic.
 func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	t.Parallel()
-	e := harness.New(t, harness.WithAgent(webAgent()))
-	e.Project("notes", webManifest("http://127.0.0.1:1"))
+	e := harness.New(t, harness.WithAgent(harness.WebAgent()))
+	e.Project("notes", harness.WebManifest("http://127.0.0.1:1"))
 	// paths are the blocks a topic reads, with the tab and dialog of extra shown, or with each tab shown in turn.
 	paths := func(project, screen, topic string, extra ...string) []string {
 		var out []string

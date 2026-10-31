@@ -1,5 +1,19 @@
 package harness
 
+const DraftManifest = `{
+  "version": 13,
+  "commands": [
+    {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {}},
+     "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object"}},
+    {"name": "child", "title": "Child", "description": "Helps.", "class": "internal", "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
+     "executor": {"type": "agent", "prompt": "Help."}, "result": {"type": "object"}},
+    {"name": "send", "title": "Send", "description": "Sends it out.", "class": "external",
+     "executor": {"type": "agent", "prompt": "Send."}, "result": {"type": "object"}}
+  ],
+  "triggers": [{"command": "work", "cron": "0 9 * * *"}, {"command": "child", "after": "work"}],
+  "domains": {"read": ["example.com"]}
+}`
+
 type ProjectV struct {
 	Name     string
 	Status   string

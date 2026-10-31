@@ -136,7 +136,7 @@ func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	p := e.Project("inbox", filesManifest())
+	p := e.Project("inbox", harness.FilesManifest())
 	e.Upload("inbox", "invoice-october.pdf", "application/pdf", "%PDF-1.4")
 	e.Upload("inbox", "notes.txt", "text/plain", "hello")
 	data := e.App.Home.Data(p)
@@ -249,7 +249,7 @@ func TestAManifestIsCheckedWithoutASave(t *testing.T) {
 func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("notes", filesManifest())
+	e.Project("notes", harness.FilesManifest())
 	img := image.NewRGBA(image.Rect(0, 0, 800, 450))
 	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
 	var b bytes.Buffer
@@ -281,7 +281,7 @@ func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 	if j := slices.IndexFunc(files, func(c card) bool { return c.Title == "notes" }); j < 0 || files[j].Cover["light"] != m.Projects[0].Cover {
 		t.Fatalf("the folder of the module wears its cover too: %+v", files)
 	}
-	foreign := strings.Replace(filesManifest(), `"commands": [`, `"screens": [{"name": "wall", "title": "Wall", "blocks": [{"type": "list", "source": {"collection": "items"},
+	foreign := strings.Replace(harness.FilesManifest(), `"commands": [`, `"screens": [{"name": "wall", "title": "Wall", "blocks": [{"type": "list", "source": {"collection": "items"},
     "item": {"title": "name", "cover": "{'light': 'https://example.com/x.png'}"}}]}], "commands": [`, 1)
 	e.Project("wall", foreign)
 	e.Must("deck.records_upsert", map[string]any{"project": "wall", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a"})}, nil)

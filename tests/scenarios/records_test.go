@@ -36,7 +36,7 @@ func seeded(e *harness.Env) (record, photo int64) {
 func TestRecordIsReadByIDAndDeletedWithItsDocumentsAndFiles(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("docs", filesManifest())
+	e.Project("docs", harness.FilesManifest())
 	rec, photo := seeded(e)
 	var got struct {
 		ID   int64
@@ -70,7 +70,7 @@ func TestBuilderCleansTrialRecordsOfADraftAndUploadsAFile(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	_, tok := e.Token("terminal", "deck.*")
-	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "docs", "manifest": filesManifest()}); code != 200 {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "docs", "manifest": harness.FilesManifest()}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	rec, _ := seeded(e)
@@ -103,7 +103,7 @@ func TestAgentReadsARecordByIDOnlyInItsProjectOrItsReads(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	}))
 
-	e.Project("docs", filesManifest())
+	e.Project("docs", harness.FilesManifest())
 	rec, _ = seeded(e)
 	for i, m := range []string{harness.PlainManifest, strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "reads": [{"project": "docs", "collections": ["items"]}]`, 1)} {
 		p := e.Project(fmt.Sprintf("p%d", i), m)

@@ -31,7 +31,7 @@ func screenAs(e *harness.Env, act registry.Actor, in map[string]any) map[string]
 func TestTheMasterReadsAScreenWithoutTheBodiesOfDocuments(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
-	e.Project("web", docsManifest)
+	e.Project("web", harness.DocsManifest)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc", "text": "be short"}, nil)
 	type body struct {

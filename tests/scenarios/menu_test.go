@@ -147,38 +147,20 @@ func TestThePulseSaysTalkingWhileOnlyTheMasterWorks(t *testing.T) {
 	}
 }
 
-// side is the projects of the side list of deck.menu by name, in their order, and the master's project.
-func side(e *harness.Env) ([]string, string) {
-	e.T.Helper()
-	var menu struct {
-		Projects []struct{ Project string }
-		Master   *struct{ Project string }
-	}
-	e.Must("deck.menu", map[string]any{}, &menu)
-	names := []string{}
-	for _, p := range menu.Projects {
-		names = append(names, p.Project)
-	}
-	if menu.Master == nil {
-		return names, ""
-	}
-	return names, menu.Master.Project
-}
-
 // TestAPausedProjectLeavesTheMenu: a paused project is not in the side list, its resume brings it back, and the master
 // stays at the foot, paused or not.
 func TestAPausedProjectLeavesTheMenu(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	e.Project("alpha", notesManifest)
+	e.Project("alpha", harness.NotesManifest)
 	e.Project("beta", harness.PlainManifest)
 	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
 	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": true}, nil)
-	if names, master := side(e); !slices.Equal(names, []string{"beta"}) || master != "master" {
+	if names, master := e.SideMenu(); !slices.Equal(names, []string{"beta"}) || master != "master" {
 		t.Fatalf("a paused project leaves the side list, the master stays: %v %q", names, master)
 	}
 	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)
-	if names, _ := side(e); !slices.Equal(names, []string{"alpha", "beta"}) {
+	if names, _ := e.SideMenu(); !slices.Equal(names, []string{"alpha", "beta"}) {
 		t.Fatalf("a resumed project is in the side list again: %v", names)
 	}
 }

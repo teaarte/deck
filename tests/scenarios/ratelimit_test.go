@@ -133,7 +133,7 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}), harness.WithClock())
 
-	p := e.Project("notes", strings.Replace(notesManifest, `"requires": ["no_cloud"],`, "", 1))
+	p := e.Project("notes", strings.Replace(harness.NotesManifest, `"requires": ["no_cloud"],`, "", 1))
 	id := e.Run(p, "collect")
 	e.WaitState(id, "rate_limited")
 	e.Answer(e.WaitAsk().ID, "deny")

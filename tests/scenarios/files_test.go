@@ -27,21 +27,6 @@ import (
 	"time"
 )
 
-func filesManifest() string {
-	return `{"version": 13,
-  "collections": [{"name": "items", "description": "An item.", "key": "name",
-    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
-  "commands": [
-    {"name": "seed", "title": "Seed", "description": "Makes a record with a file.", "class": "internal",
-     "result": {"type": "object"}, "executor": {"type": "script", "script": "seed"}},
-    {"name": "read", "title": "Read", "description": "Reads the files of its input.", "class": "internal",
-     "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}, "photo": {"type": "string", "format": "file"},
-       "rec": {"type": "integer", "format": "record"}}},
-     "result": {"type": "object"}, "executor": {"type": "script", "script": "read"}}],
-  "scripts": [{"name": "seed", "file": "scripts/seed.py", "runtime": "python"},
-    {"name": "read", "file": "scripts/read.py", "runtime": "python"}]}`
-}
-
 const seedScript = harness.PythonLib + `
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 with open(os.path.join(os.environ["DECK_RESULTS"], "photo.jpg"), "w") as f:
@@ -66,7 +51,7 @@ print(json.dumps({"checks": checks, "files": files}))
 func TestUploadedAndRecordFilesReachTheScriptReadOnly(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("docs", filesManifest())
+	e.Project("docs", harness.FilesManifest())
 	e.SaveScript("docs", "scripts/seed.py", seedScript)
 	e.SaveScript("docs", "scripts/read.py", readScript)
 	seed := e.WaitState(e.Start("docs", "seed", nil), "done", "error")
@@ -98,7 +83,7 @@ func TestUploadedAndRecordFilesReachTheScriptReadOnly(t *testing.T) {
 		t.Fatalf("the uploaded file the result names now belongs to the record: %+v", files)
 	}
 
-	other := e.Project("other", filesManifest())
+	other := e.Project("other", harness.FilesManifest())
 	_ = other
 	code, body := e.Call("docs.read", map[string]any{"doc": fmt.Sprint(e.Upload("other", "x.txt", "text/plain", "x")), "rec": s.Record})
 	if code == 200 || !strings.Contains(string(body), "no file") {
@@ -109,7 +94,7 @@ func TestUploadedAndRecordFilesReachTheScriptReadOnly(t *testing.T) {
 func TestUploadsNeedTheProjectAndGoWhenNoCommandTookThem(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
-	e.Project("docs", filesManifest())
+	e.Project("docs", harness.FilesManifest())
 	e.SaveScript("docs", "scripts/read.py", "import sys; print('{}')")
 	_, narrow := e.Token("narrow", "docs.read")
 	_, wide := e.Token("wide", "docs.*")
@@ -186,7 +171,7 @@ print(json.dumps({"files": [{"path": "a.txt"}]}))
 func TestAResultWithAMissingFileHandsOverNoInputFileEither(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("docs", filesManifest())
+	e.Project("docs", harness.FilesManifest())
 	e.SaveScript("docs", "scripts/seed.py", seedScript)
 	e.SaveScript("docs", "scripts/read.py", `import json, os, sys
 inp = json.load(sys.stdin)
@@ -213,8 +198,8 @@ print(json.dumps({"files": [{"file": given, "record": inp["rec"]}, {"path": "mis
 func TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("docs", filesManifest())
-	e.Project("other", filesManifest())
+	e.Project("docs", harness.FilesManifest())
+	e.Project("other", harness.FilesManifest())
 	id := e.Upload("docs", "отчёт <1>.html", "text/html", "<script>alert(1)</script>")
 	_, narrow := e.Token("narrow", "docs.read")
 	_, wide := e.Token("wide", "docs.*")

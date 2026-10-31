@@ -125,7 +125,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	_, tok := e.Token("terminal", "deck.*")
-	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": harness.DraftManifest}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	items := func() []harness.ListItem {
@@ -402,7 +402,7 @@ func TestTheDiskHealthReachesTheOpenScreens(t *testing.T) {
 func TestAProjectHasItsOwnSettings(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("notes", strings.Replace(notesManifest, `"url": "https://example.invalid/post",`, `"url": "https://example.invalid/post", "headers": {"Authorization": "Bearer $secret.notes_key"},`, 1))
+	e.Project("notes", strings.Replace(harness.NotesManifest, `"url": "https://example.invalid/post",`, `"url": "https://example.invalid/post", "headers": {"Authorization": "Bearer $secret.notes_key"},`, 1))
 	e.Project("other", harness.PlainManifest)
 	_, _ = e.Token("mine", "notes.collect")
 	_, _ = e.Token("theirs", "other.work")

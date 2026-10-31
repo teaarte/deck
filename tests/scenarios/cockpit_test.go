@@ -20,9 +20,9 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	clock := &harness.Clock{At: time.Now()}
-	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(harness.WithTTL))
+	e := harness.New(t, harness.WithAgent(harness.WebAgent()), harness.WithClock(clock), harness.WithConfig(harness.WithTTL))
 	check := harness.NewCatalogCheck(t)
-	p := e.Project("notes", webManifest(svc.URL))
+	p := e.Project("notes", harness.WebManifest(svc.URL))
 
 	first := e.Run(p, "work")
 	e.WaitState(first, "waiting_answer", "done")
@@ -94,8 +94,8 @@ func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	clock := &harness.Clock{At: time.Now()}
-	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(harness.WithTTL))
-	p := e.Project("notes", webManifest(svc.URL))
+	e := harness.New(t, harness.WithAgent(harness.WebAgent()), harness.WithClock(clock), harness.WithConfig(harness.WithTTL))
+	p := e.Project("notes", harness.WebManifest(svc.URL))
 	e.Run(p, "work")
 	a := e.WaitAsk()
 	clock.Add(24*time.Hour + time.Minute)
@@ -115,11 +115,11 @@ func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 func TestAConfirmationOfAChangedToolIsClosedAsOutOfDate(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
-	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithConfig(harness.WithTTL))
-	p := e.Project("notes", webManifest(svc.URL))
+	e := harness.New(t, harness.WithAgent(harness.WebAgent()), harness.WithConfig(harness.WithTTL))
+	p := e.Project("notes", harness.WebManifest(svc.URL))
 	id := e.Run(p, "work")
 	e.WaitAsk()
-	moved := strings.Replace(webManifest(svc.URL), svc.URL+"/items/{id}", svc.URL+"/archive/{id}", 1)
+	moved := strings.Replace(harness.WebManifest(svc.URL), svc.URL+"/items/{id}", svc.URL+"/archive/{id}", 1)
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": moved}, nil)
 	e.Until("deck to close the out-of-date call", func() bool {
 		return !slices.ContainsFunc(e.CockpitItems(), func(it harness.ListItem) bool { return strings.Contains(it.Details, "notes.post") })

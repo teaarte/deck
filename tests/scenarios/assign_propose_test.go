@@ -10,44 +10,6 @@ import (
 	"testing"
 )
 
-// deckCallScript calls the deck command of its input's method with the JSON of form and prints the status and body.
-const deckCallScript = `import json, os, sys, urllib.request, urllib.error
-inp = json.load(sys.stdin)
-req = urllib.request.Request(os.environ["DECK_URL"] + "/commands/" + inp["method"], data=inp["form"].encode(),
-    headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
-try:
-    r = urllib.request.urlopen(req, timeout=30)
-    status, body = r.status, r.read().decode()
-except urllib.error.HTTPError as e:
-    status, body = e.code, e.read().decode()
-print(json.dumps({"status": status, "body": body}))
-`
-
-// scriptCall runs the script command main of project with a call of method and returns what deck answered it.
-func scriptCall(e *harness.Env, project, method string, form map[string]any) harness.Called {
-	e.T.Helper()
-	raw, _ := json.Marshal(form)
-	p := e.WaitState(e.Start(project, "main", map[string]any{"method": method, "form": string(raw)}), "done", "error")
-	var c harness.Called
-	if err := json.Unmarshal(p.Result, &c); err != nil {
-		e.T.Fatalf("the script answers what deck said: %+v %v", p, err)
-	}
-	return c
-}
-
-// assigned are the models of a role of a project as the owner reads them.
-func assigned(e *harness.Env, project, role string) []string {
-	e.T.Helper()
-	var m harness.ModelsOut
-	e.Must("deck.models_list", map[string]any{"project": project}, &m)
-	for _, a := range m.Assignments {
-		if a.Project == project && a.Command == "" && a.Role == role {
-			return a.Models
-		}
-	}
-	return nil
-}
-
 // callAsk is the open ask of a call of command, with where it goes as the owner reads it.
 func callAsk(e *harness.Env, command string) (int64, string) {
 	e.T.Helper()
@@ -78,17 +40,17 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "gemma", "kind": "text", "call_usd": 0.02}, nil)
 	e.Project("shorts", harness.PlainManifest)
 	e.Project("picker", harness.ScriptManifest("main", "", ""))
-	e.SaveScript("picker", "scripts/main.py", deckCallScript)
+	e.SaveScript("picker", "scripts/main.py", harness.DeckCallScript)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("the owner's call applies at once: %v", got)
 	}
 
 	propose := map[string]any{"role": "text", "project": "shorts", "model": "openrouter/qwen"}
-	if c := scriptCall(e, "picker", "deck.assignment_set", propose); c.Status != 202 || !strings.Contains(c.Body, "waits for the owner") {
+	if c := e.ScriptCall("picker", "deck.assignment_set", propose); c.Status != 202 || !strings.Contains(c.Body, "waits for the owner") {
 		t.Fatalf("the proposal waits for the owner: %+v", c)
 	}
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("nothing changes before the owner's yes: %v", got)
 	}
 	ask, where := callAsk(e, "deck.assignment_set")
@@ -96,21 +58,21 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 		t.Fatalf("the owner sees what the assignment was and what it becomes: %s", where)
 	}
 	e.Answer(ask, "allow")
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen", "openrouter/gemma"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen", "openrouter/gemma"}) {
 		t.Fatalf("the owner's yes applies the assignment as asked: %v", got)
 	}
 
 	only := map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}
-	if c := scriptCall(e, "picker", "deck.assignment_set", only); c.Status != 202 {
+	if c := e.ScriptCall("picker", "deck.assignment_set", only); c.Status != 202 {
 		t.Fatalf("a second proposal waits too: %+v", c)
 	}
 	ask, _ = callAsk(e, "deck.assignment_set")
 	e.Answer(ask, "deny")
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen", "openrouter/gemma"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen", "openrouter/gemma"}) {
 		t.Fatalf("the owner's no leaves the assignment: %v", got)
 	}
 
-	if c := scriptCall(e, "picker", "deck.assignment_set", only); c.Status != 202 {
+	if c := e.ScriptCall("picker", "deck.assignment_set", only); c.Status != 202 {
 		t.Fatalf("a third proposal waits too: %+v", c)
 	}
 	ask, _ = callAsk(e, "deck.assignment_set")
@@ -119,11 +81,11 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 	if code, out := e.In("ru").Call("deck.ask_answer", map[string]any{"ask": ask, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "на этот запрос уже ответили") {
 		t.Fatalf("a yes to an assignment that changed meanwhile is refused in the owner's words: %d %s", code, out)
 	}
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("the refused yes changes nothing: %v", got)
 	}
 
-	if c := scriptCall(e, "picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}); c.Status != 202 {
+	if c := e.ScriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}); c.Status != 202 {
 		t.Fatalf("a proposal of what is in force is held like any: %+v", c)
 	}
 	e.Until("a proposal already in force to close as done", func() bool {
@@ -132,7 +94,7 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 		return len(left) == 0
 	})
 	pin := map[string]any{"role": "text", "project": "shorts", "command": "cut", "models": []string{"openrouter/qwen"}}
-	if c := scriptCall(e, "picker", "deck.assignment_set", pin); c.Status != 202 {
+	if c := e.ScriptCall("picker", "deck.assignment_set", pin); c.Status != 202 {
 		t.Fatalf("a proposal to pin a command to what it inherits waits: %+v", c)
 	}
 	ask, _ = callAsk(e, "deck.assignment_set")
@@ -142,7 +104,7 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 	}
 	e.Answer(ask, "deny")
 
-	if c := scriptCall(e, "picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"nope"}}); c.Status != 404 {
+	if c := e.ScriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"nope"}}); c.Status != 404 {
 		t.Fatalf("a proposal deck cannot apply is refused at once, not held: %+v", c)
 	}
 }
@@ -166,11 +128,11 @@ func TestNoCallerAppliesAnAssignmentPastTheOwner(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	shorts := e.Project("shorts", harness.PlainManifest)
 	e.Project("picker", harness.ScriptManifest("main", "", ""))
-	e.SaveScript("picker", "scripts/main.py", deckCallScript)
+	e.SaveScript("picker", "scripts/main.py", harness.DeckCallScript)
 
 	id := e.Run(shorts, "work")
 	e.WaitState(id, "waiting_answer")
-	if got := assigned(e, "shorts", "text"); got != nil {
+	if got := e.Assigned("shorts", "text"); got != nil {
 		t.Fatalf("an agent's call does not apply before the owner's yes: %v", got)
 	}
 	if bad || !strings.Contains(said, "waits for the owner") {
@@ -188,7 +150,7 @@ func TestNoCallerAppliesAnAssignmentPastTheOwner(t *testing.T) {
 	if out, failed := harness.Use(s, "assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}); failed || !strings.Contains(out, "waits for the owner") {
 		t.Fatalf("a token's call waits for the owner: %v %s", failed, out)
 	}
-	if got := assigned(e, "shorts", "text"); got != nil {
+	if got := e.Assigned("shorts", "text"); got != nil {
 		t.Fatalf("a token's call does not apply before the owner's yes: %v", got)
 	}
 
@@ -202,7 +164,7 @@ func TestNoCallerAppliesAnAssignmentPastTheOwner(t *testing.T) {
 	if c.Status != 403 || !strings.Contains(c.Body, "trial or a draft") {
 		t.Fatalf("a trial does not propose an assignment: %+v", p)
 	}
-	if got := assigned(e, "shorts", "text"); got != nil {
+	if got := e.Assigned("shorts", "text"); got != nil {
 		t.Fatalf("nothing applied past the owner: %v", got)
 	}
 	ask, who := callAsk(e, "deck.assignment_set")
@@ -210,7 +172,7 @@ func TestNoCallerAppliesAnAssignmentPastTheOwner(t *testing.T) {
 		t.Fatalf("the owner sees who asks: %s", who)
 	}
 	e.Answer(ask, "allow")
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("the owner's yes applies the token's proposal: %v", got)
 	}
 }
@@ -235,11 +197,11 @@ func TestAToolCommandOfAModuleDoesNotClearAnAssignment(t *testing.T) {
 	}
 	e.WaitAsk()
 	ask, where := callAsk(e, "deck.assignment_set")
-	if got := assigned(e, "shorts", "text"); got != nil || !strings.Contains(where, "text of shorts: deck's default → openrouter/qwen") {
+	if got := e.Assigned("shorts", "text"); got != nil || !strings.Contains(where, "text of shorts: deck's default → openrouter/qwen") {
 		t.Fatalf("its call of deck.assignment_set waits for the owner: %v %s", got, where)
 	}
 	e.Answer(ask, "allow")
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("the owner's yes applies it: %v", got)
 	}
 }
@@ -252,11 +214,11 @@ func TestAModelsReadOfAProjectOpensNoDataOfIt(t *testing.T) {
 	e.Project("shorts", harness.ScriptManifest("main", "", ""))
 	module := harness.ScriptManifest("main", "", "")
 	e.Project("watcher", strings.Replace(module, `"scripts":`, `"reads": [{"project": "shorts", "models": true}], "scripts":`, 1))
-	e.SaveScript("watcher", "scripts/main.py", deckCallScript)
-	if c := scriptCall(e, "watcher", "deck.models_list", map[string]any{"project": "shorts"}); c.Status != 200 || !strings.Contains(c.Body, `"command":"publish"`) {
+	e.SaveScript("watcher", "scripts/main.py", harness.DeckCallScript)
+	if c := e.ScriptCall("watcher", "deck.models_list", map[string]any{"project": "shorts"}); c.Status != 200 || !strings.Contains(c.Body, `"command":"publish"`) {
 		t.Fatalf("the module reads the models of shorts: %+v", c)
 	}
-	if c := scriptCall(e, "watcher", "deck.records_list", map[string]any{"project": "shorts", "collection": "items"}); c.Status != 403 {
+	if c := e.ScriptCall("watcher", "deck.records_list", map[string]any{"project": "shorts", "collection": "items"}); c.Status != 403 {
 		t.Fatalf("it reads no records of shorts: %+v", c)
 	}
 	_, tok := e.Token("terminal", "deck.*")
@@ -288,10 +250,10 @@ func TestAModuleReadsTheModelsOfEveryProjectByARight(t *testing.T) {
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}, nil)
 	module := harness.ScriptManifest("main", "", "")
 	watcher := e.Project("watcher", module)
-	e.SaveScript("watcher", "scripts/main.py", deckCallScript)
+	e.SaveScript("watcher", "scripts/main.py", harness.DeckCallScript)
 
 	read := map[string]any{"project": "shorts"}
-	if c := scriptCall(e, "watcher", "deck.models_list", read); c.Status != 403 || !strings.Contains(c.Body, "does not read which models do the work of shorts") {
+	if c := e.ScriptCall("watcher", "deck.models_list", read); c.Status != 403 || !strings.Contains(c.Body, "does not read which models do the work of shorts") {
 		t.Fatalf("without the right a module does not read the models of another project: %+v", c)
 	}
 
@@ -306,12 +268,12 @@ func TestAModuleReadsTheModelsOfEveryProjectByARight(t *testing.T) {
 	if saved.Waiting == 0 || !slices.Equal(saved.Widens, []string{"reads which models do the work of every project"}) {
 		t.Fatalf("the right waits for the owner's button, named plainly: %s", out)
 	}
-	if c := scriptCall(e, "watcher", "deck.models_list", read); c.Status != 403 {
+	if c := e.ScriptCall("watcher", "deck.models_list", read); c.Status != 403 {
 		t.Fatalf("the right is not in force before the owner's yes: %+v", c)
 	}
 	e.Answer(saved.Waiting, "allow")
 
-	c := scriptCall(e, "watcher", "deck.models_list", read)
+	c := e.ScriptCall("watcher", "deck.models_list", read)
 	var m struct {
 		harness.ModelsOut
 		Work []struct {
@@ -334,10 +296,10 @@ func TestAModuleReadsTheModelsOfEveryProjectByARight(t *testing.T) {
 		t.Fatalf("an agent of the module reads it too: %s", heard)
 	}
 
-	if c := scriptCall(e, "watcher", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{}}); c.Status != 202 {
+	if c := e.ScriptCall("watcher", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{}}); c.Status != 202 {
 		t.Fatalf("the right reads only; an assignment still waits for the owner: %+v", c)
 	}
-	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+	if got := e.Assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("nothing changes by the right: %v", got)
 	}
 	data := strings.Replace(module, `"scripts":`, `"reads": [{"project": "*", "collections": ["items"]}], "scripts":`, 1)
@@ -357,9 +319,9 @@ func TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight(t *testing.T) {
 	e.WaitState(id, "done")
 	module := harness.ScriptManifest("main", "", "")
 	e.Project("watcher", module)
-	e.SaveScript("watcher", "scripts/main.py", deckCallScript)
+	e.SaveScript("watcher", "scripts/main.py", harness.DeckCallScript)
 	list := map[string]any{"project": "plain"}
-	if c := scriptCall(e, "watcher", "deck.processes_list", list); c.Status != 403 || !strings.Contains(c.Body, `"runs": true`) {
+	if c := e.ScriptCall("watcher", "deck.processes_list", list); c.Status != 403 || !strings.Contains(c.Body, `"runs": true`) {
 		t.Fatalf("without the right a module does not list the runs of another project, and is told what gives it: %+v", c)
 	}
 	_, tok := e.Token("terminal", "deck.*")
@@ -374,7 +336,7 @@ func TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight(t *testing.T) {
 		t.Fatalf("the right waits for the owner's button, named plainly: %s", out)
 	}
 	e.Answer(saved.Waiting, "allow")
-	c := scriptCall(e, "watcher", "deck.processes_list", list)
+	c := e.ScriptCall("watcher", "deck.processes_list", list)
 	var runs []map[string]any
 	if c.Status != 200 || json.Unmarshal([]byte(c.Body), &runs) != nil || len(runs) != 1 {
 		t.Fatalf("with the right the module lists the runs of plain: %+v", c)
@@ -383,10 +345,10 @@ func TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight(t *testing.T) {
 		r["session_id"] != nil || r["started_at"] == nil {
 		t.Fatalf("a run of another project is brief: %v", r)
 	}
-	if c := scriptCall(e, "watcher", "deck.records_list", map[string]any{"project": "plain", "collection": "items"}); c.Status != 403 {
+	if c := e.ScriptCall("watcher", "deck.records_list", map[string]any{"project": "plain", "collection": "items"}); c.Status != 403 {
 		t.Fatalf("the runs open no data of the project: %+v", c)
 	}
-	if c := scriptCall(e, "watcher", "deck.processes_list", map[string]any{"project": "master"}); c.Status != 403 {
+	if c := e.ScriptCall("watcher", "deck.processes_list", map[string]any{"project": "master"}); c.Status != 403 {
 		t.Fatalf("every project is not the master, whose runs hold the owner's topics: %+v", c)
 	}
 }

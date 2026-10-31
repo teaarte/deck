@@ -164,7 +164,7 @@ func TestTheCodeExampleImportsWithItsTasksAndRunButton(t *testing.T) {
 		}
 	}
 	e.Refused("code.run", map[string]any{"do": "run"}, 422, "has no folder yet")
-	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": harness.RepoFolder(t)}, nil)
 	id := e.Run(p, "run")
 	e.WaitState(id, "done")
 	c := e.Fake.Calls()[0]

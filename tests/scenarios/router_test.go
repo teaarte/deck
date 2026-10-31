@@ -9,20 +9,12 @@ import (
 	"testing"
 )
 
-// routedManifest has a dialog with a form its address fills, and rows whose button opens it with their title.
-var routedManifest = strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"title": "string"}, "blocks": [
-      {"type": "dialog", "name": "rescore", "title": "Score again", "icon": "refresh", "primary": true, "blocks": [
-        {"type": "form", "title": "Score", "command": "score", "values": {"title": "=param.title", "n": "3"}}]},
-      {"type": "actions", "title": "More", "icon": "dots", "actions": [{"label": "Tell", "command": "tell"}]},
-      {"type": "table", "title": "Again", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
-        "actions": [{"label": "Again", "screen": "main", "params": {"title": "=title", "dialog": "rescore"}}]},`, 1)
-
 // TestScreenParamsFillFormsAndTravelWithButtons: the address of a screen carries parameters; a form takes them
 // as its values in the type of its fields, and a button to a screen takes them from its row.
 func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
-	e.Project("web", routedManifest)
+	e.Project("web", harness.RoutedManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 
 	data := e.ScreenData("web", "main", map[string]any{"params": `{"title": "alpha"}`, "dialog": "rescore"})
@@ -48,7 +40,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	if !strings.Contains(string(drawn), `"dialogs":["b0"]`) {
 		t.Fatalf("a dialog stands beside the title of the screen: %s", drawn)
 	}
-	if code, out := e.Call("deck.project_create", map[string]any{"name": "menus", "manifest": strings.Replace(routedManifest, `"icon": "dots", "actions"`, `"icon": "dots", "menu": true, "actions"`, 1)}); code != 422 {
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "menus", "manifest": strings.Replace(harness.RoutedManifest, `"icon": "dots", "actions"`, `"icon": "dots", "menu": true, "actions"`, 1)}); code != 422 {
 		t.Fatalf("a group of buttons has no menu of its own: %d %s", code, out)
 	}
 	without := e.ScreenData("web", "main", nil)
@@ -79,7 +71,7 @@ func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
       {"type": "actions", "title": "More"`, `dialog "rescore": duplicate`},
 	}
 	for i, c := range cases {
-		base := strings.Replace(routedManifest, `{"type": "form", "title": "Edit", "command": "deck.record_update"}`,
+		base := strings.Replace(harness.RoutedManifest, `{"type": "form", "title": "Edit", "command": "deck.record_update"}`,
 			`{"type": "form", "title": "Edit", "command": "deck.record_update"}, {"type": "form", "title": "Again", "command": "score", "values": {"title": "=title"}}`, 1)
 		m := strings.Replace(base, c.old, c.new, 1)
 		if m == base {
@@ -97,15 +89,15 @@ func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
 func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
-	typo := strings.Replace(routedManifest, `"params": {"title": "=title", "dialog": "rescore"}`, `"params": {"titel": "=title", "dialog": "rescore"}`, 1)
-	if typo == routedManifest {
+	typo := strings.Replace(harness.RoutedManifest, `"params": {"title": "=title", "dialog": "rescore"}`, `"params": {"titel": "=title", "dialog": "rescore"}`, 1)
+	if typo == harness.RoutedManifest {
 		t.Fatal("fixture replacement did not apply")
 	}
 	code, out := e.Call("deck.project_create", map[string]any{"name": "web", "manifest": typo})
 	if code != 422 || !strings.Contains(string(out), `param "titel"`) || !strings.Contains(string(out), "title") {
 		t.Fatalf("an unknown param of a move to a screen fails the save with the params it takes: %d %s", code, out)
 	}
-	e.Project("web", routedManifest)
+	e.Project("web", harness.RoutedManifest)
 	doc := `(SELECT id FROM document WHERE name = 'manifest.json' AND project_id = (SELECT id FROM project WHERE name = 'web'))`
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO document_revision (document_id, n, text, author) VALUES (`+doc+`, 2, ?, 'old deck');
 		UPDATE document SET current = 2 WHERE id = `+doc, typo); err != nil {

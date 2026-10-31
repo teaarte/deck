@@ -1,9 +1,10 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // customData is a custom block that tells the master how many items of its source it got.

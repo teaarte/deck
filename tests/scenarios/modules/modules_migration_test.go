@@ -1,10 +1,11 @@
 package modules
 
 import (
-	"deck2/tests/harness"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 
 	_ "modernc.org/sqlite"
 )

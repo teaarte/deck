@@ -1,12 +1,13 @@
 package owner
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 type feedChange struct {

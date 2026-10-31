@@ -1,12 +1,13 @@
 package modules
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestScreenParamsFillFormsAndTravelWithButtons: the address of a screen carries parameters; a form takes them
@@ -17,7 +18,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	e.Project("web", harness.RoutedManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 
-	data := e.ScreenData("web", "main", map[string]any{"params": `{"title": "alpha"}`, "dialog": "rescore"})
+	data := e.Screen("web", "main", map[string]any{"params": `{"title": "alpha"}`, "dialog": "rescore"})
 	var form struct {
 		Value struct{ Values map[string]any }
 	}
@@ -43,7 +44,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "menus", "manifest": strings.Replace(harness.RoutedManifest, `"icon": "dots", "actions"`, `"icon": "dots", "menu": true, "actions"`, 1)}); code != 422 {
 		t.Fatalf("a group of buttons has no menu of its own: %d %s", code, out)
 	}
-	without := e.ScreenData("web", "main", nil)
+	without := e.Screen("web", "main", nil)
 	for _, d := range without {
 		if v := string(d["value"]); strings.Contains(v, `"commands"`) && strings.Contains(v, `"title":"`) && strings.Contains(v, `"values"`) && strings.Contains(v, `"alpha"`) {
 			t.Fatalf("without the parameter the field is left to the owner: %s", v)

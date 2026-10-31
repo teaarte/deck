@@ -1,13 +1,14 @@
 package real
 
 import (
+	"strings"
+	"testing"
+	"time"
+
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
 	"deck2/tests/harness"
-	"strings"
-	"testing"
-	"time"
 )
 
 // realModelResume runs plain.work on a model of a CLI, moves the model to another one, and sends the process back:

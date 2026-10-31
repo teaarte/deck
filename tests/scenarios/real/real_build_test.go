@@ -1,13 +1,14 @@
 package real
 
 import (
-	"deck2/internal/provider/claudecode"
-	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider/claudecode"
+	"deck2/tests/harness"
 )
 
 // TestRealMasterBuildsAModuleFromAPhrase: the master on the installed Claude Code builds a module from one chat

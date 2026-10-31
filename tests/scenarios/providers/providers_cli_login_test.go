@@ -2,10 +2,11 @@ package providers
 
 import (
 	"context"
-	"deck2/tests/harness"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 func TestResumeAfterEarlyCrashStartsTheSessionAgain(t *testing.T) {

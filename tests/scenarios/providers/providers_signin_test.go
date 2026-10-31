@@ -1,12 +1,13 @@
 package providers
 
 import (
-	"deck2/internal/registry"
-	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"deck2/internal/registry"
+	"deck2/tests/harness"
 )
 
 func signIns(e *harness.Env) []harness.SignInRow {

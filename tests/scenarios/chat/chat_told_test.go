@@ -2,14 +2,15 @@ package chat
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // A work the master started from a chat topic tells that topic how it ended, in the owner's language it was told:

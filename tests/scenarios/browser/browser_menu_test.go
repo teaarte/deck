@@ -2,11 +2,12 @@ package browser
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"strconv"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserCockpitHistory: History stands in the head of Today and keeps its place while what runs and what

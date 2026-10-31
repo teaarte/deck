@@ -1,13 +1,14 @@
 package real
 
 import (
+	"strings"
+	"testing"
+	"time"
+
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
 	"deck2/tests/harness"
-	"strings"
-	"testing"
-	"time"
 )
 
 var liveManifest = harness.Manifest(`{"commands": [{"name": "wait", "title": "Wait", "description": "Waits for a code word", "class": "internal",

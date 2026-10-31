@@ -1,12 +1,13 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserVideo plays a video and a sound of a module in the browser's own player, in place and in the

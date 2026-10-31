@@ -1,9 +1,10 @@
 package providers
 
 import (
-	"deck2/tests/harness"
 	"slices"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent: what Claude Code says a turn cost is an estimate of a
@@ -34,7 +35,7 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 	if len(days) != 1 || days[0].CostUSD != 0 || days[0].SubscriptionUSD < 0.04 || !days[0].Subscription {
 		t.Fatalf("the spend keeps the estimate out of the money: %+v", days)
 	}
-	page := e.ScreenData("", "spend", nil)
+	page := e.Screen("", "spend", nil)
 	rows := harness.BlockData[[]harness.ScreenRow](t, page["b2-0-0"]["rows"])
 	if len(rows) != 1 || rows[0].Cells[0] != "plain" || rows[0].Cells[1] != nil || rows[0].Cells[2].(float64) < 0.04 {
 		t.Fatalf("the spend of a project shows a model on a subscription apart from the money paid: %+v", rows)

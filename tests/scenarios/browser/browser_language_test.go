@@ -2,12 +2,13 @@ package browser
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // english are the words in Latin letters of a part of the page, but for the names of modules, models and commands.

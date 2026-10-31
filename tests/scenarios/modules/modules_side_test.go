@@ -1,10 +1,11 @@
 package modules
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // A filter of the side panel of a screen sets a param of the screen, and every block that reads it in its where is
@@ -22,7 +23,7 @@ func TestASideFilterNarrowsTheBlocksOfItsScreen(t *testing.T) {
 	if !strings.Contains(string(raw), `"side":["s0","s1","s2","s3"]`) || !strings.Contains(string(raw), `"component":"filter"`) {
 		t.Fatalf("the root of the screen names the blocks of its side panel: %s", raw)
 	}
-	all := e.ScreenData("lab", "lab", map[string]any{"lang": "ru"})
+	all := e.Screen("lab", "lab", map[string]any{"lang": "ru"})
 	type filter struct {
 		Field, Label, Value string
 		Options, Labels     []string
@@ -39,7 +40,7 @@ func TestASideFilterNarrowsTheBlocksOfItsScreen(t *testing.T) {
 		t.Fatalf("no pick, every row: %+v", rows)
 	}
 
-	picked := e.ScreenData("lab", "lab", map[string]any{"params": `{"coin": "COIN", "side": "short"}`})
+	picked := e.Screen("lab", "lab", map[string]any{"params": `{"coin": "COIN", "side": "short"}`})
 	if rows := harness.BlockData[[]harness.ScreenRow](t, picked["b0"]["rows"]); len(rows) != 1 {
 		t.Fatalf("the picks narrow the table: %+v", rows)
 	}
@@ -83,11 +84,11 @@ func TestAFilterStartsOnTheDefaultOfItsParam(t *testing.T) {
 		map[string]any{"title": "a", "coin": "COIN", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "COIN", "side": "short"})}, nil)
 	type filter struct{ Value string }
-	first := e.ScreenData("lab", "lab", nil)
+	first := e.Screen("lab", "lab", nil)
 	if rows := harness.BlockData[[]harness.ScreenRow](t, first["b0"]["rows"]); len(rows) != 2 || harness.BlockData[[]filter](t, first["s0"]["filters"])[0].Value != "COIN" {
 		t.Fatalf("the screen starts on the default of its param: %+v", rows)
 	}
-	all := e.ScreenData("lab", "lab", map[string]any{"params": `{"coin": ""}`})
+	all := e.Screen("lab", "lab", map[string]any{"params": `{"coin": ""}`})
 	if rows := harness.BlockData[[]harness.ScreenRow](t, all["b0"]["rows"]); len(rows) != 3 || harness.BlockData[[]filter](t, all["s0"]["filters"])[0].Value != "" {
 		t.Fatalf("all picked shows every row: %+v", rows)
 	}

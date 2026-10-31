@@ -1,8 +1,9 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserFirstRun: an empty deck says to tell Deki what to do and offers the starter module as a card; it comes

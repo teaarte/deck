@@ -2,16 +2,17 @@ package box
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/internal/provider/codex"
-	"deck2/internal/sandbox"
-	"deck2/tests/harness"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/internal/provider/codex"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 
 	"github.com/google/uuid"
 )

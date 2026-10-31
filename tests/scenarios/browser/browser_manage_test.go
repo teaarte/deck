@@ -2,9 +2,10 @@ package browser
 
 import (
 	"context"
+	"testing"
+
 	"deck2/internal/provider"
 	"deck2/tests/harness"
-	"testing"
 )
 
 // TestRealBrowserTheScreensOfManagement: a failed schedule is counted on the tab of Health and is on top of the

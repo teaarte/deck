@@ -2,13 +2,14 @@ package runs
 
 import (
 	"context"
-	"deck2/tests/harness"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 func jobManifest(url string) string {

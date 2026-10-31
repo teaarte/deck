@@ -1,12 +1,13 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserTheDesk: a long press opens the placing, a card moves and grows by its corner and stays so after a

@@ -2,9 +2,6 @@ package providers
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,6 +12,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestCodexCommandAgentWorksThroughTheGateway runs a command agent on Codex: it asks the owner with the ask tool

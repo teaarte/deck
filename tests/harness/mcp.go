@@ -2,10 +2,11 @@ package harness
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/store/db"
 	"fmt"
 	"path/filepath"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/store/db"
 )
 
 // ToolCall is what one call of the fake agent got back.

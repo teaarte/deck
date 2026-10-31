@@ -2,7 +2,6 @@ package harness
 
 import (
 	"context"
-	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"deck2/internal/provider"
 )
 
 // DeckCallScript calls the deck command of its input's method with the JSON of form and prints the status and body.

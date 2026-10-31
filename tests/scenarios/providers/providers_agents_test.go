@@ -1,10 +1,6 @@
 package providers
 
 import (
-	"deck2/internal/app"
-	"deck2/internal/health"
-	"deck2/internal/sandbox"
-	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +8,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/health"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 )
 
 // TestAgentsAreFoundWithTheirVersion: deck finds the ACP agents installed with their version, one health row each.

@@ -1,9 +1,6 @@
 package providers
 
 import (
-	"deck2/internal/app"
-	deckhome "deck2/internal/home"
-	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -11,6 +8,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 )
 
 func TestCodexRetryResumesTheThreadOfTheSession(t *testing.T) {

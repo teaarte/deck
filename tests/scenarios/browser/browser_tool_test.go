@@ -1,14 +1,15 @@
 package browser
 
 import (
-	"deck2/internal/app"
-	"deck2/tests/harness"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"deck2/internal/app"
+	"deck2/tests/harness"
 )
 
 var refOf = regexp.MustCompile(`Send.{0,4} \[ref=(e\d+)\]`)

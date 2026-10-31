@@ -1,8 +1,9 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserDekiAndMotion: Deki greets, points at what waits, moves a few times, rests and wakes; a card grows

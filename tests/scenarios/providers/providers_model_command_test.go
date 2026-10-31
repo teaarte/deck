@@ -1,7 +1,6 @@
 package providers
 
 import (
-	"deck2/tests/harness"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -17,6 +16,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 // TestAModelCommandAnswersByItsSchema: a command of type model sends its prompt and input to the model assigned to

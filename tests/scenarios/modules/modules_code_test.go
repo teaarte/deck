@@ -2,7 +2,6 @@ package modules
 
 import (
 	"context"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 type gitlabIssue struct {

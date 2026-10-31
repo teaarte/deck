@@ -2,9 +2,6 @@ package egress
 
 import (
 	"context"
-	"deck2/internal/events"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +14,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"deck2/internal/events"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func bodiesManifest(url string) string {

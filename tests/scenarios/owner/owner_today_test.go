@@ -2,15 +2,16 @@ package owner
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 )
 
 // twoRunsManifest has two commands of the schedule: look only reads, keep writes a record.
@@ -183,7 +184,7 @@ func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 	if len(asks) != 1 || len(asks[0].Actions) < 3 {
 		t.Fatalf("a decision carries its buttons: %+v", asks)
 	}
-	items := harness.BlockData[[]harness.ListItem](t, e.ScreenData("", "cockpit", map[string]any{"lang": "ru"})["b0"]["items"])
+	items := harness.BlockData[[]harness.ListItem](t, e.Screen("", "cockpit", map[string]any{"lang": "ru"})["b0"]["items"])
 	verbs := func(acts []map[string]any) []string {
 		var out []string
 		for _, a := range acts {

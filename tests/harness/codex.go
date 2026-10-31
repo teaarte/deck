@@ -1,16 +1,17 @@
 package harness
 
 import (
-	"deck2/internal/app"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/provider/codex"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/provider/codex"
 )
 
 // fakeCodex is a folder with the fake Codex app-server and the streams it replays.

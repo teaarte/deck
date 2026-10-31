@@ -2,11 +2,6 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/manifest"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +9,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"deck2/internal/manifest"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -30,7 +31,8 @@ func TestACommandCallLargerThan32MBIsRefusedWhole(t *testing.T) {
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "x" * (33 << 20)})})
 print(json.dumps({"status": st}))
 `)
-	if p := e.WaitState(e.Start("big", "send", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "413") {
+	// The script hears the 413, or a reset when deck closes the upload first; then deck's note of what it refused names it.
+	if p := e.WaitState(e.Start("big", "send", nil), "done", "error"); !strings.Contains(string(p.Result)+p.Error, "413") {
 		t.Fatalf("the entry of scripts refuses a body over 32 MB rather than cutting it: %+v", p)
 	}
 }

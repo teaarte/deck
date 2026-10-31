@@ -1,14 +1,15 @@
 package harness
 
 import (
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/provider/claudecode"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/provider/claudecode"
 )
 
 // FakeCLI is a folder with the fake Claude Code CLI and the streams it replays.

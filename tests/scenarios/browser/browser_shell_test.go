@@ -2,11 +2,12 @@ package browser
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"strconv"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserShell drives the frame of deck in a real browser, tiles, tabs, chat and columns:

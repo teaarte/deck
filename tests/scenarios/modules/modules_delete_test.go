@@ -2,12 +2,6 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/events"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"errors"
 	"fmt"
 	"os"
@@ -17,6 +11,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"deck2/internal/events"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 // TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject: only the owner, with no open process and no reader;

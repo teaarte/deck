@@ -2,15 +2,16 @@ package owner
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 )
 
 // TestTheTilesStandWhereEachDevicePutThem: a device keeps its cards for its columns, derives a narrower grid from its
@@ -77,24 +78,24 @@ func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	if len(m.Projects) != 1 || !slices.Equal(m.Projects[0].Widgets, []string{"1x1", "2x2"}) {
 		t.Fatalf("the menu names the views of the card: %+v", m)
 	}
-	one := e.ScreenData("shelf", "widget", map[string]any{"widget": "1x1"})["b0"]
+	one := e.Screen("shelf", "widget", map[string]any{"widget": "1x1"})["b0"]
 	if string(one["value"]) != "12" {
 		t.Fatalf("a card of one cell shows its stat: %s", one["value"])
 	}
-	if wide := e.ScreenData("shelf", "widget", map[string]any{"widget": "2x1"})["b0"]; string(wide["value"]) != "12" {
+	if wide := e.Screen("shelf", "widget", map[string]any{"widget": "2x1"})["b0"]; string(wide["value"]) != "12" {
 		t.Fatalf("a card too low for the list shows the stat: %v", wide)
 	}
-	big := harness.BlockData[[]harness.ListItem](t, e.ScreenData("shelf", "widget", map[string]any{"widget": "3x3"})["b0"]["items"])
+	big := harness.BlockData[[]harness.ListItem](t, e.Screen("shelf", "widget", map[string]any{"widget": "3x3"})["b0"]["items"])
 	if len(big) != 7 || big[0].Title != "item 11" {
 		t.Fatalf("a large card shows the list as long as it holds, three lines a row less the head and the title: %d %+v", len(big), big)
 	}
 	e.Project("lab", harness.WidgetsOfWork)
 	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "items", "records": harness.Jsonl(recs...)}, nil)
-	low := e.ScreenData("lab", "widget", map[string]any{"widget": "2x1"})
+	low := e.Screen("lab", "widget", map[string]any{"widget": "2x1"})
 	if n := len(harness.BlockData[[]harness.ListItem](t, low["b1"]["items"])); n != 1 || low["b0"] == nil {
 		t.Fatalf("a low card shows its number and one line under it: %d", n)
 	}
-	two := e.ScreenData("lab", "widget", map[string]any{"widget": "2x2"})
+	two := e.Screen("lab", "widget", map[string]any{"widget": "2x2"})
 	needs, fresh := harness.BlockData[[]harness.ListItem](t, two["b0"]["items"]), harness.BlockData[[]harness.ListItem](t, two["b1"]["items"])
 	if len(needs) != 2 || len(fresh) != 2 {
 		t.Fatalf("two lists share the card: the first its limit, the next what is left under its title: %d %d", len(needs), len(fresh))
@@ -135,7 +136,7 @@ func TestTodayInBriefSaysTheMostPressingFirst(t *testing.T) {
 	if kinds := read(); !slices.Equal(kinds[:2], []string{"asks", "failures"}) || lines[0].Title != "Ждёт одно решение" {
 		t.Fatalf("what waits comes first, then what failed: %+v", lines)
 	}
-	if items := harness.BlockData[[]harness.ListItem](t, e.ScreenData("", "today", map[string]any{"widget": "2x1"})["b0"]["items"]); len(items) != 2 {
+	if items := harness.BlockData[[]harness.ListItem](t, e.Screen("", "today", map[string]any{"widget": "2x1"})["b0"]["items"]); len(items) != 2 {
 		t.Fatalf("the card of Today of two cells holds two lines: %+v", items)
 	}
 }

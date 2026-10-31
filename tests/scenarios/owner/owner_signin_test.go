@@ -1,10 +1,11 @@
 package owner
 
 import (
-	"deck2/tests/harness"
 	"net/http"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestATokenInTheAddressOpensOnlyReads: the token in an address, which links and logs may carry, opens the page, its

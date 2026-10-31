@@ -2,12 +2,13 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestALongLogComesInPages: a log of hundreds of events comes a page at a time, oldest first, each event with its

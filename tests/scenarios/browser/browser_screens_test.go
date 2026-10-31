@@ -3,12 +3,6 @@ package browser
 import (
 	"bytes"
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/events"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/sandbox"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -22,6 +16,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/events"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserStaysQuick: a move between screens draws the frame and the blocks a few times and a screen seen

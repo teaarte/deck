@@ -2,11 +2,12 @@ package owner
 
 import (
 	"context"
-	"deck2/tests/harness"
 	"fmt"
 	"image/color"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // A theme has its pictures apart from its text: the scene of Today and the backdrop by scheme, which the client gets

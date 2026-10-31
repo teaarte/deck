@@ -2,12 +2,13 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // callAsk is the open ask of a call of command, with where it goes as the owner reads it.

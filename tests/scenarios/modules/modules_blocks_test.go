@@ -2,10 +2,6 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/process"
-	"deck2/internal/provider"
-	"deck2/schemas"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +12,11 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"deck2/internal/process"
+	"deck2/internal/provider"
+	"deck2/schemas"
+	"deck2/tests/harness"
 )
 
 func seedEstimates(e *harness.Env) {
@@ -46,7 +47,7 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 			t.Fatalf("the format goes with the block, not into its values: %s lacks %s", comps, want)
 		}
 	}
-	data := e.ScreenData("coin", "main", nil)
+	data := e.Screen("coin", "main", nil)
 	if v := string(data["b0"]["value"]); v != "62340.25" {
 		t.Fatalf("a stat keeps its value raw: %s", v)
 	}
@@ -58,7 +59,7 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 	check.Messages(t, page)
 	card := harness.BlockData[struct {
 		Fields []map[string]any
-	}](t, e.ScreenData("coin", "estimate", map[string]any{"record": rows[0].ID})["b0"]["value"])
+	}](t, e.Screen("coin", "estimate", map[string]any{"record": rows[0].ID})["b0"]["value"])
 	if len(card.Fields) != 3 || card.Fields[1]["format"] != "percent" || card.Fields[1]["value"] != 0.042 || card.Fields[0]["format"] != "datetime" {
 		t.Fatalf("a card field carries its format: %+v", card.Fields)
 	}
@@ -99,7 +100,7 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 	e.Project("coin", harness.EstimateManifest)
 	seedEstimates(e)
 	check.Messages(t, e.ScreenMessages("coin", "main", nil))
-	data := e.ScreenData("coin", "main", nil)
+	data := e.Screen("coin", "main", nil)
 	if tone := string(data["b0"]["tone"]); tone != `"ok"` {
 		t.Fatalf("a stat takes its tone over rows: %s", tone)
 	}
@@ -117,12 +118,12 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 		t.Fatalf("a list line takes its tone; an empty one is none: %+v", lines)
 	}
 	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "estimates", "records": harness.Jsonl(map[string]any{"at": "2026-09-01T09:00:00Z"})}, nil)
-	if got := e.ScreenData("coin", "main", nil)["b1"]; string(got["state"]) != `"ready"` || len(harness.BlockData[[]harness.ScreenRow](t, got["rows"])) != 3 {
+	if got := e.Screen("coin", "main", nil)["b1"]; string(got["state"]) != `"ready"` || len(harness.BlockData[[]harness.ScreenRow](t, got["rows"])) != 3 {
 		t.Fatalf("a tone that fails over a row, such as change < 0 without change, is no tone: %s %s", got["state"], got["error"])
 	}
 	page := e.ScreenMessages("coin", "estimate", map[string]any{"record": rows[1].ID})
 	check.Messages(t, page)
-	card := harness.BlockData[struct{ Fields []map[string]any }](t, e.ScreenData("coin", "estimate", map[string]any{"record": rows[1].ID})["b0"]["value"])
+	card := harness.BlockData[struct{ Fields []map[string]any }](t, e.Screen("coin", "estimate", map[string]any{"record": rows[1].ID})["b0"]["value"])
 	if card.Fields[1]["tone"] != "error" || card.Fields[0]["tone"] != nil {
 		t.Fatalf("a card field takes its tone over the record: %+v", card.Fields)
 	}
@@ -151,7 +152,7 @@ func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
 	check := harness.NewCatalogCheck(t)
 	e.Project("coin", harness.EstimateManifest)
 	check.Messages(t, e.ScreenMessages("coin", "main", nil))
-	data := e.ScreenData("coin", "main", nil)
+	data := e.Screen("coin", "main", nil)
 	for id, want := range map[string]string{"b0": "No prices yet", "b1": "No estimates yet", "b2": ""} {
 		var got struct{ State, Empty, Error string }
 		raw, _ := json.Marshal(data[id])
@@ -185,7 +186,7 @@ func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 	blocks := func(screen string, extra map[string]any) (string, map[string]map[string]json.RawMessage) {
 		msgs := e.ScreenMessages("coin", screen, extra)
 		check.Messages(t, msgs)
-		return string(msgs[1]["updateComponents"]), e.ScreenData("coin", screen, extra)
+		return string(msgs[1]["updateComponents"]), e.Screen("coin", screen, extra)
 	}
 	comps, data := blocks("main", nil)
 	if strings.Contains(comps, `"title":"Missed"`) || data["b3"] != nil || !strings.Contains(comps, `"children":["b0","b1","b2","b4"]`) {
@@ -237,7 +238,7 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
 	e.Project("coin", harness.EstimateManifest)
-	if got := e.ScreenData("coin", "main", nil)["b4"]; string(got["state"]) != `"empty"` || string(got["empty"]) != `"No prices yet"` {
+	if got := e.Screen("coin", "main", nil)["b4"]; string(got["state"]) != `"empty"` || string(got["empty"]) != `"No prices yet"` {
 		t.Fatalf("a chart without points says so: %s", got["state"])
 	}
 	seedEstimates(e)
@@ -253,7 +254,7 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 			Values []any
 		}
 	}
-	v := harness.BlockData[chartV](t, e.ScreenData("coin", "main", nil)["b4"]["value"])
+	v := harness.BlockData[chartV](t, e.Screen("coin", "main", nil)["b4"]["value"])
 	if fmt.Sprint(v.X) != "[2026-10-01T10:00:00Z 2026-10-02T10:00:00Z]" || len(v.Series) != 2 || v.Series[0].Label != "COIN" ||
 		fmt.Sprint(v.Series[0].Values) != "[61000.5 62340.25]" || fmt.Sprint(v.Series[1].Values) != "[<nil> 63000]" {
 		t.Fatalf("a chart gives x and its series in the order of the sort, null for a gap: %+v", v)
@@ -263,13 +264,13 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 		many = append(many, map[string]any{"at": fmt.Sprintf("2026-%02d-%02dT%02d:00:00Z", 1+i/240, 1+i/24%10, i%24), "price": float64(i)})
 	}
 	e.Must("deck.records_upsert", map[string]any{"project": "coin", "collection": "prices", "records": harness.Jsonl(many...)}, nil)
-	v = harness.BlockData[chartV](t, e.ScreenData("coin", "main", nil)["b4"]["value"])
+	v = harness.BlockData[chartV](t, e.Screen("coin", "main", nil)["b4"]["value"])
 	if len(v.X) != 500 || len(v.Series[0].Values) != 500 || v.X[499] != "2026-10-02T10:00:00Z" {
 		t.Fatalf("a chart draws the last 500 points: %d, last %v", len(v.X), v.X[len(v.X)-1])
 	}
 	projects := e.ScreenMessages("coin", "projects", nil)
 	check.Messages(t, projects)
-	v = harness.BlockData[chartV](t, e.ScreenData("coin", "projects", nil)["b0"]["value"])
+	v = harness.BlockData[chartV](t, e.Screen("coin", "projects", nil)["b0"]["value"])
 	if len(v.X) == 0 || !slices.Contains(v.X, any("coin")) || len(v.Series[0].Values) != len(v.X) || v.Series[0].Values[0] == nil {
 		t.Fatalf("a chart reads a deck command: %+v", v)
 	}
@@ -298,7 +299,7 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 	check := harness.NewCatalogCheck(t)
 	id := e.Project("coin", harness.EstimateManifest)
 	e.Project("other", harness.EstimateManifest)
-	if got := e.ScreenData("coin", "files", nil)["b0"]; string(got["empty"]) != `"No files yet"` {
+	if got := e.Screen("coin", "files", nil)["b0"]; string(got["empty"]) != `"No files yet"` {
 		t.Fatalf("media without files says so: %s", got["empty"])
 	}
 	png := "\x89PNG\r\n\x1a\nfake"
@@ -314,7 +315,7 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 		map[string]any{"title": "c chart", "file": "charts/today 1.pdf"}, map[string]any{"title": "d escape", "file": "../secret.txt"},
 		map[string]any{"title": "e link", "file": "link.txt"}, map[string]any{"title": "f gone", "file": "nope.pdf"})}, nil)
 	check.Messages(t, e.ScreenMessages("coin", "files", nil))
-	got := e.ScreenData("coin", "files", nil)["b0"]
+	got := e.Screen("coin", "files", nil)["b0"]
 	var files []map[string]any
 	_ = json.Unmarshal(got["files"], &files)
 	if string(got["state"]) != `"ready"` || len(files) != 6 {
@@ -387,7 +388,7 @@ func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
 	done := make(chan []map[string]any, 1)
 	go func() {
 		var files []map[string]any
-		_ = json.Unmarshal(e.ScreenData("coin", "files", nil)["b0"]["files"], &files)
+		_ = json.Unmarshal(e.Screen("coin", "files", nil)["b0"]["files"], &files)
 		done <- files
 	}()
 	if files := harness.Receive(t, "the screen with a pipe in the data folder", done); len(files) != 1 || !strings.Contains(fmt.Sprint(files[0]["error"]), `no file "pipe.png"`) {
@@ -409,7 +410,7 @@ func TestTodaySaysWhatRunsEvenWhenNothingDoes(t *testing.T) {
 	}))
 
 	defer close(hold)
-	if got := e.ScreenData("", "cockpit", nil)["b1"]; string(got["state"]) != `"empty"` || string(got["empty"]) != `"nothing, all waits for the schedule"` {
+	if got := e.Screen("", "cockpit", nil)["b1"]; string(got["state"]) != `"empty"` || string(got["empty"]) != `"nothing, all waits for the schedule"` {
 		t.Fatalf("nothing runs, and the list says so: %v", got)
 	}
 	e.Project("web", harness.WebNotes)
@@ -442,7 +443,7 @@ func TestAListGoesOneAtATimeWithButtonsInItsHead(t *testing.T) {
 	e.Project("web", m)
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha"}, map[string]any{"title": "beta"})}, nil)
-	data := e.ScreenData("web", "main", nil)["b0"]
+	data := e.Screen("web", "main", nil)["b0"]
 	var items []struct {
 		Kind    string
 		Actions []map[string]any
@@ -472,7 +473,7 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 	}
 	e.Project("work", harness.BoardManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
-	block := e.ScreenData("work", "board", map[string]any{"lang": "ru"})
+	block := e.Screen("work", "board", map[string]any{"lang": "ru"})
 	var data struct {
 		Board struct {
 			Field string `json:"field"`
@@ -515,7 +516,7 @@ func TestABoardShowsItsLanesEmptyAndOnlyThoseItsButtonOffers(t *testing.T) {
 	}
 	e.Project("work", strings.Replace(harness.BoardManifest, `"input": "status"}`, `"input": "status", "options": "=['todo', 'doing']"}`, 1))
 	var lanes []string
-	for _, b := range e.ScreenData("work", "board", nil) {
+	for _, b := range e.Screen("work", "board", nil) {
 		var d struct {
 			State string
 			Board struct{ Lanes []struct{ Value string } }
@@ -544,7 +545,7 @@ func TestValuesOfAnEnumSpeakTheLanguageOfTheOwnerAndListsFilterByEachValue(t *te
 	  "filter": ["status", "tags"], "columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "status"}]}]}, `, 1)
 	e.Project("work", m)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing", "tags": ["x", "y"]}` + "\n" + `{"title": "b", "status": "todo", "tags": ["y"]}`}, nil)
-	raw, _ := json.Marshal(e.ScreenData("work", "table", map[string]any{"lang": "ru"}))
+	raw, _ := json.Marshal(e.Screen("work", "table", map[string]any{"lang": "ru"}))
 	if !strings.Contains(string(raw), `"в работе"`) || strings.Contains(string(raw), `"cells":["a","doing"]`) {
 		t.Fatalf("a cell of an enum field speaks the owner's language: %s", raw)
 	}
@@ -552,12 +553,12 @@ func TestValuesOfAnEnumSpeakTheLanguageOfTheOwnerAndListsFilterByEachValue(t *te
 		t.Fatalf("a filter offers the values in the owner's language, and each value of a list field: %s", raw)
 	}
 	var id string
-	for k, b := range e.ScreenData("work", "table", nil) {
+	for k, b := range e.Screen("work", "table", nil) {
 		if _, ok := b["rows"]; ok {
 			id = k
 		}
 	}
-	picked, _ := json.Marshal(e.ScreenData("work", "table", map[string]any{"filter": fmt.Sprintf(`{%q: {"tags": "x"}}`, id)}))
+	picked, _ := json.Marshal(e.Screen("work", "table", map[string]any{"filter": fmt.Sprintf(`{%q: {"tags": "x"}}`, id)}))
 	if !strings.Contains(string(picked), `"a"`) || strings.Contains(string(picked), `"cells":["b"`) {
 		t.Fatalf("a filter of a list field keeps the items that have the value: %s", picked)
 	}

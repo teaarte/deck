@@ -1,7 +1,6 @@
 package real
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 // serverOverride adds the model of the test beside deck; compose.yaml itself is as the owner downloads it.

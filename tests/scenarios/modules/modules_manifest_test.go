@@ -2,14 +2,15 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/manifest"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/manifest"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func TestManifestIsValidatedOnSave(t *testing.T) {
@@ -136,7 +137,7 @@ func TestAFixedParamOfAButtonTakesTheTypeOfItsField(t *testing.T) {
 	e.Project("links", strings.Replace(fullManifest, `{"label": "Share", "command": "share", "params": {"url": "=url"}}`,
 		`{"label": "Share", "command": "share", "params": {"url": "=url"}}, {"label": "Parse", "command": "parse", "params": {"source": "7"}}`, 1))
 	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "u", "title": "t", "score": 8}`}, nil)
-	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("links", "main", nil)["b0"]["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.Screen("links", "main", nil)["b0"]["rows"])
 	if len(rows) != 1 || len(rows[0].Actions) != 2 {
 		t.Fatalf("the row has both buttons: %+v", rows)
 	}
@@ -423,7 +424,7 @@ func TestADeclaredParamFillsAFormAndActionsHaveNoMenu(t *testing.T) {
 		t.Fatal("fixture replacement did not apply")
 	}
 	e.Project("web", form)
-	data := e.ScreenData("web", "main", map[string]any{"params": `{"title": "alpha"}`})
+	data := e.Screen("web", "main", map[string]any{"params": `{"title": "alpha"}`})
 	if !strings.Contains(string(data["b0"]["value"]), `"values":{"title":"alpha"}`) {
 		t.Fatalf("the declared param fills the form: %s", data["b0"]["value"])
 	}
@@ -462,15 +463,15 @@ func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 		t.Fatal("fixture replacement did not apply")
 	}
 	e.Project("web", runs)
-	data := e.ScreenData("web", "main", map[string]any{"params": `{"project": "web"}`})
+	data := e.Screen("web", "main", map[string]any{"params": `{"project": "web"}`})
 	if string(data["b0"]["state"]) != `"empty"` && string(data["b0"]["state"]) != `"ready"` || strings.Contains(string(data["b0"]["value"]), "collect") {
 		t.Fatalf("with its param the block reads the runs of that project only: %s", data["b0"])
 	}
-	data = e.ScreenData("web", "main", nil)
+	data = e.Screen("web", "main", nil)
 	if string(data["b0"]["state"]) != `"error"` || !strings.Contains(string(data["b0"]["error"]), "project") {
 		t.Fatalf("without its param the block is an error, not a read without the filter: %s", data["b0"])
 	}
-	data = e.ScreenData("web", "main", map[string]any{"params": `{"project": "web"}`})
+	data = e.Screen("web", "main", map[string]any{"params": `{"project": "web"}`})
 	if string(data["b1"]["state"]) != `"error"` {
 		t.Fatalf("an input whose expression fails is an error of its block: %s", data["b1"])
 	}
@@ -478,7 +479,7 @@ func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 		t.Fatalf("a button whose when fails is an error of its block, not a button that is quietly gone: %s", data["b2"])
 	}
 	e.WaitState(e.Start("web", "tell", nil), "done", "error")
-	data = e.ScreenData("web", "main", map[string]any{"params": `{"project": "web"}`})
+	data = e.Screen("web", "main", map[string]any{"params": `{"project": "web"}`})
 	if string(data["b3"]["state"]) != `"ready"` || strings.Contains(string(data["b3"]["rows"]), "Again") {
 		t.Fatalf("a row without the field a button reads hides that button, not the whole table: %s", data["b3"])
 	}

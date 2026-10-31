@@ -2,10 +2,6 @@ package owner
 
 import (
 	"context"
-	"deck2/internal/app/providers"
-	"deck2/internal/manifest"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -17,6 +13,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app/providers"
+	"deck2/internal/manifest"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestScreensAndTheMenuSpeakTheLanguageOfTheOwner: the texts of deck's screens and of a manifest come in the
@@ -210,7 +211,7 @@ func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
 		screen string
 		extra  map[string]any
 	}{{"main", nil}, {"note", map[string]any{"record": recs.IDs[0]}}} {
-		drawn, _ := json.Marshal(e.ScreenData("web", s.screen, harness.Merge(map[string]any{"lang": "ru"}, s.extra)))
+		drawn, _ := json.Marshal(e.Screen("web", s.screen, harness.Merge(map[string]any{"lang": "ru"}, s.extra)))
 		if !strings.Contains(string(drawn), want) {
 			t.Errorf("the form of %s offers the values of the enum translated: %s", s.screen, drawn)
 		}
@@ -244,7 +245,7 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 		t.Fatalf("a command's title comes in the owner's language: %+v", cmds)
 	}
 	e.WaitState(e.Run(p, "work"), "done")
-	schedule := e.ScreenData("", "schedule", map[string]any{"lang": "ru"})
+	schedule := e.Screen("", "schedule", map[string]any{"lang": "ru"})
 	var filters []struct {
 		Field, Label string
 		Labels       []string
@@ -348,7 +349,7 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 	var recs struct{ IDs []int64 }
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(
 		map[string]any{"title": "alpha", "source": "web"}, map[string]any{"title": "beta", "source": "mail"}, map[string]any{"title": "gamma", "source": "paper"})}, &recs)
-	main := e.ScreenData("web", "main", map[string]any{"lang": "ru"})
+	main := e.Screen("web", "main", map[string]any{"lang": "ru"})
 	var filters []struct {
 		Field, Label    string
 		Options, Labels []string
@@ -369,7 +370,7 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 		}
 		Choices map[string][]struct{ Label, Value string }
 	}
-	_ = json.Unmarshal(e.ScreenData("web", "note", map[string]any{"lang": "ru", "record": recs.IDs[0]})["b0"]["value"], &form)
+	_ = json.Unmarshal(e.Screen("web", "note", map[string]any{"lang": "ru", "record": recs.IDs[0]})["b0"]["value"], &form)
 	if len(form.Commands) != 1 || form.Commands[0].Description != "Заменяет данные записи; ключевые поля не меняются." ||
 		form.Commands[0].Input.Properties["source"].Title != "Источник" {
 		t.Fatalf("the edit of a record says what it does and names a field in the owner's language: %+v", form.Commands)

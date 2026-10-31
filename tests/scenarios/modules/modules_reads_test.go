@@ -2,16 +2,17 @@ package modules
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/tests/harness"
 )
 
 func keysOf(m map[string]any) []string {
@@ -340,11 +341,11 @@ func TestAScreenReadsAnotherProjectOnlyByItsReads(t *testing.T) {
 	screen := `, "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table",
     "source": {"from": "deck.records_list", "input": {"project": "source", "collection": "items"}}, "columns": [{"label": "Data", "bind": "data"}]}]}]`
 	e.Project("peek", readerManifest(screen))
-	if b0 := e.ScreenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
+	if b0 := e.Screen("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
 		t.Fatalf("a module reads another project only by its reads: %s", b0)
 	}
 	e.Project("reader", readerManifest(screen+`, "reads": [{"project": "source", "collections": ["items"]}]`))
-	if b0 := e.ScreenData("reader", "main", nil)["b0"]; b0["error"] != nil || !strings.Contains(string(b0["rows"]), `"name":"a"`) {
+	if b0 := e.Screen("reader", "main", nil)["b0"]; b0["error"] != nil || !strings.Contains(string(b0["rows"]), `"name":"a"`) {
 		t.Fatalf("a module that reads it sees it: %s", b0)
 	}
 }

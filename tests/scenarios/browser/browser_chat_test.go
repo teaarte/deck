@@ -3,9 +3,6 @@ package browser
 import (
 	"bytes"
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -17,6 +14,10 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserMasterChat talks to the master from the side panel in the real browser: a topic and its reply,

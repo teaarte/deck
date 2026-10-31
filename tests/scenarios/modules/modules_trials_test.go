@@ -2,13 +2,14 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 var leftManifest = harness.Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
@@ -49,7 +50,7 @@ func leftBlock(e *harness.Env, id int64) (harness.ScreenTable, bool) {
 		}
 		for _, c := range uc.Components {
 			if c["title"] == "What it left" {
-				return harness.BlockData[harness.ScreenTable](e.T, harness.MustJSON(e.ScreenData("", "process", in)[c["id"].(string)])), true
+				return harness.BlockData[harness.ScreenTable](e.T, harness.MustJSON(e.Screen("", "process", in)[c["id"].(string)])), true
 			}
 		}
 	}

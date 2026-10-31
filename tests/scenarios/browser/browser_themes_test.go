@@ -1,10 +1,11 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"fmt"
 	"image/color"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserThemePictures: juce wears its clouds behind the page; a theme with a scene of Today and a pattern

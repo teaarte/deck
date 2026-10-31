@@ -2,8 +2,6 @@ package box
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,6 +9,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 )
 
 // denied reports whether a deny rule of the permission rule syntax covers path or a folder above it.

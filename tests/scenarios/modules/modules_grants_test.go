@@ -2,14 +2,15 @@ package modules
 
 import (
 	"bytes"
-	"deck2/internal/manifest"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/manifest"
+	"deck2/tests/harness"
 )
 
 // TestADraftHasOnlyTheRightsTheOwnerGave: a draft the master writes sends no secret, reaches no domain of its
@@ -53,7 +54,7 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	e.Names[peek.ID] = "peek"
-	if b0 := e.ScreenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
+	if b0 := e.Screen("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
 		t.Fatalf("a draft reads no other project: %s", b0)
 	}
 

@@ -1,10 +1,11 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"strconv"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // worstContrast is the lowest contrast of the text on the tabs of a phone and of a screen over the canvas under the

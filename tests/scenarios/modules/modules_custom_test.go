@@ -1,8 +1,6 @@
 package modules
 
 import (
-	deckhome "deck2/internal/home"
-	"deck2/tests/harness"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -11,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 )
 
 // TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin: HTML, items and buttons come with the
@@ -19,7 +20,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.WebNotes)
-	if b := e.ScreenData("web", "main", nil)["b2"]; harness.BlockData[string](t, b["error"]) != `no custom document "custom/chart.html"` {
+	if b := e.Screen("web", "main", nil)["b2"]; harness.BlockData[string](t, b["error"]) != `no custom document "custom/chart.html"` {
 		t.Fatalf("a custom block without its document shows why: %s", b["error"])
 	}
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
@@ -28,7 +29,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 		HTML    string           `json:"html"`
 		Items   []map[string]any `json:"items"`
 		Actions []map[string]any `json:"actions"`
-	}](t, e.ScreenData("web", "main", nil)["b2"]["value"])
+	}](t, e.Screen("web", "main", nil)["b2"]["value"])
 	if v.HTML != "<p>chart</p>" || len(v.Items) != 2 || v.Items[0]["title"] != "a" || v.Items[0]["_id"] == nil || v.Items[0]["_updated"] != nil ||
 		len(v.Actions) != 4 || v.Actions[0]["command"] != "web.mark" || v.Actions[0]["class"] != "internal" || v.Actions[3]["class"] != "external" {
 		t.Fatalf("a custom block gets its HTML, the items of its source and its buttons: %+v", v)
@@ -119,11 +120,11 @@ func TestCustomBlockGetsItsParamsResolved(t *testing.T) {
 		Params map[string]any   `json:"params"`
 		Items  []map[string]any `json:"items"`
 	}
-	v := harness.BlockData[custom](t, e.ScreenData("web", "main", map[string]any{"params": `{"kind": "video"}`})["b2"]["value"])
+	v := harness.BlockData[custom](t, e.Screen("web", "main", map[string]any{"params": `{"kind": "video"}`})["b2"]["value"])
 	if len(v.Items) != 1 || len(v.Params) != 4 || v.Params["mode"] != "voice" || v.Params["speed"] != 1.5 || v.Params["kind"] != "video" || v.Params["none"] != nil {
 		t.Fatalf("a custom block gets its params beside its items, fixed and resolved over the param of the screen: %+v", v)
 	}
-	v = harness.BlockData[custom](t, e.ScreenData("web", "note", map[string]any{"record": put.IDs[0]})["b1"]["value"])
+	v = harness.BlockData[custom](t, e.Screen("web", "note", map[string]any{"record": put.IDs[0]})["b1"]["value"])
 	if len(v.Params) != 2 || v.Params["title"] != "a!" || v.Params["double"] != float64(4) {
 		t.Fatalf("params of a custom block on a record page read the record: %+v", v.Params)
 	}
@@ -144,7 +145,7 @@ func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	v := harness.BlockData[struct {
 		Actions []map[string]any `json:"actions"`
-	}](t, e.ScreenData("web", "main", nil)["b2"]["value"])
+	}](t, e.Screen("web", "main", nil)["b2"]["value"])
 	if len(v.Actions) != 3 || v.Actions[2]["command"] != "web.publish" || v.Actions[2]["class"] != "external" || v.Actions[0]["class"] != "internal" {
 		t.Fatalf("each button keeps the class of its command: %+v", v.Actions)
 	}
@@ -162,7 +163,7 @@ func TestACustomBlockGetsOnlyTheFieldsItsSourceNames(t *testing.T) {
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}` + "\n" + `{"title": "b", "score": 3}` + "\n" + `{"title": "c", "score": 1}`}, nil)
 	v := harness.BlockData[struct {
 		Items []map[string]any `json:"items"`
-	}](t, e.ScreenData("web", "main", nil)["b2"]["value"])
+	}](t, e.Screen("web", "main", nil)["b2"]["value"])
 	if len(v.Items) != 2 || v.Items[0]["title"] != "b" || len(v.Items[0]) != 2 || v.Items[0]["_id"] == nil || v.Items[0]["score"] != nil {
 		t.Fatalf("each item has only the fields named and its id, picked and sorted by the whole item: %+v", v.Items)
 	}
@@ -185,7 +186,7 @@ func TestACustomButtonNamesTheFieldsItsBlockFills(t *testing.T) {
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	v := harness.BlockData[struct {
 		Actions []map[string]any `json:"actions"`
-	}](t, e.ScreenData("web", "main", nil)["b2"]["value"])
+	}](t, e.Screen("web", "main", nil)["b2"]["value"])
 	if fmt.Sprint(v.Actions[0]["from_block"]) != "[text]" || fmt.Sprint(v.Actions[1]["from_block"]) != "[title n]" || v.Actions[1]["from_items"] != nil ||
 		fmt.Sprint(v.Actions[2]["from_items"]) != "[note]" || v.Actions[3]["from_block"] != nil {
 		t.Fatalf("a button gives its block the fields it may fill: %+v", v.Actions)
@@ -213,7 +214,7 @@ func TestATableAndACustomBlockHaveButtonsInTheirHead(t *testing.T) {
 	e.Project("web", m)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	head := func(block string) []map[string]any {
-		return harness.BlockData[[]map[string]any](t, e.ScreenData("web", "main", nil)[block]["head"])
+		return harness.BlockData[[]map[string]any](t, e.Screen("web", "main", nil)[block]["head"])
 	}
 	if h := head("b3"); len(h) != 1 || h[0]["label"] != "Mark (0)" || h[0]["command"] != "web.mark" {
 		t.Fatalf("an empty table keeps the button of its head: %+v", h)
@@ -245,7 +246,7 @@ func TestACustomBlockReadsOnlyTheFilesOfItsModule(t *testing.T) {
 	own := e.Upload("web", "logo.svg", "image/svg+xml", "<svg/>")
 	theirs := e.Upload("other", "theirs.txt", "text/plain", "theirs")
 
-	block := harness.BlockData[map[string]any](t, e.ScreenData("web", "main", nil)["b2"]["value"])
+	block := harness.BlockData[map[string]any](t, e.Screen("web", "main", nil)["b2"]["value"])
 	if block["project"] != "web" {
 		t.Fatalf("a custom block knows the module it reads files of: %+v", block["project"])
 	}

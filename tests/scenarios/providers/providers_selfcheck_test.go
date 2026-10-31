@@ -2,9 +2,6 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +14,10 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func version(c *harness.FakeCLI, v string) {
@@ -457,14 +458,14 @@ func TestToolsLostInEarlierTurnsDoNotCountAgainstALaterOne(t *testing.T) {
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, clock.Now())
 	e.WaitHealth("provider:fake", "ok")
-	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
+	p := e.Project("plain", harness.PlainManifest)
+	lf.lose.Store(1)
+	id := e.Run(p, "work")
 	for i := range 3 {
 		if i > 0 {
 			e.WaitState(id, "done")
 			lf.lose.Store(1)
 			e.Must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
-		} else {
-			lf.lose.Store(1)
 		}
 		if got := e.WaitState(id, "waiting_provider", "error"); got.State != "waiting_provider" {
 			t.Fatalf("round %d: a turn that lost its tools once waits for the self-check: %+v", i, got)

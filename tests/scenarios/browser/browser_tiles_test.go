@@ -2,7 +2,6 @@ package browser
 
 import (
 	"bytes"
-	"deck2/tests/harness"
 	"fmt"
 	"image"
 	"image/color"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserTheTilesStandOnTheWayBack: back from a module the tiles stand as they were at once, nothing in them

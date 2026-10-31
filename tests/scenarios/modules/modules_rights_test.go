@@ -2,10 +2,6 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/manifest"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -14,6 +10,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"deck2/internal/manifest"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/tests/harness"
 )
 
 // rightsManifest is a manifest of a random pick of every right deck grants, the same picks giving the same manifest.

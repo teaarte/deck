@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
-	"deck2/internal/gateway"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"deck2/internal/gateway"
 )
 
 // HangingService answers the requests numbered in hang only when released, like a service deck lost the

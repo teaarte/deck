@@ -2,14 +2,15 @@ package chat
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestAChainAskedInTheChatCountsAsTheOwnersButton: what the master starts counts as the owner's start; a model

@@ -1,7 +1,6 @@
 package egress
 
 import (
-	"deck2/tests/harness"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,6 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {

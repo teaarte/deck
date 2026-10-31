@@ -3,7 +3,6 @@ package modules
 import (
 	"bytes"
 	"context"
-	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +18,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // pagedNotes is webNotes whose main screen has a dialog with a table of the notes two at a time.
@@ -37,11 +38,11 @@ func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 		"records": harness.Jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 1}, map[string]any{"title": "c", "score": 1},
 			map[string]any{"title": "d", "score": 1}, map[string]any{"title": "e", "score": 1})}, nil)
 
-	closed := e.ScreenData("web", "main", nil)
+	closed := e.Screen("web", "main", nil)
 	if _, ok := closed["b0-0"]; ok || closed["b1"] == nil {
 		t.Fatalf("a closed dialog sends no data of its blocks, the rest of the screen does: %v", harness.Keys(closed))
 	}
-	open := e.ScreenData("web", "main", map[string]any{"dialog": "all"})
+	open := e.Screen("web", "main", map[string]any{"dialog": "all"})
 	var rows []harness.ScreenRow
 	_ = json.Unmarshal(open["b0-0"]["rows"], &rows)
 	if len(rows) != 2 || string(open["b0-0"]["more"]) != "3" {
@@ -111,7 +112,7 @@ func TestATabNotShownIsReadWhenShown(t *testing.T) {
 	}
 	var tabs int
 	all := harness.DataOf(t, e.ScreenMessages("", "spend", nil))
-	whole := e.ScreenData("", "spend", nil)
+	whole := e.Screen("", "spend", nil)
 	for id := range whole {
 		if strings.HasPrefix(id, "b2-") {
 			tabs++
@@ -200,7 +201,7 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		URL, Thumb    string
 		Width, Height int
 	}
-	_ = json.Unmarshal(e.ScreenData("films", "watch", nil)["b0"]["files"], &files)
+	_ = json.Unmarshal(e.Screen("films", "watch", nil)["b0"]["files"], &files)
 	if len(files) != 2 || files[0].Thumb == "" || files[0].Thumb == files[0].URL || files[1].Thumb != files[1].URL+"?thumb=1" || files[1].Width != 1500 {
 		t.Fatalf("a media block gives the light copy and the size of each picture: %+v", files)
 	}

@@ -1,10 +1,11 @@
 package harness
 
 import (
-	"deck2/internal/events"
 	"os"
 	"testing"
 	"time"
+
+	"deck2/internal/events"
 )
 
 // settle gives deck a moment to start whatever it would, for a check that nothing more happens.

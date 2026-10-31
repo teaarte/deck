@@ -3,9 +3,6 @@ package owner
 import (
 	"cmp"
 	"context"
-	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +11,10 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 )
 
 // jobsModule renders an item of its collection by an agent command whose input names the record.
@@ -288,7 +289,7 @@ func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 		e.WaitState(e.Start("clips", "cut", map[string]any{"clip": fmt.Sprint(i)}), "error")
 	}
 	var more int
-	_ = json.Unmarshal(e.ScreenData("", "cockpit", nil)["b2"]["more"], &more)
+	_ = json.Unmarshal(e.Screen("", "cockpit", nil)["b2"]["more"], &more)
 	if more != 2 {
 		t.Fatalf("the cockpit shows 20 and says 2 more: %d", more)
 	}
@@ -317,11 +318,11 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 	id := e.Start("clips", "cut", map[string]any{"clip": "b"})
 	e.WaitState(id, "running")
 	var running []harness.ListItem
-	_ = json.Unmarshal(e.ScreenData("", "cockpit", map[string]any{"lang": "ru"})["b1"]["items"], &running)
+	_ = json.Unmarshal(e.Screen("", "cockpit", map[string]any{"lang": "ru"})["b1"]["items"], &running)
 	if len(running) != 1 || running[0].Text != "" || !strings.Contains(running[0].Details, "работает на") || running[0].Since == "" {
 		t.Fatalf("a running run says since when, and what it runs on in the owner's words under its details: %+v", running)
 	}
-	page, _ := json.Marshal(e.ScreenData("", "process", map[string]any{"record": failed, "lang": "ru"}))
+	page, _ := json.Marshal(e.Screen("", "process", map[string]any{"record": failed, "lang": "ru"}))
 	if !strings.Contains(string(page), `"value":"не получилось"`) || !strings.Contains(string(page), `"tone":"error"`) {
 		t.Fatalf("the page of a failed run says so in red: %s", page)
 	}
@@ -338,7 +339,7 @@ func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 	e.Project("clips", cutModule)
 	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "a"}), "error")
 	var failed []harness.ListItem
-	_ = json.Unmarshal(e.ScreenData("", "cockpit", nil)["b2"]["items"], &failed)
+	_ = json.Unmarshal(e.Screen("", "cockpit", nil)["b2"]["items"], &failed)
 	if len(failed) != 1 || failed[0].Since == "" {
 		t.Fatalf("a failure says when it happened: %+v", failed)
 	}
@@ -359,11 +360,11 @@ func TestFailedRunsStayInTheHistoryOfTheSchedule(t *testing.T) {
 	id := e.Start("films", "voice", map[string]any{"record": recs[0].ID})
 	e.WaitState(id, "done", "error")
 	e.Must("deck.process_dismiss", map[string]any{"process": id}, nil)
-	failed := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
+	failed := harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
 	if len(failed) != 1 || failed[0].Cells[0] != "Voice" || failed[0].ID != float64(id) || failed[0].Tones[2] != "error" || failed[0].Cells[4] != "by a button" {
 		t.Fatalf("the failed run is in the history by its state, closed on the cockpit or not: %+v", failed)
 	}
-	if page, _ := json.Marshal(e.ScreenData("", "process", map[string]any{"record": id})); !strings.Contains(string(page), "voice server is down") {
+	if page, _ := json.Marshal(e.Screen("", "process", map[string]any{"record": id})); !strings.Contains(string(page), "voice server is down") {
 		t.Fatalf("the page of the failed run says why: %s", page)
 	}
 }
@@ -434,7 +435,7 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	for _, text := range []string{"one", "two", "three"} {
 		e.Must("deck.notify", map[string]any{"project": "films", "text": text}, nil)
 	}
-	feed := e.ScreenData("", "cockpit", nil)["b2"]
+	feed := e.Screen("", "cockpit", nil)["b2"]
 	items := harness.BlockData[[]harness.ListItem](t, feed["items"])
 	head := harness.BlockData[[]map[string]any](t, feed["head"])
 	var fails []harness.ListItem
@@ -462,13 +463,13 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	if h := today(e, ""); h.Failed != 0 || h.Notes != 0 || h.State != "calm" {
 		t.Fatalf("the feed is read and its failure closed: %+v", h)
 	}
-	if feed := e.ScreenData("", "cockpit", nil)["b2"]; feed["head"] != nil || len(harness.BlockData[[]harness.ListItem](t, feed["items"])) != 3 {
+	if feed := e.Screen("", "cockpit", nil)["b2"]; feed["head"] != nil || len(harness.BlockData[[]harness.ListItem](t, feed["items"])) != 3 {
 		t.Fatalf("the notes stay in the feed, read, without the failure: %s %s", feed["head"], feed["items"])
 	}
-	if runs := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(runs) != 2 {
+	if runs := harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(runs) != 2 {
 		t.Fatalf("the history of the schedule keeps both failed runs: %+v", runs)
 	}
-	notes := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "cockpit", map[string]any{"dialog": "changes"})["b3-1"]["rows"])
+	notes := harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "cockpit", map[string]any{"dialog": "changes"})["b3-1"]["rows"])
 	if len(notes) != 3 || notes[0].Cells[2] != "read" {
 		t.Fatalf("the history keeps the notes, read: %+v", notes)
 	}
@@ -504,7 +505,7 @@ func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 
 	var open []struct{ ID int64 }
 	e.Must("deck.processes_list", map[string]any{"failed": true}, &open)
-	failed := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
+	failed := harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
 	if len(open) != 1 || open[0].ID != ids[0] || len(failed) != 3 {
 		t.Fatalf("3 failed as the history finds them, 1 open as processes_list gives it: %+v, %d rows", open, len(failed))
 	}
@@ -738,7 +739,7 @@ func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 		feed[0].MarkRead["command"] != "deck.feed_read" {
 		t.Fatalf("a note gives the buttons the bell draws, opening its screen and marking it read: %+v", feed)
 	}
-	data, _ := json.Marshal(e.ScreenData("", "cockpit", nil))
+	data, _ := json.Marshal(e.Screen("", "cockpit", nil))
 	for _, want := range []string{`{"project":"","record":0,"screen":"schedule","verb":"open"}`, `{"project":"web","record":0,"screen":"main","verb":"open"}`} {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("the cockpit opens the screen of a note %s: %s", want, data)

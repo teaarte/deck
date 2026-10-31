@@ -2,14 +2,15 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/events"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/events"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestTheSpanOfAModuleBlockReachesTheScreen: a block of a module's manifest takes the cells its span says.
@@ -46,12 +47,12 @@ func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
       {"type": "stat", "title": "Many", "when": "(param.n ?? 0) > 1", "source": {"from": "deck.probe"}},
       {"type": "list", "title": "Exact", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n"}}, "item": {"title": "text"}},`, 1))
 	for _, params := range []map[string]any{{"params": `{"n": "2"}`}, nil} {
-		drawn, _ := json.Marshal(e.ScreenData("web", "main", params)["b0"])
+		drawn, _ := json.Marshal(e.Screen("web", "main", params)["b0"])
 		if !strings.Contains(string(drawn), `"state":"empty"`) {
 			t.Fatalf("the source reads with %v: %s", params, drawn)
 		}
 	}
-	if drawn, _ := json.Marshal(e.ScreenData("web", "main", nil)["b2"]); !strings.Contains(string(drawn), `"state":"error"`) {
+	if drawn, _ := json.Marshal(e.Screen("web", "main", nil)["b2"]); !strings.Contains(string(drawn), `"state":"error"`) {
 		t.Fatalf("a param left out with no default is an error of the block, not a read without it: %s", drawn)
 	}
 	many := func(params map[string]any) bool {
@@ -73,7 +74,7 @@ func TestEachSourceOfAScreenIsReadOnce(t *testing.T) {
       {"type": "table", "title": "All", "source": {"from": "deck.probe", "sort": "-name"}, "columns": [{"label": "Name", "bind": "name"}]},
       {"type": "stat", "title": "Some", "source": {"from": "deck.probe", "where": "name == 'a'"}},`, 1))
 	e.Probes.Store(0)
-	data := e.ScreenData("web", "main", nil)
+	data := e.Screen("web", "main", nil)
 	if n := e.Probes.Load(); n != 2 {
 		t.Fatalf("two sources, two reads: %d", n)
 	}
@@ -104,7 +105,7 @@ func TestAParamReachesEveryExpressionOfAScreen(t *testing.T) {
 	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"k": "integer"}, "blocks": [
       {"type": "chart", "title": "Scaled", "source": {"from": "deck.probe"}, "x": "name", "series": [{"label": "N", "y": "id * param.k"}]},
       {"type": "stat", "title": "Toned", "source": {"from": "deck.probe"}, "tone": "param.k > 1 ? 'warn' : 'ok'"},`, 1))
-	data := e.ScreenData("web", "main", map[string]any{"params": `{"k": "3"}`})
+	data := e.Screen("web", "main", map[string]any{"params": `{"k": "3"}`})
 	chart, _ := json.Marshal(data["b0"])
 	if !strings.Contains(string(chart), `"values":[3,6]`) || string(data["b1"]["tone"]) != `"warn"` {
 		t.Fatalf("the chart and the tone read param: %s %s", chart, data["b1"]["tone"])
@@ -151,10 +152,10 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 	m = strings.Replace(m, `"status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}]`, `"status": {"type": "string", "enum": ["todo", "doing", "done"]}, "note": {"type": "string"}}}}]`, 1)
 	e.Project("work", m)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
-	e.ScreenData("work", "board", nil)
+	e.Screen("work", "board", nil)
 	e.WaitHealth("screen:work.board", "error")
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing", "note": "!"}`}, nil)
-	e.ScreenData("work", "board", nil)
+	e.Screen("work", "board", nil)
 	for _, h := range e.Health() {
 		if h.Subject == "screen:work.board" {
 			t.Fatalf("a screen that draws again is healthy: %+v", h)
@@ -167,7 +168,7 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 	e.Must("deck.records_upsert", map[string]any{"project": "dialogs", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	e.ScreenMessages("dialogs", "board", map[string]any{"dialog": "more", "block": "b0-in"})
 	e.WaitHealth("screen:dialogs.board", "error")
-	e.ScreenData("dialogs", "board", nil)
+	e.Screen("dialogs", "board", nil)
 	red := false
 	for _, h := range e.Health() {
 		red = red || h.Subject == "screen:dialogs.board"
@@ -197,7 +198,7 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 
 	msgs := e.ScreenMessages("notes", "main", nil)
 	check.Messages(t, msgs)
-	data := e.ScreenData("notes", "main", nil)
+	data := e.Screen("notes", "main", nil)
 	if string(data["b0-0"]["value"]) != "3" || string(data["b0-1"]["value"]) != "12" {
 		t.Fatalf("a stat counts the rows, or sums them by its expression: %s %s", data["b0-0"]["value"], data["b0-1"]["value"])
 	}
@@ -226,7 +227,7 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	if !strings.Contains(string(page[1]["updateComponents"]), `"title":"Note: beta"`) {
 		t.Fatalf("a record page is titled with the record: %s", page[1]["updateComponents"])
 	}
-	pd := e.ScreenData("notes", "note", map[string]any{"record": id})
+	pd := e.Screen("notes", "note", map[string]any{"record": id})
 	card := harness.BlockData[struct {
 		Fields []struct {
 			Label string
@@ -370,7 +371,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		t.Fatalf("documents reads the projects, whose descriptions are their prompts: %v", got)
 	}
 	for _, topic := range []string{"projects", "spaceship"} {
-		if n := len(e.ScreenMessages("notes", "main", map[string]any{"topic": topic})); n != 7 || len(e.ScreenData("notes", "main", map[string]any{"topic": topic})) != 5 {
+		if n := len(e.ScreenMessages("notes", "main", map[string]any{"topic": topic})); n != 7 || len(e.Screen("notes", "main", map[string]any{"topic": topic})) != 5 {
 			t.Fatalf("a topic no block reads gives the whole screen with its data but of the tab not shown: %s, %d messages", topic, n)
 		}
 	}
@@ -402,7 +403,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 	e.Until("four lines", func() bool { return len(e.Log(id)) == 4 })
 
 	harness.NewCatalogCheck(t).Messages(t, e.ScreenMessages("", "process", map[string]any{"record": id}))
-	data := e.ScreenData("", "process", map[string]any{"record": id})
+	data := e.Screen("", "process", map[string]any{"record": id})
 	lines := harness.BlockData[[]map[string]string](t, data["b1"]["lines"])
 	if len(lines) != 4 || lines[3]["kind"] != "thought" || lines[2]["kind"] != "tool" || lines[2]["id"] != "t1" || lines[2]["title"] != "Read" ||
 		lines[1]["kind"] != "tool_update" || lines[1]["id"] != "t1" || lines[1]["status"] != "failed" || len(lines[0]["text"]) > 4100 {
@@ -421,14 +422,14 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		t.Fatalf("the page of a running process offers stop, and its log a message to it and how long it runs: %+v %v", card, say)
 	}
 	e.Must("deck.process_tell", map[string]any{"process": id, "text": "look at b too"}, nil)
-	data = e.ScreenData("", "process", map[string]any{"record": id})
+	data = e.Screen("", "process", map[string]any{"record": id})
 	owner := harness.BlockData[[]map[string]any](t, data["b1"]["lines"])[0]
 	del, _ := owner["delete"].(map[string]any)
 	if owner["kind"] != "owner" || owner["text"] != "look at b too" || owner["status"] != "waiting" || del == nil {
 		t.Fatalf("the owner's message is the newest line, waiting with its delete: %v", owner)
 	}
 	e.Must(del["command"].(string), del["params"].(map[string]any), nil)
-	if first := harness.BlockData[[]map[string]any](t, e.ScreenData("", "process", map[string]any{"record": id})["b1"]["lines"])[0]; first["kind"] == "owner" {
+	if first := harness.BlockData[[]map[string]any](t, e.Screen("", "process", map[string]any{"record": id})["b1"]["lines"])[0]; first["kind"] == "owner" {
 		t.Fatalf("a message the agent did not take is deleted: %v", first)
 	}
 	running := e.CockpitRunning()
@@ -459,13 +460,13 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
       "values": {"note": "%[1]s", "score": "%[2]s"}}]}]}`)
 	e.Project("notes", fmt.Sprintf(m, "=_id", "=title"))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
-	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("notes", "main", nil)["b0"]["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.Screen("notes", "main", nil)["b0"]["rows"])
 	params, _ := rows[0].Actions[0]["params"].(map[string]any)
 	if len(rows) != 1 || params["note"] != rows[0].ID || params["score"] != "a" {
 		t.Fatalf("a button takes the id of the record and its field: %+v", rows)
 	}
 	var form struct{ Values map[string]any }
-	_ = json.Unmarshal(e.ScreenData("notes", "note", map[string]any{"record": rows[0].ID})["b0"]["value"], &form)
+	_ = json.Unmarshal(e.Screen("notes", "note", map[string]any{"record": rows[0].ID})["b0"]["value"], &form)
 	if form.Values["note"] != rows[0].ID || form.Values["score"] != "a" {
 		t.Fatalf("a form takes the record of the page: %+v", form)
 	}
@@ -492,7 +493,7 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
       "actions": [{"label": "Who", "command": "touch", "params": {"who": "=$env[\"first-name\"]"}}, {"label": "Where", "command": "touch", "params": {"who": "=$env[\"in\"]"}}]}]}]}`))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "first-name": "Ann", "in": "Oslo"})}, nil)
 	e.Run(pid, "touch")
-	data := e.ScreenData("notes", "main", nil)
+	data := e.Screen("notes", "main", nil)
 	runs := harness.BlockData[[]harness.ScreenRow](t, data["b0"]["rows"])
 	notes := harness.BlockData[[]harness.ScreenRow](t, data["b1"]["rows"])
 	p, _ := runs[0].Actions[0]["params"].(map[string]any)
@@ -592,7 +593,7 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	}); i < 0 || ps[i].ManifestError != "" {
 		t.Fatalf("the module still loads: %+v", ps)
 	}
-	data := e.ScreenData("old", "main", nil)
+	data := e.Screen("old", "main", nil)
 	if string(data["b0"]["state"]) == `"error"` || !strings.Contains(string(data["b1"]["error"]), "providers_list") {
 		t.Fatalf("only the block of the command that is gone is an error: %v", data)
 	}
@@ -609,7 +610,7 @@ func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 	e := harness.New(t)
 	check := harness.NewCatalogCheck(t)
 	check.Messages(t, e.ScreenMessages("master", "settings", nil))
-	data := e.ScreenData("master", "settings", nil)
+	data := e.Screen("master", "settings", nil)
 	var sched []harness.ScreenRow
 	for id, d := range data {
 		if strings.Contains(string(d["rows"]), `review"`) && strings.Contains(string(d["rows"]), "30 10 * * *") {

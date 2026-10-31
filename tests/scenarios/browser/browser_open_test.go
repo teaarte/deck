@@ -3,9 +3,6 @@ package browser
 import (
 	"bytes"
 	"context"
-	"deck2/internal/app"
-	"deck2/tests/harness"
-	"deck2/web"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -17,6 +14,10 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/tests/harness"
+	"deck2/web"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

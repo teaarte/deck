@@ -3,13 +3,6 @@ package owner
 import (
 	"bytes"
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/events"
-	"deck2/internal/health"
-	deckhome "deck2/internal/home"
-	"deck2/internal/registry"
-	"deck2/internal/sandbox"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -22,6 +15,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/events"
+	"deck2/internal/health"
+	deckhome "deck2/internal/home"
+	"deck2/internal/registry"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 )
 
 // TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme: a module in Settings and in Files shows the cover its card
@@ -65,7 +66,7 @@ func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
     "item": {"title": "name", "cover": "{'light': 'https://example.com/x.png'}"}}]}], "commands": [`, 1)
 	e.Project("wall", foreign)
 	e.Must("deck.records_upsert", map[string]any{"project": "wall", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a"})}, nil)
-	if wall := e.ScreenData("wall", "wall", nil)["b0"]; strings.Contains(string(wall["items"]), "example.com") {
+	if wall := e.Screen("wall", "wall", nil)["b0"]; strings.Contains(string(wall["items"]), "example.com") {
 		t.Fatalf("a screen of a module names no address of a cover: %s", wall["items"])
 	}
 	off := cards[i].Actions[slices.IndexFunc(cards[i].Actions, func(a map[string]any) bool { return a["label"] == "Take off the cover" })]
@@ -106,7 +107,7 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 	if look == "" {
 		t.Fatalf("settings has the appearance block: %v", check.Comps)
 	}
-	if got := string(e.ScreenData("", "settings", nil)[look]["state"]); got != `"ready"` {
+	if got := string(e.Screen("", "settings", nil)[look]["state"]); got != `"ready"` {
 		t.Fatalf("the appearance block is ready without a source: %s", got)
 	}
 	if drawn, _ := json.Marshal(e.ScreenMessages("", "settings", map[string]any{"topic": "processes"})); strings.Contains(string(drawn), `"/`+look+`"`) {
@@ -125,7 +126,7 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 func formID(t *testing.T, e *harness.Env, command string) string {
 	t.Helper()
 	for _, extra := range append([]map[string]any{nil}, e.DialogsOf("", "settings")...) {
-		for id, d := range e.ScreenData("", "settings", extra) {
+		for id, d := range e.Screen("", "settings", extra) {
 			if strings.Contains(string(d["value"]), `"name":"`+command+`"`) && strings.Contains(string(d["value"]), `"commands":[{`) {
 				return id
 			}
@@ -211,7 +212,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	}
 	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.notify", "web.*"}}, &made)
 	harness.WaitEvent(t, stream, events.Event{Topic: "tokens"})
-	all, _ := json.Marshal(e.ScreenData("", "settings", nil))
+	all, _ := json.Marshal(e.Screen("", "settings", nil))
 	if strings.Contains(string(all), "s3cret-value") || strings.Contains(string(all), made.Token) || !strings.Contains(made.ClaudeCode, made.Token) {
 		t.Fatalf("no secret value or token is on the screen after it was made: %s", all)
 	}
@@ -285,7 +286,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 		t.Fatalf("edit opens the dialog of the model filled with its values: %+v", edit)
 	}
 	var fv harness.FormV
-	_ = json.Unmarshal(e.ScreenData("", "settings", map[string]any{"params": `{"connection": "ollama", "model": "small"}`, "dialog": "model"})[formID(t, e, "deck.model_set")]["value"], &fv)
+	_ = json.Unmarshal(e.Screen("", "settings", map[string]any{"params": `{"connection": "ollama", "model": "small"}`, "dialog": "model"})[formID(t, e, "deck.model_set")]["value"], &fv)
 	if fv.Values["connection"] != "ollama" || fv.Values["model"] != "small" {
 		t.Fatalf("the form of a model takes its values from the address: %+v", fv.Values)
 	}
@@ -386,7 +387,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 		t.Fatalf("a read check counts again once its error changes: menu %d, unread %d", webErrors(), unread())
 	}
 	id, shown := e.FindBlock("", "settings", "Everything deck checks")
-	picked := e.ScreenData("", "settings", harness.Merge(shown, map[string]any{"filter": `{"` + id + `": {"status": "ok"}}`}))[id]
+	picked := e.Screen("", "settings", harness.Merge(shown, map[string]any{"filter": `{"` + id + `": {"status": "ok"}}`}))[id]
 	okRows := harness.BlockData[[]harness.ScreenRow](t, picked["rows"])
 	for _, r := range okRows {
 		if r.Cells[1] != "ok" {

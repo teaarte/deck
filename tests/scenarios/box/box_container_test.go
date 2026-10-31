@@ -1,13 +1,14 @@
 package box
 
 import (
-	deckhome "deck2/internal/home"
-	"deck2/internal/sandbox"
-	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 )
 
 const userScript = harness.PythonLib + `

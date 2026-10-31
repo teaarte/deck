@@ -1,11 +1,12 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 // fitsItsCard is what of the cards of the tiles goes out of its card, or wraps a number or a button: empty when

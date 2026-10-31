@@ -1,7 +1,6 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -9,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserPressAnswersItsAsk: the call the run of Apply waits for comes up over the screen, yes applies it:

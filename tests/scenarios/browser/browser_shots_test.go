@@ -3,10 +3,6 @@ package browser
 import (
 	"bytes"
 	"context"
-	"deck2/internal/app"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -14,6 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"deck2/internal/app"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserTheMasterSeesAScreen: deck draws a screen in its own browser under the master's rights, as a

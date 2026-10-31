@@ -2,9 +2,6 @@ package modules
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -17,6 +14,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // cascadeModule keeps videos, each with a folder of the data folder its field dir names, the scenes of each video,
@@ -677,7 +678,7 @@ func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 	if len(tiles[1].Actions) != 0 {
 		t.Fatalf("a file has no button to open a folder: %+v", tiles[1].Actions)
 	}
-	own := harness.BlockData[[]tile](t, e.ScreenData("films", "documents", map[string]any{"params": `{"path": "data/cache"}`})["b0"]["files"])
+	own := harness.BlockData[[]tile](t, e.Screen("films", "documents", map[string]any{"params": `{"path": "data/cache"}`})["b0"]["files"])
 	if len(own) != 2 || own[1].Error != "" || !strings.Contains(own[1].URL, "/api/files/data/films/cache/tiles.bin") {
 		t.Fatalf("the files screen of a module shows its data folder inside it: %+v", own)
 	}
@@ -687,7 +688,7 @@ func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 		t.Fatalf("the modules are folder tiles at the root: %s", s)
 	}
 	e.Must("deck.file_upload", map[string]any{"project": "films", "name": "frame.png", "content": base64.StdEncoding.EncodeToString([]byte("png"))}, nil)
-	raw, _ = json.Marshal(e.ScreenData("films", "documents", map[string]any{"params": `{"path": "files"}`}))
+	raw, _ = json.Marshal(e.Screen("films", "documents", map[string]any{"params": `{"path": "files"}`}))
 	if s := string(raw); !strings.Contains(s, `"name":"frame.png"`) {
 		t.Fatalf("the files screen of a module shows its files: %s", s)
 	}

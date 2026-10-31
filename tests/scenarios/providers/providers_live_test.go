@@ -2,15 +2,16 @@ package providers
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 var tellManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works a while", "class": "internal",

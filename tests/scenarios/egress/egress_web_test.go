@@ -2,8 +2,6 @@ package egress
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +9,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // searxng is a fake SearXNG that answers its JSON search, or fails with the status it is set to.

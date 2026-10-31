@@ -2,12 +2,6 @@ package box
 
 import (
 	"context"
-	"deck2/internal/events"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +14,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/events"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

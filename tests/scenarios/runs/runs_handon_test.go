@@ -2,15 +2,16 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/process"
-	"deck2/internal/provider"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/process"
+	"deck2/internal/provider"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 // TestAModelAtItsLimitHandsTheWorkOnToTheNextModel: the model's failure on a limit goes on on the next model with the

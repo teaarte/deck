@@ -1,13 +1,6 @@
 package real
 
 import (
-	"deck2/internal/app"
-	deckhome "deck2/internal/home"
-	"deck2/internal/manifest"
-	"deck2/internal/provider"
-	"deck2/internal/provider/claudecode"
-	"deck2/internal/provider/codex"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,6 +9,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	deckhome "deck2/internal/home"
+	"deck2/internal/manifest"
+	"deck2/internal/provider"
+	"deck2/internal/provider/claudecode"
+	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
 )
 
 // Prompts of the autonomy command agent in the words of each CLI; %s are the project name and the home.

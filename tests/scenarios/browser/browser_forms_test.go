@@ -1,7 +1,6 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 // customProbe is the HTML of a custom block that tries every way out of its frame and reports what it saw

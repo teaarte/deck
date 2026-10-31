@@ -1,12 +1,6 @@
 package providers
 
 import (
-	"deck2/internal/app"
-	"deck2/internal/health"
-	deckhome "deck2/internal/home"
-	"deck2/internal/sandbox"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +11,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/health"
+	deckhome "deck2/internal/home"
+	"deck2/internal/sandbox"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 // TestACPSelfCheckTellsWhyNoResultCame: a first turn without result_submit is told apart: the API refused what the

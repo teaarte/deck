@@ -2,18 +2,19 @@ package chat
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func chatBlock(e *harness.Env, filter string) harness.ChatD5 {
 	e.T.Helper()
-	return harness.BlockData[harness.ChatD5](e.T, harness.ChatData(e.T, e.ScreenData("", "chat", map[string]any{"filter": filter})))
+	return harness.BlockData[harness.ChatD5](e.T, harness.ChatData(e.T, e.Screen("", "chat", map[string]any{"filter": filter})))
 }
 
 // TestAnEmptyTopicSuggestsWhatTheModuleOfTheScreenDoes: a topic without messages suggests the commands of the module

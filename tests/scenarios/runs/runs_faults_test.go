@@ -2,8 +2,6 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -12,6 +10,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestAScriptReportsItsFailureInTheOneForm: {"error", "type", "details"} a script prints as it fails gives its failure,
@@ -73,12 +74,12 @@ sys.exit(1)
 		t.Fatalf("three of the same failure are one row, the newest, counted: %+v", rows)
 	}
 	var items []harness.ListItem
-	_ = json.Unmarshal(e.ScreenData("", "cockpit", nil)["b2"]["items"], &items)
+	_ = json.Unmarshal(e.Screen("", "cockpit", nil)["b2"]["items"], &items)
 	items = slices.DeleteFunc(items, func(it harness.ListItem) bool { return !strings.Contains(it.Meta, "site is down") })
 	if len(items) != 1 || !strings.Contains(items[0].Meta, "×3") || !strings.Contains(items[0].Details, "network") {
 		t.Fatalf("the cockpit line says how many, its details the type: %+v", items)
 	}
-	page, _ := json.Marshal(e.ScreenData("", "process", map[string]any{"record": ids[2]}))
+	page, _ := json.Marshal(e.Screen("", "process", map[string]any{"record": ids[2]}))
 	if !strings.Contains(string(page), "network · environment") || !strings.Contains(string(page), "Failure type") {
 		t.Fatalf("the page of the process says the type and whose it is: %s", page)
 	}

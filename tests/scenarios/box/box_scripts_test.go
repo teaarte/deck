@@ -4,10 +4,6 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/registry"
-	"deck2/internal/sandbox"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +15,11 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/registry"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 )
 
 const collectScript = harness.PythonLib + `
@@ -134,7 +135,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	if b, _ := json.Marshal(e.Log(id)); strings.Contains(string(b), "xcodebuild") || strings.Contains(string(b), "DVTDeveloperPaths") {
 		t.Fatalf("python runs as the interpreter itself, not the xcrun launcher: %s", b)
 	}
-	page := e.ScreenData("", "process", map[string]any{"record": id})["b0"]["value"]
+	page := e.Screen("", "process", map[string]any{"record": id})["b0"]["value"]
 	if b, _ := json.Marshal(page); strings.Contains(string(b), `"Error"`) {
 		t.Fatalf("a process without an error shows no Error field: %s", b)
 	}

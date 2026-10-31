@@ -1,11 +1,12 @@
 package modules
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 type choiceV struct {
@@ -39,7 +40,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		"records": harness.Jsonl(map[string]any{"title": "beta"}, map[string]any{"title": "alpha"})}, &recs)
 
 	check.Messages(t, e.ScreenMessages("web", "main", nil))
-	main := e.ScreenData("web", "main", nil)
+	main := e.Screen("web", "main", nil)
 	touch := harness.BlockData[struct{ Choices map[string][]choiceV }](t, main["b2"]["value"])
 	notes := touch.Choices["note"]
 	if len(notes) != 2 || notes[0].Label != "alpha" || notes[0].Value != float64(recs.IDs[1]) || notes[1].Label != "beta" {
@@ -106,7 +107,7 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	check.Messages(t, e.ScreenMessages("web", "main", nil))
 
-	f := harness.BlockData[harness.FormV](t, e.ScreenData("web", "main", nil)["b1"]["value"])
+	f := harness.BlockData[harness.FormV](t, e.Screen("web", "main", nil)["b1"]["value"])
 	if len(f.Commands) != 1 || f.Commands[0].Name != "web.score" || f.Project != "web" {
 		t.Fatalf("a form names its command and where its result can be kept: %+v", f)
 	}
@@ -130,7 +131,7 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": `{"title": "alpha", "score": 3, "source": "form"}` + "\n" + `{"title": "beta", "score": 5, "source": "import"}`}, nil)
 
-	table := e.ScreenData("web", "main", nil)["b3"]
+	table := e.Screen("web", "main", nil)["b3"]
 	filters := harness.BlockData[[]struct {
 		Field   string   `json:"field"`
 		Options []string `json:"options"`
@@ -138,14 +139,14 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	if len(filters) != 1 || filters[0].Field != "source" || !slices.Equal(filters[0].Options, []string{"form", "import"}) {
 		t.Fatalf("a filter offers the values its field has: %s", table["filters"])
 	}
-	narrowed := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("web", "main", map[string]any{"filter": `{"b3": {"source": "import"}}`})["b3"]["rows"])
+	narrowed := harness.BlockData[[]harness.ScreenRow](t, e.Screen("web", "main", map[string]any{"filter": `{"b3": {"source": "import"}}`})["b3"]["rows"])
 	if len(narrowed) != 1 || narrowed[0].Cells[0] != "beta" {
 		t.Fatalf("the picked value narrows the block: %+v", narrowed)
 	}
 	all := harness.BlockData[[]harness.ScreenRow](t, table["rows"])
 	rec := int64(all[0].ID.(float64))
 
-	edit := harness.BlockData[harness.FormV](t, e.ScreenData("web", "note", map[string]any{"record": rec})["b0"]["value"])
+	edit := harness.BlockData[harness.FormV](t, e.Screen("web", "note", map[string]any{"record": rec})["b0"]["value"])
 	if len(edit.Commands) != 1 || edit.Commands[0].Name != "deck.record_update" || edit.Record != rec ||
 		edit.Values["title"] != "alpha" || edit.Values["_updated"] != nil || !slices.Equal(edit.Readonly, []string{"source", "title"}) ||
 		edit.Commands[0].Input.Properties["score"]["type"] != "integer" {
@@ -159,7 +160,7 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	}
 	e.Refused("deck.record_update", map[string]any{"record": rec, "data": `{"title": "alpha", "score": 9, "source": "other"}`}, 422, "source")
 
-	share := harness.BlockData[harness.FormV](t, e.ScreenData("", "share", nil)["b0"]["value"])
+	share := harness.BlockData[harness.FormV](t, e.Screen("", "share", nil)["b0"]["value"])
 	names := []string{}
 	for _, c := range share.Commands {
 		names = append(names, c.Name)

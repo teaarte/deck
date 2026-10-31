@@ -2,13 +2,14 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {

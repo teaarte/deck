@@ -2,10 +2,6 @@ package owner
 
 import (
 	"context"
-	"deck2/internal/app"
-	deckhome "deck2/internal/home"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +9,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	deckhome "deck2/internal/home"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {

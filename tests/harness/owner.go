@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"deck2/internal/events"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+
+	"deck2/internal/events"
 )
 
 // ownerToken is the owner's token of every test deck; the owner signs in with it only through OwnerToken.

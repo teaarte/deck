@@ -1,13 +1,14 @@
 package modules
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // unused are parts deck dropped since no module used them, each as a change of videosManifest; a manifest has none.
@@ -39,7 +40,7 @@ func TestAManifestRefusesWhatNoModuleUsed(t *testing.T) {
 		map[string]any{"slug": "eu-solar", "file": "eu-solar.webm", "length": 75})}, nil)
 	check.Messages(t, e.ScreenMessages("films", "watch", nil))
 	var files []map[string]any
-	_ = json.Unmarshal(e.ScreenData("films", "watch", nil)["b0"]["files"], &files)
+	_ = json.Unmarshal(e.Screen("films", "watch", nil)["b0"]["files"], &files)
 	if len(files) != 1 || files[0]["type"] != "video/webm" || files[0]["url"] == "" || files[0]["marks"] != nil || files[0]["mark"] != nil {
 		t.Fatalf("the video plays from its address, without marks: %+v", files)
 	}
@@ -67,7 +68,7 @@ func TestAMediaBlockOnARecordPageShowsAFileOfTheRecord(t *testing.T) {
 	var w struct{ IDs []int64 }
 	e.Must("deck.records_upsert", map[string]any{"project": "films", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, &w)
 	var files []struct{ Type, Name, Title string }
-	_ = json.Unmarshal(e.ScreenData("films", "video", map[string]any{"record": w.IDs[0]})["b0"]["files"], &files)
+	_ = json.Unmarshal(e.Screen("films", "video", map[string]any{"record": w.IDs[0]})["b0"]["files"], &files)
 	if len(files) != 1 || files[0].Name != "eu-solar.webm" || files[0].Type != "video/webm" || files[0].Title != "eu-solar" {
 		t.Fatalf("the record page plays the file of its record: %+v", files)
 	}

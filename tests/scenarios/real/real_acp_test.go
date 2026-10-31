@@ -1,12 +1,6 @@
 package real
 
 import (
-	"deck2/internal/app"
-	"deck2/internal/health"
-	deckhome "deck2/internal/home"
-	"deck2/internal/manifest"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,6 +10,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/health"
+	deckhome "deck2/internal/home"
+	"deck2/internal/manifest"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 // realACP gives the installed ACP agents by name and the model they run on: a local Ollama, or the API of

@@ -2,10 +2,6 @@ package real
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/internal/provider/claudecode"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -14,6 +10,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/internal/provider/claudecode"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 
 	"github.com/google/uuid"
 )

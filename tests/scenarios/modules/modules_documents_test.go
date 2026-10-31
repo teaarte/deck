@@ -2,10 +2,6 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/events"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -15,6 +11,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/events"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 type documentV struct {
@@ -74,11 +75,11 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 		Title, Icon, Url string
 		Actions          []map[string]any
 	}
-	root := harness.BlockData[[]tileV](t, e.ScreenData("web", "documents", nil)["b0"]["files"])
+	root := harness.BlockData[[]tileV](t, e.Screen("web", "documents", nil)["b0"]["files"])
 	if len(root) != 3 || harness.Verb(t, root[1].Actions, "open")["params"].(map[string]any)["path"] != "documents" {
 		t.Fatalf("the files screen of a module holds its files, documents and data folder: %+v", root)
 	}
-	list := e.ScreenData("web", "documents", map[string]any{"params": `{"path": "documents"}`})["b0"]
+	list := e.Screen("web", "documents", map[string]any{"params": `{"path": "documents"}`})["b0"]
 	tiles := harness.BlockData[[]tileV](t, list["files"])
 	byName := map[string]int{}
 	for i, f := range tiles {
@@ -97,7 +98,7 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 		t.Helper()
 		msgs := e.ScreenMessages("web", "document", map[string]any{"record": id})
 		check.Messages(t, msgs)
-		return harness.BlockData[documentV](t, e.ScreenData("web", "document", map[string]any{"record": id})["b0"]["value"])
+		return harness.BlockData[documentV](t, e.Screen("web", "document", map[string]any{"record": id})["b0"]["value"])
 	}
 	d := page(crit.ID)
 	if d.Text != "# Criteria\n\n- **short**" || d.Revision != 2 || !d.Editable || len(d.Revisions) != 2 || d.Revisions[0].Reason != "tighter" {
@@ -162,12 +163,12 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 	rec := recs.IDs[0]
 
 	check.Messages(t, e.ScreenMessages("web", "main", nil))
-	main := e.ScreenData("web", "main", nil)
+	main := e.Screen("web", "main", nil)
 	if d := harness.BlockData[documentV](t, main["b1"]["value"]); d.ID != 0 || d.Name != "notes/criteria.md" || !d.Editable {
 		t.Fatalf("a document not written yet shows empty and can be written: %+v", d)
 	}
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc", "text": "be short"}, nil)
-	if d := harness.BlockData[documentV](t, e.ScreenData("web", "main", nil)["b1"]["value"]); d.Text != "be short" || d.Revision != 1 {
+	if d := harness.BlockData[documentV](t, e.Screen("web", "main", nil)["b1"]["value"]); d.Text != "be short" || d.Revision != 1 {
 		t.Fatalf("the block shows the document of the project it names: %+v", d)
 	}
 	items := harness.BlockData[[]map[string]any](t, main["b2"]["items"])
@@ -176,7 +177,7 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 	}
 
 	check.Messages(t, e.ScreenMessages("web", "note", map[string]any{"record": rec}))
-	note := e.ScreenData("web", "note", map[string]any{"record": rec})
+	note := e.Screen("web", "note", map[string]any{"record": rec})
 	card := harness.BlockData[struct {
 		Fields []map[string]any
 	}](t, note["b1"]["value"])
@@ -187,7 +188,7 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 		t.Fatalf("on a record page the block names a document of the record: %+v", d)
 	}
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "report.md", "kind": "doc", "text": "report", "record": rec}, nil)
-	if d := harness.BlockData[documentV](t, e.ScreenData("web", "note", map[string]any{"record": rec})["b2"]["value"]); d.Text != "report" || d.Record != rec {
+	if d := harness.BlockData[documentV](t, e.Screen("web", "note", map[string]any{"record": rec})["b2"]["value"]); d.Text != "report" || d.Record != rec {
 		t.Fatalf("the record page shows the document of its record: %+v", d)
 	}
 	var got struct{ Text string }

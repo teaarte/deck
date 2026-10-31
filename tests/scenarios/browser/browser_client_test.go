@@ -3,7 +3,6 @@ package browser
 import (
 	"bytes"
 	"context"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserWebClient builds the web client and drives it in the real browser of Playwright MCP:

@@ -1,13 +1,14 @@
 package egress
 
 import (
-	"deck2/tests/harness"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestAToolTakesItsWholeURLFromASecret: a private link the owner keeps as a secret is the URL of a tool, only https on

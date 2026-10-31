@@ -2,10 +2,6 @@ package chat
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,6 +11,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 // TestOwnerAttachesFilesAndTopicsKnowTheirModule: an attached file belongs to the message, the turn that takes
@@ -300,7 +301,11 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 			}
 		}
 	}
-	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	// The files of a run come to its reply once the run is done, a moment after its words.
+	e.Until("the reply with its file", func() bool {
+		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+		return len(view.Messages[len(view.Messages)-1].Files) > 0
+	})
 	m := view.Messages[len(view.Messages)-1]
 	if m.Role != "master" || len(m.Files) != 1 || m.Files[0].Name != "voice-1.wav" {
 		t.Fatalf("the reply shows the file it made, not the one it links to: %+v", m)

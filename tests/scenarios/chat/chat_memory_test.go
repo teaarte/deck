@@ -2,13 +2,14 @@ package chat
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func TestMemoryIndexReachesTheMasterAsData(t *testing.T) {

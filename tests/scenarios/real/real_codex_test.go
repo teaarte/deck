@@ -2,9 +2,6 @@ package real
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/internal/provider/codex"
-	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
 )
 
 func realCodex(t *testing.T) {

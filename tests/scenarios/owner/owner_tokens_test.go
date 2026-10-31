@@ -2,12 +2,6 @@ package owner
 
 import (
 	"context"
-	"deck2/internal/api"
-	"deck2/internal/app"
-	"deck2/internal/events"
-	"deck2/internal/registry"
-	"deck2/tests/harness"
-	"deck2/web"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,6 +10,13 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"deck2/internal/api"
+	"deck2/internal/app"
+	"deck2/internal/events"
+	"deck2/internal/registry"
+	"deck2/tests/harness"
+	"deck2/web"
 )
 
 func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {

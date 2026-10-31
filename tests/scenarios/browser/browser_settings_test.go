@@ -1,8 +1,9 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserProjectSettings opens the settings of a project from the Projects tab in the real browser: its

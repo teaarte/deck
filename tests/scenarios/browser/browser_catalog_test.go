@@ -3,7 +3,6 @@ package browser
 import (
 	"bytes"
 	"crypto/sha256"
-	"deck2/tests/harness"
 	"encoding/hex"
 	"image"
 	"image/color"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserCatalog draws the blocks of a estimate module in the real browser of Playwright MCP:

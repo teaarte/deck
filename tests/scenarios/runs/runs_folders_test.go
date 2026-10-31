@@ -2,9 +2,6 @@ package runs
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +13,10 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestAgentCommandWorksInTheProjectFolder: an agent command with folder runs in the project folder the owner

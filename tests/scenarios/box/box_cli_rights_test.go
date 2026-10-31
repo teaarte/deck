@@ -1,14 +1,15 @@
 package box
 
 import (
-	deckhome "deck2/internal/home"
-	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 )
 
 func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {

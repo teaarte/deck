@@ -2,15 +2,16 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/provider/codex"
-	"deck2/tests/harness"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
 )
 
 func agentStatus(e *harness.Env, name string) (agent, model string) {

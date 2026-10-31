@@ -3,14 +3,15 @@ package chat
 import (
 	"cmp"
 	"context"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/tests/harness"
 )
 
 // screenAs is the data of a screen read through deck.screen by act, by block id.
@@ -58,7 +59,7 @@ func TestTheMasterReadsAScreenWithoutTheBodiesOfDocuments(t *testing.T) {
 			t.Fatalf("a read of the block alone gives %s whole: %+v", id, whole)
 		}
 	}
-	owner := e.ScreenData("web", "main", nil)
+	owner := e.Screen("web", "main", nil)
 	if d, c := harness.BlockData[body](t, owner["b1"]["value"]), harness.BlockData[body](t, owner["b4"]["value"]); d.Text == nil || *d.Text != "be short" || c.HTML == nil || *c.HTML != "<p>chart</p>" {
 		t.Fatalf("the owner reads them whole: %+v %+v", d, c)
 	}

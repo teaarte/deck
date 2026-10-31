@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +22,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func TestUploadedAndRecordFilesReachTheScriptReadOnly(t *testing.T) {
@@ -224,19 +225,19 @@ func TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject(t *testing.T) {
 			t.Fatalf("%s with a token of other rights: want %d, got %d %q", c.path, c.code, resp.StatusCode, body)
 		}
 	}
-	files := harness.BlockData[[]map[string]any](t, e.ScreenData("", "files", nil)["b0-0-1"]["files"])
+	files := harness.BlockData[[]map[string]any](t, e.Screen("", "files", nil)["b0-0-1"]["files"])
 	acts, _ := files[0]["actions"].([]any)
 	if len(files) != 1 || files[0]["url"] != fmt.Sprintf("/api/files/%d", id) || len(acts) != 1 {
 		t.Fatalf("a file of the files of deck opens from its address and has its delete: %+v", files)
 	}
 	del := acts[0].(map[string]any)
 	e.Must(del["command"].(string), del["params"].(map[string]any), nil)
-	if left := harness.BlockData[[]map[string]any](t, e.ScreenData("", "files", nil)["b0-0-1"]["files"]); len(left) != 0 {
+	if left := harness.BlockData[[]map[string]any](t, e.Screen("", "files", nil)["b0-0-1"]["files"]); len(left) != 0 {
 		t.Fatalf("a deleted file leaves the list: %+v", left)
 	}
 	undo := del["undo"].(map[string]any)
 	e.Must(undo["command"].(string), undo["params"].(map[string]any), nil)
-	if back := harness.BlockData[[]map[string]any](t, e.ScreenData("", "files", nil)["b0-0-1"]["files"]); len(back) != 1 {
+	if back := harness.BlockData[[]map[string]any](t, e.Screen("", "files", nil)["b0-0-1"]["files"]); len(back) != 1 {
 		t.Fatalf("the undo brings the file back: %+v", back)
 	}
 }
@@ -313,7 +314,7 @@ func TestAFolderOfTheDataFolderShowsItsSteps(t *testing.T) {
 		Label  string
 		Action map[string]any
 	}
-	for _, d := range e.ScreenData("", "files", map[string]any{"params": `{"path": "notes/data/cache/pages"}`, "lang": "ru"}) {
+	for _, d := range e.Screen("", "files", map[string]any{"params": `{"path": "notes/data/cache/pages"}`, "lang": "ru"}) {
 		if raw, ok := d["crumbs"]; ok {
 			_ = json.Unmarshal(raw, &crumbs)
 		}
@@ -649,7 +650,7 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 		t.Fatalf("an empty folder keeps its steps back: %s %+v", state, crumbs)
 	}
 	id, _ := e.FindBlock("", "files", "All files")
-	found := e.ScreenData("", "files", map[string]any{"filter": `{"` + id + `": {"~": "invoice oct"}}`})[id]
+	found := e.Screen("", "files", map[string]any{"filter": `{"` + id + `": {"~": "invoice oct"}}`})[id]
 	var hits []line
 	_ = json.Unmarshal(found["files"], &hits)
 	if len(hits) != 1 || hits[0].Title != "invoice-october.pdf" {
@@ -660,7 +661,7 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	if len(all) != 1 || all[0].Name != "invoice-october.pdf" {
 		t.Fatalf("files_list looks for the words through every file: %+v", all)
 	}
-	if mod := e.ScreenData("inbox", "documents", map[string]any{"params": `{"path": "files"}`})["b0"]; !strings.Contains(string(mod["files"]), "invoice-october.pdf") {
+	if mod := e.Screen("inbox", "documents", map[string]any{"params": `{"path": "files"}`})["b0"]; !strings.Contains(string(mod["files"]), "invoice-october.pdf") {
 		t.Fatalf("the files of a module are the same manager inside it: %s", mod["files"])
 	}
 }

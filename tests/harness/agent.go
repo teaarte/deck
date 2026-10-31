@@ -2,7 +2,6 @@ package harness
 
 import (
 	"context"
-	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -11,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

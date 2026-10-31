@@ -2,9 +2,6 @@ package providers
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,6 +13,10 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {

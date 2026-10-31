@@ -2,11 +2,6 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/events"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,6 +11,12 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/events"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/tests/harness"
 )
 
 // TestADraftsScheduleSaysItDoesNotRun: a trigger of a draft has no next run and says why.
@@ -367,7 +368,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	check.Messages(t, e.ScreenMessages("", "schedule", nil))
 	rows := func() []harness.ScreenRow {
 		var out []harness.ScreenRow
-		for _, r := range harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "schedule", nil)["b0-0-1"]["rows"]) {
+		for _, r := range harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "schedule", nil)["b0-0-1"]["rows"]) {
 			if !strings.HasSuffix(fmt.Sprint(r.Cells[0]), " · master") {
 				out = append(out, r)
 			}
@@ -441,12 +442,12 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	}
 	press(button(find(rows(), "alpha"), "resume"), nil)
 
-	history := e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"project": "alpha"}}`})["b0-1-0"]
+	history := e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"project": "alpha"}}`})["b0-1-0"]
 	hrows := harness.BlockData[[]harness.ScreenRow](t, history["rows"])
 	if len(hrows) != 1 || hrows[0].Cells[1] != "alpha" || !strings.Contains(string(history["filters"]), `"value":"alpha"`) {
 		t.Fatalf("the history filters by project: %+v %s", hrows, history["filters"])
 	}
-	if states := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(states) != 0 {
+	if states := harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(states) != 0 {
 		t.Fatalf("the history filters by state: %+v", states)
 	}
 	e.Refused("deck.trigger_run", map[string]any{"trigger": 999}, 404, "no trigger")

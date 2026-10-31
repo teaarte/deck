@@ -2,11 +2,12 @@ package browser
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserTheSidePanelOfAScreen: on a computer the panel stands left of the blocks and a pick narrows them in

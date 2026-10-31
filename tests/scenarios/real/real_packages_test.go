@@ -1,10 +1,11 @@
 package real
 
 import (
-	"deck2/tests/harness"
 	"os/exec"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 const realPythonScript = `#!/usr/bin/env -S uv run --script

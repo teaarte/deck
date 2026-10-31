@@ -2,8 +2,6 @@ package egress
 
 import (
 	"crypto/sha256"
-	deckhome "deck2/internal/home"
-	"deck2/tests/harness"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -15,6 +13,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 )
 
 // fakeOAuth is a service with oauth2 sign-in: authorize redirects back with a code, token checks PKCE and

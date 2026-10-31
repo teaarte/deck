@@ -2,16 +2,17 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 func askQuestion(ctx context.Context, c *harness.Call, q string) map[string]any {

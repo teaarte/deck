@@ -2,7 +2,6 @@ package harness
 
 import (
 	"context"
-	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"deck2/internal/provider"
 )
 
 type TopicReply struct {

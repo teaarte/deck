@@ -1,10 +1,6 @@
 package real
 
 import (
-	"deck2/internal/provider"
-	"deck2/internal/provider/claudecode"
-	"deck2/internal/provider/codex"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
+	"deck2/internal/provider/claudecode"
+	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
 )
 
 // TestRealCodeModule rehearses the code module on the installed CLIs in a fresh repo with uncommitted work of

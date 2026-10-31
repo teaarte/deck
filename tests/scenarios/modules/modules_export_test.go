@@ -3,8 +3,6 @@ package modules
 import (
 	"archive/zip"
 	"bytes"
-	"deck2/internal/store"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"deck2/internal/store"
+	"deck2/tests/harness"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -269,12 +270,12 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		!slices.Contains(rights, struct{ What, Detail string }{"read domain", "news.example.com"}) {
 		t.Fatalf("what a draft may do is a row each: %+v", rights)
 	}
-	if b, _ := json.Marshal(e.ScreenData("", "settings", nil)); !strings.Contains(string(b), `"params":{"project":"links-shared","revision":`) ||
+	if b, _ := json.Marshal(e.Screen("", "settings", nil)); !strings.Contains(string(b), `"params":{"project":"links-shared","revision":`) ||
 		!strings.Contains(string(b), `"screen":"draft"`) {
 		t.Fatalf("a draft is enabled from the page of what it may do: %s", b)
 	}
 	rev := e.ManifestRevision("links-shared")
-	data := e.ScreenData("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "links-shared", "revision": "%d"}`, rev)})
+	data := e.Screen("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "links-shared", "revision": "%d"}`, rev)})
 	b, _ := json.Marshal(data)
 	if !strings.Contains(string(b), "post_link") {
 		t.Fatalf("the page of a draft lists what it may do: %s", b)

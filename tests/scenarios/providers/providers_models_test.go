@@ -2,10 +2,6 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/health"
-	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -13,6 +9,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/health"
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 )
 
 // TestTwinsOfAModelMergeIntoTheFirst: models of one connection with the same API name, kind and options become the

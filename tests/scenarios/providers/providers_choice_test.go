@@ -2,17 +2,18 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/events"
-	"deck2/internal/health"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/app"
+	"deck2/internal/events"
+	"deck2/internal/health"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {

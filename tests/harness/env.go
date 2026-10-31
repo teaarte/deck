@@ -2,12 +2,6 @@ package harness
 
 import (
 	"context"
-	"deck2/internal/api"
-	"deck2/internal/app"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/web"
 	"encoding/json"
 	"net"
 	"net/http/httptest"
@@ -15,10 +9,19 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/api"
+	"deck2/internal/app"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/web"
 )
 
+// WithTTL keeps a confirmation of the owner a day, for tests of what waits that long.
 func WithTTL(c *app.Config) { c.ConfirmTTL = 24 * time.Hour }
 
+// Env is a deck of a test: its app, its API and second origin on local ports, the fake agent and clock it runs on.
 type Env struct {
 	T    *testing.T
 	App  *app.App

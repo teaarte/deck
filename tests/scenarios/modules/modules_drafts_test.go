@@ -2,12 +2,6 @@ package modules
 
 import (
 	"context"
-	"deck2/internal/gateway"
-	"deck2/internal/process"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/internal/store"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -15,6 +9,13 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/gateway"
+	"deck2/internal/process"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 )
 
 // trialAgent tries an external built-in tool and an external command, and starts a child command, until
@@ -312,7 +313,7 @@ func TestTheProjectShowsAgentsReachTheWholeNetwork(t *testing.T) {
 			t.Fatalf("%s: its agents reach the whole network only with network: %q", p.Name, p.Network)
 		}
 	}
-	if meta := e.ScreenData("open", "settings", nil); !strings.Contains(fmt.Sprint(meta), "whole network") {
+	if meta := e.Screen("open", "settings", nil); !strings.Contains(fmt.Sprint(meta), "whole network") {
 		t.Fatalf("the settings of the project show it: %v", meta)
 	}
 }

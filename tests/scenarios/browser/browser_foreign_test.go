@@ -1,7 +1,6 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -10,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserForeignRenderer draws screens of deck with the stock renderer of @a2ui/react and deck's catalog alone,

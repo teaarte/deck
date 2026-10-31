@@ -2,13 +2,14 @@ package owner
 
 import (
 	"context"
-	"deck2/internal/health"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/internal/health"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func menuEntry(e *harness.Env, project string) harness.MenuView {

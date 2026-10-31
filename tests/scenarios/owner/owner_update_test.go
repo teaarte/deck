@@ -5,11 +5,6 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
-	"deck2/internal/app"
-	"deck2/internal/app/updates"
-	"deck2/internal/provider"
-	"deck2/internal/release"
-	"deck2/tests/harness"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -19,6 +14,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"deck2/internal/app"
+	"deck2/internal/app/updates"
+	"deck2/internal/provider"
+	"deck2/internal/release"
+	"deck2/tests/harness"
 )
 
 // fakeRelease is the latest release of deck on an https server of its own, signed with a key of the test.

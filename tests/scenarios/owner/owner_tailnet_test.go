@@ -4,7 +4,6 @@ package owner
 
 import (
 	"context"
-	"deck2/tests/harness"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/tests/harness"
 
 	"tailscale.com/ipn/store/mem"
 	"tailscale.com/net/netns"

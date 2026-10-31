@@ -2,15 +2,16 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/events"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/events"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // held is an agent whose turns wait until the test lets one go.

@@ -1,11 +1,12 @@
 package modules
 
 import (
-	"deck2/tests/harness"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 func starters(e *harness.Env) []harness.StarterView {
@@ -76,7 +77,7 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 	if strings.HasPrefix(menu.Pulse.Line, "Скажи Деки, что делать") {
 		t.Fatal("a deck with a module is no empty deck")
 	}
-	data := e.ScreenData("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "free-models", "revision": "%d"}`, ss[0].Revision)})
+	data := e.Screen("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "free-models", "revision": "%d"}`, ss[0].Revision)})
 	if len(data) < 2 {
 		t.Fatalf("the draft screen shows what it needs and what it may do: %v", data)
 	}

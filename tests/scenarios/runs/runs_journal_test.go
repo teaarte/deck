@@ -2,10 +2,6 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/events"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -14,6 +10,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/events"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots: the journal screen reads the gateway journal
@@ -73,13 +74,13 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	}
 
 	check.Messages(t, e.ScreenMessages("", "process", map[string]any{"record": tell}))
-	page := e.ScreenData("", "process", map[string]any{"record": tell})
+	page := e.Screen("", "process", map[string]any{"record": tell})
 	if rows := harness.BlockData[[]harness.ScreenRow](t, page["b3"]["rows"]); len(rows) != 2 || rows[1].Cells[1] != "web.publish" || rows[1].Cells[2] != "waiting" || rows[0].Cells[2] != "rejected" || rows[0].Details[2] != "the owner said no" {
 		t.Fatalf("the page of a run lists the calls it made with their outcomes: %+v", rows)
 	}
 
 	check.Messages(t, e.ScreenMessages("", "spend", nil))
-	data := e.ScreenData("", "spend", nil)
+	data := e.Screen("", "spend", nil)
 	spend := harness.BlockData[[]harness.ScreenRow](t, data["b2-2-1"]["rows"])
 	if len(spend) != 1 || spend[0].Cells[0] != "web" || spend[0].Cells[3] != float64(2) || spend[0].Cells[4] != float64(2400) {
 		t.Fatalf("spend sums the calls and tokens of each project: %+v", spend)
@@ -103,7 +104,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	if len(days) != 7 || days[6].Age != 0 || days[0].Age != 6 {
 		t.Fatalf("spend by day has every day of the window, today last: %+v", days)
 	}
-	kept := e.ScreenData("", "files", nil)
+	kept := e.Screen("", "files", nil)
 	files := harness.BlockData[[]map[string]any](t, kept["b0-0-1"]["files"])
 	if len(files) != 1 || files[0]["name"] != "scan.txt" || files[0]["title"] != "scan.txt" {
 		t.Fatalf("files lists the files of the workspace: %+v", files)

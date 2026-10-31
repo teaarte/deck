@@ -2,10 +2,6 @@ package chat
 
 import (
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -15,6 +11,11 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/tests/harness"
 )
 
 func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
@@ -420,7 +421,7 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 	chat := func(v string) ChatV {
 		t.Helper()
 		check.Messages(t, e.ScreenMessages("", "chat", pick(v)))
-		return harness.BlockData[ChatV](t, harness.ChatData(t, e.ScreenData("", "chat", pick(v))))
+		return harness.BlockData[ChatV](t, harness.ChatData(t, e.Screen("", "chat", pick(v))))
 	}
 	if c := chat(""); c.Topic == nil || c.Topic.ID != topic || len(c.Messages) != 2 || c.Messages[1].Text != "Hello **there**" ||
 		c.Send.Params["topic"] != float64(topic) || len(c.Topics) != 1 {

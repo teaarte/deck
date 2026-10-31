@@ -2,10 +2,6 @@ package modules
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,6 +11,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 func TestCommandWritesRecordsAndScreenShowsThem(t *testing.T) {

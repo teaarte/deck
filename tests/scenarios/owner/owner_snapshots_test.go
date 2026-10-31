@@ -5,9 +5,6 @@ import (
 	"compress/gzip"
 	"crypto/rand"
 	"database/sql"
-	"deck2/internal/app"
-	deckhome "deck2/internal/home"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +14,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 )
 
 func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {

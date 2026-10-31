@@ -2,13 +2,14 @@ package real
 
 import (
 	"context"
-	"deck2/internal/provider/claudecode"
-	"deck2/internal/provider/codex"
-	"deck2/tests/harness"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider/claudecode"
+	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
 )
 
 // masterReplies waits for n replies of the master in a topic.

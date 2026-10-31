@@ -2,9 +2,6 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,6 +11,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 var videoManifest = harness.Manifest(`{"commands": [

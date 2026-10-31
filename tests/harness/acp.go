@@ -2,10 +2,6 @@ package harness
 
 import (
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/health"
-	"deck2/internal/sandbox"
-	"deck2/internal/store/db"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -15,6 +11,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/health"
+	"deck2/internal/sandbox"
+	"deck2/internal/store/db"
 )
 
 // fakeACP is a folder with the fake ACP agent, started as goose, and the streams it replays.

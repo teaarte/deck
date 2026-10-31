@@ -1,7 +1,6 @@
 package egress
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(t *testing.T) {

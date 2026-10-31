@@ -2,13 +2,14 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 func TestProviderLimitPausesAndContinuesTheSameSession(t *testing.T) {

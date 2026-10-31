@@ -1,13 +1,14 @@
 package runs
 
 import (
-	deckhome "deck2/internal/home"
-	"deck2/tests/harness"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 )
 
 // spanScript notes when it began and ended in the data folder of its module, a second apart.

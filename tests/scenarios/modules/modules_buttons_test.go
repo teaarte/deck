@@ -1,12 +1,13 @@
 package modules
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
@@ -19,7 +20,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 		in := map[string]any{"record": up.IDs[0]}
 		var block map[string]json.RawMessage
 		if topic == "" {
-			block = e.ScreenData("notes", "note", in)["b2"]
+			block = e.Screen("notes", "note", in)["b2"]
 		} else {
 			in["topic"] = topic
 			for _, m := range e.ScreenMessages("notes", "note", in) {
@@ -60,7 +61,7 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
       {"label": "Rate", "command": "touch", "params": {"note": "=_id"}, "input": "score"}]}]}]}`))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 7})}, nil)
-	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("notes", "main", nil)["b0"]["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.Screen("notes", "main", nil)["b0"]["rows"])
 	if len(rows) != 2 || len(rows[0].Actions) != 1 || rows[0].Actions[0]["label"] != "Rate" || rows[0].Actions[0]["input"] != "score" {
 		t.Fatalf("a button whose when does not hold is not on the row; the other asks for its input: %+v", rows)
 	}
@@ -98,7 +99,7 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 	e.Project("web", with(`, "undo": {"command": "tag", "params": {"tag": "=title"}}`))
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
 	found := false
-	for _, v := range e.ScreenData("web", "main", nil) {
+	for _, v := range e.Screen("web", "main", nil) {
 		for _, raw := range v {
 			found = found || strings.Contains(string(raw), `"undo":{"command":"web.tag","params":{"tag":"alpha"}`)
 		}
@@ -137,7 +138,7 @@ func TestAFormKeepsItsFixedFieldsFromTheOwner(t *testing.T) {
 			}
 			Order []string
 		}
-	}](t, e.ScreenData("clips", "clip", map[string]any{"record": recs[0].ID})["b0"]["value"])
+	}](t, e.Screen("clips", "clip", map[string]any{"record": recs[0].ID})["b0"]["value"])
 	in := form.Commands[0]
 	if form.Fixed["slug"] != "a-1" || form.Values["slug"] != nil || form.Values["title"] != "First" || in.Input.Properties["slug"] != nil ||
 		slices.Contains(in.Input.Required, "slug") || slices.Contains(in.Order, "slug") {
@@ -219,7 +220,7 @@ func TestAButtonOpensTheChatOfTheMaster(t *testing.T) {
 	m := strings.Replace(harness.BoardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "Talk it over", "command": "move", "params": {"id": "=_id"}, "chat": true}, {"label": "Move"`, 1)
 	e.Project("work", m)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
-	raw, _ := json.Marshal(e.ScreenData("work", "board", nil))
+	raw, _ := json.Marshal(e.Screen("work", "board", nil))
 	if !strings.Contains(string(raw), `"chat":true`) || !strings.Contains(string(raw), `"label":"Talk it over"`) {
 		t.Fatalf("a chat button with a command is drawn with chat: %s", raw)
 	}

@@ -1,8 +1,9 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserRouter: a button opens a dialog with its form filled from the address, back closes it, a tab

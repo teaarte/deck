@@ -2,13 +2,14 @@ package browser
 
 import (
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 var longQuestion = "The groceries module keeps two lists, and the shop list has not been opened for three weeks. " +

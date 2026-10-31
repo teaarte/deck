@@ -1,9 +1,10 @@
 package owner
 
 import (
-	"deck2/tests/harness"
 	"encoding/json"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // lightScreens are the most a whole read of each screen of deck may weigh on lightEnv, in bytes.

@@ -2,10 +2,6 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +11,11 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 )
 
 // TestAFileGoesOnlyWithItsRowEvenAcrossACrash: a delete that rolls back keeps the file on disk; one deck committed

@@ -7,9 +7,6 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/sha256"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -25,6 +22,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 
 	"golang.org/x/crypto/hkdf"
 )

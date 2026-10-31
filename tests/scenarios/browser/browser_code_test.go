@@ -1,9 +1,10 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // TestRealBrowserCodeProject walks the owner's way to a code project in the real browser: create a project, import

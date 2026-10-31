@@ -3,13 +3,6 @@ package owner
 import (
 	"bufio"
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/events"
-	"deck2/internal/registry"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
-	"deck2/schemas"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,6 +11,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/events"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+	"deck2/schemas"
+	"deck2/tests/harness"
 )
 
 // TestASlowDeviceHearsEveryChange: a device that reads its live channel slower than deck publishes still hears

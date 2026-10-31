@@ -2,15 +2,16 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 )
 
 // runsOfRecord are the processes of a record, oldest first.

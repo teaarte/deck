@@ -141,9 +141,9 @@ func (e *Env) ScreenMessages(project, screen string, extra map[string]any) []map
 	return msgs
 }
 
-// ScreenData is the data model of a resolved screen, by block id; a whole read reads the tabs not shown too, each
+// Screen is the data model of a resolved screen, by block id; a whole read reads the tabs not shown too, each
 // by its block, as the client does when the owner shows it.
-func (e *Env) ScreenData(project, screen string, extra map[string]any) map[string]map[string]json.RawMessage {
+func (e *Env) Screen(project, screen string, extra map[string]any) map[string]map[string]json.RawMessage {
 	e.T.Helper()
 	msgs := e.ScreenMessages(project, screen, extra)
 	out := DataOf(e.T, msgs)
@@ -211,7 +211,7 @@ func DataOf(t testing.TB, msgs []map[string]json.RawMessage) map[string]map[stri
 func (e *Env) ScreenRows(project int64, screen string) []ScreenRow {
 	e.T.Helper()
 	var rows []ScreenRow
-	if err := json.Unmarshal(e.ScreenData(e.Names[project], screen, nil)["b0"]["rows"], &rows); err != nil {
+	if err := json.Unmarshal(e.Screen(e.Names[project], screen, nil)["b0"]["rows"], &rows); err != nil {
 		e.T.Fatalf("the rows of screen %s: %v", screen, err)
 	}
 	return rows
@@ -270,7 +270,7 @@ func (e *Env) Button(project, screen string, extra map[string]any, command strin
 		}
 		return nil
 	}
-	b, _ := json.Marshal(e.ScreenData(project, screen, extra))
+	b, _ := json.Marshal(e.Screen(project, screen, extra))
 	var v any
 	_ = json.Unmarshal(b, &v)
 	a := find(v)
@@ -346,14 +346,14 @@ func (e *Env) AllModels(extra map[string]any) []ListItem {
 func (e *Env) CockpitItems() []ListItem {
 	e.T.Helper()
 	var items []ListItem
-	_ = json.Unmarshal(e.ScreenData("", "cockpit", nil)["b0"]["items"], &items)
+	_ = json.Unmarshal(e.Screen("", "cockpit", nil)["b0"]["items"], &items)
 	return items
 }
 
 func (e *Env) CockpitRunning() []ListItem {
 	e.T.Helper()
 	var items []ListItem
-	_ = json.Unmarshal(e.ScreenData("", "cockpit", nil)["b1"]["items"], &items)
+	_ = json.Unmarshal(e.Screen("", "cockpit", nil)["b1"]["items"], &items)
 	return items
 }
 
@@ -450,7 +450,7 @@ func (e *Env) ScreenBlock(project, screen, title string, extra map[string]any) m
 	}
 	extra = Merge(extra, shown)
 	if extra["topic"] == nil {
-		return e.ScreenData(project, screen, extra)[id]
+		return e.Screen(project, screen, extra)[id]
 	}
 	for _, m := range e.ScreenMessages(project, screen, extra) {
 		var dm struct {
@@ -531,7 +531,7 @@ func (e *Env) FindBlock(project, screen, title string) (string, map[string]any) 
 func (e *Env) ScreenForm(project, screen, command string) map[string]json.RawMessage {
 	e.T.Helper()
 	for _, extra := range append([]map[string]any{nil}, e.DialogsOf(project, screen)...) {
-		for _, d := range e.ScreenData(project, screen, extra) {
+		for _, d := range e.Screen(project, screen, extra) {
 			if strings.Contains(string(d["value"]), `"commands":[{`) && strings.Contains(string(d["value"]), `"name":"`+command+`"`) {
 				return d
 			}

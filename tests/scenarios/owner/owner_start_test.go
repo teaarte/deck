@@ -3,8 +3,6 @@ package owner
 import (
 	"bufio"
 	"bytes"
-	deckhome "deck2/internal/home"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,6 +16,9 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 )
 
 type deckBinary struct {

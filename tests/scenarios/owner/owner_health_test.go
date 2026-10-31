@@ -1,11 +1,12 @@
 package owner
 
 import (
-	"deck2/internal/health"
-	"deck2/tests/harness"
 	"fmt"
 	"net/http"
 	"testing"
+
+	"deck2/internal/health"
+	"deck2/tests/harness"
 )
 
 // pulseErrors is the count of failing checks the pulse of the menu shows.

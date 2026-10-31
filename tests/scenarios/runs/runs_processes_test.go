@@ -2,10 +2,6 @@ package runs
 
 import (
 	"context"
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/internal/store/db"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,6 +14,11 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -583,7 +584,7 @@ func TestHistoryFindsAnOldRunOfAQuietProject(t *testing.T) {
 		}
 		return true
 	})
-	history := e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"project": "quiet", "state": "done"}}`})["b0-1-0"]
+	history := e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"project": "quiet", "state": "done"}}`})["b0-1-0"]
 	rows := harness.BlockData[[]harness.ScreenRow](t, history["rows"])
 	if len(rows) != 1 || rows[0].ID != float64(old) || !strings.Contains(string(history["filters"]), `"options":["busy","quiet"]`) {
 		t.Fatalf("the history finds the run of the quiet project, and the picked project stays a choice: %+v %s", rows, history["filters"])

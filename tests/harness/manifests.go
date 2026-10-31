@@ -1,12 +1,13 @@
 package harness
 
 import (
-	"deck2/internal/manifest"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"deck2/internal/manifest"
 )
 
 var NoNetworkManifest = Manifest(`{"no_network": true,

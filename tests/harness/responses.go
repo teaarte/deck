@@ -133,6 +133,10 @@ var (
 	wordIn    = regexp.MustCompile(`"word": "([^"]*)"`)
 )
 
+// shellWait is how long, in ms, Codex waits for a command of the model before it answers that it still runs: a
+// loaded machine starts a shell in Codex's sandbox slowly.
+const shellWait = 60000
+
 // next is the one output item of the model for the request: the next step of the last prompt not done yet.
 func (f *fakeResponses) next(req respRequest) map[string]any {
 	last, all := -1, ""
@@ -197,7 +201,7 @@ func (f *fakeResponses) next(req respRequest) map[string]any {
 				i++
 				continue
 			}
-			return f.call("exec_command", map[string]any{"cmd": s.arg})
+			return f.call("exec_command", map[string]any{"cmd": s.arg, "yield_time_ms": shellWait})
 		case "skill":
 			if i == len(done) {
 				m := regexp.MustCompile(`\(file: (r\d+)(/` + regexp.QuoteMeta(s.arg) + `/SKILL\.md)\)`).FindStringSubmatch(all)
@@ -208,7 +212,7 @@ func (f *fakeResponses) next(req respRequest) map[string]any {
 				if root == nil {
 					return f.say("no root " + m[1])
 				}
-				return f.call("exec_command", map[string]any{"cmd": "cat " + root[1] + m[2] + " 2>&1"})
+				return f.call("exec_command", map[string]any{"cmd": "cat " + root[1] + m[2] + " 2>&1", "yield_time_ms": shellWait})
 			}
 			read := outputs[done[i].CallID]
 			i++
@@ -220,7 +224,7 @@ func (f *fakeResponses) next(req respRequest) map[string]any {
 			if m == nil {
 				return f.say("the skill did not read: " + read)
 			}
-			return f.call("exec_command", map[string]any{"cmd": m[1]})
+			return f.call("exec_command", map[string]any{"cmd": m[1], "yield_time_ms": shellWait})
 		case "ask":
 			if i < len(done) {
 				answer = outputs[done[i].CallID]

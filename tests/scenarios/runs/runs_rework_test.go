@@ -2,9 +2,6 @@ package runs
 
 import (
 	"context"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 )
 
 // TestProcessPageSendsAFinishedAgentBackForReworkWithARemark: a finished agent process has a rework button that
@@ -32,7 +33,7 @@ func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", ""), harness.AgentCommand("hold", "")}, nil))
 	cardActions := func(id int64) []map[string]any {
 		t.Helper()
-		v := harness.BlockData[struct{ Actions []map[string]any }](t, e.ScreenData("", "process", map[string]any{"record": id})["b0"]["value"])
+		v := harness.BlockData[struct{ Actions []map[string]any }](t, e.Screen("", "process", map[string]any{"record": id})["b0"]["value"])
 		return v.Actions
 	}
 	held := e.Run(p, "hold")

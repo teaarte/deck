@@ -1,12 +1,13 @@
 package modules
 
 import (
-	"deck2/internal/manifest"
-	"deck2/tests/harness"
 	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
+
+	"deck2/internal/manifest"
+	"deck2/tests/harness"
 )
 
 // TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText: old parts of the current text are replaced

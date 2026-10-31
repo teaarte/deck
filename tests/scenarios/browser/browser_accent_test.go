@@ -1,9 +1,10 @@
 package browser
 
 import (
-	"deck2/tests/harness"
 	"strings"
 	"testing"
+
+	"deck2/tests/harness"
 )
 
 // filledShown counts the filled buttons a person sees in the window.

@@ -38,6 +38,9 @@ func Bearer(token string) func(*http.Request) {
 	return func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+token) }
 }
 
+// AuthorizationHeader is the header line of a token, as curl -H takes it.
+func AuthorizationHeader(token string) string { return "Authorization: Bearer " + token }
+
 // OwnerURL is the address the owner opens deck at, on base, with rest after the sign-in: more of the query, then
 // the route of the client.
 func (e *Env) OwnerURL(base, rest string) string {

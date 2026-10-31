@@ -28,6 +28,7 @@ func TestAFileGoesOnlyWithItsRowEvenAcrossACrash(t *testing.T) {
 	kept, gone := e.Upload("notes", "kept.txt", "text/plain", "stays"), e.Upload("notes", "gone.txt", "text/plain", "goes")
 	path := func(id int64) string { return filepath.Join(home.Layout(dir).Files(), fmt.Sprint(id)) }
 	failed := errors.New("rolled back")
+	// The store itself: a transaction that deletes a file and rolls back.
 	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		if err := q.DeleteFile(ctx, kept); err != nil {
 			return err

@@ -249,6 +249,13 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 		if err != nil {
 			t.Fatalf("a generated manifest does not read: %v\n%s", err, next)
 		}
+		// A word of the revision that widens nothing tells whether what is in force reads the revision.
+		if len(n.Commands) > 0 {
+			next = strings.Replace(next, `"description": "Does it."`, `"description": "Does it anew."`, 1)
+			if n, err = manifest.Parse([]byte(next)); err != nil {
+				t.Fatal(err)
+			}
+		}
 		name := fmt.Sprintf("p%d", i)
 		e.Project(name, granted)
 		var beyond, inForce struct {
@@ -262,7 +269,13 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 		if e.ManifestRevision(name) == before {
 			continue
 		}
-		read++
+		if len(n.Commands) > 0 {
+			var c harness.CommandView
+			code, raw := e.Call("deck.command_describe", map[string]any{"command": name + "." + n.Commands[0].Name})
+			if code == 200 && json.Unmarshal(raw, &c) == nil && c.Description == "Does it anew." {
+				read++
+			}
+		}
 		e.Must("deck.manifest_check", map[string]any{"project": name}, &inForce)
 		if len(beyond.Widens) == 0 && len(beyond.Refused) > 0 {
 			t.Fatalf("pair %d: the check reads no rights of the revision: %v\n%s", i, beyond.Refused, next)
@@ -276,8 +289,9 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 		}
 	}
 	if read < harness.RightsPairs*4/5 {
-		t.Fatalf("too few pairs reached a revision beyond the grant: %d", read)
+		t.Fatalf("too few pairs had in force the revision beyond the grant: %d of %d", read, harness.RightsPairs)
 	}
+	t.Logf("in force read the revision beyond the grant in %d of %d pairs", read, harness.RightsPairs)
 }
 
 // studioModule has one agent command that edits the code of the module.

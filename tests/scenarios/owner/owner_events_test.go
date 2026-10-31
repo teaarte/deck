@@ -207,11 +207,13 @@ func TestAChangeOfAnotherWorkspaceStaysThere(t *testing.T) {
 		t.Fatal(err)
 	}
 	live := e.Events(ctx)
+	// Health and a project of workspace 2, which no command of this owner reaches.
 	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), Subject: "push", Status: "error", Error: "their pushes"})
 		return err
 	})
 	if err == nil {
+		// The store itself: a write of another workspace in its own transaction.
 		err = e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			_, err := q.DeleteProject(ctx, theirs)
 			return err

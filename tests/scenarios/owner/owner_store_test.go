@@ -20,6 +20,7 @@ func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	var recovered any
+	// The store itself: the shared queries inside a transaction.
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		defer func() { recovered = recover() }()
 		_, _ = e.App.Store.Q.ListProjects(ctx)
@@ -83,6 +84,7 @@ func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
 			t.Fatalf("a write through Store.Q panics: %v", p)
 		}
 	}()
+	// The store itself: a write through the shared queries.
 	_, _ = e.App.Store.Q.SetHealth(context.Background(), db.SetHealthParams{Subject: "x", Status: "ok"})
 }
 
@@ -107,6 +109,7 @@ func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 	e.Project("mine", harness.IdeasManifest)
 	hold, held := make(chan struct{}), make(chan struct{})
 	go func() {
+		// The store itself: a transaction that stays open.
 		_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 			close(held)
 			<-hold
@@ -133,6 +136,7 @@ func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t 
 	e.App.Store.Wait = time.Second
 	done := make(chan error, 1)
 	go func() {
+		// The store itself: a transaction inside a transaction.
 		done <- e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 			return e.App.Store.Tx(context.Background(), func(context.Context, *db.Queries) error { return nil })
 		})

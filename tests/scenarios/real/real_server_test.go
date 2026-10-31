@@ -109,7 +109,7 @@ func TestServerFromScratch(t *testing.T) {
 	call := func(command string, input any) json.RawMessage {
 		t.Helper()
 		body, _ := json.Marshal(input)
-		out := curl("-X", "POST", "-H", "Authorization: Bearer "+token, "-H", "Content-Type: application/json", "-d", string(body),
+		out := curl("-X", "POST", "-H", harness.AuthorizationHeader(token), "-H", "Content-Type: application/json", "-d", string(body),
 			"https://localhost/api/commands/"+command)
 		return json.RawMessage(out)
 	}

@@ -10,4 +10,5 @@ func TestRealBrowserHere(t *testing.T) {
 	// A row an older deck left.
 	e.SQL(`INSERT INTO x VALUES (1)`)
 	old := `{"version": 6}`
+	e.App.Store.Tx(ctx, nil)
 }

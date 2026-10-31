@@ -200,11 +200,13 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	}
 
 	e.UseModels("plain.work", "fake")
+	// The model back, as its self-check would find it; no command sets the health of a model.
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return process.ProviderHealth(ctx, q, "fake", "ok", "")
 	})
 	alone := e.StartWork(3)
 	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 3 })
+	// The model at its limit, as another turn would find it.
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return process.ProviderHealth(ctx, q, "fake", "paused", "usage limit reached")
 	})

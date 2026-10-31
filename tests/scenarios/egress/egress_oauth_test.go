@@ -74,7 +74,7 @@ func (f *fakeOAuth) handler(w http.ResponseWriter, r *http.Request, _ int) {
 			harness.JsonReply(w, fmt.Sprintf(`{"access_token":%q,"token_type":"Bearer","refresh_token":%q,"expires_in":3600}`, f.access, f.refresh))
 		}
 	case "/me":
-		if r.Header.Get("Authorization") != "Bearer "+f.access || f.revoked || f.deny {
+		if got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); !ok || got != f.access || f.revoked || f.deny {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}

@@ -702,6 +702,8 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 	e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	topic := e.Say(0, "start a job")
 	e.MasterSaid(topic, 1)
+	// The job of a reply runs beside it; the second reply's job is the one that fails.
+	e.Until("the first job to run", func() bool { return jobs.Load() == 1 })
 	e.Say(topic, "and another")
 	e.MasterSaid(topic, 2)
 	var view struct {

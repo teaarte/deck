@@ -109,12 +109,13 @@ func TestRulesOfTestsCatchViolations(t *testing.T) {
 		"tests/scenarios/runs/runs_bad_test.go:8: the base by hand",
 		"tests/scenarios/runs/runs_bad_test.go:9: SQL in a test needs a comment above it",
 		"tests/scenarios/runs/runs_bad_test.go:1: TestRealBrowserHere drives the real browser",
+		"tests/scenarios/runs/runs_bad_test.go:13: SQL in a test needs a comment above it",
 	} {
 		if !strings.Contains(all, want) {
 			t.Errorf("missing violation %q in:\n%s", want, all)
 		}
 	}
-	if len(vs) != 8 {
-		t.Errorf("want exactly 8 violations, got %d:\n%s", len(vs), all)
+	if len(vs) != 9 {
+		t.Errorf("want exactly 9 violations, got %d:\n%s", len(vs), all)
 	}
 }

@@ -32,7 +32,7 @@ st, out = deck("deck.records_upsert", {"collection": "items", "records": json.du
 print(json.dumps({"status": st}))
 `)
 	// The script hears the 413, or a reset when deck closes the upload first; then deck's note of what it refused names it.
-	if p := e.WaitState(e.Start("big", "send", nil), "done", "error"); !strings.Contains(string(p.Result)+p.Error, "413") {
+	if p := e.WaitState(e.Start("big", "send", nil), "done", "error"); !strings.Contains(string(p.Result), "413") && !strings.Contains(p.Error, "413 deck: the body of a command call is larger than 32 MB") {
 		t.Fatalf("the entry of scripts refuses a body over 32 MB rather than cutting it: %+v", p)
 	}
 }

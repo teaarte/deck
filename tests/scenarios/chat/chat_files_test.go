@@ -198,6 +198,7 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 	id := e.Upload("web", "plan.txt", "text/plain", "the plan")
 	topic := e.Say(0, "hello")
 	e.MasterSaid(topic, 1)
+	e.Until("the first reply to end", func() bool { return e.Proc(1).State == "done" })
 	// A message an older deck kept with a file of another project, which deck.chat_send refuses.
 	e.SQL(`INSERT INTO chat_message (topic_id, role, text, context) VALUES (?, 'owner', 'old plan', ?)`,
 		topic, fmt.Sprintf(`{"files":[%d]}`, id))

@@ -2,20 +2,23 @@ package lint
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
 var (
 	formatVersion = regexp.MustCompile(`(?m)^const FormatVersion = (\d+)$`)
-	bearer        = regexp.MustCompile(`Set\("Authorization",\s*"Bearer "`)
 	realSwitch    = regexp.MustCompile(`os\.Getenv\("DECK_(REAL_\w+|SERVER)"\)`)
 	rawBase       = regexp.MustCompile(`\.Store\.DB\.`)
-	plant         = regexp.MustCompile(`\.(SQL|SQLRow|SQLRows|PlantRevision)\(`)
+	plant         = regexp.MustCompile(`\.(SQL|SQLRow|SQLRows|PlantRevision|Store\.Tx|Store\.Q\.(Set|Insert|Update|Delete|Create|Add|Put|Mark)\w*)\(`)
 	testFunc      = regexp.MustCompile(`(?m)^func (Test\w+)\(`)
 	scenarioFile  = regexp.MustCompile(`^(main|contract_[a-z]+|[a-z]+_[a-z0-9_]+)_test\.go$`)
 )
@@ -66,9 +69,6 @@ func Tests(root string) ([]Violation, error) {
 			if version.MatchString(line) {
 				at("the version of the manifest format as a literal: build the manifest with harness.Manifest")
 			}
-			if bearer.MatchString(line) {
-				at("a token header by hand: sign with e.Sign, harness.Bearer or e.As")
-			}
 			if realSwitch.MatchString(line) {
 				at("a switch of real programs by hand: harness.Needs")
 			}
@@ -78,6 +78,9 @@ func Tests(root string) ([]Violation, error) {
 			if plant.MatchString(line) && !commentAbove(lines, i) {
 				at("SQL in a test needs a comment above it: what old data it imitates or what deck shows nowhere")
 			}
+		}
+		for _, line := range bearerLines(path, b) {
+			out = append(out, Violation{rel, line, "a token header by hand: sign with e.Sign, harness.Bearer or e.As"})
 		}
 		if area != "browser" {
 			for _, f := range testFunc.FindAllStringSubmatch(string(b), -1) {
@@ -103,4 +106,25 @@ func commentAbove(lines []string, i int) bool {
 		}
 	}
 	return false
+}
+
+// bearerLines are the lines of Go code that put a token after "Bearer ".
+func bearerLines(path string, src []byte) []int {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, path, src, 0)
+	if err != nil {
+		return nil
+	}
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if b, ok := n.(*ast.BinaryExpr); ok && b.Op == token.ADD {
+			if lit, ok := b.X.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				if v, err := strconv.Unquote(lit.Value); err == nil && strings.HasSuffix(v, "Bearer ") {
+					out = append(out, fset.Position(b.Pos()).Line)
+				}
+			}
+		}
+		return true
+	})
+	return out
 }

@@ -178,7 +178,13 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
-	e.Until("one running, one waiting", func() bool { return states(e, []int64{a, b}) == "running waiting_slot" })
+	e.Until("one running, one waiting", func() bool {
+		got := states(e, []int64{a, b})
+		return got == "running waiting_slot" || got == "waiting_slot running"
+	})
+	if e.Proc(a).State != "running" {
+		a, b = b, a
+	}
 	// A process that finished as deck stopped, before its slot went to the next.
 	e.SQL(`UPDATE process SET state = 'done', result = '{"n": 1}' WHERE id = ?`, a)
 	release := make(chan struct{}, 1)

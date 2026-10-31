@@ -1,5 +1,5 @@
 # Every push of a branch and pull request from a fork: the checks, the tests with and without the race detector on Linux
-# and macOS, the tests in Linux containers; a release tag goes out only from a commit this made green.
+# and macOS, a shard a package of scenarios, the tests in Linux containers; a tag goes out only from a green commit.
 name: ci
 
 on:
@@ -69,18 +69,22 @@ jobs:
 
   race:
     if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}
-    name: race (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
+    name: race (${{ matrix.os }} ${{ matrix.areas }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, shards: 4, shard: 0 }
-          - { os: ubuntu-latest, shards: 4, shard: 1 }
-          - { os: ubuntu-latest, shards: 4, shard: 2 }
-          - { os: ubuntu-latest, shards: 4, shard: 3 }
-          - { os: macos-15, shards: 3, shard: 0 }
-          - { os: macos-15, shards: 3, shard: 1 }
-          - { os: macos-15, shards: 3, shard: 2 }
+          - { os: ubuntu-latest, areas: box }
+          - { os: ubuntu-latest, areas: chat }
+          - { os: ubuntu-latest, areas: egress }
+          - { os: ubuntu-latest, areas: modules }
+          - { os: ubuntu-latest, areas: owner }
+          - { os: ubuntu-latest, areas: providers }
+          - { os: ubuntu-latest, areas: runs }
+          - { os: ubuntu-latest, areas: rest }
+          - { os: macos-15, areas: providers box egress }
+          - { os: macos-15, areas: runs chat rest }
+          - { os: macos-15, areas: modules owner }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -88,32 +92,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           sandbox: true
-      - run: .github/race.sh ${{ matrix.shards }} ${{ matrix.shard }}
-      - if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: race-${{ matrix.os }}-${{ matrix.shard }}
-          path: |
-            ran-*.txt
-            out-*.txt
-
-  covered:
-    needs: race
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-15]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version-file: go.mod
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          pattern: race-${{ matrix.os }}-*
-          path: ran
-          merge-multiple: true
-      - run: rm -f ran/out-*.txt && .github/covered.sh
+      - run: go test -race -count=1 -timeout 15m $(.github/shard.sh ${{ matrix.areas }})
 
   linux:
     if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}

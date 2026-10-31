@@ -162,10 +162,10 @@ provider. The only exception is the contract tests of each provider adapter, whi
 
 ```bash
 go test -race -timeout 30m ./...
-DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v   # the client in a real browser
-DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v    # the real Claude Code
+DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v   # the client in a real browser
+DECK_REAL_CLI=1 go test ./tests/scenarios/real -run TestRealClaudeCode -v    # the real Claude Code
 DECK_LINUX=1 go test ./tests/linux -v                                   # bubblewrap and deck's image user, in docker
-DECK_SERVER=1 go test ./tests/scenarios -run TestServerFromScratch -v   # compose.yaml on a bare docker
+DECK_SERVER=1 go test ./tests/scenarios/real -run TestServerFromScratch -v   # compose.yaml on a bare docker
 ```
 
 The runs against Codex, ACP agents on local models and package installs are listed in

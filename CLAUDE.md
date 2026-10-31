@@ -9,19 +9,19 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   `-tailscale` refuses to start); web client: `cd web && npm ci && npm run build` (type check + `web/dist`)
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token; the next port is the second origin of
   `custom` blocks); on the owner's tailnet: `./deck -tailscale deck` (sign-in link in the log and in health)
-- Tests: `go test -race -timeout 30m ./...` (waits in the harness are `within(d)`, ×4 under race or `DECK_TEST_SLOW`); the tailnet scenario only with the tag:
-  `go test -tags tailnet ./tests/scenarios -run TestPhoneReachesDeckOverTheTailnet`
-- Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
-- Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios -run TestRealCodex -v`
-- The ACP agent Goose on a local Ollama: `DECK_REAL_ACP=1 go test ./tests/scenarios -run TestRealACPAgents -v`
+- Tests: `go test -race -timeout 30m ./...` (one wait, `Until`, two minutes, ×4 under race or `DECK_TEST_SLOW`); the tailnet scenario only with the tag:
+  `go test -tags tailnet ./tests/scenarios/owner -run TestPhoneReachesDeckOverTheTailnet`
+- Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios/real -run TestRealClaudeCode -v`
+- Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios/real -run TestRealCodex -v`
+- The ACP agent Goose on a local Ollama: `DECK_REAL_ACP=1 go test ./tests/scenarios/real -run TestRealACPAgents -v`
   (`DECK_OLLAMA_MODEL`, default `laguna-xs-2.1:nvfp4`; a cloud model: `DECK_ACP_URL`, `DECK_ACP_MODEL`, `DECK_ACP_KEY`)
-- Script packages from PyPI and npm through deck's proxy: `DECK_REAL_PACKAGES=1 go test ./tests/scenarios -run TestRealScriptPackages -v`
+- Script packages from PyPI and npm through deck's proxy: `DECK_REAL_PACKAGES=1 go test ./tests/scenarios/real -run TestRealScriptPackages -v`
 - Web client in a real browser (Playwright MCP; checks that `web/dist` is fresh):
-  `DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
+  `DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
 - Scenario tests on Linux (bubblewrap sandbox, a user without privileges as in WSL2, needs docker):
   `DECK_LINUX=1 go test ./tests/linux -v`
 - deck's image from `compose.yaml` on a bare docker (docker in docker, Codex on a model of the test):
-  `DECK_SERVER=1 go test ./tests/scenarios -run TestServerFromScratch -v`
+  `DECK_SERVER=1 go test ./tests/scenarios/real -run TestServerFromScratch -v`
 - The desktop launcher (its own module): `cd desktop && go test ./...`; `desktop/build.sh` makes `deck.app` and the
   Windows installer (`brew install makensis`)
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`
@@ -97,8 +97,13 @@ hold; look inside a package for the rest.
   the one handler in `useScreen` acts (`screen/act.ts`, `outcome()`) and replies in `/press/<reply>`; a block never
   calls a command itself, and a button the client needs comes from the server in the block's data.
   `web/foreign` is a test page: a screen in the stock renderer with deck's catalog alone.
-- `tests/scenarios` — scenario tests through the real gateway with a fake provider, helpers in `*_harness_test.go`.
-- `.github` — `ci.yml` on every push and PR (checks, tests, race shards by `race.sh` on Linux and macOS, `tests/linux`),
+- `tests/harness` — the one harness of the tests: `New` with options and `Restart`, the owner's client
+  (`Call`/`Must`/`Refused`, `In`, `As`), the one wait `Until` (and `WaitState`, `WaitAsk`, `WaitEvent`), `Manifest` on
+  the current format, `Needs` for tests of real programs, the fakes of agents, CLIs and MCP servers (`fakes`).
+- `tests/scenarios/<area>` — scenario tests through the real gateway with a fake provider, a package an area
+  (`box`, `browser`, `chat`, `egress`, `modules`, `owner`, `providers`, `real`, `runs`), a file `<area>_<topic>_test.go`;
+  `tests/lint` keeps their conventions (`internal/lint/tests.go`).
+- `.github` — `ci.yml` on every push and PR (checks, tests, race shards a package of scenarios each by `shard.sh` on Linux and macOS, `tests/linux`),
   `image.yml` (the image on its changes and nightly), `release.yml` (a tag only of a green commit of master);
   `renovate.json` keeps the pinned base images, CLIs, modules and actions current.
 
@@ -109,7 +114,7 @@ hold; look inside a package for the rest.
 - No names of verticals (vacancies, forecasts, mailboxes, Brier, …) in code (Go, the web client, SQL, Python), in
   `schemas/` or `master/`, outside built-in tools and test fixtures. Verticals live in manifests.
 - Tests are scenario tests through the registry/API on a real SQLite in a temp dir; no unit tests of internals The one
-  exception: contract tests of a provider adapter on recorded streams (`tests/scenarios/contract_<provider>_test.go`).
+  exception: contract tests of a provider adapter on recorded streams (`tests/scenarios/providers/contract_<provider>_test.go`).
 - Every write runs in `Store.Tx`; inside it use only the `ctx` and `q` it passes (`Store.Q` panics there).
   No network calls, git or waiting on processes inside a transaction: the store has one connection, so a
   waiting transaction freezes all of deck. Write the intent, commit, act, then record the outcome in a new one.

@@ -4,9 +4,9 @@ name: image
 on:
   push:
     branches: [master]
-    paths: [Dockerfile, compose.yaml, .dockerignore, .github/workflows/image.yml]
+    paths: [Dockerfile, compose.yaml, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go]
   pull_request:
-    paths: [Dockerfile, compose.yaml, .dockerignore, .github/workflows/image.yml]
+    paths: [Dockerfile, compose.yaml, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go]
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:

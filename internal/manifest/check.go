@@ -229,45 +229,6 @@ func (m *Manifest) knownAction(name string) bool {
 	return m.commands[name] != nil || m.knownTool(name)
 }
 
-// checkAction verifies that a screen button can call its command: the owner may call it and the params
-// cover the required input fields and nothing else.
-func (m *Manifest) checkAction(a Action) error {
-	c := m.commands[a.Command]
-	if c == nil {
-		return fmt.Errorf("unknown command %q", a.Command)
-	}
-	if !slices.Contains(c.Callable(), registry.Owner) {
-		return fmt.Errorf("command %q cannot be called by the owner", a.Command)
-	}
-	in := ObjectOf(c.InputSchema())
-	for _, r := range in.Required {
-		if _, ok := a.Params[r]; !ok && r != a.Input && !slices.Contains(a.FromBlock, r) {
-			return fmt.Errorf("command %q needs param %q", a.Command, r)
-		}
-	}
-	if _, ok := in.Properties[a.Input]; a.Input != "" && !ok {
-		return fmt.Errorf("command %q has no input field %q", a.Command, a.Input)
-	}
-	for k := range a.Params {
-		if _, ok := in.Properties[k]; !ok && k != RetryKey {
-			return fmt.Errorf("command %q has no input field %q", a.Command, k)
-		}
-	}
-	for _, k := range a.FromBlock {
-		_, fixed := a.Params[k]
-		switch _, ok := in.Properties[k]; {
-		case !ok:
-			return fmt.Errorf("command %q has no input field %q", a.Command, k)
-		case fixed:
-			return fmt.Errorf("from_block: %q is a param of the button already", k)
-		}
-	}
-	return nil
-}
-
-// CheckButton checks a button a caller builds at run time, as notify does: a command of the project the owner may call.
-func (m *Manifest) CheckButton(a Action) error { return m.checkAction(a) }
-
 // checkModel checks that a model command gives its model what its kind needs; a list of files it warns of, so a
 // saved module keeps loading.
 func checkModel(c *Command, fail, warn func(string, ...any)) {

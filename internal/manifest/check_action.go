@@ -101,7 +101,7 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	case a.Command != "" && registry.IsBuiltin(a.Command) && c.m.commands[a.Command] == nil:
 		return fmt.Errorf("unknown command %q: a button calls a command of its module; %s", a.Command, deckLink)
 	case a.Command != "":
-		return c.m.checkAction(a)
+		return c.m.CheckButton(a)
 	case c.deck:
 		return nil
 	case a.Project != "" || a.Record != "":
@@ -202,6 +202,42 @@ func checkValue(v string, fields []string) error {
 	if e, ok := strings.CutPrefix(v, "="); ok {
 		if _, err := compileField(e, fields); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// CheckButton checks that a button, of a screen or one a caller builds at run time as owner_notify does, can call its
+// command: the owner may call it and the params cover the required input fields and nothing else.
+func (m *Manifest) CheckButton(a Action) error {
+	c := m.commands[a.Command]
+	if c == nil {
+		return fmt.Errorf("unknown command %q", a.Command)
+	}
+	if !slices.Contains(c.Callable(), registry.Owner) {
+		return fmt.Errorf("command %q cannot be called by the owner", a.Command)
+	}
+	in := ObjectOf(c.InputSchema())
+	for _, r := range in.Required {
+		if _, ok := a.Params[r]; !ok && r != a.Input && !slices.Contains(a.FromBlock, r) {
+			return fmt.Errorf("command %q needs param %q", a.Command, r)
+		}
+	}
+	if _, ok := in.Properties[a.Input]; a.Input != "" && !ok {
+		return fmt.Errorf("command %q has no input field %q", a.Command, a.Input)
+	}
+	for k := range a.Params {
+		if _, ok := in.Properties[k]; !ok && k != RetryKey {
+			return fmt.Errorf("command %q has no input field %q", a.Command, k)
+		}
+	}
+	for _, k := range a.FromBlock {
+		_, fixed := a.Params[k]
+		switch _, ok := in.Properties[k]; {
+		case !ok:
+			return fmt.Errorf("command %q has no input field %q", a.Command, k)
+		case fixed:
+			return fmt.Errorf("from_block: %q is a param of the button already", k)
 		}
 	}
 	return nil

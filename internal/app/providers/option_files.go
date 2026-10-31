@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"deck2/internal/access"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -60,13 +61,14 @@ func (s *Service) keepBig(ctx context.Context, workspace int64, m db.Model) (str
 		return m.Options, nil
 	}
 	type spilled struct {
-		key, tmp string
-		size     int64
+		key  string
+		tmp  *home.Temp
+		size int64
 	}
 	var big []spilled
 	defer func() {
 		for _, b := range big {
-			_ = os.Remove(b.tmp)
+			b.tmp.Drop()
 		}
 	}()
 	for k, v := range o {
@@ -74,19 +76,12 @@ func (s *Service) keepBig(ctx context.Context, workspace int64, m db.Model) (str
 		if !ok || len(text) <= bigOption {
 			continue
 		}
-		if err := os.MkdirAll(s.Home.Files(), 0o700); err != nil {
-			return "", err
-		}
-		f, err := os.CreateTemp(s.Home.Files(), ".upload-*")
+		f, err := home.Create(s.Home.Files())
 		if err != nil {
 			return "", err
 		}
-		_, err = f.WriteString(text)
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-		big = append(big, spilled{k, f.Name(), int64(len(text))})
-		if err != nil {
+		big = append(big, spilled{k, f, int64(len(text))})
+		if _, err := f.WriteString(text); err != nil {
 			return "", err
 		}
 	}
@@ -134,7 +129,7 @@ func (s *Service) keepBig(ctx context.Context, workspace int64, m db.Model) (str
 		return "", err
 	}
 	for _, b := range big {
-		if err := os.Rename(b.tmp, s.Home.File(ids[b.key])); err != nil {
+		if err := b.tmp.Keep(s.Home.File(ids[b.key])); err != nil {
 			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, ids[b.key]) })
 			return "", err
 		}

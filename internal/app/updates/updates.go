@@ -24,6 +24,7 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/egress"
 	"deck2/internal/health"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/release"
 	"deck2/internal/store"
@@ -276,7 +277,7 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 	}
 	os.Remove(old)
 	if err := errors.Join(os.Chmod(fresh, 0o755), os.Link(exe, old),
-		release.WritePending(s.Pending, release.Pending{Exe: exe, Old: old, Version: fs.Version})); err != nil {
+		home.WriteFile(s.Pending, release.Pending{Exe: exe, Old: old, Version: fs.Version}.JSON())); err != nil {
 		os.Remove(fresh)
 		os.Remove(old)
 		os.Remove(s.Pending)

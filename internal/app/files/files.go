@@ -169,18 +169,12 @@ func (s *Service) Upload(ctx context.Context, act registry.Actor, project, name,
 		ctype = "application/octet-stream"
 	}
 	dir := s.Home.Files()
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return View{}, err
-	}
-	tmp, err := os.CreateTemp(dir, ".upload-*")
+	tmp, err := home.Create(dir)
 	if err != nil {
 		return View{}, err
 	}
-	defer os.Remove(tmp.Name())
+	defer tmp.Drop()
 	n, err := io.Copy(tmp, io.LimitReader(body, maxUpload+1))
-	if cerr := tmp.Close(); err == nil {
-		err = cerr
-	}
 	if err != nil {
 		return View{}, err
 	}
@@ -199,7 +193,7 @@ func (s *Service) Upload(ctx context.Context, act registry.Actor, project, name,
 	if err != nil {
 		return View{}, err
 	}
-	if err := os.Rename(tmp.Name(), filepath.Join(dir, strconv.FormatInt(f.ID, 10))); err != nil {
+	if err := tmp.Keep(filepath.Join(dir, strconv.FormatInt(f.ID, 10))); err != nil {
 		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, f.ID) })
 		return View{}, err
 	}

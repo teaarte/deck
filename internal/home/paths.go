@@ -1,5 +1,4 @@
-// Package paths is the one check that a path is inside a folder, as written or by its real path.
-package paths
+package home
 
 import (
 	"errors"
@@ -31,6 +30,48 @@ func Under(path, dir string) bool {
 func Within(dir, path string) bool {
 	rel, err := filepath.Rel(dir, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// Real is path with its links resolved, as the kernel sees it; a missing path resolves through its nearest existing
+// folder.
+func Real(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	rest := ""
+	for d := abs; ; d = filepath.Dir(d) {
+		if r, err := filepath.EvalSymlinks(d); err == nil {
+			return filepath.Join(r, rest)
+		}
+		if d == filepath.Dir(d) {
+			return abs
+		}
+		rest = filepath.Join(filepath.Base(d), rest)
+	}
+}
+
+// Resolve is the real path of the regular file name under root; a link or a way out of root is refused.
+func Resolve(root, name string) (string, error) {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	clean := filepath.Clean("/" + name)[1:]
+	fi, err := r.Lstat(clean)
+	if err != nil || !fi.Mode().IsRegular() {
+		return "", ErrNotRegular
+	}
+	real, err := filepath.EvalSymlinks(filepath.Join(root, clean))
+	if err != nil {
+		return "", err
+	}
+	base, err := filepath.EvalSymlinks(root)
+	if err != nil || !Inside(base, real) {
+		return "", errors.New("outside the folder")
+	}
+	return real, nil
 }
 
 // Inside says path lies inside dir and is not dir itself, as the two are written.

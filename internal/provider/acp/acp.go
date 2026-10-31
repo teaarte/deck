@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"deck2/internal/home"
-	"deck2/internal/paths"
 
 	sdk "github.com/coder/acp-go-sdk"
 
@@ -108,7 +107,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, errors.New("acp: the session id must be assigned by deck")
 	}
 	for _, h := range req.Hidden {
-		if !paths.Under(h, string(a.cfg.Home)) {
+		if !home.Under(h, string(a.cfg.Home)) {
 			return provider.Result{}, fmt.Errorf("acp: hidden path %s is outside deck's folder, which is all the sandbox hides", h)
 		}
 	}

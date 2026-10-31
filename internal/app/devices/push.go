@@ -24,6 +24,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/egress"
 	"deck2/internal/health"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -78,7 +79,7 @@ func (dv *Service) vapidKeys(workspace int64) (vapid, error) {
 	}
 	k = vapid{Public: public, Private: private}
 	b, _ := json.Marshal(k)
-	if err := os.WriteFile(path, b, 0o600); err != nil || len(raw) == 0 {
+	if err := home.WriteFile(path, b); err != nil || len(raw) == 0 {
 		return k, err
 	}
 	// Subscriptions made with the old key would fail now; their devices subscribe again.

@@ -11,8 +11,8 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
-	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -92,7 +92,7 @@ func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry
 	if err != nil {
 		return "", err
 	}
-	if !paths.Within(pj.Home.Data(mp.ID), dir) {
+	if !home.Within(pj.Home.Data(mp.ID), dir) {
 		return "", nil
 	}
 	if act.Kind == registry.Master {

@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/internal/paths"
+	"deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 )
@@ -75,7 +75,7 @@ func settings(req provider.Request) map[string]any {
 	if !req.Repo {
 		return s
 	}
-	for _, root := range paths.Names(req.Cwd) {
+	for _, root := range home.Names(req.Cwd) {
 		for _, f := range []string{"settings.json", "settings.local.json"} {
 			var repo struct {
 				Env map[string]any `json:"env"`
@@ -102,7 +102,7 @@ func settings(req provider.Request) map[string]any {
 func autoMode(req provider.Request) map[string]any {
 	var folders []string
 	for _, d := range append([]string{req.Cwd}, req.Dirs...) {
-		for _, p := range paths.Names(d) {
+		for _, p := range home.Names(d) {
 			if !slices.Contains(folders, p) {
 				folders = append(folders, p)
 			}
@@ -136,14 +136,14 @@ func (a *Adapter) writeFile(pattern string, data []byte) (string, error) {
 		return "", err
 	}
 	_ = f.Close()
-	return f.Name(), provider.WriteFile(f.Name(), data)
+	return f.Name(), home.WriteFile(f.Name(), data)
 }
 
 // excludes lists the instruction files of every folder above the repo, by the given and the real path.
 func excludes(repo string) []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, root := range paths.Names(repo) {
+	for _, root := range home.Names(repo) {
 		for d := filepath.Dir(root); ; d = filepath.Dir(d) {
 			for _, f := range []string{"CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", ".claude/rules/**"} {
 				if p := filepath.Join(d, f); !seen[p] {
@@ -176,7 +176,7 @@ func (a *Adapter) writePlugin(skills map[string]string) (string, error) {
 	for path, text := range skills {
 		files[filepath.Join("skills", path)] = text
 	}
-	if err := provider.WriteTree(dir, files, provider.WritePrivate); err != nil {
+	if err := home.WriteTree(dir, files); err != nil {
 		_ = os.RemoveAll(dir)
 		return "", fmt.Errorf("claude-code: %w", err)
 	}

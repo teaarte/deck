@@ -15,7 +15,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/files"
-	"deck2/internal/paths"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -108,8 +108,8 @@ func (s *Service) dataFile(project int64, path string) (*os.File, error) {
 		return nil, err
 	}
 	defer root.Close()
-	f, err := paths.OpenRegular(root, strings.TrimPrefix(filepath.Clean("/"+path), "/"))
-	if errors.Is(err, paths.ErrNotRegular) {
+	f, err := home.OpenRegular(root, strings.TrimPrefix(filepath.Clean("/"+path), "/"))
+	if errors.Is(err, home.ErrNotRegular) {
 		return nil, os.ErrNotExist
 	}
 	return f, err

@@ -5,7 +5,6 @@ package codex
 import (
 	"cmp"
 	"context"
-	deckhome "deck2/internal/home"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"deck2/internal/home"
+	deckhome "deck2/internal/home"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -149,7 +151,7 @@ func (a *Adapter) sessionFile(session string) string {
 
 // remember writes the Codex thread of a deck session atomically with mode 600.
 func (a *Adapter) remember(session, thread string) error {
-	return provider.WriteFile(a.sessionFile(session), []byte(thread))
+	return home.WriteFile(a.sessionFile(session), []byte(thread))
 }
 
 // writeSkills puts the skills of the turn into a folder of their own outside every folder the agent writes to.
@@ -164,7 +166,7 @@ func (a *Adapter) writeSkills(skills map[string]string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := provider.WriteTree(dir, skills, provider.WritePrivate); err != nil {
+	if err := home.WriteTree(dir, skills); err != nil {
 		_ = os.RemoveAll(dir)
 		return "", fmt.Errorf("codex: %w", err)
 	}

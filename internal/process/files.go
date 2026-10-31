@@ -15,8 +15,7 @@ import (
 	"strings"
 
 	"deck2/internal/fault"
-	"deck2/internal/files"
-	"deck2/internal/paths"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -57,7 +56,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	infos := make([]os.FileInfo, len(res.Files))
 	seen := map[string]bool{}
 	for i, f := range res.Files {
-		src, err := files.Inside(results, f.Path)
+		src, err := home.Resolve(results, f.Path)
 		fi, lerr := os.Lstat(src)
 		if f.Path == "" || err != nil || lerr != nil {
 			return "", fault.New(fault.ResultInvalid, fmt.Sprintf("result file %q is not a file in the results folder", f.Path))
@@ -253,7 +252,7 @@ func move(results, name, dst string) error {
 	}
 	defer root.Close()
 	rel := filepath.Clean("/" + name)[1:]
-	in, err := paths.OpenRegular(root, rel)
+	in, err := home.OpenRegular(root, rel)
 	if err != nil {
 		return fmt.Errorf("result file %s: %w", rel, err)
 	}

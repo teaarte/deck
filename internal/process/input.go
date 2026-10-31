@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
@@ -147,17 +148,16 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-	out, err := os.CreateTemp(filepath.Dir(dst), ".copy-*")
+	out, err := home.Create(filepath.Dir(dst))
 	if err != nil {
 		return err
 	}
-	defer os.Remove(out.Name())
+	defer out.Drop()
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
 		return err
 	}
-	if err := errors.Join(out.Chmod(0o400), out.Close()); err != nil {
+	if err := out.Chmod(0o400); err != nil {
 		return err
 	}
-	return os.Rename(out.Name(), dst)
+	return out.Keep(dst)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"deck2/internal/files"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -95,15 +95,7 @@ func (s *Service) OpenDataThumb(ctx context.Context, act registry.Actor, project
 	}
 	_ = f.Close()
 	// The copy is written apart and moved in whole, so no read finds half of it.
-	if err := os.MkdirAll(s.Home.Thumbs(), 0o700); err == nil {
-		if tmp, err := os.CreateTemp(s.Home.Thumbs(), "light-*"); err == nil {
-			_, werr := tmp.Write(l.JPEG)
-			if errors.Join(werr, tmp.Close()) == nil {
-				_ = os.Rename(tmp.Name(), name)
-			}
-			_ = os.Remove(tmp.Name())
-		}
-	}
+	_ = home.WriteFile(name, l.JPEG)
 	t, err := os.Open(name)
 	if err != nil {
 		return View{}, nil, err

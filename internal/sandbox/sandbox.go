@@ -67,24 +67,8 @@ func group(cmd *exec.Cmd) *exec.Cmd {
 	return cmd
 }
 
-// real resolves symlinks, so rules match the paths the kernel sees; a missing path resolves through its
-// nearest existing folder.
-func real(path string) string {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return path
-	}
-	rest := ""
-	for d := abs; ; d = filepath.Dir(d) {
-		if r, err := filepath.EvalSymlinks(d); err == nil {
-			return filepath.Join(r, rest)
-		}
-		if d == filepath.Dir(d) {
-			return abs
-		}
-		rest = filepath.Join(filepath.Base(d), rest)
-	}
-}
+// real is the path the kernel sees, which the rules of a sandbox match.
+var real = home.Real
 
 // Confine builds the command of a program in the sandbox as deck confines every one: the sandbox checked, deck's
 // folder and the owner's home closed but for the runtimes on path and the folder of bin, the door's environment last.

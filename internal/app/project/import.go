@@ -14,8 +14,8 @@ import (
 	"deck2/internal/app/documents"
 	"deck2/internal/app/folders"
 	"deck2/internal/docs"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
-	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -67,7 +67,7 @@ func (pj *Service) importable(ctx context.Context, act registry.Actor, dir strin
 		roots = append(roots, pj.Home.Data(mp.ID))
 	}
 	for _, r := range roots {
-		if r, err := filepath.EvalSymlinks(r); err == nil && paths.Within(r, real) {
+		if r, err := filepath.EvalSymlinks(r); err == nil && home.Within(r, real) {
 			return nil
 		}
 	}

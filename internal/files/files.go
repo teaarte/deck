@@ -15,7 +15,6 @@ import (
 
 	"deck2/internal/home"
 	"deck2/internal/nonce"
-	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -43,7 +42,7 @@ func (r Ref) Open() (*os.File, int64, error) {
 			return nil, 0, err
 		}
 		defer root.Close()
-		f, err = paths.OpenRegular(root, r.rel)
+		f, err = home.OpenRegular(root, r.rel)
 	} else {
 		f, err = os.Open(r.Path)
 	}
@@ -66,7 +65,7 @@ func Resolve(ctx context.Context, h home.Layout, q *db.Queries, project, process
 			return Ref{}, registry.Invalid("%q is a results file, which only a process has", ref)
 		}
 		root := h.Results(process)
-		path, err := Inside(root, rest)
+		path, err := home.Resolve(root, rest)
 		if err != nil {
 			return Ref{}, registry.Invalid("%q is not a file in the results folder of this process", ref)
 		}
@@ -84,29 +83,6 @@ func Resolve(ctx context.Context, h home.Layout, q *db.Queries, project, process
 		return Ref{}, err
 	}
 	return Ref{ID: f.ID, Path: h.File(f.ID), Name: f.Name, Type: f.Type}, nil
-}
-
-// Inside resolves name under root to the real path of a regular file there; a link or a way out is refused.
-func Inside(root, name string) (string, error) {
-	r, err := os.OpenRoot(root)
-	if err != nil {
-		return "", err
-	}
-	defer r.Close()
-	clean := filepath.Clean("/" + name)[1:]
-	fi, err := r.Lstat(clean)
-	if err != nil || !fi.Mode().IsRegular() {
-		return "", errors.New("not a regular file")
-	}
-	real, err := filepath.EvalSymlinks(filepath.Join(root, clean))
-	if err != nil {
-		return "", err
-	}
-	base, err := filepath.EvalSymlinks(root)
-	if err != nil || !paths.Inside(base, real) {
-		return "", errors.New("outside the folder")
-	}
-	return real, nil
 }
 
 func typeOf(path string) string {

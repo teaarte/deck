@@ -21,6 +21,7 @@ import (
 
 	"deck2/internal/api"
 	"deck2/internal/app"
+	"deck2/internal/home"
 	deckhome "deck2/internal/home"
 	"deck2/internal/nonce"
 	"deck2/internal/provider/claudecode"
@@ -230,7 +231,7 @@ func pending(h deckhome.Layout) error {
 		return nil
 	case !p.Tried:
 		p.Tried = true
-		return release.WritePending(h.Update(), p)
+		return home.WriteFile(h.Update(), p.JSON())
 	}
 	slog.Error("the update did not start; deck goes back to the binary before it", "version", p.Version)
 	os.Remove(h.Update())
@@ -279,10 +280,7 @@ func loadToken(path string) (string, error) {
 		return "", err
 	}
 	tok := nonce.Hex(24)
-	if err := os.WriteFile(path, []byte(tok+"\n"), 0o600); err != nil {
-		return "", err
-	}
-	return tok, os.Chmod(path, 0o600)
+	return tok, home.WriteFile(path, []byte(tok+"\n"))
 }
 
 // mcpBase is where agents of this machine reach deck's MCP servers: loopback when deck listens on every address, as

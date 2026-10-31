@@ -10,9 +10,8 @@ import (
 	"strconv"
 
 	"deck2/internal/docs"
-	"deck2/internal/files"
 	"deck2/internal/gateway"
-	"deck2/internal/paths"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
 )
@@ -91,12 +90,12 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 	out := make([]any, 0, len(list))
 	for _, p := range list {
 		s, _ := p.(string)
-		for _, dir := range paths.Names(runs) {
-			if filepath.IsAbs(s) && paths.Within(dir, s) {
+		for _, dir := range home.Names(runs) {
+			if filepath.IsAbs(s) && home.Within(dir, s) {
 				s, _ = filepath.Rel(dir, s)
 			}
 		}
-		real, err := files.Inside(base, s)
+		real, err := home.Resolve(base, s)
 		if err != nil || filepath.IsAbs(s) {
 			_ = os.RemoveAll(dest)
 			return nil, "", registry.Refuse("%q is not a file in the folder of this process", p)
@@ -121,7 +120,7 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 
 // copyOut copies a regular file of root to dst.
 func copyOut(root *os.Root, rel, dst string) (string, error) {
-	in, err := paths.OpenRegular(root, rel)
+	in, err := home.OpenRegular(root, rel)
 	if err != nil {
 		return "", err
 	}

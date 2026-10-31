@@ -4,13 +4,14 @@ package sandbox
 
 import (
 	"context"
-	"deck2/internal/paths"
 	"fmt"
 	"net"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"deck2/internal/home"
 )
 
 type seatbelt struct{}
@@ -68,8 +69,8 @@ func profile(p Policy) string {
 	open := append(slices.Clone(p.Read), p.Write...)
 	for _, d := range ancestors(open) {
 		fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", quote(d))
-		hidden := slices.ContainsFunc(p.Hide, func(h string) bool { return paths.Within(real(h), d) })
-		if hidden && !slices.ContainsFunc(open, func(o string) bool { return paths.Within(real(o), d) }) {
+		hidden := slices.ContainsFunc(p.Hide, func(h string) bool { return home.Within(real(h), d) })
+		if hidden && !slices.ContainsFunc(open, func(o string) bool { return home.Within(real(o), d) }) {
 			fmt.Fprintf(&b, "(deny file-read-data (literal %s) (with no-report))\n", quote(d))
 		}
 	}

@@ -93,7 +93,7 @@ var openWeb = []string{"*"}
 // UDP past the proxy, and Chrome ignores the switch that would stop it.
 func (b *Browser) noWebRTC() string {
 	path := b.dir("open-no-webrtc.js")
-	if os.MkdirAll(b.dir(""), 0o700) != nil || os.WriteFile(path, []byte(noWebRTC), 0o600) != nil {
+	if os.MkdirAll(b.dir(""), 0o700) != nil || home.WriteFile(path, []byte(noWebRTC)) != nil {
 		slog.Error("browser init script", "path", path)
 	}
 	return path
@@ -138,7 +138,7 @@ func (b *Browser) Load() {
 // Keep stores the tools the server listed after it started.
 func (b *Browser) Keep(list []*mcp.Tool) {
 	if raw, err := json.Marshal(list); err == nil && os.MkdirAll(b.dir(""), 0o700) == nil {
-		_ = os.WriteFile(b.dir("tools.json"), raw, 0o600)
+		_ = home.WriteFile(b.dir("tools.json"), raw)
 	}
 	b.build(list)
 }

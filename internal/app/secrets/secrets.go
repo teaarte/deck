@@ -15,7 +15,7 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/events"
-	"deck2/internal/provider"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/schemas"
@@ -114,7 +114,7 @@ func (s *Service) write(workspace int64, name, value string) error {
 	if !schemas.ValidSecret(name) {
 		return registry.Invalid("bad secret name %q", name)
 	}
-	err := provider.WriteFile(filepath.Join(s.Dir(workspace), name), []byte(value))
+	err := home.WriteFile(filepath.Join(s.Dir(workspace), name), []byte(value))
 	if err == nil {
 		s.Bus.Emit(events.Event{Workspace: workspace, Topic: "secrets"})
 	}

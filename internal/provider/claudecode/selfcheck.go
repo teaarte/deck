@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"deck2/internal/paths"
+	"deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 )
@@ -95,7 +95,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		return c
 	}
 	var deny []string
-	for _, p := range paths.Names(hidden) {
+	for _, p := range home.Names(hidden) {
 		deny = append(deny, p+"/**")
 	}
 	req := provider.Request{Cwd: work, SessionID: uuid.NewString(), MCPURL: url,

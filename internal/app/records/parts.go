@@ -17,8 +17,8 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
-	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -184,7 +184,7 @@ func unheld(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manife
 		}
 	}
 	return slices.DeleteFunc(folders, func(f string) bool {
-		return slices.ContainsFunc(held, func(h string) bool { return paths.Overlap(f, h) })
+		return slices.ContainsFunc(held, func(h string) bool { return home.Overlap(f, h) })
 	}), nil
 }
 

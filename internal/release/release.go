@@ -164,8 +164,8 @@ func ReadPending(path string) (Pending, bool) {
 	return p, true
 }
 
-// WritePending keeps a pending update at path.
-func WritePending(path string, p Pending) error {
+// JSON is the pending update as deck keeps it.
+func (p Pending) JSON() []byte {
 	b, _ := json.Marshal(p)
-	return os.WriteFile(path, b, 0o600)
+	return b
 }

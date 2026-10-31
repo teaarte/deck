@@ -9,6 +9,7 @@ import (
 
 	sdk "github.com/coder/acp-go-sdk"
 
+	"deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/untrusted"
 )
@@ -46,7 +47,7 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 			return provider.Result{}, errors.New("acp: the agent opened a session without an id")
 		}
 		t.session = string(r.SessionId)
-		if err := provider.WriteFile(filepath.Join(t.dir, "session"), []byte(t.session)); err != nil {
+		if err := home.WriteFile(filepath.Join(t.dir, "session"), []byte(t.session)); err != nil {
 			return provider.Result{}, err
 		}
 	} else if err := t.resume(ctx, caps, servers); err != nil {

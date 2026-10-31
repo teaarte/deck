@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"deck2/internal/home"
-	"deck2/internal/paths"
 )
 
 // Closure is what deck keeps from a confined program: Hide closes deck's folder and the owner's home, Read opens
@@ -18,14 +17,14 @@ type Closure struct{ Hide, Read, Private []string }
 // folders of all homes.
 func Close(layout home.Layout, path string) Closure {
 	deck := string(layout)
-	home, err := os.UserHomeDir()
-	if err != nil || real(home) == "/" {
+	own, err := os.UserHomeDir()
+	if err != nil || real(own) == "/" {
 		return Closure{Hide: []string{deck, "/Users", "/home"}}
 	}
-	read := slices.DeleteFunc(Runtimes(home, path), func(r string) bool {
-		return paths.Overlap(real(deck), r)
+	read := slices.DeleteFunc(Runtimes(own, path), func(r string) bool {
+		return home.Overlap(real(deck), r)
 	})
-	return Closure{Hide: []string{deck, home}, Read: read, Private: Private()}
+	return Closure{Hide: []string{deck, own}, Read: read, Private: Private()}
 }
 
 // common are the folders of a home that hold the data of many programs; none of them is an installation.
@@ -33,8 +32,8 @@ var common = []string{".local", ".config", ".cache", "Library"}
 
 // Runtimes are the folders of path inside home by both names, with the installation above each that holds lib,
 // libexec or versions (node, python, a JDK, pyenv shims); a linked program opens alone or with its installation.
-func Runtimes(home, path string) []string {
-	home = real(home)
+func Runtimes(own, path string) []string {
+	own = real(own)
 	var out []string
 	add := func(p string) {
 		if !slices.Contains(out, p) {
@@ -44,14 +43,14 @@ func Runtimes(home, path string) []string {
 	var folder func(dir string, links int)
 	folder = func(dir string, links int) {
 		r := real(dir)
-		if !paths.Inside(home, r) || slices.Contains(out, r) {
+		if !home.Inside(own, r) || slices.Contains(out, r) {
 			return
 		}
 		if c := filepath.Clean(dir); c != r {
 			add(c)
 		}
 		add(r)
-		if up := filepath.Dir(r); up != home && !slices.Contains(common, strings.TrimPrefix(up, home+"/")) && installation(up) {
+		if up := filepath.Dir(r); up != own && !slices.Contains(common, strings.TrimPrefix(up, own+"/")) && installation(up) {
 			add(up)
 		}
 		if links == 0 {
@@ -60,7 +59,7 @@ func Runtimes(home, path string) []string {
 		entries, _ := os.ReadDir(r)
 		for _, e := range entries {
 			to, err := filepath.EvalSymlinks(filepath.Join(r, e.Name()))
-			if e.Type()&os.ModeSymlink == 0 || err != nil || !paths.Inside(home, to) {
+			if e.Type()&os.ModeSymlink == 0 || err != nil || !home.Inside(own, to) {
 				continue
 			}
 			if up := filepath.Dir(filepath.Dir(to)); filepath.Base(filepath.Dir(to)) == "bin" || installation(up) {

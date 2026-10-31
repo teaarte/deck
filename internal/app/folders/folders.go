@@ -11,7 +11,6 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
-	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -51,8 +50,8 @@ func (s *Service) realFolder(path string) (string, error) {
 	if st, err := os.Stat(real); err != nil || !st.IsDir() {
 		return "", registry.Invalid("%s is not a folder", dir)
 	}
-	for _, home := range paths.Names(string(s.Home)) {
-		if paths.Overlap(home, real) {
+	for _, own := range home.Names(string(s.Home)) {
+		if home.Overlap(own, real) {
 			return "", registry.Invalid("folder %s holds or is inside deck's own folder %s", dir, s.Home)
 		}
 	}

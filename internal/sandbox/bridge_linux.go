@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	"deck2/internal/paths"
+	"deck2/internal/home"
 )
 
 // bridgeArg makes the deck binary, started inside the sandbox, carry a local port to deck's socket.
@@ -98,7 +98,7 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 	}
 	var private []string
 	for _, h := range p.Private {
-		if slices.ContainsFunc(p.Read, func(r string) bool { return paths.Inside(real(r), real(h)) }) {
+		if slices.ContainsFunc(p.Read, func(r string) bool { return home.Inside(real(r), real(h)) }) {
 			private = append(private, h)
 		}
 	}
@@ -143,7 +143,7 @@ func links(path string, hide []string, made map[string]bool) []string {
 		if err != nil {
 			break
 		}
-		inside := slices.ContainsFunc(hide, func(h string) bool { return paths.Inside(real(h), p) || paths.Inside(h, p) })
+		inside := slices.ContainsFunc(hide, func(h string) bool { return home.Inside(real(h), p) || home.Inside(h, p) })
 		if fi.Mode()&os.ModeSymlink != 0 && inside && !made[p] {
 			if to, err := os.Readlink(p); err == nil {
 				made[p] = true

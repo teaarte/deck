@@ -10,7 +10,7 @@ var exceptions = map[string][]string{
 		"internal/app/providers/video.go:58", "internal/app/providers/video.go:67", "internal/app/tokens/lent.go:37",
 		"internal/app/tokens/lent.go:63", "internal/models/hops.go:149", "internal/models/hops.go:159",
 		"internal/models/meter.go:23", "internal/models/meter.go:32", "internal/mcphost/host.go:69",
-		"internal/provider/acp/acp.go:200", "internal/script/run.go:216", "internal/script/run.go:220",
+		"internal/provider/acp/acp.go:199", "internal/script/run.go:216", "internal/script/run.go:220",
 		"internal/tools/oauth.go:78", "internal/tools/oauth.go:89",
 	},
 	"go": {

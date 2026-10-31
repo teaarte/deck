@@ -87,7 +87,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 	e.Until("on_error", func() bool { return len(runsOf(e, "master", "on_error")) == 1 })
 	in := e.App.Store.Q
 	got, _ := in.GetProcess(context.Background(), runsOf(e, "master", "on_error")[0].ID)
-	if !strings.Contains(got.Input, `"process":`) || !strings.Contains(got.Input, strings.TrimSpace(itoa(failed.ID))) {
+	if !strings.Contains(got.Input, `"process":`) || !strings.Contains(got.Input, strings.TrimSpace(harness.Itoa(failed.ID))) {
 		t.Fatalf("the master gets the failed process: %s", got.Input)
 	}
 	e.WaitState(e.Run(p, "work"), "error")

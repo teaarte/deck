@@ -152,7 +152,7 @@ func TestRealCodexResolvesItsRunAndKeepsCaches(t *testing.T) {
 	if got.State != "done" || json.Unmarshal(got.Result, &r) != nil {
 		t.Fatalf("the probe ends: %+v", got)
 	}
-	if !strings.Contains(r.Real, filepath.Join("runs", itoa(id))) || !strings.HasSuffix(strings.TrimSpace(r.Cache), "ok") || strings.Contains(r.State, "closed") {
+	if !strings.Contains(r.Real, filepath.Join("runs", harness.Itoa(id))) || !strings.HasSuffix(strings.TrimSpace(r.Cache), "ok") || strings.Contains(r.State, "closed") {
 		t.Fatalf("the run resolves, the cache is written, the state stays closed: %+v", r)
 	}
 }

@@ -549,7 +549,7 @@ func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	module := strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1)
-	post := postManifest(svc.URL, "")
+	post := harness.PostManifest(svc.URL, "")
 	module = strings.Replace(module, `"scripts": [`, post[strings.Index(post, `"tools"`):len(post)-1]+`, "scripts": [`, 1)
 	pid := e.Project("shorts", module)
 	id := videos(e, map[string]any{"slug": "old", "dir": "old"})["old"]

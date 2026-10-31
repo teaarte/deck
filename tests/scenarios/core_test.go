@@ -288,15 +288,6 @@ func TestResultNotBySchemaAfterOneRetry(t *testing.T) {
 	}
 }
 
-const calcManifest = `{
-  "version": 13,
-  "collections": [{"name": "nums", "description": "A number", "key": "n",
-    "schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}}],
-  "commands": [{"name": "calc", "title": "Calc", "description": "Uses a number.", "class": "internal",
-    "input": {"type": "object", "properties": {"n": {"type": "integer"}}},
-    "executor": {"type": "agent", "prompt": "OLD PROMPT"}}]
-}`
-
 // TestAToolAddedToTheProjectReachesARunningTurn: a command added to the manifest while an agent works is a tool of
 // its session at once, and a command taken out is gone, so the master tries what it just built in the same turn.
 func TestAToolAddedToTheProjectReachesARunningTurn(t *testing.T) {

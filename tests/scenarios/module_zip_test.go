@@ -90,7 +90,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		!strings.Contains(string(b), `"screen":"draft"`) {
 		t.Fatalf("a draft is enabled from the page of what it may do: %s", b)
 	}
-	rev := manifestRevision(e, "links-shared")
+	rev := e.ManifestRevision("links-shared")
 	data := e.ScreenData("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "links-shared", "revision": "%d"}`, rev)})
 	b, _ := json.Marshal(data)
 	if !strings.Contains(string(b), "post_link") {

@@ -101,7 +101,7 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	}))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
-	e.Project("notes", postManifest(svc.URL, ""))
+	e.Project("notes", harness.PostManifest(svc.URL, ""))
 	_, tok := e.Token("terminal", "deck.command_try")
 	for _, call := range []func() (int, []byte){
 		func() (int, []byte) {
@@ -131,7 +131,7 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	}
 	e.WaitState(try.Process, "done")
 	e.Must("deck.manifest_save", map[string]any{"project": "notes",
-		"manifest": strings.Replace(postManifest(svc.URL, ""), `"class": "internal",`, `"class": "internal", "callers": ["owner"],`, 1)}, nil)
+		"manifest": strings.Replace(harness.PostManifest(svc.URL, ""), `"class": "internal",`, `"class": "internal", "callers": ["owner"],`, 1)}, nil)
 	if code, out := e.As(tok).Call("deck.command_try", map[string]any{"live": true, "command": "notes.work"}); code != 403 || !strings.Contains(string(out), "cannot be called by master") {
 		t.Fatalf("a command closed to the master is not tried by a token: %d %s", code, out)
 	}
@@ -163,7 +163,7 @@ func TestATrialOfAToolCommandWaitsForTheOwner(t *testing.T) {
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	e := harness.New(t)
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
-	send := strings.Replace(postManifest(svc.URL, ""), `"commands": [`, `"commands": [{"name": "send", "title": "Send",
+	send := strings.Replace(harness.PostManifest(svc.URL, ""), `"commands": [`, `"commands": [{"name": "send", "title": "Send",
     "description": "Sends the note.", "class": "external", "executor": {"type": "tool", "tool": "post"},
     "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}},`, 1)
 	e.Project("notes", send)

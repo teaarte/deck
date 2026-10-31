@@ -1,4 +1,4 @@
-package scenarios
+package box
 
 import (
 	"context"
@@ -51,7 +51,7 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	home := e.Home
 	_ = os.WriteFile(filepath.Join(home, "deck.log"), []byte("deck listening url=http://127.0.0.1:7700/?token=x"), 0o600)
 	e.Project("other", harness.PlainManifest)
-	p := e.Project("notes", postManifest("http://127.0.0.1:1", ""))
+	p := e.Project("notes", harness.PostManifest("http://127.0.0.1:1", ""))
 	var id int64
 	for id < 10 {
 		id = e.Run(p, "work")
@@ -113,16 +113,12 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	}
 }
 
-const noNetworkManifest = `{"version": 13, "no_network": true,
-  "commands": [{"name": "work", "title": "Work", "description": "Does work", "class": "internal",
-    "executor": {"type": "agent", "prompt": "Do the work."}}]}`
-
 func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("health", noNetworkManifest)
+	p := e.Project("health", harness.NoNetworkManifest)
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
@@ -143,7 +139,7 @@ func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
 	}
 
 	_, tok := e.Token("terminal", "deck.*")
-	open := strings.Replace(noNetworkManifest, `"no_network": true,`, "", 1)
+	open := strings.Replace(harness.NoNetworkManifest, `"no_network": true,`, "", 1)
 	var w struct {
 		Waiting int64
 		Widens  []string
@@ -152,11 +148,11 @@ func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
 	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Equal(w.Widens, []string{"no_network removed: agents get their own web"}) {
 		t.Fatalf("removing no_network waits for the owner's button: %d %s", code, out)
 	}
-	if rev := manifestRevision(e, "health"); rev != 1 {
+	if rev := e.ManifestRevision("health"); rev != 1 {
 		t.Fatalf("the project stays without network until the owner allows: revision %d", rev)
 	}
 	e.Must("deck.manifest_save", map[string]any{"project": "health", "manifest": open}, nil)
-	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "health", "manifest": noNetworkManifest}); code != 200 || strings.Contains(string(out), "waiting") {
+	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "health", "manifest": harness.NoNetworkManifest}); code != 200 || strings.Contains(string(out), "waiting") {
 		t.Fatalf("setting no_network narrows rights and applies at once: %d %s", code, out)
 	}
 }
@@ -175,7 +171,7 @@ func selfCheckWith(t *testing.T, fixture, before, offline, status string) string
 		b, _ := os.ReadFile(filepath.Join(c.Dir, "before"))
 		c.Before(strings.Replace(string(b), "selfcheck_offline.jsonl", offline, 1))
 	}
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	return e.WaitHealth("provider:claude-code", status).Error
 }

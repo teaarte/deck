@@ -1,4 +1,4 @@
-package scenarios
+package box
 
 import (
 	deckhome "deck2/internal/home"

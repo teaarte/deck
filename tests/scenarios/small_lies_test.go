@@ -32,26 +32,6 @@ func TestADraftsScheduleSaysItDoesNotRun(t *testing.T) {
 	}
 }
 
-// TestANoteOfAScriptIsSignedByTheScript: a note a script writes is signed as a script, not an agent.
-func TestANoteOfAScriptIsSignedByTheScript(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	e.Project("tools", harness.ScriptManifest("run", "", ""))
-	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
-code, out = deck("deck.notify", {"text": "The report is ready"})
-print(json.dumps({"code": code}))
-`)
-	id := e.Start("tools", "run", nil)
-	if got := e.WaitState(id, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), "200") {
-		t.Fatalf("the script wrote its note: %+v", got)
-	}
-	var author string
-	_ = e.App.Store.DB.QueryRow(`SELECT author FROM feed WHERE text = 'The report is ready'`).Scan(&author)
-	if author != "script:"+itoa(id) {
-		t.Fatalf("the note is signed by the script: %q", author)
-	}
-}
-
 // TestALineOfMediaSaysWhyItHasNoFileInWords: an expression of a line that fails names itself and the fault,
 // without the drawing of where in it.
 func TestALineOfMediaSaysWhyItHasNoFileInWords(t *testing.T) {

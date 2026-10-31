@@ -1,4 +1,4 @@
-package scenarios
+package box
 
 import (
 	"context"

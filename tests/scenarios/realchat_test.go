@@ -52,7 +52,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": harness.TasksManifest}, nil)
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "x"}`) })
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	e.Project("notes", postManifest(svc.URL, ""))
+	e.Project("notes", harness.PostManifest(svc.URL, ""))
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})

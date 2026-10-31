@@ -144,7 +144,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 		return e.Button("", review["screen"].(string), map[string]any{"params": string(params)}, "deck.project_enable", nil)
 	}
 	stale := enable(verb(t, notes.Actions, "review"))
-	if stale["params"].(map[string]any)["revision"] != float64(manifestRevision(e, "notes")) {
+	if stale["params"].(map[string]any)["revision"] != float64(e.ManifestRevision("notes")) {
 		t.Fatalf("enable on the page of what a draft may do carries the revision the row shows: %+v", stale)
 	}
 

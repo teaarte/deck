@@ -165,8 +165,8 @@ func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 func TestProjectDeleteStopsTheMCPServersOfTheProject(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("srv", mcpManifest(""))
-	dir := mcpDir(e, "srv", "fake")
+	e.Project("srv", harness.McpManifest(""))
+	dir := e.McpDir("srv", "fake")
 	e.WaitState(e.Start("srv", "look", map[string]any{"word": "moon"}), "done")
 	f, err := os.Open(filepath.Join(dir, "alive"))
 	if err != nil {

@@ -41,7 +41,7 @@ func steps(s ...step) map[string]any {
 // writes into its results folder first.
 type seqAgent struct {
 	mu    sync.Mutex
-	got   []toolCall
+	got   []harness.ToolCall
 	tools []string
 	files []string
 	links map[string]string
@@ -68,16 +68,16 @@ func (s *seqAgent) script(ctx context.Context, c *harness.Call) provider.Result 
 	for _, st := range list {
 		out, isErr := c.Tool(ctx, st.Tool, st.Args)
 		s.mu.Lock()
-		s.got = append(s.got, toolCall{out, isErr})
+		s.got = append(s.got, harness.ToolCall{Out: out, IsErr: isErr})
 		s.mu.Unlock()
 	}
 	return provider.Result{Structured: json.RawMessage(`{}`)}
 }
 
-func (s *seqAgent) last(n int) []toolCall {
+func (s *seqAgent) last(n int) []harness.ToolCall {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]toolCall{}, s.got[len(s.got)-n:]...)
+	return append([]harness.ToolCall{}, s.got[len(s.got)-n:]...)
 }
 
 func nav(url string) step { return step{"browser_navigate", map[string]any{"url": url}} }
@@ -91,7 +91,7 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 	e.Project("web", browserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`))
 
 	e.WaitState(e.Start("web", "browse", steps(nav("https://shop.example/cart"), click("e2"))), "done")
-	if got := ag.last(2); got[0].isErr || got[1].isErr || !slices.Contains(harness.FakeLog(e.Browser), "click:https://shop.example/cart") {
+	if got := ag.last(2); got[0].IsErr || got[1].IsErr || !slices.Contains(harness.FakeLog(e.Browser), "click:https://shop.example/cart") {
 		t.Fatalf("a click on an act domain runs at once: %+v %v", got, harness.FakeLog(e.Browser))
 	}
 	if slices.Contains(ag.tools, "mcp__deck__browser_run_code_unsafe") || !slices.Contains(ag.tools, "mcp__deck__browser_click") {
@@ -104,18 +104,18 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 	e.WaitState(e.Start("web", "browse", steps(nav("https://shop.example/pay"))), "done")
 	_ = os.WriteFile(filepath.Join(e.Browser, "flip"), []byte("https://news.example/moved"), 0o600)
 	e.WaitState(e.Start("web", "browse", steps(click("e9"))), "done")
-	if got := ag.last(1)[0]; !got.isErr || !strings.Contains(got.out, "not on an act domain") || slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/moved") {
+	if got := ag.last(1)[0]; !got.IsErr || !strings.Contains(got.Out, "not on an act domain") || slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/moved") {
 		t.Fatalf("a click whose page changed after the check is not made: %+v", got)
 	}
 
 	e.WaitState(e.Start("web", "browse", steps(nav("https://evil.example/"))), "done")
-	if got := ag.last(1)[0]; !got.isErr || !strings.Contains(got.out, "not on a read or act domain") {
+	if got := ag.last(1)[0]; !got.IsErr || !strings.Contains(got.Out, "not on a read or act domain") {
 		t.Fatalf("a page off the domains is not opened: %+v", got)
 	}
 
 	id := e.Start("web", "browse", steps(nav("https://news.example/a"), click("e2")))
 	e.WaitState(id, "waiting_answer")
-	if got := ag.last(1)[0]; !strings.Contains(got.out, `"waiting"`) || slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/a") {
+	if got := ag.last(1)[0]; !strings.Contains(got.Out, `"waiting"`) || slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/a") {
 		t.Fatalf("a click on a read domain waits for the owner: %+v", got)
 	}
 	e.Answer(e.WaitAsk().ID, "allow")
@@ -143,10 +143,10 @@ func TestBrowserReadsAnySiteWithAStarAndSendsOnlyOwnFiles(t *testing.T) {
 		step{"browser_file_upload", map[string]any{"paths": []string{"/etc/passwd"}}},
 		step{"browser_file_upload", map[string]any{"paths": []string{"results/cv.pdf"}}})), "done")
 	got := ag.last(4)
-	if got[0].isErr || got[1].isErr {
+	if got[0].IsErr || got[1].IsErr {
 		t.Fatalf("\"*\" in read opens any site: %+v", got)
 	}
-	if !got[2].isErr || !strings.Contains(got[2].out, "not a file in the folder") || !slices.Contains(harness.FakeLog(e.Browser), "upload:1") || got[3].isErr {
+	if !got[2].IsErr || !strings.Contains(got[2].Out, "not a file in the folder") || !slices.Contains(harness.FakeLog(e.Browser), "upload:1") || got[3].IsErr {
 		t.Fatalf("an upload sends only files of the process's own folder: %+v %v", got, harness.FakeLog(e.Browser))
 	}
 }
@@ -164,11 +164,11 @@ func TestBrowserSendsNoFileALinkPointsOutOfTheFolder(t *testing.T) {
 		step{"browser_file_upload", map[string]any{"paths": []string{"results/cv.pdf"}}})), "done")
 	got := ag.last(3)
 	for _, c := range got[:2] {
-		if !c.isErr || !strings.Contains(c.out, "not a file in the folder") {
+		if !c.IsErr || !strings.Contains(c.Out, "not a file in the folder") {
 			t.Fatalf("a link out of the folder of the process is refused: %+v", got)
 		}
 	}
-	if got[2].isErr || !slices.Contains(harness.FakeLog(e.Browser), "upload:1") {
+	if got[2].IsErr || !slices.Contains(harness.FakeLog(e.Browser), "upload:1") {
 		t.Fatalf("a file of the folder goes: %+v %v", got, harness.FakeLog(e.Browser))
 	}
 }
@@ -213,7 +213,7 @@ func TestAHungBrowserToolFreesTheBrowserForOtherProjects(t *testing.T) {
 	e.WaitState(e.Start("one", "browse", steps(snap)), "done")
 	e.WaitState(e.Start("two", "browse", steps(nav("https://198.51.100.2/"), snap)), "done")
 	got := ag.last(3)
-	if !got[0].isErr || !strings.Contains(got[0].out, "did not answer") || got[1].isErr || got[2].isErr {
+	if !got[0].IsErr || !strings.Contains(got[0].Out, "did not answer") || got[1].IsErr || got[2].IsErr {
 		t.Fatalf("a tool that hangs fails after its deadline and the browser works again for the next project: %+v", got)
 	}
 }
@@ -226,7 +226,7 @@ func TestStarInReadIsOnlyThePublicInternet(t *testing.T) {
 	e.Project("web", browserManifest(`{"read": ["*", "127.0.0.1:8080"]}`))
 	e.WaitState(e.Start("web", "browse", steps(nav("http://127.0.0.1:11434/"), nav("http://localhost:3000/"), nav("http://127.0.0.1:8080/"),
 		nav("https://nowhere.invalid/"))), "done")
-	if got := ag.last(4); !got[0].isErr || !got[1].isErr || got[2].isErr || !got[3].isErr {
+	if got := ag.last(4); !got[0].IsErr || !got[1].IsErr || got[2].IsErr || !got[3].IsErr {
 		t.Fatalf("a local page opens only when its host:port is named, and \"*\" opens no name that does not resolve: %+v", got)
 	}
 }
@@ -239,16 +239,16 @@ func TestBrowserWithholdsPagesOffTheDomainsAndSurvivesALostAction(t *testing.T) 
 	_ = os.WriteFile(filepath.Join(e.Browser, "goto"), []byte("https://bank.example/account"), 0o600)
 	e.WaitState(e.Start("web", "browse", steps(nav("https://shop.example/"), click("e1"), step{"browser_snapshot", map[string]any{}})), "done")
 	got := ag.last(2)
-	if got[0].isErr || !strings.Contains(got[0].out, "withheld") || strings.Contains(got[0].out, "Page URL") {
+	if got[0].IsErr || !strings.Contains(got[0].Out, "withheld") || strings.Contains(got[0].Out, "Page URL") {
 		t.Fatalf("an action that lands off the domains does not show the page: %+v", got[0])
 	}
-	if !got[1].isErr || !strings.Contains(got[1].out, "withheld") {
+	if !got[1].IsErr || !strings.Contains(got[1].Out, "withheld") {
 		t.Fatalf("a page off the domains is not read: %+v", got[1])
 	}
 
 	_ = os.WriteFile(filepath.Join(e.Browser, "goto"), []byte("crash"), 0o600)
 	e.WaitState(e.Start("web", "browse", steps(nav("https://shop.example/"), click("e1"))), "done", "waiting_answer")
-	if c := ag.last(1)[0]; !c.isErr || !strings.Contains(c.out, "outcome is unknown") {
+	if c := ag.last(1)[0]; !c.IsErr || !strings.Contains(c.Out, "outcome is unknown") {
 		t.Fatalf("an action the browser died in has an unknown outcome: %+v", c)
 	}
 	done := make(chan struct{})
@@ -267,7 +267,7 @@ func TestBrowserTabsListShowsOnlyThisProjectsSites(t *testing.T) {
 	e.Project("news", browserManifest(`{"read": ["news.example"]}`))
 	e.WaitState(e.Start("mail", "browse", steps(nav("https://mail.example/inbox/offer-from-acme"))), "done")
 	e.WaitState(e.Start("news", "browse", steps(step{"browser_tabs", map[string]any{"action": "list"}})), "done")
-	if got := ag.last(1)[0]; strings.Contains(got.out, "mail.example") || strings.Contains(got.out, "offer-from-acme") {
+	if got := ag.last(1)[0]; strings.Contains(got.Out, "mail.example") || strings.Contains(got.Out, "offer-from-acme") {
 		t.Fatalf("the tabs of sites off a project's domains are not shown to it: %+v", got)
 	}
 }
@@ -303,7 +303,7 @@ func TestAProjectThatReadsAnySiteGetsABrowserWithoutSignIns(t *testing.T) {
 	e.WaitState(e.Start("research", "browse", steps(nav("https://198.51.100.3/inbox"),
 		step{"browser_tabs", map[string]any{"action": "list"}})), "done")
 	got := ag.last(2)
-	if got[0].isErr || strings.Contains(got[1].out, "offer-from-acme") {
+	if got[0].IsErr || strings.Contains(got[1].Out, "offer-from-acme") {
 		t.Fatalf("a project with \"*\" reads any site in a browser of its own: %+v", got)
 	}
 	log := harness.FakeLog(e.Browser)

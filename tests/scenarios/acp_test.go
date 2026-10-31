@@ -129,7 +129,7 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 	if m := f.Call(4).Mcp; len(m) != 1 || !strings.Contains(m[0]["text"].(string), "not answered yet") {
 		t.Fatalf("the agent hears in time that the owner has not answered and ends its turn: %v", m)
 	}
-	lines := log(e, id)
+	lines := e.Log(id)
 	kinds := make([]string, 0, len(lines))
 	for _, l := range lines {
 		kinds = append(kinds, fmt.Sprint(l["kind"]))
@@ -150,7 +150,7 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 	if !strings.Contains(string(c.Request("session/prompt")), "blue") {
 		t.Fatalf("the resume brings the answer: %s", c.Request("session/prompt"))
 	}
-	for _, l := range log(e, id) {
+	for _, l := range e.Log(id) {
 		if l["text"] == "Hi again." {
 			t.Fatalf("the history a load replays is not logged again: %v", l)
 		}
@@ -211,7 +211,7 @@ func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"posted": true}}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	id := e.Run(e.AcpProject("notes", postManifest(svc.URL, "")), "work")
+	id := e.Run(e.AcpProject("notes", harness.PostManifest(svc.URL, "")), "work")
 	a := e.WaitAsk()
 	if a.Kind != "call" || len(svc.Requests()) != 0 {
 		t.Fatalf("the external call waits for the owner and is not made: %+v %d", a, len(svc.Requests()))
@@ -239,11 +239,11 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
 	}
 	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
-	open := strings.Replace(noNetworkManifest, `"no_network": true,`, "", 1)
+	open := strings.Replace(harness.NoNetworkManifest, `"no_network": true,`, "", 1)
 	if got := e.WaitState(e.Run(e.AcpProject("open", open), "work"), "done"); !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("what the agent said is the result of a command without a schema: %s", got.Result)
 	}
-	e.WaitState(e.Run(e.AcpProject("private", noNetworkManifest), "work"), "done")
+	e.WaitState(e.Run(e.AcpProject("private", harness.NoNetworkManifest), "work"), "done")
 	web, off := f.Call(4), f.Call(5)
 	if !strings.Contains(web.Shell[0]["out"], "not in the domains") || !strings.Contains(off.Shell[0]["out"], "not reachable") || len(site.Requests()) != 0 {
 		t.Fatalf("the proxy carries no agent to deck or local services, and nowhere without network: %q / %q", web.Shell[0]["out"], off.Shell[0]["out"])
@@ -571,7 +571,7 @@ func TestACPTurnIsNotUndoneByARefusedCallOnTheSide(t *testing.T) {
 		harness.AcpModel, `{"model": {"model": "m", "messages": [{"role": "user", "content": "a title for this session"}]}}`,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Checked the page."}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, llm))
-	open := strings.Replace(noNetworkManifest, `"no_network": true,`, "", 1)
+	open := strings.Replace(harness.NoNetworkManifest, `"no_network": true,`, "", 1)
 	if got := e.WaitState(e.Run(e.AcpProject("open", open), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("a turn is done though a call on its side was refused: %+v", got)
 	}
@@ -669,7 +669,7 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 	f := harness.NewACP(t)
 	f.SelfCheck()
 	for i := 4; i <= 6; i++ {
-		f.Stream(i, "selfcheck_"+itoa(int64(i-3))+".jsonl")
+		f.Stream(i, "selfcheck_"+harness.Itoa(int64(i-3))+".jsonl")
 	}
 	slow := strings.Replace(harness.AcpInit, `{"reply": "initialize"`, `{"shell": "sleep 1"}`+"\n"+`{"reply": "initialize"`, 1)
 	b, _ := os.ReadFile(harness.Testdata("acp/selfcheck_1.jsonl"))
@@ -784,7 +784,7 @@ func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
 
 // TestACPAgentDoesNotReadTheOwnersHome: the sandbox keeps the owner's home closed from an ACP agent, as from scripts.
 func TestACPAgentDoesNotReadTheOwnersHome(t *testing.T) {
-	owner := ownerHome(t)
+	owner := harness.OwnerHome(t)
 	_ = os.WriteFile(filepath.Join(owner, ".zshrc"), []byte("private"), 0o600)
 	f := harness.NewACP(t)
 	t.Setenv("HOME", owner)

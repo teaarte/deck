@@ -3,6 +3,7 @@ package harness
 import (
 	"os"
 	"path/filepath"
+	"testing"
 )
 
 // Approving makes the fake CLI act as the real one does in auto mode on the self-check: the write in its folder
@@ -25,4 +26,11 @@ func (c *FakeCLI) Before(script string) {
 	if err := os.WriteFile(filepath.Join(c.Dir, "before"), []byte(script), 0o644); err != nil {
 		c.T.Fatal(err)
 	}
+}
+
+func ClockCLIEnv(t *testing.T, c *FakeCLI) *Env {
+	home := t.TempDir()
+	clock := &Clock{At: T0}
+	e := New(t, WithHome(home), WithProvider(c.Adapter(home)), WithClock(clock))
+	return e
 }

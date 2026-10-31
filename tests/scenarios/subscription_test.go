@@ -12,7 +12,7 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
 	c.Stream(0, "ok.jsonl")
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn runs: %+v", got)

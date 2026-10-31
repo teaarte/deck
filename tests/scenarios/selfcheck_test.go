@@ -25,18 +25,11 @@ func version(c *harness.FakeCLI, v string) {
 	}
 }
 
-func clockCLIEnv(t *testing.T, c *harness.FakeCLI) *harness.Env {
-	home := t.TempDir()
-	clock := &harness.Clock{At: harness.T0}
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)), harness.WithClock(clock))
-	return e
-}
-
 func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
 	c.Stream(0, "ok.jsonl")
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
 	h := e.WaitHealth("provider:claude-code", "error")
@@ -98,7 +91,7 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 			cli := harness.NewCLI(t)
 			cli.Stream(1, c.fixture)
 			cli.Stream(0, "ok.jsonl")
-			e := clockCLIEnv(t, cli)
+			e := harness.ClockCLIEnv(t, cli)
 			e.App.Providers.Checks(context.Background(), e.Clock.Now())
 			e.WaitHealth("provider:claude-code", c.status)
 			p := e.Project("plain", harness.PlainManifest)
@@ -167,7 +160,7 @@ func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
 	c.Stream(2, "selfcheck.jsonl")
 	c.Stream(3, "selfcheck_resume.jsonl")
 	c.Approving()
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "paused"); h.Version != "" {
 		t.Fatalf("a self-check cut short by the limit proves nothing about the version: %+v", h)
@@ -188,7 +181,7 @@ func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 	c.Before(readFile(t, filepath.Join(c.Dir, "before")) + fmt.Sprintf(`
 [ -n "$url" ] && DECK_FAKE_MCP=approve '%s' "$url" Bash '{"command":"cat ~/.ssh/id_rsa"}'
 `, self))
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "Bash instead of passing a write") {
 		t.Fatalf("a question about any other command makes the self-check red: %+v", h)
@@ -200,7 +193,7 @@ func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(1, "selfcheck_nousage.jsonl")
 	c.Approving()
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "token counts") {
 		t.Fatalf("a turn without usage turns the self-check red: %+v", h)
@@ -213,7 +206,7 @@ func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
 	c.Stream(1, "selfcheck.jsonl")
 	c.Stream(2, "selfcheck_resume_nousage.jsonl")
 	c.Approving()
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "resume: token counts") {
 		t.Fatalf("a resume without usage turns the self-check red: %+v", h)
@@ -298,7 +291,7 @@ func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
 	c.Stream(1, "selfcheck.jsonl")
 	c.Stream(2, "selfcheck_resume.jsonl")
 	c.Approving()
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	e.WaitHealth("provider:claude-code", "ok")
 	c.Stream(4, "error.jsonl")
@@ -340,7 +333,7 @@ if [ -f "$d/nomcp" ]; then
   echo "Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none" >&2
   exit 1
 fi`)
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
 	e.WaitHealth("provider:claude-code", "ok")
@@ -409,7 +402,7 @@ if [ -f "$d/nomcp" ] && ! grep -q 'deck-check-' "$c/stdin" && ! grep -q -- --res
   echo "Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none" >&2
   exit 1
 fi`)
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	masterAwake(e)
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())

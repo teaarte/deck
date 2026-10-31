@@ -260,7 +260,7 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(1, "ratelimit_rejected.jsonl")
 	c.Stream(0, "ok.jsonl")
-	e := clockCLIEnv(t, c)
+	e := harness.ClockCLIEnv(t, c)
 	e.Clock.Add(time.Unix(1790379000, 0).Add(-2 * time.Hour).Sub(e.Clock.Now()))
 	p := e.Project("plain", harness.PlainManifest)
 	id := e.Run(p, "work")
@@ -345,10 +345,10 @@ func TestClaudeCodeReadsInItsFoldersAndShowsWhatItRefused(t *testing.T) {
 			t.Fatalf("auto mode is told the folder %s: %s", f, env)
 		}
 	}
-	for _, l := range log(e, id) {
+	for _, l := range e.Log(id) {
 		if l["kind"] == "denied" && l["title"] == "Bash" && strings.Contains(fmt.Sprint(l["text"]), "has been denied") {
 			return
 		}
 	}
-	t.Fatalf("the refused call is a line of the log: %+v", log(e, id))
+	t.Fatalf("the refused call is a line of the log: %+v", e.Log(id))
 }

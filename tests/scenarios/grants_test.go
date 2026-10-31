@@ -23,7 +23,7 @@ func TestADraftHasOnlyTheRightsTheOwnerGave(t *testing.T) {
 	e := harness.New(t)
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
 	_, tok := e.Token("terminal", "deck.*", "leak.*", "net.*")
-	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "leak", "manifest": postManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "leak", "manifest": harness.PostManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	code, out := e.As(tok).Call("leak.post", map[string]any{"id": "a", "text": "hi"})
@@ -114,7 +114,7 @@ func TestAnEditThatWidensNothingKeepsTheRequestForRights(t *testing.T) {
 	}
 	code, out = e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"Does work"`},
 		"new": []string{`"Does the work"`}})
-	if code != 200 || strings.Contains(string(out), "waiting") || manifestRevision(e, "notes") != 2 {
+	if code != 200 || strings.Contains(string(out), "waiting") || e.ManifestRevision("notes") != 2 {
 		t.Fatalf("an edit that widens nothing saves at once while a request waits: %d %s", code, out)
 	}
 	if a := e.WaitAsk(); a.ID != w.Waiting {

@@ -216,13 +216,6 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 	}
 }
 
-func manifestRevision(e *harness.Env, project string) int64 {
-	e.T.Helper()
-	var cur struct{ Revision int64 }
-	e.Must("deck.manifest_get", map[string]any{"project": project}, &cur)
-	return cur.Revision
-}
-
 func manifestDocument(e *harness.Env, project string) int64 {
 	e.T.Helper()
 	var cur struct{ Document int64 }
@@ -255,13 +248,13 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	e.Project("nums", calcManifest)
+	e.Project("nums", harness.CalcManifest)
 	cmd, err := e.App.Registry.Lookup(context.Background(), 1, "nums.calc")
 	if err != nil {
 		t.Fatal(err)
 	}
 	e.Must("deck.manifest_save", map[string]any{"project": "nums",
-		"manifest": strings.NewReplacer(`"class": "internal"`, `"class": "external", "callers": ["owner"]`, "OLD PROMPT", "NEW PROMPT").Replace(calcManifest)}, nil)
+		"manifest": strings.NewReplacer(`"class": "internal"`, `"class": "external", "callers": ["owner"]`, "OLD PROMPT", "NEW PROMPT").Replace(harness.CalcManifest)}, nil)
 	out, err := cmd.Handler(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("nums")}, []byte(`{}`))
 	if err != nil {
 		t.Fatal(err)
@@ -311,7 +304,7 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	_, tok := e.Token("terminal", "deck.*")
-	m := strings.Replace(postManifest("http://127.0.0.1:1", ""), `"class": "internal"`, `"class": "reversible"`, 1)
+	m := strings.Replace(harness.PostManifest("http://127.0.0.1:1", ""), `"class": "internal"`, `"class": "reversible"`, 1)
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": m}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}

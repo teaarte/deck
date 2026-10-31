@@ -486,7 +486,7 @@ func TestRunNowTakesACommandOnlyTriggersCallAndTheScheduleHearsAboutRuns(t *test
 func TestTriggerParamsKeepLargeIntegers(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle), harness.WithClock())
-	m := strings.Replace(calcManifest, `"executor": {"type": "agent", "prompt": "OLD PROMPT"}}]`,
+	m := strings.Replace(harness.CalcManifest, `"executor": {"type": "agent", "prompt": "OLD PROMPT"}}]`,
 		`"executor": {"type": "agent", "prompt": "OLD PROMPT"}}],
   "triggers": [{"command": "calc", "cron": "0 9 * * *", "params": {"n": 9007199254740993}}]`, 1)
 	e.Project("nums", m)

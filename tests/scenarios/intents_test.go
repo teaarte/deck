@@ -186,7 +186,7 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 	}}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first))
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	p := e.Project("notes", postManifest(svc.URL, ""))
+	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()
@@ -263,7 +263,7 @@ func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	id := e.Run(e.Project("notes", postManifest(svc.URL, "")), "work")
+	id := e.Run(e.Project("notes", harness.PostManifest(svc.URL, "")), "work")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()
 	go func() {

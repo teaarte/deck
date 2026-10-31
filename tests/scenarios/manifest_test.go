@@ -352,9 +352,9 @@ func TestProjectPromptReachesTheAgent(t *testing.T) {
 func TestExpressionVariablesCannotHideFields(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	key := strings.Replace(calcManifest, `"key": "n"`, `"key": "string(n) + (let n = 1; string(n))"`, 1)
+	key := strings.Replace(harness.CalcManifest, `"key": "n"`, `"key": "string(n) + (let n = 1; string(n))"`, 1)
 	e.Refused("deck.project_create", map[string]any{"name": "a", "manifest": key}, 422, "not allowed in a key")
-	display := strings.Replace(calcManifest, `"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`, 1)
+	display := strings.Replace(harness.CalcManifest, `"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`, 1)
 	e.Refused("deck.project_create", map[string]any{"name": "b", "manifest": display}, 422, `hides the field`)
 }
 
@@ -362,7 +362,7 @@ func TestVariablesNeedKnownFields(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
 	m := strings.NewReplacer(`"schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}`, `"schema": {"type": "object"}`,
-		`"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`).Replace(calcManifest)
+		`"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`).Replace(harness.CalcManifest)
 	e.Refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, "need a schema that lists its properties")
 }
 

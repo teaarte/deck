@@ -14,17 +14,6 @@ import (
 	"time"
 )
 
-// postManifest has an agent command and an HTTP tool of the given extra fields that is not allowed yet.
-func postManifest(url, extra string) string {
-	return fmt.Sprintf(`{"version": 13,
-  "commands": [{"name": "work", "title": "Work", "description": "Works with the service.", "class": "internal",
-    "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Post the note."}}],
-  "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",
-    "headers": {"X-Key": "$secret.svc"}, "body": {"text": "{text}", "n": "{n}"}%s,
-    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}, "n": {"type": "integer"}},
-      "required": ["id", "text"]}}]}}`, url, extra)
-}
-
 func withTTL(c *app.Config) { c.ConfirmTTL = 24 * time.Hour }
 
 func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
@@ -47,7 +36,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 		withTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret-value\n"}, nil)
-	p := e.Project("notes", postManifest(svc.URL, ""))
+	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 
 	for _, c := range commands(e) {
 		if c.Name == "notes.post" && c.Class != "external" {
@@ -122,7 +111,7 @@ func TestNoBecauseReachesTheAgentAndTheToolKeepsItsOwnTerm(t *testing.T) {
 		withTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	p := e.Project("notes", postManifest(svc.URL, `, "confirm_ttl_minutes": 10`))
+	p := e.Project("notes", harness.PostManifest(svc.URL, `, "confirm_ttl_minutes": 10`))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
 	e.Answer(e.WaitAsk().ID, "deny:say it politely")
@@ -222,13 +211,13 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 		withTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	p := e.Project("notes", postManifest(svc.URL, ""))
+	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
 	_, out := e.Call("deck.asks_list", nil)
 	var asks []harness.Ask
 	_ = json.Unmarshal(out, &asks)
-	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL+"/v2", "")}, nil)
+	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": harness.PostManifest(svc.URL+"/v2", "")}, nil)
 	e.Until("deck to close the calls of the changed tool", func() bool {
 		var left []harness.Ask
 		e.Must("deck.asks_list", nil, &left)
@@ -237,7 +226,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	if code, body := e.Call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "allow"}); code != 409 {
 		t.Fatalf("a yes to a call of a tool that changed since is refused: %d %s", code, body)
 	}
-	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL, "")}, nil)
+	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": harness.PostManifest(svc.URL, "")}, nil)
 	e.WaitState(id, "done", "error")
 	e.WaitState(e.Run(p, "work"), "waiting_answer")
 	var again []harness.Ask
@@ -285,7 +274,7 @@ func TestConfirmationNamesTheMethodAndHost(t *testing.T) {
 		withTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	e.Run(e.Project("notes", postManifest(svc.URL, "")), "work")
+	e.Run(e.Project("notes", harness.PostManifest(svc.URL, "")), "work")
 	host := strings.TrimPrefix(svc.URL, "http://")
 	if a := e.WaitAsk(); !strings.Contains(a.Text, "POST http://"+host+"/items/x)") {
 		t.Fatalf("the owner sees where an HTTP call goes: %q", a.Text)
@@ -344,7 +333,7 @@ func TestACallWaitingForTheOwnerWaitsAcrossARestart(t *testing.T) {
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
-	e.Project("notes", postManifest(svc.URL, ""))
+	e.Project("notes", harness.PostManifest(svc.URL, ""))
 	_, tok := e.Token("terminal", "notes.*")
 	code, out := e.As(tok).Call("notes.post", map[string]any{"id": "a", "text": "hi"})
 	var held struct{ Waiting int64 }
@@ -375,7 +364,7 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 		withTTL, func(c *app.Config) { c.ConfirmWait = 50 * time.Millisecond }))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	stopped := e.Run(e.Project("notes", postManifest(svc.URL, "")), "work")
+	stopped := e.Run(e.Project("notes", harness.PostManifest(svc.URL, "")), "work")
 	e.WaitAsk()
 	e.Must("deck.process_stop", map[string]any{"process": stopped}, nil)
 	e.WaitState(stopped, "stopped")

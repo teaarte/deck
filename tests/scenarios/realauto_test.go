@@ -89,7 +89,7 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 			return false
 		})
 		got := e.Proc(id)
-		b, _ := os.ReadFile(filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "work", "marker.txt"))
+		b, _ := os.ReadFile(filepath.Join(deckhome.Layout(home).Work(), "runs", harness.Itoa(id), "work", "marker.txt"))
 		t.Logf("%s: state %s, file %q, result %s, error %s", tc.name, got.State, strings.TrimSpace(string(b)), got.Result, got.Error)
 		var res struct {
 			Title, Curl, Token string

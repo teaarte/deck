@@ -130,7 +130,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 		var open []gitlabIssue
 		for _, i := range issues {
 			if i.CreatedAt >= after {
-				i.WebURL = "https://gitlab.example/team/app/-/issues/" + itoa(int64(i.IID))
+				i.WebURL = "https://gitlab.example/team/app/-/issues/" + harness.Itoa(int64(i.IID))
 				open = append(open, i)
 			}
 		}
@@ -203,7 +203,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	}
 	mu.Lock()
 	for n := 5; n < 70; n++ {
-		issues = append(issues, gitlabIssue{IID: n, Title: "Bulk " + itoa(int64(n)), CreatedAt: fmt.Sprintf("%sT%02d:%02d:00.000Z", day, 13+(n-5)/60, (n-5)%60)})
+		issues = append(issues, gitlabIssue{IID: n, Title: "Bulk " + harness.Itoa(int64(n)), CreatedAt: fmt.Sprintf("%sT%02d:%02d:00.000Z", day, 13+(n-5)/60, (n-5)%60)})
 	}
 	closeAfterFirstPage = 5
 	mu.Unlock()
@@ -248,7 +248,7 @@ func TestTheCodeExampleImportsWithItsTasksAndRunButton(t *testing.T) {
 	id := e.Run(p, "run")
 	e.WaitState(id, "done")
 	c := e.Fake.Calls()[0]
-	if !c.Repo || !strings.Contains(c.Prompt, "as deck process "+itoa(id)) || !strings.Contains(c.Prompt, "git stash push -u -m") {
+	if !c.Repo || !strings.Contains(c.Prompt, "as deck process "+harness.Itoa(id)) || !strings.Contains(c.Prompt, "git stash push -u -m") {
 		t.Fatalf("the run works in the repo with the md of the module and knows its process: repo %v", c.Repo)
 	}
 }

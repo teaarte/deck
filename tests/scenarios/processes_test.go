@@ -124,7 +124,7 @@ func TestCeilingStopsTheAgentAndManifestOverridesIt(t *testing.T) {
 		strings.Replace(harness.AgentCommand("long", ""), `"class"`, `"timeout_minutes": 120, "class"`, 1)}, nil))
 	a, b := e.Run(p, "short"), e.Run(p, "long")
 	e.Until("both ceilings to run and both models to give a sign", func() bool {
-		return e.Proc(a).Deadline != "" && e.Proc(b).Deadline != "" && len(log(e, a)) == 1 && len(log(e, b)) == 1
+		return e.Proc(a).Deadline != "" && e.Proc(b).Deadline != "" && len(e.Log(a)) == 1 && len(e.Log(b)) == 1
 	})
 	e.Clock.Add(59 * time.Minute)
 	e.Sweep()
@@ -186,7 +186,7 @@ func TestSilentProcessShowsSinceItsLastOutput(t *testing.T) {
 
 	p := e.Project("quiet", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	id := e.Run(p, "job")
-	e.Until("the first output", func() bool { return len(log(e, id)) == 1 })
+	e.Until("the first output", func() bool { return len(e.Log(id)) == 1 })
 	e.Clock.Add(29 * time.Minute)
 	e.Sweep()
 	if e.Proc(id).SilentSince != "" {
@@ -199,12 +199,6 @@ func TestSilentProcessShowsSinceItsLastOutput(t *testing.T) {
 	}
 	close(more)
 	e.Until("new output to clear silence", func() bool { return e.Proc(id).SilentSince == "" })
-}
-
-func log(e *harness.Env, id int64) []map[string]any {
-	var l []map[string]any
-	e.Must("deck.process_log", map[string]any{"process": id}, &l)
-	return l
 }
 
 func TestQuestionWaitEndsByTheClock(t *testing.T) {
@@ -283,7 +277,7 @@ func TestLogSurvivesARestartAndTheClose(t *testing.T) {
 	p := e1.Project("logs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	id := e1.Run(p, "job")
 	<-started
-	if l := log(e1, id); len(l) != 1 || l[0]["text"] != "first" {
+	if l := e1.Log(id); len(l) != 1 || l[0]["text"] != "first" {
 		t.Fatalf("the log has the events of the process: %v", l)
 	}
 	_ = e1.App.Close()
@@ -298,7 +292,7 @@ func TestLogSurvivesARestartAndTheClose(t *testing.T) {
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(fake2))
 	e2.Resume()
 	e2.WaitState(id, "done")
-	if l := log(e2, id); len(l) != 2 || l[1]["text"] != "second" {
+	if l := e2.Log(id); len(l) != 2 || l[1]["text"] != "second" {
 		t.Fatalf("a closed process keeps its log, both turns of it: %v", l)
 	}
 }
@@ -457,12 +451,12 @@ func TestCeilingDoesNotCountTheTimeDeckWasDown(t *testing.T) {
 
 	p := e1.Project("long", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	id := e1.Run(p, "job")
-	e1.Until("the first output", func() bool { return len(log(e1, id)) == 1 })
+	e1.Until("the first output", func() bool { return len(e1.Log(id)) == 1 })
 	_ = e1.App.Close()
 	clock.Add(2 * time.Hour)
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{Script: blocked}), harness.WithClock(clock))
 	e2.Resume()
-	e2.Until("the resumed ceiling and a sign of the model", func() bool { return e2.Proc(id).Deadline != "" && len(log(e2, id)) == 2 })
+	e2.Until("the resumed ceiling and a sign of the model", func() bool { return e2.Proc(id).Deadline != "" && len(e2.Log(id)) == 2 })
 	clock.Add(49 * time.Minute)
 	e2.Sweep()
 	if got := e2.Proc(id); got.State != "running" {
@@ -576,7 +570,7 @@ func TestFinishedProcessSessionIsClosed(t *testing.T) {
 		return provider.Result{Text: "ok"}
 	}))
 
-	p := e.Project("nums", calcManifest)
+	p := e.Project("nums", harness.CalcManifest)
 	e.WaitState(e.Run(p, "calc"), "done")
 	body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"records_upsert","arguments":{"collection":"nums","records":"{\"n\": 5}"}}}`
 	req, _ := http.NewRequest("POST", url, strings.NewReader(body))
@@ -754,7 +748,7 @@ func TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns(t *testing.T) {
 	p := e.Project("long", harness.TestManifest([]string{harness.AgentCommand("parent", ""), harness.AgentCommand("child", "")}, nil))
 	id := e.Run(p, "parent")
 	kid := <-child
-	e.Until("the ceiling to run and the child to give a sign", func() bool { return e.Proc(id).Deadline != "" && len(log(e, kid)) == 1 })
+	e.Until("the ceiling to run and the child to give a sign", func() bool { return e.Proc(id).Deadline != "" && len(e.Log(kid)) == 1 })
 	e.Clock.Add(51 * time.Minute)
 	e.Sweep()
 	if got := <-told; !strings.Contains(got, "time ceiling in 9 minutes") {

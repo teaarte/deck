@@ -131,7 +131,7 @@ func TestRealReferenceScripts(t *testing.T) {
 			e.SaveScript(c.project, c.file, c.src)
 			id := e.Start(c.project, "use", nil)
 			if p := e.WaitState(id, "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), c.want) {
-				t.Fatalf("the script %s runs in the sandbox: %+v\n%v", c.project, p, log(e, id))
+				t.Fatalf("the script %s runs in the sandbox: %+v\n%v", c.project, p, e.Log(id))
 			}
 		})
 	}

@@ -76,10 +76,10 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if cc.Env["CODEX_HOME"] == "" || cc.Env["HOME"] == "" {
 		t.Fatalf("Codex runs on the owner's shared login: %v", cc.Env)
 	}
-	work := filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "work")
+	work := filepath.Join(deckhome.Layout(home).Work(), "runs", harness.Itoa(id), "work")
 	fs, _ := cc.Config("permissions.deck.filesystem")
 	user, _ := os.UserHomeDir()
-	data := filepath.Join(deckhome.Layout(home).Work(), "projects", itoa(p), "data")
+	data := filepath.Join(deckhome.Layout(home).Work(), "projects", harness.Itoa(p), "data")
 	shell, _ := cc.Config("shell_environment_policy.set")
 	if strings.Contains(fs, quoteTOML(home)+`=`) || !strings.Contains(shell, "XDG_CACHE_HOME="+quoteTOML(filepath.Join(data, ".cache"))) {
 		t.Fatalf("deck's folder stays open above a run, so its paths resolve, and caches go to the data folder: %s %s", fs, shell)
@@ -90,7 +90,7 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	}
 	for _, want := range []string{quoteTOML(deckhome.Layout(home).State()) + `="deny"`, quoteTOML(codexPrivate) + `="deny"`, quoteTOML(work) + `="write"`,
 		quoteTOML(filepath.Join(user, ".ssh")) + `="deny"`, quoteTOML(filepath.Join(user, ".claude")) + `="deny"`,
-		quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "projects", itoa(p), "data")) + `="write"`, quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "results")) + `="write"`} {
+		quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "projects", harness.Itoa(p), "data")) + `="write"`, quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "runs", harness.Itoa(id), "results")) + `="write"`} {
 		if !strings.Contains(fs, want) {
 			t.Fatalf("the profile of the turn has %s: %s", want, fs)
 		}
@@ -537,7 +537,7 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	p := e.Project("outside", outsideManifest)
 	id := e.Run(p, "work")
 	a := e.WaitAsk()
-	if l := log(e, id); !slices.ContainsFunc(l, func(x map[string]any) bool {
+	if l := e.Log(id); !slices.ContainsFunc(l, func(x map[string]any) bool {
 		return x["kind"] == "tool" && x["id"] == "dyn1" && x["title"] == "lookup" && strings.Contains(fmt.Sprint(x["text"]), "moon")
 	}) || !slices.ContainsFunc(l, func(x map[string]any) bool {
 		return x["kind"] == "tool_update" && x["id"] == "dyn1" && x["status"] == "failed"
@@ -547,7 +547,7 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	if a.Kind != "confirm" || !strings.Contains(a.Text, "apply_patch") || !strings.Contains(a.Text, "/Users/owner/notes.txt") {
 		t.Fatalf("the owner sees which file the patch changes: %+v", a)
 	}
-	if l := log(e, id); !slices.ContainsFunc(l, func(x map[string]any) bool {
+	if l := e.Log(id); !slices.ContainsFunc(l, func(x map[string]any) bool {
 		return x["kind"] == "tool" && x["title"] == "apply_patch" && x["id"] != nil && strings.Contains(fmt.Sprint(x["text"]), "notes.txt")
 	}) {
 		t.Fatalf("the log has the patch as a tool call with its id and file: %v", l)

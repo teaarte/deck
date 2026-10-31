@@ -70,7 +70,7 @@ func TestAModelAtItsLimitHandsTheWorkOnToTheNextModel(t *testing.T) {
 		t.Fatalf("the next model does the work: %+v %+v", got, in)
 	}
 	calls := backup.Calls()
-	if in.Input["n"] != float64(7) || len(calls) != 1 || !strings.Contains(calls[0].Prompt, "continues process #"+itoa(id)) ||
+	if in.Input["n"] != float64(7) || len(calls) != 1 || !strings.Contains(calls[0].Prompt, "continues process #"+harness.Itoa(id)) ||
 		!strings.Contains(calls[0].Prompt, "rendered the stills of scene 1") || !strings.Contains(calls[0].Prompt, "render --stills scene1") {
 		t.Fatalf("the next model gets the same input and is told what the process did: %v %+v", in.Input, calls)
 	}
@@ -184,7 +184,7 @@ func TestAModelThatGivesNoSignHandsTheTurnOnLongBeforeTheCeiling(t *testing.T) {
 	}
 	e.WaitNote("gave no sign for 5 minutes")
 	spoke := startWork(e, 2)
-	e.Until("the model speaks", func() bool { return len(e.Fake.Calls()) == 2 && len(log(e, spoke)) == 1 })
+	e.Until("the model speaks", func() bool { return len(e.Fake.Calls()) == 2 && len(e.Log(spoke)) == 1 })
 	clock.Add(time.Hour - time.Minute)
 	e.Sweep()
 	if got := e.WaitState(spoke, "running"); got.State != "running" {
@@ -262,14 +262,14 @@ func TestAnAgentInALoopLeavesItsModel(t *testing.T) {
 	t.Parallel()
 	e, backup, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		for i := range 5 {
-			id := itoa(int64(i))
+			id := harness.Itoa(int64(i))
 			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: "a" + id, Title: "mcp__deck__records_list", Text: `{"collection": "searches"}`})
 			c.Req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: "a" + id, Status: "completed", Text: `{"items": []}`})
 			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: "b" + id, Title: "mcp__deck__records_list", Text: `{"collection": "listings"}`})
 			c.Req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: "b" + id, Status: "completed", Text: `{"items": []}`})
 		}
 		for i := range 3 {
-			id := "c" + itoa(int64(i))
+			id := "c" + harness.Itoa(int64(i))
 			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: id, Title: "mcp__deck__records_list", Text: `{"collection": "searches"}`})
 			c.Req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: id, Status: "completed", Text: `{"items": []}`})
 		}

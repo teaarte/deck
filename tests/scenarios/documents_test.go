@@ -238,7 +238,7 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 func TestDocumentIDsAreNotReused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	e.Project("nums", calcManifest)
+	e.Project("nums", harness.CalcManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums", "records": harness.Jsonl(map[string]any{"n": 1})}, nil)
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: e.ProjectID("nums"), Collection: "nums"})
 	var old struct{ ID int64 }

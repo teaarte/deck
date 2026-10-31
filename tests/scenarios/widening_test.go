@@ -31,7 +31,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		!slices.Equal(w.Widens, []string{"read domain: example.com"}) {
 		t.Fatalf("a change that widens rights waits: %d %s", code, out)
 	}
-	if rev := manifestRevision(e, "notes"); rev != 1 {
+	if rev := e.ManifestRevision("notes"); rev != 1 {
 		t.Fatalf("the manifest stays until the owner allows: revision %d", rev)
 	}
 	broken := strings.Replace(wider, `"screens": [],`, `"screens": [], "reads": [{"project": "nowhere"}],`, 1)
@@ -49,7 +49,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		t.Fatalf("the master cannot allow its own change: %d", code)
 	}
 	e.Answer(a.ID, "allow")
-	if rev := manifestRevision(e, "notes"); rev != 2 {
+	if rev := e.ManifestRevision("notes"); rev != 2 {
 		t.Fatalf("allow applies the frozen change: revision %d", rev)
 	}
 	var feed []any
@@ -79,7 +79,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": stale.ID, "answer": "allow"}); code == 200 {
 		t.Fatalf("an outdated request for rights is closed: %d %s", code, out)
 	}
-	if rev := manifestRevision(e, "notes"); rev != 4 {
+	if rev := e.ManifestRevision("notes"); rev != 4 {
 		t.Fatalf("the outdated change is not applied: revision %d", rev)
 	}
 }

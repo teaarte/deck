@@ -277,13 +277,13 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 
 	p := e.Project("quiet", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	id := e.Run(p, "job")
-	e.Until("three lines", func() bool { return len(log(e, id)) == 3 })
+	e.Until("three lines", func() bool { return len(e.Log(id)) == 3 })
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stream := e.Events(ctx)
 	close(more)
 	harness.WaitEvent(t, stream, events.Event{Topic: "log"})
-	e.Until("four lines", func() bool { return len(log(e, id)) == 4 })
+	e.Until("four lines", func() bool { return len(e.Log(id)) == 4 })
 
 	harness.NewCatalogCheck(t).Messages(t, e.ScreenMessages("", "process", map[string]any{"record": id}))
 	data := e.ScreenData("", "process", map[string]any{"record": id})

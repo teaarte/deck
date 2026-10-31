@@ -122,7 +122,7 @@ print(json.dumps({"down": "keep-alive: timeout" in got.decode().lower(), "ok": g
 func TestScriptWildcardDomainIsOnlyThePublicInternet(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	named, local := served(t), served(t)
+	named, local := harness.Served(t), harness.Served(t)
 	host := strings.TrimPrefix(named.URL, "http://")
 	e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": ["*", %q]}`, host)))
 	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
@@ -189,3 +189,14 @@ console.log(JSON.stringify({deck: deck.status, outside}));
 		t.Fatalf("fetch of a node script reaches deck and asks deck's proxy for the rest: %+v %s", p, p.Result)
 	}
 }
+
+// packageScript installs its package itself: uv reads the PEP 723 block and goes to the index through the proxy.
+const packageScript = `#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = ["deckfixture"]
+# [tool.uv]
+# index-url = "%s/simple"
+# ///
+import json, deckfixture
+print(json.dumps({"value": deckfixture.VALUE}))
+`

@@ -221,8 +221,6 @@ func TestDuplicateTriggerIsRejected(t *testing.T) {
 	}
 }
 
-func itoa(n int64) string { b, _ := json.Marshal(n); return string(b) }
-
 func TestResumeKeepsTheManifestRevisionTheProcessStartedBy(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {

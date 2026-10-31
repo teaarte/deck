@@ -411,7 +411,7 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 func TestOutOfRangeIntegersAreRefused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	e.Project("nums", calcManifest)
+	e.Project("nums", harness.CalcManifest)
 	var res struct {
 		Written int
 		Errors  []string
@@ -426,7 +426,7 @@ func TestOutOfRangeIntegersAreRefused(t *testing.T) {
 func TestCommandInputKeepsLargeIntegers(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	e.Project("nums", calcManifest)
+	e.Project("nums", harness.CalcManifest)
 	code, body := e.Do("POST", "/api/commands/nums.calc", map[string]any{"n": int64(9007199254740993)})
 	if code != 200 {
 		t.Fatalf("%d %s", code, body)
@@ -443,17 +443,17 @@ func TestCommandInputKeepsLargeIntegers(t *testing.T) {
 func TestComposedInputSchemasAreRefused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	m := strings.Replace(calcManifest, `"input": {"type": "object", "properties": {"n": {"type": "integer"}}}`,
+	m := strings.Replace(harness.CalcManifest, `"input": {"type": "object", "properties": {"n": {"type": "integer"}}}`,
 		`"input": {"type": "object", "allOf": [{"properties": {"config": {"type": "object"}}, "required": ["config"]}]}`, 1)
 	e.Refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, `"allOf" is not allowed`)
-	nested := strings.Replace(calcManifest, `"n": {"type": "integer"}}}`, `"n": {"type": "integer", "anyOf": [{"type": "object"}]}}}`, 1)
+	nested := strings.Replace(harness.CalcManifest, `"n": {"type": "integer"}}}`, `"n": {"type": "integer", "anyOf": [{"type": "object"}]}}}`, 1)
 	e.Refused("deck.project_create", map[string]any{"name": "b", "manifest": nested}, 422, `"anyOf" is not allowed`)
 }
 
 func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
-	e.Project("nums", calcManifest)
+	e.Project("nums", harness.CalcManifest)
 	var res struct {
 		Written int
 		Errors  []string

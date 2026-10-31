@@ -1,4 +1,4 @@
-package scenarios
+package box
 
 import (
 	"archive/tar"
@@ -13,8 +13,6 @@ import (
 	"io"
 	"maps"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,13 +20,6 @@ import (
 	"testing"
 	"time"
 )
-
-func served(t *testing.T) *httptest.Server {
-	t.Helper()
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("hello")) }))
-	t.Cleanup(s.Close)
-	return s
-}
 
 const collectScript = harness.PythonLib + `
 inp = json.load(sys.stdin)
@@ -72,13 +63,13 @@ print(json.dumps({"checks": checks, "files": [{"path": "report.txt", "record": r
 `
 
 func TestScriptCommandRunsInTheSandbox(t *testing.T) {
-	owner := ownerHome(t)
+	owner := harness.OwnerHome(t)
 	key := filepath.Join(owner, ".ssh", "id_ed25519")
 	_ = os.MkdirAll(filepath.Dir(key), 0o700)
 	_ = os.WriteFile(key, []byte("private"), 0o600)
 	t.Setenv("HOME", owner)
 	e := harness.New(t)
-	allowed, other := served(t), served(t)
+	allowed, other := harness.Served(t), harness.Served(t)
 	host := strings.TrimPrefix(allowed.URL, "http://")
 	pid := e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
 	e.SaveScript("tools", "scripts/main.py", collectScript)
@@ -140,7 +131,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	if left, _ := os.ReadDir(filepath.Join(deckhome.Layout(home).Work(), "runs", fmt.Sprint(id))); len(left) != 1 || left[0].Name() != "stream" {
 		t.Fatalf("a finished script leaves only its log in its run folder: %v", left)
 	}
-	if b, _ := json.Marshal(log(e, id)); strings.Contains(string(b), "xcodebuild") || strings.Contains(string(b), "DVTDeveloperPaths") {
+	if b, _ := json.Marshal(e.Log(id)); strings.Contains(string(b), "xcodebuild") || strings.Contains(string(b), "DVTDeveloperPaths") {
 		t.Fatalf("python runs as the interpreter itself, not the xcrun launcher: %s", b)
 	}
 	page := e.ScreenData("", "process", map[string]any{"record": id})["b0"]["value"]
@@ -226,24 +217,13 @@ func tarNames(t *testing.T, path string) map[string]bool {
 	}
 }
 
-// packageScript installs its package itself: uv reads the PEP 723 block and goes to the index through the proxy.
-const packageScript = `#!/usr/bin/env -S uv run --script
-# /// script
-# dependencies = ["deckfixture"]
-# [tool.uv]
-# index-url = "%s/simple"
-# ///
-import json, deckfixture
-print(json.dumps({"value": deckfixture.VALUE}))
-`
-
 func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
 	e.Project("slow", harness.ScriptManifest("wait", "", ""))
 	e.SaveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
 	id := e.Start("slow", "wait", nil)
-	e.Until("the script to start", func() bool { return len(log(e, id)) > 0 })
+	e.Until("the script to start", func() bool { return len(e.Log(id)) > 0 })
 	e.Clock.Add(9 * time.Minute)
 	e.Sweep()
 	if p := e.Proc(id); p.State != "running" {
@@ -280,7 +260,7 @@ func TestScriptInterruptedByARestartIsNotResumed(t *testing.T) {
 	e1.Project("restart", harness.ScriptManifest("wait", "", ""))
 	e1.SaveScript("restart", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
 	id := e1.Start("restart", "wait", nil)
-	e1.Until("the script to start", func() bool { return len(log(e1, id)) > 0 })
+	e1.Until("the script to start", func() bool { return len(e1.Log(id)) > 0 })
 	_ = e1.App.Close()
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	if err := e2.App.Runner.ResumeInterrupted(t.Context()); err != nil {
@@ -385,21 +365,6 @@ print(json.dumps({"read": can_read(inp["other"]), "write": can_write(os.path.joi
 	}
 }
 
-// ownerHome is a home of the owner outside the temp folders, which the Linux sandbox empties anyway.
-func ownerHome(t *testing.T) string {
-	t.Helper()
-	cache, err := os.UserCacheDir()
-	if err == nil {
-		_ = os.MkdirAll(cache, 0o700)
-	}
-	dir, err := os.MkdirTemp(cache, "deck2-owner-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	return dir
-}
-
 const homeScript = harness.PythonLib + `
 import subprocess
 inp = json.load(sys.stdin)
@@ -425,7 +390,7 @@ print(json.dumps({"rc": can_read(os.path.join(home, ".zshrc")), "documents": can
 // TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject: a script and an MCP server read nothing of the
 // owner's home folder but the runtimes deck finds on PATH and the folders the owner gave the project, read-only.
 func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testing.T) {
-	owner := ownerHome(t)
+	owner := harness.OwnerHome(t)
 	for path, text := range map[string]string{".zshrc": "export OPENAI_API_KEY=sk-owner", "Documents/notes.txt": "private",
 		".config/app/token": "t0ken", "rt/lib/tool/data": "runtime-data", "code/readme": "the code",
 		"rt/bin/tool":      "#!/bin/sh\ncat \"$(dirname \"$0\")/../lib/tool/data\"\n",
@@ -512,7 +477,7 @@ func TestAScriptSeesNoOtherProcess(t *testing.T) {
 // TestAScriptThatFailsSaysHowToOpenAFolder: a script that fails has the end of its stderr, where its program names
 // the path it was refused, and where the owner opens a folder; deck does not watch the refusals of the system.
 func TestAScriptThatFailsSaysHowToOpenAFolder(t *testing.T) {
-	owner := ownerHome(t)
+	owner := harness.OwnerHome(t)
 	_ = os.WriteFile(filepath.Join(owner, ".zshrc"), []byte("private"), 0o600)
 	t.Setenv("HOME", owner)
 	e := harness.New(t)
@@ -591,7 +556,7 @@ func TestAScriptMayRunForHours(t *testing.T) {
 	e.Project("slow", strings.Replace(harness.ScriptManifest("wait", "", ""), `"runtime": "python"`, `"runtime": "python", "timeout_minutes": 180`, 1))
 	e.SaveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
 	id := e.Start("slow", "wait", nil)
-	e.Until("the script to start", func() bool { return len(log(e, id)) > 0 })
+	e.Until("the script to start", func() bool { return len(e.Log(id)) > 0 })
 	e.Clock.Add(170 * time.Minute)
 	e.Sweep()
 	if p := e.Proc(id); p.State != "running" {
@@ -716,4 +681,24 @@ print(json.dumps({"version": list(sys.version_info[:2]), "first": os.environ["PA
 		}
 	}
 	t.Fatalf("health has a row of the runtime of scripts: %+v", rows)
+}
+
+// TestANoteOfAScriptIsSignedByTheScript: a note a script writes is signed as a script, not an agent.
+func TestANoteOfAScriptIsSignedByTheScript(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("run", "", ""))
+	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
+code, out = deck("deck.notify", {"text": "The report is ready"})
+print(json.dumps({"code": code}))
+`)
+	id := e.Start("tools", "run", nil)
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), "200") {
+		t.Fatalf("the script wrote its note: %+v", got)
+	}
+	var author string
+	_ = e.App.Store.DB.QueryRow(`SELECT author FROM feed WHERE text = 'The report is ready'`).Scan(&author)
+	if author != "script:"+harness.Itoa(id) {
+		t.Fatalf("the note is signed by the script: %q", author)
+	}
 }

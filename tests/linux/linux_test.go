@@ -27,20 +27,20 @@ var containerTests = []string{"TestInDecksContainerAScriptRunsAsTheUserOfAgents"
 
 // TestLinuxTestsExist fails when a listed test is renamed or gone from tests/scenarios.
 func TestLinuxTestsExist(t *testing.T) {
-	files, err := filepath.Glob("../scenarios/*_test.go")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no scenario tests: %v", err)
-	}
 	have := map[string]bool{}
 	decl := regexp.MustCompile(`(?m)^func (Test\w+)\(t \*testing\.T\)`)
-	for _, f := range files {
-		b, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatal(err)
+	err := filepath.WalkDir("../scenarios", func(p string, d os.DirEntry, err error) error {
+		if err != nil || !strings.HasSuffix(p, "_test.go") {
+			return err
 		}
+		b, err := os.ReadFile(p)
 		for _, m := range decl.FindAllStringSubmatch(string(b), -1) {
 			have[m[1]] = true
 		}
+		return err
+	})
+	if err != nil || len(have) == 0 {
+		t.Fatalf("no scenario tests: %v", err)
 	}
 	for _, name := range append(linuxTests, containerTests...) {
 		if !have[name] {
@@ -63,7 +63,7 @@ func TestScenariosOnLinux(t *testing.T) {
 	run := exec.Command("docker", "run", "--rm", "--init", "--security-opt", "seccomp=unconfined", "--security-opt", "apparmor=unconfined",
 		"--security-opt", "systempaths=unconfined", "-v", root+":/src:ro", "-v", "deck2-gomod:/go/pkg/mod", "-v", "deck2-gocache:/cache",
 		"-e", "GOCACHE=/cache", "-e", "GOFLAGS=-buildvcs=false", "-w", "/src", "deck2-linux-test", "sh", "-c",
-		"chown -R deck /go/pkg/mod /cache && exec setpriv --reuid=deck --regid=deck --init-groups env HOME=/home/deck go test -count=1 -v ./tests/scenarios")
+		"chown -R deck /go/pkg/mod /cache && exec setpriv --reuid=deck --regid=deck --init-groups env HOME=/home/deck go test -count=1 -v ./tests/scenarios/...")
 	out, err := run.CombinedOutput()
 	if err != nil {
 		t.Fatalf("scenario tests on Linux: %v\n%s", err, out)
@@ -88,7 +88,7 @@ func TestScenariosInDecksContainer(t *testing.T) {
 	buildImage(t, root)
 	run := exec.Command("docker", "run", "--rm", "--init", "-v", root+":/src:ro", "-v", "deck2-gomod:/go/pkg/mod", "-v", "deck2-gocache:/cache",
 		"-e", "GOCACHE=/cache", "-e", "GOFLAGS=-buildvcs=false", "-e", "DECK_AGENT_USER=agent", "-w", "/src", "deck2-linux-test",
-		"go", "test", "-count=1", "-v", "-run", "^("+strings.Join(containerTests, "|")+")$", "./tests/scenarios")
+		"go", "test", "-count=1", "-v", "-run", "^("+strings.Join(containerTests, "|")+")$", "./tests/scenarios/...")
 	out, err := run.CombinedOutput()
 	if err != nil {
 		t.Fatalf("scenario tests in deck's container: %v\n%s", err, out)

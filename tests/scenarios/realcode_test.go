@@ -128,7 +128,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	e.Must("code.run", map[string]any{"do": "run"}, &run)
 	wait(run.Process, "run")
 	owner("the run")
-	branch := "deck/run-" + itoa(run.Process)
+	branch := "deck/run-" + harness.Itoa(run.Process)
 	commits := git("log", "--oneline", "main.."+branch)
 	calc := git("show", branch+":calc.py")
 	t.Logf("%s:\n%s", branch, commits)
@@ -136,7 +136,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		t.Fatalf("the run commits both tasks on its branch and leaves main: %s\n%s", commits, calc)
 	}
 	review := lanes()["review"]
-	if len(review) != 2 || !strings.Contains(review[0], "**Run "+itoa(run.Process)+"**") || !strings.Contains(review[1], "**Run "+itoa(run.Process)+"**") {
+	if len(review) != 2 || !strings.Contains(review[0], "**Run "+harness.Itoa(run.Process)+"**") || !strings.Contains(review[1], "**Run "+harness.Itoa(run.Process)+"**") {
 		t.Fatalf("both tasks are in review with a report: %v", lanes())
 	}
 	t.Logf("report: %s", review[0])
@@ -146,7 +146,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	wait(run.Process, "merge by a remark")
 	owner("the merge")
 	subject := git("log", "-1", "--format=%s", "main")
-	if !strings.HasPrefix(subject, "deck run "+itoa(run.Process)+":") || git("rev-list", "--count", start+"..main") != "1" ||
+	if !strings.HasPrefix(subject, "deck run "+harness.Itoa(run.Process)+":") || git("rev-list", "--count", start+"..main") != "1" ||
 		!strings.Contains(git("show", "main:calc.py"), "def multiply") {
 		t.Fatalf("the merge is one squash commit on main: %s\n%s", subject, git("log", "--oneline", "main"))
 	}
@@ -180,7 +180,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	e.Must("code.run", map[string]any{"do": "run"}, &auto)
 	wait(auto.Process, "run in auto")
 	owner("the run in auto")
-	if subject := git("log", "-1", "--format=%s", "main"); !strings.HasPrefix(subject, "deck run "+itoa(auto.Process)+":") ||
+	if subject := git("log", "-1", "--format=%s", "main"); !strings.HasPrefix(subject, "deck run "+harness.Itoa(auto.Process)+":") ||
 		git("rev-list", "--count", before+"..main") != "1" || !strings.Contains(git("show", "main:calc.py"), "def divide") {
 		t.Fatalf("in auto the agent merges its run itself: %s\n%s", subject, git("log", "--oneline", "main"))
 	}

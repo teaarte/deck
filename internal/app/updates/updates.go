@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"deck2/internal/access"
-	"deck2/internal/gateway"
+	"deck2/internal/egress"
 	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/release"
@@ -119,7 +119,7 @@ func (s *Service) latestList(ctx context.Context) (release.Files, error) {
 }
 
 func (s *Service) get(ctx context.Context, name string, limit int64) ([]byte, error) {
-	resp, err := gateway.Fetch(ctx, s.Source.Domains, s.Source.URL+name)
+	resp, err := egress.Fetch(ctx, s.Source.Domains, s.Source.URL+name)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +321,7 @@ func syncDir(dir string) {
 
 // download writes file f of the latest release to path once its size and sha256 are those of the signed list.
 func (s *Service) download(ctx context.Context, f release.File, path string) error {
-	resp, err := gateway.Download(ctx, s.Source.Domains, s.Source.URL+f.Name)
+	resp, err := egress.Download(ctx, s.Source.Domains, s.Source.URL+f.Name)
 	if err != nil {
 		return registry.Refuse("download %s: %v", f.Name, err)
 	}

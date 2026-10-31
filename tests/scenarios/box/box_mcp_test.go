@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/egress"
 	"deck2/internal/events"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
@@ -167,6 +168,7 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 		})
 	ts := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return remote }, nil))
 	t.Cleanup(ts.Close)
+	egress.AsPublic(ts.Listener.Addr().String())
 	t.Setenv("DECK_LEAK", "deck's own")
 	got := map[string]harness.ToolCall{}
 	e := harness.New(t, harness.WithAgent(stepAgent(got, nil)))

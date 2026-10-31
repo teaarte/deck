@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/egress"
 	"deck2/internal/fault"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
@@ -44,10 +45,10 @@ type HTTP struct {
 }
 
 func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), h home.Layout) *HTTP {
-	return &HTTP{GW: gw, Secrets: secrets, Home: h, Client: gateway.Pinned}
+	return &HTTP{GW: gw, Secrets: secrets, Home: h, Client: egress.Pinned}
 }
 
-// Command is the registry command of an HTTP tool of project p; it reaches its own host and the domains of p, a
+// Command is the registry command of an HTTP tool of project p; it reaches its own host when public and the domains of p, a
 // name only at public addresses unless the domains name the address.
 func (h *HTTP) Command(p db.Project, t manifest.HTTPTool, domains []string) *registry.Command {
 	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "hosts": t.Hosts, "headers": t.Headers, "body": t.Body, "auth": t.Auth})

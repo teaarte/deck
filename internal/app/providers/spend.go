@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"deck2/internal/gateway"
 	"deck2/internal/health"
+	"deck2/internal/models"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -46,7 +46,7 @@ func price(m db.Model, u provider.Usage) *float64 {
 // answered keeps in the health of a model whether it answered its last call: one that did not is red with the model
 // that takes its work, its first or next good answer green; a model in an agent has the health of its self-check.
 func (s *Service) answered(ctx context.Context, m db.Model, next string, status int) {
-	failed := status <= 0 || gateway.Fallible(status)
+	failed := status <= 0 || models.Fallible(status)
 	if m.ID == 0 || m.Agent != "" || !failed && status >= 400 {
 		return
 	}

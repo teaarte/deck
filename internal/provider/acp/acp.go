@@ -4,8 +4,6 @@ package acp
 
 import (
 	"context"
-	"deck2/internal/home"
-	"deck2/internal/paths"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,12 +14,13 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"time"
+
+	"deck2/internal/home"
+	"deck2/internal/paths"
 
 	sdk "github.com/coder/acp-go-sdk"
 
-	"deck2/internal/gateway"
 	"deck2/internal/nonce"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
@@ -34,7 +33,7 @@ type Config struct {
 	Binary string
 	Model  string
 	// API is deck's proxy of the model for a turn: the key, the limit and the journal are deck's.
-	API     func(onUsage func(provider.Usage)) http.Handler
+	API     func(provider.ModelHooks) http.Handler
 	NoCloud bool
 	// Home is deck's folder, hidden from the agent but for the folders of its turn.
 	Home    home.Layout
@@ -45,9 +44,6 @@ type Config struct {
 	Now func() time.Time
 	// CheckCeiling bounds a self-check of a slow model; deck's own when zero.
 	CheckCeiling time.Duration
-	// Plain is set once the model API refused the reasoning the agent hands back, for every turn after; nil keeps it
-	// for one turn.
-	Plain *atomic.Bool
 }
 
 type Adapter struct {
@@ -141,16 +137,13 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
-	e := &entry{mcp: mcp, api: a.cfg.API(req.OnUsage), modelAt: "/model/" + nonce.Hex(16), now: a.now, plain: a.cfg.Plain,
-		answered: func() { provider.Answered(ctx) }}
-	if e.plain == nil {
-		e.plain = &atomic.Bool{}
-	}
+	e := &entry{mcp: mcp, modelAt: "/model/" + nonce.Hex(16), now: a.now, answered: func() { provider.Answered(ctx) }}
+	e.api = a.cfg.API(provider.ModelHooks{Usage: req.OnUsage, Answer: e.heard})
 	var domains []string
 	if !req.NoNetwork {
 		domains = req.Hosts
 	}
-	door, err := sandbox.Open(a.cfg.Sandbox, gateway.Egress, domains, e)
+	door, err := sandbox.Open(a.cfg.Sandbox, domains, e)
 	if err != nil {
 		return provider.Result{}, err
 	}

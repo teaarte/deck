@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"slices"
 	"sort"
 	"strings"
@@ -540,4 +542,17 @@ func Typed[T any](f func(ctx context.Context, a Actor, in T) (any, error)) Handl
 
 func compile(name string, raw json.RawMessage) (*jsonschema.Schema, error) {
 	return schemas.Compile(raw, "mem://input/"+name+".json")
+}
+
+// ReadBody reads the body of a call up to 32 MB and answers 413 or 400 itself when it cannot.
+func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 32<<20))
+	var tooBig *http.MaxBytesError
+	switch {
+	case errors.As(err, &tooBig):
+		http.Error(w, "deck: the body of a call is larger than 32 MB", http.StatusRequestEntityTooLarge)
+	case err != nil:
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+	return body, err
 }

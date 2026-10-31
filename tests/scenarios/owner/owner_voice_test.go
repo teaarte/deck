@@ -25,6 +25,7 @@ import (
 
 	"golang.org/x/crypto/hkdf"
 
+	"deck2/internal/egress"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
@@ -167,6 +168,7 @@ func (d *pushDevice) decrypt(t *testing.T, body []byte) []byte {
 }
 
 func (d *pushDevice) subscribe(e *harness.Env, srv *httptest.Server, name string) {
+	egress.AsPublic(srv.Listener.Addr().String())
 	b64 := base64.RawURLEncoding.EncodeToString
 	e.Must("deck.push_subscribe", map[string]any{"endpoint": srv.URL + "/push/" + name, "p256dh": b64(d.priv.PublicKey().Bytes()),
 		"auth": b64(d.auth), "device": name}, nil)

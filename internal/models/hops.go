@@ -1,13 +1,11 @@
-package gateway
+package models
 
 import (
 	"bytes"
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,22 +13,25 @@ import (
 	"sync/atomic"
 	"time"
 
+	"deck2/internal/egress"
 	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
 )
 
-// ModelTarget is the API of a connection: where it is, the family it speaks (openai, google, anthropic, raw) and its key.
-type ModelTarget struct {
-	URL string
-	API string
-	Key string
+// Target is the API of a connection: where it is, the family it speaks (openai, google, anthropic, raw), its key and
+// the transport that carries its calls, a local service's too.
+type Target struct {
+	URL       string
+	API       string
+	Key       string
+	Transport http.RoundTripper
 }
 
-// ModelHop is one place a call of a model may go, in the order deck tries them.
-type ModelHop struct {
-	Target ModelTarget
+// Hop is one place a call of a model may go, in the order deck tries them.
+type Hop struct {
+	Target Target
 	// Connection names the target, Name the model in deck's settings; Model is the name the API knows, which
 	// replaces an @role the caller asked for.
 	Connection, Name string
@@ -47,44 +48,44 @@ type ModelHop struct {
 	Done func(ctx context.Context, status int, u *provider.Usage)
 }
 
-// ModelRoute finds where a call of a model goes for an actor: the model of deck's settings the request names on the
+// Router finds where a call of a model goes for an actor: the model of deck's settings the request names on the
 // connection; an @role names the models assigned to it, the fallbacks after the first.
-type ModelRoute func(ctx context.Context, act registry.Actor, ask ModelAsk) ([]ModelHop, error)
+type Router func(ctx context.Context, act registry.Actor, ask Ask) ([]Hop, error)
 
 type routeKey struct{}
 
 // route is what the proxy read of a call of a model and the hops it goes through.
 type route struct {
-	ask  ModelAsk
-	hops []ModelHop
+	ask  Ask
+	hops []Hop
 }
 
 // WithRoute is ctx with what a call of a model asks and the hops it goes through, so the rules of its command read
 // and route it no second time.
-func WithRoute(ctx context.Context, ask ModelAsk, hops []ModelHop) context.Context {
+func WithRoute(ctx context.Context, ask Ask, hops []Hop) context.Context {
 	return context.WithValue(ctx, routeKey{}, route{ask, hops})
 }
 
 // RouteOf is what WithRoute gave ctx.
-func RouteOf(ctx context.Context) (ModelAsk, []ModelHop, bool) {
+func RouteOf(ctx context.Context) (Ask, []Hop, bool) {
 	r, ok := ctx.Value(routeKey{}).(route)
 	return r.ask, r.hops, ok
 }
 
 // dropped are headers of the caller deck does not pass on: its own keys, cookies and how the body is packed.
-var dropped = []string{DeckModel, "Authorization", "X-Api-Key", "X-Goog-Api-Key", "Cookie", "Proxy-Authorization", "Accept-Encoding",
+var dropped = []string{Header, "Authorization", "X-Api-Key", "X-Goog-Api-Key", "Cookie", "Proxy-Authorization", "Accept-Encoding",
 	"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Host"}
 
-// ModelCall is one request of a model API; Retry is the other way to ask the same when the API has no such path.
-type ModelCall struct {
+// Call is one request of a model API; Retry is the other way to ask the same when the API has no such path.
+type Call struct {
 	Method, Path, Query string
 	Header              http.Header
 	Body                []byte
-	Retry               *ModelCall
+	Retry               *Call
 }
 
-// SendModel makes one request under the API of t with deck's key in place of any the caller sent.
-func SendModel(ctx context.Context, t ModelTarget, c ModelCall) (*http.Response, error) {
+// Send makes one request under the API of t with deck's key in place of any the caller sent.
+func Send(ctx context.Context, t Target, c Call) (*http.Response, error) {
 	u, err := url.Parse(t.URL)
 	if err != nil {
 		return nil, err
@@ -122,12 +123,15 @@ func SendModel(ctx context.Context, t ModelTarget, c ModelCall) (*http.Response,
 			req.Header.Set("Authorization", "Bearer "+t.Key)
 		}
 	}
-	return modelClient.Do(req)
+	if t.Transport == nil {
+		return nil, fault.New(fault.ModelUnavailable, "deck: no transport carries the calls of "+t.URL)
+	}
+	return t.Transport.RoundTrip(req)
 }
 
 // SendHops makes the call each hop builds, in order, past one unsent, a 429 or a 5xx; the usage of the answer
 // reaches the Done of its hop when its body closes.
-func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelCall, error)) (*http.Response, ModelHop, error) {
+func SendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*http.Response, Hop, error) {
 	var last error = registry.Invalid("no model to call")
 	for i, h := range hops {
 		c, err := build(h)
@@ -143,10 +147,10 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 			return nil, h, err
 		}
 		start := time.Now()
-		resp, err := SendModel(ctx, h.Target, c)
+		resp, err := Send(ctx, h.Target, c)
 		if err == nil && c.Retry != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed) {
 			_ = resp.Body.Close()
-			resp, err = SendModel(ctx, h.Target, *c.Retry)
+			resp, err = Send(ctx, h.Target, *c.Retry)
 		}
 		if err != nil {
 			release()
@@ -155,7 +159,7 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 				text = fmt.Sprintf("deck: the local model %s did not answer in %s (%d calls waited for it before): %v", h.Name, time.Since(start).Round(time.Second), waited, err)
 			}
 			last = fault.New(fault.ModelUnavailable, text)
-			if Unsent(err) {
+			if egress.Unsent(err) {
 				h.Done(ctx, 0, nil)
 				continue
 			}
@@ -181,14 +185,14 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 		resp.Body = &releasing{metered(resp.Body, start, chars(c.Body), func(u *provider.Usage) { h.Done(done, status, u) }), release}
 		return resp, h, nil
 	}
-	return nil, ModelHop{}, last
+	return nil, Hop{}, last
 }
 
 // bytesPerToken is how deck guesses the tokens of a request before it goes: four bytes a token.
 const bytesPerToken = 4
 
 // past says why a request of body is past a limit of the model of h, empty when it is not or the model has none.
-func (h ModelHop) past(body []byte) string {
+func (h Hop) past(body []byte) string {
 	n := int64(len(body) / bytesPerToken)
 	switch {
 	case h.Context > 0 && n > h.Context:
@@ -227,7 +231,7 @@ type queue struct {
 }
 
 // queued waits for the turn of a queued hop at its server; release ends it, waited is how many calls were ahead.
-func queued(ctx context.Context, h ModelHop) (release func(), waited int64, err error) {
+func queued(ctx context.Context, h Hop) (release func(), waited int64, err error) {
 	if !h.Queue {
 		return func() {}, 0, nil
 	}
@@ -259,14 +263,6 @@ func (r *releasing) Close() error {
 	return err
 }
 
-// Unsent reports whether a failed request never reached the other side: only a failed dial or name lookup proves
-// that; a timeout or a cut answer may have been billed.
-func Unsent(err error) bool {
-	var op *net.OpError
-	var dns *net.DNSError
-	return errors.As(err, &op) && op.Op == "dial" || errors.As(err, &dns)
-}
-
 // Fallible reports whether a hop's answer is an explicit refusal a fallback may take over: a limit or a fault of
 // the service, not an answer about the request.
 func Fallible(status int) bool {
@@ -276,13 +272,13 @@ func Fallible(status int) bool {
 
 // ServeHops serves one call of a model through the hops and passes the answer on as it comes; replace puts the
 // model of each hop in the body.
-func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte, replace bool, hops []ModelHop) {
-	resp, _, err := SendHops(r.Context(), hops, func(h ModelHop) (ModelCall, error) {
+func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte, replace bool, hops []Hop) {
+	resp, _, err := SendHops(r.Context(), hops, func(h Hop) (Call, error) {
 		b := body
 		if replace {
 			b = WithModel(body, h.Model)
 		}
-		return ModelCall{Method: r.Method, Path: path, Query: r.URL.RawQuery, Header: r.Header, Body: b}, nil
+		return Call{Method: r.Method, Path: path, Query: r.URL.RawQuery, Header: r.Header, Body: b}, nil
 	})
 	if err != nil {
 		if fault.Status(err) == http.StatusTooManyRequests {

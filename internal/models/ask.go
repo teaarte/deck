@@ -1,4 +1,4 @@
-package gateway
+package models
 
 import (
 	"bytes"
@@ -13,9 +13,9 @@ import (
 	"deck2/internal/registry"
 )
 
-// ModelPath reports whether a request is a call of a model: a POST of one, or a poll of a job a model started; not
+// IsCall reports whether a request is a call of a model: a POST of one, or a poll of a job a model started; not
 // the account, files or other paths of the service behind a connection.
-func ModelPath(method, path string) bool {
+func IsCall(method, path string) bool {
 	path = strings.TrimPrefix(path, "/")
 	if Polls(method, path) {
 		return true
@@ -32,21 +32,21 @@ func ModelPath(method, path string) bool {
 	return strings.HasPrefix(path, "models/") && (strings.HasSuffix(path, ":generateContent") || strings.HasSuffix(path, ":streamGenerateContent"))
 }
 
-// DeckModel is the header that names the model of a request whose API has no field for it, as the API knows it.
-const DeckModel = "X-Deck-Model"
+// Header is the header that names the model of a request whose API has no field for it, as the API knows it.
+const Header = "X-Deck-Model"
 
-// ModelAsk is a call of a model as deck routes it: the connection, the model the request names and Name of deck's when
+// Ask is a call of a model as deck routes it: the connection, the model the request names and Name of deck's when
 // given, InBody, InForm or ByHeader for where the request names it, and the method and path of a request a module made.
-type ModelAsk struct {
+type Ask struct {
 	Connection, Model, Name  string
 	InBody, InForm, ByHeader bool
 	Method, Path             string
 }
 
-// AskModel is the model a request names: of a JSON body, a form, Google's path, else the header DeckModel; names
+// AskOf is the model a request names: of a JSON body, a form, Google's path, else the header Header; names
 // that disagree, and OpenRouter's models and route that reach models past the one named, are refused.
-func AskModel(connection, method, path string, header http.Header, body []byte) (ModelAsk, error) {
-	ask := ModelAsk{Connection: connection, Method: cmp.Or(method, http.MethodPost), Path: strings.TrimPrefix(path, "/")}
+func AskOf(connection, method, path string, header http.Header, body []byte) (Ask, error) {
+	ask := Ask{Connection: connection, Method: cmp.Or(method, http.MethodPost), Path: strings.TrimPrefix(path, "/")}
 	for i, seg := range strings.Split(ask.Path, "/") {
 		if seg == "." || seg == ".." || seg == "" && i > 0 {
 			return ask, registry.Refuse("the path %s of a call of a model has an empty, . or .. part", path)
@@ -97,7 +97,7 @@ func AskModel(connection, method, path string, header http.Header, body []byte) 
 			named = append(named, model)
 		}
 	}
-	if h := header.Get(DeckModel); h != "" {
+	if h := header.Get(Header); h != "" {
 		if len(named) == 0 {
 			ask.Model, ask.ByHeader = h, true
 			return ask, nil

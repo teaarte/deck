@@ -71,8 +71,8 @@ type Config struct {
 	// ConfirmTTL is how long an unanswered confirmation of a workspace stays open unless its tool sets its own;
 	// zero keeps it open.
 	ConfirmTTL func(ctx context.Context, workspace int64) time.Duration
-	// Models finds where a script's call of a model through the proxy of deck goes.
-	Models ModelRoute
+	// Models is deck's proxy of models for a script of an actor.
+	Models func(act registry.Actor) http.Handler
 	// Progress is how often a long call of a tool tells a client that asked for it that it still runs.
 	Progress time.Duration
 	// Go runs work beside the calls unless deck stops.

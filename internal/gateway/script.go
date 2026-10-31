@@ -3,14 +3,13 @@ package gateway
 import (
 	"crypto/subtle"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 	"slices"
 	"strings"
 
 	"deck2/internal/fault"
 	"deck2/internal/nonce"
+	"deck2/internal/registry"
 )
 
 // Grant issues a token for a process that reaches the gateway over HTTP rather than MCP.
@@ -26,7 +25,7 @@ func (g *Gateway) Grant(s *Session) string {
 func (g *Gateway) ScriptHandler(tok string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /commands/{name}", func(w http.ResponseWriter, r *http.Request) {
-		body, err := ReadBody(w, r)
+		body, err := registry.ReadBody(w, r)
 		if err != nil {
 			return
 		}
@@ -47,16 +46,12 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 		reply(w, out)
 	})
 	mux.HandleFunc("/models/{connection}/{path...}", func(w http.ResponseWriter, r *http.Request) {
-		body, err := ReadBody(w, r)
-		if err != nil {
-			return
-		}
 		s := g.session(tok)
 		if s == nil {
 			http.Error(w, "deck: this process has finished", http.StatusGone)
 			return
 		}
-		g.proxyModel(w, r, s.actor(), r.PathValue("connection"), r.PathValue("path"), body)
+		http.StripPrefix("/models", g.cfg.Models(s.actor())).ServeHTTP(w, r)
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got := r.Header.Get("Authorization")
@@ -128,19 +123,6 @@ func (w *refusing) Flush() {
 
 // Unwrap gives http.ResponseController and http.MaxBytesReader the writer of the server.
 func (w *refusing) Unwrap() http.ResponseWriter { return w.ResponseWriter }
-
-// ReadBody reads the body of a command call up to 32 MB and answers 413 or 400 itself when it cannot.
-func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 32<<20))
-	var tooBig *http.MaxBytesError
-	switch {
-	case errors.As(err, &tooBig):
-		http.Error(w, "deck: the body of a command call is larger than 32 MB", http.StatusRequestEntityTooLarge)
-	case err != nil:
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
-	return body, err
-}
 
 // Refusals are the last calls of the script of tok deck answered with an error, oldest first; last says the last of
 // them is the last call the script made.

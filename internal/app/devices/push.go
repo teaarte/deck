@@ -22,7 +22,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
-	"deck2/internal/gateway"
+	"deck2/internal/egress"
 	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -390,7 +390,7 @@ const (
 func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.PushSubscription, m pushMessage) (int, string) {
 	payload, _ := json.Marshal(m)
 	resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: s.Endpoint,
-		Keys: webpush.Keys{P256dh: s.P256dh, Auth: s.Auth}}, &webpush.Options{HTTPClient: gateway.Push, Subscriber: "deck@example.com",
+		Keys: webpush.Keys{P256dh: s.P256dh, Auth: s.Auth}}, &webpush.Options{HTTPClient: egress.Push, Subscriber: "deck@example.com",
 		VAPIDPublicKey: k.Public, VAPIDPrivateKey: k.Private, TTL: 3600, Urgency: webpush.UrgencyHigh})
 	if err != nil {
 		slog.Error("push", "device", s.Device, "err", err)

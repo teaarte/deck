@@ -59,8 +59,6 @@ type Host struct {
 	// Sandbox confines programs of specs that ask for it; they never read Home, deck's folder, but for their own.
 	Sandbox sandbox.Sandbox
 	Home    home.Layout
-	// Web carries a confined server to its domains.
-	Web sandbox.Web
 
 	mu      sync.Mutex
 	servers map[string]*server

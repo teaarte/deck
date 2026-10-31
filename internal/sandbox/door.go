@@ -10,12 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/egress"
 	"deck2/internal/nonce"
 )
-
-// Web carries a proxy request of a confined program to a host in domains, or says why it refused; its tunnels end
-// when ctx ends.
-type Web func(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) error
 
 // Door is the one way out of a confined program: a proxy with a key of its own to its domains, and deck's own
 // handler at its address.
@@ -30,9 +27,9 @@ type Door struct {
 	refused   []string
 }
 
-// Open opens a door of sb: a request to another host that carries the key goes to web with domains, none goes
-// without domains; deck serves the rest, and nil answers 404.
-func Open(sb Sandbox, web Web, domains []string, deck http.Handler) (*Door, error) {
+// Open opens a door of sb: a request to another host that carries the key goes through egress to domains, none
+// goes without domains; deck serves the rest, and nil answers 404.
+func Open(sb Sandbox, domains []string, deck http.Handler) (*Door, error) {
 	dir, err := os.MkdirTemp("", "deck-")
 	if err != nil {
 		return nil, err
@@ -55,12 +52,12 @@ func Open(sb Sandbox, web Web, domains []string, deck http.Handler) (*Door, erro
 		if !d.authorized(w, r) {
 			return
 		}
-		if web == nil || len(domains) == 0 {
+		if len(domains) == 0 {
 			d.refuse(r.Host + " is not in the domains of this project; its manifest names it in domains.read and the owner grants it")
 			http.Error(w, "deck: "+r.Host+" is not reachable from this program", http.StatusForbidden)
 			return
 		}
-		if err := web(life, w, r, domains); err != nil {
+		if err := egress.Proxy(life, w, r, domains); err != nil {
 			d.refuse(err.Error())
 		}
 	})}

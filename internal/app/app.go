@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -119,7 +120,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Asks = ask.NewBroker(st, cfg.Now, a.bg.Go)
 	a.Registry = registry.New(a.Projects.ProjectCommands)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
-		Models: a.Providers.Route, Progress: cfg.Progress, Go: a.bg.Go}, st, a.Asks, a.Bus, a.Registry)
+		Models: func(act registry.Actor) http.Handler { return a.Providers.Proxy(act, a.Gateway.Permit) }, Progress: cfg.Progress, Go: a.bg.Go}, st, a.Asks, a.Bus, a.Registry)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Read, h)
@@ -129,7 +130,6 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Host = mcphost.New(a.Signins.ServerStatus)
 	a.Host.Now, a.Host.Sandbox, a.Host.Home = cfg.Now, cfg.Sandbox, h
-	a.Host.Web = gateway.Egress
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,

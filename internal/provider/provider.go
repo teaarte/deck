@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/fault"
 	"encoding/json"
 	"net/http"
 	"os/exec"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"deck2/internal/fault"
 )
 
 type Request struct {
@@ -306,4 +307,19 @@ func Spent[T any](calls []T, of func(T) (cost sql.NullFloat64, subscription bool
 		subscribed = &sub
 	}
 	return paid, subscribed
+}
+
+// Answer is what deck's proxy of a model answered a call of a turn: the status, its Retry-After, Past for deck's
+// own refusal past a limit, and the words of a refusal.
+type Answer struct {
+	Status     int
+	RetryAfter string
+	Past       bool
+	Words      string
+}
+
+// ModelHooks hear what deck's proxy of the model of a turn did: the usage of each call and each answer.
+type ModelHooks struct {
+	Usage  func(Usage)
+	Answer func(Answer)
 }

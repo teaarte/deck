@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/gateway"
+	"deck2/internal/models"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -26,7 +26,7 @@ func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection,
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	resp, err := gateway.SendModel(ctx, gateway.ModelTarget{URL: c.Url, API: c.Api, Key: strings.TrimSpace(key)}, gateway.ModelCall{Method: http.MethodGet, Path: "models"})
+	resp, err := models.Send(ctx, target(c, strings.TrimSpace(key)), models.Call{Method: http.MethodGet, Path: "models"})
 	if err != nil {
 		return out, false
 	}

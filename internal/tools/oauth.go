@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"deck2/internal/gateway"
+	"deck2/internal/egress"
 	"deck2/internal/manifest"
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
@@ -87,7 +87,7 @@ func (o *OAuth) Access(ctx context.Context, workspace int64, a manifest.Auth, fo
 	}
 	old := tok
 	old.Expiry = time.Now().Add(-time.Hour)
-	next, err := conf.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, gateway.Short), &old).Token()
+	next, err := conf.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, tokenClient(conf)), &old).Token()
 	if err != nil {
 		var re *oauth2.RetrieveError
 		if errors.As(err, &re) && re.Response != nil && re.Response.StatusCode < 500 {
@@ -165,7 +165,7 @@ func (o *OAuth) exchange(ctx context.Context, workspace int64, a manifest.Auth, 
 	if refused != "" || code == "" {
 		return fmt.Errorf("deck: the service did not grant access: %s", refused)
 	}
-	tok, err := conf.Exchange(context.WithValue(ctx, oauth2.HTTPClient, gateway.Short), code, oauth2.VerifierOption(verifier))
+	tok, err := conf.Exchange(context.WithValue(ctx, oauth2.HTTPClient, tokenClient(conf)), code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return fmt.Errorf("deck: getting the token: %v", err)
 	}
@@ -176,4 +176,9 @@ func (o *OAuth) exchange(ctx context.Context, workspace int64, a manifest.Auth, 
 	old, _ := o.Secrets(workspace, a.Token)
 	_, err = o.Swap(workspace, a.Token, old, string(b))
 	return err
+}
+
+// tokenClient is the client of the token URL of conf, at a public address or one the domains name.
+func tokenClient(conf *oauth2.Config) *http.Client {
+	return egress.Client(egress.With(nil, conf.Endpoint.TokenURL), time.Minute)
 }

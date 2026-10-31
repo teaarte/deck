@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"deck2/internal/gateway"
+	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -45,18 +46,18 @@ func parseCall(input json.RawMessage) (call, error) {
 }
 
 // modelRef is where a call of a model goes: an @role on any connection, or a named model on its own.
-func (s *Service) modelRef(ctx context.Context, workspace int64, model, kind string) (gateway.ModelAsk, error) {
+func (s *Service) modelRef(ctx context.Context, workspace int64, model, kind string) (models.Ask, error) {
 	if model == "" {
-		return gateway.ModelAsk{Connection: "@", Model: "@" + kind}, nil
+		return models.Ask{Connection: "@", Model: "@" + kind}, nil
 	}
 	if strings.HasPrefix(model, "@") {
-		return gateway.ModelAsk{Connection: "@", Model: model}, nil
+		return models.Ask{Connection: "@", Model: model}, nil
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: model})
 	if err != nil {
-		return gateway.ModelAsk{}, registry.NotFound("no model %q; deck.models_list names the models", model)
+		return models.Ask{}, registry.NotFound("no model %q; deck.models_list names the models", model)
 	}
-	return gateway.ModelAsk{Connection: row.Connection.Name, Model: row.Model.Model, Name: row.Model.Name}, nil
+	return models.Ask{Connection: row.Connection.Name, Model: row.Model.Model, Name: row.Model.Name}, nil
 }
 
 func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCallIn) (any, error) {
@@ -117,7 +118,7 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 			return nil, err
 		}
 	}
-	resp, h, err := gateway.SendHops(ctx, hops, func(h gateway.ModelHop) (gateway.ModelCall, error) {
+	resp, h, err := models.SendHops(ctx, hops, func(h models.Hop) (models.Call, error) {
 		return build(in, h, merged(maps.Clone(h.Options), options), att)
 	})
 	if err != nil {

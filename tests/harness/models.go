@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"deck2/internal/egress"
 )
 
 // Assigned are the models of a role of a project as the owner reads them.
@@ -176,6 +178,7 @@ func NewModels(t *testing.T, path map[string]func(n int, body map[string]any) (i
 		_, _ = io.WriteString(w, text)
 	}))
 	t.Cleanup(srv.Close)
+	egress.AsPublic(srv.Listener.Addr().String())
 	f.URL = srv.URL
 	return f
 }

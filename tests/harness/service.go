@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"deck2/internal/gateway"
+	"deck2/internal/egress"
 )
 
 // HangingService answers the requests numbered in hang only when released, like a service deck lost the
@@ -56,7 +56,7 @@ func trustTestTLS() {
 		pool = x509.NewCertPool()
 	}
 	pool.AddCert(s.Certificate())
-	gateway.Outbound.TLSClientConfig = &tls.Config{RootCAs: pool}
+	egress.Outbound.TLSClientConfig = &tls.Config{RootCAs: pool}
 }
 
 // Service is a fake outside service: it keeps every request it got and answers with its handler.
@@ -84,6 +84,7 @@ func NewService(t *testing.T, h func(w http.ResponseWriter, r *http.Request, n i
 		h(w, r, n)
 	}))
 	t.Cleanup(s.Close)
+	egress.AsPublic(s.Listener.Addr().String())
 	return s
 }
 

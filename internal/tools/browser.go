@@ -19,6 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"deck2/internal/docs"
+	"deck2/internal/egress"
 	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
@@ -114,7 +115,7 @@ func (b *Browser) proxy() string {
 		}
 		b.proxyAt = ln.Addr().String()
 		srv := &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_ = gateway.Egress(b.Ctx, w, r, openWeb)
+			_ = egress.Proxy(b.Ctx, w, r, openWeb)
 		})}
 		go func() { <-b.Ctx.Done(); _ = srv.Close() }()
 		go func() { _ = srv.Serve(ln) }()
@@ -245,7 +246,7 @@ func on(domains []string, page string) bool {
 	if port == "" {
 		port = map[string]string{"http": "80", "https": "443"}[u.Scheme]
 	}
-	return gateway.Reachable(domains, net.JoinHostPort(u.Hostname(), port))
+	return egress.Reachable(domains, net.JoinHostPort(u.Hostname(), port))
 }
 
 // allowed lets an action run without the owner when the page is on an act domain.

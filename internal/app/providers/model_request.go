@@ -15,13 +15,13 @@ import (
 	"strings"
 
 	"deck2/internal/files"
-	"deck2/internal/gateway"
+	"deck2/internal/models"
 	"deck2/internal/registry"
 )
 
-func jsonReq(path string, v any) gateway.ModelCall {
+func jsonReq(path string, v any) models.Call {
 	b, _ := json.Marshal(v)
-	return gateway.ModelCall{Path: path, Header: http.Header{"Content-Type": {"application/json"}}, Body: b}
+	return models.Call{Path: path, Header: http.Header{"Content-Type": {"application/json"}}, Body: b}
 }
 
 // ask is the prompt with its input, the way a model reads a task and its data.
@@ -75,9 +75,9 @@ func (s *Service) picture(ctx context.Context, act registry.Actor, file, what st
 }
 
 // build is the request of a call in the OpenAI-compatible protocol, the one deck asks models in.
-func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attached) (gateway.ModelCall, error) {
+func build(in modelCallIn, h models.Hop, options map[string]any, att attached) (models.Call, error) {
 	if api := h.Target.API; api == "google" || api == "anthropic" {
-		return gateway.ModelCall{}, registry.Invalid("connection %s speaks the %s API; deck asks models in the OpenAI-compatible protocol, so give the connection the OpenAI-compatible address of %s, or call its own API from a script through $DECK_MODELS", h.Connection, api, api)
+		return models.Call{}, registry.Invalid("connection %s speaks the %s API; deck asks models in the OpenAI-compatible protocol, so give the connection the OpenAI-compatible address of %s, or call its own API from a script through $DECK_MODELS", h.Connection, api, api)
 	}
 	switch in.Kind {
 	case RoleText:
@@ -85,7 +85,7 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 		if strings.TrimSpace(in.Schema) != "" {
 			var schema any
 			if err := json.Unmarshal([]byte(in.Schema), &schema); err != nil {
-				return gateway.ModelCall{}, registry.Invalid("schema is JSON: %v", err)
+				return models.Call{}, registry.Invalid("schema is JSON: %v", err)
 			}
 			body["response_format"] = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "result", "schema": schema}}
 		}
@@ -112,7 +112,7 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 		return r, nil
 	case RoleTTS:
 		if strings.TrimSpace(in.Text) == "" {
-			return gateway.ModelCall{}, registry.Invalid("tts needs the words in text")
+			return models.Call{}, registry.Invalid("tts needs the words in text")
 		}
 		body := map[string]any{"model": h.Model, "input": in.Text, "response_format": "mp3"}
 		if p := strings.TrimSpace(in.Prompt); p != "" {
@@ -128,11 +128,11 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 		}
 		return jsonReq("videos", merged(body, options)), nil
 	}
-	return gateway.ModelCall{}, registry.Invalid("no kind %q", in.Kind)
+	return models.Call{}, registry.Invalid("no kind %q", in.Kind)
 }
 
 // edit is a picture with what to change in it, posted as a form the way OpenAI's images/edits takes it.
-func edit(h gateway.ModelHop, prompt string, options map[string]any, image []byte) gateway.ModelCall {
+func edit(h models.Hop, prompt string, options map[string]any, image []byte) models.Call {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
 	ct := http.DetectContentType(image)
@@ -157,25 +157,25 @@ func edit(h gateway.ModelHop, prompt string, options map[string]any, image []byt
 		}
 	}
 	_ = w.Close()
-	return gateway.ModelCall{Path: "images/edits", Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}
+	return models.Call{Path: "images/edits", Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}
 }
 
 // transcription is a recording posted as a form the way OpenAI's transcriptions and whisper.cpp's server take it;
 // a raw connection is the full address of the service.
-func transcription(h gateway.ModelHop, options map[string]any, audio *files.Ref) (gateway.ModelCall, error) {
+func transcription(h models.Hop, options map[string]any, audio *files.Ref) (models.Call, error) {
 	f, n, err := audio.Open()
 	if err != nil {
-		return gateway.ModelCall{}, err
+		return models.Call{}, err
 	}
 	defer f.Close()
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
 	part, err := w.CreateFormFile("file", filepath.Base(audio.Name))
 	if err != nil {
-		return gateway.ModelCall{}, err
+		return models.Call{}, err
 	}
 	if _, err := io.Copy(part, io.LimitReader(f, n)); err != nil {
-		return gateway.ModelCall{}, err
+		return models.Call{}, err
 	}
 	fields := map[string]any{"response_format": "json"}
 	if h.Model != "" {
@@ -189,5 +189,5 @@ func transcription(h gateway.ModelHop, options map[string]any, audio *files.Ref)
 	if h.Target.API == "raw" {
 		path = ""
 	}
-	return gateway.ModelCall{Path: path, Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}, nil
+	return models.Call{Path: path, Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}, nil
 }

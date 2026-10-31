@@ -11,9 +11,9 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/egress"
 	"deck2/internal/fault"
 	"deck2/internal/files"
-	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -64,7 +64,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	if len(out.secrets) > 0 {
 		out.secrets = append(out.secrets, req.URL.String())
 	}
-	if req, err = gateway.Pin(req, append([]string{req.URL.Host}, domains...)); err != nil {
+	if req, err = egress.Pin(req, egress.With(domains, req.URL.String())); err != nil {
 		return nil, fault.Wrap("deck: "+t.Name, err)
 	}
 	var serr error
@@ -180,7 +180,7 @@ func (h *HTTP) send(ctx context.Context, p db.Project, o *outgoing) (*http.Respo
 		}
 		resp, err := h.Client.Do(r)
 		if err != nil {
-			return nil, !gateway.Unsent(err), err
+			return nil, !egress.Unsent(err), err
 		}
 		if resp.StatusCode != http.StatusUnauthorized || o.oauth == nil {
 			return resp, true, nil

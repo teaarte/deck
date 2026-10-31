@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"deck2/internal/gateway"
+	"deck2/internal/egress"
 	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -31,7 +31,7 @@ func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	door, err := sandbox.Open(h.Sandbox, h.Web, spec.Domains, nil)
+	door, err := sandbox.Open(h.Sandbox, spec.Domains, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 	var transport mcp.Transport
 	s.cmd = nil
 	if spec.URL != "" {
-		transport = &mcp.StreamableClientTransport{Endpoint: spec.URL, HTTPClient: gateway.Streams}
+		transport = &mcp.StreamableClientTransport{Endpoint: spec.URL, HTTPClient: egress.Client(egress.With(spec.Domains, spec.URL), 0)}
 	} else {
 		for _, d := range append([]string{spec.Dir}, spec.Write...) {
 			if err := os.MkdirAll(d, 0o700); d != "" && err != nil {

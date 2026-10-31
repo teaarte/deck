@@ -12,15 +12,15 @@ import (
 
 	"deck2/internal/fault"
 	"deck2/internal/files"
-	"deck2/internal/gateway"
 	"deck2/internal/manifest"
+	"deck2/internal/models"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
 )
 
 // answer reads what a model API answered: a binary body is kept as a file in the results folder of the calling
 // process, the rest comes back as its bytes; an answer past 400 is an error, of the model's status when it refused.
-func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h gateway.ModelHop) (any, []byte, error) {
+func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h models.Hop) (any, []byte, error) {
 	defer resp.Body.Close()
 	ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	text := ct == "" || ct == "application/json" || strings.HasSuffix(ct, "+json") || strings.HasPrefix(ct, "text/")
@@ -43,7 +43,7 @@ func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h
 }
 
 // read turns what the API answered into the result of the call.
-func (s *Service) read(act registry.Actor, in modelCallIn, h gateway.ModelHop, resp *http.Response) (any, error) {
+func (s *Service) read(act registry.Actor, in modelCallIn, h models.Hop, resp *http.Response) (any, error) {
 	file, raw, err := s.answer(act, in.Kind, resp, h)
 	if file != nil || err != nil {
 		return file, err

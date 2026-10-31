@@ -1,6 +1,9 @@
-package gateway
+// Package egress is the one way of deck to the web: a name resolves once, a request dials only the addresses it
+// resolved to, and a name reaches only public ones.
+package egress
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +15,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"deck2/internal/fault"
@@ -97,25 +101,108 @@ func listed(domains []string, hostport string) bool {
 	return false
 }
 
-// Public reports whether an address is on the internet: not loopback, the local network or a tailnet.
+// Public reports whether an address is on the internet: not loopback, the local network or a tailnet, nor an IPv6
+// address that carries an IPv4 one that is not.
 func Public(ip netip.Addr) bool {
 	ip = ip.Unmap()
+	if v4, ok := embedded(ip); ok {
+		return Public(v4)
+	}
 	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !shared.Contains(ip)
 }
 
-// shared is the carrier-grade NAT range, which tailnets use.
-var shared = netip.MustParsePrefix("100.64.0.0/10")
+var (
+	// shared is the carrier-grade NAT range, which tailnets use.
+	shared = netip.MustParsePrefix("100.64.0.0/10")
+	nat64  = netip.MustParsePrefix("64:ff9b::/96")
+	sixTo4 = netip.MustParsePrefix("2002::/16")
+)
 
-// Egress carries a proxy request of a confined program to a host in the domains, dialled at the addresses it
+// embedded is the IPv4 address a NAT64 or 6to4 address reaches.
+func embedded(ip netip.Addr) (netip.Addr, bool) {
+	b := ip.As16()
+	switch {
+	case !ip.Is6():
+		return netip.Addr{}, false
+	case nat64.Contains(ip):
+		return netip.AddrFrom4([4]byte(b[12:16])), true
+	case sixTo4.Contains(ip):
+		return netip.AddrFrom4([4]byte(b[2:6])), true
+	}
+	return netip.Addr{}, false
+}
+
+// Local reports whether a place of domains reaches beyond the internet: an address or network that is not public,
+// such as 10.0.0.0/8, or one that holds such addresses, such as 0.0.0.0/0.
+func Local(domain string) bool {
+	d := strings.Trim(strings.ToLower(strings.TrimSpace(domain)), "[]")
+	if h, _, err := net.SplitHostPort(strings.TrimSpace(domain)); err == nil {
+		d = strings.Trim(h, "[]")
+	}
+	if ip, err := netip.ParseAddr(d); err == nil {
+		return !Public(ip)
+	}
+	pfx, err := netip.ParsePrefix(d)
+	if err != nil {
+		return d == "localhost" || strings.HasSuffix(d, ".localhost")
+	}
+	pfx = pfx.Masked()
+	for _, l := range local {
+		if pfx.Overlaps(l) {
+			return true
+		}
+	}
+	return !Public(pfx.Addr())
+}
+
+// local are the networks of no public address.
+var local = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("10.0.0.0/8"),
+	netip.MustParsePrefix("172.16.0.0/12"), netip.MustParsePrefix("192.168.0.0/16"), netip.MustParsePrefix("169.254.0.0/16"),
+	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("::1/128"),
+	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10"), nat64, sixTo4}
+
+// With is domains and the host of a URL a manifest names, such as of an HTTP tool or an MCP server: a name, or an
+// address that is public; any other address the domains name themselves.
+func With(domains []string, page string) []string {
+	u, err := url.Parse(page)
+	if err != nil || u.Hostname() == "" {
+		return domains
+	}
+	ip, err := netip.ParseAddr(u.Hostname())
+	switch {
+	case err != nil || Public(ip):
+		return append([]string{u.Hostname()}, domains...)
+	case standing(net.JoinHostPort(ip.String(), port(u))):
+		return append([]string{net.JoinHostPort(ip.String(), port(u))}, domains...)
+	}
+	return domains
+}
+
+// port is the port of a URL, by its scheme when it names none.
+func port(u *url.URL) string {
+	return cmp.Or(u.Port(), map[string]string{"http": "80", "https": "443"}[u.Scheme])
+}
+
+// Anywhere are the domains of every public place.
+var Anywhere = []string{"*"}
+
+var stand sync.Map
+
+// AsPublic has deck take the address host:port for a public one where a URL names it: a test's service on loopback
+// stands for one on the internet.
+func AsPublic(hostport string) { stand.Store(hostport, true) }
+
+func standing(hostport string) bool {
+	_, ok := stand.Load(hostport)
+	return ok
+}
+
+// Proxy carries a proxy request of a confined program to a host in the domains, dialled at the addresses it
 // resolved to once; tunnels close when ctx ends. The error is why it refused: 502 for a name that does not resolve.
-func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) error {
+func Proxy(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) error {
 	target := r.Host
 	if r.Method != http.MethodConnect {
-		port := r.URL.Port()
-		if port == "" {
-			port = map[string]string{"http": "80", "https": "443"}[r.URL.Scheme]
-		}
-		target = net.JoinHostPort(r.URL.Hostname(), port)
+		target = net.JoinHostPort(r.URL.Hostname(), port(r.URL))
 	}
 	pinned, err := destination(r.Context(), domains, target)
 	if errors.Is(err, errUnresolved) {
@@ -139,11 +226,7 @@ func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains
 // Pin is req bound to the addresses its host resolved to once, when the domains let it go there; Outbound dials only
 // them, a redirect of the same host too. A name that does not resolve is 502, a place the domains refuse 403.
 func Pin(req *http.Request, domains []string) (*http.Request, error) {
-	port := req.URL.Port()
-	if port == "" {
-		port = map[string]string{"http": "80", "https": "443"}[req.URL.Scheme]
-	}
-	pinned, err := destination(req.Context(), domains, net.JoinHostPort(req.URL.Hostname(), port))
+	pinned, err := destination(req.Context(), domains, net.JoinHostPort(req.URL.Hostname(), port(req.URL)))
 	if errors.Is(err, errUnresolved) {
 		return nil, fault.New(fault.Network, err.Error()+"; the network or DNS of the machine may be down")
 	}
@@ -223,4 +306,12 @@ func tunnel(ctx context.Context, w http.ResponseWriter, r *http.Request, target 
 	case <-done:
 	case <-ctx.Done():
 	}
+}
+
+// Unsent reports whether a failed request never reached the other side: only a failed dial or name lookup proves
+// that; a timeout or a cut answer may have been billed.
+func Unsent(err error) bool {
+	var op *net.OpError
+	var dns *net.DNSError
+	return errors.As(err, &op) && op.Op == "dial" || errors.As(err, &dns)
 }

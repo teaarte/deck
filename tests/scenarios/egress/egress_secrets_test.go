@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"deck2/internal/egress"
 	"deck2/tests/harness"
 )
 
@@ -35,6 +36,7 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 		fmt.Fprintf(w, "BEGIN:VCALENDAR\nURL:https://%s%s\nEND:VCALENDAR\n", r.Host, r.URL.Path)
 	}))
 	t.Cleanup(svc.Close)
+	egress.AsPublic(svc.Listener.Addr().String())
 	e := harness.New(t)
 	link := svc.URL + "/owa/calendar/me@x.com/tok-0123456789/calendar.ics"
 	e.Secret("cal", "outlook", link)

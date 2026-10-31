@@ -20,7 +20,6 @@ import (
 	"deck2/internal/app"
 	"deck2/internal/app/tokens"
 	"deck2/internal/fault"
-	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -122,7 +121,7 @@ func (s *Server) ownerOnly(next http.HandlerFunc) http.HandlerFunc {
 var owner = registry.Actor{Kind: registry.Owner, Workspace: store.DefaultWorkspace}
 
 func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
-	body, err := gateway.ReadBody(w, r)
+	body, err := registry.ReadBody(w, r)
 	if err != nil {
 		return
 	}

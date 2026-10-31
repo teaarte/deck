@@ -15,7 +15,8 @@ import (
 	"golang.org/x/net/html"
 
 	"deck2/internal/docs"
-	"deck2/internal/gateway"
+	"deck2/internal/egress"
+	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
@@ -70,12 +71,12 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	if _, err := s.webDomains(ctx, act); err != nil {
 		return nil, err
 	}
-	hops, err := s.Route(ctx, act, gateway.ModelAsk{Connection: "@", Model: "@" + RoleSearch})
+	hops, err := s.Route(ctx, act, models.Ask{Connection: "@", Model: "@" + RoleSearch})
 	if err != nil {
 		return nil, err
 	}
 	if act.Trial {
-		hops = slices.DeleteFunc(hops, func(h gateway.ModelHop) bool { return !h.Local && !h.Free })
+		hops = slices.DeleteFunc(hops, func(h models.Hop) bool { return !h.Local && !h.Free })
 		if len(hops) == 0 {
 			return nil, registry.Refuse("trial run: no search of deck's settings is local or free, so a trial does not search")
 		}
@@ -90,8 +91,8 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 		}
 	}
 	query := url.Values{"q": {in.Query}, "format": {"json"}}.Encode()
-	resp, h, err := gateway.SendHops(ctx, hops, func(gateway.ModelHop) (gateway.ModelCall, error) {
-		return gateway.ModelCall{Method: http.MethodGet, Path: "search", Query: query, Header: http.Header{"Accept": {"application/json"}}}, nil
+	resp, h, err := models.SendHops(ctx, hops, func(models.Hop) (models.Call, error) {
+		return models.Call{Method: http.MethodGet, Path: "search", Query: query, Header: http.Header{"Accept": {"application/json"}}}, nil
 	})
 	if err != nil {
 		return nil, err
@@ -131,7 +132,7 @@ func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchI
 	if err != nil {
 		return nil, err
 	}
-	resp, err := gateway.Fetch(ctx, domains, in.URL)
+	resp, err := egress.Fetch(ctx, domains, in.URL)
 	if err != nil {
 		return nil, registry.Refuse("%v; an agent reads the pages of its project's domains.read", err)
 	}

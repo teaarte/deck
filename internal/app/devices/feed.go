@@ -5,6 +5,7 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"deck2/internal/manifest"
+	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -159,7 +160,7 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 	if err != nil {
 		return nil, err
 	}
-	ws := dv.Words(in.Lang)
+	ws := words.In(in.Lang)
 	out := make([]feedRow, 0, len(rows))
 	for _, f := range rows {
 		r := feedRow{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: deckText(ws, f.Kind, f.Author, f.Text), Screen: f.Screen,
@@ -264,7 +265,7 @@ func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedList
 			CreatedAt: p.FinishedAt, Process: p.ID, Error: p.Error, ErrorType: p.ErrorType, Retry: p.Retry, Repeats: p.Repeats,
 			Open: map[string]any{"verb": "open", "screen": "process", "record": p.ID}})
 	}
-	ws := dv.Words(in.Lang)
+	ws := words.In(in.Lang)
 	for _, c := range checks {
 		if c.Status != "error" || c.Seen {
 			continue

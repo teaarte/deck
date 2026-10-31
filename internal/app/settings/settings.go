@@ -5,6 +5,7 @@ package settings
 import (
 	"cmp"
 	"context"
+	"deck2/internal/words"
 	"fmt"
 	"slices"
 	"strconv"
@@ -22,7 +23,6 @@ type Service struct {
 	St         *store.Store
 	DefaultTTL time.Duration
 	Wake       func(ctx context.Context)
-	Words      func(lang string) map[string]string
 }
 
 // agentLimit is how many agent turns a workspace runs at once unless the owner set it.
@@ -143,7 +143,7 @@ type settingsListIn struct {
 
 func (s *Service) settingsList(ctx context.Context, act registry.Actor, in settingsListIn) ([]settingRow, error) {
 	out := make([]settingRow, 0, len(settingDefs))
-	ws := s.Words(in.Lang)
+	ws := words.In(in.Lang)
 	for _, d := range settingDefs {
 		out = append(out, settingRow{Name: d.name, Title: cmp.Or(ws[d.title], d.title), Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: append(d.options, d.steps...)})
 	}

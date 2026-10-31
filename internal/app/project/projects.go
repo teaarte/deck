@@ -9,6 +9,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 	"fmt"
 	"maps"
 	"slices"
@@ -78,10 +79,10 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	if prompt, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}
-	ws := maps.Clone(pj.Words(lang))
+	ws := maps.Clone(words.In(lang))
 	if err != nil {
 		v.ManifestError = err.Error()
-		v.Meta = pj.meta(pj.Words(lang), v)
+		v.Meta = pj.meta(words.In(lang), v)
 		return v
 	}
 	if lang != "" {
@@ -99,7 +100,7 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	if f, err := docs.For(ctx, pj.St.Q, registry.Actor{}, p.ID); err == nil {
 		v.Models = append(v.Models, f.Uses()...)
 	}
-	v.Meta = pj.meta(pj.Words(lang), v)
+	v.Meta = pj.meta(words.In(lang), v)
 	return v
 }
 

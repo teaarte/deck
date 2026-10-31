@@ -3,6 +3,7 @@ package health
 
 import (
 	"context"
+	"deck2/internal/words"
 	"slices"
 	"strings"
 	"sync"
@@ -73,7 +74,7 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn
 		return nil, err
 	}
 	works, places := s.Works(ctx, act.Workspace, in.Lang), s.Places(ctx, act.Workspace)
-	ws := s.Words(in.Lang)
+	ws := words.In(in.Lang)
 	out := make([]shownRow, 0, len(rows))
 	for _, r := range rows {
 		r.Error = manifest.TrText(ws, r.Error)
@@ -175,8 +176,6 @@ type Service struct {
 	NoSearch func(ctx context.Context, workspace int64) string
 	// Missing are the names assignments hold that are no model of deck, with the places that name them.
 	Missing func(ctx context.Context, workspace int64) map[string][]string
-	// Words are deck's words in a language.
-	Words func(lang string) map[string]string
 	// Works looks up the model that does the work of a command; Places the work each model does.
 	Works  func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	Places func(ctx context.Context, workspace int64) map[string][]string

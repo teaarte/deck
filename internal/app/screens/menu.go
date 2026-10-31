@@ -7,6 +7,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 	"slices"
 	"sync"
 )
@@ -91,9 +92,9 @@ type menuIn struct {
 func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any, error) {
 	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{}, Topics: menuTopics(),
 		Language: ss.Language(ctx, act.Workspace)}
-	deckWords := words(in.Lang, nil)
+	deckWords := wordsOf(in.Lang, nil)
 	for _, name := range shipped().Menu {
-		s := DeckScreen(name)
+		s := manifest.DeckScreen(name)
 		out.Deck.Screens = append(out.Deck.Screens, manifest.ScreenLink{Name: name, Title: manifest.Tr(deckWords, s.Title), Icon: s.Icon})
 	}
 	ps, err := ss.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
@@ -117,7 +118,7 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 		if m == nil {
 			continue
 		}
-		ws := words(in.Lang, m)
+		ws := wordsOf(in.Lang, m)
 		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name]}
 		if c := files.CoverOf(pics, p.ID, theme); c != nil {
 			e.Cover, e.CoverColor, e.CoverDark, e.CoverDarkColor = c.Light, c.Color, c.Dark, c.DarkColor
@@ -180,7 +181,7 @@ func rank(order []int64, id int64) int {
 // foot are the groups at the foot of the menu: deck's work, the master's screens but its documents, which are a
 // folder of Files, and deck's look and settings; an empty group is left out.
 func (ss *Service) foot(m menuOut, lang string) []menuGroup {
-	work := menuGroup{Key: "work", Title: manifest.Tr(Phrases(lang), "Work")}
+	work := menuGroup{Key: "work", Title: manifest.Tr(words.In(lang), "Work")}
 	settings := menuGroup{Key: "settings"}
 	for _, s := range m.Deck.Screens {
 		if s.Name == "settings" || s.Name == "look" {

@@ -128,7 +128,7 @@ func (ss *Service) commandsList(ctx context.Context, act registry.Actor, in comm
 			}
 		}
 		if in.Lang != "" {
-			ws := words(in.Lang, m)
+			ws := wordsOf(in.Lang, m)
 			r.Title = manifest.Tr(ws, r.Title)
 			if r.Description != "" {
 				r.Description = manifest.Tr(ws, r.Description)

@@ -3,6 +3,7 @@ package processes
 import (
 	"cmp"
 	"context"
+	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -61,7 +62,7 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 			v.Topic = t.Title
 		}
 	}
-	ws := s.Words(lang)
+	ws := words.In(lang)
 	v.Shown = process.Show(p, question, v.Long, func(phrase string) string { return manifest.Tr(ws, phrase) })
 	v.Error = deckError(ws, p, v.Error)
 }

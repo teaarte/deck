@@ -3,6 +3,7 @@ package providers
 import (
 	"cmp"
 	"context"
+	"deck2/internal/words"
 	"fmt"
 	"slices"
 	"strconv"
@@ -76,7 +77,7 @@ func (b *Book) add(v modelView) {
 // Groups give the group of a model of a workspace where models are listed, in a language, and the place of the
 // group among them.
 func (s *Service) Groups(ctx context.Context, workspace int64, lang string) func(model string) (string, int) {
-	ws := s.Words(lang)
+	ws := words.In(lang)
 	b := s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
 	return func(model string) (string, int) {
 		v, ok := b.models[model]
@@ -146,14 +147,14 @@ func (b *Book) Of(kind string) []string {
 
 // Works looks up the work of commands of a workspace on one book of its models, its prices in a language.
 func (s *Service) Works(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work {
-	ws := s.Words(lang)
+	ws := words.In(lang)
 	b := s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
 	return func(projectID int64, command string) provider.Work { return s.commandWork(ctx, b, projectID, command) }
 }
 
 // Prices say the price of each model of a workspace in a language, such as subscription or free.
 func (s *Service) Prices(ctx context.Context, workspace int64, lang string) func(model string) string {
-	ws := s.Words(lang)
+	ws := words.In(lang)
 	return s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) }).Price
 }
 

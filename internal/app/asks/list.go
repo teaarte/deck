@@ -3,6 +3,7 @@ package asks
 import (
 	"cmp"
 	"context"
+	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -83,7 +84,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 	}
 	all := append(open, expired...)
 	slices.SortFunc(all, func(x, y db.Ask) int { return cmp.Compare(x.ID, y.ID) })
-	ws := s.Words(lang)
+	ws := words.In(lang)
 	tr := func(text string) string { return manifest.TrText(ws, text) }
 	out := make([]askRow, 0, len(all))
 	for _, q := range all {
@@ -145,7 +146,7 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		}
 		r.Payload = json.RawMessage(cmp.Or(string(f.Call.Input), "null"))
 		if c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
-			r.What = c.Tr(s.Words(lang), lang, c.Title)
+			r.What = c.Tr(words.In(lang), lang, c.Title)
 			if f.Target == "" && c.Target != nil {
 				r.Where = c.Target(f.Tool, f.Call.Input)
 			}

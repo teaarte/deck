@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -31,8 +32,6 @@ type Service struct {
 	IsFailure func(ctx context.Context, act registry.Actor, process int64) (bool, error)
 	// Works looks up the model that does the work of a command, on the models of a workspace, prices in a language.
 	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
-	// Words are deck's phrases in a language.
-	Words func(lang string) map[string]string
 }
 
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
@@ -95,7 +94,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 	manifests := map[int64]*manifest.Manifest{}
 	works := map[string]provider.Work{}
 	work := s.Works(ctx, act.Workspace, in.Lang)
-	ws := s.Words(in.Lang)
+	ws := words.In(in.Lang)
 	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
 	out := make([]triggerView, 0, len(ts))
 	for _, t := range ts {

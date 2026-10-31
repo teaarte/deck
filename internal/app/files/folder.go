@@ -3,6 +3,7 @@ package files
 import (
 	"cmp"
 	"context"
+	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -79,7 +80,7 @@ func (s *Service) filesFolder(ctx context.Context, act registry.Actor, in filesF
 
 // folder is one folder of the file manager of deck, read by the reads of its parts as the caller.
 func (s *Service) folder(ctx context.Context, act registry.Actor, in filesFolderIn) (folder, error) {
-	ws := s.Words(in.Lang)
+	ws := words.In(in.Lang)
 	tr := func(t string) string { return manifest.Tr(ws, t) }
 	var projects []struct {
 		Name    string `json:"name"`

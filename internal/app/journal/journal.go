@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/words"
 	"math"
 	"slices"
 	"time"
@@ -20,8 +21,6 @@ import (
 type Service struct {
 	St  *store.Store
 	Now func() time.Time
-	// Words are deck's phrases in a language.
-	Words func(lang string) map[string]string
 	// Groups give the group of a model of a workspace where models are listed, in a language, and its place.
 	Groups func(ctx context.Context, workspace int64, lang string) func(model string) (string, int)
 }
@@ -267,7 +266,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 
 // titles give the title of a project by its name in the owner's words; deck's own work is Deki and deck.
 func (s *Service) titles(ctx context.Context, act registry.Actor, in spendDailyIn) func(string) string {
-	ws := s.Words(in.Lang)
+	ws := words.In(in.Lang)
 	seen := map[string]string{}
 	return func(name string) string {
 		if name == "" {

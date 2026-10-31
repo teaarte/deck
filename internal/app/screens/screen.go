@@ -62,7 +62,7 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 		req.Size = [2]int{w, h}
 	}
 	if in.Project == "" {
-		req.Screen = DeckScreen(in.Screen)
+		req.Screen = manifest.DeckScreen(in.Screen)
 		req.Project.WorkspaceID = act.Workspace
 		// A screen of deck in a card says no title: the card says it.
 		if sized && req.Screen != nil {
@@ -90,7 +90,7 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 	if req.Screen == nil {
 		return nil, registry.NotFound("deck: no screen %q", in.Screen)
 	}
-	req.Words, req.Lang = words(in.Lang, req.Manifest), in.Lang
+	req.Words, req.Lang = wordsOf(in.Lang, req.Manifest), in.Lang
 	drawn, err := screen.Render(ctx, ss.sources(act), req)
 	out, errs := drawn.Messages, drawn.Errors
 	if err != nil {

@@ -41,7 +41,6 @@ type Service struct {
 	Themed func(ctx context.Context, ws int64, name string) bool
 	// Invoke calls a command as an actor; Words are deck's phrases in a language.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
-	Words  func(lang string) map[string]string
 	// Current is the name of the theme a workspace wears.
 	Current func(ctx context.Context, ws int64) string
 	// draining keeps one drain of the outbox at a time.

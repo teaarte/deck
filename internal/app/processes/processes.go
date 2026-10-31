@@ -16,6 +16,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
+	"deck2/internal/words"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,8 +38,6 @@ type Service struct {
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// Lookup is a command of the registry by its full name.
 	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
-	// Words are deck's phrases in a language.
-	Words func(lang string) map[string]string
 }
 
 // Commands are the commands of processes.
@@ -205,7 +204,7 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 		s.ofRecord(ctx, p, &v)
 		c, err := s.Lookup(ctx, act.Workspace, v.Project+"."+p.Command)
 		if err == nil {
-			v.Title = c.Tr(s.Words(in.Lang), in.Lang, c.Title)
+			v.Title = c.Tr(words.In(in.Lang), in.Lang, c.Title)
 		}
 		if in.Failed {
 			v.Retry = err == nil && slices.Contains(c.Callers, registry.Owner)
@@ -233,7 +232,7 @@ func (s *Service) listed(ctx context.Context, act registry.Actor, name string) (
 
 // runOf is a process of another project as reads runs gives it: what ran, how it ended and on which models.
 func (s *Service) runOf(ctx context.Context, p db.Process, v processView, lang string) processView {
-	ws := s.Words(lang)
+	ws := words.In(lang)
 	line, _, _ := strings.Cut(deckError(ws, p, v.Error), "\n")
 	r := processView{ID: v.ID, Project: v.Project, Command: v.Command, Kind: v.Kind, State: v.State, Trial: v.Trial, Error: line,
 		ErrorType: v.ErrorType, Whose: v.Whose, StartedAt: v.StartedAt, FinishedAt: v.FinishedAt, Provider: v.Provider}

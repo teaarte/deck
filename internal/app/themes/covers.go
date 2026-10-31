@@ -2,6 +2,7 @@ package themes
 
 import (
 	"context"
+	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -28,7 +29,7 @@ type drawIn struct {
 
 // draw tells the master to draw covers in the mood of the theme in use, for its schemes; deck draws nothing itself.
 func (s *Service) draw(ctx context.Context, act registry.Actor, in drawIn) (any, error) {
-	ws := s.Words(s.Language(ctx, act.Workspace))
+	ws := words.In(s.Language(ctx, act.Workspace))
 	cur := s.Current(ctx, act.Workspace)
 	l, err := s.look(ctx, act.Workspace, cur, s.Language(ctx, act.Workspace))
 	if err != nil {
@@ -143,7 +144,7 @@ func (s *Service) covers(ctx context.Context, act registry.Actor, in coversIn) (
 	}
 	out := []coverRow{}
 	for _, x := range pics {
-		title := manifest.Tr(s.Words(in.Lang), "Every theme")
+		title := manifest.Tr(words.In(in.Lang), "Every theme")
 		if x.Theme != "" {
 			title = x.Theme
 			if l, err := s.look(ctx, act.Workspace, x.Theme, in.Lang); err == nil {

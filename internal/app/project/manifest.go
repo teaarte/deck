@@ -9,6 +9,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 	"deck2/master"
 	"fmt"
 	"log/slog"
@@ -372,7 +373,7 @@ func (pj *Service) words(ctx context.Context, p db.Project, m *manifest.Manifest
 		also, values = []string{docs.Description(prompt)}, pj.filterValues(ctx, p.ID, m)
 	}
 	unused = m.UnusedWords(also, values)
-	untranslated = m.Untranslated(func(lang, text string) bool { return pj.Words(lang)[text] != "" }, also...)
+	untranslated = m.Untranslated(func(lang, text string) bool { return words.In(lang)[text] != "" }, also...)
 	return unused, untranslated
 }
 

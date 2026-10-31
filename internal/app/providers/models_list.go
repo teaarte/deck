@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"deck2/internal/words"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -135,7 +136,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		}
 		out.Connections = append(out.Connections, v)
 	}
-	ws := s.Words(in.Lang)
+	ws := words.In(in.Lang)
 	tr := func(p string) string { return manifest.TrText(ws, p) }
 	for _, pv := range s.Builtin {
 		_, sub := pv.(provider.Subscribed)
@@ -230,7 +231,7 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 	if err != nil {
 		return nil, err
 	}
-	ws := s.Words(lang)
+	ws := words.In(lang)
 	b := s.book(ctx, act.Workspace, func(p string) string { return manifest.TrText(ws, p) })
 	for _, p := range projects {
 		if pid != 0 && p.ID != pid {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/words"
 	"deck2/master"
 	"fmt"
 	"log/slog"
@@ -42,7 +43,7 @@ func (ss *Service) pulse(ctx context.Context, act registry.Actor, lang string) (
 	default:
 		p.State = "calm"
 	}
-	firstLine(&p, Phrases(lang))
+	firstLine(&p, words.In(lang))
 	return p, asks, running, failing
 }
 

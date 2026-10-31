@@ -25,8 +25,6 @@ type Service struct {
 	MergeGrant func(ctx context.Context, q db.Ask) (db.Ask, int64, error)
 	// AddToList adds a value to a list of the manifest of a project at the path of keys, as the actor's change.
 	AddToList func(ctx context.Context, act registry.Actor, p db.Project, value string, path ...string) error
-	// Words are deck's words in a language.
-	Words func(lang string) map[string]string
 	// Said is the last thing the agent of a process said, empty when it said nothing.
 	Said func(processID int64) string
 	// Go runs work beside the calls unless deck stops.

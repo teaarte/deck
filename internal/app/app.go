@@ -144,11 +144,11 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
 	a.Folders = folders.Service{St: st, Home: h}
 	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go,
-		Themed: a.Themes.Exists, Current: a.Themes.Current, Invoke: a.Registry.Invoke, Words: screens.Phrases}
-	a.Journal = journal.Service{St: st, Now: cfg.Now, Words: screens.Phrases, Groups: a.Providers.Groups}
-	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake, Words: screens.Phrases}
-	a.Themes = themes.Service{St: st, Now: cfg.Now, Invoke: a.Registry.Invoke, Words: screens.Phrases, Language: a.Settings.Language}
-	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Providers.Works, Words: screens.Phrases,
+		Themed: a.Themes.Exists, Current: a.Themes.Current, Invoke: a.Registry.Invoke}
+	a.Journal = journal.Service{St: st, Now: cfg.Now, Groups: a.Providers.Groups}
+	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
+	a.Themes = themes.Service{St: st, Now: cfg.Now, Invoke: a.Registry.Invoke, Language: a.Settings.Language}
+	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Providers.Works,
 		IsFailure: func(ctx context.Context, act registry.Actor, id int64) (bool, error) {
 			return a.Processes.IsFailure(ctx, act, id)
 		}}
@@ -156,27 +156,26 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		SaveManifest: a.Projects.Save, Changed: a.Devices.Changed}
 	a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		Expire: a.Records.Expire}
-	a.Providers = providers.Service{St: st, Words: screens.Phrases, Changed: func(topic string) { a.Bus.Emit(events.Event{Topic: topic}) }, Now: cfg.Now, Home: h, FilesMu: &a.Files.Mu, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+	a.Providers = providers.Service{St: st, Changed: func(topic string) { a.Bus.Emit(events.Event{Topic: topic}) }, Now: cfg.Now, Home: h, FilesMu: &a.Files.Mu, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
 		VideoCeiling: cfg.VideoCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
-		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Words: screens.Phrases, Said: a.Runner.Said, Go: a.bg.Go}
+		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
-		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Prices: a.Providers.Prices, Go: a.bg.Go, Words: screens.Phrases, Language: a.Settings.Language, Lookup: a.Registry.Lookup,
+		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Prices: a.Providers.Prices, Go: a.bg.Go, Language: a.Settings.Language, Lookup: a.Registry.Lookup,
 		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
 	a.Devices = devices.Service{St: st, Now: cfg.Now,
-		Home: h, Invoke: a.Registry.Invoke, DeckScreen: screens.DeckScreen, Waiting: a.Answers.Waiting, Words: screens.Phrases}
+		Home: h, Invoke: a.Registry.Invoke, Waiting: a.Answers.Waiting}
 	a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
-	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
-		Words: screens.Phrases}
+	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup}
 	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch, Missing: a.Providers.Missing,
-		Works: a.Providers.Works, Places: a.Providers.Places, Words: screens.Phrases, Go: a.bg.Go}
+		Works: a.Providers.Works, Places: a.Providers.Places, Go: a.bg.Go}
 	a.Screens = screens.Service{St: st, Now: cfg.Now, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Devices.Unread, Works: a.Providers.Works,
 		ScreenFailed: a.Failures.Screen, ScreenDrawn: a.Failures.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
@@ -192,7 +191,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.Screens.CheckScreens,
-		Unassigned: a.Providers.Unassigned, Words: screens.Phrases, Secret: a.Secrets.Has,
+		Unassigned: a.Providers.Unassigned, Secret: a.Secrets.Has,
 		Theme: func(ctx context.Context, ws int64) string { return a.Themes.Current(ctx, ws) }}
 	a.addBuiltins()
 	a.Browser.Load()

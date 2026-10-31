@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"deck2/internal/home"
-	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 )
@@ -22,12 +21,8 @@ type Service struct {
 	Home home.Layout
 	// Invoke calls a command, as the undo of a change does.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
-	// DeckScreen is a screen of deck by name, nil for none.
-	DeckScreen func(name string) *manifest.Screen
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
-	// Words are deck's words in a language.
-	Words func(lang string) map[string]string
 	// Tailnet is the https address of deck on the owner's tailnet, empty while it is not on one.
 	Tailnet atomic.Pointer[string]
 

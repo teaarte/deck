@@ -52,7 +52,7 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 		return nil, err
 	}
 	if name, ok := strings.CutPrefix(in.Screen, DeckPrefix); ok {
-		s := dv.DeckScreen(name)
+		s := manifest.DeckScreen(name)
 		switch {
 		case s == nil:
 			return nil, registry.Invalid("deck: deck has no screen %q", name)

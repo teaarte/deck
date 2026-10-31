@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"deck2/internal/words"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 	"time"
 
 	"deck2/internal/app"
-	"deck2/internal/app/screens"
 	"deck2/internal/app/tokens"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
@@ -145,7 +145,7 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 // said is a refusal of deck in the language the client reads, by its Deck-Lang header.
 func said(r *http.Request, text string) string {
 	if lang := r.Header.Get("Deck-Lang"); lang != "" {
-		return manifest.TrText(screens.Phrases(lang), text)
+		return manifest.TrText(words.In(lang), text)
 	}
 	return text
 }

@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"deck2/internal/words"
 	"errors"
 	"fmt"
 	"maps"
@@ -131,7 +132,7 @@ func (pj *Service) projectNeeds(ctx context.Context, act registry.Actor, in need
 		return nil, err
 	}
 	ms, _ := docs.All(ctx, pj.St.Q, []db.Project{p})
-	return pj.needs(ctx, p, ms[p.ID], rights, pj.Words(in.Lang)), nil
+	return pj.needs(ctx, p, ms[p.ID], rights, words.In(in.Lang)), nil
 }
 
 func (pj *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest, rights []rightRow, ws map[string]string) []needRow {

@@ -3,6 +3,7 @@ package chat
 import (
 	"cmp"
 	"context"
+	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -247,7 +248,7 @@ type chatIn struct {
 
 // words put the phrases of the chat in the owner's language.
 func (ch *Service) words(lang string) func(string) string {
-	ws := ch.Words(lang)
+	ws := words.In(lang)
 	return func(phrase string) string { return manifest.Tr(ws, phrase) }
 }
 
@@ -294,7 +295,7 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 		if err != nil {
 			return v, err
 		}
-		v.Messages = ch.messages(ctx, t.ID, rows, ch.Words(in.Lang), tr)
+		v.Messages = ch.messages(ctx, t.ID, rows, words.In(in.Lang), tr)
 	}
 	if len(v.Messages) == 0 {
 		v.Suggest = ch.suggest(ctx, act.Workspace, in.Project, in.Lang)

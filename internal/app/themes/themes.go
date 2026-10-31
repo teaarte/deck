@@ -25,9 +25,7 @@ type Service struct {
 	St  *store.Store
 	Now func() time.Time
 	// Invoke calls a command of deck: the master is told through deck.chat_send.
-	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
-	// Words are deck's words in a language, Language the one the workspace picked.
-	Words    func(lang string) map[string]string
+	Invoke   func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	Language func(ctx context.Context, workspace int64) string
 }
 

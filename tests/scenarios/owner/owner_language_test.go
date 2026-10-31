@@ -95,6 +95,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no screens of deck: %v", err)
 	}
+	files = append(files, filepath.Join(harness.Root, "internal/words/ru.json"))
 	texts, ru := map[string]bool{}, map[string]string{}
 	var screens strings.Builder
 	for _, f := range files {
@@ -268,7 +269,7 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	var ru map[string]string
-	raw, err := os.ReadFile(filepath.Join(harness.Root, "internal/app/screens/shipped/ru.json"))
+	raw, err := os.ReadFile(filepath.Join(harness.Root, "internal/words/ru.json"))
 	if err != nil || json.Unmarshal(raw, &ru) != nil {
 		t.Fatalf("no ru of deck: %v", err)
 	}

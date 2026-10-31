@@ -53,8 +53,6 @@ type Service struct {
 	CheckScreens func(ctx context.Context, act registry.Actor, p db.Project, m *manifest.Manifest) []string
 	// Unassigned are the commands of a manifest no model takes, with what the owner does.
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
-	// Words are deck's phrases in a language.
-	Words func(lang string) map[string]string
 	// Secret reports whether a secret of a workspace is set.
 	Secret func(workspace int64, name string) bool
 	// Theme is the theme a workspace wears.

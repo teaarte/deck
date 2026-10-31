@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"deck2/internal/words"
 	"fmt"
 	"io"
 	"os"
@@ -218,7 +219,7 @@ type agentLoginsIn struct {
 
 // agentLogins are the sign-ins from deck that wait for the owner or ended in a failure.
 func (s *Service) agentLogins(_ context.Context, _ registry.Actor, in agentLoginsIn) ([]signIn, error) {
-	ws := s.Words(in.Lang)
+	ws := words.In(in.Lang)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := []signIn{}

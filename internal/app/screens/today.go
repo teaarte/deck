@@ -3,6 +3,7 @@ package screens
 import (
 	"cmp"
 	"context"
+	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -31,7 +32,7 @@ type todayLine struct {
 
 // today are the lines of the card of Today, read by the reads of deck as the caller.
 func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]todayLine, error) {
-	ws := Phrases(in.Lang)
+	ws := words.In(in.Lang)
 	tr := func(s string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, s), a...) }
 	out := []todayLine{}
 	var asks []struct{ What, Allow string }

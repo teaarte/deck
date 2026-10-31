@@ -2,6 +2,7 @@ package themes
 
 import (
 	"context"
+	"deck2/internal/words"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -24,7 +25,7 @@ type drawPicturesIn struct {
 // page; deck draws nothing itself.
 func (s *Service) drawPictures(ctx context.Context, act registry.Actor, in drawPicturesIn) (any, error) {
 	lang := s.Language(ctx, act.Workspace)
-	ws := s.Words(lang)
+	ws := words.In(lang)
 	cur := s.Current(ctx, act.Workspace)
 	l, err := s.look(ctx, act.Workspace, cur, lang)
 	if err != nil {

@@ -50,8 +50,6 @@ type Service struct {
 	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 	// Reach connects to deck's MCP server as an agent turn does; a self-check fails when it does not answer.
 	Reach func(ctx context.Context) error
-	// Words are deck's phrases in a language, for the prices of models.
-	Words func(lang string) map[string]string
 	// Changed tells the clients a topic changed that no write of the store announced, such as a sign-in from deck.
 	Changed func(topic string)
 

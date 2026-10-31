@@ -7,17 +7,27 @@ import (
 	"testing"
 	"time"
 
-	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
 )
 
-// masterReplies waits up to five minutes for n replies of the master in a topic.
+// masterReplies waits for n replies of the master in a topic.
 func (e *Env) masterReplies(topic int64, n int) []chatMessage {
 	e.T.Helper()
-	deadline := time.Now().Add(5 * time.Minute)
-	for time.Now().Before(deadline) {
-		var said []chatMessage
+	var said []chatMessage
+	defer func() {
+		if len(said) >= n {
+			return
+		}
+		for _, m := range e.chatMessages(topic) {
+			if m.Reply != nil {
+				_, log := e.Call("deck.process_log", map[string]any{"process": m.Reply.Process, "limit": 30})
+				e.T.Logf("message %d: reply %+v, log %s", m.ID, *m.Reply, log)
+			}
+		}
+	}()
+	e.Until(fmt.Sprintf("reply %d of the master in topic %d", n, topic), func() bool {
+		said = nil
 		failed := ""
 		for _, m := range e.chatMessages(topic) {
 			if m.Role == "master" {
@@ -28,21 +38,14 @@ func (e *Env) masterReplies(topic int64, n int) []chatMessage {
 			}
 		}
 		if len(said) >= n {
-			return said
+			return true
 		}
 		if failed != "" {
 			e.T.Fatalf("the reply failed: %s", failed)
 		}
-		time.Sleep(time.Second)
-	}
-	for _, m := range e.chatMessages(topic) {
-		if m.Reply != nil {
-			_, log := e.call("deck.process_log", map[string]any{"process": m.Reply.Process, "limit": 30})
-			e.T.Logf("message %d: reply %+v, log %s", m.ID, *m.Reply, log)
-		}
-	}
-	e.T.Fatalf("no reply %d of the master in topic %d", n, topic)
-	return nil
+		return false
+	})
+	return said
 }
 
 // replySession is the session of the reply process that took the n-th message of the owner.
@@ -69,14 +72,14 @@ func (e *Env) replySession(topic int64, n int) (string, string) {
 func TestRealMasterTopicOnClaudeCode(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(home), realWaits)
-	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list of the household.\n", "manifest": tasksManifest}, nil)
-	e.must("deck.project_create", map[string]any{"name": "garden", "prompt": "# Garden: work in the garden and its tools.\n"}, nil)
+	e := New(t, WithHome(home), WithProvider(claudecode.New(home)), WithConfig(realWaits), WithWait(5*time.Minute))
+	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list of the household.\n", "manifest": tasksManifest}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "garden", "prompt": "# Garden: work in the garden and its tools.\n"}, nil)
 	topic := e.say(0, "We are out of oat milk, put it on the list.")
 	first := e.masterReplies(topic, 1)
 	t.Logf("master: %s", first[0].Text)
 	var tasks []recordRow
-	e.must("deck.records_list", map[string]any{"project": "groceries", "collection": "tasks"}, &tasks)
+	e.Must("deck.records_list", map[string]any{"project": "groceries", "collection": "tasks"}, &tasks)
 	if len(tasks) != 1 || !strings.Contains(strings.ToLower(fmt.Sprint(tasks[0].Data["title"])), "milk") {
 		t.Fatalf("the master puts the task into the tasks of groceries: %+v", tasks)
 	}
@@ -99,10 +102,10 @@ func TestRealMasterSwitchesProvider(t *testing.T) {
 	realCLI(t)
 	realCodex(t)
 	home := t.TempDir()
-	e := newEnvBuiltin(t, home, []provider.Provider{claudecode.New(home), codex.New(home)}, realWaits)
+	e := New(t, WithHome(home), WithProvider(claudecode.New(home), codex.New(home)), WithConfig(realWaits), WithWait(5*time.Minute))
 	topic := e.say(0, "Remember: the code word of this conversation is PELICAN. Reply with OK only.")
 	e.masterReplies(topic, 1)
-	e.useModels("master.reply", "codex")
+	e.UseModels("master.reply", "codex")
 	e.say(topic, "What is the code word of this conversation? Reply with the word only.")
 	onCodex := e.masterReplies(topic, 2)[1]
 	t.Logf("codex: %s", onCodex.Text)
@@ -112,7 +115,7 @@ func TestRealMasterSwitchesProvider(t *testing.T) {
 	if _, pv := e.replySession(topic, 2); pv != "codex" {
 		t.Fatalf("the second reply ran on codex: %s", pv)
 	}
-	e.useModels("master.reply")
+	e.UseModels("master.reply")
 	e.say(topic, "The second code word is ZEBRA. Reply with both code words, separated by a space, and nothing else.")
 	back := e.masterReplies(topic, 3)[2]
 	t.Logf("claude-code: %s", back.Text)

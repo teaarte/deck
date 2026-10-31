@@ -28,9 +28,9 @@ func TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout(t *testing.T) 
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, echoed,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", llm)
+	e := New(t, WithACP(f, llm))
 	p := e.acpProject("paint", colorManifest)
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the turn goes on: %+v", got)
 	}
 	for _, m := range f.call(4).model {
@@ -41,7 +41,7 @@ func TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout(t *testing.T) 
 	if refused != 1 {
 		t.Fatalf("once refused, the calls of the turn go without reasoning: refused %d", refused)
 	}
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || refused != 1 || f.call(5).model[0]["status"] != float64(200) {
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" || refused != 1 || f.call(5).model[0]["status"] != float64(200) {
 		t.Fatalf("the next turn on the model goes without reasoning from its first call: %+v refused %d", got, refused)
 	}
 }
@@ -100,7 +100,7 @@ func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 				}
 				return textReply("ok")
 			})
-			_, h := acpAdded(t, f, "goose", llm)
+			h := New(t, WithACP(f, nil)).AddACP(f, llm)
 			if h.Status != tc.status {
 				t.Fatalf("want %s: %+v", tc.status, h)
 			}
@@ -147,8 +147,8 @@ func TestACPRefusalOfTheModelAPIIsTheEndOfATurnWithoutItsResult(t *testing.T) {
 			})
 			steps := append([]string{acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`}, tc.steps...)
 			f.streamText(4, acpStream(append(steps, `{"end": "end_turn"}`)...))
-			e := acpEnv(t, f, "goose", llm)
-			got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error")
+			e := New(t, WithACP(f, llm))
+			got := e.WaitState(e.Run(e.acpProject("paint", colorManifest), "work"), "done", "error")
 			if got.State != tc.state || !strings.Contains(got.Error, tc.want) {
 				t.Fatalf("want %s with %q: %+v", tc.state, tc.want, got)
 			}

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 
 	"deck2/internal/process"
 	"deck2/internal/provider"
@@ -59,9 +58,9 @@ const forecastManifest = `{"version": 13,
 
 func (e *Env) seedForecasts() {
 	e.T.Helper()
-	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices",
+	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices",
 		"records": jsonl(map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5}, map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25, "forecast": 63000})}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts",
+	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts",
 		"records": jsonl(map[string]any{"at": "2026-10-02T09:00:00Z", "horizon": "7d", "change": 0.042, "confidence": 0.6, "status": "open",
 			"source": "https://example.com/a"},
 			map[string]any{"at": "2026-10-01T09:00:00Z", "horizon": "1d", "change": -0.01, "confidence": 0.3, "status": "missed"})}, nil)
@@ -71,9 +70,9 @@ func (e *Env) seedForecasts() {
 // the value raw; a format the catalog lacks, money without its currency and a currency without money are refused.
 func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	e.createProject("btc", forecastManifest)
+	e.Project("btc", forecastManifest)
 	e.seedForecasts()
 
 	msgs := e.screenMessages("btc", "main", nil)
@@ -117,13 +116,13 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
 	}
 	var format json.RawMessage
-	e.must("deck.manifest_format", nil, &format)
+	e.Must("deck.manifest_format", nil, &format)
 	if !strings.Contains(string(format), "0.42 is 42 %") {
 		t.Fatalf("the model reads the formats in manifest_format: %.300s", format)
 	}
@@ -133,9 +132,9 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 // over what they show; a value that is not a tone is none, and a tone over an unknown field is refused.
 func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	e.createProject("btc", forecastManifest)
+	e.Project("btc", forecastManifest)
 	e.seedForecasts()
 	check.messages(t, e.screenMessages("btc", "main", nil))
 	data := e.screenData("btc", "main", nil)
@@ -155,7 +154,7 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 	if len(lines) != 2 || lines[0]["tone"] != nil || lines[1]["tone"] != "muted" {
 		t.Fatalf("a list line takes its tone; an empty one is none: %+v", lines)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts", "records": jsonl(map[string]any{"at": "2026-09-01T09:00:00Z"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts", "records": jsonl(map[string]any{"at": "2026-09-01T09:00:00Z"})}, nil)
 	if got := e.screenData("btc", "main", nil)["b1"]; string(got["state"]) != `"ready"` || len(blockData[[]screenRow](t, got["rows"])) != 3 {
 		t.Fatalf("a tone that fails over a row, such as change < 0 without change, is no tone: %s %s", got["state"], got["error"])
 	}
@@ -175,7 +174,7 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -186,9 +185,9 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 // stat with it does not evaluate its value over no rows; a block without it is empty in the client's words.
 func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	e.createProject("btc", forecastManifest)
+	e.Project("btc", forecastManifest)
 	check.messages(t, e.screenMessages("btc", "main", nil))
 	data := e.screenData("btc", "main", nil)
 	for id, want := range map[string]string{"b0": "No prices yet", "b1": "No forecasts yet", "b2": ""} {
@@ -207,7 +206,7 @@ func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -218,9 +217,9 @@ func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
 // the page is not in the screen at all; an event its when reads resolves the screen whole.
 func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	e.createProject("btc", forecastManifest)
+	e.Project("btc", forecastManifest)
 	blocks := func(screen string, extra map[string]any) (string, map[string]map[string]json.RawMessage) {
 		msgs := e.screenMessages("btc", screen, extra)
 		check.messages(t, msgs)
@@ -245,7 +244,7 @@ func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 		ID   int64
 		Data struct{ Status string }
 	}
-	e.must("deck.records_list", map[string]any{"project": "btc", "collection": "forecasts"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "btc", "collection": "forecasts"}, &recs)
 	if len(recs) != 2 || recs[0].Data.Status == recs[1].Data.Status {
 		t.Fatalf("one forecast is open, one missed: %+v", recs)
 	}
@@ -262,7 +261,7 @@ func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -273,9 +272,9 @@ func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 // order of the sort, a gap where a value is missing, at most the last 500 points; a chart of a deck command too.
 func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	e.createProject("btc", forecastManifest)
+	e.Project("btc", forecastManifest)
 	if got := e.screenData("btc", "main", nil)["b4"]; string(got["state"]) != `"empty"` || string(got["empty"]) != `"No prices yet"` {
 		t.Fatalf("a chart without points says so: %s", got["state"])
 	}
@@ -301,7 +300,7 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 	for i := range 600 {
 		many = append(many, map[string]any{"at": fmt.Sprintf("2026-%02d-%02dT%02d:00:00Z", 1+i/240, 1+i/24%10, i%24), "price": float64(i)})
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices", "records": jsonl(many...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices", "records": jsonl(many...)}, nil)
 	v = blockData[chartV](t, e.screenData("btc", "main", nil)["b4"]["value"])
 	if len(v.X) != 500 || len(v.Series[0].Values) != 500 || v.X[499] != "2026-10-02T10:00:00Z" {
 		t.Fatalf("a chart draws the last 500 points: %d, last %v", len(v.X), v.X[len(v.X)-1])
@@ -322,7 +321,7 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -333,10 +332,10 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 // folder, given at its url; a file of another project or out of the data folder is an error of its line.
 func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	id := e.createProject("btc", forecastManifest)
-	e.createProject("other", forecastManifest)
+	id := e.Project("btc", forecastManifest)
+	e.Project("other", forecastManifest)
 	if got := e.screenData("btc", "files", nil)["b0"]; string(got["empty"]) != `"No files yet"` {
 		t.Fatalf("media without files says so: %s", got["empty"])
 	}
@@ -348,7 +347,7 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(data, "charts", "today 1.pdf"), []byte("%PDF-1.4 fake"), 0o600)
 	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.txt"), []byte("top-secret-content"), 0o600)
 	_ = os.Symlink(filepath.Join(filepath.Dir(data), "secret.txt"), filepath.Join(data, "link.txt"))
-	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": jsonl(
 		map[string]any{"title": "a scan", "file": mine}, map[string]any{"title": "b theirs", "file": theirs},
 		map[string]any{"title": "c chart", "file": "charts/today 1.pdf"}, map[string]any{"title": "d escape", "file": "../secret.txt"},
 		map[string]any{"title": "e link", "file": "link.txt"}, map[string]any{"title": "f gone", "file": "nope.pdf"})}, nil)
@@ -372,7 +371,7 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 	}
 	get := func(path string) (int, string) {
 		req, _ := http.NewRequest("GET", e.URL+path, nil)
-		req.Header.Set("Authorization", "Bearer "+token)
+		e.Sign(req)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -405,7 +404,7 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)
 		}
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -415,27 +414,22 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 // TestAPipeInTheDataFolderDoesNotHangMedia: a named pipe in the data folder is no file of a media line.
 func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	id := e.createProject("btc", forecastManifest)
+	e := New(t)
+	id := e.Project("btc", forecastManifest)
 	data := e.App.Home.Data(id)
 	_ = os.MkdirAll(data, 0o700)
 	if err := syscall.Mkfifo(filepath.Join(data, "pipe.png"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": jsonl(map[string]any{"title": "pipe", "file": "pipe.png"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": jsonl(map[string]any{"title": "pipe", "file": "pipe.png"})}, nil)
 	done := make(chan []map[string]any, 1)
 	go func() {
 		var files []map[string]any
 		_ = json.Unmarshal(e.screenData("btc", "files", nil)["b0"]["files"], &files)
 		done <- files
 	}()
-	select {
-	case files := <-done:
-		if len(files) != 1 || !strings.Contains(fmt.Sprint(files[0]["error"]), `no file "pipe.png"`) {
-			t.Fatalf("a pipe is no file: %v", files)
-		}
-	case <-time.After(within(10 * time.Second)):
-		t.Fatal("a pipe in the data folder hangs the screen")
+	if files := Receive(t, "the screen with a pipe in the data folder", done); len(files) != 1 || !strings.Contains(fmt.Sprint(files[0]["error"]), `no file "pipe.png"`) {
+		t.Fatalf("a pipe is no file: %v", files)
 	}
 }
 
@@ -444,19 +438,20 @@ func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
 func TestTodaySaysWhatRunsEvenWhenNothingDoes(t *testing.T) {
 	t.Parallel()
 	hold := make(chan struct{})
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		select {
 		case <-hold:
 		case <-ctx.Done():
 		}
 		return provider.Result{Text: "{}"}
-	})
+	}))
+
 	defer close(hold)
 	if got := e.screenData("", "cockpit", nil)["b1"]; string(got["state"]) != `"empty"` || string(got["empty"]) != `"nothing, all waits for the schedule"` {
 		t.Fatalf("nothing runs, and the list says so: %v", got)
 	}
-	e.createProject("web", webNotes)
-	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "running")
+	e.Project("web", webNotes)
+	e.WaitState(e.Start("web", "score", map[string]any{"title": "x"}), "running")
 	if running := e.cockpitRunning(); len(running) != 1 || running[0].Title != "Score" || running[0].Text != "" || running[0].Meta != "" {
 		t.Fatalf("a running process is a line with its title alone: %+v", running)
 	}
@@ -477,13 +472,13 @@ func TestTheCatalogKnowsTheStatesAProcessEndsIn(t *testing.T) {
 // buttons over its rows, and a button that holds says so to the client; focus with cards is refused.
 func TestAListGoesOneAtATimeWithButtonsInItsHead(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	m := strings.Replace(webNotes, `{"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},`,
 		`{"type": "list", "title": "Work", "focus": true, "source": {"collection": "notes"}, "item": {"title": "title", "kind": "'Note'"},
         "head": [{"label": "='Touch all (' + string(len(rows)) + ')'", "command": "touch", "when": "len(rows) > 1"}],
         "actions": [{"label": "Touch", "command": "touch", "params": {"note": "=_id"}, "hold": true}]},`, 1)
-	e.createProject("web", m)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Project("web", m)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha"}, map[string]any{"title": "beta"})}, nil)
 	data := e.screenData("web", "main", nil)["b0"]
 	var items []struct {
@@ -496,5 +491,5 @@ func TestAListGoesOneAtATimeWithButtonsInItsHead(t *testing.T) {
 		t.Fatalf("each item says its kind, its button holds and the head counts the rows: %+v %s", items, data["head"])
 	}
 	cards := strings.Replace(m, `"focus": true,`, `"focus": true, "cards": true,`, 1)
-	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": cards}, 422, "focus")
+	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": cards}, 422, "focus")
 }

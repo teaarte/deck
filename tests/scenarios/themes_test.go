@@ -29,7 +29,7 @@ type themeRow struct {
 func (e *Env) themes() map[string]themeRow {
 	e.T.Helper()
 	var rows []themeRow
-	e.must("deck.themes_list", map[string]any{"lang": "ru"}, &rows)
+	e.Must("deck.themes_list", map[string]any{"lang": "ru"}, &rows)
 	out := map[string]themeRow{}
 	for _, r := range rows {
 		out[r.Name] = r
@@ -47,7 +47,7 @@ const nightTheme = `{"version": 1, "title": {"en": "Night", "ru": "Ночь"}, "
 // over a shipped one worn by the whole deck, and a stored one a later check refuses is worn without what it refuses.
 func TestThemesAreCheckedDocuments(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, idle)
+	e := New(t, WithAgent(idle))
 
 	all := e.themes()
 	if r := all["juce"]; len(all) != 1 || !r.Builtin || r.Own || len(r.Problems) > 0 || !r.Current {
@@ -66,9 +66,9 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 		t.Fatalf("titles translate: %+v", all["paper"])
 	}
 	var l themeLook
-	e.must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme", map[string]any{}, &l)
 	clouds := l.Images["backdrop"]
-	if code, body := e.do("GET", clouds.Light, nil); code != 200 || len(body) < 1000 || clouds.Dark != "/api/files/theme/juce/backdrop-dark.webp" {
+	if code, body := e.Do("GET", clouds.Light, nil); code != 200 || len(body) < 1000 || clouds.Dark != "/api/files/theme/juce/backdrop-dark.webp" {
 		t.Fatalf("the clouds of juce are its pictures, shipped with deck: %+v %d", l.Images, code)
 	}
 	if l.Name != "juce" || l.Accent != "coral" || !strings.Contains(l.CSS, "--deck-canvas: linear-gradient(180deg, #cfe6fa") ||
@@ -94,24 +94,24 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 			OK       bool
 			Problems []string
 		}
-		e.must("deck.theme_check", map[string]any{"text": text}, &c)
+		e.Must("deck.theme_check", map[string]any{"text": text}, &c)
 		if c.OK || !strings.Contains(strings.Join(c.Problems, "\n"), want) {
 			t.Fatalf("check of %s: want %q, got %+v", text, want, c)
 		}
-		e.refused("deck.theme_save", map[string]any{"name": "bad", "text": text}, 422, want)
+		e.Refused("deck.theme_save", map[string]any{"name": "bad", "text": text}, 422, want)
 	}
-	e.refused("deck.document_save", map[string]any{"name": "themes/x.json", "kind": "theme", "text": nightTheme}, 422, "deck.theme_save")
+	e.Refused("deck.document_save", map[string]any{"name": "themes/x.json", "kind": "theme", "text": nightTheme}, 422, "deck.theme_save")
 
 	var saved struct {
 		Revision int64
 		Preview  []string
 	}
-	e.must("deck.theme_save", map[string]any{"name": "night", "text": nightTheme, "reason": "a dark one"}, &saved)
+	e.Must("deck.theme_save", map[string]any{"name": "night", "text": nightTheme, "reason": "a dark one"}, &saved)
 	if saved.Revision != 1 || len(saved.Preview) != 2 || saved.Preview[1] != "/?theme=night&scheme=dark" {
 		t.Fatalf("saved: %+v", saved)
 	}
-	e.must("deck.theme_use", map[string]any{"name": "night"}, nil)
-	e.must("deck.theme", map[string]any{"lang": "ru"}, &l)
+	e.Must("deck.theme_use", map[string]any{"name": "night"}, nil)
+	e.Must("deck.theme", map[string]any{"lang": "ru"}, &l)
 	if l.Name != "night" || !l.Current || l.Title != "Ночь" || len(l.Schemes) != 1 || l.Radius != "lg" ||
 		!strings.Contains(l.CSS, "text-transform: uppercase") || !strings.Contains(l.CSS, "border-radius: var(--mantine-radius-xl)") ||
 		!strings.Contains(l.CSS, "[data-mantine-color-scheme='dark'] .mantine-Tabs-tab[data-active]:hover") ||
@@ -120,15 +120,15 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 	}
 
 	juce := strings.Replace(nightTheme, `"Night"`, `"My juce"`, 1)
-	e.must("deck.theme_save", map[string]any{"name": "juce", "text": juce}, nil)
+	e.Must("deck.theme_save", map[string]any{"name": "juce", "text": juce}, nil)
 	if r := e.themes()["juce"]; !r.Own || !r.Builtin || r.Title != "Ночь" {
 		t.Fatalf("the owner's juce over the shipped one: %+v", r)
 	}
-	e.must("deck.theme_delete", map[string]any{"name": "juce"}, nil)
+	e.Must("deck.theme_delete", map[string]any{"name": "juce"}, nil)
 	if r := e.themes()["juce"]; r.Own || r.Title != "Juce" {
 		t.Fatalf("the shipped juce is back: %+v", r)
 	}
-	e.refused("deck.theme_delete", map[string]any{"name": "juce"}, 422, "deck ships the theme juce")
+	e.Refused("deck.theme_delete", map[string]any{"name": "juce"}, 422, "deck ships the theme juce")
 
 	// A theme stored before a check of today: worn, without what the check refuses.
 	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
@@ -139,18 +139,18 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme", map[string]any{}, &l)
 	if l.Name != "night" || len(l.Problems) != 2 || strings.Contains(l.CSS, "url(") || !strings.Contains(l.CSS, "[data-phone-tabs] [data-asks]") {
 		t.Fatalf("an old theme is worn without what a check refuses: %+v", l)
 	}
 	var c struct{ OK bool }
-	e.must("deck.theme_check", map[string]any{"name": "night"}, &c)
+	e.Must("deck.theme_check", map[string]any{"name": "night"}, &c)
 	if c.OK {
 		t.Fatal("the check names the problems of a stored theme")
 	}
 
-	e.must("deck.theme_delete", map[string]any{"name": "night"}, nil)
-	e.must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme_delete", map[string]any{"name": "night"}, nil)
+	e.Must("deck.theme", map[string]any{}, &l)
 	if l.Name != "juce" || !l.Current {
 		t.Fatalf("a deleted theme in use gives way to juce: %+v", l)
 	}
@@ -160,9 +160,9 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 // cards of modules, their grid, the toast and the parts of deck by the catalog, and faint text on a card is refused.
 func TestThemesStyleTheCardsOfModules(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, idle)
+	e := New(t, WithAgent(idle))
 	var l themeLook
-	e.must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme", map[string]any{}, &l)
 	if !strings.Contains(l.CSS, "--deck-cockpit: linear-gradient(135deg, var(--mantine-primary-color-5), var(--mantine-primary-color-8))") ||
 		strings.Contains(l.CSS, "--deck-tile:") || !strings.Contains(l.CSS, "--deck-tile-gap: var(--mantine-spacing-xl)") || len(l.Problems) > 0 {
 		t.Fatalf("the cards of juce: the cockpit's in the accent, the others by their names: %+v", l)
@@ -179,13 +179,13 @@ func TestThemesStyleTheCardsOfModules(t *testing.T) {
 		OK       bool
 		Problems []string
 	}
-	e.must("deck.theme_check", map[string]any{"text": cards}, &c)
+	e.Must("deck.theme_check", map[string]any{"text": cards}, &c)
 	if !c.OK {
 		t.Fatalf("a theme of white cards with dark text passes: %+v", c)
 	}
-	e.must("deck.theme_save", map[string]any{"name": "cards", "text": cards}, nil)
-	e.must("deck.theme_use", map[string]any{"name": "cards"}, nil)
-	e.must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme_save", map[string]any{"name": "cards", "text": cards}, nil)
+	e.Must("deck.theme_use", map[string]any{"name": "cards"}, nil)
+	e.Must("deck.theme", map[string]any{}, &l)
 	for _, want := range []string{"--deck-tile: #ffffff", "--deck-cockpit: linear-gradient(180deg, #ffffff, #f2f6ee)", "--deck-tile-min: 240px",
 		"--deck-meadow: radial-gradient", "[data-app-tile]:not([data-big]) { border-radius: 24px; box-shadow: var(--deck-ring), var(--deck-shadow); }",
 		":is(.mantine-Notification-root, [data-toast]) { border-radius: 14px; }", ":is(.mantine-Tabs-tab, [data-places] > a) { font-weight: 600; }",
@@ -204,7 +204,7 @@ func TestThemesStyleTheCardsOfModules(t *testing.T) {
 		"a theme reads the states":     `{"version": 1, "title": {"en": "X"}, "mood": "m", "css": ".tile[data-app] { color: red }"}`,
 	}
 	for want, text := range faint {
-		e.must("deck.theme_check", map[string]any{"text": text}, &c)
+		e.Must("deck.theme_check", map[string]any{"text": text}, &c)
 		if c.OK || !strings.Contains(strings.Join(c.Problems, "\n"), want) {
 			t.Fatalf("check of %s: want %q, got %+v", text, want, c)
 		}

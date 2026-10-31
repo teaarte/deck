@@ -25,7 +25,7 @@ func TestAnAgentWritesTheDocumentsItsManifestNames(t *testing.T) {
 	var mu sync.Mutex
 	outs := map[string]string{}
 	var prompt string
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		save := func(key string, args map[string]any) {
 			out, bad := c.Tool(ctx, "document_save", args)
 			if bad {
@@ -43,9 +43,10 @@ func TestAnAgentWritesTheDocumentsItsManifestNames(t *testing.T) {
 		save("other", map[string]any{"name": "notes.md", "kind": "doc", "text": "hi"})
 		save("unknown", map[string]any{"name": "code/none.jsx", "text": "x"})
 		return provider.Result{Structured: json.RawMessage(`{}`)}
-	})
-	e.createProject("studio", studioModule)
-	e.waitState(e.start("studio", "build", nil), "done")
+	}))
+
+	e.Project("studio", studioModule)
+	e.WaitState(e.Start("studio", "build", nil), "done")
 	mu.Lock()
 	defer mu.Unlock()
 	if strings.HasPrefix(outs["new"], "refused") || strings.HasPrefix(outs["again"], "refused") {
@@ -64,12 +65,12 @@ func TestAnAgentWritesTheDocumentsItsManifestNames(t *testing.T) {
 		t.Fatalf("the agent is told to reach deck's data through its tools: %s", prompt)
 	}
 	var doc struct{ Text string }
-	e.must("deck.document_get", map[string]any{"project": "studio", "name": "code/scene.jsx"}, &doc)
+	e.Must("deck.document_get", map[string]any{"project": "studio", "name": "code/scene.jsx"}, &doc)
 	if doc.Text != "export default 2" {
 		t.Fatalf("the change is saved: %q", doc.Text)
 	}
 	var feed []struct{ Text string }
-	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
+	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if !slices.ContainsFunc(feed, func(f struct{ Text string }) bool { return strings.Contains(f.Text, "changed document code/scene.jsx") }) {
 		t.Fatalf("the owner sees the change with an undo: %+v", feed)
 	}
@@ -80,12 +81,12 @@ func TestAnAgentWritesTheDocumentsItsManifestNames(t *testing.T) {
 		Widens  []string
 	}
 	wider := strings.Replace(studioModule, `"writes": ["code/"]`, `"writes": ["code/", "personas/style.md"]`, 1)
-	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "studio", "manifest": wider})
+	code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "studio", "manifest": wider})
 	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Equal(w.Widens, []string{"writes document personas/style.md"}) {
 		t.Fatalf("a wider writes waits for the owner's button: %d %s", code, out)
 	}
 	narrower := strings.Replace(studioModule, `"writes": ["code/"]`, `"writes": ["code/scene.jsx"]`, 1)
-	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "studio", "manifest": narrower}); code != 200 || strings.Contains(string(out), "waiting") {
+	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "studio", "manifest": narrower}); code != 200 || strings.Contains(string(out), "waiting") {
 		t.Fatalf("a narrower writes needs no button: %d %s", code, out)
 	}
 }
@@ -111,13 +112,13 @@ func TestAnAgentDeletesTheRecordsOfItsOwnProject(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.createProject("reels", clipsModule)
+	e.Project("reels", clipsModule)
 	own = e.clip("a")
-	e.must("deck.records_upsert", map[string]any{"project": "reels", "collection": "clips", "records": jsonl(map[string]any{"slug": "b"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "reels", "collection": "clips", "records": jsonl(map[string]any{"slug": "b"})}, nil)
 	var reels []struct{ ID int64 }
-	e.must("deck.records_list", map[string]any{"project": "reels", "collection": "clips"}, &reels)
+	e.Must("deck.records_list", map[string]any{"project": "reels", "collection": "clips"}, &reels)
 	other = reels[0].ID
-	e.waitState(e.start("clips", "tally", nil), "done")
+	e.WaitState(e.Start("clips", "tally", nil), "done")
 	mu.Lock()
 	defer mu.Unlock()
 	if strings.HasPrefix(outs["own"], "refused") {
@@ -130,7 +131,7 @@ func TestAnAgentDeletesTheRecordsOfItsOwnProject(t *testing.T) {
 		Text    string
 		Actions []map[string]any
 	}
-	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
+	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) == 0 || !strings.Contains(feed[0].Text, "deleted") {
 		t.Fatalf("the owner sees the deletion with an undo: %+v", feed)
 	}
@@ -153,11 +154,11 @@ print("{}")
 // who may call it, as a failure of rights.
 func TestAScriptFailedByARefusalSaysWhatDeckRefused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("probe", probeModule)
+	e := New(t)
+	e.Project("probe", probeModule)
 	e.saveScript("probe", "scripts/probe.py", probeScript)
-	id := e.start("probe", "probe", nil)
-	e.waitScript(id, "done", "error")
+	id := e.Start("probe", "probe", nil)
+	e.WaitState(id, "done", "error")
 	f := e.fault(id)
 	if f.ErrorType != "rights.denied" || !strings.Contains(f.Error, "deck refused its calls: deck.settings_list") ||
 		!strings.Contains(f.Error, "cannot be called by agent (script); only owner, master may call it") {

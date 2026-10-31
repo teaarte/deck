@@ -17,11 +17,11 @@ func TestRealBrowserOneAccent(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	e.createProject("web", webNotes)
+	e := New(t, WithAgent(ok))
+	e.Project("web", webNotes)
 	for _, name := range []string{"first", "second"} {
 		_, tok := e.token("ask-"+name, "deck.model_set")
-		if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "none", "model": name}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
+		if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": name}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 			t.Fatalf("a token's model waits for the owner: %d %s", code, out)
 		}
 	}
@@ -31,7 +31,7 @@ func TestRealBrowserOneAccent(t *testing.T) {
 		width, height int
 	}{{"desktop", 1400, 900}, {"phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
-		b.open(e.URL + "/?token=" + token + "&theme=juce&scheme=light#/deck/cockpit")
+		b.Open(e, "&theme=juce&scheme=light#/deck/cockpit")
 		b.until("two decisions on the cockpit, one at a time", `document.querySelector('[data-focus]')?.dataset.left === '2'`)
 		if got := b.eval(filledShown); got != "1" {
 			t.Fatalf("the cockpit fills its first decision alone on a %s: %s", size.name, got)

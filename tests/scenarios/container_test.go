@@ -30,11 +30,11 @@ func TestInDecksContainerAScriptRunsAsTheUserOfAgents(t *testing.T) {
 	if !sandbox.HasAgentUser() {
 		t.Skip("runs where deck has a user of agents, as in its image: DECK_AGENT_USER")
 	}
-	e := newEnv(t, nil)
-	e.createProject("tools", scriptManifest("collect", "", ""))
+	e := New(t)
+	e.Project("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", userScript)
 	h := deckhome.Layout(e.App.Cfg.Home)
-	p := e.waitScript(e.start("tools", "collect", map[string]any{"secret": h.Token(), "outside": h.DB()}), "done", "error")
+	p := e.WaitState(e.Start("tools", "collect", map[string]any{"secret": h.Token(), "outside": h.DB()}), "done", "error")
 	var out struct {
 		UID         int
 		Token, Base bool
@@ -47,7 +47,7 @@ func TestInDecksContainerAScriptRunsAsTheUserOfAgents(t *testing.T) {
 	if out.UID == os.Getuid() || out.Token || out.Base || out.Data != "mine" || out.Deck != 200 {
 		t.Fatalf("the script is the user of agents, without deck's token and base, with its data and deck: %+v", out)
 	}
-	if b, err := os.ReadFile(filepath.Join(h.Data(e.projectID("tools")), "kept.txt")); err != nil || string(b) != "mine" {
+	if b, err := os.ReadFile(filepath.Join(h.Data(e.ProjectID("tools")), "kept.txt")); err != nil || string(b) != "mine" {
 		t.Fatalf("deck reads what the script kept: %q %v", b, err)
 	}
 }

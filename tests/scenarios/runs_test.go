@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	deckhome "deck2/internal/home"
 )
@@ -23,18 +22,18 @@ print("{}")
 // A command that runs one at a time: a second call while the first runs starts once the first has ended.
 func TestACommandOfOneRunAtATimeQueuesTheNextCall(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	p := e.createProject("spans", strings.Replace(scriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
+	e := New(t)
+	p := e.Project("spans", strings.Replace(scriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
 	e.saveScript("spans", "scripts/main.py", spanScript)
-	first, second := e.start("spans", "run", nil), e.start("spans", "run", nil)
+	first, second := e.Start("spans", "run", nil), e.Start("spans", "run", nil)
 	if first == second {
 		t.Fatalf("a second call is a run of its own: %d", first)
 	}
-	if got := e.waitScript(second, "waiting_run", "done"); got.State != "waiting_run" {
+	if got := e.WaitState(second, "waiting_run", "done"); got.State != "waiting_run" {
 		t.Fatalf("the second run waits for the first: %+v", got)
 	}
 	for _, id := range []int64{first, second} {
-		if got := e.waitScript(id, "done", "error"); got.State != "done" {
+		if got := e.WaitState(id, "done", "error"); got.State != "done" {
 			t.Fatalf("each run is done: %+v", got)
 		}
 	}
@@ -54,14 +53,14 @@ func TestACommandOfOneRunAtATimeQueuesTheNextCall(t *testing.T) {
 // A run stopped by the owner lets the next one of its command start at once.
 func TestAStoppedRunLetsTheNextOneStart(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("spans", strings.Replace(scriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
+	e := New(t)
+	e.Project("spans", strings.Replace(scriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
 	e.saveScript("spans", "scripts/main.py", strings.Replace(spanScript, "time.sleep(1)", "time.sleep(30)", 1))
-	first, second := e.start("spans", "run", nil), e.start("spans", "run", nil)
-	e.waitScript(second, "waiting_run")
-	e.must("deck.process_stop", map[string]any{"process": first}, nil)
-	if got := e.pollState(second, 5*time.Second, 50*time.Millisecond, "running"); got.State != "running" {
+	first, second := e.Start("spans", "run", nil), e.Start("spans", "run", nil)
+	e.WaitState(second, "waiting_run")
+	e.Must("deck.process_stop", map[string]any{"process": first}, nil)
+	if got := e.WaitState(second, "running"); got.State != "running" {
 		t.Fatalf("the next run starts once the first is stopped: %+v", got)
 	}
-	e.must("deck.process_stop", map[string]any{"process": second}, nil)
+	e.Must("deck.process_stop", map[string]any{"process": second}, nil)
 }

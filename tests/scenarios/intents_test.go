@@ -60,37 +60,25 @@ func generateManifest(url string) string {
 }
 
 // restart opens a second deck on the same home while the first one hangs, as after a crash of the first.
-func restart(t *testing.T, e *Env, home string, fake *Fake) *Env {
-	t.Helper()
-	e2 := newEnvWith(t, home, fake, withClock(e.Clock))
-	e2.Fake, e2.Clock = fake, e.Clock
-	for id, n := range e.names {
-		e2.names[id] = n
-	}
-	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	return e2
-}
-
 func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) {
 	t.Parallel()
 	svc, release := hangingService(t, 1, 2)
 	defer release(0)
 	home := t.TempDir()
 	clock := &Clock{now: time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)}
-	e := newEnvWith(t, home, &Fake{}, withClock(clock))
-	e.Clock = clock
-	e.createProject("clips", generateManifest(svc.URL))
+	e := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	e.Project("clips", generateManifest(svc.URL))
 	clock.Add(time.Hour + time.Minute)
 	e.App.Scheduler.Tick(context.Background())
-	e.waitFor("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	e.Until("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
 
-	e2 := restart(t, e, home, &Fake{})
-	var unknown askView
-	e2.waitFor("the unknown outcome", func() bool {
-		_, out := e2.call("deck.asks_list", nil)
-		var as []askView
+	e2 := e.Restart(WithProvider(&Fake{}))
+
+	e2.Resume()
+	var unknown Ask
+	e2.Until("the unknown outcome", func() bool {
+		_, out := e2.Call("deck.asks_list", nil)
+		var as []Ask
 		_ = json.Unmarshal(out, &as)
 		for _, a := range as {
 			if a.Kind == "unknown" {
@@ -102,30 +90,30 @@ func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) 
 	if !strings.Contains(unknown.Text, "clips.generate") || !strings.Contains(unknown.Text, "cats") {
 		t.Fatalf("the owner sees the call and its parameters: %+v", unknown)
 	}
-	first := e2.processes()[0]
+	first := e2.Procs()[0]
 	if first.State != "interrupted" {
 		t.Fatalf("the tool process of the lost call is interrupted, not rerun: %+v", first)
 	}
 	clock.Add(24 * time.Hour)
 	e2.App.Scheduler.Tick(context.Background())
-	e2.waitFor("the catch-up run ends", func() bool {
-		ps := e2.processes()
+	e2.Until("the catch-up run ends", func() bool {
+		ps := e2.Procs()
 		return len(ps) == 2 && ps[0].State == "error"
 	})
-	if ps := e2.processes(); !strings.Contains(ps[0].Error, "unknown outcome") || len(svc.requests()) != 1 {
+	if ps := e2.Procs(); !strings.Contains(ps[0].Error, "unknown outcome") || len(svc.requests()) != 1 {
 		t.Fatalf("a catch-up run does not repeat the call: %+v, %d requests", ps[0], len(svc.requests()))
 	}
 	var out struct{ Result map[string]any }
 	retried := make(chan struct{})
 	go func() {
 		defer close(retried)
-		e2.must("deck.ask_answer", map[string]any{"ask": unknown.ID, "answer": "retry"}, &out)
+		e2.Must("deck.ask_answer", map[string]any{"ask": unknown.ID, "answer": "retry"}, &out)
 	}()
-	e2.waitFor("the retry reaches the service", func() bool { return len(svc.requests()) == 2 })
+	e2.Until("the retry reaches the service", func() bool { return len(svc.requests()) == 2 })
 	clock.Add(24 * time.Hour)
 	e2.App.Scheduler.Tick(context.Background())
-	e2.waitFor("the catch-up run during the retry ends", func() bool {
-		ps := e2.processes()
+	e2.Until("the catch-up run during the retry ends", func() bool {
+		ps := e2.Procs()
 		return len(ps) == 3 && ps[0].State == "error"
 	})
 	if len(svc.requests()) != 2 {
@@ -158,12 +146,11 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 		return provider.Result{}
 	}}
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, home, first, withClock(clock))
-	e.Fake, e.Clock = first, clock
-	p := e.createProject("clips", generateManifest(svc.URL))
-	id := e.run(p, "work")
+	e := New(t, WithHome(home), WithProvider(first), WithClock(clock))
+	p := e.Project("clips", generateManifest(svc.URL))
+	id := e.Run(p, "work")
 	<-started
-	e.waitFor("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	e.Until("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
 
 	var again string
 	second := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
@@ -172,8 +159,9 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e2 := restart(t, e, home, second)
-	e2.waitState(id, "waiting_answer")
+	e2 := e.Restart(WithProvider(second))
+	e2.Resume()
+	e2.WaitState(id, "waiting_answer")
 	msg := second.Calls()[0].Prompt
 	if !second.Calls()[0].Resume || !strings.Contains(msg, "Outcome unknown") || !strings.Contains(msg, "Do not make this call again") {
 		t.Fatalf("the resumed agent is told the outcome is unknown: %q", msg)
@@ -181,8 +169,8 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 	if !strings.Contains(again, "unknown outcome") || len(svc.requests()) != 1 {
 		t.Fatalf("the resumed agent cannot repeat the call: %q, %d requests", again, len(svc.requests()))
 	}
-	e2.answer(e2.waitAsk().ID, "done")
-	e2.waitState(id, "done")
+	e2.Answer(e2.WaitAsk().ID, "done")
+	e2.WaitState(id, "done")
 	if msg := second.Calls()[1].Prompt; !strings.Contains(msg, "counts it as done") || len(svc.requests()) != 1 {
 		t.Fatalf("the owner's done reaches the agent and nothing is repeated: %q", msg)
 	}
@@ -196,31 +184,28 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 		c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e := newEnvWith(t, home, first)
-	e.Fake = first
-	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	p := e.createProject("notes", postManifest(svc.URL, ""))
-	id := e.run(p, "work")
-	e.waitState(id, "waiting_answer")
-	a := e.waitAsk()
+	e := New(t, WithHome(home), WithProvider(first))
+	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	p := e.Project("notes", postManifest(svc.URL, ""))
+	id := e.Run(p, "work")
+	e.WaitState(id, "waiting_answer")
+	a := e.WaitAsk()
 	_ = e.App.Close()
 	second := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e2 := newEnvWith(t, home, second)
+	e2 := New(t, WithHome(home), WithProvider(second))
 	if _, err := e2.App.Store.DB.Exec(`UPDATE ask SET state = 'answered', answer = 'allow' WHERE id = ?;
 UPDATE tool_call SET run = 'running' WHERE ask_id = ?`, a.ID, a.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	got := e2.waitAsk()
+	e2.Resume()
+	got := e2.WaitAsk()
 	if got.ID == a.ID || got.Kind != "unknown" || !strings.Contains(got.Text, "Outcome unknown") || len(svc.requests()) != 0 {
 		t.Fatalf("a call cut off after yes and before it was sent is an unknown outcome for the owner: %+v", got)
 	}
-	e2.answer(got.ID, "retry")
-	if p := e2.waitState(id, "done", "error"); p.State != "done" || len(svc.requests()) != 1 {
+	e2.Answer(got.ID, "retry")
+	if p := e2.WaitState(id, "done", "error"); p.State != "done" || len(svc.requests()) != 1 {
 		t.Fatalf("a retry makes the call once and the agent goes on: %+v %d", p, len(svc.requests()))
 	}
 	if c := second.Calls(); !strings.Contains(c[len(c)-1].Prompt, "retry a call of unknown outcome") {
@@ -236,9 +221,8 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 	defer release(0)
 	home := t.TempDir()
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, home, &Fake{}, withClock(clock))
-	e.Clock = clock
-	e.createProject("clips", generateManifest(svc.URL))
+	e := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	e.Project("clips", generateManifest(svc.URL))
 	tid, tok := e.token("shortcuts", "clips.*")
 	go func() {
 		req, _ := http.NewRequest("POST", e.URL+"/api/commands/clips.generate", strings.NewReader(`{"topic": "owls"}`))
@@ -247,9 +231,10 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 			r.Body.Close()
 		}
 	}()
-	e.waitFor("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
-	e2 := restart(t, e, home, &Fake{})
-	a := e2.waitAsk()
+	e.Until("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	e2 := e.Restart(WithProvider(&Fake{}))
+	e2.Resume()
+	a := e2.WaitAsk()
 	var frozen struct {
 		Caller struct {
 			Kind     string
@@ -276,34 +261,34 @@ func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, home, first, withClock(clock))
-	e.Fake, e.Clock = first, clock
-	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	id := e.run(e.createProject("notes", postManifest(svc.URL, "")), "work")
-	e.waitState(id, "waiting_answer")
-	a := e.waitAsk()
+	e := New(t, WithHome(home), WithProvider(first), WithClock(clock))
+	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	id := e.Run(e.Project("notes", postManifest(svc.URL, "")), "work")
+	e.WaitState(id, "waiting_answer")
+	a := e.WaitAsk()
 	go func() {
 		body := strings.NewReader(fmt.Sprintf(`{"ask": %d, "answer": "allow"}`, a.ID))
 		req, _ := http.NewRequest("POST", e.URL+"/api/commands/deck.ask_answer", body)
-		req.Header.Set("Authorization", "Bearer "+token)
+		e.Sign(req)
 		if r, err := http.DefaultClient.Do(req); err == nil {
 			r.Body.Close()
 		}
 	}()
-	e.waitFor("the allowed call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	e.Until("the allowed call reaches the service", func() bool { return len(svc.requests()) == 1 })
 	second := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e2 := restart(t, e, home, second)
-	e2.waitFor("the unknown outcome", func() bool {
-		_, out := e2.call("deck.asks_list", nil)
-		var as []askView
+	e2 := e.Restart(WithProvider(second))
+	e2.Resume()
+	e2.Until("the unknown outcome", func() bool {
+		_, out := e2.Call("deck.asks_list", nil)
+		var as []Ask
 		_ = json.Unmarshal(out, &as)
 		return len(as) > 0
 	})
 	e2.App.Runner.Wait()
-	_, out := e2.call("deck.asks_list", nil)
-	var as []askView
+	_, out := e2.Call("deck.asks_list", nil)
+	var as []Ask
 	_ = json.Unmarshal(out, &as)
 	if len(as) != 1 || as[0].Kind != "unknown" {
 		t.Fatalf("one unknown outcome for the owner: %+v", as)

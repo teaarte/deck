@@ -15,8 +15,8 @@ import (
 
 func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	e.createProject("links", fullManifest)
+	e := New(t, WithAgent(ok))
+	e.Project("links", fullManifest)
 	for _, d := range []map[string]any{
 		{"name": "prompt.md", "kind": "prompt", "text": "# Collects links\nMore."},
 		{"name": "scripts/parse.py", "kind": "script", "text": "print('{}')\n"},
@@ -27,12 +27,12 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		{"name": "memory/owner-tea.md", "kind": "memory", "text": fact("owner-tea", "user", "The owner likes tea")},
 	} {
 		d["project"] = "links"
-		e.must("deck.document_save", d, nil)
+		e.Must("deck.document_save", d, nil)
 	}
 	var up struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
-	e.must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
-	e.must("deck.secret_set", map[string]any{"name": "feed", "value": "s3cret-feed-value"}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
+	e.Must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
+	e.Must("deck.secret_set", map[string]any{"name": "feed", "value": "s3cret-feed-value"}, nil)
 
 	a := e.rowAction("", "settings", "deck.project_export", map[string]any{"project": "links"})
 	if a == nil || a["download"] != true {
@@ -47,7 +47,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 	if code != 200 || json.Unmarshal(out, &ex) != nil || ex.File == 0 || ex.Name != "links.zip" {
 		t.Fatalf("the export names the file it kept: %d %s", code, out)
 	}
-	code, body := e.do("GET", "/api/files/"+strconv.FormatInt(ex.File, 10), nil)
+	code, body := e.Do("GET", "/api/files/"+strconv.FormatInt(ex.File, 10), nil)
 	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
 	if code != 200 || err != nil {
 		t.Fatalf("the owner downloads the .zip: %d %v", code, err)
@@ -70,18 +70,18 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		Name, Status string
 		Rights       []string
 	}
-	e.must("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10), "name": "links-shared"}, &im)
+	e.Must("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10), "name": "links-shared"}, &im)
 	if im.Name != "links-shared" || im.Status != store.ProjectDraft || !slices.Contains(im.Rights, "allowed external: post_link") {
 		t.Fatalf("an uploaded .zip from a screen of deck comes in as a draft with its rights: %+v", im)
 	}
 	var list []docView
-	e.must("deck.documents_list", map[string]any{"project": "links-shared"}, &list)
+	e.Must("deck.documents_list", map[string]any{"project": "links-shared"}, &list)
 	if len(list) != len(want) {
 		t.Fatalf("import takes every file of the .zip, out of its folder: %+v", list)
 	}
 
 	var rights []struct{ What, Detail string }
-	e.must("deck.project_rights", map[string]any{"project": "links-shared"}, &rights)
+	e.Must("deck.project_rights", map[string]any{"project": "links-shared"}, &rights)
 	if !slices.Contains(rights, struct{ What, Detail string }{"allowed external", "post_link"}) ||
 		!slices.Contains(rights, struct{ What, Detail string }{"read domain", "news.example.com"}) {
 		t.Fatalf("what a draft may do is a row each: %+v", rights)
@@ -104,7 +104,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 	if !strings.Contains(string(b), enable) {
 		t.Fatalf("its button enables the revision the owner read: %s", b)
 	}
-	e.must("deck.project_enable", map[string]any{"project": "links-shared", "revision": rev}, nil)
+	e.Must("deck.project_enable", map[string]any{"project": "links-shared", "revision": rev}, nil)
 	if e.project("links-shared").Status != store.ProjectEnabled {
 		t.Fatal("the draft is enabled")
 	}
@@ -112,7 +112,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 
 func TestAZipThatLeavesItsFolderIsRefused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	pack := func(files map[string]string) string {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
@@ -125,14 +125,14 @@ func TestAZipThatLeavesItsFolderIsRefused(t *testing.T) {
 	}
 	for _, evil := range []string{"../evil.md", "a/../../evil.md", "/etc/evil.md"} {
 		id := e.upload("", "evil.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, evil: "x"}))
-		e.refused("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, 422, "leaves the module folder")
+		e.Refused("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, 422, "leaves the module folder")
 	}
 	id := e.upload("", "plain.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, ".hidden/x.md": "x", "__MACOSX/._manifest.json": "x"}))
 	var im struct{ Name string }
-	e.must("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, &im)
+	e.Must("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, &im)
 	if im.Name != "plain" {
 		t.Fatalf("a .zip with the module at its root is named after the file: %+v", im)
 	}
-	e.refused("deck.project_import", map[string]any{}, 422, "folder, file or starter")
-	e.refused("deck.project_import", map[string]any{"file": "not-a-zip"}, 404, "no uploaded file")
+	e.Refused("deck.project_import", map[string]any{}, 422, "folder, file or starter")
+	e.Refused("deck.project_import", map[string]any{"file": "not-a-zip"}, 404, "no uploaded file")
 }

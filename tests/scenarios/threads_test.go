@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"deck2/internal/app"
 	"deck2/internal/provider"
 	"deck2/internal/store"
 )
@@ -46,10 +45,10 @@ print(json.dumps({"n": inp.get("n", 0), "record": inp.get("record")}))
 `
 
 // clipsEnv is deck with the clips module and the fake agent script.
-func clipsEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
+func clipsEnv(t *testing.T, script Script, opts ...Option) *Env {
 	t.Helper()
-	e := newEnv(t, script, cfg...)
-	e.createProject("clips", clipsModule)
+	e := New(t, append([]Option{WithAgent(script)}, opts...)...)
+	e.Project("clips", clipsModule)
 	e.saveScript("clips", "scripts/render.py", clipsRender)
 	return e
 }
@@ -57,12 +56,12 @@ func clipsEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
 // clip writes a clip and gives its record.
 func (e *Env) clip(slug string) int64 {
 	e.T.Helper()
-	e.must("deck.records_upsert", map[string]any{"project": "clips", "collection": "clips", "records": jsonl(map[string]any{"slug": slug})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "clips", "collection": "clips", "records": jsonl(map[string]any{"slug": slug})}, nil)
 	var all []struct {
 		ID  int64
 		Key string
 	}
-	e.must("deck.records_list", map[string]any{"project": "clips", "collection": "clips"}, &all)
+	e.Must("deck.records_list", map[string]any{"project": "clips", "collection": "clips"}, &all)
 	for _, r := range all {
 		if r.Key == slug {
 			return r.ID
@@ -73,20 +72,20 @@ func (e *Env) clip(slug string) int64 {
 }
 
 // runsOfRecord are the processes of a record, oldest first.
-func (e *Env) runsOfRecord(record int64) []procFull {
+func (e *Env) runsOfRecord(record int64) []Proc {
 	e.T.Helper()
-	var out []procFull
-	e.must("deck.processes_list", map[string]any{"project": "clips", "record": record}, &out)
+	var out []Proc
+	e.Must("deck.processes_list", map[string]any{"project": "clips", "record": record}, &out)
 	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
 		out[i], out[j] = out[j], out[i]
 	}
 	return out
 }
 
-func (e *Env) runsOfCommand(command string) []procFull {
+func (e *Env) runsOfCommand(command string) []Proc {
 	e.T.Helper()
-	var out []procFull
-	e.must("deck.processes_list", map[string]any{"project": "clips", "command": command}, &out)
+	var out []Proc
+	e.Must("deck.processes_list", map[string]any{"project": "clips", "command": command}, &out)
 	return out
 }
 
@@ -102,10 +101,10 @@ func TestAStepAfterACommandGoesOnWithItsRecord(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.waitState(e.start("clips", "new", nil), "done")
+	e.WaitState(e.Start("clips", "new", nil), "done")
 	made := e.clip("made")
 	var check, tally int64
-	e.waitFor("check and tally", func() bool {
+	e.Until("check and tally", func() bool {
 		cs, ts := e.runsOfCommand("check"), e.runsOfCommand("tally")
 		if len(cs) == 1 && len(ts) == 1 {
 			check, tally = cs[0].ID, ts[0].ID
@@ -120,10 +119,10 @@ func TestAStepAfterACommandGoesOnWithItsRecord(t *testing.T) {
 	}
 
 	other := e.clip("other")
-	e.waitState(e.start("clips", "revise", map[string]any{"record": other, "note": "shorter"}), "done")
-	var renders []procFull
-	e.waitFor("render after revise", func() bool { renders = e.runsOfCommand("render"); return len(renders) == 1 })
-	if got := e.waitScript(renders[0].ID, "done", "error"); got.State != "done" || processInput(t, e, got.ID)["record"] != float64(other) {
+	e.WaitState(e.Start("clips", "revise", map[string]any{"record": other, "note": "shorter"}), "done")
+	var renders []Proc
+	e.Until("render after revise", func() bool { renders = e.runsOfCommand("render"); return len(renders) == 1 })
+	if got := e.WaitState(renders[0].ID, "done", "error"); got.State != "done" || processInput(t, e, got.ID)["record"] != float64(other) {
 		t.Fatalf("the script after revise renders the same clip: %+v", got)
 	}
 	runs := e.runsOfRecord(other)
@@ -140,14 +139,14 @@ func TestAnAgentOfARecordReadsWhatItsThreadDid(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"done": "moved the crown"}`)}
 	})
 	a, b := e.clip("a"), e.clip("b")
-	first := e.start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
-	e.waitState(first, "done")
+	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
+	e.WaitState(first, "done")
 	e.App.Runner.Wait()
-	elsewhere := e.start("clips", "revise", map[string]any{"record": b, "note": "the sky"})
-	e.waitState(elsewhere, "done")
+	elsewhere := e.Start("clips", "revise", map[string]any{"record": b, "note": "the sky"})
+	e.WaitState(elsewhere, "done")
 	e.App.Runner.Wait()
-	second := e.start("clips", "revise", map[string]any{"record": a, "note": "the background"})
-	e.waitState(second, "done")
+	second := e.Start("clips", "revise", map[string]any{"record": a, "note": "the background"})
+	e.WaitState(second, "done")
 	var prompt string
 	for _, c := range e.Fake.Calls() {
 		if strings.Contains(c.Prompt, "the background") {
@@ -182,34 +181,34 @@ func TestACallForARecordJoinsItsRunningAgent(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}}
-	e := newEnvWith(t, t.TempDir(), fake)
-	e.createProject("clips", clipsModule)
+	e := New(t, WithProvider(fake))
+	e.Project("clips", clipsModule)
 	e.saveScript("clips", "scripts/render.py", clipsRender)
 	a, b := e.clip("a"), e.clip("b")
-	first := e.start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
+	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
 	<-started
-	if again := e.start("clips", "revise", map[string]any{"record": a, "note": "the background at 5.2 s"}); again != first {
+	if again := e.Start("clips", "revise", map[string]any{"record": a, "note": "the background at 5.2 s"}); again != first {
 		t.Fatalf("a second edit of the clip joins the running revise: %d, %d", again, first)
 	}
-	e.waitFor("the running revise hears the second edit", func() bool {
+	e.Until("the running revise hears the second edit", func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return strings.Contains(heardText, "the background at 5.2 s") && strings.Contains(heardText, "called again for record")
 	})
-	other := e.start("clips", "revise", map[string]any{"record": b, "note": "the sky"})
+	other := e.Start("clips", "revise", map[string]any{"record": b, "note": "the sky"})
 	if other == first {
 		t.Fatal("an edit of another clip starts its own revise")
 	}
 	close(release)
-	e.waitState(first, "done")
-	e.waitState(other, "done")
+	e.WaitState(first, "done")
+	e.WaitState(other, "done")
 	if runs := e.runsOfCommand("revise"); len(runs) != 2 {
 		t.Fatalf("two clips, two revises: %+v", runs)
 	}
 	var log struct {
 		Lines []map[string]any
 	}
-	e.must("deck.process_chat", map[string]any{"process": first}, &log)
+	e.Must("deck.process_chat", map[string]any{"process": first}, &log)
 	found := false
 	for _, l := range log.Lines {
 		if l["kind"] == "deck" && strings.Contains(fmt.Sprint(l["text"]), "the background at 5.2 s") {
@@ -241,24 +240,24 @@ func TestAStepAlreadyGoingForARecordIsNotStartedTwice(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": strings.Replace(clipsModule,
+	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": strings.Replace(clipsModule,
 		`{"after": "new", "command": "check"}`, `{"after": "revise", "command": "check"}`, 1)}, nil)
 	a := e.clip("a")
-	first := e.start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
-	e.waitState(first, "done")
+	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
+	e.WaitState(first, "done")
 	<-started
-	second := e.start("clips", "revise", map[string]any{"record": a, "note": "the background"})
+	second := e.Start("clips", "revise", map[string]any{"record": a, "note": "the background"})
 	if second == first {
 		t.Fatal("a revise after the first one finished is a run of its own")
 	}
-	e.waitState(second, "done")
-	e.waitFor("the second call of check", func() bool {
+	e.WaitState(second, "done")
+	e.Until("the second call of check", func() bool {
 		var log struct{ Lines []map[string]any }
 		checks := e.runsOfCommand("check")
 		if len(checks) != 1 {
 			return false
 		}
-		e.must("deck.process_chat", map[string]any{"process": checks[0].ID}, &log)
+		e.Must("deck.process_chat", map[string]any{"process": checks[0].ID}, &log)
 		for _, l := range log.Lines {
 			if l["kind"] == "deck" && strings.Contains(fmt.Sprint(l["text"]), fmt.Sprintf(`"process":%d`, second)) {
 				return true
@@ -268,7 +267,7 @@ func TestAStepAlreadyGoingForARecordIsNotStartedTwice(t *testing.T) {
 	})
 	close(release)
 	checks := e.runsOfCommand("check")
-	e.waitState(checks[0].ID, "done")
+	e.WaitState(checks[0].ID, "done")
 	e.App.Runner.Wait()
 	if checks = e.runsOfCommand("check"); len(checks) != 1 {
 		t.Fatalf("one check of the clip for both revises: %+v", checks)
@@ -286,18 +285,18 @@ func TestAScriptCalledForItsRecordWhileItRunsRunsOnceMoreAfter(t *testing.T) {
 	t.Parallel()
 	e := clipsEnv(t, nil)
 	a := e.clip("a")
-	first := e.start("clips", "render", map[string]any{"record": a, "n": 1, "wait": 3})
-	if got := e.process(first); got.State != "running" {
+	first := e.Start("clips", "render", map[string]any{"record": a, "n": 1, "wait": 3})
+	if got := e.Proc(first); got.State != "running" {
 		t.Fatalf("the first render runs: %+v", got)
 	}
 	for _, n := range []int{2, 3} {
-		if id := e.start("clips", "render", map[string]any{"record": a, "n": n}); id != first {
+		if id := e.Start("clips", "render", map[string]any{"record": a, "n": n}); id != first {
 			t.Fatalf("a render of the clip while one runs returns it: %d, %d", id, first)
 		}
 	}
-	e.waitScript(first, "done")
+	e.WaitState(first, "done")
 	next := e.following(first)
-	if got := e.waitScript(next, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), `"n":3`) {
+	if got := e.WaitState(next, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), `"n":3`) {
 		t.Fatalf("one more render with the last call: %+v", got)
 	}
 	e.App.Runner.Wait()
@@ -305,12 +304,12 @@ func TestAScriptCalledForItsRecordWhileItRunsRunsOnceMoreAfter(t *testing.T) {
 		t.Fatalf("two renders for three calls: %+v", runs)
 	}
 
-	stopped := e.start("clips", "render", map[string]any{"record": a, "n": 4, "wait": 30})
-	if id := e.start("clips", "render", map[string]any{"record": a, "n": 5}); id != stopped {
+	stopped := e.Start("clips", "render", map[string]any{"record": a, "n": 4, "wait": 30})
+	if id := e.Start("clips", "render", map[string]any{"record": a, "n": 5}); id != stopped {
 		t.Fatal("the call joins the running render")
 	}
-	e.must("deck.process_stop", map[string]any{"process": stopped}, nil)
-	e.waitScript(stopped, "stopped")
+	e.Must("deck.process_stop", map[string]any{"process": stopped}, nil)
+	e.WaitState(stopped, "stopped")
 	e.App.Runner.Wait()
 	if runs := e.runsOfCommand("render"); len(runs) != 3 {
 		t.Fatalf("a stopped render runs nothing more: %+v", runs)
@@ -327,17 +326,17 @@ func TestDeckStopsAreDecks(t *testing.T) {
 		return provider.Result{}
 	})
 	a, b := e.clip("a"), e.clip("b")
-	gone := e.start("clips", "revise", map[string]any{"record": a, "note": "x"})
+	gone := e.Start("clips", "revise", map[string]any{"record": a, "note": "x"})
 	<-started
-	e.must("deck.record_delete", map[string]any{"record": a}, nil)
-	e.waitState(gone, "stopped")
+	e.Must("deck.record_delete", map[string]any{"record": a}, nil)
+	e.WaitState(gone, "stopped")
 	if got := e.fault(gone); got.ErrorType != "deck.stopped" || got.Whose != "deck" {
 		t.Fatalf("a process of a deleted record is stopped by deck: %+v", got)
 	}
-	owners := e.start("clips", "revise", map[string]any{"record": b, "note": "y"})
+	owners := e.Start("clips", "revise", map[string]any{"record": b, "note": "y"})
 	<-started
-	e.must("deck.process_stop", map[string]any{"process": owners}, nil)
-	e.waitState(owners, "stopped")
+	e.Must("deck.process_stop", map[string]any{"process": owners}, nil)
+	e.WaitState(owners, "stopped")
 	if got := e.fault(owners); got.ErrorType != "stopped" || got.Whose != "owner" {
 		t.Fatalf("the owner's stop stays the owner's: %+v", got)
 	}
@@ -357,24 +356,24 @@ func TestTheNextModelHearsWhatTheOwnerWroteAndKeepsTheRetryKey(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
 	var r struct{ Process int64 }
-	e.must("plain.work", map[string]any{"n": 1, "retry_key": "k1"}, &r)
+	e.Must("plain.work", map[string]any{"n": 1, "retry_key": "k1"}, &r)
 	id := r.Process
-	e.waitState(id, "running")
-	e.must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, nil)
+	e.WaitState(id, "running")
+	e.Must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, nil)
 	close(told)
 	next := e.following(id)
-	e.must("plain.work", map[string]any{"n": 1, "retry_key": "k1"}, &r)
+	e.Must("plain.work", map[string]any{"n": 1, "retry_key": "k1"}, &r)
 	if r.Process != next {
 		t.Fatalf("a call with the retry key finds the process that took the work: %d, %d", r.Process, next)
 	}
-	e.waitFor("the next model starts", func() bool { return len(backup.Calls()) == 1 })
+	e.Until("the next model starts", func() bool { return len(backup.Calls()) == 1 })
 	if p := backup.Calls()[0].Prompt; !strings.Contains(p, "use the blue folder") {
 		t.Fatalf("the next model hears what the owner wrote:\n%s", p)
 	}
 	close(release)
-	e.waitState(next, "done")
+	e.WaitState(next, "done")
 	var log struct{ Lines []map[string]any }
-	e.must("deck.process_chat", map[string]any{"process": id}, &log)
+	e.Must("deck.process_chat", map[string]any{"process": id}, &log)
 	for _, l := range log.Lines {
 		if l["kind"] == "owner" && l["status"] != "taken" {
 			t.Fatalf("the message the next model took is not left waiting on the refused one: %+v", l)
@@ -399,16 +398,15 @@ func TestTheMasterSeesTheProcessesOfItsTopic(t *testing.T) {
 	}
 	main := &Fake{script: script}
 	other := &Fake{script: script, name: "other"}
-	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other})
-	e.Fake = main
-	e.createProject("clips", clipsModule)
+	e := New(t, WithProvider(main, other))
+	e.Project("clips", clipsModule)
 	e.saveScript("clips", "scripts/render.py", clipsRender)
 	e.clip("a")
 	topic := e.say(0, "make a clip")
 	e.masterSaid(topic, 1)
-	var runs []procFull
-	e.waitFor("the revise the reply started", func() bool {
-		e.must("deck.processes_list", map[string]any{"topic": topic}, &runs)
+	var runs []Proc
+	e.Until("the revise the reply started", func() bool {
+		e.Must("deck.processes_list", map[string]any{"topic": topic}, &runs)
 		for _, r := range runs {
 			if r.Command == "revise" && r.State == "done" {
 				return true
@@ -419,19 +417,19 @@ func TestTheMasterSeesTheProcessesOfItsTopic(t *testing.T) {
 	e.App.Runner.Wait()
 	elsewhere := e.say(0, "something else")
 	e.masterSaid(elsewhere, 1)
-	var mine []procFull
-	e.must("deck.processes_list", map[string]any{"topic": elsewhere}, &mine)
+	var mine []Proc
+	e.Must("deck.processes_list", map[string]any{"topic": elsewhere}, &mine)
 	for _, r := range mine {
 		if r.Command == "revise" {
 			t.Fatalf("another topic has its own processes: %+v", mine)
 		}
 	}
 
-	e.useModels("master.reply", "other")
+	e.UseModels("master.reply", "other")
 	e.say(topic, "how did it go")
 	e.masterSaid(topic, 2)
 	var prompt string
-	e.waitWithin("the reply on the other model", time.Minute, func() bool {
+	e.Until("the reply on the other model", func() bool {
 		for _, c := range other.Calls() {
 			if strings.Contains(c.Prompt, "how did it go") {
 				prompt = c.Prompt
@@ -449,19 +447,20 @@ func TestTheMasterSeesTheProcessesOfItsTopic(t *testing.T) {
 func TestAScheduleOfARecordJoinsItsRunOncePerSlot(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "revise" {
 			<-release
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
-	})
-	e.createProject("clips", strings.Replace(clipsModule, `"triggers": [`, `"triggers": [{"command": "revise", "cron": "0 9 * * *", "params": {"record": 1, "note": "nightly"}}, `, 1))
+	}), WithClock())
+
+	e.Project("clips", strings.Replace(clipsModule, `"triggers": [`, `"triggers": [{"command": "revise", "cron": "0 9 * * *", "params": {"record": 1, "note": "nightly"}}, `, 1))
 	e.saveScript("clips", "scripts/render.py", clipsRender)
 	if a := e.clip("a"); a != 1 {
 		t.Fatalf("the clip is record 1: %d", a)
 	}
-	first := e.start("clips", "revise", map[string]any{"record": 1, "note": "the crown"})
-	e.waitState(first, "running")
+	first := e.Start("clips", "revise", map[string]any{"record": 1, "note": "the crown"})
+	e.WaitState(first, "running")
 	next := ""
 	for _, tr := range e.triggers() {
 		if tr.Command == "revise" {
@@ -475,7 +474,7 @@ func TestAScheduleOfARecordJoinsItsRunOncePerSlot(t *testing.T) {
 		time.Sleep(300 * time.Millisecond)
 	}
 	var log struct{ Lines []map[string]any }
-	e.must("deck.process_chat", map[string]any{"process": first}, &log)
+	e.Must("deck.process_chat", map[string]any{"process": first}, &log)
 	joined := 0
 	for _, l := range log.Lines {
 		if l["kind"] == "deck" && strings.Contains(fmt.Sprint(l["text"]), "nightly") {
@@ -492,7 +491,7 @@ func TestAScheduleOfARecordJoinsItsRunOncePerSlot(t *testing.T) {
 		t.Fatalf("the schedule joins the run once and moves on: %d joins, next %s → %s, %d runs", joined, next, moved, e.countOf("revise"))
 	}
 	close(release)
-	e.waitState(first, "done")
+	e.WaitState(first, "done")
 }
 
 // TestARunAfterThatDidNotStartLetsItsRecordGo: a run after a render that cannot start tells the owner and leaves the
@@ -501,26 +500,26 @@ func TestARunAfterThatDidNotStartLetsItsRecordGo(t *testing.T) {
 	t.Parallel()
 	e := clipsEnv(t, nil)
 	a := e.clip("a")
-	first := e.start("clips", "render", map[string]any{"record": a, "n": 1, "wait": 3})
-	if id := e.start("clips", "render", map[string]any{"record": a, "n": 2}); id != first {
+	first := e.Start("clips", "render", map[string]any{"record": a, "n": 1, "wait": 3})
+	if id := e.Start("clips", "render", map[string]any{"record": a, "n": 2}); id != first {
 		t.Fatal("the call joins the running render")
 	}
 	start := strings.Index(clipsModule, `,
     {"name": "render"`)
 	end := strings.Index(clipsModule, `"script": "render"}}]`) + len(`"script": "render"}}`)
 	gone := strings.Replace(clipsModule[:start]+clipsModule[end:], `, {"after": "revise", "command": "render"}`, ``, 1)
-	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": gone}, nil)
-	e.waitScript(first, "done")
-	if note := e.waitNote(fmt.Sprintf("did not run render again for the calls that came while process #%d ran", first)); !strings.Contains(note.Text, `no command "render"`) {
+	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": gone}, nil)
+	e.WaitState(first, "done")
+	if note := e.WaitNote(fmt.Sprintf("did not run render again for the calls that came while process #%d ran", first)); !strings.Contains(note.Text, `no command "render"`) {
 		t.Fatalf("the note says why: %s", note.Text)
 	}
 	e.App.Runner.Wait()
-	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": clipsModule}, nil)
-	next := e.start("clips", "render", map[string]any{"record": a, "n": 3})
+	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": clipsModule}, nil)
+	next := e.Start("clips", "render", map[string]any{"record": a, "n": 3})
 	if next == first {
 		t.Fatal("a run after that did not start does not hold the clip")
 	}
-	if got := e.waitScript(next, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), `"n":3`) {
+	if got := e.WaitState(next, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), `"n":3`) {
 		t.Fatalf("the next call renders the clip: %+v", got)
 	}
 }
@@ -544,20 +543,20 @@ func TestACallAFailedAgentDidNotHearRunsOnceAfter(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": strings.Replace(clipsModule,
+	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": strings.Replace(clipsModule,
 		`, {"after": "revise", "command": "render"}`, ``, 1)}, nil)
 	a := e.clip("a")
-	first := e.start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
+	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
 	<-started
 	for _, note := range []string{"the sky", "the background"} {
-		if id := e.start("clips", "revise", map[string]any{"record": a, "note": note}); id != first {
+		if id := e.Start("clips", "revise", map[string]any{"record": a, "note": note}); id != first {
 			t.Fatalf("an edit joins the running revise: %d, %d", id, first)
 		}
 	}
 	close(release)
-	e.waitState(first, "error")
+	e.WaitState(first, "error")
 	next := e.following(first)
-	e.waitState(next, "done")
+	e.WaitState(next, "done")
 	e.App.Runner.Wait()
 	mu.Lock()
 	after := strings.Join(prompts[1:], "\n")
@@ -580,7 +579,7 @@ func TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen(t *testing.T) {
 	clock := &Clock{now: t0}
 	e := clipsEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
-	}, withClock(clock))
+	}, WithClock(clock))
 	m := strings.Replace(clipsModule, `"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}}`,
 		`"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}, "record": {"type": "string"}}},
@@ -590,16 +589,16 @@ func TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen(t *testing.T) {
      "result": {"type": "object"}, "executor": {"type": "script", "script": "label"}}`, 1)
 	m = strings.Replace(m, `{"after": "check", "command": "tally"}`, `{"after": "check", "command": "tally"}, {"after": "check", "command": "label"}`, 1)
 	m = strings.Replace(m, `"scripts": [`, `"scripts": [{"name": "label", "file": "scripts/label.py", "runtime": "python"}, `, 1)
-	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": m}, nil)
+	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": m}, nil)
 	a := e.clip("a")
-	check := e.start("clips", "check", map[string]any{"record": a})
-	e.waitState(check, "done")
-	var tally []procFull
-	e.waitFor("tally", func() bool { tally = e.runsOfCommand("tally"); return len(tally) == 1 })
+	check := e.Start("clips", "check", map[string]any{"record": a})
+	e.WaitState(check, "done")
+	var tally []Proc
+	e.Until("tally", func() bool { tally = e.runsOfCommand("tally"); return len(tally) == 1 })
 	if in := processInput(t, e, tally[0].ID); in["record"] != nil {
 		t.Fatalf("a record field that is not an integer is not filled: %v", in)
 	}
-	if n := e.waitNote(fmt.Sprintf("deck did not start label after process #%d of check", check)); n.CreatedAt != store.Time(t0) {
+	if n := e.WaitNote(fmt.Sprintf("deck did not start label after process #%d of check", check)); n.CreatedAt != store.Time(t0) {
 		t.Fatalf("the note is at the time of deck's clock: %s", n.CreatedAt)
 	}
 }
@@ -624,10 +623,10 @@ func TestAHelperCallingBackForTheRecordDoesNotJoinItsCaller(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	a = e.clip("a")
-	first := e.start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
-	e.waitState(first, "done")
-	e.waitFor("the helper's revise", func() bool { return len(e.runsOfCommand("revise")) == 2 })
+	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
+	e.WaitState(first, "done")
+	e.Until("the helper's revise", func() bool { return len(e.runsOfCommand("revise")) == 2 })
 	for _, r := range e.runsOfCommand("revise") {
-		e.waitState(r.ID, "done")
+		e.WaitState(r.ID, "done")
 	}
 }

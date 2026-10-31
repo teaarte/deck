@@ -19,9 +19,8 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 		phrase = "Every morning, make me a list of the three top Hacker News stories, each with one line on why it matters."
 	}
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(home), realWaits)
+	e := New(t, WithHome(home), WithProvider(claudecode.New(home)), WithConfig(realWaits), WithWait(25*time.Minute))
 	topic := e.say(0, phrase)
-	deadline := time.Now().Add(25 * time.Minute)
 	answered := map[int64]bool{}
 	var draft string
 	open := func() bool {
@@ -29,10 +28,14 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 		e.chatTopics(false, &ts)
 		return len(ts) == 1 && ts[0].Reply != nil
 	}
-	for time.Now().Before(deadline) && (draft == "" || open()) {
-		time.Sleep(3 * time.Second)
-		var asks []askView
-		e.must("deck.asks_list", nil, &asks)
+	defer func() {
+		for _, m := range e.chatMessages(topic) {
+			t.Logf("%s: %s", m.Role, m.Text)
+		}
+	}()
+	e.Until("a draft module of the master", func() bool {
+		var asks []Ask
+		e.Must("deck.asks_list", nil, &asks)
 		for _, a := range asks {
 			if answered[a.ID] {
 				continue
@@ -57,7 +60,7 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 				}
 				b, _ := json.Marshal(ans)
 				t.Logf("question %d: %s -> %s", a.ID, a.Text, b)
-				e.must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": string(b)}, nil)
+				e.Must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": string(b)}, nil)
 			default:
 				t.Logf("ask %d (%s): %s", a.ID, a.Kind, a.Text)
 			}
@@ -76,20 +79,15 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 			t.Logf("master: %s", last.Text)
 			e.say(topic, "Go with your recommendation for everything and build it.")
 		}
-	}
-	for _, m := range e.chatMessages(topic) {
-		t.Logf("%s: %s", m.Role, m.Text)
-	}
-	if draft == "" {
-		t.Fatal("the master made no draft module")
-	}
+		return draft != "" && !open()
+	})
 	var m struct {
 		Manifest string `json:"manifest"`
 		Revision int64  `json:"revision"`
 	}
-	e.must("deck.manifest_get", map[string]any{"project": draft}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": draft}, &m)
 	t.Logf("draft %s at revision %d:\n%s", draft, m.Revision, m.Manifest)
-	e.must("deck.project_enable", map[string]any{"project": draft, "revision": m.Revision}, nil)
+	e.Must("deck.project_enable", map[string]any{"project": draft, "revision": m.Revision}, nil)
 	var man struct {
 		Commands []struct {
 			Name     string
@@ -101,8 +99,8 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 		t.Fatal("the module has no command")
 	}
 	var r struct{ Process int64 }
-	e.must(draft+"."+man.Commands[0].Name, map[string]any{}, &r)
-	got := e.pollState(r.Process, 15*time.Minute, 2*time.Second, "done", "error", "waiting_answer")
+	e.Must(draft+"."+man.Commands[0].Name, map[string]any{}, &r)
+	got := e.WaitState(r.Process, "done", "error", "waiting_answer")
 	t.Logf("run of %s.%s: %+v", draft, man.Commands[0].Name, got)
 	if got.State != "done" {
 		t.Fatalf("the enabled module runs: %+v", got)

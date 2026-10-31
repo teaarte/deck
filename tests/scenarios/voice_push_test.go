@@ -63,14 +63,15 @@ func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
 		_, _ = w.Write([]byte(`{"text": " buy oat milk "}`))
 	}))
 	t.Cleanup(whisper.Close)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "Put it into groceries."}
-	})
-	e.must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "whisper", "model": "whisper", "kind": "stt", "name": "whisper", "free": true, "options": `{"language": "en"}`}, nil)
+	}))
+
+	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "whisper", "model": "whisper", "kind": "stt", "name": "whisper", "free": true, "options": `{"language": "en"}`}, nil)
 	id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
 	var out struct{ Text string }
-	e.must("deck.transcribe", map[string]any{"file": itoa(id)}, &out)
+	e.Must("deck.transcribe", map[string]any{"file": itoa(id)}, &out)
 	mu.Lock()
 	if out.Text != "buy oat milk" || got.file != "voice.wav" || got.format != "json" || got.language != "en" {
 		t.Fatalf("the recording goes to the whisper server as a form and its text comes back: %q %+v", out.Text, got)
@@ -88,9 +89,9 @@ func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
 	if len(calls) != 1 || calls[0].Provider != "whisper" || calls[0].Model != "whisper" {
 		t.Fatalf("speech to text is a call of its model in the journal: %+v", calls)
 	}
-	e.must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": "http://127.0.0.1:1/inference", "local": true}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": "http://127.0.0.1:1/inference", "local": true}, nil)
 	id = e.upload("master", "voice.wav", "audio/wav", "RIFF")
-	if code, msg := e.call("deck.transcribe", map[string]any{"file": itoa(id)}); code != 422 || !strings.Contains(string(msg), "speech to text") {
+	if code, msg := e.Call("deck.transcribe", map[string]any{"file": itoa(id)}); code != 422 || !strings.Contains(string(msg), "speech to text") {
 		t.Fatalf("a whisper that does not answer is an error the owner reads: %d %s", code, msg)
 	}
 }
@@ -166,14 +167,14 @@ func (d *pushDevice) decrypt(t *testing.T, body []byte) []byte {
 
 func (d *pushDevice) subscribe(e *Env, srv *httptest.Server, name string) {
 	b64 := base64.RawURLEncoding.EncodeToString
-	e.must("deck.push_subscribe", map[string]any{"endpoint": srv.URL + "/push/" + name, "p256dh": b64(d.priv.PublicKey().Bytes()),
+	e.Must("deck.push_subscribe", map[string]any{"endpoint": srv.URL + "/push/" + name, "p256dh": b64(d.priv.PublicKey().Bytes()),
 		"auth": b64(d.auth), "device": name}, nil)
 }
 
 // wait looks for what to push, as the loop of deck does every 30 seconds, until the device got n pushes.
 func (d *pushDevice) wait(e *Env, n int) []map[string]string {
 	e.T.Helper()
-	e.waitFor("pushes", func() bool {
+	e.Until("pushes", func() bool {
 		e.App.Sweep(context.Background(), time.Now())
 		d.mu.Lock()
 		defer d.mu.Unlock()
@@ -188,75 +189,77 @@ func (d *pushDevice) wait(e *Env, n int) []map[string]string {
 // or a reply of the master pushes nothing of its own.
 func TestPushGoesToSubscribedDevices(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "chat topic") {
 			return provider.Result{Text: "Put it into groceries, as card 1."}
 		}
 		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "Which site?\nThe first one is down."}}})
 		return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
-	})
+	}))
+
 	var key struct{ Key string }
-	e.must("deck.push_key", nil, &key)
+	e.Must("deck.push_key", nil, &key)
 	d, srv := newPushDevice(t)
 	d.subscribe(e, srv, "iPhone")
 	var devices []struct{ Name string }
-	e.must("deck.push_devices", nil, &devices)
+	e.Must("deck.push_devices", nil, &devices)
 	if len(devices) != 1 || devices[0].Name != "iPhone" {
 		t.Fatalf("the device is listed: %+v", devices)
 	}
-	p := e.createProject("work", plainManifest)
-	e.createProject("private", strings.Replace(plainManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
-	e.must("deck.notify", map[string]any{"project": "work", "text": "The report of the week is ready"}, nil)
+	p := e.Project("work", plainManifest)
+	e.Project("private", strings.Replace(plainManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
+	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report of the week is ready"}, nil)
 	got := d.wait(e, 1)
 	if got[0]["body"] != "The report of the week is ready" || got[0]["url"] != "/#/deck/cockpit" || got[0]["badge"] != "0" ||
 		!strings.Contains(d.vap[0], "vapid t=") || !strings.Contains(d.vap[0], "k="+key.Key) {
 		t.Fatalf("a notify line is pushed, signed with the key of deck: %+v %v", got, d.vap)
 	}
-	id := e.run(p, "work")
+	id := e.Run(p, "work")
 	got = d.wait(e, 2)
 	if got[1]["title"] != "Waiting for you" || got[1]["body"] != "Which site?" || got[1]["url"] != "/#/deck/cockpit" || got[1]["badge"] != "1" {
 		t.Fatalf("a question is pushed by its first line: %+v", got[1])
 	}
-	e.answer(e.waitAsk().ID, "the second")
-	e.waitState(id, "error")
+	e.Answer(e.WaitAsk().ID, "the second")
+	e.WaitState(id, "error")
 	topic := e.say(0, "buy milk")
 	e.masterSaid(topic, 1)
-	e.must("deck.notify", map[string]any{"project": "private", "text": "Your blood test is in"}, nil)
+	e.Must("deck.notify", map[string]any{"project": "private", "text": "Your blood test is in"}, nil)
 	got = d.wait(e, 3)
 	if len(got) != 3 || strings.Contains(got[2]["body"], "blood") || got[2]["body"] != "Something in deck waits for you" {
 		t.Fatalf("a failure and a reply push nothing; a project without network pushes only a generic line: %+v", got)
 	}
 	long := strings.Repeat("word ", 60)
-	e.must("deck.notify", map[string]any{"project": "work", "text": long}, nil)
+	e.Must("deck.notify", map[string]any{"project": "work", "text": long}, nil)
 	got = d.wait(e, 4)
 	if len(got[3]["body"]) > 104 {
 		t.Fatalf("a push is short: %d bytes", len(got[3]["body"]))
 	}
-	e.must("deck.notify", map[string]any{"project": "work", "text": "The runs of today", "screen": "deck/schedule"}, nil)
+	e.Must("deck.notify", map[string]any{"project": "work", "text": "The runs of today", "screen": "deck/schedule"}, nil)
 	if got = d.wait(e, 5); got[4]["url"] != "/#/deck/schedule" {
 		t.Fatalf("a note of a screen of deck pushes that screen: %+v", got[4])
 	}
-	e.must("deck.notify", map[string]any{"project": "master", "text": "The blood test of private is in"}, nil)
+	e.Must("deck.notify", map[string]any{"project": "master", "text": "The blood test of private is in"}, nil)
 	if got = d.wait(e, 6); got[5]["body"] != "Something in deck waits for you" {
 		t.Fatalf("a line of the master, which may quote a project without network, is generic too: %+v", got[5])
 	}
 	d.mu.Lock()
 	d.gone = true
 	d.mu.Unlock()
-	e.must("deck.notify", map[string]any{"project": "work", "text": "once more"}, nil)
-	e.waitFor("the gone device to go", func() bool {
+	e.Must("deck.notify", map[string]any{"project": "work", "text": "once more"}, nil)
+	e.Until("the gone device to go", func() bool {
 		e.App.Sweep(context.Background(), time.Now())
 		var ds []map[string]any
-		e.must("deck.push_devices", nil, &ds)
+		e.Must("deck.push_devices", nil, &ds)
 		return len(ds) == 0
 	})
 }
 
 func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "The list is updated."}
-	})
+	}))
+
 	d, srv := newPushDevice(t)
 	failing := true
 	var mu sync.Mutex
@@ -272,8 +275,8 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	}))
 	t.Cleanup(flaky.Close)
 	d.subscribe(e, flaky, "mac")
-	e.createProject("work", plainManifest)
-	e.must("deck.notify", map[string]any{"project": "work", "text": "The list is updated."}, nil)
+	e.Project("work", plainManifest)
+	e.Must("deck.notify", map[string]any{"project": "work", "text": "The list is updated."}, nil)
 	e.App.Sweep(context.Background(), time.Now())
 	if n := len(d.got); n != 0 {
 		t.Fatalf("nothing arrives while the service fails: %d", n)
@@ -313,15 +316,15 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 		_, _ = w.Write([]byte(`{"text": "hi"}`))
 	}))
 	t.Cleanup(whisper.Close)
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
 	id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
-	e.must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openai", "api": "openai", "url": whisper.URL + "/v1", "key": "sk-o"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openai", "model": "whisper-1", "kind": "stt"}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"openai/whisper-1"}}, nil)
+	e.Must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "openai", "api": "openai", "url": whisper.URL + "/v1", "key": "sk-o"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openai", "model": "whisper-1", "kind": "stt"}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"openai/whisper-1"}}, nil)
 	id = e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
-	e.must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
+	e.Must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
 	mu.Lock()
 	defer mu.Unlock()
 	if langs["/inference"] != "auto" || langs["/v1/audio/transcriptions"] != "-" {
@@ -333,21 +336,21 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 // makes a new key and drops the devices subscribed with the old one.
 func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var before struct{ Key string }
-	e.must("deck.push_key", nil, &before)
+	e.Must("deck.push_key", nil, &before)
 	d, srv := newPushDevice(t)
 	d.subscribe(e, srv, "iPhone")
 	var names []struct{ Name string }
-	e.must("deck.secrets_list", nil, &names)
+	e.Must("deck.secrets_list", nil, &names)
 	if len(names) != 0 {
 		t.Fatalf("the key of pushes is not a secret of the owner: %+v", names)
 	}
-	e.must("deck.push_reset", nil, nil)
+	e.Must("deck.push_reset", nil, nil)
 	var after struct{ Key string }
-	e.must("deck.push_key", nil, &after)
+	e.Must("deck.push_key", nil, &after)
 	var devices []struct{ Name string }
-	e.must("deck.push_devices", nil, &devices)
+	e.Must("deck.push_devices", nil, &devices)
 	if after.Key == before.Key || len(devices) != 0 {
 		t.Fatalf("a reset makes a new key and the old devices subscribe again: %v %+v", after.Key == before.Key, devices)
 	}
@@ -361,13 +364,13 @@ func TestNoToolGetsThePushKey(t *testing.T) {
 		seen <- r.Header.Get("Authorization")
 		jsonReply(w, `{}`)
 	})
-	e := newEnv(t, nil)
-	e.must("deck.push_key", nil, nil)
+	e := New(t)
+	e.Must("deck.push_key", nil, nil)
 	m := fmt.Sprintf(`{"version": 13, "allowed_external": ["post"],
   "tools": {"http": [{"name": "post", "description": "Posts", "method": "POST", "url": "%s/x", "headers": {"Authorization": "$secret.push.vapid"},
     "input": {"type": "object", "properties": {}}}]}}`, svc.URL)
-	e.createProject("spy", m)
-	if code, out := e.call("spy.post", map[string]any{}); code == 200 || !strings.Contains(string(out), "not set") {
+	e.Project("spy", m)
+	if code, out := e.Call("spy.post", map[string]any{}); code == 200 || !strings.Contains(string(out), "not set") {
 		t.Fatalf("the push key reaches no tool: %d %s", code, out)
 	}
 	select {
@@ -381,14 +384,14 @@ func TestNoToolGetsThePushKey(t *testing.T) {
 // service fails gets it later and the others get each push once; the health of pushes names the failing one.
 func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	good, srv := newPushDevice(t)
 	good.subscribe(e, srv, "iPhone")
 	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
 	t.Cleanup(broken.Close)
 	good.subscribe(e, broken, "mac")
-	e.createProject("work", plainManifest)
-	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
+	e.Project("work", plainManifest)
+	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	good.wait(e, 1)
 	for range 3 {
 		e.App.Sweep(context.Background(), time.Now())
@@ -396,7 +399,7 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	if n := len(good.wait(e, 1)); n != 1 {
 		t.Fatalf("a device that took a push does not get it again while another fails: %d pushes", n)
 	}
-	if h := e.waitHealth("push", "error"); !strings.Contains(h.Error, "mac") {
+	if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, "mac") {
 		t.Fatalf("the health of pushes names the device that fails: %+v", h)
 	}
 }
@@ -405,7 +408,7 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 // the pushes of that device on again, and the row of the health opens where that is done.
 func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	dev, _ := newPushDevice(t)
 	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
@@ -413,10 +416,10 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	}))
 	t.Cleanup(refusing.Close)
 	dev.subscribe(e, refusing, "MacIntel")
-	e.createProject("work", plainManifest)
-	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
+	e.Project("work", plainManifest)
+	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	e.App.Sweep(context.Background(), time.Now())
-	h := e.waitHealth("push", "error")
+	h := e.WaitHealth("push", "error")
 	if !strings.Contains(h.Error, "MacIntel") || !strings.Contains(h.Error, "on again on this device") {
 		t.Fatalf("the health says how to turn the pushes of the device on again: %+v", h)
 	}
@@ -441,9 +444,9 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
+	e := New(t, WithHome(home), WithProvider(&Fake{}))
 	var first struct{ Key string }
-	e.must("deck.push_key", nil, &first)
+	e.Must("deck.push_key", nil, &first)
 	h := deckhome.Layout(home)
 	old := filepath.Join(h.Secrets(1), "push.vapid")
 	if _, err := os.Stat(old); err == nil {
@@ -454,8 +457,8 @@ func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 		t.Fatalf("the key of pushes lives in state/push: %v", keys)
 	}
 	var again struct{ Key string }
-	e.must("deck.secret_set", map[string]any{"name": "push.vapid", "value": "the owner's"}, nil)
-	e.must("deck.push_key", nil, &again)
+	e.Must("deck.secret_set", map[string]any{"name": "push.vapid", "value": "the owner's"}, nil)
+	e.Must("deck.push_key", nil, &again)
 	if again.Key != first.Key {
 		t.Fatal("a secret of the owner named like it does not change the key of pushes")
 	}
@@ -465,7 +468,7 @@ func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 // deck's own signature, is red in health and forgets no device.
 func TestAPushRefusedForDecksOwnSignatureKeepsTheDevice(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	dev, _ := newPushDevice(t)
 	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
@@ -473,10 +476,10 @@ func TestAPushRefusedForDecksOwnSignatureKeepsTheDevice(t *testing.T) {
 	}))
 	t.Cleanup(refusing.Close)
 	dev.subscribe(e, refusing, "MacIntel")
-	e.createProject("work", plainManifest)
-	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
+	e.Project("work", plainManifest)
+	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	e.App.Sweep(context.Background(), time.Now())
-	if h := e.waitHealth("push", "error"); !strings.Contains(h.Error, "BadJwtToken") {
+	if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, "BadJwtToken") {
 		t.Fatalf("the health says why the service refused: %+v", h)
 	}
 	var subs int
@@ -500,14 +503,14 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM feed WHERE text LIKE 'Pushes stopped%'`).Scan(&n)
 		return n
 	}
-	e := newEnv(t, nil)
-	e.createProject("work", plainManifest)
+	e := New(t)
+	e.Project("work", plainManifest)
 	for i, name := range []string{"MacIntel", "iPad"} {
 		dev, _ := newPushDevice(t)
 		dev.subscribe(e, refusing, name)
-		e.must("deck.notify", map[string]any{"project": "work", "text": fmt.Sprintf("Report %d is ready", i)}, nil)
+		e.Must("deck.notify", map[string]any{"project": "work", "text": fmt.Sprintf("Report %d is ready", i)}, nil)
 		e.App.Sweep(context.Background(), time.Now())
-		if h := e.waitHealth("push", "error"); !strings.Contains(h.Error, name) {
+		if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, name) {
 			t.Fatalf("the health names the device: %+v", h)
 		}
 	}
@@ -515,16 +518,16 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 		t.Fatalf("the owner gets one note while the pushes stay stopped: %d", n)
 	}
 
-	e = newEnv(t, nil)
-	e.createProject("work", plainManifest)
+	e = New(t)
+	e.Project("work", plainManifest)
 	dev, _ := newPushDevice(t)
 	dev.subscribe(e, refusing, "MacIntel")
-	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
+	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	if _, err := e.App.Store.DB.Exec(`CREATE TRIGGER no_notes BEFORE INSERT ON feed WHEN NEW.text LIKE 'Pushes stopped%' BEGIN SELECT RAISE(FAIL, 'no notes'); END`); err != nil {
 		t.Fatal(err)
 	}
 	e.App.Sweep(context.Background(), time.Now())
-	if h := e.waitHealth("push", "error"); !strings.Contains(h.Error, "MacIntel") || notes(e) != 0 {
+	if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, "MacIntel") || notes(e) != 0 {
 		t.Fatalf("the health of pushes is written apart from the note: %+v", h)
 	}
 }
@@ -533,19 +536,19 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 // address of deck on the tailnet once deck is on it, and to none before.
 func TestAPageWithoutAMicrophoneLearnsWhereToRecord(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var at struct{ HTTPS string }
-	e.must("deck.secure_address", nil, &at)
+	e.Must("deck.secure_address", nil, &at)
 	if at.HTTPS != "" {
 		t.Fatalf("off the tailnet there is no secure address: %+v", at)
 	}
 	e.App.TailnetHealth("needs_login", "sign in at https://login.tailscale.com/a/1", "")
-	e.must("deck.secure_address", nil, &at)
+	e.Must("deck.secure_address", nil, &at)
 	if at.HTTPS != "" {
 		t.Fatalf("a sign-in link is no address of deck: %+v", at)
 	}
 	e.App.TailnetHealth("ok", "https://deck.tail1234.ts.net", "https://deck.tail1234.ts.net")
-	e.must("deck.secure_address", nil, &at)
+	e.Must("deck.secure_address", nil, &at)
 	if at.HTTPS != "https://deck.tail1234.ts.net" {
 		t.Fatalf("on the tailnet the page is sent to its https address: %+v", at)
 	}

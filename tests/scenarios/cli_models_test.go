@@ -24,11 +24,11 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	c.models("models.jsonl")
 	c.checksPass()
 	c.stream(0, "ok.jsonl")
-	e, _ := cliEnv(t, c)
+	e := New(t, WithCLI(c))
 	var list struct {
 		Connections []struct{ Name, API, URL string }
 	}
-	e.must("deck.models_list", nil, &list)
+	e.Must("deck.models_list", nil, &list)
 	if !slices.ContainsFunc(list.Connections, func(c struct{ Name, API, URL string }) bool {
 		return c.Name == "claude-code" && c.API == "cli" && c.URL == ""
 	}) {
@@ -41,20 +41,20 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 		}
 		return in
 	}
-	e.refused("deck.model_set", set("haiku", ""), 422, "no auto mode on this model")
-	e.refused("deck.model_set", set("sonnet", `{"effort": "turbo"}`), 422, `takes effort low, medium, high, xhigh, max in claude-code, not "turbo"`)
-	e.refused("deck.model_set", set("sonnet", `{"effort": "low", "temperature": 0}`), 422, "effort alone")
-	e.refused("deck.model_set", set("gpt-6-sol", ""), 422, "claude-code lists no model")
-	e.refused("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "cc-x", "agent": "goose"}, 422, "run in claude-code, not goose")
-	e.refused("deck.connection_set", map[string]any{"name": "claude-code", "api": "openai", "url": "https://example.com/v1"}, 422, "deck keeps itself")
-	e.refused("deck.connection_remove", map[string]any{"name": "claude-code"}, 422, "deck keeps itself")
+	e.Refused("deck.model_set", set("haiku", ""), 422, "no auto mode on this model")
+	e.Refused("deck.model_set", set("sonnet", `{"effort": "turbo"}`), 422, `takes effort low, medium, high, xhigh, max in claude-code, not "turbo"`)
+	e.Refused("deck.model_set", set("sonnet", `{"effort": "low", "temperature": 0}`), 422, "effort alone")
+	e.Refused("deck.model_set", set("gpt-6-sol", ""), 422, "claude-code lists no model")
+	e.Refused("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "cc-x", "agent": "goose"}, 422, "run in claude-code, not goose")
+	e.Refused("deck.connection_set", map[string]any{"name": "claude-code", "api": "openai", "url": "https://example.com/v1"}, 422, "deck keeps itself")
+	e.Refused("deck.connection_remove", map[string]any{"name": "claude-code"}, 422, "deck keeps itself")
 
 	var m struct {
 		Agent        string
 		Subscription bool
 		Price        string
 	}
-	e.must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "sonnet-low", "options": `{"effort": "low"}`}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "sonnet-low", "options": `{"effort": "low"}`}, &m)
 	if m.Agent != "claude-code" || !m.Subscription {
 		t.Fatalf("a model of the CLI runs in it on the subscription: %+v", m)
 	}
@@ -76,22 +76,22 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	}
 	unchecked("on model_set")
 	e.App.Providers.Checks(t.Context(), time.Now())
-	e.waitHealth("provider:claude-code", "ok")
+	e.WaitHealth("provider:claude-code", "ok")
 	unchecked("at start")
-	e.must("deck.provider_check", map[string]any{"provider": "sonnet-low"}, nil)
-	if h := e.waitHealth("provider:sonnet-low", "ok"); h.Version != "2.1.281" {
+	e.Must("deck.provider_check", map[string]any{"provider": "sonnet-low"}, nil)
+	if h := e.WaitHealth("provider:sonnet-low", "ok"); h.Version != "2.1.281" {
 		t.Fatalf("its self-check on the button runs the CLI on the model: %+v", h)
 	}
 	if i := onModel(); i < 0 || c.argOf(i, "--effort") != "low" {
 		t.Fatalf("the self-check runs on the model and effort: %d", i)
 	}
-	e.refused("deck.assignment_set", map[string]any{"role": "text", "models": []string{"sonnet-low"}}, 422, "runs agent turns in claude-code")
+	e.Refused("deck.assignment_set", map[string]any{"role": "text", "models": []string{"sonnet-low"}}, 422, "runs agent turns in claude-code")
 
-	p := e.createProject("plain", plainManifest)
-	e.useModels("plain.work", "sonnet-low")
+	p := e.Project("plain", plainManifest)
+	e.UseModels("plain.work", "sonnet-low")
 	before := c.calls()
-	id := e.run(p, "work")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn runs on the model: %+v", got)
 	}
 	n := before + 1
@@ -108,7 +108,7 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	var views struct {
 		Models []struct{ Name, Price string }
 	}
-	e.must("deck.models_list", nil, &views)
+	e.Must("deck.models_list", nil, &views)
 	if i := slices.IndexFunc(views.Models, func(v struct{ Name, Price string }) bool { return v.Name == "sonnet-low" }); i < 0 || views.Models[i].Price != "subscription" {
 		t.Fatalf("Settings → Models lists it by the subscription: %+v", views.Models)
 	}
@@ -116,7 +116,7 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 		Name    string
 		Choices []string
 	}
-	e.must("deck.commands_list", map[string]any{"project": "plain"}, &cmds)
+	e.Must("deck.commands_list", map[string]any{"project": "plain"}, &cmds)
 	if i := slices.IndexFunc(cmds, func(c struct {
 		Name    string
 		Choices []string
@@ -126,15 +126,15 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 		t.Fatalf("the picker of the command offers it: %+v", cmds)
 	}
 
-	e.refused("deck.model_call", map[string]any{"kind": "text", "model": "sonnet-low", "prompt": "hi"}, 422, "its models run agent turns")
-	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
-	e.refused("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "sonnet-low"}, 422, "is a model of claude-code")
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "txt", "kind": "text", "free": true}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"txt"}}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "txt"}, nil)
-	e.refused("deck.model_call", map[string]any{"kind": "text", "prompt": "hi"}, 422, "no model of @text")
+	e.Refused("deck.model_call", map[string]any{"kind": "text", "model": "sonnet-low", "prompt": "hi"}, 422, "its models run agent turns")
+	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
+	e.Refused("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "sonnet-low"}, 422, "is a model of claude-code")
+	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "txt", "kind": "text", "free": true}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"txt"}}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "txt"}, nil)
+	e.Refused("deck.model_call", map[string]any{"kind": "text", "prompt": "hi"}, 422, "no model of @text")
 	var named struct{ Name string }
-	e.must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus[1m]"}, &named)
+	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus[1m]"}, &named)
 	if named.Name != "claude-code-opus" {
 		t.Fatalf("a model of a CLI is named after its connection and model when left out: %q", named.Name)
 	}
@@ -152,20 +152,20 @@ func TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.stream(0, "ok.jsonl")
-	e, _ := cliEnv(t, c)
-	e.must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus", "name": "opus-high", "options": `{"effort": "high"}`}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "sonnet-low", "options": `{"effort": "low"}`}, nil)
-	p := e.createProject("plain", plainManifest)
-	e.useModels("plain.work", "opus-high", "sonnet-low")
+	e := New(t, WithCLI(c))
+	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus", "name": "opus-high", "options": `{"effort": "high"}`}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "sonnet-low", "options": `{"effort": "low"}`}, nil)
+	p := e.Project("plain", plainManifest)
+	e.UseModels("plain.work", "opus-high", "sonnet-low")
 	before := c.calls()
-	id := e.run(p, "work")
-	if got := e.waitState(id, "error", "done", "rate_limited"); got.State != "error" || e.fault(id).ErrorType != "model.limit" {
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.fault(id).ErrorType != "model.limit" {
 		t.Fatalf("opus at its limit fails as the model's: %+v %+v", got, e.fault(id))
 	}
 	next := e.following(id)
 	var in struct{ Provider string }
-	e.must("deck.process_get", map[string]any{"process": next}, &in)
-	if got := e.waitState(next, "done", "error"); got.State != "done" || in.Provider != "sonnet-low" {
+	e.Must("deck.process_get", map[string]any{"process": next}, &in)
+	if got := e.WaitState(next, "done", "error"); got.State != "done" || in.Provider != "sonnet-low" {
 		t.Fatalf("sonnet goes on with the work: %+v %+v", got, in)
 	}
 	if c.argOf(before+1, "--model") != "opus" || c.argOf(before+2, "--model") != "sonnet" || c.argOf(before+2, "--effort") != "low" {
@@ -182,21 +182,21 @@ func TestAModelOfCodexRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 		c.stream(i+1, s)
 	}
 	c.stream(0, "ok.jsonl")
-	e, _ := codexEnv(t, c)
-	e.refused("deck.model_set", map[string]any{"connection": "codex", "model": "gpt-6-luna", "name": "luna-min", "options": `{"effort": "minimal"}`}, 422,
+	e := New(t, WithCodex(c))
+	e.Refused("deck.model_set", map[string]any{"connection": "codex", "model": "gpt-6-luna", "name": "luna-min", "options": `{"effort": "minimal"}`}, 422,
 		`takes effort low, medium, high, xhigh, max in codex, not "minimal"`)
-	e.refused("deck.model_set", map[string]any{"connection": "codex", "model": "sonnet", "name": "codex-sonnet"}, 422, "codex lists no model \"sonnet\"; it lists gpt-6-astra")
+	e.Refused("deck.model_set", map[string]any{"connection": "codex", "model": "sonnet", "name": "codex-sonnet"}, 422, "codex lists no model \"sonnet\"; it lists gpt-6-astra")
 	var m struct{ Agent string }
-	e.must("deck.model_set", map[string]any{"connection": "codex", "model": "gpt-6-luna", "name": "luna-low", "options": `{"effort": "low"}`}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "codex", "model": "gpt-6-luna", "name": "luna-low", "options": `{"effort": "low"}`}, &m)
 	if m.Agent != "codex" {
 		t.Fatalf("a model of the codex connection runs in codex: %+v", m)
 	}
-	e.must("deck.provider_check", map[string]any{"provider": "luna-low"}, nil)
-	e.waitHealth("provider:luna-low", "ok")
-	p := e.createProject("paint", colorManifest)
-	e.useModels("paint.work", "luna-low")
-	id := e.run(p, "work")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	e.Must("deck.provider_check", map[string]any{"provider": "luna-low"}, nil)
+	e.WaitHealth("provider:luna-low", "ok")
+	p := e.Project("paint", colorManifest)
+	e.UseModels("paint.work", "luna-low")
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn runs on the model: %+v", got)
 	}
 	cc := c.call(7)

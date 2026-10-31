@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -133,10 +134,10 @@ func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage)
 // containers, an aggregate, tabs, a record page and moves to it.
 func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webAgent())
+	e := New(t, WithAgent(webAgent()))
 	check := newCatalogCheck(t)
-	e.createProject("notes", webManifest("http://127.0.0.1:1"))
-	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
+	e.Project("notes", webManifest("http://127.0.0.1:1"))
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7},
 			map[string]any{"title": "gamma", "score": 5})}, nil)
 
@@ -185,10 +186,10 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	if better := blockData[[]listItem](t, pd["b1"]["items"]); len(better) != 0 {
 		t.Fatalf("where reads the record of the page: %+v", better)
 	}
-	if code, out := e.call("deck.screen", map[string]any{"project": "notes", "screen": "note"}); code != 404 || !strings.Contains(string(out), "record id") {
+	if code, out := e.Call("deck.screen", map[string]any{"project": "notes", "screen": "note"}); code != 404 || !strings.Contains(string(out), "record id") {
 		t.Fatalf("a record page needs its record: %d %s", code, out)
 	}
-	if code, out := e.call("deck.screen", map[string]any{"project": "notes", "screen": "note", "record": 999}); code != 404 {
+	if code, out := e.Call("deck.screen", map[string]any{"project": "notes", "screen": "note", "record": 999}); code != 404 {
 		t.Fatalf("a record of another collection or none is not shown: %d %s", code, out)
 	}
 
@@ -210,9 +211,9 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 // TestInvalidScreenIsRefusedWithItsReason: a screen outside the catalog or with broken references is refused on save.
 func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	good := webManifest("http://127.0.0.1:1")
-	e.createProject("notes", good)
+	e.Project("notes", good)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}`, `{"type": "hologram"}`,
 			`value must be one of 'actions', 'appearance', 'card', 'chart', 'chat', 'columns', 'custom', 'dialog', 'document', 'filter', 'form', 'list', 'log', 'media', 'stat', 'table', 'tabs'`},
@@ -243,7 +244,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 			t.Fatalf("fixture lacks %s", tc.from)
 		}
 		bad := strings.Replace(good, tc.from, tc.to, 1)
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": bad})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": bad})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -253,8 +254,8 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 // TestScreenTopicReadsOnlyTheBlocksItChanges: after an event the client reads only the blocks of its topic.
 func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webAgent())
-	e.createProject("notes", webManifest("http://127.0.0.1:1"))
+	e := New(t, WithAgent(webAgent()))
+	e.Project("notes", webManifest("http://127.0.0.1:1"))
 	// paths are the blocks a topic reads, with the tab and dialog of extra shown, or with each tab shown in turn.
 	paths := func(project, screen, topic string, extra ...string) []string {
 		var out []string
@@ -326,7 +327,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 	t.Parallel()
 	more := make(chan struct{})
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		c.Req.OnEvent(provider.Event{Kind: provider.EventThought, Text: "plan"})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "Read", Text: `{"path": "a"}`})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventToolUpdate, ID: "t1", Status: "failed", Text: "no such file"})
@@ -334,16 +335,17 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: strings.Repeat("x", 5000)})
 		<-ctx.Done()
 		return provider.Result{}
-	})
-	p := e.createProject("quiet", testManifest([]string{agentCommand("job", "")}, nil))
-	id := e.run(p, "job")
-	e.waitFor("three lines", func() bool { return len(e.log(id)) == 3 })
+	}))
+
+	p := e.Project("quiet", testManifest([]string{agentCommand("job", "")}, nil))
+	id := e.Run(p, "job")
+	e.Until("three lines", func() bool { return len(e.log(id)) == 3 })
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	events := e.sse(ctx)
+	stream := e.Events(ctx)
 	close(more)
-	waitTopic(t, events, "log")
-	e.waitFor("four lines", func() bool { return len(e.log(id)) == 4 })
+	WaitEvent(t, stream, events.Event{Topic: "log"})
+	e.Until("four lines", func() bool { return len(e.log(id)) == 4 })
 
 	newCatalogCheck(t).messages(t, e.screenMessages("", "process", map[string]any{"record": id}))
 	data := e.screenData("", "process", map[string]any{"record": id})
@@ -364,14 +366,14 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		blockData[string](t, data["b1"]["since"]) == "" {
 		t.Fatalf("the page of a running process offers stop, and its log a message to it and how long it runs: %+v %v", card, say)
 	}
-	e.must("deck.process_tell", map[string]any{"process": id, "text": "look at b too"}, nil)
+	e.Must("deck.process_tell", map[string]any{"process": id, "text": "look at b too"}, nil)
 	data = e.screenData("", "process", map[string]any{"record": id})
 	owner := blockData[[]map[string]any](t, data["b1"]["lines"])[0]
 	del, _ := owner["delete"].(map[string]any)
 	if owner["kind"] != "owner" || owner["text"] != "look at b too" || owner["status"] != "waiting" || del == nil {
 		t.Fatalf("the owner's message is the newest line, waiting with its delete: %v", owner)
 	}
-	e.must(del["command"].(string), del["params"].(map[string]any), nil)
+	e.Must(del["command"].(string), del["params"].(map[string]any), nil)
 	if first := blockData[[]map[string]any](t, e.screenData("", "process", map[string]any{"record": id})["b1"]["lines"])[0]; first["kind"] == "owner" {
 		t.Fatalf("a message the agent did not take is deleted: %v", first)
 	}
@@ -379,8 +381,8 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 	if len(running) != 1 || running[0].Title != "job" || !strings.Contains(running[0].Details, "quiet.job") || running[0].Actions[0]["screen"] != "process" {
 		t.Fatalf("the cockpit lists the running process with a move to its page: %+v", running)
 	}
-	e.must("deck.process_stop", map[string]any{"process": id}, nil)
-	e.waitState(id, "stopped")
+	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
+	e.WaitState(id, "stopped")
 	if running := e.cockpitRunning(); len(running) != 0 {
 		t.Fatalf("a stopped process is not running: %+v", running)
 	}
@@ -390,7 +392,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 // a value written as $record.<field> is refused with the expression to write.
 func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	m := `{"version": 13,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "id": {"type": "string"}}, "required": ["title"]}}],
@@ -402,8 +404,8 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
     "actions": [{"label": "Touch", "command": "touch", "params": {"note": "%[1]s", "score": "%[2]s"}}, {"label": "Open", "screen": "note"}]}]},
     {"name": "note", "title": "Note", "record": "notes", "blocks": [{"type": "form", "title": "Again", "command": "touch",
       "values": {"note": "%[1]s", "score": "%[2]s"}}]}]}`
-	e.createProject("notes", fmt.Sprintf(m, "=_id", "=title"))
-	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
+	e.Project("notes", fmt.Sprintf(m, "=_id", "=title"))
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
 	rows := blockData[[]screenRow](t, e.screenData("notes", "main", nil)["b0"]["rows"])
 	params, _ := rows[0].Actions[0]["params"].(map[string]any)
 	if len(rows) != 1 || params["note"] != rows[0].ID || params["score"] != "a" {
@@ -414,7 +416,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	if form.Values["note"] != rows[0].ID || form.Values["score"] != "a" {
 		t.Fatalf("a form takes the record of the page: %+v", form)
 	}
-	code, out := e.call("deck.project_create", map[string]any{"name": "new", "manifest": fmt.Sprintf(m, "$record.id", "$record.title")})
+	code, out := e.Call("deck.project_create", map[string]any{"name": "new", "manifest": fmt.Sprintf(m, "$record.id", "$record.title")})
 	if code != 422 || !strings.Contains(string(out), "=_id") {
 		t.Fatalf("a value from the item is written as =<expression>: %d %s", code, out)
 	}
@@ -424,8 +426,8 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 // =$env["<field>"] for a field whose name is no name of an expression give their values.
 func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	pid := e.createProject("notes", `{"version": 13,
+	e := New(t)
+	pid := e.Project("notes", `{"version": 13,
   "collections": [{"name": "notes", "description": "Notes", "key": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "first-name": {"type": "string"}, "in": {"type": "string"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal", "result": {"type": "object"},
@@ -436,8 +438,8 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
       "actions": [{"label": "Touch", "command": "touch", "params": {"process": "=_id"}}]},
     {"type": "table", "title": "Notes", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
       "actions": [{"label": "Who", "command": "touch", "params": {"who": "=$env[\"first-name\"]"}}, {"label": "Where", "command": "touch", "params": {"who": "=$env[\"in\"]"}}]}]}]}`)
-	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "first-name": "Ann", "in": "Oslo"})}, nil)
-	e.run(pid, "touch")
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "first-name": "Ann", "in": "Oslo"})}, nil)
+	e.Run(pid, "touch")
 	data := e.screenData("notes", "main", nil)
 	runs := blockData[[]screenRow](t, data["b0"]["rows"])
 	notes := blockData[[]screenRow](t, data["b1"]["rows"])
@@ -453,22 +455,22 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
 // description that mentions it is text.
 func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	m := `{"version": 13, "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
     "result": {"type": "object"}, "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Runs",
     "description": "Old screens wrote $param.n", "actions": [{"label": "Touch", "command": "touch", "params": {"n": "%s"}}]}]}]}`
-	e.createProject("notes", fmt.Sprintf(m, "7"))
-	if code, out := e.call("deck.project_create", map[string]any{"name": "old", "manifest": fmt.Sprintf(m, "$param.n")}); code != 422 || !strings.Contains(string(out), "=param.n") {
+	e.Project("notes", fmt.Sprintf(m, "7"))
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "old", "manifest": fmt.Sprintf(m, "$param.n")}); code != 422 || !strings.Contains(string(out), "=param.n") {
 		t.Fatalf("a value of the old form is refused with the new one: %d %s", code, out)
 	}
 }
 
 func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	p := e.createProject("items", numbersManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "items", "collection": "items",
+	e := New(t)
+	p := e.Project("items", numbersManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "items", "collection": "items",
 		"records": jsonl(map[string]any{"id": 1, "name": "nine", "score": 9}, map[string]any{"id": 2, "name": "hundred", "score": 100},
 			map[string]any{"id": 3, "name": "twenty", "score": 20})}, nil)
 	rows := e.screenRows(p, "main")
@@ -484,8 +486,8 @@ func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 // TestNewBlocksAreRefusedWithTheirReason: a form, custom block or filter that cannot work is refused on save.
 func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
+	e := New(t)
+	e.Project("web", webNotes)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "board", "title": "Work"}`, "/screens/0/blocks/1/type"},
 		{`"command": "score"}`, `"keep_open": true}`, "missing property 'command'"},
@@ -507,7 +509,7 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 			t.Fatalf("fixture lacks %s", tc.from)
 		}
 		bad := strings.Replace(webNotes, tc.from, tc.to, 1)
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": bad})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "web", "manifest": bad})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -518,11 +520,11 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 // has still loads, as a module of before; only that block is an error, and a save with it is refused.
 func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	m := `{"version": 13, "screens": [{"name": "main", "title": "Main", "blocks": [
     {"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "name"}},
     {"type": "list", "source": {"from": "deck.models_list", "rows": "models"}, "item": {"title": "name"}}]}]}`
-	e.createProject("old", m)
+	e.Project("old", m)
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = replace(text, 'deck.models_list', 'deck.providers_list')
 		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = (SELECT id FROM project WHERE name = 'old'))`); err != nil {
 		t.Fatal(err)
@@ -531,7 +533,7 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 		Name          string
 		ManifestError string `json:"manifest_error"`
 	}
-	e.must("deck.projects_list", nil, &ps)
+	e.Must("deck.projects_list", nil, &ps)
 	if i := slices.IndexFunc(ps, func(p struct {
 		Name          string
 		ManifestError string `json:"manifest_error"`
@@ -544,7 +546,7 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	if string(data["b0"]["state"]) == `"error"` || !strings.Contains(string(data["b1"]["error"]), "providers_list") {
 		t.Fatalf("only the block of the command that is gone is an error: %v", data)
 	}
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(m, "deck.models_list", "deck.providers_list", 1)})
+	code, out := e.Call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(m, "deck.models_list", "deck.providers_list", 1)})
 	if code == 200 || !strings.Contains(string(out), "providers_list") {
 		t.Fatalf("a save with the command that is gone is refused: %d %s", code, out)
 	}
@@ -554,7 +556,7 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 // and leave out the empty tools, secrets and tokens; the documents of the master are a folder of files.
 func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
 	check.messages(t, e.screenMessages("master", "settings", nil))
 	data := e.screenData("master", "settings", nil)
@@ -597,13 +599,13 @@ const ocrManifest = `{
 // show, never the record: a long recognized text goes only as far as its column cuts it, a field no block shows not at all.
 func TestATableSendsOnlyWhatItsColumnsShow(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	id := e.createProject("ocr", ocrManifest)
+	e := New(t)
+	id := e.Project("ocr", ocrManifest)
 	text := strings.Repeat("recognized ", 400) + "THE-TAIL"
-	e.must("deck.records_upsert", map[string]any{"project": "ocr", "collection": "docs", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "ocr", "collection": "docs", "records": jsonl(
 		map[string]any{"key": "a", "name": "scan.pdf", "status": "done", "text": text, "private": "NOT-SHOWN"})}, nil)
 	var raw []json.RawMessage
-	e.must("deck.screen", map[string]any{"project": "ocr", "screen": "docs"}, &raw)
+	e.Must("deck.screen", map[string]any{"project": "ocr", "screen": "docs"}, &raw)
 	all := ""
 	for _, m := range raw {
 		all += string(m)

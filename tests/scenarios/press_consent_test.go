@@ -61,16 +61,16 @@ type feedChange struct {
 // with its undo; the same apply by the schedule, a call the button did not name and a run of another caller still ask.
 func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e := New(t, WithClock())
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	for _, m := range []string{"qwen", "gemma", "llama"} {
-		e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
+		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
 	}
-	e.createProject("shorts", plainManifest)
-	e.createProject("picker", pickerManifest)
+	e.Project("shorts", plainManifest)
+	e.Project("picker", pickerManifest)
 	e.saveScript("picker", "scripts/apply.py", applyScript)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals",
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals",
 		"records": jsonl(map[string]any{"name": "a", "project": "shorts", "models": "openrouter/qwen,openrouter/gemma"})}, nil)
 
 	apply := e.rowAction("picker", "main", "picker.apply", nil)
@@ -80,28 +80,28 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	}
 	var run struct{ Process int64 }
 	_ = json.Unmarshal(out, &run)
-	if p := e.waitScript(run.Process, "done", "error"); p.State != "done" || strings.Contains(string(p.Result), "waiting") {
+	if p := e.WaitState(run.Process, "done", "error"); p.State != "done" || strings.Contains(string(p.Result), "waiting") {
 		t.Fatalf("the call the button names is made at once: %+v", p)
 	}
 	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen", "openrouter/gemma"}) {
 		t.Fatalf("the press applies the models its row shows: %v", got)
 	}
-	var asks []askView
-	e.must("deck.asks_list", nil, &asks)
+	var asks []Ask
+	e.Must("deck.asks_list", nil, &asks)
 	if len(asks) != 0 {
 		t.Fatalf("nothing waits for a second yes: %+v", asks)
 	}
 	var feed []feedChange
-	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
+	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 1 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "deck.assignment_set by your press: text of shorts: openrouter/gemma → openrouter/qwen, openrouter/gemma") {
 		t.Fatalf("the change is listed with its undo: %+v", feed)
 	}
 	var ru []feedChange
-	e.must("deck.feed_list", map[string]any{"kind": "change", "lang": "ru"}, &ru)
+	e.Must("deck.feed_list", map[string]any{"kind": "change", "lang": "ru"}, &ru)
 	if len(ru) != 1 || !strings.Contains(ru[0].Text, "по вашему нажатию") {
 		t.Fatalf("the change is told in the owner's words: %+v", ru)
 	}
-	e.must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
+	e.Must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
 	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("the undo sets the models back: %v", got)
 	}
@@ -109,35 +109,35 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 	// The same apply by the schedule asks, as before.
 	e.Clock.Add(time.Hour + time.Minute)
 	e.tick()
-	e.waitFor("the scheduled apply to ask", func() bool {
-		var as []askView
-		e.must("deck.asks_list", nil, &as)
+	e.Until("the scheduled apply to ask", func() bool {
+		var as []Ask
+		e.Must("deck.asks_list", nil, &as)
 		return len(as) == 1
 	})
 	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
 		t.Fatalf("the schedule changes nothing without the owner: %v", got)
 	}
-	e.must("deck.asks_list", nil, &asks)
-	e.answer(asks[0].ID, "deny")
+	e.Must("deck.asks_list", nil, &asks)
+	e.Answer(asks[0].ID, "deny")
 
 	// A row whose run calls with other params than the button named still asks.
-	e.must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals",
+	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals",
 		"records": jsonl(map[string]any{"name": "a", "project": "shorts", "models": "openrouter/llama"})}, nil)
 	other := e.rowAction("picker", "main", "picker.apply", nil)
 	params := other["params"].(map[string]any)
 	params["allows"] = apply["params"].(map[string]any)["allows"]
 	_, out = e.press(other)
 	_ = json.Unmarshal(out, &run)
-	if p := e.waitScript(run.Process, "done", "error"); !strings.Contains(string(p.Result), "waiting") {
+	if p := e.WaitState(run.Process, "done", "error"); !strings.Contains(string(p.Result), "waiting") {
 		t.Fatalf("a call the press did not name waits for the owner: %+v", p)
 	}
-	e.must("deck.asks_list", nil, &asks)
-	e.answer(asks[0].ID, "deny")
+	e.Must("deck.asks_list", nil, &asks)
+	e.Answer(asks[0].ID, "deny")
 
 	// The yes is the owner's alone: a run that gives allows to a command it starts is refused.
-	_, out = e.call("picker.apply", map[string]any{"id": apply["params"].(map[string]any)["id"], "relay": other["params"].(map[string]any)["allows"]})
+	_, out = e.Call("picker.apply", map[string]any{"id": apply["params"].(map[string]any)["id"], "relay": other["params"].(map[string]any)["allows"]})
 	_ = json.Unmarshal(out, &run)
-	if relay := e.waitScript(run.Process, "done", "error"); !strings.Contains(string(relay.Result), "allows comes only with a press of the owner") {
+	if relay := e.WaitState(run.Process, "done", "error"); !strings.Contains(string(relay.Result), "allows comes only with a press of the owner") {
 		t.Fatalf("a run another caller started is no press of the owner: %+v", relay)
 	}
 	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
@@ -149,11 +149,11 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 // without the owner so its buttons name none, and allows comes from the property alone, not from a param.
 func TestAPressStandsForNoMoneyAndNoFrame(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	form := `{"connection": "openrouter", "model": "llama", "kind": "text", "free": true}`
 	params, _ := json.Marshal(map[string]string{"method": "deck.model_set", "form": form})
-	e.createProject("picker", scriptManifest("main", "", `, "screens": [{"name": "main", "title": "Models", "blocks": [
+	e.Project("picker", scriptManifest("main", "", `, "screens": [{"name": "main", "title": "Models", "blocks": [
     {"type": "actions", "title": "Model", "actions": [{"label": "Add", "command": "main", "params": `+string(params)+`,
       "allows": [{"command": "deck.model_set", "params": {"connection": "openrouter", "model": "llama", "kind": "text", "free": "true"}}]}]}]}], "menu": ["main"]`))
 	e.saveScript("picker", "scripts/main.py", pressScript)
@@ -164,19 +164,19 @@ func TestAPressStandsForNoMoneyAndNoFrame(t *testing.T) {
 	_, out := e.press(add)
 	var run struct{ Process int64 }
 	_ = json.Unmarshal(out, &run)
-	if p := e.waitScript(run.Process, "done", "error"); !strings.Contains(string(p.Result), "waiting") {
+	if p := e.WaitState(run.Process, "done", "error"); !strings.Contains(string(p.Result), "waiting") {
 		t.Fatalf("a model with its price waits for the owner's own yes, press or not: %+v", p)
 	}
 
 	frame := strings.Replace(scriptManifest("main", "", `, "screens": [{"name": "main", "title": "Models", "blocks": [
     {"type": "custom", "document": "custom/x.html", "actions": [{"label": "Add", "command": "main", "params": {"method": "x"},
       "allows": [{"command": "deck.model_set", "params": {"model": "llama"}}]}]}]}]`), `"version": 13`, `"version": 13, "title": "Frame"`, 1)
-	if code, out := e.call("deck.manifest_save", map[string]any{"project": "picker", "manifest": frame}); code < 400 || !strings.Contains(string(out), "custom block") {
+	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "picker", "manifest": frame}); code < 400 || !strings.Contains(string(out), "custom block") {
 		t.Fatalf("a custom block names no call its press allows: %d %s", code, out)
 	}
 	literal := scriptManifest("main", "", `, "screens": [{"name": "main", "title": "Models", "blocks": [
     {"type": "actions", "title": "Model", "actions": [{"label": "Add", "command": "main", "params": {"allows": "[]"}}]}]}]`)
-	if code, out := e.call("deck.manifest_save", map[string]any{"project": "picker", "manifest": literal}); code < 400 || !strings.Contains(string(out), `"allows"`) {
+	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "picker", "manifest": literal}); code < 400 || !strings.Contains(string(out), `"allows"`) {
 		t.Fatalf("allows is no param a button sets itself: %d %s", code, out)
 	}
 }

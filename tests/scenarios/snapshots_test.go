@@ -21,7 +21,7 @@ import (
 
 func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
+	e := New(t, WithClock())
 	backups := func() int {
 		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", "deck-*.tar.gz"))
 		return len(m)
@@ -42,28 +42,28 @@ func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {
 	if n := backups(); n != 7 {
 		t.Fatalf("the newest seven stay: %d", n)
 	}
-	if h := e.waitHealth("disk", ""); h.Error == "" {
+	if h := e.WaitHealth("disk", ""); h.Error == "" {
 		t.Fatalf("the disk health shows files and free space: %+v", h)
 	}
 }
 
 func TestFilesOfDeletedRecordsGoInTheDailyCleanup(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	e.createProject("files", scriptManifest("make", "", ""))
+	e := New(t, WithClock())
+	e.Project("files", scriptManifest("make", "", ""))
 	e.saveScript("files", "scripts/main.py", pythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 open(os.path.join(os.environ["DECK_RESULTS"], "f.txt"), "w").write("f")
 print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 `)
-	if p := e.waitScript(e.start("files", "make", nil), "done", "error"); p.State != "done" {
+	if p := e.WaitState(e.Start("files", "make", nil), "done", "error"); p.State != "done" {
 		t.Fatalf("the script binds a file: %+v", p)
 	}
 	path := filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", "1")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.collection_delete", map[string]any{"project": "files", "collection": "items"}, nil)
+	e.Must("deck.collection_delete", map[string]any{"project": "files", "collection": "items"}, nil)
 	e.sweep()
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("the file of a deleted record is removed: %v", err)
@@ -72,12 +72,12 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 
 func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	e.createProject("docs", filesManifest())
+	e := New(t, WithClock())
+	e.Project("docs", filesManifest())
 	e.sweep()
 	e.upload("docs", "left.txt", "text/plain", "left")
 	e.Clock.Add(24*time.Hour + 30*time.Minute)
-	e.must("deck.snapshot_create", nil, nil)
+	e.Must("deck.snapshot_create", nil, nil)
 	e.Clock.Add(time.Hour)
 	e.sweep()
 	var uploads int
@@ -99,24 +99,24 @@ print(json.dumps({"files": files}))
 
 func TestASnapshotHoldsEveryFileItsBaseNames(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("many", scriptManifest("make", "", ""))
+	e := New(t)
+	e.Project("many", scriptManifest("make", "", ""))
 	e.saveScript("many", "scripts/main.py", manyFilesScript)
-	if p := e.waitScript(e.start("many", "make", nil), "done", "error"); p.State != "done" {
+	if p := e.WaitState(e.Start("many", "make", nil), "done", "error"); p.State != "done" {
 		t.Fatalf("seed: %+v", p)
 	}
 	var recs []struct{ ID int64 }
-	e.must("deck.records_list", map[string]any{"project": "many", "collection": "items", "limit": 100}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "many", "collection": "items", "limit": 100}, &recs)
 	for round := range 5 {
 		var path struct{ Path string }
 		done := make(chan string, 1)
 		go func() {
-			code, out := e.call("deck.snapshot_create", nil)
+			code, out := e.Call("deck.snapshot_create", nil)
 			_ = json.Unmarshal(out, &path)
 			done <- fmt.Sprint(code, " ", string(out))
 		}()
 		for _, r := range recs[round*8 : round*8+8] {
-			e.must("deck.record_delete", map[string]any{"record": r.ID}, nil)
+			e.Must("deck.record_delete", map[string]any{"record": r.ID}, nil)
 		}
 		if got := <-done; path.Path == "" {
 			t.Fatalf("round %d: the snapshot is taken while records go: %s", round, got)
@@ -183,7 +183,7 @@ func snapshotFiles(t *testing.T, path string) ([]string, map[string]bool) {
 // and never push out the daily ones.
 func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
+	e := New(t, WithClock())
 	backups := func(pattern string) int {
 		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", pattern))
 		return len(m)
@@ -192,8 +192,8 @@ func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 	for i := range 9 {
 		e.Clock.Add(time.Minute)
 		name := fmt.Sprintf("p%d", i)
-		e.createProject(name, plainManifest)
-		e.must("deck.project_delete", map[string]any{"project": name}, nil)
+		e.Project(name, plainManifest)
+		e.Must("deck.project_delete", map[string]any{"project": name}, nil)
 	}
 	if n := backups("deck-*.tar.gz"); n != 1 {
 		t.Fatalf("the daily snapshot stays after nine deletes: %d", n)
@@ -205,7 +205,7 @@ func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 		Name    string
 		TakenAt string `json:"taken_at"`
 	}
-	e.must("deck.snapshots_list", nil, &list)
+	e.Must("deck.snapshots_list", nil, &list)
 	if len(list) != 8 || list[0].TakenAt == "" {
 		t.Fatalf("the journal lists both kinds with their time: %+v", list)
 	}
@@ -215,11 +215,11 @@ func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 // the data folder of the deleted project, and nothing of the other projects.
 func TestASnapshotBeforeADeleteHoldsOnlyThatProject(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	h := deckhome.Layout(e.App.Cfg.Home)
 	stored := map[string]string{}
 	for _, name := range []string{"keep", "gone"} {
-		e.createProject(name, plainManifest)
+		e.Project(name, plainManifest)
 		var id int64
 		if err := e.App.Store.DB.QueryRow(`SELECT id FROM project WHERE name = ?`, name).Scan(&id); err != nil {
 			t.Fatal(err)
@@ -242,7 +242,7 @@ func TestASnapshotBeforeADeleteHoldsOnlyThatProject(t *testing.T) {
 		stored[name] = fmt.Sprint(file)
 	}
 	var out struct{ Snapshot string }
-	e.must("deck.project_delete", map[string]any{"project": "gone"}, &out)
+	e.Must("deck.project_delete", map[string]any{"project": "gone"}, &out)
 	_, entries := snapshotFiles(t, out.Snapshot)
 	var data []string
 	for name := range entries {
@@ -260,8 +260,8 @@ func TestASnapshotBeforeADeleteHoldsOnlyThatProject(t *testing.T) {
 // with a warning in health, the rest is kept; a snapshot that fails is an error in health, not only in the log.
 func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	e.createProject("notes", ideasManifest)
+	e := New(t, WithClock())
+	e.Project("notes", ideasManifest)
 	h := deckhome.Layout(e.App.Cfg.Home)
 	data, _ := filepath.Glob(filepath.Join(h.Projects(), "*", "data"))
 	if len(data) == 0 {
@@ -293,7 +293,7 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	if !kept {
 		t.Fatalf("the rest of the data folder is in the snapshot: %v", stored)
 	}
-	if row := e.waitHealth("snapshot", "warning"); !strings.Contains(row.Error, "locked.bin") {
+	if row := e.WaitHealth("snapshot", "warning"); !strings.Contains(row.Error, "locked.bin") {
 		t.Fatalf("the health of snapshots names the file left out: %+v", row)
 	}
 	_ = os.Chmod(locked, 0o600)
@@ -306,7 +306,7 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	}
 	e.Clock.Add(25 * time.Hour)
 	e.sweep()
-	if row := e.waitHealth("snapshot", "error"); row.Error == "" {
+	if row := e.WaitHealth("snapshot", "error"); row.Error == "" {
 		t.Fatalf("a snapshot that fails says why in health: %+v", row)
 	}
 	_ = os.Remove(h.Backups())
@@ -317,7 +317,7 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(left, "7"), []byte("a file the owner deleted"), 0o600)
 	e.Clock.Add(time.Hour)
 	e.sweep()
-	e.waitHealth("snapshot", "ok")
+	e.WaitHealth("snapshot", "ok")
 	if _, err := os.Stat(left); err == nil {
 		t.Fatal("the links a snapshot cut short by a crash left go with the next snapshot")
 	}
@@ -327,9 +327,9 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 // half the budget, saying how much in health, and the oldest snapshots go until all of them fit the budget.
 func TestSnapshotsKeepToTheirBudget(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil, func(c *app.Config) { c.SnapshotBudget = 4 << 20 })
+	e := New(t, WithConfig(func(c *app.Config) { c.SnapshotBudget = 4 << 20 }))
 	h := deckhome.Layout(e.App.Cfg.Home)
-	e.createProject("notes", plainManifest)
+	e.Project("notes", plainManifest)
 	var id int64
 	if err := e.App.Store.DB.QueryRow(`SELECT id FROM project WHERE name = 'notes'`).Scan(&id); err != nil {
 		t.Fatal(err)
@@ -350,7 +350,7 @@ func TestSnapshotsKeepToTheirBudget(t *testing.T) {
 	}
 	_ = os.Chtimes(old, time.Now().Add(-time.Hour), time.Now().Add(-time.Hour))
 	var out struct{ Path string }
-	e.must("deck.snapshot_create", nil, &out)
+	e.Must("deck.snapshot_create", nil, &out)
 	paths := []string{out.Path}
 	_, entries := snapshotFiles(t, paths[0])
 	var kept []string
@@ -362,7 +362,7 @@ func TestSnapshotsKeepToTheirBudget(t *testing.T) {
 	if len(kept) != 1 || kept[0] != "keep.txt" {
 		t.Fatalf("the snapshot keeps the data but caches and big files: %v", kept)
 	}
-	if row := e.waitHealth("snapshot", "ok"); !strings.Contains(row.Error, "without 3 MB") {
+	if row := e.WaitHealth("snapshot", "ok"); !strings.Contains(row.Error, "without 3 MB") {
 		t.Fatalf("health says how much was left out: %+v", row)
 	}
 	left, _ := filepath.Glob(filepath.Join(h.Backups(), "*.tar.gz"))

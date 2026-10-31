@@ -114,13 +114,27 @@ func (s fakeDirSandbox) Command(ctx context.Context, p sandbox.Policy) (*exec.Cm
 	return s.Sandbox.Command(ctx, p)
 }
 
-// acpEnv starts deck with the fake agent and adds a provider "acp" on it over llm, after its green self-check.
-func acpEnv(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(*app.Config)) *Env {
-	t.Helper()
+// WithACP runs deck with the fake agent as goose; with llm it adds a model "acp" the agent runs on over llm, after
+// its green self-check.
+func WithACP(f *fakeACP, llm *fakeLLM) Option {
+	return func(s *setup) {
+		s.cfg = append(s.cfg, func(c *app.Config) {
+			c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
+			c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+			c.ACPCallLimit = 2 * time.Second
+		})
+		if llm != nil {
+			s.after = append(s.after, func(e *Env) { e.greenACP(f, llm) })
+		}
+	}
+}
+
+func (e *Env) greenACP(f *fakeACP, llm *fakeLLM) {
+	e.T.Helper()
 	f.selfCheck()
-	e, h := acpAdded(t, f, agent, llm, cfg...)
+	h := e.AddACP(f, llm)
 	if h.Status != "ok" || !strings.Contains(h.Error, "tokens/s") || h.Speed <= 0 || h.Verdict != "" {
-		t.Fatalf("the self-check of the fake agent is green and tells the speed of the model: %+v, %d calls", h, f.calls())
+		e.T.Fatalf("the self-check of the fake agent is green and tells the speed of the model: %+v, %d calls", h, f.calls())
 	}
 	var pl struct {
 		Models []struct {
@@ -128,68 +142,63 @@ func acpEnv(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(*a
 			Speed       float64
 		}
 	}
-	e.must("deck.models_list", nil, &pl)
+	e.Must("deck.models_list", nil, &pl)
 	for _, p := range pl.Models {
-		if p.Name == "acp" && (p.Agent != agent || p.Speed != h.Speed) {
-			t.Fatalf("the models list shows the agent and the speed of the model: %+v", p)
+		if p.Name == "acp" && (p.Agent != "goose" || p.Speed != h.Speed) {
+			e.T.Fatalf("the models list shows the agent and the speed of the model: %+v", p)
 		}
 	}
-	return e
 }
 
-// acpAdded adds the provider on the streams already set and gives the health its self-check ended with.
-func acpAdded(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(*app.Config)) (*Env, db.Health) {
-	t.Helper()
-	e := newEnv(t, nil, append([]func(*app.Config){func(c *app.Config) {
-		c.ACPBinaries = map[string]string{agent: filepath.Join(f.dir, agent)}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
-		c.ACPCallLimit = 2 * time.Second
-	}}, cfg...)...)
-	e.must("deck.secret_set", map[string]any{"name": "model_key", "value": "sk-real-model-key"}, nil)
-	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": agent})
+// AddACP adds the model "acp" goose runs over llm on the streams already set and gives the health its self-check
+// ended with.
+func (e *Env) AddACP(f *fakeACP, llm *fakeLLM) db.Health {
+	e.T.Helper()
+	e.Must("deck.secret_set", map[string]any{"name": "model_key", "value": "sk-real-model-key"}, nil)
+	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": "goose"})
 	var h db.Health
-	e.waitWithin("the self-check of the ACP provider", time.Minute, func() bool {
+	e.Until("the self-check of the ACP provider", func() bool {
 		var err error
-		h, err = health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
+		h, err = health.Get(e.T.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 		return err == nil && h.Status != "checking"
 	})
-	return e, h
+	return h
 }
 
 // acpProject creates a project whose command runs on the provider "acp".
 func (e *Env) acpProject(name, manifest string) int64 {
 	e.T.Helper()
-	p := e.createProject(name, manifest)
+	p := e.Project(name, manifest)
 	var m struct {
 		Commands []struct{ Name string } `json:"commands"`
 	}
 	_ = json.Unmarshal([]byte(manifest), &m)
 	for _, c := range m.Commands {
-		e.useModels(name+"."+c.Name, "acp")
+		e.UseModels(name+"."+c.Name, "acp")
 	}
 	return p
 }
 
-// acpPair starts deck on script with two fake Goose agents, each with its own calls: a model named local runs on the
-// second.
-func acpPair(t *testing.T, script Script) (e *Env, first, second *fakeACP) {
-	t.Helper()
-	first, second = newACP(t), newACP(t)
-	run := filepath.Join(first.dir, "goose")
-	b, err := os.ReadFile(run)
-	if err != nil {
-		t.Fatal(err)
+// WithACPPair runs deck with two fake Goose agents, each with its own calls: a model named local runs on the second.
+func WithACPPair(first, second *fakeACP) Option {
+	return func(s *setup) {
+		run := filepath.Join(first.dir, "goose")
+		b, err := os.ReadFile(run)
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		pick := strings.Replace(string(b), "\n", "\n[ \"$GOOSE_MODEL\" = local ] && exec '"+filepath.Join(second.dir, "goose")+"' \"$@\"\n", 1)
+		if !strings.Contains(string(b), second.dir) {
+			if err := os.WriteFile(run, []byte(pick), 0o755); err != nil {
+				s.t.Fatal(err)
+			}
+		}
+		s.cfg = append(s.cfg, func(c *app.Config) {
+			c.ACPBinaries = map[string]string{"goose": run}
+			c.Sandbox = fakeDirSandbox{sandbox.New(), first.dir, []string{second.dir}}
+			c.ACPCallLimit = 2 * time.Second
+		})
 	}
-	pick := strings.Replace(string(b), "\n", "\n[ \"$GOOSE_MODEL\" = local ] && exec '"+filepath.Join(second.dir, "goose")+"' \"$@\"\n", 1)
-	if err := os.WriteFile(run, []byte(pick), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	e = newEnv(t, script, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": run}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), first.dir, []string{second.dir}}
-		c.ACPCallLimit = 2 * time.Second
-	})
-	return e, first, second
 }
 
 // addACP adds or changes a provider on an agent over llm with its key, its self-check replayed from call from on.
@@ -198,10 +207,10 @@ func (e *Env) addACP(f *fakeACP, from int, name, agent string, llm *fakeLLM, noC
 	for i := 1; i <= 3; i++ {
 		f.stream(from+i-1, "selfcheck_"+strconv.Itoa(i)+".jsonl")
 	}
-	e.must("deck.secret_set", map[string]any{"name": name + "-key", "value": "sk-" + name}, nil)
+	e.Must("deck.secret_set", map[string]any{"name": name + "-key", "value": "sk-" + name}, nil)
 	e.mustAgentModel(map[string]any{"name": name, "url": llm.URL, "model": name, "agent": agent,
 		"key_secret": name + "-key", "no_cloud": noCloud})
-	e.waitWithin("the self-check of "+name, time.Minute, func() bool {
+	e.Until("the self-check of "+name, func() bool {
 		h, err := health.Get(e.T.Context(), e.App.Store.Q, health.Of{}, "provider:"+name)
 		return err == nil && h.Status == "ok"
 	})

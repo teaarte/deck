@@ -88,30 +88,28 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 	})
 	home := t.TempDir()
 	clock := &Clock{now: time.Date(2026, 9, 25, 8, 1, 0, 0, time.Local)}
-	e := newEnvWith(t, home, &Fake{}, withClock(clock))
-	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "tok-123"}, nil)
-	e.createProject("clips", jobManifest(svc.URL))
+	e := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "tok-123"}, nil)
+	e.Project("clips", jobManifest(svc.URL))
 	e.saveScript("clips", "scripts/start.py", startScript)
 	e.saveScript("clips", "scripts/check.py", checkScript)
 
-	started := e.waitScript(e.start("clips", "start", map[string]any{"topic": "cats"}), "done", "error")
+	started := e.WaitState(e.Start("clips", "start", map[string]any{"topic": "cats"}), "done", "error")
 	if started.State != "done" || !strings.Contains(string(started.Result), `"job":"j1"`) || strings.Contains(string(started.Result), `"secret_seen":true`) {
 		t.Fatalf("the start script keeps the job id without seeing the secret: %+v", started)
 	}
-	if got := e.waitScript(e.start("clips", "check", nil), "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), `"files":[]`) {
+	if got := e.WaitState(e.Start("clips", "check", nil), "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), `"files":[]`) {
 		t.Fatalf("a job still running gives no file: %+v", got)
 	}
 	_ = e.App.Close()
 
-	e2 := newEnvWith(t, home, &Fake{}, withClock(clock))
-	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
-		t.Fatal(err)
-	}
+	e2 := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	e2.Resume()
 	clock.Add(5 * time.Minute)
 	e2.App.Scheduler.Tick(context.Background())
-	var check procFull
-	e2.waitFor("the scheduled check after the restart", func() bool {
-		for _, p := range e2.processes() {
+	var check Proc
+	e2.Until("the scheduled check after the restart", func() bool {
+		for _, p := range e2.Procs() {
 			if p.Command == "check" && p.Trigger != 0 && (p.State == "done" || p.State == "error") {
 				check = p
 				return true
@@ -123,12 +121,12 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 		ID   int64
 		Data map[string]any
 	}
-	e2.must("deck.records_list", map[string]any{"project": "clips", "collection": "jobs"}, &recs)
+	e2.Must("deck.records_list", map[string]any{"project": "clips", "collection": "jobs"}, &recs)
 	var files []struct {
 		Type string
 		Size int64
 	}
-	e2.must("deck.files_list", map[string]any{"record": recs[0].ID}, &files)
+	e2.Must("deck.files_list", map[string]any{"record": recs[0].ID}, &files)
 	if check.State != "done" || recs[0].Data["status"] != "done" || len(files) != 1 || files[0].Type != "video/mp4" || files[0].Size != 7 {
 		t.Fatalf("after the restart the check downloads the file to the record: %+v %+v %+v", check, recs, files)
 	}

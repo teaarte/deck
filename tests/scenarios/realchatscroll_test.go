@@ -16,13 +16,14 @@ func TestRealBrowserChatStaysOnTheLastReply(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "## Done\n\n" + strings.Repeat("A long line of the reply that takes room in the feed. ", 12)}
-	})
-	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n"}, nil)
+	}))
+
+	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n"}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 800})
-	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the chat", `document.querySelector('[data-chat-input]')`)
@@ -34,7 +35,7 @@ func TestRealBrowserChatStaysOnTheLastReply(t *testing.T) {
 	bottom := `(() => { const v = document.querySelector('[data-feed] .mantine-ScrollArea-viewport') || document.querySelector('[data-feed]');
 		return v.scrollHeight > v.clientHeight + 100 && v.scrollHeight - v.scrollTop - v.clientHeight < 8 })()`
 	b.until("the feed at its last reply", bottom)
-	e.must("deck.project_create", map[string]any{"name": "other", "prompt": "# Other.\n"}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "other", "prompt": "# Other.\n"}, nil)
 	b.until("the feed at its last reply after an event", bottom)
 	b.open(e.URL + "/#/p/groceries/board")
 	b.until("the feed at its last reply after a move", bottom)

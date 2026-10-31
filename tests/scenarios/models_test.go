@@ -64,32 +64,32 @@ func TestAnAssignmentTakesItsFallbackWhileTheFirstIsDown(t *testing.T) {
 	t.Parallel()
 	main := &Fake{script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "main"} }}
 	other := &Fake{name: "other", script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "other"} }}
-	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other})
-	p := e.createProject("plain", plainManifest)
-	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "models": []string{"other", "fake"}}, nil)
-	if got := e.waitState(e.run(p, "work"), "done"); !strings.Contains(string(got.Result), "other") {
+	e := New(t, WithProvider(main, other))
+	p := e.Project("plain", plainManifest)
+	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "models": []string{"other", "fake"}}, nil)
+	if got := e.WaitState(e.Run(p, "work"), "done"); !strings.Contains(string(got.Result), "other") {
 		t.Fatalf("the first of the assignment of the project runs its commands: %s", got.Result)
 	}
 	health.Write(t.Context(), e.App.Store, health.Of{}, "provider:other", "paused", "the usage limit")
-	if got := e.waitState(e.run(p, "work"), "done"); !strings.Contains(string(got.Result), "main") {
+	if got := e.WaitState(e.Run(p, "work"), "done"); !strings.Contains(string(got.Result), "main") {
 		t.Fatalf("a fallback takes the turn while the first is paused: %s", got.Result)
 	}
 	var m modelsOut
-	e.must("deck.models_list", nil, &m)
+	e.Must("deck.models_list", nil, &m)
 	for _, a := range m.Assignments {
 		if a.Project == "plain" && a.Using != "fake" {
 			t.Fatalf("the assignment says the fallback works: %+v", a)
 		}
 	}
 	health.Write(t.Context(), e.App.Store, health.Of{}, "provider:other", "ok", "")
-	if got := e.waitState(e.run(p, "work"), "done"); !strings.Contains(string(got.Result), "other") {
+	if got := e.WaitState(e.Run(p, "work"), "done"); !strings.Contains(string(got.Result), "other") {
 		t.Fatalf("back to the first once it is up: %s", got.Result)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "models": []string{}}, nil)
-	if got := e.waitState(e.run(p, "work"), "done"); !strings.Contains(string(got.Result), "main") {
+	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "models": []string{}}, nil)
+	if got := e.WaitState(e.Run(p, "work"), "done"); !strings.Contains(string(got.Result), "main") {
 		t.Fatalf("without the assignment the main provider runs: %s", got.Result)
 	}
-	e.refused("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "models": []string{"nobody"}}, 404, "no provider")
+	e.Refused("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "models": []string{"nobody"}}, 404, "no provider")
 }
 
 // fakeModels is an API of models that answers each path with what its script gives and keeps what it got.
@@ -188,14 +188,14 @@ func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 			return 200, "application/json", pictureAnswer(0.033631)
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.secret_set", map[string]any{"name": "openrouter", "value": "sk-or-real"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
-	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter"]`))
+	e := New(t)
+	e.Must("deck.secret_set", map[string]any{"name": "openrouter", "value": "sk-or-real"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
+	e.Project("shorts", scriptManifest("media", "", `, "models": ["openrouter"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
 	for i := range 3 {
-		got := e.waitScript(e.start("shorts", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
+		got := e.WaitState(e.Start("shorts", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
 		var out map[string]any
 		if got.State != "done" || json.Unmarshal(got.Result, &out) != nil {
 			t.Fatalf("the script ran: %+v", got)
@@ -215,7 +215,7 @@ func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 		spend[0].Process == 0 || spend[0].Cost == nil || *spend[0].Cost != 0.033631 {
 		t.Fatalf("each call is in the journal of model calls with what OpenRouter said it cost: %+v", spend)
 	}
-	e.refused("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "daily_usd": 1}, 422, "daily_usd")
+	e.Refused("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "daily_usd": 1}, 422, "daily_usd")
 }
 
 // TestAnAgentTurnReachesOnlyTheModelOfItsTurn: a turn of an ACP agent calls its model through deck's proxy, which
@@ -229,10 +229,10 @@ func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, acpModel,
 		`{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`))
-	e := acpEnv(t, f, "goose", llm)
-	e.must("deck.model_set", map[string]any{"connection": "acp", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
+	e := New(t, WithACP(f, llm))
+	e.Must("deck.model_set", map[string]any{"connection": "acp", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
 	p := e.acpProject("paint", colorManifest)
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the first turn runs: %+v", got)
 	}
 	reqs := llm.requests()
@@ -258,16 +258,16 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	spare := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "busy", "api": "openai", "url": busy.URL + "/v1"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "busy", "model": "voice-1", "kind": "tts", "call_usd": 0.01}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "voice-2", "kind": "tts", "call_usd": 0.02}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"busy/voice-1", "spare/voice-2"}}, nil)
-	e.createProject("shorts", scriptManifest("voice", "", `, "models": ["@tts", "spare"]`))
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "busy", "api": "openai", "url": busy.URL + "/v1"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "busy", "model": "voice-1", "kind": "tts", "call_usd": 0.01}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "spare", "model": "voice-2", "kind": "tts", "call_usd": 0.02}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"busy/voice-1", "spare/voice-2"}}, nil)
+	e.Project("shorts", scriptManifest("voice", "", `, "models": ["@tts", "spare"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
 	speech := `{"model": "@tts", "input": "Knights against snails", "voice": "alloy", "response_format": "mp3"}`
-	got := e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
+	got := e.WaitState(e.Start("shorts", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
 	var out map[string]any
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 200.0 || out["answer"] != "ID3-voice" {
 		t.Fatalf("the fallback answers after the refusal of the first: %+v", got)
@@ -281,11 +281,11 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 		t.Fatalf("the call is counted on the model that made it, by its price per call: %+v", spend)
 	}
 
-	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/files", "other": `{"model": "@tts"}`}), "done", "error")
+	got = e.WaitState(e.Start("shorts", "voice", map[string]any{"key": "@/files", "other": `{"model": "@tts"}`}), "done", "error")
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "not a call of a model") {
 		t.Fatalf("a role reaches only the paths of model calls, not the rest of the connection behind it: %+v", got)
 	}
-	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "spare/images/generations", "other": `{"model": "@image"}`}), "done", "error")
+	got = e.WaitState(e.Start("shorts", "voice", map[string]any{"key": "spare/images/generations", "other": `{"model": "@image"}`}), "done", "error")
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 422.0 || !strings.Contains(out["answer"].(string), "no model is assigned to image") {
 		t.Fatalf("a role nothing is assigned to is refused with what to do: %+v", got)
 	}
@@ -304,8 +304,8 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/models": func(int, map[string]any) (int, string, string) { return 200, "application/json", catalog },
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or-new"}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or-new"}, nil)
 	var m struct {
 		Name      string
 		Kind      string
@@ -313,23 +313,23 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 		OutputUSD float64 `json:"output_usd"`
 		Free      bool
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image"}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image"}, &m)
 	if m.Name != "openrouter/google/gemini-3.1-flash-lite-image" || m.Kind != "image" || math.Abs(m.InputUSD-0.3) > 1e-9 || math.Abs(m.OutputUSD-2.5) > 1e-9 || m.Free {
 		t.Fatalf("the price per million tokens and the kind come from the catalog: %+v", m)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen"}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen"}, &m)
 	if m.Kind != "text" || !m.Free {
 		t.Fatalf("a model the catalog lists at zero is free: %+v", m)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/lyria-3-pro-preview", "name": "lyria"}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/lyria-3-pro-preview", "name": "lyria"}, &m)
 	if m.Free {
 		t.Fatalf("a zero in tokens is no price of a song: a model making more than text is free only when the catalog says so: %+v", m)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan"}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan"}, &m)
 	if m.Kind != "video" || m.Free {
 		t.Fatalf("a model of the catalog making video makes video and is not free on a zero: %+v", m)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "nvidia/nemotron-3:free", "name": "nemotron"}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "nvidia/nemotron-3:free", "name": "nemotron"}, &m)
 	if !m.Free {
 		t.Fatalf("a model whose id ends in :free is free though the catalog lists no price: %+v", m)
 	}
@@ -337,20 +337,20 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 		t.Fatalf("the key given with the connection is kept in a secret and used: %+v", c)
 	}
 	var secrets []struct{ Name string }
-	e.must("deck.secrets_list", nil, &secrets)
+	e.Must("deck.secrets_list", nil, &secrets)
 	if len(secrets) != 1 || secrets[0].Name != "openrouter" {
 		t.Fatalf("the key is a secret named after the connection: %+v", secrets)
 	}
 	m.InputUSD = 0
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "kind": "text"}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "kind": "text"}, &m)
 	if !m.Free || math.Abs(m.InputUSD) > 1e-9 {
 		t.Fatalf("a model changed without free or a price keeps them: %+v", m)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "free": false}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "free": false}, &m)
 	if m.Free {
 		t.Fatalf("free false makes a model paid again: %+v", m)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "free": true}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "free": true}, &m)
 }
 
 // TestAModuleCallsOnlyTheModelsTheOwnerGranted: a project calls models only through what its manifest names; a new
@@ -360,20 +360,20 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": api.URL + "/v1", "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "qwen", "kind": "text", "free": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": api.URL + "/v1", "local": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "ollama", "model": "qwen", "kind": "text", "free": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	call := func(project, path string) map[string]any {
-		got := e.waitScript(e.start(project, "media", map[string]any{"key": path, "other": `{"model": "qwen", "messages": []}`}), "done", "error")
+		got := e.WaitState(e.Start(project, "media", map[string]any{"key": path, "other": `{"model": "qwen", "messages": []}`}), "done", "error")
 		var out map[string]any
 		if json.Unmarshal(got.Result, &out) != nil {
 			t.Fatalf("the script ran: %+v", got)
 		}
 		return out
 	}
-	e.createProject("plain", scriptManifest("media", "", ""))
+	e.Project("plain", scriptManifest("media", "", ""))
 	e.saveScript("plain", "scripts/main.py", modelScript)
 	if out := call("plain", "openrouter/chat/completions"); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), `add "openrouter" to models`) {
 		t.Fatalf("a call through a connection the manifest does not name is refused with what to do: %v", out)
@@ -383,16 +383,16 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 		Waiting int64
 		Widens  []string
 	}
-	code, raw := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "plain", "manifest": scriptManifest("media", "", `, "models": ["openrouter"]`)})
+	code, raw := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "plain", "manifest": scriptManifest("media", "", `, "models": ["openrouter"]`)})
 	if code != 200 || json.Unmarshal(raw, &w) != nil || w.Waiting == 0 || !slices.Equal(w.Widens, []string{"calls models through openrouter"}) {
 		t.Fatalf("a new connection for models widens the rights and waits for the owner: %d %s", code, raw)
 	}
-	e.answer(w.Waiting, "allow")
+	e.Answer(w.Waiting, "allow")
 	if out := call("plain", "openrouter/chat/completions"); out["status"] != 200.0 {
 		t.Fatalf("once granted the call goes: %v", out)
 	}
 
-	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "draft", "manifest": scriptManifest("media", "", `, "models": ["openrouter", "ollama"]`)}); code != 200 {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "draft", "manifest": scriptManifest("media", "", `, "models": ["openrouter", "ollama"]`)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	e.saveScript("draft", "scripts/main.py", modelScript)
@@ -403,10 +403,10 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	if out := call("draft", "ollama/chat/completions"); out["status"] != 200.0 || len(api.calls()) != before+1 {
 		t.Fatalf("a draft's call of a free model on the owner's machine goes: %v", out)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "paid", "kind": "text", "call_usd": 0.1}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"ollama/qwen", "openrouter/paid"}}, nil)
-	e.must("deck.manifest_save", map[string]any{"project": "draft", "manifest": scriptManifest("media", "", `, "models": ["@text"]`)}, nil)
-	got := e.waitScript(e.start("draft", "media", map[string]any{"key": "@/chat/completions", "other": `{"model": "@text", "messages": []}`}), "done", "error")
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "paid", "kind": "text", "call_usd": 0.1}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"ollama/qwen", "openrouter/paid"}}, nil)
+	e.Must("deck.manifest_save", map[string]any{"project": "draft", "manifest": scriptManifest("media", "", `, "models": ["@text"]`)}, nil)
+	got := e.WaitState(e.Start("draft", "media", map[string]any{"key": "@/chat/completions", "other": `{"model": "@text", "messages": []}`}), "done", "error")
 	var out map[string]any
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || len(api.calls()) != before+1 {
 		t.Fatalf("a draft's call that may fall back to a paid model is refused: %+v", got)
@@ -422,18 +422,18 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 		"/v1/chat/completions": ok, "/v1/images/edits": ok, "/v1/key": ok, "/v1/models/gemma:generateContent": ok, "/svc/v1/generate": ok,
 		"/v1/models/other:generateContent": ok, "/v1/videos/job-1": ok,
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "gemini", "api": "google", "url": api.URL + "/v1"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "svc", "api": "raw", "url": api.URL + "/svc"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.02}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "gemini", "model": "gemma", "kind": "text", "call_usd": 0.03}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "svc", "model": "track", "kind": "text", "name": "svc-track", "call_usd": 0.05}, nil)
-	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter", "gemini", "svc"]`))
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "gemini", "api": "google", "url": api.URL + "/v1"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "svc", "api": "raw", "url": api.URL + "/svc"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.02}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "gemini", "model": "gemma", "kind": "text", "call_usd": 0.03}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "svc", "model": "track", "kind": "text", "name": "svc-track", "call_usd": 0.05}, nil)
+	e.Project("shorts", scriptManifest("media", "", `, "models": ["openrouter", "gemini", "svc"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
 	call := func(in map[string]any) map[string]any {
-		got := e.waitScript(e.start("shorts", "media", in), "done", "error")
+		got := e.WaitState(e.Start("shorts", "media", in), "done", "error")
 		var out map[string]any
 		if json.Unmarshal(got.Result, &out) != nil {
 			t.Fatalf("the script ran: %+v", got)
@@ -493,7 +493,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 		!strings.Contains(out["answer"].(string), "web search of agents") {
 		t.Fatalf("@search is not a model to call: %v", out)
 	}
-	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions",
+	e.Refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions",
 		"body": `{"model": "qwen", "messages": []}`}, 404, "model_request")
 	var spend []spendRow
 	e.modelCalls("shorts", 0, &spend)
@@ -506,7 +506,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	if len(spend) != 5 || got["openrouter/qwen"] != 0.01 || got["openrouter/painter"] != 0.02 || got["gemini/gemma"] != 0.03 || got["svc-track"] != 0.05 {
 		t.Fatalf("each call is counted on its model of deck's settings: %+v", spend)
 	}
-	e.createProject("plain", plainManifest)
+	e.Project("plain", plainManifest)
 	var models []string
 	for _, r := range blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Model calls", nil)["rows"]) {
 		models = append(models, fmt.Sprint(r.Cells[1]))
@@ -519,7 +519,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 		Name   string
 		Models []string
 	}
-	e.must("deck.projects_list", nil, &ps)
+	e.Must("deck.projects_list", nil, &ps)
 	for _, p := range ps {
 		if p.Name == "shorts" && !slices.Equal(p.Models, []string{"openrouter", "gemini", "svc"}) {
 			t.Fatalf("the project says what it may call: %+v", p)
@@ -534,18 +534,18 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 // past deck; a manifest that has one is read with a warning and saved only without it.
 func TestAModuleDoesNotHoldTheKeyOfAConnection(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	tool := `, "tools": {"http": [{"name": "image", "description": "A picture.", "class": "internal", "method": "POST",
 	  "url": "https://openrouter.ai/api/v1/chat/completions", "auth": {"type": "secret", "secret": "openrouter"}, "input": {"type": "object"}}]}`
-	e.createProject("shorts", scriptManifest("media", "", tool))
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "sk-or"}, nil)
+	e.Project("shorts", scriptManifest("media", "", tool))
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "sk-or"}, nil)
 	var m struct{ Warnings []string }
-	e.must("deck.manifest_get", map[string]any{"project": "shorts"}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "shorts"}, &m)
 	if len(m.Warnings) != 1 || !strings.Contains(m.Warnings[0], "key of connection openrouter") {
 		t.Fatalf("a manifest that hands the key of a connection to a tool is read with a warning: %+v", m)
 	}
-	e.refused("deck.manifest_save", map[string]any{"project": "shorts", "manifest": scriptManifest("media", "", tool)}, 422, "key of connection openrouter")
-	e.must("deck.manifest_save", map[string]any{"project": "shorts", "manifest": scriptManifest("media", "", "")}, nil)
+	e.Refused("deck.manifest_save", map[string]any{"project": "shorts", "manifest": scriptManifest("media", "", tool)}, 422, "key of connection openrouter")
+	e.Must("deck.manifest_save", map[string]any{"project": "shorts", "manifest": scriptManifest("media", "", "")}, nil)
 }
 
 // TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton: an agent of a module that needs a model deck lacks calls
@@ -555,18 +555,19 @@ func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
 	var said string
 	var bad bool
 	turns := 0
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if turns++; turns == 1 {
 			said, bad = c.Tool(ctx, "model_set", map[string]any{"connection": "openrouter", "model": "google/lyria-3-pro-preview", "name": "lyria", "kind": "music", "call_usd": 0.08})
 		}
 		return provider.Result{Text: "proposed"}
-	})
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
-	p := e.createProject("shorts", plainManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "waiting_answer")
+	}))
+
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	p := e.Project("shorts", plainManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "waiting_answer")
 	var m modelsOut
-	e.must("deck.models_list", nil, &m)
+	e.Must("deck.models_list", nil, &m)
 	lyria := func() bool {
 		for _, x := range m.Models {
 			if x.Name == "lyria" {
@@ -582,11 +583,11 @@ func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
 	if err := e.App.Store.DB.QueryRow(`SELECT id FROM ask WHERE kind = 'call' AND state = 'open' AND payload LIKE '%model_set%'`).Scan(&ask); err != nil {
 		t.Fatalf("the owner has the proposal to answer: %v", err)
 	}
-	e.answer(ask, "allow")
-	if got := e.waitState(id, "done"); got.State != "done" || bad {
+	e.Answer(ask, "allow")
+	if got := e.WaitState(id, "done"); got.State != "done" || bad {
 		t.Fatalf("the agent goes on once the owner answered: %v %s", bad, said)
 	}
-	e.must("deck.models_list", nil, &m)
+	e.Must("deck.models_list", nil, &m)
 	if !lyria() {
 		t.Fatalf("the owner's yes adds the model: %+v", m.Models)
 	}
@@ -596,16 +597,16 @@ func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
 // work and commands, the one at work now first in mind, and only its own.
 func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "media", "model": "klein", "name": "local-image", "kind": "image", "free": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "media", "model": "cloud", "name": "cloud-image", "kind": "image", "call_usd": 0.03}, nil)
-	e.createProject("shorts", scriptManifest("media", "", `, "models": ["@image"]`))
-	e.createProject("plain", plainManifest)
-	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"local-image", "cloud-image"}}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"cloud-image"}}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"cloud-image"}}, nil)
-	e.createProject("pics", scriptManifest("media", "", `, "models": ["@image"]`))
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "klein", "name": "local-image", "kind": "image", "free": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "cloud", "name": "cloud-image", "kind": "image", "call_usd": 0.03}, nil)
+	e.Project("shorts", scriptManifest("media", "", `, "models": ["@image"]`))
+	e.Project("plain", plainManifest)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"local-image", "cloud-image"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"cloud-image"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"cloud-image"}}, nil)
+	e.Project("pics", scriptManifest("media", "", `, "models": ["@image"]`))
 	pics := blockData[[]screenRow](t, e.screenBlock("pics", "settings", "Models", nil)["rows"])
 	if len(pics) != 2 || fmt.Sprint(pics[1].Cells[:3]...) != "imagecloud-imagedefault" {
 		t.Fatalf("a kind of work on the model deck's settings give everywhere is the default, not the module's own: %+v", pics)
@@ -625,10 +626,10 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	}
 	params := pick["params"].(map[string]any)
 	params["model"] = "cloud-image"
-	e.must(pick["command"].(string), params, nil)
+	e.Must(pick["command"].(string), params, nil)
 	rows = blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models", nil)["rows"])[1:]
 	var list modelsOut
-	e.must("deck.models_list", map[string]any{"project": "shorts"}, &list)
+	e.Must("deck.models_list", map[string]any{"project": "shorts"}, &list)
 	if fmt.Sprint(rows[0].Cells...) != "imagecloud-imagehere$0.03 a call" || fmt.Sprint(list.Assignments[0].Models) != "[cloud-image local-image]" {
 		t.Fatalf("a picked model goes first and the one before stays its fallback: %v %+v", rows[0].Cells, list.Assignments)
 	}
@@ -638,20 +639,20 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 // workspace and its own project, without the secrets connections keep their keys in.
 func TestAModuleScriptReadsTheModelsOfDeck(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "sk-or-hidden"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.02}, nil)
-	e.createProject("shorts", scriptManifest("media", "", ""))
-	e.createProject("plain", plainManifest)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"openrouter/qwen"}}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"openrouter/painter"}}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"openrouter/painter"}}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "sk-or-hidden"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.02}, nil)
+	e.Project("shorts", scriptManifest("media", "", ""))
+	e.Project("plain", plainManifest)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"openrouter/qwen"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"openrouter/painter"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"openrouter/painter"}}, nil)
 	e.saveScript("shorts", "scripts/main.py", pythonLib+`
 status, out = deck("deck.models_list", {})
 print(json.dumps({"status": status, "out": out}))
 `)
-	got := e.waitScript(e.start("shorts", "media", nil), "done", "error")
+	got := e.WaitState(e.Start("shorts", "media", nil), "done", "error")
 	var res struct {
 		Status int
 		Out    modelsOut
@@ -686,12 +687,12 @@ print(json.dumps({"status": status, "out": out}))
 func TestAssignmentsGoWithTheirCommandsAndModels(t *testing.T) {
 	t.Parallel()
 	other := &Fake{name: "other", script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "other"} }}
-	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{&Fake{}, other})
-	e.createProject("plain", testManifest([]string{agentCommand("work", ""), agentCommand("spare", "")}, nil))
-	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "spare", "models": []string{"other"}}, nil)
+	e := New(t, WithProvider(&Fake{}, other))
+	e.Project("plain", testManifest([]string{agentCommand("work", ""), agentCommand("spare", "")}, nil))
+	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "spare", "models": []string{"other"}}, nil)
 	assigned := func(command string) *assignmentOut {
 		var m modelsOut
-		e.must("deck.models_list", nil, &m)
+		e.Must("deck.models_list", nil, &m)
 		for _, a := range m.Assignments {
 			if a.Project == "plain" && a.Command == command {
 				return &a
@@ -699,13 +700,13 @@ func TestAssignmentsGoWithTheirCommandsAndModels(t *testing.T) {
 		}
 		return nil
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "plain", "manifest": testManifest([]string{agentCommand("work", "")}, nil)}, nil)
-	e.waitFor("the assignment of a command the manifest dropped goes", func() bool { return assigned("spare") == nil })
+	e.Must("deck.manifest_save", map[string]any{"project": "plain", "manifest": testManifest([]string{agentCommand("work", "")}, nil)}, nil)
+	e.Until("the assignment of a command the manifest dropped goes", func() bool { return assigned("spare") == nil })
 
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'gone', 'agent', '["other"]' FROM project WHERE name = 'plain'`); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "gone", "models": []string{}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "gone", "models": []string{}}, nil)
 	if assigned("gone") != nil {
 		t.Fatal("an assignment of a command that is gone is removed")
 	}
@@ -716,17 +717,17 @@ func TestAssignmentsGoWithTheirCommandsAndModels(t *testing.T) {
 	if a := assigned("work"); a == nil || a.Using != "other" || !strings.Contains(a.Why, "vanished") {
 		t.Fatalf("a model deck has none of is not the one that works, and the assignment says why: %+v", a)
 	}
-	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
-	if h := e.waitHealth("model:vanished", "warning"); !strings.Contains(h.Error, "plain.work") {
+	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	if h := e.WaitHealth("model:vanished", "warning"); !strings.Contains(h.Error, "plain.work") {
 		t.Fatalf("health names the assignments of a model deck has none of: %+v", h)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/voice", "name": "voice", "kind": "tts"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/voice2", "name": "voice2", "kind": "tts"}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"voice", "voice2"}}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "tts", "project": "plain", "models": []string{"voice"}}, nil)
-	e.must("deck.model_remove", map[string]any{"name": "voice"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "x/voice", "name": "voice", "kind": "tts"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "x/voice2", "name": "voice2", "kind": "tts"}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"voice", "voice2"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "tts", "project": "plain", "models": []string{"voice"}}, nil)
+	e.Must("deck.model_remove", map[string]any{"name": "voice"}, nil)
 	var m modelsOut
-	e.must("deck.models_list", nil, &m)
+	e.Must("deck.models_list", nil, &m)
 	for _, a := range m.Assignments {
 		if a.Role == "tts" && (a.Project != "" || !slices.Equal(a.Models, []string{"voice2"})) {
 			t.Fatalf("a removed model leaves its assignments, and one left with none goes: %+v", m.Assignments)
@@ -738,20 +739,20 @@ func TestAssignmentsGoWithTheirCommandsAndModels(t *testing.T) {
 // one with other options is its own model; a model of a local connection is free, one without a price unknown.
 func TestAModelOfAConnectionIsAddedOnceAndItsPriceReads(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "api", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "box", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "api", "model": "flash"}, nil)
-	if code, body := e.call("deck.model_set", map[string]any{"connection": "api", "model": "flash", "name": "api-flash"}); code < 400 ||
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "api", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "box", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "api", "model": "flash"}, nil)
+	if code, body := e.Call("deck.model_set", map[string]any{"connection": "api", "model": "flash", "name": "api-flash"}); code < 400 ||
 		!strings.Contains(string(body), "already model api/flash") {
 		t.Fatalf("the same model of a connection under another name is refused, naming the one to change: %d %s", code, body)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "api", "model": "flash", "name": "flash-ru", "options": `{"language": "ru"}`}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "box", "model": "qwen"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "api", "model": "flash", "name": "flash-ru", "options": `{"language": "ru"}`}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "box", "model": "qwen"}, nil)
 	var m struct {
 		Models []struct{ Name, Price string } `json:"models"`
 	}
-	e.must("deck.models_list", nil, &m)
+	e.Must("deck.models_list", nil, &m)
 	price := map[string]string{}
 	for _, v := range m.Models {
 		price[v.Name] = v.Price

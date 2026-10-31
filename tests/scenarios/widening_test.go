@@ -16,8 +16,8 @@ import (
 
 func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	e.createProject("notes", plainManifest)
+	e := New(t, WithAgent(ok))
+	e.Project("notes", plainManifest)
 	_, tok := e.token("terminal", "deck.*")
 	wider := strings.Replace(plainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["example.com"]}`, 1)
 
@@ -26,7 +26,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		Waiting  int64
 		Widens   []string
 	}
-	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": wider, "reason": "go faster"})
+	code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": wider, "reason": "go faster"})
 	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || w.Revision != 0 ||
 		!slices.Equal(w.Widens, []string{"read domain: example.com"}) {
 		t.Fatalf("a change that widens rights waits: %d %s", code, out)
@@ -35,48 +35,48 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		t.Fatalf("the manifest stays until the owner allows: revision %d", rev)
 	}
 	broken := strings.Replace(wider, `"screens": [],`, `"screens": [], "reads": [{"project": "nowhere"}],`, 1)
-	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": broken}); code != 422 || strings.Contains(string(out), "waiting") {
+	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": broken}); code != 422 || strings.Contains(string(out), "waiting") {
 		t.Fatalf("a widening change is checked in full before the owner is asked: %d %s", code, out)
 	}
-	if code, out := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": plainManifest, "if_revision": 7}); code != 409 {
+	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": plainManifest, "if_revision": 7}); code != 409 {
 		t.Fatalf("if_revision guards a save: %d %s", code, out)
 	}
-	a := e.waitAsk()
+	a := e.WaitAsk()
 	if a.Kind != "grant" || a.Text != "go faster" {
 		t.Fatalf("the owner sees what the change asks for: %+v", a)
 	}
-	if code, _ := e.callWith(tok, "deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 403 {
+	if code, _ := e.As(tok).Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 403 {
 		t.Fatalf("the master cannot allow its own change: %d", code)
 	}
-	e.answer(a.ID, "allow")
+	e.Answer(a.ID, "allow")
 	if rev := e.manifestRevision("notes"); rev != 2 {
 		t.Fatalf("allow applies the frozen change: revision %d", rev)
 	}
 	var feed []any
-	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
+	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 0 {
 		t.Fatalf("a change the owner allowed is not done without them: %v", feed)
 	}
 
-	code, out = e.callWith(tok, "deck.document_revert", map[string]any{"document": e.manifestDocument("notes"), "revision": 1})
+	code, out = e.As(tok).Call("deck.document_revert", map[string]any{"document": e.manifestDocument("notes"), "revision": 1})
 	if code != 200 || !strings.Contains(string(out), `"revision":3`) {
 		t.Fatalf("a revert that narrows rights applies at once: %d %s", code, out)
 	}
-	code, out = e.callWith(tok, "deck.document_revert", map[string]any{"document": e.manifestDocument("notes"), "revision": 2})
+	code, out = e.As(tok).Call("deck.document_revert", map[string]any{"document": e.manifestDocument("notes"), "revision": 2})
 	if code != 200 || !strings.Contains(string(out), `"waiting"`) {
 		t.Fatalf("a revert that widens rights waits too: %d %s", code, out)
 	}
-	stale := e.waitAsk()
-	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(plainManifest, `"Does work"`, `"Does the work"`, 1), "reason": "owner"}, nil)
-	if n := e.waitNote("outdated"); !strings.Contains(n.Text, "notes") || !strings.Contains(n.Text, "revision 4") {
+	stale := e.WaitAsk()
+	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(plainManifest, `"Does work"`, `"Does the work"`, 1), "reason": "owner"}, nil)
+	if n := e.WaitNote("outdated"); !strings.Contains(n.Text, "notes") || !strings.Contains(n.Text, "revision 4") {
 		t.Fatalf("the owner hears that a request for rights older than the manifest is outdated: %+v", n)
 	}
 	var calls []struct{ Tool, Outcome string }
-	e.must("deck.calls_list", map[string]any{"project": "notes"}, &calls)
+	e.Must("deck.calls_list", map[string]any{"project": "notes"}, &calls)
 	if !slices.ContainsFunc(calls, func(c struct{ Tool, Outcome string }) bool { return c.Outcome == "expired" }) {
 		t.Fatalf("the journal says the outdated request expired: %+v", calls)
 	}
-	if code, out := e.call("deck.ask_answer", map[string]any{"ask": stale.ID, "answer": "allow"}); code == 200 {
+	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": stale.ID, "answer": "allow"}); code == 200 {
 		t.Fatalf("an outdated request for rights is closed: %d %s", code, out)
 	}
 	if rev := e.manifestRevision("notes"); rev != 4 {
@@ -110,16 +110,16 @@ func TestWhatCountsAsWideningRights(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			e := newEnv(t, ok)
-			e.createProject("other", plainManifest)
-			e.createProject("notes", fmt.Sprintf(base, c.from))
+			e := New(t, WithAgent(ok))
+			e.Project("other", plainManifest)
+			e.Project("notes", fmt.Sprintf(base, c.from))
 			var cmd = strings.Replace(fmt.Sprintf(base, c.to), `"class": "external"`, `"class": "internal"`, 1)
 			_, tok := e.token("terminal", "deck.*")
-			_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": fmt.Sprintf(base, c.to)})
+			_, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": fmt.Sprintf(base, c.to)})
 			if !strings.Contains(string(out), c.want) {
 				t.Fatalf("want %q, got %s", c.want, out)
 			}
-			_, out = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": cmd})
+			_, out = e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": cmd})
 			if !strings.Contains(string(out), "command run: class internal instead of external") {
 				t.Fatalf("a milder command class widens too: %s", out)
 			}
@@ -142,10 +142,10 @@ func TestCommandRightsWidenToo(t *testing.T) {
 	renamed := strings.Replace(fmt.Sprintf(cmd, `"provider": "local", "callers": ["owner"],`), `"name": "run"`, `"name": "run2"`, 1)
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			e := newEnv(t, ok)
-			e.createProject("notes", from)
+			e := New(t, WithAgent(ok))
+			e.Project("notes", from)
 			_, tok := e.token("terminal", "deck.*")
-			_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": fmt.Sprintf(cmd, c.to)})
+			_, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": fmt.Sprintf(cmd, c.to)})
 			var w struct {
 				Waiting int64
 				Widens  []string
@@ -155,18 +155,18 @@ func TestCommandRightsWidenToo(t *testing.T) {
 			}
 		})
 	}
-	e := newEnv(t, ok)
-	e.createProject("notes", from)
+	e := New(t, WithAgent(ok))
+	e.Project("notes", from)
 	_, tok := e.token("terminal", "deck.*")
-	if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": renamed}); !strings.Contains(string(out), "command run2: new without no_cloud") {
+	if _, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": renamed}); !strings.Contains(string(out), "command run2: new without no_cloud") {
 		t.Fatalf("a renamed command does not drop no_cloud quietly: %s", out)
 	}
 }
 
 func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	e.createProject("notes", `{"version": 13, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+	e := New(t, WithAgent(ok))
+	e.Project("notes", `{"version": 13, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`)
 	_, tok := e.token("terminal", "deck.*")
 	for _, c := range []struct{ auth, want string }{
@@ -182,7 +182,7 @@ func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 			Waiting int64
 			Widens  []string
 		}
-		code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": m})
+		code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": m})
 		if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Contains(w.Widens, c.want) {
 			t.Fatalf("a new tool that signs in with a secret waits for the owner's button: %d %s", code, out)
 		}
@@ -193,8 +193,8 @@ func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 // granted: a milder class waits for the owner's button, and a draft keeps the class of its granted revision.
 func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("pub", scriptManifest("media", "", ""))
+	e := New(t)
+	e.Project("pub", scriptManifest("media", "", ""))
 	_, tok := e.token("terminal", "deck.*", "pub.*")
 	milder := strings.Replace(scriptManifest("media", "", ""), `"class": "external",
      "executor": {"type": "agent", "prompt": "Publish."}`, `"class": "reversible",
@@ -203,30 +203,30 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 		Waiting int64
 		Widens  []string
 	}
-	code, raw := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "pub", "manifest": milder})
+	code, raw := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "pub", "manifest": milder})
 	if code != 200 || json.Unmarshal(raw, &w) != nil || w.Waiting == 0 || len(w.Widens) != 1 || !strings.Contains(w.Widens[0], "class reversible") {
 		t.Fatalf("a milder class waits for the owner: %d %s", code, raw)
 	}
-	before := len(e.processes())
-	code, raw = e.callWith(tok, "pub.publish", map[string]any{})
+	before := len(e.Procs())
+	code, raw = e.As(tok).Call("pub.publish", map[string]any{})
 	var held struct{ Waiting int64 }
-	if code != 200 || json.Unmarshal(raw, &held) != nil || held.Waiting == 0 || len(e.processes()) != before {
+	if code != 200 || json.Unmarshal(raw, &held) != nil || held.Waiting == 0 || len(e.Procs()) != before {
 		t.Fatalf("until the owner grants it the command keeps its class and waits: %d %s", code, raw)
 	}
-	e.refused("deck.ask_answer", map[string]any{"ask": w.Waiting, "answer": "retry"}, 422, "answer a grant with allow, deny")
-	e.answer(w.Waiting, "allow")
-	e.answer(held.Waiting, "deny")
-	if code, raw = e.callWith(tok, "pub.publish", map[string]any{}); code != 200 || strings.Contains(string(raw), "waiting") {
+	e.Refused("deck.ask_answer", map[string]any{"ask": w.Waiting, "answer": "retry"}, 422, "answer a grant with allow, deny")
+	e.Answer(w.Waiting, "allow")
+	e.Answer(held.Waiting, "deny")
+	if code, raw = e.As(tok).Call("pub.publish", map[string]any{}); code != 200 || strings.Contains(string(raw), "waiting") {
 		t.Fatalf("once granted the milder class runs at once: %d %s", code, raw)
 	}
 
-	if code, raw = e.callWith(tok, "deck.project_create", map[string]any{"name": "draft", "manifest": scriptManifest("media", "", "")}); code != 200 {
+	if code, raw = e.As(tok).Call("deck.project_create", map[string]any{"name": "draft", "manifest": scriptManifest("media", "", "")}); code != 200 {
 		t.Fatalf("create: %d %s", code, raw)
 	}
 	internal := strings.Replace(scriptManifest("media", "", ""), `"class": "external",
      "executor": {"type": "agent", "prompt": "Publish."}`, `"class": "internal",
      "executor": {"type": "agent", "prompt": "Publish."}`, 1)
-	if code, raw = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "draft", "manifest": internal}); code != 200 {
+	if code, raw = e.As(tok).Call("deck.manifest_save", map[string]any{"project": "draft", "manifest": internal}); code != 200 {
 		t.Fatalf("a draft saves what it widens, to be granted when enabled: %d %s", code, raw)
 	}
 	for _, c := range e.commands() {
@@ -237,7 +237,7 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 	wide := strings.Replace(internal, `"Publish."}`, `"Publish."}, "callers": ["owner", "agent"], "provider": "codex"`, 1)
 	wide = strings.Replace(wide, `"runtime": "python"}]`, `"runtime": "python"}], "domains": {"read": ["example.com"]}, "models": ["openrouter"], "no_network": false,
   "tools": {"mcp": {"servers": {"svc": {"command": "/bin/cat", "env": {"KEY": "$secret.svc"}}, "open": {"command": "/bin/cat", "classes": {"x": "internal"}}}}}`, 1)
-	if code, raw = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "draft", "manifest": wide}); code != 200 {
+	if code, raw = e.As(tok).Call("deck.manifest_save", map[string]any{"project": "draft", "manifest": wide}); code != 200 {
 		t.Fatalf("save: %d %s", code, raw)
 	}
 	ctx := context.Background()
@@ -264,24 +264,25 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 func TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls(t *testing.T) {
 	t.Parallel()
 	var outs []string
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		out, _ := c.Tool(ctx, "records_list", map[string]any{"collection": "items"})
 		outs = append(outs, out)
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	})
+	}))
+
 	m := testManifest([]string{agentCommand("work", "")}, nil)
 	m = strings.Replace(m, `"version": 13,`, `"version": 13, "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],`, 1)
-	p := e.createProject("calls", m)
-	id := e.run(p, "work")
-	e.waitState(id, "done")
+	p := e.Project("calls", m)
+	id := e.Run(p, "work")
+	e.WaitState(id, "done")
 	narrowed := strings.Replace(m, `"prompt": "Do work."}`, `"prompt": "Do work.", "calls": ["deck.*"]}`, 1)
 	if narrowed == m {
 		t.Fatal("fixture replacement did not apply")
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "calls", "manifest": narrowed}, nil)
-	e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
-	e.waitState(id, "done", "error")
+	e.Must("deck.manifest_save", map[string]any{"project": "calls", "manifest": narrowed}, nil)
+	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
+	e.WaitState(id, "done", "error")
 	if len(outs) != 2 || outs[1] != outs[0] {
 		t.Fatalf("the resumed process may call what the grant lists: %v", outs)
 	}
@@ -295,8 +296,8 @@ func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
 		return `{"version": 13, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
     "executor": {"type": "agent", ` + folder + `"prompt": "Run."}}]}`
 	}
-	e := newEnv(t, ok)
-	e.createProject("code", m(`"folder": "main", `))
+	e := New(t, WithAgent(ok))
+	e.Project("code", m(`"folder": "main", `))
 	_, tok := e.token("terminal", "deck.*")
 	for _, c := range []struct{ to, want string }{
 		{m(`"folder": "docs", `), "command run: works in folder docs"},
@@ -304,11 +305,11 @@ func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
 		{strings.Replace(m(`"folder": "main", `), `]}`, `, {"name": "fix", "title": "Fix", "description": "Fixes.", "class": "external",
     "executor": {"type": "agent", "folder": "main", "prompt": "Fix."}}]}`, 1), "command fix: works in folder main"},
 	} {
-		if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "code", "manifest": c.to}); !strings.Contains(string(out), c.want) {
+		if _, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "code", "manifest": c.to}); !strings.Contains(string(out), c.want) {
 			t.Fatalf("want %q, got %s", c.want, out)
 		}
 	}
-	if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "code", "manifest": m("")}); strings.Contains(string(out), "folder") {
+	if _, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "code", "manifest": m("")}); strings.Contains(string(out), "folder") {
 		t.Fatalf("a command that leaves its folder widens nothing: %s", out)
 	}
 }
@@ -324,14 +325,14 @@ func TestAnotherExecutorOfACommandWidensRights(t *testing.T) {
     {"name": "post_anything", "description": "Posts", "method": "POST", "url": "https://b.example/x", "class": "external"}]},
   "allowed_external": ["digest"], "domains": {"act": ["a.example", "b.example"]}}`
 	}
-	e := newEnv(t, ok)
-	e.createProject("mail", m(`{"type": "tool", "tool": "send_digest"}`))
+	e := New(t, WithAgent(ok))
+	e.Project("mail", m(`{"type": "tool", "tool": "send_digest"}`))
 	_, tok := e.token("terminal", "deck.*")
 	for _, c := range []struct{ to, want string }{
 		{m(`{"type": "tool", "tool": "post_anything"}`), "command digest: runs tool post_anything instead of send_digest"},
 		{m(`{"type": "agent", "prompt": "Send it."}`), "command digest: runs an agent instead of a tool"},
 	} {
-		if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "mail", "manifest": c.to}); !strings.Contains(string(out), c.want) {
+		if _, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "mail", "manifest": c.to}); !strings.Contains(string(out), c.want) {
 			t.Fatalf("want %q, got %s", c.want, out)
 		}
 	}
@@ -341,21 +342,21 @@ func TestAnotherExecutorOfACommandWidensRights(t *testing.T) {
 // so the master saves it without the owner and a draft keeps its grant.
 func TestADomainTheGrantCoversIsNoNewRight(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	base := `{"version": 13, "domains": {"read": [%s]}, "commands": [` + agentCommand("work", "") + `]}`
-	e.createProject("wide", fmt.Sprintf(base, `"*"`))
-	e.createProject("plain", fmt.Sprintf(base, ``))
+	e.Project("wide", fmt.Sprintf(base, `"*"`))
+	e.Project("plain", fmt.Sprintf(base, ``))
 	_, tok := e.token("terminal", "deck.*")
-	if code, raw := e.callWith(tok, "deck.project_create", map[string]any{"name": "sketch", "manifest": fmt.Sprintf(base, ``)}); code != 200 {
+	if code, raw := e.As(tok).Call("deck.project_create", map[string]any{"name": "sketch", "manifest": fmt.Sprintf(base, ``)}); code != 200 {
 		t.Fatalf("create: %d %s", code, raw)
 	}
 	for _, s := range []struct{ project, read string }{{"wide", `"*", "example.com"`}, {"plain", `"pypi.org"`}, {"sketch", `"pypi.org"`}} {
-		if code, raw := e.callWith(tok, "deck.manifest_save", map[string]any{"project": s.project, "manifest": fmt.Sprintf(base, s.read)}); code != 200 || strings.Contains(string(raw), "waiting") {
+		if code, raw := e.As(tok).Call("deck.manifest_save", map[string]any{"project": s.project, "manifest": fmt.Sprintf(base, s.read)}); code != 200 || strings.Contains(string(raw), "waiting") {
 			t.Fatalf("%s: a domain the grant covers is saved without the owner: %d %s", s.project, code, raw)
 		}
 	}
 	for _, addr := range []string{`"*", "[10.0.0.1]"`, `"*", "10.0.0.0/8"`} {
-		if code, raw := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "wide", "manifest": fmt.Sprintf(base, addr)}); code != 200 || !strings.Contains(string(raw), "waiting") {
+		if code, raw := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "wide", "manifest": fmt.Sprintf(base, addr)}); code != 200 || !strings.Contains(string(raw), "waiting") {
 			t.Fatalf("an address is not under \"*\": %s: %d %s", addr, code, raw)
 		}
 	}

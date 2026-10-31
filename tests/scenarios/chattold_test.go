@@ -36,7 +36,7 @@ type toldMessage struct {
 func (e *Env) told(topic int64, state, lang string) toldMessage {
 	e.T.Helper()
 	var got toldMessage
-	e.waitFor("deck tells the topic of a work "+state, func() bool {
+	e.Until("deck tells the topic of a work "+state, func() bool {
 		var view struct{ Messages []toldMessage }
 		e.chatRead(map[string]any{"topic": fmt.Sprint(topic), "lang": lang}, &view)
 		for _, m := range view.Messages {
@@ -70,7 +70,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	var works atomic.Int32
 	var replies atomic.Int64
 	var from atomic.Int64
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() != "work" {
 			if replies.Add(1) == 3 {
 				return provider.Result{Text: "ok"}
@@ -87,8 +87,9 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 		}
 		c.Tool(ctx, "notify", map[string]any{"project": "master", "text": "Counted: 3 records."})
 		return provider.Result{Text: "Counted: **3 records**."}
-	})
-	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	}))
+
+	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	topic := e.say(0, "count the records")
 	done := e.told(topic, "done", "ru")
 	for _, c := range e.Fake.Calls()[:2] {
@@ -102,8 +103,8 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	if done.Told.Open.Screen != "process" || done.Told.Open.Record != done.Process || done.Process == 0 {
 		t.Fatalf("the message opens the process of the work: %+v", done.Told)
 	}
-	e.waitFor("the note of the work is read", func() bool {
-		for _, n := range e.notes() {
+	e.Until("the note of the work is read", func() bool {
+		for _, n := range e.Notes() {
 			if strings.Contains(n.Text, "Counted: 3 records.") {
 				return n.Read
 			}
@@ -127,9 +128,9 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	if failed.Told.Reason != "агент сообщил об ошибке" || !strings.Contains(failed.Told.Error, "the site is down") || failed.Told.Tone != "error" {
 		t.Fatalf("a work that failed says why in the owner's words: %+v", failed.Told)
 	}
-	e.waitFor("the note of the failed work reads in Russian", func() bool {
-		var notes []feedNote
-		e.must("deck.feed_list", map[string]any{"kind": "note", "lang": "ru"}, &notes)
+	e.Until("the note of the failed work reads in Russian", func() bool {
+		var notes []Note
+		e.Must("deck.feed_list", map[string]any{"kind": "note", "lang": "ru"}, &notes)
 		for _, n := range notes {
 			if n.Text == "Команда мастера work не удалась: агент сообщил об ошибке: the site is down" {
 				return true
@@ -160,7 +161,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 func TestAWorkSentBackTellsItsTopicAgain(t *testing.T) {
 	t.Parallel()
 	var from atomic.Int64
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		switch {
 		case strings.Contains(c.Req.Prompt, "count the drafts too"):
 			return provider.Result{Text: "Recounted: 4 records."}
@@ -168,11 +169,12 @@ func TestAWorkSentBackTellsItsTopicAgain(t *testing.T) {
 			return provider.Result{Text: "Counted: 3 records."}
 		}
 		return handOver(ctx, c, &from)
-	})
+	}))
+
 	topic := e.say(0, "count the records")
 	done := e.told(topic, "done", "")
-	e.must("deck.process_rework", map[string]any{"process": done.Process, "remark": "count the drafts too"}, nil)
-	e.waitFor("the new result in the topic", func() bool {
+	e.Must("deck.process_rework", map[string]any{"process": done.Process, "remark": "count the drafts too"}, nil)
+	e.Until("the new result in the topic", func() bool {
 		var view struct{ Messages []toldMessage }
 		e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 		var said []string
@@ -193,13 +195,13 @@ func TestAWorkTellsItsTopicItsWholeResult(t *testing.T) {
 	var replies atomic.Int32
 	var prompt atomic.Value
 	worked := make(chan struct{})
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "work" {
 			defer close(worked)
 			return provider.Result{Text: long}
 		}
 		if replies.Add(1) == 1 {
-			// The work ends and tells the topic while the reply that started it still runs.
+
 			res := handOver(ctx, c, &from)
 			<-worked
 			time.Sleep(300 * time.Millisecond)
@@ -207,7 +209,8 @@ func TestAWorkTellsItsTopicItsWholeResult(t *testing.T) {
 		}
 		prompt.Store(c.Req.Prompt)
 		return provider.Result{Text: "ok"}
-	})
+	}))
+
 	topic := e.say(0, "plan it")
 	if done := e.told(topic, "done", ""); done.Text != long {
 		t.Fatalf("the topic gets the whole result of %d bytes, not %d", len(long), len(done.Text))
@@ -224,7 +227,7 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 	t.Parallel()
 	var from atomic.Int64
 	var works atomic.Int32
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		switch {
 		case strings.Contains(c.Req.Prompt, "go on where you stopped"):
 			return provider.Result{Text: "Finished the rest."}
@@ -234,7 +237,8 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 			return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
 		}
 		return provider.Result{Text: "a second fresh run"}
-	})
+	}))
+
 	topic := e.say(0, "do it")
 	failed := e.told(topic, "error", "")
 	var view struct{ Messages []json.RawMessage }
@@ -255,7 +259,7 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 	if goOn.Told.Go.Command != "deck.process_rework" {
 		t.Fatalf("a failed work offers to go on: %+v", view.Messages)
 	}
-	e.must(goOn.Told.Go.Command, goOn.Told.Go.Params, nil)
+	e.Must(goOn.Told.Go.Command, goOn.Told.Go.Params, nil)
 	if done := e.told(topic, "done", ""); done.Text != "Finished the rest." || done.Process != failed.Process {
 		t.Fatalf("the same work goes on in its session: %+v", done)
 	}

@@ -7,28 +7,14 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"testing"
-	"time"
 
 	"deck2/internal/events"
 )
 
-// sse reads topics from the events stream, like a second device would.
-func (e *Env) sse(ctx context.Context) <-chan string {
-	out := make(chan string, 64)
-	in := e.live(ctx)
-	go func() {
-		for ev := range in {
-			out <- ev.Topic
-		}
-	}()
-	return out
-}
-
-// live reads the events of the events stream: their topics and projects.
-func (e *Env) live(ctx context.Context) <-chan events.Event {
+// Events reads the events stream, as a second device would: the topics and projects of the events.
+func (e *Env) Events(ctx context.Context) <-chan events.Event {
 	req, _ := http.NewRequestWithContext(ctx, "GET", e.URL+"/api/events", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	e.owner(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		e.T.Fatal(err)
@@ -60,19 +46,4 @@ func (e *Env) live(ctx context.Context) <-chan events.Event {
 	}()
 	<-ready
 	return ch
-}
-
-func waitTopic(t *testing.T, ch <-chan string, want string) {
-	t.Helper()
-	timeout := time.After(within(5 * time.Second))
-	for {
-		select {
-		case got := <-ch:
-			if got == want {
-				return
-			}
-		case <-timeout:
-			t.Fatalf("no %q event", want)
-		}
-	}
 }

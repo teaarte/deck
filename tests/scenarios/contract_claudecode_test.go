@@ -19,9 +19,9 @@ func TestRateLimitWarningDoesNotPause(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ratelimit_warning.jsonl")
-	e, _ := cliEnv(t, c)
-	p := e.createProject("plain", plainManifest)
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
+	e := New(t, WithCLI(c))
+	p := e.Project("plain", plainManifest)
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("a warning about the limit must not stop the turn, got %+v", got)
 	}
 	res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})

@@ -12,5 +12,5 @@ func (e *Env) example(name string) {
 	if err != nil {
 		e.T.Fatal(err)
 	}
-	e.must("deck.theme_save", map[string]any{"name": name, "text": string(raw)}, nil)
+	e.Must("deck.theme_save", map[string]any{"name": name, "text": string(raw)}, nil)
 }

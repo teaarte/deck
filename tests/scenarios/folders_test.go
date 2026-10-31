@@ -41,43 +41,43 @@ func repoFolder(t *testing.T) string {
 // added, as a repo when it is one, and a rework goes back to the same folder; the Projects tab lists folders.
 func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	p := e.createProject("code", testManifest([]string{folderCommand("run", "true"), agentCommand("plain", ""),
+	e := New(t, WithAgent(ok))
+	p := e.Project("code", testManifest([]string{folderCommand("run", "true"), agentCommand("plain", ""),
 		folderCommand("docs", `"notes"`)}, nil))
-	e.refused("code.run", map[string]any{}, 422, "has no folder yet")
+	e.Refused("code.run", map[string]any{}, 422, "has no folder yet")
 
 	repo := repoFolder(t)
 	var added struct{ Name, Path string }
-	e.must("deck.folder_add", map[string]any{"project": "code", "path": repo}, &added)
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, &added)
 	if added.Name != "my-repo" || added.Path != repo {
 		t.Fatalf("a folder gets the name of its own folder and its real path: %+v", added)
 	}
-	e.refused("deck.folder_add", map[string]any{"project": "code", "path": repo, "name": "again"}, 422, "already has folder")
+	e.Refused("deck.folder_add", map[string]any{"project": "code", "path": repo, "name": "again"}, 422, "already has folder")
 
-	id := e.run(p, "run")
-	e.waitState(id, "done")
+	id := e.Run(p, "run")
+	e.WaitState(id, "done")
 	c := e.Fake.Calls()[0]
 	if c.Cwd != repo || !c.Repo || !strings.Contains(c.Prompt, "You work in the project folder "+repo) {
 		t.Fatalf("the agent works in the project folder as in a repo: cwd %s repo %v", c.Cwd, c.Repo)
 	}
-	plain := e.run(p, "plain")
-	e.waitState(plain, "done")
+	plain := e.Run(p, "plain")
+	e.WaitState(plain, "done")
 	if c := e.Fake.Calls()[1]; c.Cwd == repo || c.Repo || !strings.Contains(c.Cwd, filepath.Join("runs", "")) {
 		t.Fatalf("a command without folder keeps a work folder of its own: %s", c.Cwd)
 	}
-	e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
-	e.waitFor("the rework to run", func() bool { return len(e.Fake.Calls()) == 3 })
-	e.waitState(id, "done")
+	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
+	e.Until("the rework to run", func() bool { return len(e.Fake.Calls()) == 3 })
+	e.WaitState(id, "done")
 	if c := e.Fake.Calls()[2]; c.Cwd != repo || !c.Resume {
 		t.Fatalf("a rework resumes the session in the same folder: %s resume %v", c.Cwd, c.Resume)
 	}
 
-	e.refused("code.docs", map[string]any{}, 422, "has no folder notes")
+	e.Refused("code.docs", map[string]any{}, 422, "has no folder notes")
 	notes := t.TempDir()
-	e.must("deck.folder_add", map[string]any{"project": "code", "path": notes, "name": "notes"}, nil)
-	e.refused("code.run", map[string]any{}, 422, "has 2 folders")
-	docs := e.run(p, "docs")
-	e.waitState(docs, "done")
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": notes, "name": "notes"}, nil)
+	e.Refused("code.run", map[string]any{}, 422, "has 2 folders")
+	docs := e.Run(p, "docs")
+	e.WaitState(docs, "done")
 	if c := e.Fake.Calls()[3]; c.Repo || !strings.HasSuffix(c.Cwd, filepath.Base(notes)) {
 		t.Fatalf("a named folder that is no repo: %s repo %v", c.Cwd, c.Repo)
 	}
@@ -101,17 +101,17 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 	if code, out := e.press(e.rowAction("code", "settings", "deck.folder_remove", map[string]any{"name": "notes"})); code != 200 {
 		t.Fatalf("the remove button of a folder on the settings of the project works: %d %s", code, out)
 	}
-	e.refused("deck.folder_remove", map[string]any{"project": "code", "name": "notes"}, 404, "no folder notes")
+	e.Refused("deck.folder_remove", map[string]any{"project": "code", "name": "notes"}, 404, "no folder notes")
 	if _, err := os.Stat(notes); err != nil {
 		t.Fatalf("removing a folder leaves it on disk: %v", err)
 	}
-	again := e.run(p, "run")
-	e.waitState(again, "done")
+	again := e.Run(p, "run")
+	e.WaitState(again, "done")
 
 	if err := os.RemoveAll(repo); err != nil {
 		t.Fatal(err)
 	}
-	e.refused("code.run", map[string]any{}, 422, "is gone")
+	e.Refused("code.run", map[string]any{}, 422, "is gone")
 }
 
 // TestSecondAgentInTheSameFolderWaitsForTheLock: two projects share a folder, one by a link; the second agent
@@ -119,21 +119,21 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{}, 10)
-	e := newEnv(t, held(release))
+	e := New(t, WithAgent(held(release)))
 	repo := repoFolder(t)
 	link := filepath.Join(t.TempDir(), "link")
 	if err := os.Symlink(repo, link); err != nil {
 		t.Fatal(err)
 	}
-	a := e.createProject("front", testManifest([]string{folderCommand("run", "true")}, nil))
-	b := e.createProject("back", testManifest([]string{folderCommand("run", "true")}, nil))
-	e.must("deck.folder_add", map[string]any{"project": "front", "path": repo}, nil)
-	e.must("deck.folder_add", map[string]any{"project": "back", "path": link, "name": "repo"}, nil)
+	a := e.Project("front", testManifest([]string{folderCommand("run", "true")}, nil))
+	b := e.Project("back", testManifest([]string{folderCommand("run", "true")}, nil))
+	e.Must("deck.folder_add", map[string]any{"project": "front", "path": repo}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "back", "path": link, "name": "repo"}, nil)
 
-	first := e.run(a, "run")
-	e.waitFor("the first agent at its provider", func() bool { return len(e.Fake.Calls()) == 1 })
-	second, third := e.run(b, "run"), e.run(a, "run")
-	e.waitFor("the others to wait for the folder", func() bool {
+	first := e.Run(a, "run")
+	e.Until("the first agent at its provider", func() bool { return len(e.Fake.Calls()) == 1 })
+	second, third := e.Run(b, "run"), e.Run(a, "run")
+	e.Until("the others to wait for the folder", func() bool {
 		return e.states([]int64{first, second, third}) == "running waiting_folder waiting_folder"
 	})
 	waits := 0
@@ -145,21 +145,21 @@ func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
 	if waits != 2 {
 		t.Fatalf("running now says which wait for the folder: %+v", e.cockpitRunning())
 	}
-	e.must("deck.process_stop", map[string]any{"process": third}, nil)
-	e.waitState(third, "stopped")
+	e.Must("deck.process_stop", map[string]any{"process": third}, nil)
+	e.WaitState(third, "stopped")
 
 	release <- struct{}{}
-	e.waitState(first, "done")
-	e.waitFor("the second to take the folder", func() bool { return len(e.Fake.Calls()) == 2 })
+	e.WaitState(first, "done")
+	e.Until("the second to take the folder", func() bool { return len(e.Fake.Calls()) == 2 })
 	if c := e.Fake.Calls()[1]; c.Cwd != repo {
 		t.Fatalf("the second works in the real path of the folder: %s", c.Cwd)
 	}
-	fourth := e.run(a, "run")
-	e.waitState(fourth, "waiting_folder")
+	fourth := e.Run(a, "run")
+	e.WaitState(fourth, "waiting_folder")
 	release <- struct{}{}
-	e.waitState(second, "done")
+	e.WaitState(second, "done")
 	release <- struct{}{}
-	e.waitState(fourth, "done")
+	e.WaitState(fourth, "done")
 	if n := len(e.Fake.Calls()); n != 3 {
 		t.Fatalf("the stopped one never ran: %d calls", n)
 	}
@@ -173,27 +173,27 @@ func TestFolderLockSurvivesARestart(t *testing.T) {
 	hang := make(chan struct{})
 	first := &Fake{script: held(hang)}
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, home, first, withClock(clock))
-	e.Fake, e.Clock = first, clock
-	p := e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
-	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
-	a := e.run(p, "run")
-	e.waitFor("the first at its provider", func() bool { return len(first.Calls()) == 1 })
-	b := e.run(p, "run")
-	e.waitState(b, "waiting_folder")
+	e := New(t, WithHome(home), WithProvider(first), WithClock(clock))
+	p := e.Project("code", testManifest([]string{folderCommand("run", "true")}, nil))
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	a := e.Run(p, "run")
+	e.Until("the first at its provider", func() bool { return len(first.Calls()) == 1 })
+	b := e.Run(p, "run")
+	e.WaitState(b, "waiting_folder")
 
 	release := make(chan struct{}, 4)
 	second := &Fake{script: held(release)}
-	e2 := restart(t, e, home, second)
-	e2.waitFor("the one with the folder resumed", func() bool { return len(second.Calls()) == 1 })
+	e2 := e.Restart(WithProvider(second))
+	e2.Resume()
+	e2.Until("the one with the folder resumed", func() bool { return len(second.Calls()) == 1 })
 	if got := e2.states([]int64{a, b}); got != "running waiting_folder" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
 		t.Fatalf("after a restart the folder stays with its agent: %s, %d calls", got, len(second.Calls()))
 	}
 	release <- struct{}{}
-	e2.waitState(a, "done")
-	e2.waitState(b, "running", "done")
+	e2.WaitState(a, "done")
+	e2.WaitState(b, "running", "done")
 	release <- struct{}{}
-	e2.waitState(b, "done")
+	e2.WaitState(b, "done")
 	if n := len(second.Calls()); n != 2 {
 		t.Fatalf("each of the two reached its provider once: %d calls", n)
 	}
@@ -204,21 +204,22 @@ func TestFolderLockSurvivesARestart(t *testing.T) {
 func TestOnlyTheOwnerAddsAFolder(t *testing.T) {
 	t.Parallel()
 	var tools []string
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		tools = toolNames(c.Session)
 		out, _ := c.Tool(ctx, "folder_add", map[string]any{"path": "/tmp"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`), Text: out}
-	})
-	p := e.createProject("code", testManifest([]string{agentCommand("job", "")}, nil))
+	}))
+
+	p := e.Project("code", testManifest([]string{agentCommand("job", "")}, nil))
 	_, tok := e.token("terminal", "deck.*")
 	for _, name := range []string{"deck.folder_add", "deck.folder_remove"} {
-		code, out := e.callWith(tok, name, map[string]any{"project": "code", "path": t.TempDir(), "name": "x"})
+		code, out := e.As(tok).Call(name, map[string]any{"project": "code", "path": t.TempDir(), "name": "x"})
 		if code != 403 {
 			t.Fatalf("%s on an automation token: %d %s", name, code, out)
 		}
 	}
-	id := e.run(p, "job")
-	e.waitState(id, "done")
+	id := e.Run(p, "job")
+	e.WaitState(id, "done")
 	for _, n := range tools {
 		if strings.Contains(n, "folder_") {
 			t.Fatalf("an agent is offered %s", n)
@@ -229,11 +230,11 @@ func TestOnlyTheOwnerAddsAFolder(t *testing.T) {
 	if len(list[0].Folders) != 0 {
 		t.Fatalf("nobody but the owner added a folder: %+v", list)
 	}
-	e.refused("deck.folder_add", map[string]any{"project": "code", "path": "relative/path"}, 422, "not an absolute path")
-	e.refused("deck.folder_add", map[string]any{"project": "code", "path": filepath.Join(t.TempDir(), "missing")}, 422, "does not exist")
-	e.refused("deck.folder_add", map[string]any{"project": "code", "path": e.App.Cfg.Home}, 422, "deck's own folder")
-	e.refused("deck.folder_add", map[string]any{"project": "code", "path": filepath.Dir(e.App.Cfg.Home)}, 422, "deck's own folder")
-	e.refused("deck.folder_add", map[string]any{"project": "code", "path": t.TempDir(), "name": "Bad Name"}, 422, "folder name")
+	e.Refused("deck.folder_add", map[string]any{"project": "code", "path": "relative/path"}, 422, "not an absolute path")
+	e.Refused("deck.folder_add", map[string]any{"project": "code", "path": filepath.Join(t.TempDir(), "missing")}, 422, "does not exist")
+	e.Refused("deck.folder_add", map[string]any{"project": "code", "path": e.App.Cfg.Home}, 422, "deck's own folder")
+	e.Refused("deck.folder_add", map[string]any{"project": "code", "path": filepath.Dir(e.App.Cfg.Home)}, 422, "deck's own folder")
+	e.Refused("deck.folder_add", map[string]any{"project": "code", "path": t.TempDir(), "name": "Bad Name"}, 422, "folder name")
 }
 
 // TestCodexAgentInTheProjectFolderMayWriteItsGit: the profile of a Codex turn in a repo folder writes the folder
@@ -242,12 +243,13 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
-	e, home := codexEnv(t, c)
-	p := e.createProject("paint", strings.Replace(colorManifest, `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": "main",`, 1))
+	e := New(t, WithCodex(c))
+	home := e.Home
+	p := e.Project("paint", strings.Replace(colorManifest, `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": "main",`, 1))
 	repo := repoFolder(t)
-	e.must("deck.folder_add", map[string]any{"project": "paint", "path": repo, "name": "main"}, nil)
-	id := e.run(p, "work")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	e.Must("deck.folder_add", map[string]any{"project": "paint", "path": repo, "name": "main"}, nil)
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done: %+v", got)
 	}
 	cc := c.call(1)
@@ -264,10 +266,10 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	if err := errors.Join(os.MkdirAll(tree, 0o700), os.WriteFile(filepath.Join(tree, ".git"), []byte("gitdir: "+home+"\n"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.folder_remove", map[string]any{"project": "paint", "name": "main"}, nil)
-	e.must("deck.folder_add", map[string]any{"project": "paint", "path": tree, "name": "main"}, nil)
-	id = e.run(p, "work")
-	e.waitState(id, "done", "error")
+	e.Must("deck.folder_remove", map[string]any{"project": "paint", "name": "main"}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "paint", "path": tree, "name": "main"}, nil)
+	id = e.Run(p, "work")
+	e.WaitState(id, "done", "error")
 	fs, _ = c.call(2).config("permissions.deck.filesystem")
 	if !strings.Contains(fs, quoteTOML(tree)+`="write"`) || !strings.Contains(fs, quoteTOML(deckhome.Layout(home).State())+`="deny"`) || strings.Contains(fs, quoteTOML(home)+`="write"`) {
 		t.Fatalf("a .git file grants nothing: %s", fs)
@@ -278,11 +280,11 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 // alone, and the folder forms offer the projects.
 func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	for _, title := range []string{"Create module", "Import module"} {
 		e.settingsBlock(title, nil)
 	}
-	e.must("deck.project_create", map[string]any{"name": "notes", "prompt": "Notes of the owner.\n"}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "notes", "prompt": "Notes of the owner.\n"}, nil)
 	var list []struct{ Name, Status, Description string }
 	e.projectsOf(&list)
 	if len(list) != 1 || list[0].Status != "enabled" || list[0].Description != "Notes of the owner." {
@@ -306,19 +308,18 @@ func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}}
 	clock := &Clock{now: t0}
-	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other}, withClock(clock))
-	e.Clock = clock
-	p := e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
-	e.useModels("code.run", "fake")
-	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
-	a := e.run(p, "run")
-	e.waitState(a, "rate_limited")
-	e.useModels("code.run", "fake", "other")
-	b := e.run(p, "run")
-	e.waitState(b, "waiting_folder")
-	e.must("deck.process_stop", map[string]any{"process": a}, nil)
-	e.waitState(a, "stopped")
-	e.waitState(b, "done")
+	e := New(t, WithProvider(main, other), WithClock(clock))
+	p := e.Project("code", testManifest([]string{folderCommand("run", "true")}, nil))
+	e.UseModels("code.run", "fake")
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	a := e.Run(p, "run")
+	e.WaitState(a, "rate_limited")
+	e.UseModels("code.run", "fake", "other")
+	b := e.Run(p, "run")
+	e.WaitState(b, "waiting_folder")
+	e.Must("deck.process_stop", map[string]any{"process": a}, nil)
+	e.WaitState(a, "stopped")
+	e.WaitState(b, "done")
 }
 
 // TestAStoppedAgentKeepsTheFolderUntilItsTurnExits: a stopped agent whose turn takes a while to die keeps the
@@ -329,7 +330,7 @@ func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
 	var once sync.Once
 	let := func() { once.Do(func() { close(dying) }) }
 	var early atomic.Bool
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
 			close(inside)
 			<-ctx.Done()
@@ -341,23 +342,24 @@ func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
 			early.Store(true)
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	})
-	t.Cleanup(let)
-	p := e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
-	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
-	first := e.run(p, "run")
-	<-inside
-	second := e.run(p, "run")
-	e.waitState(second, "waiting_folder")
+	}))
 
-	e.must("deck.process_stop", map[string]any{"process": first}, nil)
-	e.waitState(first, "stopped")
-	e.refused("deck.process_rework", map[string]any{"process": first, "remark": "again"}, 409, "still stopping")
-	if s := e.process(second).State; s != "waiting_folder" {
+	t.Cleanup(let)
+	p := e.Project("code", testManifest([]string{folderCommand("run", "true")}, nil))
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	first := e.Run(p, "run")
+	<-inside
+	second := e.Run(p, "run")
+	e.WaitState(second, "waiting_folder")
+
+	e.Must("deck.process_stop", map[string]any{"process": first}, nil)
+	e.WaitState(first, "stopped")
+	e.Refused("deck.process_rework", map[string]any{"process": first, "remark": "again"}, 409, "still stopping")
+	if s := e.Proc(second).State; s != "waiting_folder" {
 		t.Fatalf("the folder waits for the stopped turn to exit: %s", s)
 	}
 	let()
-	e.waitState(second, "done")
+	e.WaitState(second, "done")
 	if early.Load() {
 		t.Fatal("the next agent reached its provider in the folder before the stopped turn exited")
 	}

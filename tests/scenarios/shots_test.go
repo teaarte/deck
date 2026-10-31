@@ -17,7 +17,7 @@ import (
 func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 	t.Parallel()
 	got := make(chan string, 1)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/deck/look", "scheme": "dark", "device": "phone"})
 		if bad {
 			got <- "refused: " + out
@@ -25,7 +25,8 @@ func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 			got <- out
 		}
 		return provider.Result{Text: "Looked."}
-	})
+	}))
+
 	e.say(0, "how does the settings screen look?")
 	var shot struct {
 		File, Path string
@@ -44,31 +45,31 @@ func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 		Kept *bool
 		MS   int64
 	}
-	e.must("deck.screen_shot", map[string]any{"address": "#/"}, &owner)
+	e.Must("deck.screen_shot", map[string]any{"address": "#/"}, &owner)
 	if owner.Kept == nil || *owner.Kept || owner.MS != 12 {
 		t.Fatalf("the owner without a process gets the time alone: %+v", owner)
 	}
-	e.refused("deck.screen_shot", map[string]any{"address": "https://example.com"}, 422, "begins with #/")
-	e.refused("deck.screen_shot", map[string]any{"address": "#/", "theme": "nope"}, 404, `no theme "nope"`)
+	e.Refused("deck.screen_shot", map[string]any{"address": "https://example.com"}, 422, "begins with #/")
+	e.Refused("deck.screen_shot", map[string]any{"address": "#/", "theme": "nope"}, 404, `no theme "nope"`)
 }
 
 // A token deck lends its own browser acts as its caller for a while and only reads: a page opens, nothing changes,
 // and once returned it opens nothing.
 func TestALentTokenOnlyReadsWhileItLasts(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	tok := e.App.Tokens.Lend(registry.Actor{Kind: registry.Master, Workspace: 1}, time.Minute)
-	if code, out := e.callWith(tok, "deck.screen", map[string]any{"screen": "settings"}); code != 200 {
+	if code, out := e.As(tok).Call("deck.screen", map[string]any{"screen": "settings"}); code != 200 {
 		t.Fatalf("a lent token reads a screen: %d %s", code, out)
 	}
-	if code, out := e.callWith(tok, "deck.menu", map[string]any{}); code != 200 {
+	if code, out := e.As(tok).Call("deck.menu", map[string]any{}); code != 200 {
 		t.Fatalf("a lent token reads the menu: %d %s", code, out)
 	}
-	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "x", "manifest": plainManifest}); code != 403 || !strings.Contains(string(out), "only reads") {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "x", "manifest": plainManifest}); code != 403 || !strings.Contains(string(out), "only reads") {
 		t.Fatalf("a lent token changes nothing: %d %s", code, out)
 	}
 	e.App.Tokens.Return(tok)
-	if code, _ := e.callWith(tok, "deck.menu", map[string]any{}); code != 401 {
+	if code, _ := e.As(tok).Call("deck.menu", map[string]any{}); code != 401 {
 		t.Fatalf("a returned token opens nothing: %d", code)
 	}
 }

@@ -72,27 +72,27 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	e.createProject("lab", labManifest)
+	e := New(t, WithAgent(ok))
+	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Project("lab", labManifest)
 	start := time.Now().UTC().Truncate(time.Hour).Add(-7 * 24 * time.Hour)
 	var prices []map[string]any
 	for h := range 7 * 24 {
 		prices = append(prices, map[string]any{"at": start.Add(time.Duration(h) * time.Hour).Format(time.RFC3339), "price": 80000 + 1200*float64(h%37)/37 + float64(h)*3})
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "prices", "records": jsonl(prices...)}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "tasks", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "prices", "records": jsonl(prices...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "tasks", "records": jsonl(
 		map[string]any{"title": "Finished long ago", "order": 1, "status": "done"},
 		map[string]any{"title": "Next to do", "order": 2, "status": "todo"},
 		map[string]any{"title": "Doing now", "order": 3, "status": "doing"})}, nil)
-	e.createProject("lab2", labManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "lab2", "collection": "prices", "records": jsonl(prices...)}, nil)
-	e.must("deck.theme_save", map[string]any{"name": "pult", "text": `{"version": 1, "title": {"en": "Pult"}, "mood": "m", "accent": "orange"}`}, nil)
+	e.Project("lab2", labManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "lab2", "collection": "prices", "records": jsonl(prices...)}, nil)
+	e.Must("deck.theme_save", map[string]any{"name": "pult", "text": `{"version": 1, "title": {"en": "Pult"}, "mood": "m", "accent": "orange"}`}, nil)
 	for _, scheme := range []string{"light", "dark"} {
 		id := e.upload("master", "cockpit.png", "image/png", console())
-		e.must("deck.theme_image", map[string]any{"theme": "pult", "slot": "cockpit", "scheme": scheme, "file": fmt.Sprint(id)}, nil)
+		e.Must("deck.theme_image", map[string]any{"theme": "pult", "slot": "cockpit", "scheme": scheme, "file": fmt.Sprint(id)}, nil)
 	}
-	e.must("deck.theme_use", map[string]any{"name": "pult"}, nil)
+	e.Must("deck.theme_use", map[string]any{"name": "pult"}, nil)
 	b := newPlaywright(t)
 	for _, phone := range []bool{false, true} {
 		width, height, look := 1280, 900, "pc"
@@ -100,7 +100,7 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 			width, height, look = 390, 844, "phone"
 		}
 		b.call("browser_resize", map[string]any{"width": width, "height": height})
-		b.open(e.URL + "/?token=" + token + "#/")
+		b.Open(e, "#/")
 		b.until("the cards", `document.querySelector('[data-cell="today"] [data-widget]') && document.querySelector('[data-cols]')`)
 		cols := colsOf(b)
 		device := b.eval(`localStorage.getItem('deck-device')`)

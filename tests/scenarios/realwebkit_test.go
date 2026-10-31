@@ -21,13 +21,13 @@ func TestRealBrowserCustomBlockWorksInWebKit(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotesMark)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "a"})}, nil)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customData}, nil)
+	e := New(t, WithAgent(webNotesAgent()))
+	e.Project("web", webNotesMark)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "a"})}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customData}, nil)
 	b := newPlaywright(t, "webkit")
-	b.open(e.URL + "/?token=" + token + "#/p/web/main")
-	e.waitFor("the block got its data", func() bool {
+	b.Open(e, "#/p/web/main")
+	e.Until("the block got its data", func() bool {
 		for _, c := range e.Fake.Calls() {
 			if strings.Contains(c.Prompt, "items 1") {
 				return true
@@ -44,11 +44,11 @@ func TestRealBrowserCustomBlockSaysWhatTheBrowserRefused(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotesMark)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
+	e := New(t, WithAgent(webNotesAgent()))
+	e.Project("web", webNotesMark)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
 		"text": `<!doctype html><html><body><script src="https://example.com/lib.js"></script></body></html>`}, nil)
 	b := newPlaywright(t)
-	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.Open(e, "#/p/web/main")
 	b.until("the refusal beside the block", `document.querySelector('[data-custom-error]')?.innerText.includes('example.com')`)
 }

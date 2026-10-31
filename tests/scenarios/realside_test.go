@@ -17,10 +17,10 @@ func TestRealBrowserTheSidePanelOfAScreen(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, nil)
-	e.createProject("lab", strings.Replace(sideManifest, `"screens": [`, `"menu": ["lab", "all"], "screens": [{"name": "all", "title": "All",
+	e := New(t)
+	e.Project("lab", strings.Replace(sideManifest, `"screens": [`, `"menu": ["lab", "all"], "screens": [{"name": "all", "title": "All",
     "blocks": [{"type": "stat", "title": "All", "source": {"collection": "trades"}}]}, `, 1))
-	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
 		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
 
@@ -33,7 +33,7 @@ func TestRealBrowserTheSidePanelOfAScreen(t *testing.T) {
 	}
 
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 820})
-	b.open(e.URL + "/?token=" + token + "#/p/lab/lab")
+	b.Open(e, "#/p/lab/lab")
 	b.until("the panel beside the blocks", `(() => { const s = document.querySelector('[data-side]'), g = document.querySelector('[data-with-side] [data-grid]');
 		return !!s && !!g && s.offsetParent && s.getBoundingClientRect().right <= g.getBoundingClientRect().left })()`)
 	b.until("every trade", rows+` === 3`)
@@ -70,15 +70,15 @@ func TestRealBrowserAFilterStartsOnItsDefault(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, nil)
-	e.createProject("lab", strings.Replace(sideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
-	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
+	e := New(t)
+	e.Project("lab", strings.Replace(sideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
 		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
 	b := newPlaywright(t)
 	rows := `[...document.querySelectorAll('[data-grid] tbody tr')].filter((x) => x.offsetParent).length`
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 820})
-	b.open(e.URL + "/?token=" + token + "#/p/lab/lab")
+	b.Open(e, "#/p/lab/lab")
 	b.until("the default picked", rows+` === 2 && document.querySelector('[data-side-filter="coin"]').value === 'BTC'`)
 	b.eval(`(document.querySelector('[data-side-filter="coin"]').click(), '')`)
 	b.until("all offered first", `[...document.querySelectorAll('[role=option]')][0]?.innerText.trim() === 'All'`)
@@ -98,18 +98,19 @@ func TestRealBrowserAWorkTellsItsTopic(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	var from atomic.Int64
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "work" {
 			return provider.Result{Text: "Counted: **3 records**."}
 		}
 		return handOver(ctx, c, &from)
-	})
+	}))
+
 	topic := e.say(0, "count the records")
 	e.told(topic, "done", "")
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 820})
-	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	told := `document.querySelector('[data-chat-panel] [data-told="done"]')`

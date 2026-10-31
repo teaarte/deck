@@ -26,7 +26,7 @@ const twoRunsManifest = `{"version": 13,
 func (e *Env) doneToday() string {
 	e.T.Helper()
 	var lines []struct{ ID, Title string }
-	e.must("deck.today", nil, &lines)
+	e.Must("deck.today", nil, &lines)
 	i := slices.IndexFunc(lines, func(l struct{ ID, Title string }) bool { return l.ID == "day" })
 	if i < 0 {
 		e.T.Fatalf("Today has a line of the day: %+v", lines)
@@ -38,8 +38,8 @@ func (e *Env) doneToday() string {
 // midnight, more than a page of them, but not the runs of the schedule that only read; it does not go down.
 func TestDoneTodayCountsTheOwnersDayWithoutEmptyRuns(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	p := e.createProject("jobs", twoRunsManifest)
+	e := New(t, WithClock())
+	p := e.Project("jobs", twoRunsManifest)
 	e.saveScript("jobs", "scripts/look.py", pythonLib+`
 st, out = deck("deck.records_list", {"collection": "items"})
 print(json.dumps({"updated": []}))
@@ -68,7 +68,7 @@ print(json.dumps({"updated": ["a"]}))
 
 	e.Clock.Add(time.Hour + time.Minute)
 	e.tick()
-	e.waitFor("both runs of the schedule to end", func() bool {
+	e.Until("both runs of the schedule to end", func() bool {
 		var n int
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM process WHERE project_id = ? AND trigger_id IS NOT NULL AND finished_at IS NOT NULL`, p).Scan(&n)
 		return n == 2
@@ -77,7 +77,7 @@ print(json.dumps({"updated": ["a"]}))
 		t.Fatalf("a run of the schedule that wrote counts, one that only read does not: %s", got)
 	}
 	var ru []struct{ ID, Title string }
-	e.must("deck.today", map[string]any{"lang": "ru"}, &ru)
+	e.Must("deck.today", map[string]any{"lang": "ru"}, &ru)
 	if !slices.ContainsFunc(ru, func(l struct{ ID, Title string }) bool {
 		return strings.HasPrefix(l.Title, fmt.Sprint("Сделано сегодня: 606"))
 	}) {

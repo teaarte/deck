@@ -56,12 +56,12 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 			return 200, "application/json", chatText("```json\n{\"verdict\": \"false\", \"confidence\": 0.9}\n```")
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "input_usd": 0.5, "output_usd": 1}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
-	e.createProject("shorts", modelManifest)
-	got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "Snails beat knights in 1300"}), "done", "error")
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "input_usd": 0.5, "output_usd": 1}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
+	e.Project("shorts", modelManifest)
+	got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "Snails beat knights in 1300"}), "done", "error")
 	if got.State != "done" || got.NotBySchema || string(got.Result) != `{"confidence":0.9,"verdict":"false"}` {
 		t.Fatalf("the model's JSON is the result: %+v", got)
 	}
@@ -92,19 +92,19 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 			return 200, "application/json", `{"text": "Knights against snails", "words": [{"word": "Knights", "start": 0.1, "end": 0.5}]}`
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
 	for kind, model := range map[string]string{"image": "google/gemini-3.1-flash-lite-image", "tts": "openai/gpt-5-mini-tts", "stt": "openai/whisper-1"} {
-		e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": model, "kind": kind}, nil)
-		e.must("deck.assignment_set", map[string]any{"role": kind, "models": []string{"openrouter/" + model}}, nil)
+		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": model, "kind": kind}, nil)
+		e.Must("deck.assignment_set", map[string]any{"role": kind, "models": []string{"openrouter/" + model}}, nil)
 	}
-	e.createProject("shorts", modelManifest)
+	e.Project("shorts", modelManifest)
 	for _, c := range []struct {
 		command string
 		input   map[string]any
 		file    string
 	}{{"picture", map[string]any{"scene": "a painter at a desk"}, "image/png"}, {"voice", map[string]any{"text": "Knights against snails"}, "audio/mpeg"}} {
-		got := e.waitState(e.start("shorts", c.command, c.input), "done", "error")
+		got := e.WaitState(e.Start("shorts", c.command, c.input), "done", "error")
 		var res struct {
 			Type  string `json:"type"`
 			Files []struct {
@@ -126,8 +126,8 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 		t.Fatalf("speech speaks the text field with the voice of the options (never their model) and the prompt as instructions: %+v", calls[2].Body)
 	}
 	var f struct{ ID int64 }
-	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "voice.mp3", "content": base64.StdEncoding.EncodeToString([]byte("ID3-recorded"))}, &f)
-	got := e.waitState(e.start("shorts", "words", map[string]any{"voice": fmt.Sprint(f.ID)}), "done", "error")
+	e.Must("deck.file_upload", map[string]any{"project": "shorts", "name": "voice.mp3", "content": base64.StdEncoding.EncodeToString([]byte("ID3-recorded"))}, &f)
+	got := e.WaitState(e.Start("shorts", "words", map[string]any{"voice": fmt.Sprint(f.ID)}), "done", "error")
 	if got.State != "done" || !strings.Contains(string(got.Result), `"text":"Knights against snails"`) || !strings.Contains(string(got.Result), `"words"`) {
 		t.Fatalf("the words of the recording are the result: %+v", got)
 	}
@@ -145,20 +145,20 @@ func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.6}`)
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
-	e.createProject("shorts", modelManifest)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
+	e.Project("shorts", modelManifest)
 	var tried struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"live": true, "only": true, "command": "shorts.factcheck", "input": map[string]any{"claim": "two"}}, &tried)
-	e.waitState(tried.Process, "waiting_answer")
+	e.Must("deck.command_try", map[string]any{"live": true, "only": true, "command": "shorts.factcheck", "input": map[string]any{"claim": "two"}}, &tried)
+	e.WaitState(tried.Process, "waiting_answer")
 	if n := len(api.made()); n != 0 {
 		t.Fatalf("a trial's call of a paid model does not reach it before the yes: %d calls", n)
 	}
-	a := e.waitAsk()
-	e.must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, nil)
-	if got := e.waitState(tried.Process, "done", "error"); got.State != "done" || string(got.Result) != `{"confidence":0.6,"verdict":"true"}` {
+	a := e.WaitAsk()
+	e.Must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, nil)
+	if got := e.WaitState(tried.Process, "done", "error"); got.State != "done" || string(got.Result) != `{"confidence":0.6,"verdict":"true"}` {
 		t.Fatalf("the owner's yes makes the call and the process ends with its answer: %+v", got)
 	}
 }
@@ -172,16 +172,16 @@ func TestAModelCallSpeaksTheOpenAICompatibleProtocol(t *testing.T) {
 			return 200, "application/json", chatText(`{"verdict": "unclear", "confidence": 0.4}`)
 		},
 	})
-	e := newEnvWith(t, t.TempDir(), &Fake{})
-	e.must("deck.connection_set", map[string]any{"name": "native", "api": "google", "url": api.URL + "/v1beta", "key": "AIza-1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "native", "model": "gemini-3.8-flash", "name": "native-gemini", "kind": "text"}, nil)
-	e.createProject("shorts", strings.Replace(modelManifest, `"kind": "text",`, `"kind": "text", "model": "native-gemini",`, 1))
-	got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
+	e := New(t, WithProvider(&Fake{}))
+	e.Must("deck.connection_set", map[string]any{"name": "native", "api": "google", "url": api.URL + "/v1beta", "key": "AIza-1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "native", "model": "gemini-3.8-flash", "name": "native-gemini", "kind": "text"}, nil)
+	e.Project("shorts", strings.Replace(modelManifest, `"kind": "text",`, `"kind": "text", "model": "native-gemini",`, 1))
+	got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
 	if got.State != "error" || !strings.Contains(got.Error, "OpenAI-compatible") || len(api.made()) != 0 {
 		t.Fatalf("a connection of the Google API says to use its OpenAI-compatible address: %+v", got)
 	}
-	e.must("deck.connection_set", map[string]any{"name": "native", "api": "openai", "url": api.URL + "/v1beta/openai", "key": "AIza-1"}, nil)
-	got = e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
+	e.Must("deck.connection_set", map[string]any{"name": "native", "api": "openai", "url": api.URL + "/v1beta/openai", "key": "AIza-1"}, nil)
+	got = e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
 	if got.State != "done" || string(got.Result) != `{"confidence":0.4,"verdict":"unclear"}` || api.made()[0].Auth != "Bearer AIza-1" {
 		t.Fatalf("the OpenAI-compatible address of Google answers: %+v %+v", got, api.made())
 	}
@@ -202,7 +202,7 @@ func (f *fakeModels) made() []modelCall {
 // what to give it.
 func TestAModelCommandGetsWhatItsKindNeeds(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	for _, c := range []struct{ from, to, want string }{
 		{`"kind": "text", "prompt": "Check the claim against what is known."`, `"kind": "text"`, "needs prompt or prompt_file"},
 		{`"kind": "text",`, `"kind": "text", "model": "@image",`, "is @text or a model by name"},
@@ -210,7 +210,7 @@ func TestAModelCommandGetsWhatItsKindNeeds(t *testing.T) {
 		{`"properties": {"voice": {"type": "string", "format": "file"}}`, `"properties": {"voice": {"type": "string"}}`, "one input field of format file"},
 		{`"kind": "stt"`, `"kind": "hologram"`, "manifest does not match the format"},
 	} {
-		code, out := e.call("deck.project_create", map[string]any{"name": "shorts", "manifest": strings.Replace(modelManifest, c.from, c.to, 1)})
+		code, out := e.Call("deck.project_create", map[string]any{"name": "shorts", "manifest": strings.Replace(modelManifest, c.from, c.to, 1)})
 		if code == 200 || !strings.Contains(string(out), c.want) {
 			t.Fatalf("%s: refused with %q, got %d %s", c.to, c.want, code, out)
 		}
@@ -231,14 +231,14 @@ func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 1}`)
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "cut", "api": "openai", "url": cut.URL + "/v1"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "cut", "model": "a", "kind": "text", "free": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "b", "kind": "text", "free": true}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"cut/a", "spare/b"}}, nil)
-	e.createProject("shorts", modelManifest)
-	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error"); got.State != "error" || len(spare.made()) != 0 {
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "cut", "api": "openai", "url": cut.URL + "/v1"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "cut", "model": "a", "kind": "text", "free": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "spare", "model": "b", "kind": "text", "free": true}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"cut/a", "spare/b"}}, nil)
+	e.Project("shorts", modelManifest)
+	if got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error"); got.State != "error" || len(spare.made()) != 0 {
 		t.Fatalf("a cut answer is an error and the fallback is not asked: %+v", got)
 	}
 }
@@ -254,34 +254,34 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 	})
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, `{"hang": true}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
-	id := e.run(e.acpProject("paint", writtenManifest), "work")
-	e.waitFor("the turn", func() bool { return f.calls() >= 4 && f.call(4).request("session/prompt") != nil })
-	e.refused("deck.model_remove", map[string]any{"name": "acp"}, 422, "still run on acp")
-	e.must("deck.process_stop", map[string]any{"process": id}, nil)
-	e.waitState(id, "stopped")
-	e.waitFor("the turn to end", func() bool {
-		code, _ := e.call("deck.model_remove", map[string]any{"name": "acp"})
+	e := New(t, WithACP(f, acpLLM(t)))
+	id := e.Run(e.acpProject("paint", writtenManifest), "work")
+	e.Until("the turn", func() bool { return f.calls() >= 4 && f.call(4).request("session/prompt") != nil })
+	e.Refused("deck.model_remove", map[string]any{"name": "acp"}, 422, "still run on acp")
+	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
+	e.WaitState(id, "stopped")
+	e.Until("the turn to end", func() bool {
+		code, _ := e.Call("deck.model_remove", map[string]any{"name": "acp"})
 		return code == 200
 	})
 
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
 	for _, m := range []string{"fact-model", "spare-model"} {
-		e.must("deck.model_set", map[string]any{"connection": "groq", "model": m, "kind": "text", "input_usd": 0.5, "output_usd": 1}, nil)
+		e.Must("deck.model_set", map[string]any{"connection": "groq", "model": m, "kind": "text", "input_usd": 0.5, "output_usd": 1}, nil)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model", "groq/spare-model"}}, nil)
-	e.refused("deck.connection_remove", map[string]any{"name": "groq"}, 422, "remove the models first")
-	e.must("deck.model_remove", map[string]any{"name": "groq/fact-model"}, nil)
-	e.createProject("shorts", modelManifest)
-	got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "Owls are birds"}), "done", "error")
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model", "groq/spare-model"}}, nil)
+	e.Refused("deck.connection_remove", map[string]any{"name": "groq"}, 422, "remove the models first")
+	e.Must("deck.model_remove", map[string]any{"name": "groq/fact-model"}, nil)
+	e.Project("shorts", modelManifest)
+	got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "Owls are birds"}), "done", "error")
 	if c := api.calls(); got.State != "done" || len(c) != 1 || c[0].Model != "spare-model" {
 		t.Fatalf("the assignment goes on with the next model: %+v %+v", got, c)
 	}
-	e.refused("deck.connection_remove", map[string]any{"name": "groq"}, 422, "model groq/spare-model")
-	e.must("deck.model_remove", map[string]any{"name": "groq/spare-model"}, nil)
-	e.must("deck.connection_remove", map[string]any{"name": "groq"}, nil)
+	e.Refused("deck.connection_remove", map[string]any{"name": "groq"}, 422, "model groq/spare-model")
+	e.Must("deck.model_remove", map[string]any{"name": "groq/spare-model"}, nil)
+	e.Must("deck.connection_remove", map[string]any{"name": "groq"}, nil)
 	var ms struct{ Connections []struct{ Name string } }
-	e.must("deck.models_list", nil, &ms)
+	e.Must("deck.models_list", nil, &ms)
 	for _, c := range ms.Connections {
 		if c.Name == "groq" {
 			t.Fatalf("the connection without models goes: %+v", ms.Connections)
@@ -303,13 +303,13 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	})
 	down := httptest.NewServer(http.NotFoundHandler())
 	down.Close()
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": down.URL + "/v1", "local": true}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.04}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"local-image", "openrouter/painter"}}, nil)
-	e.createProject("shorts", modelManifest)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": down.URL + "/v1", "local": true}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.04}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"local-image", "openrouter/painter"}}, nil)
+	e.Project("shorts", modelManifest)
 	health := func() (string, string) {
 		var status, text string
 		_ = e.App.Store.DB.QueryRow(`SELECT status, error FROM health WHERE subject = 'model:local-image' AND workspace_id IS NOT NULL`).Scan(&status, &text)
@@ -317,7 +317,7 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	}
 	using := func() string {
 		var m modelsOut
-		e.must("deck.models_list", nil, &m)
+		e.Must("deck.models_list", nil, &m)
 		for _, a := range m.Assignments {
 			if a.Role == "image" {
 				return a.Using
@@ -325,15 +325,14 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 		}
 		return ""
 	}
-	if got := e.waitState(e.start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" {
+	if got := e.WaitState(e.Start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" {
 		t.Fatalf("the fallback draws the picture: %+v", got)
 	}
 	if status, text := health(); status != "error" || text != "did not answer; openrouter/painter takes its work" || using() != "openrouter/painter" {
 		t.Fatalf("the model that did not answer is red, names the one that took its work, and the assignment shows it: %s %q %s", status, text, using())
 	}
-	var rows []struct{ Subject, Status string }
-	e.must("deck.health_list", nil, &rows)
-	if !slices.ContainsFunc(rows, func(r struct{ Subject, Status string }) bool {
+	rows := e.Health()
+	if !slices.ContainsFunc(rows, func(r HealthRow) bool {
 		return r.Subject == "model:local-image" && r.Status == "error"
 	}) {
 		t.Fatalf("the red model is on the list of health: %+v", rows)
@@ -343,13 +342,13 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 			return 401, "application/json", `{"error": "bad key"}`
 		},
 	})
-	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": refusing.URL + "/v1", "local": true}, nil)
-	e.waitState(e.start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error")
+	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": refusing.URL + "/v1", "local": true}, nil)
+	e.WaitState(e.Start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error")
 	if status, _ := health(); status != "error" {
 		t.Fatalf("a refusal is no good answer: %s", status)
 	}
-	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": local.URL + "/v1", "local": true}, nil)
-	if got := e.waitState(e.start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" || len(local.calls()) != 1 {
+	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": local.URL + "/v1", "local": true}, nil)
+	if got := e.WaitState(e.Start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" || len(local.calls()) != 1 {
 		t.Fatalf("the first model draws again once it is up: %+v", got)
 	}
 	if status, _ := health(); status != "ok" || using() != "local-image" {
@@ -383,16 +382,16 @@ func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
 			return 200, "text/event-stream", audioStream("ID3\x04\x00", "-track")
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": local.URL + "/v1", "local": true}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "media", "model": "medium", "name": "local-music", "kind": "music", "free": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/lyria-3-pro-preview", "name": "lyria", "kind": "music", "call_usd": 0.08}, nil)
-	e.createProject("shorts", modelManifest)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": local.URL + "/v1", "local": true}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "medium", "name": "local-music", "kind": "music", "free": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/lyria-3-pro-preview", "name": "lyria", "kind": "music", "call_usd": 0.08}, nil)
+	e.Project("shorts", modelManifest)
 	track := func(model, want string) {
 		t.Helper()
-		e.must("deck.assignment_set", map[string]any{"role": "music", "models": []string{model}}, nil)
-		got := e.waitState(e.start("shorts", "track", map[string]any{"mood": "calm"}), "done", "error")
+		e.Must("deck.assignment_set", map[string]any{"role": "music", "models": []string{model}}, nil)
+		got := e.WaitState(e.Start("shorts", "track", map[string]any{"mood": "calm"}), "done", "error")
 		var res struct {
 			Type  string   `json:"type"`
 			Model string   `json:"model"`
@@ -445,42 +444,42 @@ func TestAModelPricedPerCharOrSecondCostsWhatItTook(t *testing.T) {
 				`{"text": "hi", "duration": 3}`, `{"text": "hi"}`}[min(heard-1, 2)]
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
-	e.refused("deck.model_set", map[string]any{"connection": "openrouter", "model": "fish", "kind": "tts", "unit": "char", "input_usd": 15, "output_usd": 1}, 422, "char")
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
+	e.Refused("deck.model_set", map[string]any{"connection": "openrouter", "model": "fish", "kind": "tts", "unit": "char", "input_usd": 15, "output_usd": 1}, 422, "char")
 	var m struct{ Unit string }
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "fish", "name": "fish", "kind": "tts", "unit": "char", "input_usd": 15}, &m)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "whisper", "name": "whisper", "kind": "stt", "unit": "second", "input_usd": 100}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "fish", "name": "fish", "kind": "tts", "unit": "char", "input_usd": 15}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "whisper", "name": "whisper", "kind": "stt", "unit": "second", "input_usd": 100}, nil)
 	if m.Unit != "char" {
 		t.Fatalf("the model says its unit: %+v", m)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "fish", "name": "fish", "kind": "tts"}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "fish", "name": "fish", "kind": "tts"}, &m)
 	if m.Unit != "char" {
 		t.Fatalf("a model changed without a unit keeps its own: %+v", m)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"fish"}}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"whisper"}}, nil)
-	e.createProject("shorts", modelManifest)
+	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"fish"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"whisper"}}, nil)
+	e.Project("shorts", modelManifest)
 	var voice struct {
 		Cost *float64 `json:"cost_usd"`
 	}
-	if got := e.waitState(e.start("shorts", "voice", map[string]any{"text": "Hello wörld"}), "done", "error"); json.Unmarshal(got.Result, &voice) != nil ||
+	if got := e.WaitState(e.Start("shorts", "voice", map[string]any{"text": "Hello wörld"}), "done", "error"); json.Unmarshal(got.Result, &voice) != nil ||
 		voice.Cost == nil || math.Abs(*voice.Cost-11*15/1e6) > 1e-12 {
 		t.Fatalf("speech costs the characters deck sent: %+v", got)
 	}
 	var f struct{ ID int64 }
-	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "voice.mp3", "content": base64.StdEncoding.EncodeToString([]byte("ID3-recorded"))}, &f)
+	e.Must("deck.file_upload", map[string]any{"project": "shorts", "name": "voice.mp3", "content": base64.StdEncoding.EncodeToString([]byte("ID3-recorded"))}, &f)
 	var costs []*float64
 	for range 3 {
-		id := e.start("shorts", "words", map[string]any{"voice": fmt.Sprint(f.ID)})
-		if got := e.waitState(id, "done", "error"); got.State != "done" || strings.Contains(string(got.Result), "cost") {
+		id := e.Start("shorts", "words", map[string]any{"voice": fmt.Sprint(f.ID)})
+		if got := e.WaitState(id, "done", "error"); got.State != "done" || strings.Contains(string(got.Result), "cost") {
 			t.Fatalf("the words are the result as the API gave them: %+v", got)
 		}
 		var p struct {
 			Models []string `json:"models"`
 			Cost   *float64 `json:"cost_usd"`
 		}
-		e.must("deck.process_get", map[string]any{"process": id}, &p)
+		e.Must("deck.process_get", map[string]any{"process": id}, &p)
 		if !slices.Equal(p.Models, []string{"whisper"}) {
 			t.Fatalf("the process names the model it called: %+v", p)
 		}
@@ -498,11 +497,11 @@ func TestTwoModelsOfOneAPIModelKeepTheirOwnNames(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "name": "first", "kind": "text", "call_usd": 0.01}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "name": "second", "kind": "text", "call_usd": 0.02, "options": `{"temperature": 0}`}, nil)
-	e.must("deck.model_call", map[string]any{"kind": "text", "model": "second", "prompt": "hi"}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "name": "first", "kind": "text", "call_usd": 0.01}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "name": "second", "kind": "text", "call_usd": 0.02, "options": `{"temperature": 0}`}, nil)
+	e.Must("deck.model_call", map[string]any{"kind": "text", "model": "second", "prompt": "hi"}, nil)
 	var name string
 	var cost float64
 	if err := e.App.Store.DB.QueryRow(`SELECT gen_ai_provider_name, cost_usd FROM llm_call ORDER BY id DESC LIMIT 1`).Scan(&name, &cost); err != nil {
@@ -517,39 +516,39 @@ func TestTwoModelsOfOneAPIModelKeepTheirOwnNames(t *testing.T) {
 // yellow in health; its trial fails at once with where to assign one, waiting for no answer.
 func TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(modelManifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	var imported struct{ Warnings []string }
-	e.must("deck.project_import", map[string]any{"folder": dir, "name": "shorts"}, &imported)
+	e.Must("deck.project_import", map[string]any{"folder": dir, "name": "shorts"}, &imported)
 	if len(imported.Warnings) != 4 || !strings.Contains(imported.Warnings[0], "command factcheck: it calls @text, but no model is assigned to text") ||
 		!strings.Contains(imported.Warnings[0], "Settings → Models") {
 		t.Fatalf("the import names each model command no model takes: %v", imported.Warnings)
 	}
-	if h := e.waitHealth("command:shorts.factcheck", "warning"); !strings.Contains(h.Error, "pick one in Settings → Models") {
+	if h := e.WaitHealth("command:shorts.factcheck", "warning"); !strings.Contains(h.Error, "pick one in Settings → Models") {
 		t.Fatalf("the draft's health shows it in yellow: %+v", h)
 	}
 	var m struct {
 		Warnings []string
 		Manifest string
 	}
-	e.must("deck.manifest_get", map[string]any{"project": "shorts"}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "shorts"}, &m)
 	if len(m.Warnings) != 4 {
 		t.Fatalf("the manifest is read with the warnings: %v", m.Warnings)
 	}
 	var tried struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"command": "shorts.factcheck", "input": map[string]any{"claim": "x"}}, &tried)
-	got := e.waitState(tried.Process, "done", "error", "waiting_answer")
+	e.Must("deck.command_try", map[string]any{"command": "shorts.factcheck", "input": map[string]any{"claim": "x"}}, &tried)
+	got := e.WaitState(tried.Process, "done", "error", "waiting_answer")
 	if got.State != "error" || !strings.Contains(got.Error, "no model is assigned to text") || !strings.Contains(got.Error, "Settings → Models") {
 		t.Fatalf("the trial fails at once with where to assign a model: %+v", got)
 	}
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": "http://127.0.0.1:1/v1", "key": "gsk-1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": "http://127.0.0.1:1/v1", "key": "gsk-1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
 	var saved struct{ Warnings []string }
-	e.must("deck.manifest_save", map[string]any{"project": "shorts", "manifest": m.Manifest}, &saved)
+	e.Must("deck.manifest_save", map[string]any{"project": "shorts", "manifest": m.Manifest}, &saved)
 	if len(saved.Warnings) != 3 || slices.ContainsFunc(saved.Warnings, func(w string) bool { return strings.Contains(w, "factcheck") }) {
 		t.Fatalf("a save warns of the commands still without a model: %v", saved.Warnings)
 	}
@@ -570,17 +569,17 @@ func TestALocalServerOfPicturesTakesOneCallAtATime(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data": [{"b64_json": "iVBORw0KGgo="}]}`))
 	}))
 	t.Cleanup(srv.Close)
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": srv.URL + "/v1", "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "media", "model": "klein", "name": "local-image", "kind": "image", "free": true}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"local-image"}}, nil)
-	e.createProject("shorts", modelManifest)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": srv.URL + "/v1", "local": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "klein", "name": "local-image", "kind": "image", "free": true}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"local-image"}}, nil)
+	e.Project("shorts", modelManifest)
 	ids := []int64{}
 	for range 3 {
-		ids = append(ids, e.start("shorts", "picture", map[string]any{"scene": "a cube"}))
+		ids = append(ids, e.Start("shorts", "picture", map[string]any{"scene": "a cube"}))
 	}
 	for _, id := range ids {
-		if got := e.waitState(id, "done", "error"); got.State != "done" {
+		if got := e.WaitState(id, "done", "error"); got.State != "done" {
 			t.Fatalf("every call is answered: %+v", got)
 		}
 	}
@@ -635,20 +634,20 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": srv.URL + "/edit/v1"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "chat", "api": "openai", "url": srv.URL + "/chat/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "media", "model": "flux-edit", "kind": "image"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "chat", "model": "gemini-image", "kind": "image"}, nil)
-	e.createProject("shorts", `{"version": 13, "commands": [
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": srv.URL + "/edit/v1"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "chat", "api": "openai", "url": srv.URL + "/chat/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "flux-edit", "kind": "image"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "chat", "model": "gemini-image", "kind": "image"}, nil)
+	e.Project("shorts", `{"version": 13, "commands": [
 	  {"name": "redraw", "title": "Redraw", "description": "Edits a picture.", "class": "internal",
 	   "input": {"type": "object", "properties": {"picture": {"type": "string", "format": "file"}}, "required": ["picture"]},
 	   "executor": {"type": "model", "kind": "image", "prompt": "Make the cube blue.", "options": {"steps": 4}}}]}`)
 	var f struct{ ID int64 }
-	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "cube.png", "content": base64.StdEncoding.EncodeToString([]byte(png))}, &f)
+	e.Must("deck.file_upload", map[string]any{"project": "shorts", "name": "cube.png", "content": base64.StdEncoding.EncodeToString([]byte(png))}, &f)
 	for _, model := range []string{"media/flux-edit", "chat/gemini-image"} {
-		e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{model}}, nil)
-		p := e.waitState(e.start("shorts", "redraw", map[string]any{"picture": fmt.Sprint(f.ID)}), "done", "error")
+		e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{model}}, nil)
+		p := e.WaitState(e.Start("shorts", "redraw", map[string]any{"picture": fmt.Sprint(f.ID)}), "done", "error")
 		if p.State != "done" || !strings.Contains(string(p.Result), `"type":"image/png"`) {
 			t.Fatalf("%s: the edited picture is the file of the result: %+v", model, p)
 		}
@@ -682,30 +681,30 @@ func TestSpeechTakesItsVoiceFromTheOptionsOfItsModel(t *testing.T) {
 			return 200, "application/json", `{"data": [{"id": "elevenlabs/eleven-v4", "pricing": {"prompt": "0.0001"}, "architecture": {"output_modalities": ["audio"]}}]}`
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
 	var m struct {
 		Kind, Unit string
 		InputUSD   float64 `json:"input_usd"`
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "elevenlabs/eleven-v4", "name": "eleven"}, &m)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "elevenlabs/eleven-v4", "name": "eleven"}, &m)
 	if m.Kind != "tts" || m.Unit != "char" || math.Abs(m.InputUSD-100) > 1e-9 {
 		t.Fatalf("a tts price of the catalog counts characters: %+v", m)
 	}
 	check := map[string]any{"kind": "tts", "model": "eleven", "text": "This is a short check of the voice."}
-	e.refused("deck.model_call", check, 422, "set voice in the options of the model")
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "elevenlabs/eleven-v4", "name": "eleven", "options": `{"voice": "21m00Tcm4TlvDq8ikWAM"}`}, nil)
+	e.Refused("deck.model_call", check, 422, "set voice in the options of the model")
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "elevenlabs/eleven-v4", "name": "eleven", "options": `{"voice": "21m00Tcm4TlvDq8ikWAM"}`}, nil)
 	var models struct {
 		Models []struct{ Name, Options string }
 	}
-	e.must("deck.models_list", map[string]any{}, &models)
+	e.Must("deck.models_list", map[string]any{}, &models)
 	if !slices.ContainsFunc(models.Models, func(x struct{ Name, Options string }) bool {
 		return x.Name == "eleven" && x.Options == `{"voice": "21m00Tcm4TlvDq8ikWAM"}`
 	}) {
 		t.Fatalf("the models list gives the options of a model to its form: %+v", models)
 	}
 	var out struct{ Type string }
-	e.must("deck.model_call", check, &out)
+	e.Must("deck.model_call", check, &out)
 	got := api.calls()
 	last := got[len(got)-1]
 	if out.Type != "audio/mpeg" || last.Body["voice"] != "21m00Tcm4TlvDq8ikWAM" || last.Body["response_format"] != "mp3" || last.Body["input"] != check["text"] {
@@ -720,17 +719,17 @@ func TestABigOptionOfAModelIsAFileOfIt(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "local", "api": "openai", "url": api.URL + "/v1", "local": true}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "local", "api": "openai", "url": api.URL + "/v1", "local": true}, nil)
 	sample := strings.Repeat("UklGRg", 20000)
 	options, _ := json.Marshal(map[string]any{"voice": "own", "ref_audio": sample})
 	set := map[string]any{"connection": "local", "model": "qwen3-tts", "name": "voice", "kind": "tts", "options": string(options)}
-	e.must("deck.model_set", set, nil)
+	e.Must("deck.model_set", set, nil)
 	shown := func() string {
 		var models struct {
 			Models []struct{ Name, Options string }
 		}
-		e.must("deck.models_list", map[string]any{}, &models)
+		e.Must("deck.models_list", map[string]any{}, &models)
 		for _, m := range models.Models {
 			if m.Name == "voice" {
 				return m.Options
@@ -743,24 +742,24 @@ func TestABigOptionOfAModelIsAFileOfIt(t *testing.T) {
 		t.Fatalf("the form gets the name and size of a big option, not the value: %s", form)
 	}
 	check := map[string]any{"kind": "tts", "model": "voice", "text": "Hello."}
-	e.must("deck.model_call", check, nil)
+	e.Must("deck.model_call", check, nil)
 	if got := api.calls(); got[len(got)-1].Body["ref_audio"] != sample {
 		t.Fatal("a call sends the big option whole")
 	}
 	other := e.upload("", "other.txt", "text/plain", "not of the model")
 	set["options"] = fmt.Sprintf(`{"ref_audio": {"$file": %d}}`, other)
-	e.refused("deck.model_set", set, 422, "no file of model voice")
+	e.Refused("deck.model_set", set, 422, "no file of model voice")
 	if shown() != form {
 		t.Fatalf("options naming a file of another are not saved: %s", shown())
 	}
 	set["options"] = form
-	e.must("deck.model_set", set, nil)
-	e.must("deck.model_call", check, nil)
+	e.Must("deck.model_set", set, nil)
+	e.Must("deck.model_call", check, nil)
 	if got := api.calls(); got[len(got)-1].Body["ref_audio"] != sample || shown() != form {
 		t.Fatalf("what the form showed saves back to the same file: %s", shown())
 	}
 	set["options"] = `{"voice": "own"}`
-	e.must("deck.model_set", set, nil)
+	e.Must("deck.model_set", set, nil)
 	var files int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'model'`).Scan(&files)
 	if files != 0 {
@@ -780,31 +779,33 @@ func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 			return 429, "application/json", `{"error": {"message": "rate limited"}}`
 		},
 	})
-	e := newClockEnv(t, masterScript)
+	e := New(t, WithAgent(masterScript), WithClock())
 	e.masterAwake()
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "keyless", "kind": "text"}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
-	e.createProject("shorts", modelManifest)
-	got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error").ID)
+	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "keyless", "kind": "text"}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
+	e.Project("shorts", modelManifest)
+	got := e.fault(e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error").ID)
 	if got.ErrorType != "model.limit" || got.Whose != "model" {
 		t.Fatalf("the last model at its limit is the model's failure: %+v", got)
 	}
 	if h := e.health("model:groq/fact-model"); h == nil || h["status"] != "error" {
 		t.Fatalf("the model at its limit is red in health: %v", h)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/keyless"}}, nil)
-	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.login" {
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/keyless"}}, nil)
+	if got := e.fault(e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.login" {
 		t.Fatalf("a refused key is the model's login: %+v", got)
 	}
 	e.App.Runner.Wait()
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
 		t.Fatalf("a failure of a model does not go to the master: %d", n)
 	}
-	for tok, challenged := range map[string]bool{token: false, "deck_nope": true} {
+	for tok, challenged := range map[string]bool{"": false, "deck_nope": true} {
 		req, _ := http.NewRequest("POST", e.URL+"/api/commands/deck.model_call", strings.NewReader(`{"model": "groq/keyless", "kind": "text", "prompt": "hi"}`))
-		req.Header.Set("Authorization", "Bearer "+tok)
+		if e.Sign(req); tok != "" {
+			Bearer(tok)(req)
+		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -825,9 +826,9 @@ func TestATextModelOfAnAPIHasACheckThatCallsIt(t *testing.T) {
 			return 200, "application/json", chatText("ok")
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "google", "api": "openai", "url": api.URL + "/v1beta/openai", "key": "AIza-1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "google", "model": "gemini-3.8-flash", "name": "gem", "kind": "text"}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "google", "api": "openai", "url": api.URL + "/v1beta/openai", "key": "AIza-1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "google", "model": "gemini-3.8-flash", "name": "gem", "kind": "text"}, nil)
 	check := e.rowAction("", "settings", "deck.model_call", map[string]any{"kind": "text", "model": "gem"})
 	if check == nil || check["verb"] != "check" {
 		t.Fatalf("the row of a text model has a check: %v", check)
@@ -838,7 +839,7 @@ func TestATextModelOfAnAPIHasACheckThatCallsIt(t *testing.T) {
 	var models struct {
 		Models []struct{ Name, Status string }
 	}
-	e.must("deck.models_list", map[string]any{}, &models)
+	e.Must("deck.models_list", map[string]any{}, &models)
 	if !slices.ContainsFunc(models.Models, func(m struct{ Name, Status string }) bool { return m.Name == "gem" && m.Status == "ok" }) {
 		t.Fatalf("the model that answered is ok in its row: %+v", models)
 	}
@@ -864,40 +865,40 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.9}`)
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
 	for _, m := range []string{"gpt-oss", "huge", "busy", "daily", "fact-model"} {
-		e.must("deck.model_set", map[string]any{"connection": "groq", "model": m, "kind": "text"}, nil)
+		e.Must("deck.model_set", map[string]any{"connection": "groq", "model": m, "kind": "text"}, nil)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss", "groq/fact-model"}}, nil)
-	e.createProject("shorts", modelManifest)
-	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss", "groq/fact-model"}}, nil)
+	e.Project("shorts", modelManifest)
+	if got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
 		t.Fatalf("the next model takes a request past the limit per minute: %+v %+v", got, e.fault(got.ID))
 	}
 	if h := e.health("model:groq/gpt-oss"); h != nil && h["status"] != "ok" {
 		t.Fatalf("a request past the limit per minute leaves the model up for smaller ones: %v", h)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/busy", "groq/fact-model"}}, nil)
-	e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "busy"}), "done", "error")
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/busy", "groq/fact-model"}}, nil)
+	e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "busy"}), "done", "error")
 	var m modelsOut
-	e.must("deck.models_list", nil, &m)
+	e.Must("deck.models_list", nil, &m)
 	if i := slices.IndexFunc(m.Assignments, func(a assignmentOut) bool { return a.Role == "text" }); i < 0 || m.Assignments[i].Using != "groq/fact-model" ||
 		!strings.HasPrefix(m.Assignments[i].Why, "groq/busy: answered HTTP 429") {
 		t.Fatalf("the assignment says in one line of health why the first model does not take the work: %+v", m.Assignments)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss"}}, nil)
-	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.limit" || got.Whose != "model" {
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss"}}, nil)
+	if got := e.fault(e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.limit" || got.Whose != "model" {
 		t.Fatalf("the last model past its limit per minute is the model's limit: %+v", got)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/daily"}}, nil)
-	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "daily"}), "done", "error").ID); got.ErrorType != "model.limit" {
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/daily"}}, nil)
+	if got := e.fault(e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "daily"}), "done", "error").ID); got.ErrorType != "model.limit" {
 		t.Fatalf("a 413 past another rate is the model's limit: %+v", got)
 	}
 	if h := e.health("model:groq/daily"); h == nil || h["status"] != "error" {
 		t.Fatalf("a model past a rate other than per minute is red: %v", h)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/huge", "groq/fact-model"}}, nil)
-	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "three"}), "done", "error").ID); got.ErrorType != "input.invalid" {
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/huge", "groq/fact-model"}}, nil)
+	if got := e.fault(e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "three"}), "done", "error").ID); got.ErrorType != "input.invalid" {
 		t.Fatalf("a request too big for the model at all is the input's and goes to no other model: %+v", got)
 	}
 }
@@ -911,18 +912,18 @@ func TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce(t *testing.T) {
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.9}`)
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "small", "kind": "text", "tpm": 20}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "context": 100000}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "small", "call_usd": 0.001}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "small", "kind": "text", "tpm": 20}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "context": 100000}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "small", "call_usd": 0.001}, nil)
 	var m struct {
 		Models []struct {
 			Name         string
 			TPM, Context int64
 		}
 	}
-	e.must("deck.models_list", nil, &m)
+	e.Must("deck.models_list", nil, &m)
 	if i := slices.IndexFunc(m.Models, func(x struct {
 		Name         string
 		TPM, Context int64
@@ -931,9 +932,9 @@ func TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce(t *testing.T) {
 	}); i < 0 || m.Models[i].TPM != 20 {
 		t.Fatalf("the models list gives the limits, kept by a change without them: %+v", m.Models)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/small", "groq/fact-model"}}, nil)
-	e.createProject("shorts", modelManifest)
-	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/small", "groq/fact-model"}}, nil)
+	e.Project("shorts", modelManifest)
+	if got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
 		t.Fatalf("the next model takes a request past the limit: %+v", e.fault(got.ID))
 	}
 	for _, c := range api.calls() {
@@ -942,11 +943,11 @@ func TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce(t *testing.T) {
 		}
 	}
 	var set struct{ Warnings []string }
-	e.must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "command": "factcheck", "models": []string{"groq/small"}}, &set)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "command": "factcheck", "models": []string{"groq/small"}}, &set)
 	if len(set.Warnings) != 1 || !strings.Contains(set.Warnings[0], "groq/small takes 20 tokens a minute") {
 		t.Fatalf("the assignment warns that a usual request of the work is past the limit: %+v", set)
 	}
-	if got := e.fault(e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.limit" {
+	if got := e.fault(e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.limit" {
 		t.Fatalf("a request past the limit of the last model is the model's limit: %+v", got)
 	}
 }

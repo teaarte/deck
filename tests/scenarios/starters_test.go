@@ -15,7 +15,7 @@ type starterView struct {
 func (e *Env) starters() []starterView {
 	e.T.Helper()
 	var out []starterView
-	e.must("deck.starters_list", map[string]any{"lang": "ru"}, &out)
+	e.Must("deck.starters_list", map[string]any{"lang": "ru"}, &out)
 	return out
 }
 
@@ -28,9 +28,9 @@ type needView struct {
 // it comes as a draft that says what it needs and what it may do, the owner enables it, and the offer is gone.
 func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var menu struct{ Pulse struct{ Line string } }
-	e.must("deck.menu", map[string]any{"lang": "ru"}, &menu)
+	e.Must("deck.menu", map[string]any{"lang": "ru"}, &menu)
 	if !strings.HasPrefix(menu.Pulse.Line, "Скажи Деки, что делать") || !strings.Contains(menu.Pulse.Line, "модуля ниже") {
 		t.Fatalf("an empty deck says what to do: %+v", menu.Pulse)
 	}
@@ -43,19 +43,19 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 		Name, Status string
 		Needs        []needView
 	}
-	e.must("deck.project_import", map[string]any{"starter": "free-models"}, &imported)
+	e.Must("deck.project_import", map[string]any{"starter": "free-models"}, &imported)
 	if imported.Name != "free-models" || imported.Status != "draft" {
 		t.Fatalf("the starter comes as a draft: %+v", imported)
 	}
-	e.refused("deck.project_import", map[string]any{"starter": "nothing"}, 404, "no starter module")
-	e.refused("deck.project_import", map[string]any{"starter": "free-models", "folder": "/tmp"}, 422, "one of them")
+	e.Refused("deck.project_import", map[string]any{"starter": "nothing"}, 404, "no starter module")
+	e.Refused("deck.project_import", map[string]any{"starter": "free-models", "folder": "/tmp"}, 422, "one of them")
 
 	ss = e.starters()
 	if len(ss) != 1 || ss[0].Status != "draft" || ss[0].Revision == 0 {
 		t.Fatalf("the draft stays offered until it is enabled: %+v", ss)
 	}
 	var needs []needView
-	e.must("deck.project_needs", map[string]any{"project": "free-models", "lang": "ru"}, &needs)
+	e.Must("deck.project_needs", map[string]any{"project": "free-models", "lang": "ru"}, &needs)
 	kinds := map[string]int{}
 	for _, n := range needs {
 		kinds[n.Kind]++
@@ -71,12 +71,12 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 	if slices.ContainsFunc(needs, func(n needView) bool { return n.Kind == "model" && !n.Optional && !n.Done }) {
 		t.Fatalf("the starter asks for roles, not for the connections or models of its author: %+v", needs)
 	}
-	e.must("deck.connection_set", map[string]any{"name": "nvidia", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
-	e.must("deck.project_needs", map[string]any{"project": "free-models"}, &needs)
+	e.Must("deck.connection_set", map[string]any{"name": "nvidia", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
+	e.Must("deck.project_needs", map[string]any{"project": "free-models"}, &needs)
 	if slices.ContainsFunc(needs, func(n needView) bool { return n.What == "nvidia" }) {
 		t.Fatalf("a connection deck has is no need: %+v", needs)
 	}
-	e.must("deck.menu", map[string]any{"lang": "ru"}, &menu)
+	e.Must("deck.menu", map[string]any{"lang": "ru"}, &menu)
 	if strings.HasPrefix(menu.Pulse.Line, "Скажи Деки, что делать") {
 		t.Fatal("a deck with a module is no empty deck")
 	}
@@ -85,7 +85,7 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 		t.Fatalf("the draft screen shows what it needs and what it may do: %v", data)
 	}
 
-	e.must("deck.project_enable", map[string]any{"project": "free-models", "revision": ss[0].Revision}, nil)
+	e.Must("deck.project_enable", map[string]any{"project": "free-models", "revision": ss[0].Revision}, nil)
 	if ss := e.starters(); len(ss) != 0 {
 		t.Fatalf("an enabled starter is offered no more: %+v", ss)
 	}
@@ -94,8 +94,8 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 // TestADeckWithModulesOffersNoStarter: the starter module is for an empty deck only.
 func TestADeckWithModulesOffersNoStarter(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("notes", plainManifest)
+	e := New(t)
+	e.Project("notes", plainManifest)
 	if ss := e.starters(); len(ss) != 0 {
 		t.Fatalf("a deck with a module of the owner's offers no starter: %+v", ss)
 	}

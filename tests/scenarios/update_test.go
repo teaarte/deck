@@ -88,11 +88,12 @@ func updateEnv(t *testing.T, r *fakeRelease, launcher bool, script Script) (*Env
 		t.Fatal(err)
 	}
 	restarts := make(chan release.Restart, 1)
-	e := newEnv(t, script, func(c *app.Config) {
+	e := New(t, WithAgent(script), WithConfig(func(c *app.Config) {
 		c.Releases, c.Version, c.Variant, c.Launcher = r.source(), "v0.1.0", "deck-test", launcher
 		c.Exe = func() (string, error) { return exe, nil }
 		c.Restart = func(rs release.Restart) { restarts <- rs }
-	})
+	}))
+
 	return e, exe, restarts
 }
 
@@ -107,16 +108,16 @@ func TestDeckUpdatesItselfFromASignedRelease(t *testing.T) {
 		Version, Latest string
 		Newer           bool
 	}
-	e.must("deck.update_check", nil, &v)
-	e.must("deck.update_check", nil, &v)
+	e.Must("deck.update_check", nil, &v)
+	e.Must("deck.update_check", nil, &v)
 	if v.Version != "v0.1.0" || v.Latest != "v0.2.0" || !v.Newer {
 		t.Fatalf("the deck sees the newer release: %+v", v)
 	}
-	if h := e.waitHealth(updates.Subject, "warning"); !strings.Contains(h.Error, "v0.2.0") {
+	if h := e.WaitHealth(updates.Subject, "warning"); !strings.Contains(h.Error, "v0.2.0") {
 		t.Fatalf("the health of the update names the new version: %+v", h)
 	}
 	n := 0
-	for _, f := range e.notes() {
+	for _, f := range e.Notes() {
 		if strings.Contains(f.Text, "v0.2.0") {
 			n++
 		}
@@ -128,7 +129,7 @@ func TestDeckUpdatesItselfFromASignedRelease(t *testing.T) {
 		Text    string
 		Buttons []struct{ Label, Command string }
 	}
-	e.must("deck.feed_list", map[string]any{"kind": "note", "lang": "ru"}, &feed)
+	e.Must("deck.feed_list", map[string]any{"kind": "note", "lang": "ru"}, &feed)
 	var button struct{ Label, Command string }
 	for _, f := range feed {
 		if strings.Contains(f.Text, "v0.2.0") && len(f.Buttons) == 1 {
@@ -138,7 +139,7 @@ func TestDeckUpdatesItselfFromASignedRelease(t *testing.T) {
 	if button.Command != "deck.update" || button.Label != "Обновить" {
 		t.Fatalf("the note's button is deck's update in the owner's words: %+v %+v", button, feed)
 	}
-	e.must(button.Command, nil, nil)
+	e.Must(button.Command, nil, nil)
 	rs := <-restarts
 	exe, _ = filepath.EvalSymlinks(exe)
 	got, _ := os.ReadFile(exe)
@@ -171,7 +172,7 @@ func TestDeckRefusesAReleaseThatIsNotSigned(t *testing.T) {
 				r.mu.Unlock()
 			}
 			e, exe, restarts := updateEnv(t, r, false, nil)
-			if status, body := e.call("deck.update", nil); status < 400 {
+			if status, body := e.Call("deck.update", nil); status < 400 {
 				t.Fatalf("the update is refused: %d %s", status, body)
 			}
 			got, _ := os.ReadFile(exe)
@@ -189,7 +190,7 @@ func TestDeckOfALauncherAsksTheLauncher(t *testing.T) {
 	r := newRelease(t)
 	r.publish(t, "v0.2.0", map[string][]byte{release.MacApp: []byte("zip")}, nil)
 	e, exe, restarts := updateEnv(t, r, true, nil)
-	e.must("deck.update", nil, nil)
+	e.Must("deck.update", nil, nil)
 	if rs := <-restarts; !rs.Launcher {
 		t.Fatalf("the launcher is asked: %+v", rs)
 	}
@@ -213,8 +214,8 @@ func TestOnlyTheOwnerUpdatesDeck(t *testing.T) {
 		return provider.Result{Text: "tried"}
 	})
 	e.say(0, "update deck")
-	p := e.createProject("plain", plainManifest)
-	e.run(p, "work")
+	p := e.Project("plain", plainManifest)
+	e.Run(p, "work")
 	for range 2 {
 		if out := <-said; strings.HasPrefix(out, "done: ") {
 			t.Fatalf("an agent may not update deck: %s", out)

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
@@ -79,14 +78,14 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	}
 
 	home := t.TempDir()
-	e := newEnvWith(t, home, newProvider(home), realWaits)
+	e := New(t, WithHome(home), WithProvider(newProvider(home)), WithConfig(realWaits))
 	e.importEnabled(codeModule(t, ""), "code")
-	e.must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
 	for _, c := range []struct{ title, text string }{
 		{"Add subtract", "Add a function subtract(a, b) to calc.py that returns a - b, with a test in test_calc.py."},
 		{"Add multiply", "Add a function multiply(a, b) to calc.py that returns a * b, with a test in test_calc.py."},
 	} {
-		e.must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
+		e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
 			"records": jsonl(map[string]any{"title": c.title, "text": c.text, "status": "ready"})}, nil)
 	}
 	owner := func(what string) {
@@ -104,9 +103,9 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 			t.Fatalf("after %s no stash is left: %s", what, got)
 		}
 	}
-	wait := func(id int64, what string) proc {
+	wait := func(id int64, what string) Proc {
 		t.Helper()
-		got := e.pollState(id, 25*time.Minute, 2*time.Second, "done", "error", "stopped", "interrupted")
+		got := e.WaitState(id, "done", "error", "stopped", "interrupted")
 		t.Logf("%s: %s %s %s", what, got.State, got.Result, got.Error)
 		if got.State != "done" {
 			t.Fatalf("%s: %+v", what, got)
@@ -116,7 +115,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	lanes := func() map[string][]string {
 		t.Helper()
 		var rs []recordRow
-		e.must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
+		e.Must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
 		out := map[string][]string{}
 		for _, r := range rs {
 			status := fmt.Sprint(r.Data["status"])
@@ -126,7 +125,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	}
 
 	var run struct{ Process int64 }
-	e.must("code.run", map[string]any{"do": "run"}, &run)
+	e.Must("code.run", map[string]any{"do": "run"}, &run)
 	wait(run.Process, "run")
 	owner("the run")
 	branch := "deck/run-" + itoa(run.Process)
@@ -142,8 +141,8 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	}
 	t.Logf("report: %s", review[0])
 
-	e.must("deck.process_rework", map[string]any{"process": run.Process, "remark": "Looks good. Merge this run into main."}, nil)
-	e.waitState(run.Process, "running", "done")
+	e.Must("deck.process_rework", map[string]any{"process": run.Process, "remark": "Looks good. Merge this run into main."}, nil)
+	e.WaitState(run.Process, "running", "done")
 	wait(run.Process, "merge by a remark")
 	owner("the merge")
 	subject := git("log", "-1", "--format=%s", "main")
@@ -159,7 +158,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	}
 
 	var revert struct{ Process int64 }
-	e.must("code.run", map[string]any{"do": "revert"}, &revert)
+	e.Must("code.run", map[string]any{"do": "revert"}, &revert)
 	got := wait(revert.Process, "revert")
 	owner("the revert")
 	if diff := git("diff", start, "main", "--", "calc.py", "test_calc.py"); diff != "" {
@@ -172,13 +171,13 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	}
 
 	var prompt struct{ Text string }
-	e.must("deck.document_get", map[string]any{"project": "code", "name": "prompt.md"}, &prompt)
-	e.must("deck.document_save", map[string]any{"project": "code", "name": "prompt.md", "kind": "prompt", "text": prompt.Text + "\nMerge: yourself.\n"}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks", "records": jsonl(map[string]any{"title": "Add divide",
+	e.Must("deck.document_get", map[string]any{"project": "code", "name": "prompt.md"}, &prompt)
+	e.Must("deck.document_save", map[string]any{"project": "code", "name": "prompt.md", "kind": "prompt", "text": prompt.Text + "\nMerge: yourself.\n"}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks", "records": jsonl(map[string]any{"title": "Add divide",
 		"status": "ready", "text": "Add a function divide(a, b) to calc.py that returns a / b, with a test in test_calc.py."})}, nil)
 	before := git("rev-parse", "main")
 	var auto struct{ Process int64 }
-	e.must("code.run", map[string]any{"do": "run"}, &auto)
+	e.Must("code.run", map[string]any{"do": "run"}, &auto)
 	wait(auto.Process, "run in auto")
 	owner("the run in auto")
 	if subject := git("log", "-1", "--format=%s", "main"); !strings.HasPrefix(subject, "deck run "+itoa(auto.Process)+":") ||

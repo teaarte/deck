@@ -42,36 +42,37 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 	t.Parallel()
 	var fail atomic.Bool
 	fail.Store(true)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if fail.Load() {
 			return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 		}
 		return provider.Result{Text: "voiced"}
-	})
-	e.createProject("shorts", jobsModule)
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	}))
+
+	e.Project("shorts", jobsModule)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
-	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
 	failed := func() []cockpitRun {
 		var out []cockpitRun
-		e.must("deck.processes_list", map[string]any{"failed": true}, &out)
+		e.Must("deck.processes_list", map[string]any{"failed": true}, &out)
 		return out
 	}
-	id := e.start("shorts", "voice", map[string]any{"record": recs[0].ID})
-	e.waitState(id, "done", "error")
+	id := e.Start("shorts", "voice", map[string]any{"record": recs[0].ID})
+	e.WaitState(id, "done", "error")
 	if got := failed(); len(got) != 1 || got[0].ID != id || got[0].RecordTitle != "Knights" || got[0].Error == "" {
 		t.Fatalf("the failed run is in the cockpit with its record and why: %+v", got)
 	}
 	fail.Store(false)
 	var again struct{ Process int64 }
-	e.must("deck.process_retry", map[string]any{"process": id}, &again)
-	if got := e.waitState(again.Process, "done", "error"); got.State != "done" || len(failed()) != 0 {
+	e.Must("deck.process_retry", map[string]any{"process": id}, &again)
+	if got := e.WaitState(again.Process, "done", "error"); got.State != "done" || len(failed()) != 0 {
 		t.Fatalf("a retry runs it again with its input, and a run that went well takes it off: %+v %+v", got, failed())
 	}
 	fail.Store(true)
-	id = e.start("shorts", "voice", map[string]any{"record": recs[0].ID})
-	e.waitState(id, "done", "error")
-	e.must("deck.process_dismiss", map[string]any{"process": id}, nil)
+	id = e.Start("shorts", "voice", map[string]any{"record": recs[0].ID})
+	e.WaitState(id, "done", "error")
+	e.Must("deck.process_dismiss", map[string]any{"process": id}, nil)
 	if got := failed(); len(got) != 0 {
 		t.Fatalf("a run the owner closed leaves the cockpit: %+v", got)
 	}
@@ -97,7 +98,7 @@ func TestARunThatTakesLongerThanUsualIsMarked(t *testing.T) {
 			t.Cleanup(func() { close(release) })
 			var n atomic.Int32
 			clock := &Clock{now: t0}
-			e := newEnvWith(t, t.TempDir(), &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+			e := New(t, WithProvider(&Fake{script: func(ctx context.Context, c *Call) provider.Result {
 				if int(n.Add(1)) > tc.runs {
 					select {
 					case <-release:
@@ -107,16 +108,17 @@ func TestARunThatTakesLongerThanUsualIsMarked(t *testing.T) {
 					clock.Add(time.Minute)
 				}
 				return provider.Result{Text: "voiced"}
-			}}, withClock(clock))
-			e.createProject("shorts", jobsModule)
+			}}), WithClock(clock))
+
+			e.Project("shorts", jobsModule)
 			for range tc.runs {
-				e.waitState(e.start("shorts", "voice", nil), "done", "error")
+				e.WaitState(e.Start("shorts", "voice", nil), "done", "error")
 			}
-			id := e.start("shorts", "voice", nil)
-			e.waitState(id, "running")
+			id := e.Start("shorts", "voice", nil)
+			e.WaitState(id, "running")
 			clock.Add(tc.at)
 			var open []cockpitRun
-			e.must("deck.processes_list", map[string]any{"open": true}, &open)
+			e.Must("deck.processes_list", map[string]any{"open": true}, &open)
 			if len(open) != 1 || open[0].ID != id || open[0].Since == "" || open[0].Long != tc.long ||
 				tc.long && (open[0].Tone != "warn" || !strings.HasPrefix(open[0].Word, "longer than usual: runs on")) ||
 				!tc.long && (open[0].Tone != "" || !strings.HasPrefix(open[0].Word, "runs on")) {
@@ -134,31 +136,32 @@ func TestARunSentBackCountsFromThenAndFailsAnew(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, t.TempDir(), &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithProvider(&Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		if c.N > 1 {
 			<-release
 		}
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
-	}}, withClock(clock))
-	e.createProject("shorts", jobsModule)
-	id := e.start("shorts", "voice", nil)
-	e.waitState(id, "error")
-	e.must("deck.process_dismiss", map[string]any{"process": id}, nil)
+	}}), WithClock(clock))
+
+	e.Project("shorts", jobsModule)
+	id := e.Start("shorts", "voice", nil)
+	e.WaitState(id, "error")
+	e.Must("deck.process_dismiss", map[string]any{"process": id}, nil)
 	clock.Add(8 * 24 * time.Hour)
-	e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
+	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
 	clock.Add(time.Minute)
 	var open []struct {
 		cockpitRun
 		Result any
 	}
-	e.must("deck.processes_list", map[string]any{"open": true}, &open)
+	e.Must("deck.processes_list", map[string]any{"open": true}, &open)
 	if len(open) != 1 || open[0].Since != store.Time(clock.Now().Add(-time.Minute)) || open[0].Result != nil {
 		t.Fatalf("the run works since it was sent back and has no result yet: %+v", open)
 	}
 	close(release)
-	e.waitState(id, "error")
+	e.WaitState(id, "error")
 	var failed []cockpitRun
-	e.must("deck.processes_list", map[string]any{"failed": true}, &failed)
+	e.Must("deck.processes_list", map[string]any{"failed": true}, &failed)
 	if len(failed) != 1 || failed[0].ID != id {
 		t.Fatalf("the run failed again, so it is back in the cockpit: %+v", failed)
 	}
@@ -168,22 +171,23 @@ func TestARunSentBackCountsFromThenAndFailsAnew(t *testing.T) {
 func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 	t.Parallel()
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, t.TempDir(), &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithProvider(&Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		if c.N > usualRunsForTest {
 			return provider.Result{Outcome: provider.Limited, ResetsAt: t0.Add(time.Hour).Unix()}
 		}
 		clock.Add(time.Second)
 		return provider.Result{Text: "voiced"}
-	}}, withClock(clock))
-	e.createProject("shorts", jobsModule)
+	}}), WithClock(clock))
+
+	e.Project("shorts", jobsModule)
 	for range usualRunsForTest {
-		e.waitState(e.start("shorts", "voice", nil), "done", "error")
+		e.WaitState(e.Start("shorts", "voice", nil), "done", "error")
 	}
-	id := e.start("shorts", "voice", nil)
-	e.waitState(id, "rate_limited")
+	id := e.Start("shorts", "voice", nil)
+	e.WaitState(id, "rate_limited")
 	clock.Add(3 * time.Minute)
 	var open []cockpitRun
-	e.must("deck.processes_list", map[string]any{"open": true}, &open)
+	e.Must("deck.processes_list", map[string]any{"open": true}, &open)
 	if len(open) != 1 || open[0].ID != id || open[0].Long || !open[0].Waits || open[0].Tone != "warn" || open[0].Word != "paused on a usage limit" {
 		t.Fatalf("a run that waits is not marked longer than usual, and says it waits: %+v", open)
 	}
@@ -205,49 +209,50 @@ func TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks(t *testing.T) {
 	t.Parallel()
 	var fail atomic.Bool
 	fail.Store(true)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if fail.Load() {
 			return provider.Result{Outcome: provider.Failed, Text: "the cutter is down"}
 		}
 		return provider.Result{Text: "cut"}
-	})
-	e.createProject("clips", cutModule)
+	}))
+
+	e.Project("clips", cutModule)
 	failed := func() []cockpitRun {
 		var out []cockpitRun
-		e.must("deck.processes_list", map[string]any{"failed": true}, &out)
+		e.Must("deck.processes_list", map[string]any{"failed": true}, &out)
 		return out
 	}
-	id := e.start("clips", "cut", map[string]any{"clip": "a"})
-	e.waitState(id, "error")
+	id := e.Start("clips", "cut", map[string]any{"clip": "a"})
+	e.WaitState(id, "error")
 	fail.Store(false)
-	e.waitState(e.start("clips", "cut", map[string]any{"clip": "b"}), "done")
+	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "b"}), "done")
 	var tried struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"live": true, "command": "clips.cut", "input": map[string]any{"clip": "a"}}, &tried)
-	e.waitState(tried.Process, "done")
+	e.Must("deck.command_try", map[string]any{"live": true, "command": "clips.cut", "input": map[string]any{"clip": "a"}}, &tried)
+	e.WaitState(tried.Process, "done")
 	if got := failed(); len(got) != 1 || got[0].ID != id || !got[0].Retry {
 		t.Fatalf("another input and a trial make nothing good; the owner may retry it: %+v", got)
 	}
-	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "done")
+	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "a"}), "done")
 	if got := failed(); len(got) != 0 {
 		t.Fatalf("a good run with the same input takes it off: %+v", got)
 	}
 	fail.Store(true)
 	var started struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"live": true, "command": "clips.cut", "input": map[string]any{"clip": "c"}}, &started)
-	e.waitState(started.Process, "error")
+	e.Must("deck.command_try", map[string]any{"live": true, "command": "clips.cut", "input": map[string]any{"clip": "c"}}, &started)
+	e.WaitState(started.Process, "error")
 	if got := failed(); len(got) != 0 {
 		t.Fatalf("a failed trial is not in the cockpit: %+v", got)
 	}
 	_, tok := e.token("terminal", "clips.*")
-	code, out := e.callWith(tok, "clips.trim", map[string]any{"clip": "a"})
+	code, out := e.As(tok).Call("clips.trim", map[string]any{"clip": "a"})
 	if code != 200 || json.Unmarshal(out, &started) != nil {
 		t.Fatalf("the master starts trim: %d %s", code, out)
 	}
-	e.waitState(started.Process, "error")
+	e.WaitState(started.Process, "error")
 	if got := failed(); len(got) != 1 || got[0].ID != started.Process || got[0].Retry {
 		t.Fatalf("a failed run the owner may not call has no retry: %+v", got)
 	}
-	e.refused("deck.process_retry", map[string]any{"process": started.Process}, 403, "cannot be called by owner")
+	e.Refused("deck.process_retry", map[string]any{"process": started.Process}, 403, "cannot be called by owner")
 }
 
 // TestARunCutByARestartIsInTheCockpit: a call deck lost to a restart did not work, so it waits in the cockpit.
@@ -257,14 +262,14 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 	defer release(0)
 	home := t.TempDir()
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, home, &Fake{}, withClock(clock))
-	e.Clock = clock
-	e.createProject("clips", generateManifest(svc.URL))
-	id := e.start("clips", "make", map[string]any{"topic": "cats"})
-	e.waitFor("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
-	e2 := restart(t, e, home, &Fake{})
+	e := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	e.Project("clips", generateManifest(svc.URL))
+	id := e.Start("clips", "make", map[string]any{"topic": "cats"})
+	e.Until("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	e2 := e.Restart(WithProvider(&Fake{}))
+	e2.Resume()
 	var failed []cockpitRun
-	e2.must("deck.processes_list", map[string]any{"failed": true}, &failed)
+	e2.Must("deck.processes_list", map[string]any{"failed": true}, &failed)
 	if len(failed) != 1 || failed[0].ID != id {
 		t.Fatalf("the interrupted run is among those that did not work: %+v", failed)
 	}
@@ -274,12 +279,13 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 // says how many more there are.
 func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: fmt.Sprintf("down %d", c.N)}
-	})
-	e.createProject("clips", cutModule)
+	}))
+
+	e.Project("clips", cutModule)
 	for i := range 22 {
-		e.waitState(e.start("clips", "cut", map[string]any{"clip": fmt.Sprint(i)}), "error")
+		e.WaitState(e.Start("clips", "cut", map[string]any{"clip": fmt.Sprint(i)}), "error")
 	}
 	var more int
 	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2"]["more"], &more)
@@ -294,7 +300,7 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
 			return provider.Result{Outcome: provider.Failed, Text: "down"}
 		}
@@ -303,12 +309,13 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 		case <-ctx.Done():
 		}
 		return provider.Result{Text: "cut"}
-	})
-	e.createProject("clips", cutModule)
-	failed := e.start("clips", "cut", map[string]any{"clip": "a"})
-	e.waitState(failed, "error")
-	id := e.start("clips", "cut", map[string]any{"clip": "b"})
-	e.waitState(id, "running")
+	}))
+
+	e.Project("clips", cutModule)
+	failed := e.Start("clips", "cut", map[string]any{"clip": "a"})
+	e.WaitState(failed, "error")
+	id := e.Start("clips", "cut", map[string]any{"clip": "b"})
+	e.WaitState(id, "running")
 	var running []listItem
 	_ = json.Unmarshal(e.screenData("", "cockpit", map[string]any{"lang": "ru"})["b1"]["items"], &running)
 	if len(running) != 1 || running[0].Text != "" || !strings.Contains(running[0].Details, "работает на") || running[0].Since == "" {
@@ -324,11 +331,12 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 // time they happened, which the line shows and gives in full on hover.
 func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "down"}
-	})
-	e.createProject("clips", cutModule)
-	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "error")
+	}))
+
+	e.Project("clips", cutModule)
+	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "a"}), "error")
 	var failed []listItem
 	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2"]["items"], &failed)
 	if len(failed) != 1 || failed[0].Since == "" {
@@ -340,16 +348,17 @@ func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 // a run closed on the cockpit stays there.
 func TestFailedRunsStayInTheHistoryOfTheSchedule(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
-	})
-	e.createProject("shorts", jobsModule)
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	}))
+
+	e.Project("shorts", jobsModule)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
-	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
-	id := e.start("shorts", "voice", map[string]any{"record": recs[0].ID})
-	e.waitState(id, "done", "error")
-	e.must("deck.process_dismiss", map[string]any{"process": id}, nil)
+	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	id := e.Start("shorts", "voice", map[string]any{"record": recs[0].ID})
+	e.WaitState(id, "done", "error")
+	e.Must("deck.process_dismiss", map[string]any{"process": id}, nil)
 	failed := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
 	if len(failed) != 1 || failed[0].Cells[0] != "Voice" || failed[0].ID != float64(id) || failed[0].Tones[2] != "error" || failed[0].Cells[4] != "by a button" {
 		t.Fatalf("the failed run is in the history by its state, closed on the cockpit or not: %+v", failed)
@@ -367,7 +376,7 @@ type todayPulse struct {
 func (e *Env) today(lang string) todayPulse {
 	e.T.Helper()
 	var m struct{ Pulse todayPulse }
-	e.must("deck.menu", map[string]any{"lang": lang}, &m)
+	e.Must("deck.menu", map[string]any{"lang": lang}, &m)
 	return m.Pulse
 }
 
@@ -375,21 +384,22 @@ func (e *Env) today(lang string) todayPulse {
 // an empty deck, that all is well, the failures in the feed, the rest beside the decisions, in the owner's language.
 func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
-	})
+	}))
+
 	if h := e.today(""); h.State != "calm" || !strings.HasPrefix(h.Line, "Tell Deki what to do") {
 		t.Fatalf("a quiet empty deck says what to do: %+v", h)
 	}
-	e.createProject("shorts", jobsModule)
+	e.Project("shorts", jobsModule)
 	if h := e.today(""); h.Line != "All is well: nothing to decide, no failures." || h.Mark != "check" {
 		t.Fatalf("a quiet deck with a module says all is well: %+v", h)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
-	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
-	e.waitState(e.start("shorts", "voice", map[string]any{"record": recs[0].ID}), "error")
-	e.must("deck.notify", map[string]any{"project": "shorts", "text": "a new video is ready"}, nil)
+	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	e.WaitState(e.Start("shorts", "voice", map[string]any{"record": recs[0].ID}), "error")
+	e.Must("deck.notify", map[string]any{"project": "shorts", "text": "a new video is ready"}, nil)
 	if h := e.today(""); h.State != "errors" || h.Failed != 1 || h.Notes != 1 || h.Line != "Nothing to decide. One failure is in the feed below." || h.Mark != "alert-circle" {
 		t.Fatalf("a failure alone is said to be in the feed: %+v", h)
 	}
@@ -397,14 +407,14 @@ func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 		t.Fatalf("the line speaks the language of the owner: %+v", ru)
 	}
 	_, tok := e.token("asker", "deck.model_set")
-	if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "none", "model": "x"}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
+	if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": "x"}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 		t.Fatalf("a token's call waits for the owner: %d %s", code, out)
 	}
 	if h := e.today("ru"); h.Line != "Остальное идёт само, кроме одного сбоя в ленте." || h.Mark != "hand-finger" {
 		t.Fatalf("beside a decision the line says the rest, but for the failure: %+v", h)
 	}
 	var asks []struct{ Allow string }
-	e.must("deck.asks_list", map[string]any{"lang": "ru"}, &asks)
+	e.Must("deck.asks_list", map[string]any{"lang": "ru"}, &asks)
 	if len(asks) != 1 || asks[0].Allow != "Разрешить: Модель" {
 		t.Fatalf("the yes of a decision says what it lets happen: %+v", asks)
 	}
@@ -414,19 +424,20 @@ func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 // line; read all and close clear it, while the schedule and the history keep them.
 func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
-	})
-	e.createProject("shorts", jobsModule)
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	}))
+
+	e.Project("shorts", jobsModule)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
 		map[string]any{"slug": "knights", "title": "Knights"}, map[string]any{"slug": "dragons", "title": "Dragons"})}, nil)
 	var recs []struct{ ID int64 }
-	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
 	for _, r := range recs {
-		e.waitState(e.start("shorts", "voice", map[string]any{"record": r.ID}), "error")
+		e.WaitState(e.Start("shorts", "voice", map[string]any{"record": r.ID}), "error")
 	}
 	for _, text := range []string{"one", "two", "three"} {
-		e.must("deck.notify", map[string]any{"project": "shorts", "text": text}, nil)
+		e.Must("deck.notify", map[string]any{"project": "shorts", "text": text}, nil)
 	}
 	feed := e.screenData("", "cockpit", nil)["b2"]
 	items := blockData[[]listItem](t, feed["items"])
@@ -447,11 +458,11 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	if !slices.Equal(verbs, []string{"retry", "open", "close"}) {
 		t.Fatalf("a failure is retried, opened or closed: %v", verbs)
 	}
-	e.must("deck.feed_read", map[string]any{"all": true}, nil)
+	e.Must("deck.feed_read", map[string]any{"all": true}, nil)
 	var failed []cockpitRun
-	e.must("deck.processes_list", map[string]any{"failed": true}, &failed)
+	e.Must("deck.processes_list", map[string]any{"failed": true}, &failed)
 	for _, f := range failed {
-		e.must("deck.process_dismiss", map[string]any{"process": f.ID}, nil)
+		e.Must("deck.process_dismiss", map[string]any{"process": f.ID}, nil)
 	}
 	if h := e.today(""); h.Failed != 0 || h.Notes != 0 || h.State != "calm" {
 		t.Fatalf("the feed is read and its failure closed: %+v", h)
@@ -466,8 +477,8 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	if len(notes) != 3 || notes[0].Cells[2] != "read" {
 		t.Fatalf("the history keeps the notes, read: %+v", notes)
 	}
-	e.refused("deck.feed_read", map[string]any{}, 422, "give the entry of one note, or all")
-	e.refused("deck.process_dismiss", map[string]any{"all": true, "process": 1}, 422, "give one process, or all")
+	e.Refused("deck.feed_read", map[string]any{}, 422, "give the entry of one note, or all")
+	e.Refused("deck.process_dismiss", map[string]any{"all": true, "process": 1}, 422, "give one process, or all")
 }
 
 // TestTheOpenFailuresAreThoseNotClosedNorMadeGood: the history of the Schedule finds every failed run, and
@@ -475,28 +486,29 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 	t.Parallel()
 	var calls atomic.Int64
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if n := calls.Add(1); c.command() != "voice" || n <= 3 {
 			return provider.Result{Outcome: provider.Failed, Text: fmt.Sprintf("the voice server is down (%d)", n)}
 		}
 		return provider.Result{Text: "voiced"}
-	})
-	e.createProject("shorts", jobsModule)
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	}))
+
+	e.Project("shorts", jobsModule)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
 		map[string]any{"slug": "knights"}, map[string]any{"slug": "dragons"}, map[string]any{"slug": "castles"})}, nil)
 	var recs []struct{ ID int64 }
-	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
 	var ids []int64
 	for _, r := range recs {
-		id := e.start("shorts", "voice", map[string]any{"record": r.ID})
-		e.waitState(id, "error")
+		id := e.Start("shorts", "voice", map[string]any{"record": r.ID})
+		e.WaitState(id, "error")
 		ids = append(ids, id)
 	}
-	e.must("deck.process_dismiss", map[string]any{"process": ids[1]}, nil)
-	e.waitState(e.start("shorts", "voice", map[string]any{"record": recs[2].ID}), "done")
+	e.Must("deck.process_dismiss", map[string]any{"process": ids[1]}, nil)
+	e.WaitState(e.Start("shorts", "voice", map[string]any{"record": recs[2].ID}), "done")
 
 	var open []struct{ ID int64 }
-	e.must("deck.processes_list", map[string]any{"failed": true}, &open)
+	e.Must("deck.processes_list", map[string]any{"failed": true}, &open)
 	failed := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
 	if len(open) != 1 || open[0].ID != ids[0] || len(failed) != 3 {
 		t.Fatalf("3 failed as the history finds them, 1 open as processes_list gives it: %+v, %d rows", open, len(failed))

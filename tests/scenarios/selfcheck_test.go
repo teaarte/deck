@@ -50,8 +50,7 @@ func (c *fakeCLI) version(v string) {
 func clockCLIEnv(t *testing.T, c *fakeCLI) *Env {
 	home := t.TempDir()
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, home, c.adapter(home), withClock(clock))
-	e.Clock = clock
+	e := New(t, WithHome(home), WithProvider(c.adapter(home)), WithClock(clock))
 	return e
 }
 
@@ -62,13 +61,13 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	e := clockCLIEnv(t, c)
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
-	h := e.waitHealth("provider:claude-code", "error")
+	h := e.WaitHealth("provider:claude-code", "error")
 	if h.Version != "2.1.281" || !strings.Contains(h.Error, "self-check of 2.1.281 failed") || !strings.Contains(h.Error, "output by schema") {
 		t.Fatalf("a failed self-check is red with the version and the reason: %+v", h)
 	}
-	p := e.createProject("plain", plainManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "waiting_provider")
+	p := e.Project("plain", plainManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "waiting_provider")
 	if n := c.calls(); n != 1 {
 		t.Fatalf("processes on Claude Code wait while the self-check is red: %d CLI calls", n)
 	}
@@ -76,15 +75,15 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	c.stream(3, "selfcheck_resume.jsonl")
 	c.approving()
 	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
-	e.settle()
+	e.Settle()
 	if n := c.calls(); n != 1 {
 		t.Fatalf("a red self-check is retried by its timer, not sooner: %d CLI calls", n)
 	}
 	e.App.Providers.Checks(ctx, e.Clock.Add(21*time.Minute))
-	if h := e.waitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
+	if h := e.WaitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
 		t.Fatalf("the retried self-check is green: %+v", h)
 	}
-	if got := e.waitState(id, "done", "error"); got.State != "done" || c.calls() != 5 {
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || c.calls() != 5 {
 		t.Fatalf("the waiting process runs once the self-check is green: %+v, %d calls", got, c.calls())
 	}
 	if !strings.Contains(c.call(2).stdin, "deck-check-") || !slices.Contains(c.call(3).args, "--resume") {
@@ -92,23 +91,23 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	}
 	c.version("2.1.282")
 	e.App.Providers.Checks(ctx, e.Clock.Add(30*time.Minute))
-	e.settle()
+	e.Settle()
 	if n := c.calls(); n != 5 {
 		t.Fatalf("a new version of the CLI alone runs no self-check: %d CLI calls", n)
 	}
 	c.stream(6, "foreign_session.jsonl")
 	c.stream(7, "ok.jsonl")
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "error" {
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "error" {
 		t.Fatalf("the broken turn fails: %+v", got)
 	}
-	if h := e.waitHealth("provider:claude-code", "error"); h.Version != "2.1.282" {
+	if h := e.WaitHealth("provider:claude-code", "error"); h.Version != "2.1.282" {
 		t.Fatalf("a turn that breaks checks the CLI again: %+v", h)
 	}
 	c.stream(8, "selfcheck.jsonl")
 	c.stream(9, "selfcheck_resume.jsonl")
-	e.must("deck.provider_check", map[string]any{"provider": "claude-code"}, nil)
-	e.waitHealth("provider:claude-code", "ok")
-	if code, _ := e.call("deck.provider_check", map[string]any{"provider": "fake"}); code == 200 {
+	e.Must("deck.provider_check", map[string]any{"provider": "claude-code"}, nil)
+	e.WaitHealth("provider:claude-code", "ok")
+	if code, _ := e.Call("deck.provider_check", map[string]any{"provider": "fake"}); code == 200 {
 		t.Fatal("only a provider with a self-check can be checked")
 	}
 }
@@ -123,10 +122,10 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 			cli.stream(0, "ok.jsonl")
 			e := clockCLIEnv(t, cli)
 			e.App.Providers.Checks(context.Background(), e.Clock.Now())
-			e.waitHealth("provider:claude-code", c.status)
-			p := e.createProject("plain", plainManifest)
+			e.WaitHealth("provider:claude-code", c.status)
+			p := e.Project("plain", plainManifest)
 			want := map[string]string{"paused": "waiting_provider", "needs_login": "done"}[c.status]
-			if got := e.waitState(e.run(p, "work"), "done", "error", "waiting_provider"); got.State != want {
+			if got := e.WaitState(e.Run(p, "work"), "done", "error", "waiting_provider"); got.State != want {
 				t.Fatalf("a limit holds turns until it resets, a lost login holds none, the turn asks: %+v", got)
 			}
 		})
@@ -165,19 +164,18 @@ func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 1}`)}
 	}
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, t.TempDir(), cf, withClock(clock))
-	e.Clock = clock
-	p := e.createProject("notes", strings.Replace(notesManifest, `"requires": ["no_cloud"],`, "", 1))
-	id := e.run(p, "collect")
-	e.waitState(id, "waiting_answer")
+	e := New(t, WithProvider(cf), WithClock(clock))
+	p := e.Project("notes", strings.Replace(notesManifest, `"requires": ["no_cloud"],`, "", 1))
+	id := e.Run(p, "collect")
+	e.WaitState(id, "waiting_answer")
 	cf.set(errors.New("broken"))
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	e.waitHealth("provider:fake", "error")
-	e.answer(e.waitAsk().ID, "deny:not now")
-	e.waitState(id, "waiting_provider")
+	e.WaitHealth("provider:fake", "error")
+	e.Answer(e.WaitAsk().ID, "deny:not now")
+	e.WaitState(id, "waiting_provider")
 	cf.set(nil)
-	e.must("deck.provider_check", map[string]any{"provider": "fake"}, nil)
-	got := e.waitState(id, "done", "error")
+	e.Must("deck.provider_check", map[string]any{"provider": "fake"}, nil)
+	got := e.WaitState(id, "done", "error")
 	calls := fake.Calls()
 	if got.State != "done" || len(calls) != 2 || !calls[1].Resume || !strings.Contains(calls[1].Prompt, "not now") {
 		t.Fatalf("the held turn resumes the session with the owner's answer: %+v %+v", got, calls)
@@ -193,11 +191,11 @@ func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
 	c.approving()
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	if h := e.waitHealth("provider:claude-code", "paused"); h.Version != "" {
+	if h := e.WaitHealth("provider:claude-code", "paused"); h.Version != "" {
 		t.Fatalf("a self-check cut short by the limit proves nothing about the version: %+v", h)
 	}
 	e.App.Providers.Checks(context.Background(), e.Clock.Add(31*time.Minute))
-	if h := e.waitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
+	if h := e.WaitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
 		t.Fatalf("the self-check runs again once the limit may be gone: %+v", h)
 	}
 }
@@ -214,7 +212,7 @@ func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 `, self))
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "Bash instead of passing a write") {
+	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "Bash instead of passing a write") {
 		t.Fatalf("a question about any other command makes the self-check red: %+v", h)
 	}
 }
@@ -226,7 +224,7 @@ func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
 	c.approving()
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "token counts") {
+	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "token counts") {
 		t.Fatalf("a turn without usage turns the self-check red: %+v", h)
 	}
 }
@@ -239,7 +237,7 @@ func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
 	c.approving()
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "resume: token counts") {
+	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "resume: token counts") {
 		t.Fatalf("a resume without usage turns the self-check red: %+v", h)
 	}
 }
@@ -272,15 +270,14 @@ func TestAHungSelfCheckDoesNotStopTheSchedule(t *testing.T) {
 	t.Parallel()
 	hv := &hungCheck{Fake: &Fake{}, release: make(chan struct{})}
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, t.TempDir(), hv, withClock(clock))
+	e := New(t, WithProvider(hv), WithClock(clock))
 	t.Cleanup(func() { close(hv.release) })
-	e.Clock = clock
-	e.createProject("plain", strings.Replace(plainManifest, `"triggers": []`, `"triggers": [{"command": "work", "cron": "30 * * * *"}]`, 1))
+	e.Project("plain", strings.Replace(plainManifest, `"triggers": []`, `"triggers": [{"command": "work", "cron": "30 * * * *"}]`, 1))
 	e.App.Run(t.Context(), 20*time.Millisecond)
 	// The loop starts the self-check that hangs; its health need not show it.
 	time.Sleep(200 * time.Millisecond)
 	clock.Add(time.Hour)
-	e.waitFor("the run that came due", func() bool { return len(e.runsOf("plain", "work")) == 1 })
+	e.Until("the run that came due", func() bool { return len(e.runsOf("plain", "work")) == 1 })
 }
 
 // slowCheck is the fake provider whose self-check finds a model too slow for its ceiling; it counts its checks.
@@ -300,19 +297,18 @@ func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 	t.Parallel()
 	clock := &Clock{now: t0}
 	slow := &slowCheck{Fake: &Fake{}}
-	e := newEnvWith(t, t.TempDir(), slow, withClock(clock))
-	e.Clock = clock
+	e := New(t, WithProvider(slow), WithClock(clock))
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	if h := e.waitHealth("provider:fake", "warning"); !strings.Contains(h.Error, "did not finish") {
+	if h := e.WaitHealth("provider:fake", "warning"); !strings.Contains(h.Error, "did not finish") {
 		t.Fatalf("a slow model is a warning with the reason: %+v", h)
 	}
 	e.App.Providers.Checks(context.Background(), e.Clock.Add(31*time.Minute))
-	e.settle()
+	e.Settle()
 	if n := slow.checks.Load(); n != 1 {
 		t.Fatalf("a warning is not checked again by the timer, which repeats only what holds turns: %d checks", n)
 	}
-	p := e.createProject("plain", plainManifest)
-	if got := e.waitState(e.run(p, "work"), "done", "error", "waiting_provider"); got.State != "done" {
+	p := e.Project("plain", plainManifest)
+	if got := e.WaitState(e.Run(p, "work"), "done", "error", "waiting_provider"); got.State != "done" {
 		t.Fatalf("a slow model holds no turn: %+v", got)
 	}
 }
@@ -326,22 +322,22 @@ func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
 	c.approving()
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	e.waitHealth("provider:claude-code", "ok")
+	e.WaitHealth("provider:claude-code", "ok")
 	c.stream(4, "error.jsonl")
 	c.stream(5, "ok.jsonl")
 	e.Clock.Add(31 * time.Minute)
-	if got := e.waitState(e.run(e.createProject("plain", plainManifest), "work"), "done", "error"); got.State != "error" {
+	if got := e.WaitState(e.Run(e.Project("plain", plainManifest), "work"), "done", "error"); got.State != "error" {
 		t.Fatalf("the turn fails: %+v", got)
 	}
-	e.waitHealth("provider:claude-code", "error")
+	e.WaitHealth("provider:claude-code", "error")
 }
 
 func TestACommandDuringTheStopStartsNoBackgroundWork(t *testing.T) {
 	t.Parallel()
 	cf := &checkedFake{Fake: &Fake{}}
-	e := newEnvWith(t, t.TempDir(), cf)
+	e := New(t, WithProvider(cf))
 	e.App.Stop()
-	code, out := e.call("deck.provider_check", map[string]any{"provider": "fake"})
+	code, out := e.Call("deck.provider_check", map[string]any{"provider": "fake"})
 	// No check starts.
 	time.Sleep(300 * time.Millisecond)
 	cf.mu.Lock()
@@ -369,14 +365,14 @@ fi`)
 	e := clockCLIEnv(t, c)
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
-	e.waitHealth("provider:claude-code", "ok")
+	e.WaitHealth("provider:claude-code", "ok")
 	nomcp := filepath.Join(c.dir, "nomcp")
 	if err := os.WriteFile(nomcp, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	id := e.run(e.createProject("plain", plainManifest), "work")
-	e.waitState(id, "waiting_provider")
-	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "without deck's tools") || !strings.Contains(h.Error, "mcp__deck__approve") {
+	id := e.Run(e.Project("plain", plainManifest), "work")
+	e.WaitState(id, "waiting_provider")
+	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "without deck's tools") || !strings.Contains(h.Error, "mcp__deck__approve") {
 		t.Fatalf("the provider is red with why: %+v", h)
 	}
 	if runs := e.runsOf("master", "on_error"); len(runs) != 0 {
@@ -388,13 +384,13 @@ fi`)
 	c.stream(5, "selfcheck.jsonl")
 	c.stream(6, "selfcheck_resume.jsonl")
 	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
-	e.settle()
+	e.Settle()
 	if n := c.calls(); n != 4 {
 		t.Fatalf("the provider checked a moment ago is checked again after its time: %d CLI calls", n)
 	}
 	e.App.Providers.Checks(ctx, e.Clock.Add(21*time.Minute))
-	e.waitHealth("provider:claude-code", "ok")
-	if got := e.waitState(id, "done", "error"); got.State != "done" || c.calls() != 8 {
+	e.WaitHealth("provider:claude-code", "ok")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || c.calls() != 8 {
 		t.Fatalf("the held process runs again once the self-check is green: %+v, %d calls", got, c.calls())
 	}
 }
@@ -410,12 +406,12 @@ func TestASelfCheckIsRedWhenAgentsDoNotReachDecksMCP(t *testing.T) {
 	closed := "http://" + ln.Addr().String()
 	ln.Close()
 	cf := &checkedFake{Fake: &Fake{}}
-	e := newEnvWith(t, t.TempDir(), cf, func(c *app.Config) { c.MCPBase = closed })
+	e := New(t, WithProvider(cf), WithConfig(func(c *app.Config) { c.MCPBase = closed }))
 	e.App.Providers.Checks(context.Background(), time.Now())
-	if h := e.waitHealth("provider:fake", "error"); !strings.Contains(h.Error, "do not reach deck's MCP server") {
+	if h := e.WaitHealth("provider:fake", "error"); !strings.Contains(h.Error, "do not reach deck's MCP server") {
 		t.Fatalf("an unreachable gateway turns the provider red: %+v", h)
 	}
-	if got := e.waitState(e.run(e.createProject("plain", plainManifest), "work"), "done", "error", "waiting_provider"); got.State != "waiting_provider" {
+	if got := e.WaitState(e.Run(e.Project("plain", plainManifest), "work"), "done", "error", "waiting_provider"); got.State != "waiting_provider" {
 		t.Fatalf("turns wait while agents would get no tools: %+v", got)
 	}
 }
@@ -439,19 +435,19 @@ fi`)
 	e.masterAwake()
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
-	e.waitHealth("provider:claude-code", "ok")
+	e.WaitHealth("provider:claude-code", "ok")
 	if err := os.WriteFile(filepath.Join(c.dir, "nomcp"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	id := e.run(e.createProject("plain", plainManifest), "work")
+	id := e.Run(e.Project("plain", plainManifest), "work")
 	for i := range 2 {
-		e.waitState(id, "waiting_provider")
+		e.WaitState(id, "waiting_provider")
 		e.App.Providers.Checks(ctx, e.Clock.Add(31*time.Minute))
 		if i == 0 {
-			e.waitFor("the second try", func() bool { return c.calls() >= 8 })
+			e.Until("the second try", func() bool { return c.calls() >= 8 })
 		}
 	}
-	if got := e.waitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "without deck's tools 3 times") {
+	if got := e.WaitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "without deck's tools 3 times") {
 		t.Fatalf("the process fails after its tries: %+v", got)
 	}
 	if got := e.fault(id); got.ErrorType != "deck.tools" || got.Whose != "deck" || !strings.Contains(got.ErrorDetails, "mcp__deck__approve") {
@@ -486,25 +482,24 @@ func TestToolsLostInEarlierTurnsDoNotCountAgainstALaterOne(t *testing.T) {
 	t.Parallel()
 	lf := &lossyFake{checkedFake: &checkedFake{Fake: &Fake{}}}
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, t.TempDir(), lf, withClock(clock))
-	e.Clock = clock
+	e := New(t, WithProvider(lf), WithClock(clock))
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, clock.Now())
-	e.waitHealth("provider:fake", "ok")
-	id := e.run(e.createProject("plain", plainManifest), "work")
+	e.WaitHealth("provider:fake", "ok")
+	id := e.Run(e.Project("plain", plainManifest), "work")
 	for i := range 3 {
 		if i > 0 {
-			e.waitState(id, "done")
+			e.WaitState(id, "done")
 			lf.lose.Store(1)
-			e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
+			e.Must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
 		} else {
 			lf.lose.Store(1)
 		}
-		if got := e.waitState(id, "waiting_provider", "error"); got.State != "waiting_provider" {
+		if got := e.WaitState(id, "waiting_provider", "error"); got.State != "waiting_provider" {
 			t.Fatalf("round %d: a turn that lost its tools once waits for the self-check: %+v", i, got)
 		}
 		e.App.Providers.Checks(ctx, clock.Add(31*time.Minute))
-		if got := e.waitState(id, "done", "error"); got.State != "done" {
+		if got := e.WaitState(id, "done", "error"); got.State != "done" {
 			t.Fatalf("round %d: the held turn runs once the self-check is green: %+v", i, got)
 		}
 	}
@@ -538,26 +533,21 @@ func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
 		return provider.Result{Text: "ok"}
 	}
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, t.TempDir(), g, withClock(clock))
-	e.Clock = clock
+	e := New(t, WithProvider(g), WithClock(clock))
 	e.App.Providers.Checks(context.Background(), clock.Now())
-	e.waitHealth("provider:fake", "ok")
+	e.WaitHealth("provider:fake", "ok")
 	g.hold.Store(true)
 	clock.Add(31 * time.Minute)
-	p := e.createProject("plain", plainManifest)
-	e.waitState(e.run(p, "work"), "error")
+	p := e.Project("plain", plainManifest)
+	e.WaitState(e.Run(p, "work"), "error")
 	<-g.entered
 	g.lose.Store(1)
-	id := e.run(p, "work")
-	e.waitState(id, "waiting_provider")
-	e.waitHealth("provider:fake", "error")
+	id := e.Run(p, "work")
+	e.WaitState(id, "waiting_provider")
+	e.WaitHealth("provider:fake", "error")
 	g.gate <- struct{}{}
-	select {
-	case <-g.entered:
-	case <-time.After(within(5 * time.Second)):
-		t.Fatal("the stale self-check must run again")
-	}
-	if got := e.waitState(id, "waiting_provider", "done", "error"); got.State != "waiting_provider" {
+	Receive(t, "the stale self-check to run again", g.entered)
+	if got := e.WaitState(id, "waiting_provider", "done", "error"); got.State != "waiting_provider" {
 		t.Fatalf("a stale self-check wakes no held turn: %+v", got)
 	}
 	if h := e.health("provider:fake"); h["status"] == "ok" {
@@ -565,7 +555,7 @@ func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
 	}
 	g.hold.Store(false)
 	g.gate <- struct{}{}
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the fresh self-check wakes the held turn: %+v", got)
 	}
 }
@@ -586,17 +576,16 @@ func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T)
 			cf := &checkedFake{Fake: &Fake{}}
 			cf.script = func(context.Context, *Call) provider.Result { return c.res }
 			clock := &Clock{now: t0}
-			e := newEnvWith(t, t.TempDir(), cf, withClock(clock))
-			e.Clock = clock
+			e := New(t, WithProvider(cf), WithClock(clock))
 			ctx := context.Background()
 			e.App.Providers.Checks(ctx, clock.Now())
-			e.waitHealth("provider:fake", "ok")
+			e.WaitHealth("provider:fake", "ok")
 			clock.Add(31 * time.Minute)
-			id := e.run(e.createProject("plain", plainManifest), "work")
-			e.waitState(id, "rate_limited", "needs_login")
-			e.must("deck.process_stop", map[string]any{"process": id}, nil)
+			id := e.Run(e.Project("plain", plainManifest), "work")
+			e.WaitState(id, "rate_limited", "needs_login")
+			e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 			e.App.Providers.Checks(ctx, clock.Add(c.after))
-			if h := e.waitHealth("provider:fake", "ok"); h.Status != "ok" {
+			if h := e.WaitHealth("provider:fake", "ok"); h.Status != "ok" {
 				t.Fatalf("the self-check lifts the row: %+v", h)
 			}
 		})
@@ -616,35 +605,34 @@ func TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext(t *testing.
 	}}}
 	other := &checkedFake{Fake: &Fake{name: "other"}}
 	clock := &Clock{now: t0}
-	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other}, withClock(clock))
-	e.Clock = clock
+	e := New(t, WithProvider(main, other), WithClock(clock))
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, clock.Now())
-	e.waitHealth("provider:fake", "ok")
-	e.waitHealth("provider:other", "ok")
-	p := e.createProject("plain", plainManifest)
-	e.useModels("plain.work", "fake", "other")
-	done := e.run(p, "work")
-	e.waitState(done, "done")
+	e.WaitHealth("provider:fake", "ok")
+	e.WaitHealth("provider:other", "ok")
+	p := e.Project("plain", plainManifest)
+	e.UseModels("plain.work", "fake", "other")
+	done := e.Run(p, "work")
+	e.WaitState(done, "done")
 	limited.Store(true)
-	refused := e.run(p, "work")
-	e.waitState(refused, "error")
-	e.waitState(e.following(refused), "done")
-	e.waitHealth("provider:fake", "paused")
+	refused := e.Run(p, "work")
+	e.WaitState(refused, "error")
+	e.WaitState(e.following(refused), "done")
+	e.WaitHealth("provider:fake", "paused")
 	var v struct{ Provider string }
-	fresh := e.run(p, "work")
-	e.waitState(fresh, "done")
-	if e.must("deck.process_get", map[string]any{"process": fresh}, &v); v.Provider != "other" {
+	fresh := e.Run(p, "work")
+	e.WaitState(fresh, "done")
+	if e.Must("deck.process_get", map[string]any{"process": fresh}, &v); v.Provider != "other" {
 		t.Fatalf("a new start goes to the next model: %+v", v)
 	}
 	calls := len(main.Calls())
-	e.must("deck.process_rework", map[string]any{"process": done, "remark": "once more"}, nil)
-	if got := e.waitState(done, "waiting_provider", "rate_limited", "done"); got.State != "waiting_provider" || len(main.Calls()) != calls {
+	e.Must("deck.process_rework", map[string]any{"process": done, "remark": "once more"}, nil)
+	if got := e.WaitState(done, "waiting_provider", "rate_limited", "done"); got.State != "waiting_provider" || len(main.Calls()) != calls {
 		t.Fatalf("the session waits for its paused provider and does not run into the limit: %+v, %d calls", got, len(main.Calls())-calls)
 	}
 	limited.Store(false)
 	e.App.Providers.Checks(ctx, clock.Add(2*time.Hour+time.Minute))
-	if got := e.waitState(done, "done", "error"); got.State != "done" {
+	if got := e.WaitState(done, "done", "error"); got.State != "done" {
 		t.Fatalf("the session goes on once its provider is up: %+v", got)
 	}
 }

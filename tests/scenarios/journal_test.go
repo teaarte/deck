@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/events"
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
@@ -19,22 +20,23 @@ import (
 // with its outcomes, the tokens by command and provider, the files and the snapshots; it only shows them.
 func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "tell" {
 			c.Tool(ctx, "web__publish", map[string]any{})
 			c.Req.OnUsage(provider.Usage{RequestModel: "big", Model: "big", Input: 1200, Output: 300})
 			c.Req.OnUsage(provider.Usage{RequestModel: "big", Model: "big", Input: 800, Output: 100})
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
-	})
+	}))
+
 	check := newCatalogCheck(t)
-	e.createProject("web", webNotes)
-	e.createProject("quiet", webNotes)
-	tell := e.start("web", "tell", nil)
-	e.waitState(tell, "waiting_answer")
+	e.Project("web", webNotes)
+	e.Project("quiet", webNotes)
+	tell := e.Start("web", "tell", nil)
+	e.WaitState(tell, "waiting_answer")
 	scan := e.upload("web", "scan.txt", "text/plain", "a page")
-	e.waitState(e.start("web", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
-	e.must("deck.snapshot_create", nil, nil)
+	e.WaitState(e.Start("web", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
+	e.Must("deck.snapshot_create", nil, nil)
 	if err := os.WriteFile(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", "deck-20200101T000000.tar.gz"), []byte("old"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +44,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	var calls []struct {
 		Tool, Actor, Project, Outcome string
 	}
-	e.must("deck.calls_list", map[string]any{"project": "web"}, &calls)
+	e.Must("deck.calls_list", map[string]any{"project": "web"}, &calls)
 	waiting := false
 	for _, c := range calls {
 		waiting = waiting || c.Tool == "web.publish" && c.Outcome == "waiting" && c.Project == "web" && strings.HasPrefix(c.Actor, "agent:")
@@ -50,8 +52,8 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	if !waiting {
 		t.Fatalf("the journal has the external call that waits for the owner: %+v", calls)
 	}
-	e.answer(e.waitAsk().ID, "deny")
-	e.must("deck.calls_list", map[string]any{"project": "web"}, &calls)
+	e.Answer(e.WaitAsk().ID, "deny")
+	e.Must("deck.calls_list", map[string]any{"project": "web"}, &calls)
 	outcomes := map[string]bool{}
 	for _, c := range calls {
 		outcomes[c.Outcome] = true
@@ -60,12 +62,12 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		t.Fatalf("the journal keeps each outcome of a call: %+v", calls)
 	}
 	var rejected []map[string]any
-	e.must("deck.calls_list", map[string]any{"outcome": "rejected"}, &rejected)
+	e.Must("deck.calls_list", map[string]any{"outcome": "rejected"}, &rejected)
 	if len(rejected) != 1 || rejected[0]["outcome"] != "rejected" || rejected[0]["_actions"] != nil {
 		t.Fatalf("the journal narrows by outcome and gives only its own fields: %+v", rejected)
 	}
 	var none []any
-	e.must("deck.calls_list", map[string]any{"project": "quiet"}, &none)
+	e.Must("deck.calls_list", map[string]any{"project": "quiet"}, &none)
 	if len(none) != 0 {
 		t.Fatalf("the journal of a project has only its calls: %+v", none)
 	}
@@ -88,7 +90,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		Share    float64
 		Runs     int64
 	}
-	e.must("deck.spend_daily", map[string]any{"by": "provider"}, &by)
+	e.Must("deck.spend_daily", map[string]any{"by": "provider"}, &by)
 	if len(by) != 1 || by[0].Tokens != 2400 || by[0].Share != 1 || by[0].Runs != 2 {
 		t.Fatalf("spend by provider sums the tokens of the days with their share and the runs of the model: %+v", by)
 	}
@@ -97,7 +99,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		Age    int64
 		Tokens int64
 	}
-	e.must("deck.spend_daily", map[string]any{"days": 7}, &days)
+	e.Must("deck.spend_daily", map[string]any{"days": 7}, &days)
 	if len(days) != 7 || days[6].Age != 0 || days[0].Age != 6 {
 		t.Fatalf("spend by day has every day of the window, today last: %+v", days)
 	}
@@ -115,19 +117,19 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 			t.Fatalf("the journal shows and restores nothing; only a file downloads: %+v", r)
 		}
 	}
-	events := e.sse(t.Context())
-	e.must("deck.snapshot_create", nil, nil)
-	waitTopic(t, events, "snapshots")
+	stream := e.Events(t.Context())
+	e.Must("deck.snapshot_create", nil, nil)
+	WaitEvent(t, stream, events.Event{Topic: "snapshots"})
 }
 
 // TestTheJournalKeepsHalfAYear: the daily cleanup drops calls older than 180 days and notes of the feed older than 90.
 func TestTheJournalKeepsHalfAYear(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("notes", plainManifest)
-	e.must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
-	e.createProject("old", plainManifest)
-	e.must("deck.project_delete", map[string]any{"project": "old"}, nil)
+	e := New(t)
+	e.Project("notes", plainManifest)
+	e.Must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
+	e.Project("old", plainManifest)
+	e.Must("deck.project_delete", map[string]any{"project": "old"}, nil)
 	count := func(table string) (n int) {
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM ` + table).Scan(&n)
 		return n
@@ -148,11 +150,11 @@ func TestTheJournalKeepsHalfAYear(t *testing.T) {
 
 func TestStoppingAProcessJournalsTheCallsItDropped(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("pics", toolManifest("http://127.0.0.1:1", ""))
-	id := e.start("pics", "send", map[string]any{"text": "hi"})
-	e.waitState(id, "waiting_answer")
-	e.must("deck.process_stop", map[string]any{"process": id}, nil)
+	e := New(t)
+	e.Project("pics", toolManifest("http://127.0.0.1:1", ""))
+	id := e.Start("pics", "send", map[string]any{"text": "hi"})
+	e.WaitState(id, "waiting_answer")
+	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 	if j := e.calls(id); !strings.Contains(j, "pics.note rejected") || !strings.Contains(j, "stopped") {
 		t.Fatalf("a call dropped by a stop is in the journal:\n%s", j)
 	}
@@ -162,19 +164,20 @@ func TestStoppingAProcessJournalsTheCallsItDropped(t *testing.T) {
 // redraws only the blocks that read them.
 func TestTheJournalFollowsCallsAndSpendLive(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		c.Tool(ctx, "document_save", map[string]any{"name": "report.md", "kind": "artifact", "text": "done"})
 		c.Req.OnUsage(provider.Usage{RequestModel: "big", Model: "big", Input: 1200, Output: 300})
 		return provider.Result{Structured: json.RawMessage(`{}`)}
-	})
-	e.createProject("web", webNotes)
+	}))
+
+	e.Project("web", webNotes)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	phone := e.sse(ctx)
-	score := e.start("web", "score", map[string]any{"title": "x"})
-	e.waitState(score, "done")
-	waitTopic(t, phone, "calls")
-	waitTopic(t, phone, "usage")
+	phone := e.Events(ctx)
+	score := e.Start("web", "score", map[string]any{"title": "x"})
+	e.WaitState(score, "done")
+	WaitEvent(t, phone, events.Event{Topic: "calls"})
+	WaitEvent(t, phone, events.Event{Topic: "usage"})
 	for _, at := range []struct {
 		topic, screen string
 		params        map[string]any
@@ -192,24 +195,25 @@ func TestTheJournalFollowsCallsAndSpendLive(t *testing.T) {
 // stays in the spend of its project and command.
 func TestTheSpendOfAPurgedProcessStays(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		cost := 0.5
 		c.Req.OnUsage(provider.Usage{RequestModel: "big", Model: "big", Input: 1200, Output: 300, CostUSD: &cost})
 		return provider.Result{Structured: json.RawMessage(`null`)}
-	})
-	p := e.createProject("quiet", nullable(testManifest([]string{agentCommand("check", "")}, nil)))
-	id := e.run(p, "check")
-	e.waitState(id, "done")
-	e.settle()
+	}), WithClock())
+
+	p := e.Project("quiet", nullable(testManifest([]string{agentCommand("check", "")}, nil)))
+	id := e.Run(p, "check")
+	e.WaitState(id, "done")
+	e.Settle()
 	e.Clock.Add(25 * time.Hour)
 	e.sweep()
-	e.refused("deck.process_get", map[string]any{"process": id}, 404, "no process")
+	e.Refused("deck.process_get", map[string]any{"process": id}, 404, "no process")
 	var spend []struct {
 		Project, Command string
 		Calls            int64
 		CostUSD          float64 `json:"cost_usd"`
 	}
-	e.must("deck.spend_list", nil, &spend)
+	e.Must("deck.spend_list", nil, &spend)
 	if len(spend) != 1 || spend[0].Project != "quiet" || spend[0].Command != "check" || spend[0].Calls != 1 || spend[0].CostUSD != 0.5 {
 		t.Fatalf("the spend of a purged process stays with its project and command: %+v", spend)
 	}
@@ -218,7 +222,7 @@ func TestTheSpendOfAPurgedProcessStays(t *testing.T) {
 	if len(calls) != 1 {
 		t.Fatalf("its model call stays in the journal: %+v", calls)
 	}
-	e.refused("deck.llm_calls_list", nil, 404, "unknown command")
+	e.Refused("deck.llm_calls_list", nil, 404, "unknown command")
 }
 
 // TestTheJournalCountsTheDaysOfTheOwner: the days of Spend and Runs are those of the owner's clock, not of UTC, half
@@ -228,8 +232,8 @@ func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
 	time.Local = time.FixedZone("owner", 5*3600+30*60)
 	t.Cleanup(func() { time.Local = local })
 	clock := &Clock{now: time.Date(2026, 10, 6, 22, 30, 0, 0, time.UTC)}
-	e := newEnvWith(t, t.TempDir(), &Fake{}, withClock(clock))
-	p := e.createProject("work", plainManifest)
+	e := New(t, WithProvider(&Fake{}), WithClock(clock))
+	p := e.Project("work", plainManifest)
 	for _, q := range []string{
 		`INSERT INTO llm_call (workspace_id, gen_ai_provider_name, gen_ai_usage_input_tokens, created_at) VALUES
 		   (1, 'm', 10, '2026-10-05T18:20:00Z'), (1, 'm', 20, '2026-10-05T18:40:00Z')`,
@@ -245,7 +249,7 @@ func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
 		Day    string
 		Tokens int64
 	}
-	e.must("deck.spend_daily", map[string]any{"days": 3}, &spend)
+	e.Must("deck.spend_daily", map[string]any{"days": 3}, &spend)
 	if len(spend) != 3 || spend[0].Day != "2026-10-05" || spend[0].Tokens != 10 || spend[1].Day != "2026-10-06" || spend[2].Day != "2026-10-07" || spend[1].Tokens != 20 {
 		t.Fatalf("a call just past the owner's midnight counts on that day: %+v", spend)
 	}
@@ -255,9 +259,9 @@ func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
 // cleanup compares with, so a clock of a test or a sleep of the machine ages them alike.
 func TestTheJournalKeepsTimeByTheClockOfDeck(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	e.createProject("notes", plainManifest)
-	e.must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
+	e := New(t, WithClock())
+	e.Project("notes", plainManifest)
+	e.Must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
 	var at string
 	_ = e.App.Store.DB.QueryRow(`SELECT created_at FROM feed WHERE kind = 'note' ORDER BY id DESC LIMIT 1`).Scan(&at)
 	if !strings.HasPrefix(at, t0.UTC().Format("2006-01-02")) {
@@ -273,20 +277,21 @@ func TestTheJournalKeepsTimeByTheClockOfDeck(t *testing.T) {
 // empty ones, so the master still knows which records its own processes wrote.
 func TestAnEmptyProcessThatWroteRecordsStays(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "write" {
 			c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": `{"title": "kept", "score": 1}`})
 		}
 		return provider.Result{Structured: json.RawMessage(`null`)}
-	})
+	}), WithClock())
+
 	m := strings.Replace(ideasManifest, `"commands": [{`, `"commands": [`+agentCommand("write", "")+`, `+agentCommand("idle", "")+`, {`, 1)
-	p := e.createProject("notes", nullable(m))
-	wrote, idle := e.run(p, "write"), e.run(p, "idle")
-	e.waitState(wrote, "done")
-	e.waitState(idle, "done")
-	e.settle()
+	p := e.Project("notes", nullable(m))
+	wrote, idle := e.Run(p, "write"), e.Run(p, "idle")
+	e.WaitState(wrote, "done")
+	e.WaitState(idle, "done")
+	e.Settle()
 	e.Clock.Add(25 * time.Hour)
 	e.sweep()
-	e.refused("deck.process_get", map[string]any{"process": idle}, 404, "no process")
-	e.must("deck.process_get", map[string]any{"process": wrote}, nil)
+	e.Refused("deck.process_get", map[string]any{"process": idle}, 404, "no process")
+	e.Must("deck.process_get", map[string]any{"process": wrote}, nil)
 }

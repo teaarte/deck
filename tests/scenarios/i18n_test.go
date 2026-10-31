@@ -21,9 +21,9 @@ import (
 // language asked for, by the i18n of each; a text without a translation stays as written.
 func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webNotesAgent())
+	e := New(t, WithAgent(webNotesAgent()))
 	manifest := strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`, 1)
-	e.createProject("web", manifest)
+	e.Project("web", manifest)
 
 	var menu []menuView
 	e.menuList(map[string]any{"lang": "ru"}, true, &menu)
@@ -51,20 +51,20 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 		Value   any
 		Options []string
 	}
-	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, &set)
+	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, &set)
 	for _, s := range set {
 		if s.Name == "language" && (s.Value != "ru" || len(s.Options) != 3) {
 			t.Fatalf("the language of the interface is a setting with its options: %+v", s)
 		}
 	}
-	e.refused("deck.settings_set", map[string]any{"name": "language", "value": "klingon"}, 422, "")
+	e.Refused("deck.settings_set", map[string]any{"name": "language", "value": "klingon"}, 422, "")
 }
 
 // TestATabKeepsItsKeyInEveryLanguage: a tab is named in the address by its title as written, so a link to it
 // opens the same tab whatever language the screen is drawn in; the tabs of a screen have their own titles.
 func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	drawn, _ := json.Marshal(e.screenMessages("", "spend", map[string]any{"lang": "ru"}))
 	if !strings.Contains(string(drawn), `"Сегодня"`) || !strings.Contains(string(drawn), `"key":"Today"`) || !strings.Contains(string(drawn), `"key":"30 days"`) {
 		t.Fatalf("a tab shows its title translated and keeps its key: %s", drawn)
@@ -72,16 +72,16 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 	twice := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "appearance"}]}]},
       {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "appearance"}]}]},`, 1)
-	e.refused("deck.project_create", map[string]any{"name": "twice", "manifest": twice}, 422, `tab "One": duplicate`)
+	e.Refused("deck.project_create", map[string]any{"name": "twice", "manifest": twice}, 422, `tab "One": duplicate`)
 }
 
 // TestEveryTextOfDeckScreensHasItsTranslation: each text of deck's screens is translated, and each translation
 // is of a text there is, of the title of a command of deck a form shows, of a text of deck's code or a value of a screen.
 func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var cmds []struct{ Name, Title string }
-	e.must("deck.commands_list", nil, &cmds)
+	e.Must("deck.commands_list", nil, &cmds)
 	titles := map[string]bool{}
 	for _, c := range cmds {
 		if strings.HasPrefix(c.Name, "deck.") {
@@ -140,12 +140,12 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 // saved, so a renamed text does not lose its translation unseen.
 func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
+	e := New(t)
+	e.Project("web", webNotes)
 	var saved struct {
 		Unused []string `json:"unused_i18n"`
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(webNotes, `{"version": 13,`,
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(webNotes, `{"version": 13,`,
 		`{"version": 13, "i18n": {"ru": {"Notes": "Заметки", "Old title": "Старое"}},`, 1)}, &saved)
 	if !slices.Equal(saved.Unused, []string{"ru: Old title"}) {
 		t.Fatalf("the translation of no text is named: %v", saved.Unused)
@@ -156,8 +156,8 @@ func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 // and the fields of filters are translated too.
 func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webNotesAgent())
-	e.createProject("web", strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "i18n": {"ru": {"Score": "Оценить",
+	e := New(t, WithAgent(webNotesAgent()))
+	e.Project("web", strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "i18n": {"ru": {"Score": "Оценить",
       "Scores a title.": "Оценивает заголовок.", "title": "Заголовок", "source": "Источник"}},`, 1))
 	drawn, _ := json.Marshal(e.screenMessages("web", "main", map[string]any{"lang": "ru"}))
 	for _, want := range []string{`"title":"Оценить"`, `"description":"Оценивает заголовок."`, `"title":"Заголовок"`, `"label":"Источник"`} {
@@ -196,13 +196,13 @@ func TestEveryParamADeckScreenReadsIsDeclared(t *testing.T) {
 // command or of the record of the page, offers its values with their translations.
 func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webNotesAgent())
-	e.createProject("web", strings.NewReplacer(`{"version": 13,`, `{"version": 13, "i18n": {"ru": {"open": "открыта", "closed": "закрыта"}},`,
+	e := New(t, WithAgent(webNotesAgent()))
+	e.Project("web", strings.NewReplacer(`{"version": 13,`, `{"version": 13, "i18n": {"ru": {"open": "открыта", "closed": "закрыта"}},`,
 		`"n": {"type": "integer"}`, `"n": {"type": "integer"}, "state": {"type": "string", "enum": ["open", "closed"]},
       "tags": {"type": "array", "items": {"type": "string", "enum": ["open", "closed"]}}`,
 		`"note": {"type": "string"}}`, `"note": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed"]}}`).Replace(webNotes))
 	var recs struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, &recs)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, &recs)
 	want := `"state":[{"label":"открыта","value":"open"},{"label":"закрыта","value":"closed"}]`
 	for _, s := range []struct {
 		screen string
@@ -222,14 +222,14 @@ func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
 // language by the module's words, a filter is named like its column, and deck's values and tags are translated.
 func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	m := strings.Replace(testManifest([]string{agentCommand("work", ""), agentCommand("send", `{"type": "object", "properties": {"process": {"type": "integer"}}}`)},
 		[]string{`{"command": "send", "after": "work"}`}),
 		`"version": 13,`, `"version": 13, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "work": "Работа"}},`, 1)
-	p := e.createProject("web", m)
-	e.createProject("video", testManifest([]string{agentCommand("search", "")}, []string{`{"command": "search", "cron": "0 9 * * *"}`}))
+	p := e.Project("web", m)
+	e.Project("video", testManifest([]string{agentCommand("search", "")}, []string{`{"command": "search", "cron": "0 9 * * *"}`}))
 	var ps []struct{ Name, Title, Meta string }
-	e.must("deck.projects_list", map[string]any{"lang": "ru"}, &ps)
+	e.Must("deck.projects_list", map[string]any{"lang": "ru"}, &ps)
 	if i := slices.IndexFunc(ps, func(v struct{ Name, Title, Meta string }) bool { return v.Name == "web" }); i < 0 || ps[i].Title != "Веб-заметки" || !strings.HasPrefix(ps[i].Meta, "включён") {
 		t.Fatalf("a module's title and its line come in the owner's language: %+v", ps)
 	}
@@ -237,11 +237,11 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 		t.Fatalf("a module without a title is named by its name, though deck has a word like it: %+v", ps)
 	}
 	var cmds []struct{ Name, Title string }
-	e.must("deck.commands_list", map[string]any{"project": "web", "lang": "ru"}, &cmds)
+	e.Must("deck.commands_list", map[string]any{"project": "web", "lang": "ru"}, &cmds)
 	if i := slices.IndexFunc(cmds, func(c struct{ Name, Title string }) bool { return c.Name == "web.work" }); i < 0 || cmds[i].Title != "Работа" {
 		t.Fatalf("a command's title comes in the owner's language: %+v", cmds)
 	}
-	e.waitState(e.run(p, "work"), "done")
+	e.WaitState(e.Run(p, "work"), "done")
 	schedule := e.screenData("", "schedule", map[string]any{"lang": "ru"})
 	var filters []struct {
 		Field, Label string
@@ -263,7 +263,7 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 // texts of each form of deck's screens and of the master's commands, are translated.
 func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var ru map[string]string
 	raw, err := os.ReadFile("../../internal/app/screens/shipped/ru.json")
 	if err != nil || json.Unmarshal(raw, &ru) != nil {
@@ -277,7 +277,7 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 		t.Fatalf("no manifest of the master: %v", err)
 	}
 	var cmds []struct{ Name, Title string }
-	e.must("deck.commands_list", nil, &cmds)
+	e.Must("deck.commands_list", nil, &cmds)
 	forms := map[string]bool{}
 	files, _ := filepath.Glob("../../internal/app/screens/shipped/*.json")
 	for _, f := range files {
@@ -312,7 +312,7 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 				Properties map[string]struct{ Title, Description string }
 			}
 		}
-		e.must("deck.command_describe", map[string]any{"command": c.Name}, &spec)
+		e.Must("deck.command_describe", map[string]any{"command": c.Name}, &spec)
 		texts := []string{spec.Description}
 		for _, p := range spec.Input.Properties {
 			texts = append(texts, p.Title, p.Description)
@@ -327,7 +327,7 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 		t.Errorf("no ru for %q", s)
 	}
 	var projects []struct{ Name, Description string }
-	e.must("deck.projects_list", map[string]any{"lang": "ru"}, &projects)
+	e.Must("deck.projects_list", map[string]any{"lang": "ru"}, &projects)
 	if i := slices.IndexFunc(projects, func(p struct{ Name, Description string }) bool { return p.Name == "master" }); i < 0 ||
 		!strings.HasPrefix(projects[i].Description, "Мастер:") {
 		t.Errorf("the description of a module comes in its words too: %+v", projects)
@@ -338,13 +338,13 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 // module's words, no empty choice; a save names the texts a language lacks, not the data.
 func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	m := strings.NewReplacer(`{"version": 13,`, `{"version": 13, "i18n": {"ru": {"source": "Источник", "web": "веб", "mail": "почта", "Source": "Источник", "a": "один"}},`,
 		`"note": {"type": "string"}}, "required": ["title"]}`, `"note": {"type": "string"}, "kind": {"type": "string", "enum": ["a", "b", ""]}}, "required": ["title"]}`,
 		`"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Source", "bind": "source"}]`).Replace(webNotes)
-	e.createProject("web", m)
+	e.Project("web", m)
 	var recs struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(
 		map[string]any{"title": "alpha", "source": "web"}, map[string]any{"title": "beta", "source": "mail"}, map[string]any{"title": "gamma", "source": "paper"})}, &recs)
 	main := e.screenData("web", "main", map[string]any{"lang": "ru"})
 	var filters []struct {
@@ -379,7 +379,7 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 		Unused       []string `json:"unused_i18n"`
 		Untranslated []string `json:"untranslated"`
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": m}, &saved)
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": m}, &saved)
 	if len(saved.Unused) != 0 || slices.Contains(saved.Untranslated, "ru: paper") || !slices.Contains(saved.Untranslated, "ru: note") ||
 		slices.Contains(saved.Untranslated, "ru: web") || slices.Contains(saved.Untranslated, "ru: Work") {
 		t.Fatalf("a save names the texts ru lacks; deck's words are known, the values filtered by data that wants none: %+v", saved)
@@ -390,11 +390,11 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 // keys and sizes in Russian; names stay as they are.
 func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	p := e.createProject("notes", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
-	e.must("deck.secret_set", map[string]any{"name": "gate-key", "value": "k"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "gate", "api": "openai", "url": "http://127.0.0.1:9/v1", "key_secret": "gate-key"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "plain", "api": "raw", "url": "http://127.0.0.1:9/raw"}, nil)
+	e := New(t)
+	p := e.Project("notes", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	e.Must("deck.secret_set", map[string]any{"name": "gate-key", "value": "k"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "gate", "api": "openai", "url": "http://127.0.0.1:9/v1", "key_secret": "gate-key"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "plain", "api": "raw", "url": "http://127.0.0.1:9/raw"}, nil)
 	for i, kind := range []string{"text", "image", "tts", "stt", "music", "video", "search"} {
 		in := map[string]any{"connection": "gate", "model": "m-" + kind, "name": "m-" + kind, "kind": kind, "input_usd": 1}
 		switch i % 3 {
@@ -403,9 +403,9 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		case 2:
 			in["unit"] = "second"
 		}
-		e.must("deck.model_set", in, nil)
+		e.Must("deck.model_set", in, nil)
 	}
-	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"m-tts"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"m-tts"}}, nil)
 	for _, q := range []string{
 		`INSERT INTO health (workspace_id, subject, status, error) VALUES (1, 'model:m-text', 'ok', 'the model answered at 142 tokens/s')`,
 		`INSERT INTO health (workspace_id, subject, status, error) VALUES (1, 'model:m-image', 'warning', 'the model did not finish the self-check of goose 1.53.0 within 2m0s: first turn: not one model call finished within the ceiling: the model may be slow to start (a cold start, the queue of a free tier), or its url or model id may be wrong')`,
@@ -418,9 +418,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		}
 	}
 	e.App.Snapshots.CheckDisk(context.Background(), time.Now())
-	if err := e.App.Runner.ResumeInterrupted(context.Background()); err != nil {
-		t.Fatal(err)
-	}
+	e.Resume()
 	// Names are as they are: of models, agents, connections, secrets, modules and commands, of files and addresses.
 	names := map[string]bool{"gate-key": true}
 	var models struct {
@@ -428,7 +426,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		Connections []struct{ Name string }
 		Models      []struct{ Name, Model, Agent string }
 	}
-	e.must("deck.models_list", nil, &models)
+	e.Must("deck.models_list", nil, &models)
 	for _, a := range models.Agents {
 		names[a.Name] = true
 	}
@@ -439,7 +437,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		names[m.Name], names[m.Model], names[m.Agent] = true, true, true
 	}
 	var cmds []struct{ Name string }
-	e.must("deck.commands_list", nil, &cmds)
+	e.Must("deck.commands_list", nil, &cmds)
 	for _, c := range cmds {
 		names[c.Name] = true
 		project, command, _ := strings.Cut(c.Name, ".")

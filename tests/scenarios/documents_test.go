@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/events"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"encoding/json"
@@ -48,23 +49,23 @@ var docsManifest = strings.NewReplacer(
 // screen; a document page shows the text and revisions, and only md documents are edited on screen.
 func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	e.createProject("web", docsManifest)
-	e.createProject("other", webNotes)
+	e.Project("web", docsManifest)
+	e.Project("other", webNotes)
 	save := func(name, kind, text string, extra map[string]any) (d struct{ ID int64 }) {
 		in := map[string]any{"project": "web", "name": name, "kind": kind, "text": text}
 		for k, v := range extra {
 			in[k] = v
 		}
-		e.must("deck.document_save", in, &d)
+		e.Must("deck.document_save", in, &d)
 		return d
 	}
 	save("notes/criteria.md", "doc", "# Criteria\n\nfirst", nil)
 	crit := save("notes/criteria.md", "doc", "# Criteria\n\n- **short**", map[string]any{"reason": "tighter"})
 	save("custom/chart.html", "custom", "<p>x</p>", nil)
 	var recs struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "note": "**bold** note"})}, &recs)
 	save("report.md", "doc", "report", map[string]any{"record": recs.IDs[0]})
 
@@ -131,13 +132,13 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 		}
 	}
 	var ds []struct{ ID int64 }
-	e.must("deck.documents_list", map[string]any{"project": "other"}, &ds)
+	e.Must("deck.documents_list", map[string]any{"project": "other"}, &ds)
 	other := ds[0].ID
-	if code, out := e.call("deck.screen", map[string]any{"project": "web", "screen": "document", "record": other}); code != 404 || !strings.Contains(string(out), "no document") {
+	if code, out := e.Call("deck.screen", map[string]any{"project": "web", "screen": "document", "record": other}); code != 404 || !strings.Contains(string(out), "no document") {
 		t.Fatalf("a page of one project does not show a document of another: %d %s", code, out)
 	}
 
-	events := e.sse(t.Context())
+	stream := e.Events(t.Context())
 	d = page(crit.ID)
 	if d.Revisions[0].Revert != nil || d.Revisions[1].Revert == nil || d.Save["command"] != "deck.document_save" {
 		t.Fatalf("an editable document has its save, and each revision but the current its revert, from the server: %+v", d)
@@ -145,7 +146,7 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 	if code, out := e.press(d.Revisions[1].Revert); code != 200 {
 		t.Fatalf("the revert of the server goes back to its revision: %d %s", code, out)
 	}
-	waitTopic(t, events, "documents")
+	WaitEvent(t, stream, events.Event{Topic: "documents"})
 	var got documentV
 	for _, m := range e.screenMessages("web", "document", map[string]any{"record": crit.ID, "topic": "documents"}) {
 		var dm struct{ Value struct{ Value documentV } }
@@ -162,11 +163,11 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 // the project, or on a record page one of the record; text is markdown only where a card field says so.
 func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	e.createProject("web", docsManifest)
+	e.Project("web", docsManifest)
 	var recs struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "note": "**bold** note"})}, &recs)
 	rec := recs.IDs[0]
 
@@ -175,7 +176,7 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 	if d := blockData[documentV](t, main["b1"]["value"]); d.ID != 0 || d.Name != "notes/criteria.md" || !d.Editable {
 		t.Fatalf("a document not written yet shows empty and can be written: %+v", d)
 	}
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc", "text": "be short"}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc", "text": "be short"}, nil)
 	if d := blockData[documentV](t, e.screenData("web", "main", nil)["b1"]["value"]); d.Text != "be short" || d.Revision != 1 {
 		t.Fatalf("the block shows the document of the project it names: %+v", d)
 	}
@@ -195,12 +196,12 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 	if d := blockData[documentV](t, note["b2"]["value"]); d.ID != 0 || d.Record != rec {
 		t.Fatalf("on a record page the block names a document of the record: %+v", d)
 	}
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "report.md", "kind": "doc", "text": "report", "record": rec}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "report.md", "kind": "doc", "text": "report", "record": rec}, nil)
 	if d := blockData[documentV](t, e.screenData("web", "note", map[string]any{"record": rec})["b2"]["value"]); d.Text != "report" || d.Record != rec {
 		t.Fatalf("the record page shows the document of its record: %+v", d)
 	}
 	var got struct{ Text string }
-	e.must("deck.document_get", map[string]any{"project": "web", "name": "report.md", "record": rec}, &got)
+	e.Must("deck.document_get", map[string]any{"project": "web", "name": "report.md", "record": rec}, &got)
 	if got.Text != "report" {
 		t.Fatalf("document_get reads the document of a record by its name: %+v", got)
 	}
@@ -208,7 +209,7 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 		Name    string
 		OwnerID int64 `json:"owner_id"`
 	}
-	e.must("deck.documents_list", map[string]any{"project": "web", "record": rec}, &listed)
+	e.Must("deck.documents_list", map[string]any{"project": "web", "record": rec}, &listed)
 	if len(listed) != 1 || listed[0].Name != "report.md" || listed[0].OwnerID != rec {
 		t.Fatalf("documents_list gives the documents of a record: %+v", listed)
 	}
@@ -226,7 +227,7 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 		if !strings.Contains(docsManifest, tc.from) {
 			t.Fatalf("fixture lacks %s", tc.from)
 		}
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(docsManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(docsManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -235,19 +236,19 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 
 func TestDocumentIDsAreNotReused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, idle)
-	e.createProject("nums", calcManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums", "records": jsonl(map[string]any{"n": 1})}, nil)
-	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: e.projectID("nums"), Collection: "nums"})
+	e := New(t, WithAgent(idle))
+	e.Project("nums", calcManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums", "records": jsonl(map[string]any{"n": 1})}, nil)
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: e.ProjectID("nums"), Collection: "nums"})
 	var old struct{ ID int64 }
-	e.must("deck.document_save", map[string]any{"project": "nums", "name": "a.md", "kind": "artifact", "text": "mine", "record": recs[0].ID}, &old)
-	e.must("deck.collection_delete", map[string]any{"project": "nums", "collection": "nums"}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "nums", "name": "a.md", "kind": "artifact", "text": "mine", "record": recs[0].ID}, &old)
+	e.Must("deck.collection_delete", map[string]any{"project": "nums", "collection": "nums"}, nil)
 	var fresh struct{ ID int64 }
-	e.must("deck.document_save", map[string]any{"project": "nums", "name": "b.md", "kind": "doc", "text": "other"}, &fresh)
+	e.Must("deck.document_save", map[string]any{"project": "nums", "name": "b.md", "kind": "doc", "text": "other"}, &fresh)
 	if fresh.ID == old.ID {
 		t.Fatalf("a new document must not take the id of a deleted one: %d", fresh.ID)
 	}
-	e.refused("deck.document_get", map[string]any{"document": old.ID}, 404, "no document")
+	e.Refused("deck.document_get", map[string]any{"document": old.ID}, 404, "no document")
 }
 
 // TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck: the master's edit of a built-in skill merges into the
@@ -255,25 +256,25 @@ func TestDocumentIDsAreNotReused(t *testing.T) {
 func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
+	e := New(t, WithHome(home), WithProvider(&Fake{}))
 	const name = "skills/module-builder/SKILL.md"
 	var d struct {
 		ID   int64
 		Text string
 	}
-	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	e.Must("deck.document_get", map[string]any{"name": name}, &d)
 	shipped := d.Text
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO document_revision (document_id, n, text, author, reason)
 		SELECT document_id, 0, 'the first skill of deck', 'deck', 'built-in skill' FROM document_revision WHERE document_id = ? AND n = 1`, d.ID); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": shipped + "\nThe master's own line.\n"}, nil)
+	e.Must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": shipped + "\nThe master's own line.\n"}, nil)
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET author = 'master' WHERE document_id = ? AND author = 'owner'`, d.ID); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	e = New(t, WithHome(home), WithProvider(&Fake{}))
+	e.Must("deck.document_get", map[string]any{"name": name}, &d)
 	if !strings.Contains(d.Text, "The master's own line.") {
 		t.Fatal("an edit stays while deck ships the same skill")
 	}
@@ -284,8 +285,8 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	e = New(t, WithHome(home), WithProvider(&Fake{}))
+	e.Must("deck.document_get", map[string]any{"name": name}, &d)
 	if d.Text != shipped+"\nThe master's own line.\n" {
 		t.Fatalf("a new version of deck keeps an edit of other lines: %.80q", d.Text)
 	}
@@ -297,8 +298,8 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	e = New(t, WithHome(home), WithProvider(&Fake{}))
+	e.Must("deck.document_get", map[string]any{"name": name}, &d)
 	if d.Text != shipped {
 		t.Fatalf("a new version of deck replaces the edited skill: %.80q", d.Text)
 	}
@@ -306,13 +307,13 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	if err := e.App.Store.DB.QueryRow(`SELECT text FROM feed WHERE for_master = 1 ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil || !strings.Contains(note, name) {
 		t.Fatalf("the master is told its edit was replaced: %q %v", note, err)
 	}
-	e.must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": shipped + "\nThe owner's own line.\n"}, nil)
+	e.Must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": shipped + "\nThe owner's own line.\n"}, nil)
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = 'an older skill' WHERE document_id = ? AND author = 'deck'`, d.ID); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	if e.must("deck.document_get", map[string]any{"name": name}, &d); !strings.Contains(d.Text, "The owner's own line.") {
+	e = New(t, WithHome(home), WithProvider(&Fake{}))
+	if e.Must("deck.document_get", map[string]any{"name": name}, &d); !strings.Contains(d.Text, "The owner's own line.") {
 		t.Fatalf("an edit of the owner stays through a new deck: %.80q", d.Text)
 	}
 }
@@ -322,25 +323,25 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 func TestAConflictOfAShippedSkillKeepsTheRestOfTheEditAndSendsTheDiff(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
+	e := New(t, WithHome(home), WithProvider(&Fake{}))
 	const name = "skills/module-builder/SKILL.md"
 	var d struct {
 		ID   int64
 		Text string
 	}
-	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	e.Must("deck.document_get", map[string]any{"name": name}, &d)
 	shipped := d.Text
 	first := regexp.MustCompile(`(?m)^# .*$`).FindString(shipped)
 	older := strings.Replace(shipped, first, "# An older title", 1)
 	edit := strings.Replace(older, "# An older title", "# The master's title", 1) + "\nThe master's own line.\n"
-	e.must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": edit}, nil)
+	e.Must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": edit}, nil)
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET author = CASE author WHEN 'owner' THEN 'master' ELSE author END,
 		text = CASE author WHEN 'deck' THEN ? ELSE text END WHERE document_id = ?`, older, d.ID); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	e = New(t, WithHome(home), WithProvider(&Fake{}))
+	e.Must("deck.document_get", map[string]any{"name": name}, &d)
 	if d.Text != shipped+"\nThe master's own line.\n" {
 		t.Fatalf("deck's text stands where both changed and the rest of the edit carries over: %.80q", d.Text)
 	}
@@ -365,9 +366,9 @@ var commandWord = regexp.MustCompile("deck\\.([a-z]+(?:_[a-z]+)+)|`([a-z]+_(?:li
 // no longer has makes it report work it never did.
 func TestSkillsAndPromptsNameOnlyCommandsDeckHas(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var cmds []struct{ Name string }
-	e.must("deck.commands_list", nil, &cmds)
+	e.Must("deck.commands_list", nil, &cmds)
 	have := map[string]bool{}
 	for _, c := range cmds {
 		have[strings.TrimPrefix(c.Name, "deck.")] = true
@@ -398,16 +399,16 @@ func TestSkillsAndPromptsNameOnlyCommandsDeckHas(t *testing.T) {
 // in a project, the error says to leave out project.
 func TestABuiltInSkillAskedInAProjectSaysItIsOfTheWorkspace(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	_, tok := e.token("terminal", "deck.*")
-	code, out := e.callWith(tok, "deck.document_get", map[string]any{"project": "master", "name": "skills/module-builder/SKILL.md"})
+	code, out := e.As(tok).Call("deck.document_get", map[string]any{"project": "master", "name": "skills/module-builder/SKILL.md"})
 	if code != 404 || !strings.Contains(string(out), "document of the workspace: leave out project") {
 		t.Fatalf("the error says where the skill is: %d %s", code, out)
 	}
-	if code, out := e.callWith(tok, "deck.document_get", map[string]any{"project": "master", "name": "skills/none/SKILL.md"}); code != 404 || strings.Contains(string(out), "workspace") {
+	if code, out := e.As(tok).Call("deck.document_get", map[string]any{"project": "master", "name": "skills/none/SKILL.md"}); code != 404 || strings.Contains(string(out), "workspace") {
 		t.Fatalf("a name missing everywhere is only missing: %d %s", code, out)
 	}
-	if code, _ := e.callWith(tok, "deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}); code != 200 {
+	if code, _ := e.As(tok).Call("deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}); code != 200 {
 		t.Fatalf("without project the skill reads: %d", code)
 	}
 }
@@ -416,9 +417,9 @@ func TestABuiltInSkillAskedInAProjectSaysItIsOfTheWorkspace(t *testing.T) {
 // chart it names that the catalog lacks makes the save refuse what the skill taught.
 func TestTheSkillNamesOnlyBlocksAndChartsTheCatalogHas(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var d struct{ Text string }
-	e.must("deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}, &d)
+	e.Must("deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}, &d)
 	raw, err := os.ReadFile("../../schemas/catalog.json")
 	if err != nil {
 		t.Fatal(err)
@@ -463,8 +464,8 @@ func TestTheSkillNamesOnlyBlocksAndChartsTheCatalogHas(t *testing.T) {
 // documents of a project gets the documents without the deleted ones, and a block only the owner reads says so.
 func TestAScreenReadByAnotherShowsWhatItMayAndSaysWhatIsTheOwners(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("plain", plainManifest)
+	e := New(t)
+	e.Project("plain", plainManifest)
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
 	for _, in := range []string{`{"screen": "files"}`, `{"project": "plain", "screen": "documents"}`} {
 		out, err := e.App.Registry.Invoke(context.Background(), master, "deck.screen", []byte(in))

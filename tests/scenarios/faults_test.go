@@ -29,14 +29,14 @@ type faultView struct {
 func (e *Env) fault(id int64) faultView {
 	e.T.Helper()
 	var v faultView
-	e.must("deck.process_get", map[string]any{"process": id}, &v)
+	e.Must("deck.process_get", map[string]any{"process": id}, &v)
 	return v
 }
 
 func (e *Env) failedRuns() []faultView {
 	e.T.Helper()
 	var out []faultView
-	e.must("deck.processes_list", map[string]any{"failed": true}, &out)
+	e.Must("deck.processes_list", map[string]any{"failed": true}, &out)
 	return out
 }
 
@@ -44,8 +44,8 @@ func (e *Env) failedRuns() []faultView {
 // a type a script may not give is script.failed; with stderr alone its last line is the text, the rest the details.
 func TestAScriptReportsItsFailureInTheOneForm(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("work", scriptManifest("run", "", ""))
+	e := New(t)
+	e.Project("work", scriptManifest("run", "", ""))
 	e.saveScript("work", "scripts/main.py", `import json, sys
 inp = json.load(sys.stdin)
 if inp.get("type") == "stderr":
@@ -55,22 +55,22 @@ if inp.get("type") == "stderr":
 print(json.dumps({"error": "the date is not a date", "type": inp.get("type"), "details": {"field": "date"}}))
 sys.exit(2)
 `)
-	got := e.fault(e.waitScript(e.start("work", "run", map[string]any{"type": "input.invalid"}), "error").ID)
+	got := e.fault(e.WaitState(e.Start("work", "run", map[string]any{"type": "input.invalid"}), "error").ID)
 	if got.ErrorType != "input.invalid" || got.Whose != "module" || got.Error != "script main: the date is not a date" ||
 		!strings.Contains(got.ErrorDetails, `"date"`) {
 		t.Fatalf("the failure the script reported, with its details apart: %+v", got)
 	}
-	got = e.fault(e.waitScript(e.start("work", "run", map[string]any{"type": "deck.internal"}), "error").ID)
+	got = e.fault(e.WaitState(e.Start("work", "run", map[string]any{"type": "deck.internal"}), "error").ID)
 	if got.ErrorType != "script.failed" {
 		t.Fatalf("a script cannot say the failure is deck's: %+v", got)
 	}
-	got = e.fault(e.waitScript(e.start("work", "run", map[string]any{"type": "stderr"}), "error").ID)
+	got = e.fault(e.WaitState(e.Start("work", "run", map[string]any{"type": "stderr"}), "error").ID)
 	if got.ErrorType != "script.failed" || !strings.HasSuffix(got.Error, "ValueError: the feed is empty") ||
 		!strings.Contains(got.ErrorDetails, "Traceback") {
 		t.Fatalf("stderr: the last line is the text, the rest the details: %+v", got)
 	}
 	e.saveScript("work", "scripts/main.py", "print('loading the feed')\n")
-	got = e.fault(e.waitScript(e.start("work", "run", nil), "error").ID)
+	got = e.fault(e.WaitState(e.Start("work", "run", nil), "error").ID)
 	if got.ErrorType != "result.invalid" || got.Whose != "module" {
 		t.Fatalf("a script that prints a line, not JSON, fails as the module's: %+v", got)
 	}
@@ -80,8 +80,8 @@ sys.exit(2)
 // many there were; closing it closes them all; a retry follows the failure and takes it off while it runs.
 func TestTheSameFailuresAreOneRowOfTheCockpit(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("work", scriptManifest("run", "", ""))
+	e := New(t)
+	e.Project("work", scriptManifest("run", "", ""))
 	e.saveScript("work", "scripts/main.py", `import json, sys
 inp = json.load(sys.stdin)
 if inp.get("n") == 0:
@@ -92,7 +92,7 @@ sys.exit(1)
 `)
 	var ids []int64
 	for i := 1; i <= 3; i++ {
-		ids = append(ids, e.waitScript(e.start("work", "run", map[string]any{"n": i}), "error").ID)
+		ids = append(ids, e.WaitState(e.Start("work", "run", map[string]any{"n": i}), "error").ID)
 	}
 	rows := e.failedRuns()
 	if len(rows) != 1 || rows[0].ID != ids[2] || rows[0].Repeats != 3 || rows[0].ErrorType != "network" || rows[0].Whose != "environment" {
@@ -108,14 +108,14 @@ sys.exit(1)
 	if !strings.Contains(string(page), "network · environment") || !strings.Contains(string(page), "Failure type") {
 		t.Fatalf("the page of the process says the type and whose it is: %s", page)
 	}
-	e.must("deck.process_dismiss", map[string]any{"process": ids[2]}, nil)
+	e.Must("deck.process_dismiss", map[string]any{"process": ids[2]}, nil)
 	if rows := e.failedRuns(); len(rows) != 0 {
 		t.Fatalf("closing the row closes the failures it stands for: %+v", rows)
 	}
-	failed := e.waitScript(e.start("work", "run", map[string]any{"n": 7}), "error").ID
+	failed := e.WaitState(e.Start("work", "run", map[string]any{"n": 7}), "error").ID
 	var again struct{ Process int64 }
-	e.must("deck.process_retry", map[string]any{"process": failed}, &again)
-	e.waitScript(again.Process, "error")
+	e.Must("deck.process_retry", map[string]any{"process": failed}, &again)
+	e.WaitState(again.Process, "error")
 	if got := e.fault(again.Process); got.Follows != failed {
 		t.Fatalf("a retry follows the failure it repeats: %+v", got)
 	}
@@ -131,11 +131,11 @@ sys.exit(1)
 // came; once read, the next one is a new note.
 func TestTheSameNoteOfDeckIsToldOnceWithACount(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("work", scriptManifest("run", `{"type": "object", "required": ["ok"]}`, ""))
+	e := New(t)
+	e.Project("work", scriptManifest("run", `{"type": "object", "required": ["ok"]}`, ""))
 	e.saveScript("work", "scripts/main.py", "print('{}')\n")
 	for range 2 {
-		e.waitScript(e.start("work", "run", nil), "done")
+		e.WaitState(e.Start("work", "run", nil), "done")
 	}
 	var notes []struct {
 		ID      int64
@@ -143,31 +143,32 @@ func TestTheSameNoteOfDeckIsToldOnceWithACount(t *testing.T) {
 		Repeats int64
 	}
 	told := func(n int, repeats int64) bool {
-		e.must("deck.feed_list", map[string]any{"kind": "note"}, &notes)
+		e.Must("deck.feed_list", map[string]any{"kind": "note"}, &notes)
 		return len(notes) == n && notes[0].Repeats == repeats
 	}
-	e.waitFor("one note counted twice", func() bool { return told(1, 2) })
+	e.Until("one note counted twice", func() bool { return told(1, 2) })
 	if !strings.Contains(notes[0].Text, "does not match its schema") {
 		t.Fatalf("the same note twice is one note counted twice: %+v", notes)
 	}
-	e.must("deck.feed_read", map[string]any{"entry": notes[0].ID}, nil)
-	e.waitScript(e.start("work", "run", nil), "done")
-	e.waitFor("a new note after the read one", func() bool { return told(2, 1) })
+	e.Must("deck.feed_read", map[string]any{"entry": notes[0].ID}, nil)
+	e.WaitState(e.Start("work", "run", nil), "done")
+	e.Until("a new note after the read one", func() bool { return told(2, 1) })
 }
 
 // TestTheMasterGetsTheTypeOfAFailure: on_error gets the type of the failure and whose it is; a failure of a model
 // does not go to the master.
 func TestTheMasterGetsTheTypeOfAFailure(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "work" {
 			return provider.Result{Outcome: provider.Unavailable, Text: "API Error: 529 overloaded"}
 		}
 		return masterScript(ctx, c)
-	})
+	}), WithClock())
+
 	e.masterAwake()
-	p := e.createProject("work", plainManifest)
-	failed := e.waitState(e.run(p, "work"), "error")
+	p := e.Project("work", plainManifest)
+	failed := e.WaitState(e.Run(p, "work"), "error")
 	if got := e.fault(failed.ID); got.ErrorType != "model.unavailable" || got.Whose != "model" {
 		t.Fatalf("a model that does not answer is the model's failure: %+v", got)
 	}
@@ -175,12 +176,12 @@ func TestTheMasterGetsTheTypeOfAFailure(t *testing.T) {
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
 		t.Fatalf("a failure of a model does not go to the master: %d", n)
 	}
-	e.createProject("other", scriptManifest("run", "", ""))
+	e.Project("other", scriptManifest("run", "", ""))
 	e.saveScript("other", "scripts/main.py", "import sys\nprint('no', file=sys.stderr)\nsys.exit(3)\n")
 	for range 3 {
-		e.waitScript(e.start("other", "run", nil), "error")
+		e.WaitState(e.Start("other", "run", nil), "error")
 	}
-	e.waitFor("on_error", func() bool { return len(e.runsOf("master", "on_error")) == 1 })
+	e.Until("on_error", func() bool { return len(e.runsOf("master", "on_error")) == 1 })
 	got, _ := e.App.Store.Q.GetProcess(context.Background(), e.runsOf("master", "on_error")[0].ID)
 	if !strings.Contains(got.Input, `"type":"script.failed"`) || !strings.Contains(got.Input, `"whose":"module"`) {
 		t.Fatalf("the master gets the type and whose it is: %s", got.Input)
@@ -220,12 +221,12 @@ func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 			return 429, "application/json", `{"error": {"message": "rate limited"}}`
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.secret_set", map[string]any{"name": "cloud", "value": "sk-cloud"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": api.URL + "/v1", "key_secret": "cloud"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "cloud", "model": "m1", "kind": "text", "name": "m1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "cloud", "model": "m2", "kind": "text", "name": "m2"}, nil)
-	e.createProject("calls", scriptManifest("call", "", `, "models": ["cloud"]`))
+	e := New(t)
+	e.Must("deck.secret_set", map[string]any{"name": "cloud", "value": "sk-cloud"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": api.URL + "/v1", "key_secret": "cloud"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "cloud", "model": "m1", "kind": "text", "name": "m1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "cloud", "model": "m2", "kind": "text", "name": "m2"}, nil)
+	e.Project("calls", scriptManifest("call", "", `, "models": ["cloud"]`))
 	e.saveScript("calls", "scripts/main.py", callScript)
 	for _, c := range []struct{ key, body, named, use, want, says string }{
 		{"commands/deck.record_get", `{"record": 987654}`, "", "", "input.invalid", "deck refused its calls: deck.record_get: 404"},
@@ -236,7 +237,7 @@ func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 		{"models/cloud/chat/completions", `{"model": "m1", "messages": [{"role": "user", "content": "hi"}]}`, "", "", "model.limit", "the model proxy cloud: 429"},
 		{"models/cloud/chat/completions", `{"model": "m2", "messages": [{"role": "user", "content": "hi"}]}`, "", "", "model.unavailable", "the model proxy cloud: 502"},
 	} {
-		got := e.waitScript(e.start("calls", "call", map[string]any{"key": c.key, "other": c.body, "type": c.named, "use": c.use}), "done", "error")
+		got := e.WaitState(e.Start("calls", "call", map[string]any{"key": c.key, "other": c.body, "type": c.named, "use": c.use}), "done", "error")
 		f := e.fault(got.ID)
 		if f.ErrorType != c.want || !strings.Contains(f.Error, c.says) {
 			t.Fatalf("%s %q: want %s with %q, got %s: %s", c.key, c.named, c.want, c.says, f.ErrorType, f.Error)
@@ -248,42 +249,42 @@ func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 // details of a failure deck types, a named type stays, runs side by side add to one file, no .tmp left.
 func TestTheHelpersOfTheSkillRunAsScripts(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	for _, c := range []struct{ runtime, file string }{{"python", "deck_helper.py"}, {"node", "deck_helper.mjs"}} {
 		t.Run(c.runtime, func(t *testing.T) {
 			if _, err := exec.LookPath(map[string]string{"python": "python3", "node": "node"}[c.runtime]); err != nil {
 				t.Skip(c.runtime + " is not installed")
 			}
 			var doc struct{ Text string }
-			e.must("deck.document_get", map[string]any{"name": "skills/module-builder/helpers/" + c.file}, &doc)
+			e.Must("deck.document_get", map[string]any{"name": "skills/module-builder/helpers/" + c.file}, &doc)
 			name := "h" + c.runtime
 			script := "scripts/main" + filepath.Ext(c.file)
-			e.createProject(name, fmt.Sprintf(`{"version": 13,
+			e.Project(name, fmt.Sprintf(`{"version": 13,
   "commands": [{"name": "step", "title": "Step", "description": "Adds a value.", "class": "internal",
     "input": {"type": "object", "properties": {"record": {"type": "integer"}, "value": {"type": "string"}}},
     "result": {"type": "object"}, "executor": {"type": "script", "script": "main"}}],
   "scripts": [{"name": "main", "file": %q, "runtime": %q}]}`, script, c.runtime))
 			e.saveScript(name, script, doc.Text)
 
-			f := e.fault(e.waitScript(e.start(name, "step", map[string]any{"record": 987654}), "error").ID)
+			f := e.fault(e.WaitState(e.Start(name, "step", map[string]any{"record": 987654}), "error").ID)
 			if f.ErrorType != "input.invalid" || !strings.Contains(f.Error, "deck.record_get: deck answered 404") ||
 				!strings.Contains(f.ErrorDetails, "987654") {
 				t.Fatalf("deck's answer is the details and deck types the failure: %+v", f)
 			}
-			f = e.fault(e.waitScript(e.start(name, "step", map[string]any{}), "error").ID)
+			f = e.fault(e.WaitState(e.Start(name, "step", map[string]any{}), "error").ID)
 			if f.ErrorType != "input.invalid" || !strings.Contains(f.Error, "no value to add") {
 				t.Fatalf("the failure the script names: %+v", f)
 			}
 			var ids []int64
 			for _, v := range []string{"a", "b", "c", "d"} {
-				ids = append(ids, e.start(name, "step", map[string]any{"value": v}))
+				ids = append(ids, e.Start(name, "step", map[string]any{"value": v}))
 			}
 			for _, id := range ids {
-				if p := e.waitScript(id, "done", "error"); p.State != "done" {
+				if p := e.WaitState(id, "done", "error"); p.State != "done" {
 					t.Fatalf("a run side by side: %+v", e.fault(id))
 				}
 			}
-			last := e.waitScript(e.start(name, "step", map[string]any{"value": "e"}), "done", "error")
+			last := e.WaitState(e.Start(name, "step", map[string]any{"value": "e"}), "done", "error")
 			var out struct {
 				Values, Files []string
 			}

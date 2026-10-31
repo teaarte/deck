@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/events"
 	"encoding/json"
 	"strings"
 	"sync/atomic"
@@ -27,7 +28,7 @@ func (e *Env) states(ids []int64) string {
 	e.T.Helper()
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, e.process(id).State)
+		out = append(out, e.Proc(id).State)
 	}
 	return strings.Join(out, " ")
 }
@@ -37,16 +38,16 @@ func (e *Env) states(ids []int64) string {
 func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{}, 10)
-	e := newEnv(t, held(release))
-	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	e := New(t, WithAgent(held(release)))
+	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
 	var ids []int64
 	for range 3 {
-		ids = append(ids, e.run(p, "job"))
+		ids = append(ids, e.Run(p, "job"))
 	}
-	e.waitFor("three agents at their provider", func() bool { return len(e.Fake.Calls()) == 3 })
+	e.Until("three agents at their provider", func() bool { return len(e.Fake.Calls()) == 3 })
 	for _, want := range []string{"running running running waiting_slot", "running running running waiting_slot waiting_slot"} {
-		ids = append(ids, e.run(p, "job"))
-		e.waitFor(want, func() bool { return e.states(ids) == want })
+		ids = append(ids, e.Run(p, "job"))
+		e.Until(want, func() bool { return e.states(ids) == want })
 	}
 	var waits []string
 	for _, it := range e.cockpitRunning() {
@@ -58,42 +59,42 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 		t.Fatalf("running now says which wait for a slot: %v", e.cockpitRunning())
 	}
 
-	e.createProject("tools", scriptManifest("take", "", ""))
+	e.Project("tools", scriptManifest("take", "", ""))
 	e.saveScript("tools", "scripts/main.py", "import json\nprint(json.dumps({}))\n")
-	if s := e.waitScript(e.start("tools", "take", nil), "done", "error"); s.State != "done" {
+	if s := e.WaitState(e.Start("tools", "take", nil), "done", "error"); s.State != "done" {
 		t.Fatalf("a script runs while every agent slot is taken: %+v", s)
 	}
 
 	release <- struct{}{}
-	e.waitFor("the oldest waiting process to take the free slot", func() bool {
+	e.Until("the oldest waiting process to take the free slot", func() bool {
 		st := strings.Fields(e.states(ids))
 		return st[3] == "running" && st[4] == "waiting_slot" && strings.Count(e.states(ids[:3]), "done") == 1
 	})
-	events := e.sse(t.Context())
-	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "5"}, nil)
-	waitTopic(t, events, "settings")
-	e.waitFor("a raised limit to run the last one", func() bool { return e.process(ids[4]).State == "running" })
+	stream := e.Events(t.Context())
+	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "5"}, nil)
+	WaitEvent(t, stream, events.Event{Topic: "settings"})
+	e.Until("a raised limit to run the last one", func() bool { return e.Proc(ids[4]).State == "running" })
 	rows := blockData[[]screenRow](t, e.settingsBlock("Limits", nil)["rows"])
 	if len(rows) != 2 || rows[1].Cells[1] != "5" || rows[1].Cells[2] != float64(3) {
 		t.Fatalf("the limits show the limit and its default: %+v", rows)
 	}
 
-	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	extra := e.run(p, "job")
-	e.waitFor("the new process to wait for a slot", func() bool { return e.process(extra).State == "waiting_slot" })
-	e.must("deck.process_stop", map[string]any{"process": extra}, nil)
-	e.waitState(extra, "stopped")
+	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	extra := e.Run(p, "job")
+	e.Until("the new process to wait for a slot", func() bool { return e.Proc(extra).State == "waiting_slot" })
+	e.Must("deck.process_stop", map[string]any{"process": extra}, nil)
+	e.WaitState(extra, "stopped")
 	for range 10 {
 		release <- struct{}{}
 	}
 	for _, id := range ids {
-		e.waitState(id, "done")
+		e.WaitState(id, "done")
 	}
 	if n := len(e.Fake.Calls()); n != 5 {
 		t.Fatalf("a stopped process that waited for a slot never ran: %d calls", n)
 	}
-	e.refused("deck.settings_set", map[string]any{"name": "agent_limit", "value": "21"}, 422, "1 to 20")
-	e.refused("deck.settings_set", map[string]any{"name": "confirm_hours", "value": ""}, 422, "give confirm_hours a value")
+	e.Refused("deck.settings_set", map[string]any{"name": "agent_limit", "value": "21"}, 422, "1 to 20")
+	e.Refused("deck.settings_set", map[string]any{"name": "confirm_hours", "value": ""}, 422, "give confirm_hours a value")
 }
 
 // TestAProcessWaitingForASlotStillWaitsAfterARestart: the wait is in the base, so a restarted deck runs no more
@@ -104,31 +105,31 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	hang := make(chan struct{})
 	first := &Fake{script: held(hang)}
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, home, first, withClock(clock))
-	e.Fake, e.Clock = first, clock
-	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
-	a, b := e.run(p, "job"), e.run(p, "job")
-	e.waitFor("one running, one waiting", func() bool {
+	e := New(t, WithHome(home), WithProvider(first), WithClock(clock))
+	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	a, b := e.Run(p, "job"), e.Run(p, "job")
+	e.Until("one running, one waiting", func() bool {
 		s := e.states([]int64{a, b})
 		return s == "running waiting_slot" || s == "waiting_slot running"
 	})
-	if e.process(a).State != "running" {
+	if e.Proc(a).State != "running" {
 		a, b = b, a
 	}
 
 	release := make(chan struct{}, 4)
 	second := &Fake{script: held(release)}
-	e2 := restart(t, e, home, second)
-	e2.waitFor("the running one resumed", func() bool { return len(second.Calls()) == 1 })
+	e2 := e.Restart(WithProvider(second))
+	e2.Resume()
+	e2.Until("the running one resumed", func() bool { return len(second.Calls()) == 1 })
 	if got := e2.states([]int64{a, b}); got != "running waiting_slot" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
 		t.Fatalf("after a restart the limit holds and the running one goes on: %s, %d calls", got, len(second.Calls()))
 	}
 	release <- struct{}{}
-	e2.waitState(a, "done")
-	e2.waitFor("the waiting one to start", func() bool { return e2.process(b).State == "running" })
+	e2.WaitState(a, "done")
+	e2.Until("the waiting one to start", func() bool { return e2.Proc(b).State == "running" })
 	release <- struct{}{}
-	e2.waitState(b, "done")
+	e2.WaitState(b, "done")
 	if n := len(second.Calls()); n != 2 {
 		t.Fatalf("each of the two reached its provider once: %d calls", n)
 	}
@@ -137,22 +138,25 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 // TestConfirmationTermIsASettingOfTheWorkspace: a confirmation made after the change expires by the new term.
 func TestConfirmationTermIsASettingOfTheWorkspace(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		c.Approve(ctx, "WebFetch", map[string]any{"url": "https://example.com/page", "prompt": "read it"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	}, func(c *app.Config) { c.ConfirmTTL = 24 * time.Hour })
-	e.must("deck.settings_set", map[string]any{"name": "confirm_hours", "value": "2"}, nil)
-	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
-	e.run(p, "job")
+	}), WithClock(), WithConfig(
+
+		func(c *app.Config) { c.ConfirmTTL = 24 * time.Hour }))
+
+	e.Must("deck.settings_set", map[string]any{"name": "confirm_hours", "value": "2"}, nil)
+	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	e.Run(p, "job")
 	var asks []struct {
 		ID        int64
 		ExpiresAt string `json:"expires_at"`
 	}
-	e.waitFor("the confirmation", func() bool {
-		e.must("deck.asks_list", nil, &asks)
+	e.Until("the confirmation", func() bool {
+		e.Must("deck.asks_list", nil, &asks)
 		return len(asks) == 1
 	})
-	t.Cleanup(func() { e.call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "deny"}) })
+	t.Cleanup(func() { e.Call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "deny"}) })
 	if want := t0.Add(2 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z"); asks[0].ExpiresAt != want {
 		t.Fatalf("the confirmation expires by the term the owner set: %+v, want %s", asks, want)
 	}
@@ -169,33 +173,33 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 	home := t.TempDir()
 	clock := &Clock{now: t0}
 	first := &Fake{script: held(make(chan struct{}))}
-	e := newEnvWith(t, home, first, withClock(clock))
-	e.Fake, e.Clock = first, clock
-	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
-	a, b := e.run(p, "job"), e.run(p, "job")
-	e.waitFor("one running, one waiting", func() bool { return e.states([]int64{a, b}) == "running waiting_slot" })
+	e := New(t, WithHome(home), WithProvider(first), WithClock(clock))
+	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	a, b := e.Run(p, "job"), e.Run(p, "job")
+	e.Until("one running, one waiting", func() bool { return e.states([]int64{a, b}) == "running waiting_slot" })
 	if _, err := e.App.Store.DB.Exec(`UPDATE process SET state = 'done', result = '{"n": 1}' WHERE id = ?`, a); err != nil {
 		t.Fatal(err)
 	}
 	release := make(chan struct{}, 1)
 	second := &Fake{script: held(release)}
-	e2 := restart(t, e, home, second)
-	e2.waitFor("the waiting process to start on the free slot", func() bool { return e2.process(b).State == "running" })
+	e2 := e.Restart(WithProvider(second))
+	e2.Resume()
+	e2.Until("the waiting process to start on the free slot", func() bool { return e2.Proc(b).State == "running" })
 	release <- struct{}{}
-	e2.waitState(b, "done")
+	e2.WaitState(b, "done")
 }
 
 // TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting: a slot handed over after deck began to stop starts
 // no turn, so the process stays waiting for a slot instead of passing for one that runs.
 func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, held(make(chan struct{})))
-	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
-	a, b := e.run(p, "job"), e.run(p, "job")
+	e := New(t, WithAgent(held(make(chan struct{}))))
+	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	a, b := e.Run(p, "job"), e.Run(p, "job")
 	either := func(got string) bool { return got == "running waiting_slot" || got == "waiting_slot running" }
-	e.waitFor("one running, one waiting", func() bool { return either(e.states([]int64{a, b})) })
+	e.Until("one running, one waiting", func() bool { return either(e.states([]int64{a, b})) })
 	e.App.Runner.Shutdown()
 	if got := e.states([]int64{a, b}); !either(got) {
 		t.Fatalf("the running one stays to resume and the waiting one still waits: %s", got)
@@ -208,7 +212,7 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 	t.Parallel()
 	var job atomic.Int64
 	start, got := make(chan struct{}), make(chan string, 1)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "boss" {
 			select {
 			case <-start:
@@ -219,31 +223,27 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 			got <- out
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	})
-	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.createProject("jobs", testManifest([]string{agentCommand("boss", ""), agentCommand("job", "")}, nil))
-	boss := e.run(p, "boss")
-	e.waitFor("the boss to hold the slot", func() bool { return len(e.Fake.Calls()) == 1 })
-	ids := []int64{e.run(p, "job"), e.run(p, "job")}
+	}))
+
+	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	p := e.Project("jobs", testManifest([]string{agentCommand("boss", ""), agentCommand("job", "")}, nil))
+	boss := e.Run(p, "boss")
+	e.Until("the boss to hold the slot", func() bool { return len(e.Fake.Calls()) == 1 })
+	ids := []int64{e.Run(p, "job"), e.Run(p, "job")}
 	job.Store(ids[0])
-	e.waitFor("both jobs to wait for the slot", func() bool { return e.states(ids) == "waiting_slot waiting_slot" })
+	e.Until("both jobs to wait for the slot", func() bool { return e.states(ids) == "waiting_slot waiting_slot" })
 	var v struct {
 		State     string
 		SlotAhead *int64 `json:"slot_ahead"`
 	}
-	if e.must("deck.process_get", map[string]any{"process": ids[1]}, &v); v.SlotAhead == nil || *v.SlotAhead != 1 {
+	if e.Must("deck.process_get", map[string]any{"process": ids[1]}, &v); v.SlotAhead == nil || *v.SlotAhead != 1 {
 		t.Fatalf("a process waiting for a slot names how many wait before it: %+v", v)
 	}
 	close(start)
-	select {
-	case out := <-got:
-		if !strings.Contains(out, `"state":"done"`) {
-			t.Fatalf("the wait ends with the process it waited for: %s", out)
-		}
-	case <-time.After(within(20 * time.Second)):
-		t.Fatal("the job waited for never took the slot the waiting agent holds")
+	if out := Receive(t, "the job waited for to take the slot the waiting agent holds", got); !strings.Contains(out, `"state":"done"`) {
+		t.Fatalf("the wait ends with the process it waited for: %s", out)
 	}
 	for _, id := range append(ids, boss) {
-		e.waitState(id, "done")
+		e.WaitState(id, "done")
 	}
 }

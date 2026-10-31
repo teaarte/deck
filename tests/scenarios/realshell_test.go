@@ -19,7 +19,7 @@ func TestRealBrowserShell(t *testing.T) {
 	checkBuiltClient(t)
 	hold := make(chan struct{})
 	t.Cleanup(func() { close(hold) })
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "score" {
 			select {
 			case <-hold:
@@ -27,26 +27,27 @@ func TestRealBrowserShell(t *testing.T) {
 			}
 		}
 		return webNotesAgent()(ctx, c)
-	})
+	}))
+
 	manifest := strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "source"}, {"label": "Note", "bind": "note"}]`, 1)
 	manifest = strings.Replace(manifest, `{"name": "note", "title": "Note", "record": "notes",`, `{"name": "more", "title": "More", "blocks": [{"type": "list", "title": "Same", "source": {"collection": "notes"}, "item": {"title": "title"}}]},
     {"name": "note", "title": "Note", "record": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"menu": ["main"]`, `"menu": ["main", "more"]`, 1)
-	e.createProject("web", strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1))
-	e.createProject("solo", webNotes)
+	e.Project("web", strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1))
+	e.Project("solo", webNotes)
 	for _, n := range []string{"glass", "pixel", "neon", "paper", "default"} {
 		e.example(n)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "source": "mail", "note": strings.Repeat("the model did not finish the self-check within the ceiling ", 6)}, map[string]any{"title": "a-very-long-title-without-any-spaces-that-would-push-the-table-out-of-its-block-" + strings.Repeat("x", 120), "source": "web"})}, nil)
-	e.waitState(e.start("web", "tell", nil), "done")
-	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "running")
+	e.WaitState(e.Start("web", "tell", nil), "done")
+	e.WaitState(e.Start("web", "score", map[string]any{"title": "x"}), "running")
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
-	b.open(e.URL + "/?token=" + token)
+	b.Open(e, "")
 	b.until("the tiles are the home of deck", `document.querySelector('[data-apps]') && document.querySelector('[data-module="web"]') && ![...document.querySelectorAll('[data-block]')].some((x) => !x.closest('[data-widget]'))`)
 	if got := b.eval(`[!document.querySelector('header'), !document.querySelector('[data-nav]'), !document.querySelector('[data-apps-home]'), !!document.querySelector('[data-toolbar] [data-chat-toggle]'), !document.querySelector('[data-phone-tabs]')].join(' ')`); got != "true true true true true" {
 		t.Fatalf("the desktop has no header bar and no side menu, only Deki over the tiles: %s", got)
@@ -176,7 +177,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the glass of the theme document on the tabs", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
 	var worn struct{ Name string }
-	e.must("deck.theme", map[string]any{}, &worn)
+	e.Must("deck.theme", map[string]any{}, &worn)
 	if worn.Name != "glass" {
 		t.Fatalf("the theme is the whole deck's, kept on the server: %+v", worn)
 	}
@@ -239,7 +240,7 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("the clouds of juce are its picture behind the page: %s", got)
 	}
 	var cur struct{ Name string }
-	e.must("deck.theme", map[string]any{}, &cur)
+	e.Must("deck.theme", map[string]any{}, &cur)
 	if cur.Name != "glass" {
 		t.Fatalf("a preview changes no theme: %+v", cur)
 	}
@@ -265,7 +266,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("no scheme in neon, only its note", `!document.querySelector('[data-look="scheme"]') && document.querySelector('[data-look-note="scheme"]')?.innerText.includes('Neon') && document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.look("theme", "juce")
 	b.until("juce gives the device its accent", `JSON.parse(localStorage.getItem('deck-look')).accent === 'coral'`)
-	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-places]')?.innerText.includes('Настройки') && document.querySelector('[data-places]')?.innerText.includes('Сегодня') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Деки')`)
 	b.shot("shell-ru")
 	b.open(e.URL + "/#/deck/spend?tab=7 days")
@@ -274,7 +275,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the address names the tab as written", `/tab=30(\+|%20| )days$/.test(location.hash)`)
 	b.open(e.URL + "/#/deck/settings?tab=Advanced")
 	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Сколько агентских процессов')`)
-	e.must("deck.notify", map[string]any{"project": "web", "text": "one more note"}, nil)
+	e.Must("deck.notify", map[string]any{"project": "web", "text": "one more note"}, nil)
 	b.open(e.URL + "/#/deck/cockpit")
 	readAll := `document.querySelector('[data-block] [data-verb="read_all"]')`
 	b.until("the button that reads every note in the head of the feed", readAll)

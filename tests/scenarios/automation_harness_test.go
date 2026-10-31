@@ -27,7 +27,7 @@ func (e *Env) token(name string, commands ...string) (int64, string) {
 		ID    int64
 		Token string
 	}
-	e.must("deck.token_create", map[string]any{"name": name, "commands": commands}, &t)
+	e.Must("deck.token_create", map[string]any{"name": name, "commands": commands}, &t)
 	return t.ID, t.Token
 }
 

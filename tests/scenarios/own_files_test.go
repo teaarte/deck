@@ -16,7 +16,7 @@ import (
 // line of done without you that brings them back; a file of another run stays.
 func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if _, ids, ok := strings.Cut(c.Req.Prompt, "delete files "); ok {
 			var outs []string
 			for _, id := range strings.Fields(strings.SplitN(ids, "\n", 2)[0]) {
@@ -31,17 +31,18 @@ func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 			_ = os.WriteFile(filepath.Join(results, n), []byte("png"), 0o600)
 		}
 		return provider.Result{Text: "drawn"}
-	})
-	p := e.createProject("draw", plainManifest)
-	mine, other := e.run(p, "work"), e.run(p, "work")
-	e.waitState(mine, "done")
-	e.waitState(other, "done")
+	}))
+
+	p := e.Project("draw", plainManifest)
+	mine, other := e.Run(p, "work"), e.Run(p, "work")
+	e.WaitState(mine, "done")
+	e.WaitState(other, "done")
 	files := func(process int64) map[string]int64 {
 		var fs []struct {
 			ID   int64
 			Name string
 		}
-		e.must("deck.files_list", map[string]any{"process": process}, &fs)
+		e.Must("deck.files_list", map[string]any{"process": process}, &fs)
 		out := map[string]int64{}
 		for _, f := range fs {
 			out[f.Name] = f.ID
@@ -52,12 +53,12 @@ func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 	if len(m) != 3 || len(o) != 3 {
 		t.Fatalf("each run keeps its three files: %v %v", m, o)
 	}
-	e.must("deck.process_rework", map[string]any{"process": mine, "remark": fmt.Sprintf("delete files %d %d %d", m["draft-1.png"], m["draft-2.png"], o["draft-1.png"])}, nil)
-	e.waitFor("the rework done", func() bool {
-		p := e.process(mine)
+	e.Must("deck.process_rework", map[string]any{"process": mine, "remark": fmt.Sprintf("delete files %d %d %d", m["draft-1.png"], m["draft-2.png"], o["draft-1.png"])}, nil)
+	e.Until("the rework done", func() bool {
+		p := e.Proc(mine)
 		return p.State == "done" && strings.Contains(string(p.Result), "file")
 	})
-	if said := string(e.process(mine).Result); !strings.Contains(said, "deletes only the files its own run made") {
+	if said := string(e.Proc(mine).Result); !strings.Contains(said, "deletes only the files its own run made") {
 		t.Fatalf("a file of another run is refused: %s", said)
 	}
 	if got, kept := files(mine), files(other); len(got) != 1 || got["final.png"] == 0 || len(kept) != 3 {
@@ -68,11 +69,11 @@ func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 		Text    string
 		CanUndo bool `json:"can_undo"`
 	}
-	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
+	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 1 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "deleted files: 2") {
 		t.Fatalf("the deletions of the run are one line of done without you with an undo: %+v", feed)
 	}
-	e.must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
+	e.Must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
 	if got := files(mine); len(got) != 3 {
 		t.Fatalf("the undo brings both back: %v", got)
 	}

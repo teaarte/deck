@@ -13,13 +13,13 @@ func TestRealBrowserCodeProject(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	repo := repoFolder(t)
 	module := codeModule(t, "")
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
-	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Modules")
+	b.Open(e, "#/deck/settings?tab=Modules")
 	form := func(cmd, field string) string {
 		return `document.querySelector('[data-form="` + cmd + `"] [data-field="` + field + `"]')`
 	}
@@ -42,7 +42,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	submit("deck.project_import")
 	b.until("the imported draft", itemOf("code", "draft"))
 	b.reviewAndEnable("code")
-	e.waitFor("the enabled project", func() bool { return e.project("code").Status == "enabled" })
+	e.Until("the enabled project", func() bool { return e.project("code").Status == "enabled" })
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the enabled project", itemOf("code", ""))
 
@@ -62,7 +62,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Run') && r.querySelector('input[data-pick="model"]'))`)
 	b.shot("code-settings")
 
-	e.must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
+	e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
 		"records": jsonl(map[string]any{"title": "Fix the login button", "status": "backlog"})}, nil)
 	b.open(e.URL + "/#/p/code/tasks")
 	b.until("the task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Fix the login button'))`)
@@ -70,16 +70,16 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.until("the form of the task", `document.querySelector('[data-form="deck.record_update"]')`)
 	b.pick(`[data-form="deck.record_update"] [data-field="status"]`, "ready")
 	b.eval(`(document.querySelector('[data-form="deck.record_update"] [data-submit]').click(), '')`)
-	e.waitFor("the task marked ready", func() bool {
+	e.Until("the task marked ready", func() bool {
 		var rs []recordRow
-		e.must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
+		e.Must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
 		return len(rs) == 1 && rs[0].Data["status"] == "ready"
 	})
 	b.open(e.URL + "/#/p/code/tasks")
 	b.until("the ready task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.toLowerCase().includes('ready'))`)
 	b.shot("code-tasks")
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Run').click(), '')`)
-	e.waitFor("the run at its provider", func() bool { return len(e.Fake.Calls()) > 0 })
+	e.Until("the run at its provider", func() bool { return len(e.Fake.Calls()) > 0 })
 	if c := e.Fake.Calls()[0]; c.Cwd != repo || !c.Repo || !strings.Contains(c.Prompt, `"do":"run"`) {
 		t.Fatalf("Run starts the agent in the repo folder: cwd %s repo %v", c.Cwd, c.Repo)
 	}

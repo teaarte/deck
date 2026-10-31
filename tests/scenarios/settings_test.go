@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/events"
 	"deck2/internal/health"
 	"encoding/json"
 	"fmt"
@@ -24,7 +25,7 @@ import (
 // carries no data, and a project screen cannot hold it.
 func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var menu []struct {
 		Project string
 		Screens []struct{ Name, Title string }
@@ -56,9 +57,9 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 		t.Fatalf("no event reads the look again: %s", drawn)
 	}
 
-	e.createProject("web", webNotes)
+	e.Project("web", webNotes)
 	bad := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "appearance"}`, 1)
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": bad})
+	code, out := e.Call("deck.manifest_save", map[string]any{"project": "web", "manifest": bad})
 	if code != 422 || !strings.Contains(string(out), "only on deck's own screens") {
 		t.Fatalf("a project screen holds no appearance block: %d %s", code, out)
 	}
@@ -214,13 +215,13 @@ func hasVerb(acts []map[string]any, v string) bool {
 // button carries the revision the row shows, so a change after it is refused.
 func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	_, tok := e.token("terminal", "deck.*")
-	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	items := func() []listItem { return blockData[[]listItem](t, e.settingsBlock("Modules", nil)["items"]) }
-	press := func(a map[string]any) { t.Helper(); e.must(a["command"].(string), a["params"], nil) }
+	press := func(a map[string]any) { t.Helper(); e.Must(a["command"].(string), a["params"], nil) }
 	notes := findItem(t, items(), "notes")
 	if notes.Title != "notes" || !strings.HasPrefix(notes.Meta, "draft") || strings.Contains(notes.Meta, "autonomy") ||
 		!strings.Contains(notes.Meta, "enabling grants: "+strings.Join(e.project("notes").Rights, "; ")) {
@@ -237,9 +238,9 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 		t.Fatalf("enable on the page of what a draft may do carries the revision the row shows: %+v", stale)
 	}
 
-	e.must("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"title": "Work"`}, "new": []string{`"title": "Work again"`}}, nil)
+	e.Must("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"title": "Work"`}, "new": []string{`"title": "Work again"`}}, nil)
 	notes = findItem(t, items(), "notes")
-	e.refused(stale["command"].(string), stale["params"], 409, "look at its rights again")
+	e.Refused(stale["command"].(string), stale["params"], 409, "look at its rights again")
 	press(enable(verb(t, notes.Actions, "review")))
 	notes = findItem(t, items(), "notes")
 	if notes.Meta != "" || hasVerb(notes.Actions, "review") {
@@ -258,22 +259,22 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 // token is shown once, by its form, and the list has only its name and commands.
 func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	events := e.sse(t.Context())
+	e := New(t)
+	stream := e.Events(t.Context())
 	form := blockData[formV](t, e.screenForm("", "settings", "deck.secret_set")["value"])
 	if form.Commands[0].Input.Properties["value"]["writeOnly"] != true {
 		t.Fatalf("the value of a secret is a field that hides what is typed: %+v", form.Commands[0].Input.Properties)
 	}
-	e.must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
-	waitTopic(t, events, "secrets")
+	e.Must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
+	WaitEvent(t, stream, events.Event{Topic: "secrets"})
 	secrets := e.settingsBlock("Secrets", map[string]any{"topic": "secrets"})
 	got := blockData[[]screenRow](t, secrets["rows"])
 	if len(got) != 1 || got[0].Cells[0] != "mail-key" || !hasVerb(got[0].Actions, "replace") || verb(t, got[0].Actions, "delete")["confirm"] != true {
 		t.Fatalf("the secrets tab lists names with replace and delete, and follows the secrets topic: %s", secrets["rows"])
 	}
 	del := verb(t, got[0].Actions, "delete")
-	e.must(del["command"].(string), del["params"], nil)
-	waitTopic(t, events, "secrets")
+	e.Must(del["command"].(string), del["params"], nil)
+	WaitEvent(t, stream, events.Event{Topic: "secrets"})
 	if left := blockData[[]screenRow](t, e.settingsBlock("Secrets", nil)["rows"]); len(left) != 0 {
 		t.Fatalf("a deleted secret is gone: %+v", left)
 	}
@@ -282,8 +283,8 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 		Token      string
 		ClaudeCode string `json:"claude_code"`
 	}
-	e.must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.notify", "web.*"}}, &made)
-	waitTopic(t, events, "tokens")
+	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.notify", "web.*"}}, &made)
+	WaitEvent(t, stream, events.Event{Topic: "tokens"})
 	all, _ := json.Marshal(e.screenData("", "settings", nil))
 	if strings.Contains(string(all), "s3cret-value") || strings.Contains(string(all), made.Token) || !strings.Contains(made.ClaudeCode, made.Token) {
 		t.Fatalf("no secret value or token is on the screen after it was made: %s", all)
@@ -296,27 +297,27 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	if revoke["confirm"] != true {
 		t.Fatalf("revoking asks the owner first: %+v", revoke)
 	}
-	e.must(revoke["command"].(string), revoke["params"], nil)
-	waitTopic(t, events, "tokens")
+	e.Must(revoke["command"].(string), revoke["params"], nil)
+	WaitEvent(t, stream, events.Event{Topic: "tokens"})
 	rows = blockData[[]screenRow](t, e.settingsBlock("Automation tokens", nil)["rows"])
 	if rows[0].Cells[1] != "revoked" || hasVerb(rows[0].Actions, "revoke") {
 		t.Fatalf("a revoked token stays in the list without the button: %+v", rows)
 	}
-	if code, _ := e.callWith(made.Token, "deck.notify", map[string]any{"text": "hi"}); code != 401 {
+	if code, _ := e.As(made.Token).Call("deck.notify", map[string]any{"text": "hi"}); code != 401 {
 		t.Fatalf("the revoked token no longer calls: %d", code)
 	}
 	var journal []map[string]any
-	e.must("deck.calls_list", nil, &journal)
+	e.Must("deck.calls_list", nil, &journal)
 	if len(journal) != 1 || journal[0]["tool"] != "deck.token_revoke" || journal[0]["class"] != "external" || journal[0]["actor"] != "owner" {
 		t.Fatalf("revoking a token is an external call in the journal: %+v", journal)
 	}
 	var revoked commandView
-	e.must("deck.command_describe", map[string]any{"command": "deck.token_revoke"}, &revoked)
+	e.Must("deck.command_describe", map[string]any{"command": "deck.token_revoke"}, &revoked)
 	if revoked.Class != "external" {
 		t.Fatalf("revoking a token is external: %q", revoked.Class)
 	}
 	_, other := e.token("terminal", "deck.*")
-	if code, _ := e.callWith(other, "deck.calls_list", nil); code != 403 {
+	if code, _ := e.As(other).Call("deck.calls_list", nil); code != 403 {
 		t.Fatalf("only the owner reads the journal: %d", code)
 	}
 }
@@ -326,17 +327,18 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	t.Parallel()
 	f := newACP(t)
-	e := newEnv(t, nil, func(c *app.Config) {
+	e := New(t, WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
-	})
-	events := e.sse(t.Context())
+	}))
+
+	stream := e.Events(t.Context())
 	if f := e.screenForm("", "settings", "deck.model_set"); !strings.Contains(string(f["value"]), `"deck.model_set"`) {
 		t.Fatalf("the models tab adds a model with a form: %s", f["value"])
 	}
-	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": "http://127.0.0.1:1/v1", "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "small", "name": "ollama-small", "agent": "goose"}, nil)
-	waitTopic(t, events, "health")
+	e.Must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": "http://127.0.0.1:1/v1", "local": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "ollama", "model": "small", "name": "ollama-small", "agent": "goose"}, nil)
+	WaitEvent(t, stream, events.Event{Topic: "health"})
 	var added listItem
 	for _, r := range e.allModels(map[string]any{"topic": "health"}) {
 		if r.Title == "ollama-small" {
@@ -361,12 +363,12 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	if fv.Values["connection"] != "ollama" || fv.Values["model"] != "small" {
 		t.Fatalf("the form of a model takes its values from the address: %+v", fv.Values)
 	}
-	e.waitFor("the self-check", func() bool {
+	e.Until("the self-check", func() bool {
 		h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:ollama-small")
 		return err == nil && h.Status != "checking"
 	})
-	e.must(remove["command"].(string), remove["params"], nil)
-	waitTopic(t, events, "models")
+	e.Must(remove["command"].(string), remove["params"], nil)
+	WaitEvent(t, stream, events.Event{Topic: "models"})
 	for _, r := range e.allModels(nil) {
 		if r.Title == "ollama-small" {
 			t.Fatalf("the removed model is gone: %+v", r)
@@ -381,8 +383,8 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 // of subjects with their state and error, the worst first, narrowed by state.
 func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
+	e := New(t)
+	e.Project("web", webNotes)
 	ctx := t.Context()
 	for _, h := range []db.SetHealthParams{{Subject: "mcp:web.search", Status: "ok"}, {Subject: "tool:web.fetch", Status: "error", Error: "the server exited: 1"},
 		{Subject: "provider:elsewhere", Status: "error", Error: "a provider of another workspace"}} {
@@ -403,7 +405,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	if !strings.Contains(string(block["filters"]), `"error"`) {
 		t.Fatalf("health narrows by state: %s", block["filters"])
 	}
-	web := store.ID(e.projectID("web"))
+	web := store.ID(e.ProjectID("web"))
 	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3"})
 		return err
@@ -436,7 +438,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 			Status string
 			Seen   bool
 		}
-		e.must("deck.health_list", map[string]any{}, &rows)
+		e.Must("deck.health_list", map[string]any{}, &rows)
 		for _, r := range rows {
 			if r.Status == "error" && !r.Seen {
 				n++
@@ -447,11 +449,11 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	if webErrors() != 1 || unread() != 2 {
 		t.Fatalf("a failing check counts until it is read: menu %d, unread %d", webErrors(), unread())
 	}
-	e.must("deck.health_seen", map[string]any{"subject": "command:web.digest", "project": "web"}, nil)
+	e.Must("deck.health_seen", map[string]any{"subject": "command:web.digest", "project": "web"}, nil)
 	if webErrors() != 0 || unread() != 1 {
 		t.Fatalf("a read check stops counting, and its project with it: menu %d, unread %d", webErrors(), unread())
 	}
-	if code, _ := e.call("deck.health_seen", map[string]any{"subject": "mcp:web.search", "project": "web"}); code == 200 {
+	if code, _ := e.Call("deck.health_seen", map[string]any{"subject": "mcp:web.search", "project": "web"}); code == 200 {
 		t.Fatal("only a failing check is marked read")
 	}
 	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -479,19 +481,19 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 // TestTheDiskHealthReachesTheOpenScreens: a new disk reading tells the clients, so the Health tab is current.
 func TestTheDiskHealthReachesTheOpenScreens(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	events := e.sse(t.Context())
+	e := New(t)
+	stream := e.Events(t.Context())
 	e.App.Sweep(context.Background(), time.Now().Add(time.Hour))
-	waitTopic(t, events, "health")
+	WaitEvent(t, stream, events.Event{Topic: "health"})
 }
 
 // TestAProjectHasItsOwnSettings: deck adds a settings screen to every project: the project with its buttons, its
 // commands with their models, its tools, the secrets they use, the tokens that reach it and its health.
 func TestAProjectHasItsOwnSettings(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("notes", strings.Replace(notesManifest, `"url": "https://example.invalid/post",`, `"url": "https://example.invalid/post", "headers": {"Authorization": "Bearer $secret.notes_key"},`, 1))
-	e.createProject("other", plainManifest)
+	e := New(t)
+	e.Project("notes", strings.Replace(notesManifest, `"url": "https://example.invalid/post",`, `"url": "https://example.invalid/post", "headers": {"Authorization": "Bearer $secret.notes_key"},`, 1))
+	e.Project("other", plainManifest)
 	_, _ = e.token("mine", "notes.collect")
 	_, _ = e.token("theirs", "other.work")
 	cells := func(title string) [][]any {
@@ -522,8 +524,8 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 // TestTheMasterSeesTheNamesOfSecrets: the master lists the names of the secrets, never their values.
 func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
+	e := New(t)
+	e.Must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
 	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.secrets_list", []byte(`{}`))
 	raw, _ := json.Marshal(out)
 	if err != nil || string(raw) != `[{"name":"mail-key","set":true}]` {
@@ -535,9 +537,9 @@ func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
 // commands, so the settings screen it opens has no error in them; a token itself never shows.
 func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var made struct{ Token string }
-	e.must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.notify"}}, &made)
+	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.notify"}}, &made)
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
 	for _, name := range []string{"deck.settings_list", "deck.tokens_list"} {
 		out, err := e.App.Registry.Invoke(context.Background(), master, name, []byte(`{}`))
@@ -556,18 +558,18 @@ func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
 // edit button of the General tab, which sets it by its name.
 func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var list []struct {
 		Name    string
 		Options []string
 	}
-	e.must("deck.settings_list", nil, &list)
+	e.Must("deck.settings_list", nil, &list)
 	var set struct {
 		Input struct {
 			Properties struct{ Name struct{ Enum []string } }
 		}
 	}
-	e.must("deck.command_describe", map[string]any{"command": "deck.settings_set"}, &set)
+	e.Must("deck.command_describe", map[string]any{"command": "deck.settings_set"}, &set)
 	var rows []struct {
 		ID      string
 		Actions []struct {
@@ -579,7 +581,7 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	if len(rows) != len(list)-1 {
 		t.Fatalf("the Limits of the health tab list every setting but the language of the interface: %+v", rows)
 	}
-	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	for _, s := range list {
 		if !slices.Contains(set.Input.Properties.Name.Enum, s.Name) {
 			t.Fatalf("settings_set names %s: %+v", s.Name, set)
@@ -606,30 +608,30 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 		for k, v := range r.Actions[0].Params {
 			in[k] = v
 		}
-		e.must(r.Actions[0].Command, in, nil)
+		e.Must(r.Actions[0].Command, in, nil)
 	}
 	var after []struct {
 		Name  string
 		Value any
 	}
-	e.must("deck.settings_list", nil, &after)
+	e.Must("deck.settings_list", nil, &after)
 	for _, s := range after {
 		if fmt.Sprint(s.Value) != "2" && fmt.Sprint(s.Value) != "open" && fmt.Sprint(s.Value) != "ru" {
 			t.Fatalf("the button set %s: %+v", s.Name, after)
 		}
 	}
-	e.refused("deck.settings_set", map[string]any{"name": "agent_limit", "value": "50"}, 422, "1 to 20")
-	e.refused("deck.settings_set", map[string]any{"name": "nothing", "value": "1"}, 422, "")
+	e.Refused("deck.settings_set", map[string]any{"name": "agent_limit", "value": "50"}, 422, "1 to 20")
+	e.Refused("deck.settings_set", map[string]any{"name": "nothing", "value": "1"}, 422, "")
 }
 
 // TestTheNamesOfSettingsFollowTheLanguageOfTheScreen: the names of settings come in the language the screen asks for,
 // the device's own under auto, whatever the language setting says.
 func TestTheNamesOfSettingsFollowTheLanguageOfTheScreen(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	title := func(in map[string]any) string {
 		var rows []struct{ Name, Title string }
-		e.must("deck.settings_list", in, &rows)
+		e.Must("deck.settings_list", in, &rows)
 		for _, r := range rows {
 			if r.Name == "agent_limit" {
 				return r.Title
@@ -653,15 +655,15 @@ func TestTheNamesOfSettingsFollowTheLanguageOfTheScreen(t *testing.T) {
 // refused, and the files there and above stay.
 func TestASecretDeleteStaysInTheFolderOfSecrets(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e := New(t)
+	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	dir := deckhome.Layout(e.App.Cfg.Home).Secrets(1)
 	above := filepath.Join(filepath.Dir(dir), "x")
 	if err := os.WriteFile(above, []byte("keep"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"..", "...", "../x", "../1/svc", "a/b", ""} {
-		e.refused("deck.secret_delete", map[string]any{"name": name}, 422, "")
+		e.Refused("deck.secret_delete", map[string]any{"name": name}, 422, "")
 	}
 	for _, f := range []string{above, filepath.Join(dir, "svc")} {
 		if _, err := os.Stat(f); err != nil {
@@ -674,16 +676,16 @@ func TestASecretDeleteStaysInTheFolderOfSecrets(t *testing.T) {
 // command runs on with the models it could, and the button that runs it now; a model says what work it does.
 func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	e.createProject("daily", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	e := New(t, WithAgent(ok))
+	e.Project("daily", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
 	if err := e.App.Store.Tx(t.Context(), func(ctx context.Context, q *db.Queries) error {
-		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: store.ID(e.projectID("daily")), Subject: "trigger:daily.work", Status: "error", Error: "did not start"})
+		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: store.ID(e.ProjectID("daily")), Subject: "trigger:daily.work", Status: "error", Error: "did not start"})
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
 	var feed []struct{ Check, Model string }
-	e.must("deck.feed_list", map[string]any{"kind": "failure"}, &feed)
+	e.Must("deck.feed_list", map[string]any{"kind": "failure"}, &feed)
 	if !slices.Contains(feed, struct{ Check, Model string }{"trigger:daily.work", "fake"}) {
 		t.Fatalf("a failing schedule says the model it runs on: %+v", feed)
 	}
@@ -707,13 +709,13 @@ func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 	}
 	params := pick["params"].(map[string]any)
 	params["model"] = "quiet"
-	e.must("deck.assignment_set", params, nil)
+	e.Must("deck.assignment_set", params, nil)
 	var hs []struct {
 		Subject, Model string
 		Places         []string
 		Kind           string
 	}
-	e.must("deck.health_list", nil, &hs)
+	e.Must("deck.health_list", nil, &hs)
 	for _, h := range hs {
 		if h.Subject == "trigger:daily.work" && (h.Model != "quiet" || h.Kind != "trigger") {
 			t.Fatalf("the picked model is the one the schedule runs on next: %+v", h)
@@ -727,7 +729,7 @@ func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 // TestLookIsAPlaceOfItsOwn: Look is a screen of deck beside Settings, drawn whole by the stock renderer's rules.
 func TestLookIsAPlaceOfItsOwn(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	raw, _ := json.Marshal(e.screenMessages("", "look", nil))
 	if !strings.Contains(string(raw), `"component":"appearance"`) || !strings.Contains(string(raw), `"topics":[]`) {
 		t.Fatalf("Look holds the appearance and names its topics, none: %s", raw)

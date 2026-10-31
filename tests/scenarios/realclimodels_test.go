@@ -14,26 +14,26 @@ import (
 // the session resumes on the other model. It gives the response models of the two turns.
 func realModelResume(t *testing.T, e *Env, connection, name, first, second string) (string, string) {
 	t.Helper()
-	e.must("deck.model_set", map[string]any{"connection": connection, "model": first, "name": name, "options": `{"effort": "low"}`}, nil)
-	e.must("deck.provider_check", map[string]any{"provider": name}, nil)
-	h := e.waitHealthLong("provider:"+name, 10*time.Minute)
+	e.Must("deck.model_set", map[string]any{"connection": connection, "model": first, "name": name, "options": `{"effort": "low"}`}, nil)
+	e.Must("deck.provider_check", map[string]any{"provider": name}, nil)
+	h := e.checked("provider:" + name)
 	t.Logf("%s on %s low: self-check %s %s", name, first, h.Status, h.Error)
 	if h.Status != "ok" {
 		t.Fatalf("the self-check of %s on %s is green: %+v", name, first, h)
 	}
-	p := e.createProject("plain", strings.Replace(plainManifest, "Do the work.", "Answer with the one word done. Do not ask anything and run no tool.", 1))
-	e.useModels("plain.work", name)
-	id := e.run(p, "work")
-	if got := e.pollState(id, 10*time.Minute, time.Second, "done", "error"); got.State != "done" {
+	p := e.Project("plain", strings.Replace(plainManifest, "Do the work.", "Answer with the one word done. Do not ask anything and run no tool.", 1))
+	e.UseModels("plain.work", name)
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn on %s is done: %+v", first, got)
 	}
-	e.must("deck.model_set", map[string]any{"connection": connection, "model": second, "name": name}, nil)
-	e.must("deck.provider_check", map[string]any{"provider": name}, nil)
-	if h := e.waitHealthLong("provider:"+name, 10*time.Minute); h.Status != "ok" {
+	e.Must("deck.model_set", map[string]any{"connection": connection, "model": second, "name": name}, nil)
+	e.Must("deck.provider_check", map[string]any{"provider": name}, nil)
+	if h := e.checked("provider:" + name); h.Status != "ok" {
 		t.Fatalf("the self-check of %s on %s is green: %+v", name, second, h)
 	}
-	e.must("deck.process_rework", map[string]any{"process": id, "remark": "Say in one word that you are done."}, nil)
-	if got := e.pollState(id, 10*time.Minute, time.Second, "done", "error"); got.State != "done" {
+	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "Say in one word that you are done."}, nil)
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the session resumes on %s: %+v", second, got)
 	}
 	var calls []map[string]any
@@ -46,22 +46,20 @@ func realModelResume(t *testing.T, e *Env, connection, name, first, second strin
 	return before, last
 }
 
-// waitHealthLong waits for a health row out of its self-check, green or not.
-func (e *Env) waitHealthLong(subject string, wait time.Duration) healthRow {
+// checked waits for a health row out of its self-check, green or not.
+func (e *Env) checked(subject string) HealthRow {
 	e.T.Helper()
-	deadline := time.Now().Add(wait)
-	for time.Now().Before(deadline) {
-		var hs []healthRow
-		e.must("deck.health_list", nil, &hs)
-		for _, h := range hs {
+	var got HealthRow
+	e.Until("the self-check of "+subject+" to end", func() bool {
+		for _, h := range e.Health() {
 			if h.Subject == subject && h.Status != "checking" {
-				return h
+				got = h
+				return true
 			}
 		}
-		time.Sleep(time.Second)
-	}
-	e.T.Fatalf("the self-check of %s did not end", subject)
-	return healthRow{}
+		return false
+	})
+	return got
 }
 
 // TestRealClaudeCodeModels: on the installed CLI, Haiku is refused for want of auto mode, Sonnet on low effort
@@ -69,8 +67,8 @@ func (e *Env) waitHealthLong(subject string, wait time.Duration) healthRow {
 func TestRealClaudeCodeModels(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(home), realWaits)
-	e.refused("deck.model_set", map[string]any{"connection": "claude-code", "model": "haiku", "name": "cc-haiku"}, 422, "no auto mode")
+	e := New(t, WithHome(home), WithProvider(claudecode.New(home)), WithConfig(realWaits), WithWait(10*time.Minute))
+	e.Refused("deck.model_set", map[string]any{"connection": "claude-code", "model": "haiku", "name": "cc-haiku"}, 422, "no auto mode")
 	first, second := realModelResume(t, e, "claude-code", "cc-live", "sonnet", "opus")
 	if !strings.Contains(first, "sonnet") || !strings.Contains(second, "opus") {
 		t.Fatalf("each turn ran on its model: %s, %s", first, second)
@@ -83,8 +81,8 @@ func TestRealCodexModels(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
 	var pv provider.Provider = codex.New(home)
-	e := newEnvWith(t, home, pv, realWaits)
-	e.refused("deck.model_set", map[string]any{"connection": "codex", "model": "gpt-6-luna", "name": "cx-x", "options": `{"effort": "minimal"}`}, 422, "takes effort")
+	e := New(t, WithHome(home), WithProvider(pv), WithConfig(realWaits), WithWait(10*time.Minute))
+	e.Refused("deck.model_set", map[string]any{"connection": "codex", "model": "gpt-6-luna", "name": "cx-x", "options": `{"effort": "minimal"}`}, 422, "takes effort")
 	first, second := realModelResume(t, e, "codex", "cx-live", "gpt-6-luna", "gpt-6-sol")
 	if first != "gpt-6-luna" || second != "gpt-6-sol" {
 		t.Fatalf("each turn ran on its model: %s, %s", first, second)

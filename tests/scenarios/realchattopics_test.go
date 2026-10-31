@@ -15,15 +15,15 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "ok"} })
-	e.createProject("web", webNotes)
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "ok"} }))
+	e.Project("web", webNotes)
 	e.masterSaid(e.say(0, "about web", map[string]any{"screen": `{"project":"web","screen":"main"}`}), 1)
 	e.masterSaid(e.say(0, "about master", map[string]any{"screen": `{"project":"master","screen":"documents"}`}), 1)
 	e.masterSaid(e.say(0, "about nothing"), 1)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the module filter", `document.querySelector('[data-topic-project]')`)

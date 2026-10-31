@@ -24,9 +24,9 @@ const sideManifest = `{"version": 13, "i18n": {"ru": {"Trades": "Сделки", 
 // narrowed by it; the filter offers the values its source has, in the owner's words.
 func TestASideFilterNarrowsTheBlocksOfItsScreen(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("lab", sideManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
+	e := New(t)
+	e.Project("lab", sideManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
 		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
 
@@ -68,7 +68,7 @@ func TestASideFilterNarrowsTheBlocksOfItsScreen(t *testing.T) {
 // nowhere else.
 func TestTheSidePanelHoldsFiltersButtonsAndSmallBlocks(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	for _, c := range []struct{ from, to, want string }{
 		{`{"type": "actions", "actions": [{"label": "All coins", "screen": "lab"}]}]`,
 			`{"type": "table", "source": {"collection": "trades"}, "columns": [{"label": "Title", "bind": "title"}]}]`, "the side panel holds filter, actions, stat, list blocks, not table"},
@@ -82,7 +82,7 @@ func TestTheSidePanelHoldsFiltersButtonsAndSmallBlocks(t *testing.T) {
 		if bad == sideManifest {
 			t.Fatalf("the case did not apply: %s", c.from)
 		}
-		e.refused("deck.project_create", map[string]any{"name": "lab", "manifest": bad}, 422, c.want)
+		e.Refused("deck.project_create", map[string]any{"name": "lab", "manifest": bad}, 422, c.want)
 	}
 }
 
@@ -90,9 +90,9 @@ func TestTheSidePanelHoldsFiltersButtonsAndSmallBlocks(t *testing.T) {
 // the param named empty is all; a default not of its type is refused on a save.
 func TestAFilterStartsOnTheDefaultOfItsParam(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("lab", strings.Replace(sideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
-	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
+	e := New(t)
+	e.Project("lab", strings.Replace(sideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
 		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
 	type filter struct{ Value string }
@@ -105,10 +105,10 @@ func TestAFilterStartsOnTheDefaultOfItsParam(t *testing.T) {
 		t.Fatalf("all picked shows every row: %+v", rows)
 	}
 	var cur struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "lab"}, &cur)
+	e.Must("deck.manifest_get", map[string]any{"project": "lab"}, &cur)
 	if !strings.Contains(cur.Manifest, `"default": "BTC"`) || !strings.Contains(cur.Manifest, `"side": "string"`) {
 		t.Fatalf("a param keeps its form: %s", cur.Manifest)
 	}
 	bad := strings.Replace(sideManifest, `"side": "string"}`, `"side": "string", "n": {"type": "integer", "default": "many"}}`, 1)
-	e.refused("deck.manifest_save", map[string]any{"project": "lab", "manifest": bad}, 422, "the default many is no integer")
+	e.Refused("deck.manifest_save", map[string]any{"project": "lab", "manifest": bad}, 422, "the default many is no integer")
 }

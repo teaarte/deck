@@ -42,29 +42,31 @@ func TestRealCodexSelfCheck(t *testing.T) {
 func TestRealCodexQuestion(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
-	e := newEnvWith(t, home, codex.New(home), realWaits)
-	p := e.createProject("ask", `{"version": 13,
+	e := New(t, WithHome(home), WithProvider(codex.New(home)), WithConfig(realWaits), WithWait(5*time.Minute))
+	p := e.Project("ask", `{"version": 13,
   "commands": [{"name": "work", "title": "Work", "description": "Asks the owner", "class": "internal",
     "result": {"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Ask the owner which color the report should use, with the options red and blue. The result is the color the owner picked."}}]}`)
-	id := e.run(p, "work")
-	deadline := time.Now().Add(5 * time.Minute)
+	id := e.Run(p, "work")
 	asked := false
-	for st := e.process(id).State; time.Now().Before(deadline) && st != "done" && st != "error"; st = e.process(id).State {
-		var asks []askView
-		_, out := e.call("deck.asks_list", nil)
+	e.Until("the run to end", func() bool {
+		if st := e.Proc(id).State; st == "done" || st == "error" {
+			return true
+		}
+		var asks []Ask
+		_, out := e.Call("deck.asks_list", nil)
 		_ = json.Unmarshal(out, &asks)
 		for _, ask := range asks {
 			if ask.Kind != "question" || !strings.Contains(strings.ToLower(ask.Text), "color") {
 				t.Fatalf("only the question waits for the owner, got %+v", ask)
 			}
 			t.Logf("question: %s", ask.Text)
-			e.answer(ask.ID, "blue")
+			e.Answer(ask.ID, "blue")
 			asked = true
 		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	got := e.process(id)
+		return false
+	})
+	got := e.Proc(id)
 	t.Logf("state %s, result %s, error %s", got.State, got.Result, got.Error)
 	if !asked || got.State != "done" || !strings.Contains(string(got.Result), `"blue"`) {
 		t.Fatalf("want the owner's answer in the result: %+v", got)
@@ -98,17 +100,17 @@ func TestRealCodexCommitsInTheFolder(t *testing.T) {
 	git("add", "-A")
 	git("commit", "-q", "-m", "start")
 	home := t.TempDir()
-	e := newEnvWith(t, home, codex.New(home), realWaits)
+	e := New(t, WithHome(home), WithProvider(codex.New(home)), WithConfig(realWaits))
 	cmd, _ := json.Marshal(map[string]any{"name": "work", "title": "Work", "description": "Commits a file.", "class": "internal",
 		"result": map[string]any{"type": "object", "required": []string{"markers", "commit"},
 			"properties": map[string]any{"markers": map[string]any{"type": "string"}, "commit": map[string]any{"type": "string"}}},
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": "Create the file hello.txt with the text hi in the current folder " +
 			"and commit it with git with the message 'add hello'. The result: markers are the marker words (ALL CAPS words ending in MARK) " +
 			"that appear in your instructions, separated by spaces; commit is the full sha of your commit."}})
-	p := e.createProject("code", `{"version": 13, "commands": [`+string(cmd)+`]}`)
-	e.must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
-	id := e.run(p, "work")
-	got := e.pollState(id, 6*time.Minute, time.Second, "done", "error")
+	p := e.Project("code", `{"version": 13, "commands": [`+string(cmd)+`]}`)
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
+	id := e.Run(p, "work")
+	got := e.WaitState(id, "done", "error")
 	t.Logf("state %s, result %s, error %s", got.State, got.Result, got.Error)
 	if got.State != "done" {
 		t.Fatalf("want done: %+v", got)
@@ -134,21 +136,17 @@ func TestRealCodexResolvesItsRunAndKeepsCaches(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(home) })
-	e := newEnvWith(t, home, codex.New(home), realWaits)
+	e := New(t, WithHome(home), WithProvider(codex.New(home)), WithConfig(realWaits), WithWait(5*time.Minute))
 	secret := filepath.Join(home, "state", "probe")
 	if err := os.WriteFile(secret, []byte("closed"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	p := e.createProject("probe", `{"version": 13,
+	p := e.Project("probe", `{"version": 13,
   "commands": [{"name": "work", "title": "Work", "description": "Probes the shell", "class": "internal",
     "result": {"type": "object", "required": ["real", "cache", "state"], "properties": {"real": {"type": "string"}, "cache": {"type": "string"}, "state": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Run these shell commands once each, without asking for more rights, and report what each printed. 1. python3 -c \"import os; print(os.path.realpath('.'))\" as real. 2. mkdir -p \"$XDG_CACHE_HOME/probe\" 2>&1 && echo ok > \"$XDG_CACHE_HOME/probe/x\" 2>&1 && cat \"$XDG_CACHE_HOME/probe/x\" as cache, with all it printed. 3. cat `+secret+` as state (empty when it failed)."}}]}`)
-	id := e.run(p, "work")
-	deadline := time.Now().Add(5 * time.Minute)
-	for st := e.process(id).State; time.Now().Before(deadline) && st != "done" && st != "error"; st = e.process(id).State {
-		time.Sleep(time.Second)
-	}
-	got := e.process(id)
+	id := e.Run(p, "work")
+	got := e.WaitState(id, "done", "error")
 	t.Logf("state %s, result %s, error %s", got.State, got.Result, got.Error)
 	var r struct{ Real, Cache, State string }
 	if got.State != "done" || json.Unmarshal(got.Result, &r) != nil {

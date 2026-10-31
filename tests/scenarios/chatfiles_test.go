@@ -21,10 +21,11 @@ import (
 // it gets a copy in its input folder; a topic knows the module it was opened on.
 func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "Read it."}
-	})
-	e.createProject("web", webNotes)
+	}))
+
+	e.Project("web", webNotes)
 	id := e.upload("master", "plan.txt", "text/plain", "the plan")
 	topic := e.say(0, "look at the plan", map[string]any{"screen": `{"project":"web","screen":"main"}`, "files": []string{fmt.Sprint(id)}})
 	e.masterSaid(topic, 1)
@@ -61,15 +62,15 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 	if len(ts) != 1 || ts[0].Project != "web" {
 		t.Fatalf("a topic knows the module of the screen it began on: %+v", ts)
 	}
-	e.refused("deck.chat_send", map[string]any{"text": "x", "files": []string{"nope"}}, 422, "the id of an upload")
-	e.refused("deck.chat_send", map[string]any{"text": "again", "files": []string{fmt.Sprint(id)}}, 404, "no upload")
+	e.Refused("deck.chat_send", map[string]any{"text": "x", "files": []string{"nope"}}, 422, "the id of an upload")
+	e.Refused("deck.chat_send", map[string]any{"text": "again", "files": []string{fmt.Sprint(id)}}, 404, "no upload")
 }
 
 // TestARetriedMessageDoesNotAttachItsFilesAgain: a message sent again with its retry key is the one already
 // sent, even when its upload is gone by now.
 func TestARetriedMessageDoesNotAttachItsFilesAgain(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} })
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} }))
 	id := e.upload("master", "plan.txt", "text/plain", "the plan")
 	in := map[string]any{"files": []string{fmt.Sprint(id)}, "retry_key": "k1"}
 	topic := e.say(0, "look at the plan", in)
@@ -85,12 +86,12 @@ func TestARetriedMessageDoesNotAttachItsFilesAgain(t *testing.T) {
 // back, and they go when the topic itself goes a month later.
 func TestTheFilesOfADeletedTopicGoWithTheTopic(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} })
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} }), WithClock())
 	e.sweep()
 	id := e.upload("master", "plan.txt", "text/plain", "the plan")
 	topic := e.say(0, "look", map[string]any{"files": []string{fmt.Sprint(id)}})
 	e.masterSaid(topic, 1)
-	e.must("deck.chat_topic_delete", map[string]any{"topic": topic}, nil)
+	e.Must("deck.chat_topic_delete", map[string]any{"topic": topic}, nil)
 	path := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Files(), fmt.Sprint(id))
 	e.Clock.Add(25 * time.Hour)
 	e.sweep()
@@ -110,16 +111,16 @@ func TestTheFilesOfADeletedTopicGoWithTheTopic(t *testing.T) {
 // messages and summary; an archived topic stays.
 func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} }), WithClock())
 	e.sweep()
 	gone := e.say(0, "drop me")
 	e.masterSaid(gone, 1)
 	kept := e.say(0, "keep me")
 	e.masterSaid(kept, 1)
-	e.must("deck.document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%d/summary.md", gone), "kind": "artifact", "text": "s"}, nil)
-	e.must("deck.document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%dabc/keep.md", gone), "kind": "artifact", "text": "k"}, nil)
-	e.must("deck.chat_topic_delete", map[string]any{"topic": gone}, nil)
-	e.must("deck.chat_topic_archive", map[string]any{"topic": kept, "archived": true}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%d/summary.md", gone), "kind": "artifact", "text": "s"}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%dabc/keep.md", gone), "kind": "artifact", "text": "k"}, nil)
+	e.Must("deck.chat_topic_delete", map[string]any{"topic": gone}, nil)
+	e.Must("deck.chat_topic_archive", map[string]any{"topic": kept, "archived": true}, nil)
 	e.Clock.Add(31 * 24 * time.Hour)
 	e.sweep()
 	var n int
@@ -132,7 +133,7 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 	if len(ts) != 1 || ts[0].ID != kept {
 		t.Fatalf("the archive stays: %+v", ts)
 	}
-	if code, out := e.call("deck.document_get", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%dabc/keep.md", gone)}); code != 200 {
+	if code, out := e.Call("deck.document_get", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%dabc/keep.md", gone)}); code != 200 {
 		t.Fatalf("a document of another name stays: %d %s", code, out)
 	}
 }
@@ -142,7 +143,7 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "work" {
 			select {
 			case <-release:
@@ -151,10 +152,11 @@ func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 			return provider.Result{Structured: json.RawMessage(`{}`)}
 		}
 		return provider.Result{Text: "Hi."}
-	})
-	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	busy := e.run(e.createProject("busy", testManifest([]string{agentCommand("work", "")}, nil)), "work")
-	e.waitState(busy, "running")
+	}))
+
+	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	busy := e.Run(e.Project("busy", testManifest([]string{agentCommand("work", "")}, nil)), "work")
+	e.WaitState(busy, "running")
 	topic := e.say(0, "first")
 	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
 	file := e.upload("master", "plan.txt", "text/plain", "the plan")
@@ -164,7 +166,7 @@ func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 	if len(ms) != 2 || ms[0].Process == 0 || ms[1].Process != 0 {
 		t.Fatalf("the first message is taken by the reply that waits for a slot, the second waits: %+v", ms)
 	}
-	e.refused("deck.chat_message_delete", map[string]any{"message": ms[0].ID}, 409, "taken")
+	e.Refused("deck.chat_message_delete", map[string]any{"message": ms[0].ID}, 409, "taken")
 	if ms[0].Delete != nil || ms[1].Delete == nil {
 		t.Fatalf("only the message no reply took has its delete: %+v", ms)
 	}
@@ -189,9 +191,8 @@ func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 	t.Parallel()
 	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} }}
-	e := newEnvWith(t, t.TempDir(), fake)
-	e.Fake = fake
-	e.createProject("web", webNotes)
+	e := New(t, WithProvider(fake))
+	e.Project("web", webNotes)
 	id := e.upload("web", "plan.txt", "text/plain", "the plan")
 	topic := e.say(0, "hello")
 	e.masterSaid(topic, 1)
@@ -200,7 +201,7 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.say(topic, "and now")
-	e.waitFor("the message shows the failed reply", func() bool {
+	e.Until("the message shows the failed reply", func() bool {
 		for _, m := range e.chatMessages(topic) {
 			if m.Text == "old plan" && m.Reply != nil && m.Reply.State == "error" && strings.Contains(m.Reply.Error, "no file") {
 				return true

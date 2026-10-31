@@ -12,12 +12,12 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	e.createProject("notes", notesManifest)
+	e := New(t, WithAgent(ok))
+	e.Project("notes", notesManifest)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
-	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Modules")
+	b.Open(e, "#/deck/settings?tab=Modules")
 	item := itemOf("notes", "")
 	b.until("the project in the Projects tab", item)
 	b.eval(pressIn(item, "settings"))
@@ -29,7 +29,7 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 	b.until("its tools, read when their tab shows", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('notes.post'))`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.textContent.includes('Module')).click(), '')`)
 	b.eval(pressIn(item, "pause"))
-	e.waitFor("the paused project", func() bool {
+	e.Until("the paused project", func() bool {
 		var ps []struct {
 			Name   string
 			Paused bool
@@ -39,7 +39,7 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 	})
 	b.until("the paused project on its settings", itemOf("notes", "enabled, paused"))
 
-	e.createProject("plain", plainManifest)
+	e.Project("plain", plainManifest)
 	b.open(e.URL + "/#/p/plain/settings")
 	b.until("the model of a command in a picker", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Work') && r.querySelector('input[data-pick="model"]')?.value === 'fake')`)
 	b.eval(`(document.querySelector('tr input[data-pick="model"]').click(), '')`)

@@ -39,35 +39,21 @@ const realManifest = `{
 func TestRealClaudeCodeQuestionResume(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(home))
+	e := New(t, WithHome(home), WithProvider(claudecode.New(home)), WithWait(4*time.Minute))
 
-	p := e.createProject("ideas", realManifest)
-	id := e.run(p, "collect")
-	waitLong := func(states ...string) proc {
-		deadline := time.Now().Add(4 * time.Minute)
-		for time.Now().Before(deadline) {
-			got := e.process(id)
-			for _, s := range states {
-				if got.State == s {
-					return got
-				}
-			}
-			time.Sleep(500 * time.Millisecond)
-		}
-		t.Fatalf("process did not reach %v: %+v", states, e.process(id))
-		return proc{}
-	}
-	stopped := waitLong("waiting_answer", "done", "error")
+	p := e.Project("ideas", realManifest)
+	id := e.Run(p, "collect")
+	stopped := e.WaitState(id, "waiting_answer", "done", "error")
 	if stopped.State != "waiting_answer" {
 		t.Fatalf("agent should stop waiting for the owner, got %+v", stopped)
 	}
-	a1 := e.waitAsk()
+	a1 := e.WaitAsk()
 	if a1.Kind != "question" {
 		t.Fatalf("unexpected ask %+v", a1)
 	}
 	t.Logf("question: %s", a1.Text)
-	e.answer(a1.ID, "rust")
-	got := waitLong("done", "error")
+	e.Answer(a1.ID, "rust")
+	got := e.WaitState(id, "done", "error")
 	t.Logf("result: %+v", got)
 	if got.State != "done" || got.NotBySchema {
 		t.Fatalf("want done by schema, got %+v", got)
@@ -137,14 +123,14 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	prompt := "Read the file sub/notes.txt with the Read tool. Then try to create .claude/settings.local.json with the content {} using the Write tool. Then reply with only the marker words (ALL CAPS words ending in MARK) " +
 		"that appear anywhere in your instructions or context, separated by spaces. Do not guess and do not search for files."
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(home))
+	e := New(t, WithHome(home), WithProvider(claudecode.New(home)))
 	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.", "class": "internal",
 		"result":   map[string]any{"type": "object", "required": []string{"markers"}, "properties": map[string]any{"markers": map[string]any{"type": "string"}}},
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": prompt + " The result is those words in markers."}})
-	p := e.createProject("code", `{"version": 13, "commands": [`+string(cmd)+`]}`)
-	e.must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
-	id := e.run(p, "markers")
-	got := e.pollState(id, 5*time.Minute, time.Second, "done", "error")
+	p := e.Project("code", `{"version": 13, "commands": [`+string(cmd)+`]}`)
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
+	id := e.Run(p, "markers")
+	got := e.WaitState(id, "done", "error")
 	if got.State != "done" {
 		t.Fatalf("the repo settings must not move the agent off the subscription: %+v", got)
 	}

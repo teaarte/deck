@@ -8,27 +8,25 @@ import (
 	"testing"
 	"time"
 
-	"deck2/internal/app"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
 )
 
 // twoModels is deck with the main fake and a backup one, the command work of plain assigned to both in that order.
-func twoModels(t *testing.T, main, backup func(context.Context, *Call) provider.Result, cfg ...func(*app.Config)) (*Env, *Fake, int64) {
+func twoModels(t *testing.T, main, backup func(context.Context, *Call) provider.Result, opts ...Option) (*Env, *Fake, int64) {
 	t.Helper()
 	m, b := &Fake{script: main}, &Fake{name: "backup", script: backup}
-	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{m, b}, cfg...)
-	e.Fake = m
-	p := e.createProject("plain", testManifest([]string{agentCommand("work", `{"type": "object", "properties": {"n": {"type": "integer"}}}`)}, nil))
-	e.useModels("plain.work", "fake", "backup")
+	e := New(t, append([]Option{WithProvider(m, b)}, opts...)...)
+	p := e.Project("plain", testManifest([]string{agentCommand("work", `{"type": "object", "properties": {"n": {"type": "integer"}}}`)}, nil))
+	e.UseModels("plain.work", "fake", "backup")
 	return e, b, p
 }
 
 func (e *Env) startWork(n int) int64 {
 	e.T.Helper()
 	var r struct{ Process int64 }
-	e.must("plain.work", map[string]any{"n": n}, &r)
+	e.Must("plain.work", map[string]any{"n": n}, &r)
 	return r.Process
 }
 
@@ -36,7 +34,7 @@ func (e *Env) startWork(n int) int64 {
 func (e *Env) following(id int64) int64 {
 	e.T.Helper()
 	var next int64
-	e.waitFor("the process that goes on", func() bool {
+	e.Until("the process that goes on", func() bool {
 		if got := e.fault(id); len(got.FollowedBy) == 1 {
 			next = got.FollowedBy[0]
 		}
@@ -58,16 +56,16 @@ func TestAModelAtItsLimitHandsTheWorkOnToTheNextModel(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
 	id := e.startWork(7)
-	if got := e.waitState(id, "error", "done", "rate_limited"); got.State != "error" || e.fault(id).ErrorType != "model.limit" || e.fault(id).Whose != "model" {
+	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.fault(id).ErrorType != "model.limit" || e.fault(id).Whose != "model" {
 		t.Fatalf("the refused process closes as the model's failure: %+v %+v", got, e.fault(id))
 	}
 	next := e.following(id)
-	got := e.waitState(next, "done", "error")
+	got := e.WaitState(next, "done", "error")
 	var in struct {
 		Provider string
 		Input    map[string]any
 	}
-	e.must("deck.process_get", map[string]any{"process": next}, &in)
+	e.Must("deck.process_get", map[string]any{"process": next}, &in)
 	if got.State != "done" || in.Provider != "backup" || e.fault(next).Follows != id {
 		t.Fatalf("the next model does the work: %+v %+v", got, in)
 	}
@@ -80,12 +78,12 @@ func TestAModelAtItsLimitHandsTheWorkOnToTheNextModel(t *testing.T) {
 		ID    int64
 		State string
 	}
-	e.must("deck.process_get", map[string]any{"process": id, "wait": 30}, &waited)
+	e.Must("deck.process_get", map[string]any{"process": id, "wait": 30}, &waited)
 	if waited.ID != next || waited.State != "done" {
 		t.Fatalf("a wait for the refused process goes on through the one that took its work: %+v", waited)
 	}
-	e.waitNote("backup goes on with it")
-	if h := e.waitHealth("provider:fake", "paused"); !strings.Contains(h.Error, "usage limit") {
+	e.WaitNote("backup goes on with it")
+	if h := e.WaitHealth("provider:fake", "paused"); !strings.Contains(h.Error, "usage limit") {
 		t.Fatalf("the model at its limit waits for its reset: %+v", h)
 	}
 	if rows := e.failedRuns(); len(rows) != 0 {
@@ -106,14 +104,14 @@ func TestAModelThatDoesNotAnswerHandsOnButAFailedTaskDoesNot(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
 	id := e.startWork(1)
-	e.waitState(id, "error")
+	e.WaitState(id, "error")
 	if got := e.fault(id); got.ErrorType != "model.unavailable" {
 		t.Fatalf("a model that did not answer: %+v", got)
 	}
-	e.waitState(e.following(id), "done")
+	e.WaitState(e.following(id), "done")
 	calls := len(backup.Calls())
 	failed := e.startWork(2)
-	e.waitState(failed, "error")
+	e.WaitState(failed, "error")
 	e.App.Runner.Wait()
 	if got := e.fault(failed); got.ErrorType != "task.failed" || len(got.FollowedBy) != 0 || len(backup.Calls()) != calls {
 		t.Fatalf("a failed task does not go to another model: %+v", got)
@@ -124,10 +122,10 @@ func TestAModelThatDoesNotAnswerHandsOnButAFailedTaskDoesNot(t *testing.T) {
 // before.
 func TestAModelAtItsLimitWithoutANextOneWaitsForTheReset(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return limited(t0) })
-	p := e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
-	e.useModels("plain.work", "fake")
-	if got := e.waitState(e.run(p, "work"), "rate_limited", "error"); got.State != "rate_limited" {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return limited(t0) }))
+	p := e.Project("plain", testManifest([]string{agentCommand("work", "")}, nil))
+	e.UseModels("plain.work", "fake")
+	if got := e.WaitState(e.Run(p, "work"), "rate_limited", "error"); got.State != "rate_limited" {
 		t.Fatalf("without a next model the process waits for the reset: %+v", got)
 	}
 }
@@ -143,8 +141,8 @@ func TestTheNextModelHearsWhatTheOwnerAnswered(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
 	id := e.startWork(1)
-	e.answer(e.waitAsk().ID, "second")
-	e.waitState(e.following(id), "done", "error")
+	e.Answer(e.WaitAsk().ID, "second")
+	e.WaitState(e.following(id), "done", "error")
 	if calls := backup.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "Which account?") || !strings.Contains(calls[0].Prompt, "second") {
 		t.Fatalf("the next model is told the owner's answer: %+v", calls)
 	}
@@ -167,30 +165,29 @@ func TestAModelThatGivesNoSignHandsTheTurnOnLongBeforeTheCeiling(t *testing.T) {
 		}
 		<-ctx.Done()
 		return provider.Result{}
-	}, ok, withClock(clock))
-	e.Clock = clock
+	}, ok, WithClock(clock))
 	id := e.startWork(1)
-	e.waitFor("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
+	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
 	clock.Add(4 * time.Minute)
 	e.sweep()
-	if got := e.waitState(id, "running"); got.State != "running" {
+	if got := e.WaitState(id, "running"); got.State != "running" {
 		t.Fatalf("a model is given its time: %+v", got)
 	}
 	clock.Add(2 * time.Minute)
 	e.sweep()
-	e.waitState(id, "error")
+	e.WaitState(id, "error")
 	if got := e.fault(id); got.ErrorType != "model.unavailable" || !strings.Contains(got.Error, "gave no sign for 5 minutes") {
 		t.Fatalf("a model that gave no sign is the model's failure: %+v", got)
 	}
-	if got := e.waitState(e.following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 1 {
+	if got := e.WaitState(e.following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 1 {
 		t.Fatalf("the next model does the work: %+v", got)
 	}
-	e.waitNote("gave no sign for 5 minutes")
+	e.WaitNote("gave no sign for 5 minutes")
 	spoke := e.startWork(2)
-	e.waitFor("the model speaks", func() bool { return len(e.Fake.Calls()) == 2 && len(e.log(spoke)) == 1 })
+	e.Until("the model speaks", func() bool { return len(e.Fake.Calls()) == 2 && len(e.log(spoke)) == 1 })
 	clock.Add(time.Hour - time.Minute)
 	e.sweep()
-	if got := e.waitState(spoke, "running"); got.State != "running" {
+	if got := e.WaitState(spoke, "running"); got.State != "running" {
 		t.Fatalf("a model that gave a sign keeps its turn: %+v", got)
 	}
 	_ = e.App.Runner.Stop(context.Background(), spoke, "test", true)
@@ -208,49 +205,48 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 		c.Req.Emit(provider.Event{Kind: provider.EventMessage, Text: "working"})
 		<-ctx.Done()
 		return provider.Result{}
-	}, ok, withClock(clock))
-	e.Clock = clock
+	}, ok, WithClock(clock))
 	id := e.startWork(1)
-	e.waitFor("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
-	e.waitState(e.following(e.startWork(2)), "done")
-	e.waitHealth("provider:fake", "paused")
+	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
+	e.WaitState(e.following(e.startWork(2)), "done")
+	e.WaitHealth("provider:fake", "paused")
 	e.sweep()
-	e.waitState(id, "error")
+	e.WaitState(id, "error")
 	if got := e.fault(id); got.ErrorType != "model.limit" || !strings.Contains(got.Error, "fake went on a pause during the turn") {
 		t.Fatalf("a turn on a paused model leaves it as the model's limit: %+v", got)
 	}
-	if got := e.waitState(e.following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 2 {
+	if got := e.WaitState(e.following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 2 {
 		t.Fatalf("the next model does the work: %+v", got)
 	}
-	e.waitNote("backup goes on with it")
+	e.WaitNote("backup goes on with it")
 	var cmds []struct {
 		Name, Model, Why string
 	}
-	e.must("deck.commands_list", nil, &cmds)
+	e.Must("deck.commands_list", nil, &cmds)
 	if i := slices.IndexFunc(cmds, func(c struct{ Name, Model, Why string }) bool { return c.Name == "plain.work" }); i < 0 ||
 		cmds[i].Model != "backup" || !strings.HasPrefix(cmds[i].Why, "fake: usage limit reached") {
 		t.Fatalf("the command says why its first model does not do its work: %+v", cmds)
 	}
 
-	e.useModels("plain.work", "fake")
+	e.UseModels("plain.work", "fake")
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return process.ProviderHealth(ctx, q, "fake", "ok", "")
 	})
 	alone := e.startWork(3)
-	e.waitFor("the model takes the call", func() bool { return len(e.Fake.Calls()) == 3 })
+	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 3 })
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return process.ProviderHealth(ctx, q, "fake", "paused", "usage limit reached")
 	})
 	e.sweep()
-	if got := e.waitState(alone, "waiting_provider", "error"); got.State != "waiting_provider" {
+	if got := e.WaitState(alone, "waiting_provider", "error"); got.State != "waiting_provider" {
 		t.Fatalf("with no next model the turn waits for its model: %+v %+v", got, e.fault(alone))
 	}
-	e.waitFor("a part of the note of the cause of fake that the turn waits for it", func() bool {
+	e.Until("a part of the note of the cause of fake that the turn waits for it", func() bool {
 		var notes []struct {
 			Cause string
 			Parts []struct{ Text string }
 		}
-		e.must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
+		e.Must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
 		return slices.ContainsFunc(notes, func(n struct {
 			Cause string
 			Parts []struct{ Text string }
@@ -281,11 +277,11 @@ func TestAnAgentInALoopLeavesItsModel(t *testing.T) {
 		return provider.Result{}
 	}, ok)
 	id := e.startWork(1)
-	e.waitState(id, "error")
+	e.WaitState(id, "error")
 	if got := e.fault(id); got.ErrorType != "agent.loop" || got.Whose != "model" || !strings.Contains(got.Error, "mcp__deck__records_list 3 times in a row") {
 		t.Fatalf("a loop is the model's failure of its own type: %+v", got)
 	}
-	if got := e.waitState(e.following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 1 {
+	if got := e.WaitState(e.following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 1 {
 		t.Fatalf("the next model does the work: %+v", got)
 	}
 }

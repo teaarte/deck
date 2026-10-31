@@ -48,13 +48,14 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 	llm := acpLLM(t)
 	t.Setenv("DEEPSEEK_API_KEY", "sk-from-the-environment-of-deck")
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	e := acpEnv(t, f, "goose", llm, func(c *app.Config) {
+	e := New(t, WithACP(f, llm), WithConfig(func(c *app.Config) {
 		state := deckhome.Layout(c.Home).State()
 		if err := errors.Join(os.MkdirAll(state, 0o700), os.WriteFile(filepath.Join(state, "token"), []byte("owner-token-value"), 0o600),
 			os.WriteFile(filepath.Join(f.dir, "probe"), []byte(filepath.Join(state, "token")), 0o600)); err != nil {
 			t.Fatal(err)
 		}
-	})
+	}))
+
 	home := e.App.Cfg.Home
 	f.streamText(4, strings.Join([]string{acpInit,
 		`{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
@@ -65,8 +66,8 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 		acpModel,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`,
 		`{"end": "end_turn"}`}, "\n"))
-	id := e.run(e.acpProject("paint", colorManifest), "work")
-	got := e.waitState(id, "done", "error")
+	id := e.Run(e.acpProject("paint", colorManifest), "work")
+	got := e.WaitState(id, "done", "error")
 	c := f.call(4)
 	if got.State != "done" || string(got.Result) != `{"color":"blue"}` || c.violation != "" {
 		t.Fatalf("the result comes in by the schema with result_submit: %+v %s", got, c.violation)
@@ -125,13 +126,13 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 		`{"mcp": {"tool": "ask", "arguments": {"question": "Which color should the report use?"}}}`, `{"end": "end_turn"}`))
 	f.streamText(5, acpStream(gooseInit, `{"reply": "session/load", "result": {}, "replay": [{"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi again."}}]}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", acpLLM(t), func(c *app.Config) { c.QuestionWait = 10 * time.Minute })
-	id := e.run(e.acpProject("paint", colorManifest), "work")
-	a := e.waitAsk()
+	e := New(t, WithACP(f, acpLLM(t)), WithConfig(func(c *app.Config) { c.QuestionWait = 10 * time.Minute }))
+	id := e.Run(e.acpProject("paint", colorManifest), "work")
+	a := e.WaitAsk()
 	if a.Kind != "question" || !strings.Contains(a.Text, "Which color") {
 		t.Fatalf("the question reaches the owner: %+v", a)
 	}
-	e.waitState(id, "waiting_answer")
+	e.WaitState(id, "waiting_answer")
 	if m := f.call(4).mcp; len(m) != 1 || !strings.Contains(m[0]["text"].(string), "not answered yet") {
 		t.Fatalf("the agent hears in time that the owner has not answered and ends its turn: %v", m)
 	}
@@ -145,8 +146,8 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 		lines[4]["id"] != "c1" || lines[4]["status"] != "completed" || lines[4]["text"] != `{"output":"text of a"}` {
 		t.Fatalf("the log keeps the session updates of ACP: a thought whole, the call, its late input and its end: %v", lines)
 	}
-	e.answer(a.ID, "blue")
-	got := e.waitState(id, "done", "error")
+	e.Answer(a.ID, "blue")
+	got := e.WaitState(id, "done", "error")
 	c := f.call(5)
 	var resume struct{ SessionID string }
 	_ = json.Unmarshal(c.request("session/load"), &resume)
@@ -172,9 +173,9 @@ func TestACPAgentPermissionIsAllowedOnceWithoutTheOwner(t *testing.T) {
 		`{"permission": {"toolCall": {"toolCallId": "c1", "title": "cat notes", "kind": "execute"}, "options": [{"optionId": "always", "name": "Always", "kind": "allow_always"}, {"optionId": "once", "name": "Once", "kind": "allow_once"}, {"optionId": "no", "name": "No", "kind": "reject_once"}]}}`,
 		`{"permission": {"toolCall": {"toolCallId": "c2"}, "options": [{"optionId": "always", "name": "Always", "kind": "allow_always"}, {"optionId": "no", "name": "No", "kind": "reject_once"}]}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "red"}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
-	id := e.run(e.acpProject("paint", colorManifest), "work")
-	got := e.waitState(id, "done", "error")
+	e := New(t, WithACP(f, acpLLM(t)))
+	id := e.Run(e.acpProject("paint", colorManifest), "work")
+	got := e.WaitState(id, "done", "error")
 	c := f.call(4)
 	if got.State != "done" || len(c.answers) != 2 || c.violation != "" {
 		t.Fatalf("the agent's questions are answered by the schema: %+v %v %s", got, c.answers, c.violation)
@@ -182,8 +183,8 @@ func TestACPAgentPermissionIsAllowedOnceWithoutTheOwner(t *testing.T) {
 	if !strings.Contains(string(c.answers[0]["result"]), `"optionId":"once"`) || !strings.Contains(string(c.answers[1]["result"]), `"optionId":"no"`) {
 		t.Fatalf("deck allows once and never always: %s / %s", c.answers[0]["result"], c.answers[1]["result"])
 	}
-	var asks []askView
-	e.must("deck.asks_list", nil, &asks)
+	var asks []Ask
+	e.Must("deck.asks_list", nil, &asks)
 	if len(asks) != 0 {
 		t.Fatalf("the owner is not asked about what the sandbox bounds: %+v", asks)
 	}
@@ -197,9 +198,9 @@ func TestACPResultWithoutItsFieldIsRefused(t *testing.T) {
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"null": "None"}}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": null}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
+	e := New(t, WithACP(f, acpLLM(t)))
 	loose := strings.Replace(colorManifest, `{"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}}`, `{"type": ["object", "null"]}`, 1)
-	got := e.waitState(e.run(e.acpProject("paint", loose), "work"), "done", "error")
+	got := e.WaitState(e.Run(e.acpProject("paint", loose), "work"), "done", "error")
 	c := f.call(4)
 	if got.State != "done" || string(got.Result) != "null" || len(c.mcp) < 2 || !strings.Contains(fmt.Sprint(c.mcp[0]), "no result field") {
 		t.Fatalf("deck refuses arguments without result and takes the null after: %+v %v", got, c.mcp)
@@ -215,15 +216,15 @@ func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 		`{"mcp": {"tool": "notes__post", "arguments": {"id": "a1", "text": "hi"}}}`, `{"end": "end_turn"}`))
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"posted": true}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
-	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
-	id := e.run(e.acpProject("notes", postManifest(svc.URL, "")), "work")
-	a := e.waitAsk()
+	e := New(t, WithACP(f, acpLLM(t)))
+	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	id := e.Run(e.acpProject("notes", postManifest(svc.URL, "")), "work")
+	a := e.WaitAsk()
 	if a.Kind != "call" || len(svc.requests()) != 0 {
 		t.Fatalf("the external call waits for the owner and is not made: %+v %d", a, len(svc.requests()))
 	}
-	e.answer(a.ID, "allow")
-	got := e.waitState(id, "done", "error")
+	e.Answer(a.ID, "allow")
+	got := e.WaitState(id, "done", "error")
 	if got.State != "done" || len(svc.requests()) != 1 {
 		t.Fatalf("after yes deck makes the call and the agent goes on: %+v %d", got, len(svc.requests()))
 	}
@@ -244,12 +245,12 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 			`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "the page."}}}`,
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
 	}
-	e := acpEnv(t, f, "goose", acpLLM(t))
+	e := New(t, WithACP(f, acpLLM(t)))
 	open := strings.Replace(noNetworkManifest, `"no_network": true,`, "", 1)
-	if got := e.waitState(e.run(e.acpProject("open", open), "work"), "done"); !strings.Contains(string(got.Result), "Checked the page.") {
+	if got := e.WaitState(e.Run(e.acpProject("open", open), "work"), "done"); !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("what the agent said is the result of a command without a schema: %s", got.Result)
 	}
-	e.waitState(e.run(e.acpProject("private", noNetworkManifest), "work"), "done")
+	e.WaitState(e.Run(e.acpProject("private", noNetworkManifest), "work"), "done")
 	web, off := f.call(4), f.call(5)
 	if !strings.Contains(web.shell[0]["out"], "not in the domains") || !strings.Contains(off.shell[0]["out"], "not reachable") || len(site.requests()) != 0 {
 		t.Fatalf("the proxy carries no agent to deck or local services, and nowhere without network: %q / %q", web.shell[0]["out"], off.shell[0]["out"])
@@ -282,13 +283,13 @@ func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
 	f.streamText(6, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, `{"end": "end_turn"}`))
 	f.streamText(7, acpStream(acpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
-	id := e.run(e.acpProject("paint", colorManifest), "work")
-	a := e.waitAsk()
-	e.waitState(id, "waiting_answer")
-	e.answer(a.ID, "blue")
+	e := New(t, WithACP(f, acpLLM(t)))
+	id := e.Run(e.acpProject("paint", colorManifest), "work")
+	a := e.WaitAsk()
+	e.WaitState(id, "waiting_answer")
+	e.Answer(a.ID, "blue")
 	// Three starts of the agent in the sandbox, one after another.
-	got := e.pollState(id, time.Minute, 20*time.Millisecond, "done", "error")
+	got := e.WaitState(id, "done", "error")
 	var resume struct{ SessionID string }
 	if f.calls() == 7 {
 		_ = json.Unmarshal(f.call(7).request("session/resume"), &resume)
@@ -303,12 +304,12 @@ func TestACPStopCancelsTheTurn(t *testing.T) {
 	t.Parallel()
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, `{"hang": true}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
-	id := e.run(e.acpProject("paint", colorManifest), "work")
-	e.waitFor("the turn", func() bool { return f.calls() >= 4 && f.call(4).request("session/prompt") != nil })
-	e.must("deck.process_stop", map[string]any{"process": id}, nil)
-	e.waitState(id, "stopped")
-	e.waitFor("the cancel", func() bool { return f.call(4).request("session/cancel") != nil })
+	e := New(t, WithACP(f, acpLLM(t)))
+	id := e.Run(e.acpProject("paint", colorManifest), "work")
+	e.Until("the turn", func() bool { return f.calls() >= 4 && f.call(4).request("session/prompt") != nil })
+	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
+	e.WaitState(id, "stopped")
+	e.Until("the cancel", func() bool { return f.call(4).request("session/cancel") != nil })
 }
 
 // TestACPRecordedTurnOfGoose replays a turn recorded from Goose through the adapter.
@@ -316,8 +317,8 @@ func TestACPRecordedTurnOfGoose(t *testing.T) {
 	t.Parallel()
 	f := newACP(t)
 	f.stream(4, "goose_turn.jsonl")
-	e := acpEnv(t, f, "goose", acpLLM(t))
-	got := e.waitState(e.run(e.acpProject("notes", writtenManifest), "work"), "done", "error")
+	e := New(t, WithACP(f, acpLLM(t)))
+	got := e.WaitState(e.Run(e.acpProject("notes", writtenManifest), "work"), "done", "error")
 	c := f.call(4)
 	if got.State != "done" || string(got.Result) != `{"written":1}` || c.violation != "" {
 		t.Fatalf("the recorded turn hands its result in: %+v %s", got, c.violation)
@@ -349,12 +350,13 @@ func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
 				}
 				return textReply("ok")
 			})
-			e, h := acpAdded(t, f, "goose", llm, func(c *app.Config) { c.SelfCheckCeiling = 4 * time.Second })
+			e := New(t, WithACP(f, nil), WithConfig(func(c *app.Config) { c.SelfCheckCeiling = 4 * time.Second }))
+			h := e.AddACP(f, llm)
 			if h.Status != tc.health || !strings.Contains(h.Error, tc.wants) || strings.Contains(h.Error, "stronger") {
 				t.Fatalf("want %s with %q: %+v", tc.health, tc.wants, h)
 			}
 			var pl struct{ Connections []struct{ Name, Key string } }
-			e.must("deck.models_list", nil, &pl)
+			e.Must("deck.models_list", nil, &pl)
 			if i := slices.IndexFunc(pl.Connections, func(p struct{ Name, Key string }) bool { return p.Name == "acp" }); i < 0 || pl.Connections[i].Key != "secret" {
 				t.Fatalf("the models list tells how the key of a connection is passed: %+v", pl.Connections)
 			}
@@ -392,14 +394,15 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 			for i, s := range tc.streams {
 				f.streamText(i+1, s)
 			}
-			e, h := acpAdded(t, f, "goose", acpLLM(t))
+			e := New(t, WithACP(f, nil))
+			h := e.AddACP(f, acpLLM(t))
 			if h.Status != "error" || !strings.Contains(h.Error, tc.want) || !strings.HasPrefix(h.Error, tc.verdict) {
 				t.Fatalf("the self-check is red with %q, told as %q: %+v", tc.want, tc.verdict, h)
 			}
 			var pl struct {
 				Models []struct{ Agent, Verdict string }
 			}
-			e.must("deck.models_list", nil, &pl)
+			e.Must("deck.models_list", nil, &pl)
 			verdict := map[string]string{adapter: "adapter", model: "model"}[tc.verdict]
 			if i := slices.IndexFunc(pl.Models, func(p struct{ Agent, Verdict string }) bool { return p.Agent == "goose" }); i < 0 || pl.Models[i].Verdict != verdict {
 				t.Fatalf("the models list shows the agent and the verdict %q: %+v", verdict, pl.Models)
@@ -411,12 +414,12 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 			}
 			f.streamText(0, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 				`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-			id := e.run(e.acpProject("paint", colorManifest), "work")
+			id := e.Run(e.acpProject("paint", colorManifest), "work")
 			if verdict == "model" {
-				e.waitState(id, "done")
+				e.WaitState(id, "done")
 				return
 			}
-			e.waitState(id, "waiting_provider")
+			e.WaitState(id, "waiting_provider")
 			if n := f.calls(); n > len(tc.streams)+1 {
 				t.Fatalf("a process on a provider whose adapter is broken waits; one whose model fails runs: %d calls", n)
 			}
@@ -476,9 +479,9 @@ func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
 			}
 			f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
 				submit, tc.end))
-			e := acpEnv(t, f, "goose", llm)
-			id := e.run(e.acpProject("paint", colorManifest), "work")
-			got := e.waitState(id, "done", "error", "needs_login", "rate_limited")
+			e := New(t, WithACP(f, llm))
+			id := e.Run(e.acpProject("paint", colorManifest), "work")
+			got := e.WaitState(id, "done", "error", "needs_login", "rate_limited")
 			if got.State != tc.state || !strings.Contains(got.Error, tc.want) {
 				t.Fatalf("%s %d: want %s with %q, got %+v", tc.end, tc.status, tc.state, tc.want, got)
 			}
@@ -500,8 +503,8 @@ func TestAFailedTurnTellsTheEndOfWhatTheAgentWroteToStderr(t *testing.T) {
 	noise, _ := json.Marshal(strings.Repeat("loading a plugin\n", 300) + "Error: the config is broken")
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"stderr": `+string(noise)+`}`, `{"exit": 3}`))
-	e := acpEnv(t, f, "goose", newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") }))
-	got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error")
+	e := New(t, WithACP(f, newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })))
+	got := e.WaitState(e.Run(e.acpProject("paint", colorManifest), "work"), "done", "error")
 	if got.State != "error" || !strings.Contains(got.Error, "the config is broken") {
 		t.Fatalf("the failed turn tells the end of stderr: %+v", got)
 	}
@@ -527,14 +530,14 @@ func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
 			f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
 				`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: Rate limit exceeded."}}}`,
 				`{"end": "end_turn"}`))
-			e := acpEnv(t, f, "goose", llm)
-			if got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != tc.state {
+			e := New(t, WithACP(f, llm))
+			if got := e.WaitState(e.Run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != tc.state {
 				t.Fatalf("%d: want %s, got %+v", tc.status, tc.state, got)
 			}
 			if tc.state != "needs_login" {
 				return
 			}
-			if a := e.waitAsk(); !strings.Contains(a.Text, "key of its connection") || strings.Contains(a.Text, "terminal") {
+			if a := e.WaitAsk(); !strings.Contains(a.Text, "key of its connection") || strings.Contains(a.Text, "terminal") {
 				t.Fatalf("a refused key of a model is about the key of its connection, not a login in a terminal: %+v", a)
 			}
 		})
@@ -554,8 +557,8 @@ func TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused(t *testing
 	})
 	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, acpModel, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", llm)
-	if got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+	e := New(t, WithACP(f, llm))
+	if got := e.WaitState(e.Run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
 		t.Fatalf("the turn that handed in its result is done: %+v", got)
 	}
 }
@@ -574,9 +577,9 @@ func TestACPTurnIsNotUndoneByARefusedCallOnTheSide(t *testing.T) {
 	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		acpModel, `{"model": {"model": "m", "messages": [{"role": "user", "content": "a title for this session"}]}}`,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Checked the page."}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", llm)
+	e := New(t, WithACP(f, llm))
 	open := strings.Replace(noNetworkManifest, `"no_network": true,`, "", 1)
-	if got := e.waitState(e.run(e.acpProject("open", open), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || !strings.Contains(string(got.Result), "Checked the page.") {
+	if got := e.WaitState(e.Run(e.acpProject("open", open), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("a turn is done though a call on its side was refused: %+v", got)
 	}
 }
@@ -588,8 +591,8 @@ func TestACPAgentThatDiscoversTheGatewayOpensASession(t *testing.T) {
 	f := newACP(t)
 	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"discover": true}`, `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
-	got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error")
+	e := New(t, WithACP(f, acpLLM(t)))
+	got := e.WaitState(e.Run(e.acpProject("paint", colorManifest), "work"), "done", "error")
 	d := jsonLines[map[string]any](f.files(4)("discover.jsonl"))
 	if got.State != "done" || len(d) != 1 || !strings.Contains(fmt.Sprint(d[0]["body"]), "-32601") {
 		t.Fatalf("server/discover is a method the gateway does not have: %+v %v", got, d)
@@ -612,17 +615,17 @@ func TestACPDeckWritesNothingThroughWhatTheAgentLeft(t *testing.T) {
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"shell": "cat \"$HOME/.agents/skills/reader/SKILL.md\" > seen.txt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
+	e := New(t, WithACP(f, acpLLM(t)))
 	skilled := strings.Replace(colorManifest, `"prompt": "Ask the owner which color the report should use."}`,
 		`"prompt": "Ask the owner which color the report should use.", "skills": ["reader"]}`, 1)
 	p := e.acpProject("paint", skilled)
-	e.must("deck.document_save", map[string]any{"project": "paint", "name": "skills/reader/SKILL.md", "kind": "skill",
+	e.Must("deck.document_save", map[string]any{"project": "paint", "name": "skills/reader/SKILL.md", "kind": "skill",
 		"text": "---\nname: reader\ndescription: Reads.\n---\nRead.\n"}, nil)
-	id := e.run(p, "work")
-	a := e.waitAsk()
-	e.waitState(id, "waiting_answer")
-	e.answer(a.ID, "blue")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	id := e.Run(p, "work")
+	a := e.WaitAsk()
+	e.WaitState(id, "waiting_answer")
+	e.Answer(a.ID, "blue")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
 	if entries, _ := os.ReadDir(victims); len(entries) != 1 {
@@ -638,18 +641,18 @@ func TestACPStopDuringSetupEndsTheAgent(t *testing.T) {
 	t.Parallel()
 	f := newACP(t)
 	f.streamText(4, `{"hang": true}`)
-	e := acpEnv(t, f, "goose", acpLLM(t))
-	id := e.run(e.acpProject("paint", colorManifest), "work")
-	e.waitFor("the agent", func() bool { return f.calls() >= 4 && f.call(4).request("initialize") != nil })
-	e.must("deck.process_stop", map[string]any{"process": id}, nil)
-	e.waitState(id, "stopped")
+	e := New(t, WithACP(f, acpLLM(t)))
+	id := e.Run(e.acpProject("paint", colorManifest), "work")
+	e.Until("the agent", func() bool { return f.calls() >= 4 && f.call(4).request("initialize") != nil })
+	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
+	e.WaitState(id, "stopped")
 }
 
 // TestACPProviderNameIsUniqueAcrossWorkspaces: health and self-checks of providers go by name, so a name another
 // workspace uses is refused.
 func TestACPProviderNameIsUniqueAcrossWorkspaces(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	ctx := t.Context()
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
@@ -679,14 +682,15 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 	b, _ := os.ReadFile("testdata/acp/selfcheck_1.jsonl")
 	f.streamText(1, strings.Replace(string(b), acpInit, slow, 1))
 	llm := acpLLM(t)
-	e := newEnv(t, nil, func(c *app.Config) {
+	e := New(t, WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
-	})
+	}))
+
 	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose"})
-	e.waitFor("the first check", func() bool { return f.calls() >= 1 })
+	e.Until("the first check", func() bool { return f.calls() >= 1 })
 	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m2", "agent": "goose"})
-	e.waitWithin("the second check", 40*time.Second, func() bool {
+	e.Until("the second check", func() bool {
 		h, _ := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 		return f.calls() >= 6 && h.Status == "ok"
 	})
@@ -715,9 +719,9 @@ func TestACPCountsTokensOfCompressedReplies(t *testing.T) {
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", &fakeLLM{t: t, URL: srv.URL + "/v1"})
-	id := e.run(e.acpProject("paint", colorManifest), "work")
-	e.waitState(id, "done")
+	e := New(t, WithACP(f, &fakeLLM{t: t, URL: srv.URL + "/v1"}))
+	id := e.Run(e.acpProject("paint", colorManifest), "work")
+	e.WaitState(id, "done")
 	var calls []map[string]any
 	e.modelCalls("", id, &calls)
 	if len(calls) != 1 || calls[0]["gen_ai.usage.output_tokens"] != 10.0 {
@@ -737,26 +741,27 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	llm := acpLLM(t)
-	e := newEnv(t, nil, func(c *app.Config) {
+	e := New(t, WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
-	})
-	p := e.createProject("paint", colorManifest)
-	e.must("deck.secret_set", map[string]any{"name": "k", "value": "v"}, nil)
+	}))
+
+	p := e.Project("paint", colorManifest)
+	e.Must("deck.secret_set", map[string]any{"name": "k", "value": "v"}, nil)
 	go func() {
 		_, _ = e.agentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose"})
 	}()
-	e.waitFor("the provider", func() bool {
+	e.Until("the provider", func() bool {
 		_, err := e.App.Store.Q.GetModel(t.Context(), db.GetModelParams{WorkspaceID: 1, Name: "acp"})
 		return err == nil
 	})
-	e.useModels("paint.work", "acp")
-	id := e.run(p, "work")
-	e.waitWithin("the self-check", time.Minute, func() bool {
+	e.UseModels("paint.work", "acp")
+	id := e.Run(p, "work")
+	e.Until("the self-check", func() bool {
 		h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
 		return err == nil && h.Status == "ok"
 	})
-	got := e.waitState(id, "done", "error")
+	got := e.WaitState(id, "done", "error")
 	if got.State != "done" || !strings.Contains(string(f.call(1).request("session/prompt")), "self-check of deck") {
 		t.Fatalf("the first agent run is the self-check, the command waits for it: %+v", got)
 	}
@@ -768,12 +773,13 @@ func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
 	f := newACP(t)
 	f.streamText(1, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel, `{"hang": true}`))
 	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
-	e := newEnv(t, nil, func(c *app.Config) {
+	e := New(t, WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 		c.ACPCallLimit = 2 * time.Second
 		c.SelfCheckCeiling = time.Second
-	})
+	}))
+
 	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose", "check_minutes": 1})
 	// Past deck's ceiling of a second the check must still run.
 	time.Sleep(2500 * time.Millisecond)
@@ -792,9 +798,9 @@ func TestACPAgentDoesNotReadTheOwnersHome(t *testing.T) {
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"shell": "cat `+filepath.Join(owner, ".zshrc")+`"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
-	id := e.run(e.acpProject("paint", writtenManifest), "work")
-	e.waitState(id, "done")
+	e := New(t, WithACP(f, acpLLM(t)))
+	id := e.Run(e.acpProject("paint", writtenManifest), "work")
+	e.WaitState(id, "done")
 	if strings.Contains(f.call(4).shell[0]["out"], "private") {
 		t.Fatalf("the agent does not read the owner's home: %v", f.call(4).shell)
 	}
@@ -810,9 +816,9 @@ func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"shell": "curl -s -m 5 -o /dev/null -w '%{http_code}' http://`+addr+`/"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", acpLLM(t))
+	e := New(t, WithACP(f, acpLLM(t)))
 	m := strings.Replace(writtenManifest, `{"version": 13,`, fmt.Sprintf(`{"version": 13, "domains": {"read": [%q]},`, addr), 1)
-	e.waitState(e.run(e.acpProject("paint", m), "work"), "done")
+	e.WaitState(e.Run(e.acpProject("paint", m), "work"), "done")
 	if got := f.call(4).shell[0]["out"]; got != "200" || len(local.requests()) != 1 {
 		t.Fatalf("the shell reaches the service its project names: %q, %d requests", got, len(local.requests()))
 	}
@@ -826,8 +832,8 @@ func TestAnACPAgentCallsOnlyItsModelThroughDeck(t *testing.T) {
 	llm := acpLLM(t)
 	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"get": "files"}`, acpModel, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", llm)
-	e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error")
+	e := New(t, WithACP(f, llm))
+	e.WaitState(e.Run(e.acpProject("paint", colorManifest), "work"), "done", "error")
 	got := jsonLines[map[string]any](f.files(4)("get.jsonl"))
 	if len(got) != 1 || got[0]["status"] != 403.0 {
 		t.Fatalf("a request other than a call of the model is refused: %v", got)
@@ -839,26 +845,25 @@ func TestAnACPAgentCallsOnlyItsModelThroughDeck(t *testing.T) {
 func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
 	t.Parallel()
 	f := newACP(t)
-	e := newEnv(t, ok, func(c *app.Config) {
+	e := New(t, WithAgent(ok), WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 		c.ACPCallLimit = 2 * time.Second
-	})
+	}))
+
 	cmd := strings.Replace(folderCommand("files", "true"), `"executor":`, `"requires": ["no_cloud"], "executor":`, 1)
 	cmd = strings.Replace(cmd, `"prompt": "Do files."`, `"prompt": "Do files.", "skills": ["reader"]`, 1)
-	p := e.createProject("music", testManifest([]string{cmd}, nil))
-	e.must("deck.document_save", map[string]any{"project": "music", "name": "skills/reader/SKILL.md", "kind": "skill",
+	p := e.Project("music", testManifest([]string{cmd}, nil))
+	e.Must("deck.document_save", map[string]any{"project": "music", "name": "skills/reader/SKILL.md", "kind": "skill",
 		"text": "---\nname: reader\ndescription: Reads.\n---\nRead.\n"}, nil)
 	folder := repoFolder(t)
 	own := filepath.Join(folder, ".agents", "skills", "own", "SKILL.md")
 	if err := errors.Join(os.MkdirAll(filepath.Dir(own), 0o700), os.WriteFile(own, []byte("the owner's"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.folder_add", map[string]any{"project": "music", "path": folder}, nil)
-	unfit := func() *struct{ Subject, Status, Error string } {
-		var rows []struct{ Subject, Status, Error string }
-		e.must("deck.health_list", map[string]any{"project": "music"}, &rows)
-		for _, r := range rows {
+	e.Must("deck.folder_add", map[string]any{"project": "music", "path": folder}, nil)
+	unfit := func() *HealthRow {
+		for _, r := range e.Health("music") {
 			if r.Subject == "command:music.files" {
 				return &r
 			}
@@ -875,8 +880,8 @@ func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"shell": "cat \"$HOME/.agents/skills/reader/SKILL.md\" > seen.txt; ls .agents/skills > listed.txt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"n": 1}}}}`, `{"end": "end_turn"}`))
-	id := e.run(p, "files")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	id := e.Run(p, "files")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the command runs on the local model: %+v", got)
 	}
 	if c := f.call(4); c.cwd != folder {
@@ -899,10 +904,10 @@ func TestACPTurnPastTheLimitOfItsModelGoesOnWithoutAPause(t *testing.T) {
 	llm := acpLLM(t)
 	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		acpModel, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "goose", llm)
+	e := New(t, WithACP(f, llm))
 	before := len(llm.requests())
-	e.must("deck.model_set", map[string]any{"connection": "acp", "name": "acp", "model": "m", "tpm": 10}, nil)
-	got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "rate_limited")
+	e.Must("deck.model_set", map[string]any{"connection": "acp", "name": "acp", "model": "m", "tpm": 10}, nil)
+	got := e.WaitState(e.Run(e.acpProject("paint", colorManifest), "work"), "done", "error", "rate_limited")
 	if fl := e.fault(got.ID); got.State != "error" || fl.ErrorType != "model.limit" || !strings.Contains(fl.Error, "tokens a minute acp takes") {
 		t.Fatalf("a call past the limit of the model is the model's limit: %+v %+v", got, fl)
 	}

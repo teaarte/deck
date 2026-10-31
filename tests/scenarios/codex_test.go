@@ -32,11 +32,12 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "sk-deck-test")
 	t.Setenv("CODEX_API_KEY", "sk-deck-test")
 	t.Setenv("CODEX_HOME", t.TempDir())
-	e, home := codexEnv(t, c)
+	e := New(t, WithCodex(c))
+	home := e.Home
 	withSkills := strings.Replace(colorManifest, `"type": "agent",`, `"type": "agent", "skills": ["module-builder", "module-conventions"],`, 1)
-	p := e.createProject("paint", withSkills)
-	id := e.run(p, "work")
-	a := e.waitAsk()
+	p := e.Project("paint", withSkills)
+	id := e.Run(p, "work")
+	a := e.WaitAsk()
 	if a.Kind != "question" || !strings.Contains(a.Text, "Which color should the report use?") {
 		t.Fatalf("the question of the agent reaches the owner: %+v", a)
 	}
@@ -55,8 +56,8 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if !strings.Contains(permissions, quoteTOML(skillRoots[0])+`="read"`) {
 		t.Fatalf("the skills are read-only: %s", permissions)
 	}
-	e.answer(a.ID, "blue")
-	got := e.waitState(id, "done", "error")
+	e.Answer(a.ID, "blue")
+	got := e.WaitState(id, "done", "error")
 	cc := c.call(1)
 	if got.State != "done" || string(got.Result) != `{"color":"blue"}` || cc.violation != "" {
 		t.Fatalf("the result comes in by the schema with result_submit: %+v %s", got, cc.violation)
@@ -149,10 +150,10 @@ func TestCodexProjectWithoutNetworkHasNoWebAndNoNetwork(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
-	e, _ := codexEnv(t, c)
-	p := e.createProject("paint", strings.Replace(colorManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
-	id := e.run(p, "work")
-	got := e.waitState(id, "done", "error")
+	e := New(t, WithCodex(c))
+	p := e.Project("paint", strings.Replace(colorManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
+	id := e.Run(p, "work")
+	got := e.WaitState(id, "done", "error")
 	cc := c.call(1)
 	web, _ := cc.config("web_search")
 	net, _ := cc.config("permissions.deck.network.enabled")
@@ -176,15 +177,15 @@ func TestCodexEscalationWaitsForTheOwner(t *testing.T) {
 	} {
 		c := newCodex(t)
 		c.stream(1, tc.fixture)
-		e, _ := codexEnv(t, c)
-		p := e.createProject("outside", outsideManifest)
-		id := e.run(p, "work")
-		a := e.waitAsk()
+		e := New(t, WithCodex(c))
+		p := e.Project("outside", outsideManifest)
+		id := e.Run(p, "work")
+		a := e.WaitAsk()
 		if a.Kind != "confirm" || !strings.Contains(a.Text, "shell") || !strings.Contains(a.Text, "deck-codex-outside.txt") {
 			t.Fatalf("%s: the escalation reaches the owner as a confirmation of the command: %+v", tc.fixture, a)
 		}
-		e.answer(a.ID, tc.answer)
-		got := e.waitState(id, "done", "error")
+		e.Answer(a.ID, tc.answer)
+		got := e.WaitState(id, "done", "error")
 		cc := c.call(1)
 		var decision struct {
 			Result struct{ Decision json.RawMessage }
@@ -215,10 +216,10 @@ func TestCodexRetryResumesTheThreadOfTheSession(t *testing.T) {
 	c := newCodex(t)
 	c.stream(1, "nosubmit.jsonl")
 	c.stream(2, "resume.jsonl")
-	e, _ := codexEnv(t, c)
-	p := e.createProject("paint", colorManifest)
-	id := e.run(p, "work")
-	got := e.waitState(id, "done", "error")
+	e := New(t, WithCodex(c))
+	p := e.Project("paint", colorManifest)
+	id := e.Run(p, "work")
+	got := e.WaitState(id, "done", "error")
 	first, second := c.call(1), c.call(2)
 	resume := second.request("thread/resume")
 	if got.State != "done" || string(got.Result) != `{"color":"blue"}` || string(resume["threadId"]) != `"01a0e033-872e-7e12-ad56-5fb4f01528ec"` {
@@ -240,10 +241,10 @@ func TestCodexLostThreadStartsTheSessionOver(t *testing.T) {
 	c.stream(1, "nosubmit.jsonl")
 	c.stream(2, "norollout.jsonl")
 	c.stream(3, "ok.jsonl")
-	e, _ := codexEnv(t, c)
-	p := e.createProject("paint", colorManifest)
-	id := e.run(p, "work")
-	got := e.waitState(id, "done", "error")
+	e := New(t, WithCodex(c))
+	p := e.Project("paint", colorManifest)
+	id := e.Run(p, "work")
+	got := e.WaitState(id, "done", "error")
 	if got.State != "done" || c.calls() != 3 || c.call(3).request("thread/start") == nil {
 		t.Fatalf("a thread Codex lost starts over: %+v, %d calls", got, c.calls())
 	}
@@ -256,10 +257,10 @@ func TestCodexLostLoginAndLimit(t *testing.T) {
 	} {
 		c := newCodex(t)
 		c.stream(1, tc.fixture)
-		e, _ := codexEnv(t, c)
-		p := e.createProject("paint", colorManifest)
-		id := e.run(p, "work")
-		e.waitState(id, tc.state)
+		e := New(t, WithCodex(c))
+		p := e.Project("paint", colorManifest)
+		id := e.Run(p, "work")
+		e.WaitState(id, tc.state)
 		if tc.state == "rate_limited" {
 			pp, _ := e.App.Store.Q.GetProcess(t.Context(), id)
 			if pp.PauseUntilMs.Int64 != 1790481864*1000 {
@@ -275,12 +276,12 @@ func TestCodexOutOfCreditsEndsItsTurn(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "credits.jsonl")
-	e, _ := codexEnv(t, c)
-	id := e.run(e.createProject("paint", colorManifest), "work")
-	if got := e.waitState(id, "rate_limited", "error", "done"); got.State != "rate_limited" {
+	e := New(t, WithCodex(c))
+	id := e.Run(e.Project("paint", colorManifest), "work")
+	if got := e.WaitState(id, "rate_limited", "error", "done"); got.State != "rate_limited" {
 		t.Fatalf("the process waits for the limit, its turn ended: %+v", got)
 	}
-	if h := e.waitHealth("provider:codex", "paused"); !strings.Contains(h.Error, "workspace_member_credits_depleted") {
+	if h := e.WaitHealth("provider:codex", "paused"); !strings.Contains(h.Error, "workspace_member_credits_depleted") {
 		t.Fatalf("health says which limit: %+v", h)
 	}
 }
@@ -292,10 +293,10 @@ func TestCodexTurnSucceedsOnlyStrictly(t *testing.T) {
 	} {
 		c := newCodex(t)
 		c.stream(1, tc.fixture)
-		e, _ := codexEnv(t, c)
-		p := e.createProject("paint", colorManifest)
-		id := e.run(p, "work")
-		if got := e.waitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, tc.want) {
+		e := New(t, WithCodex(c))
+		p := e.Project("paint", colorManifest)
+		id := e.Run(p, "work")
+		if got := e.WaitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, tc.want) {
 			t.Fatalf("%s: want an error with %q: %+v", tc.fixture, tc.want, got)
 		}
 	}
@@ -305,10 +306,10 @@ func TestCodexSubAgentEventsAreNotProcessEvents(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "subagent.jsonl")
-	e, _ := codexEnv(t, c)
-	p := e.createProject("paint", colorManifest)
-	id := e.run(p, "work")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	e := New(t, WithCodex(c))
+	p := e.Project("paint", colorManifest)
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("a completed turn of another thread or an earlier turn does not end the turn: %+v", got)
 	}
 	var calls []map[string]any
@@ -327,11 +328,11 @@ func TestCodexThatDoesNotExitAfterItsTurnIsKilled(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "hang.jsonl")
-	e, _ := codexEnv(t, c)
-	p := e.createProject("paint", colorManifest)
+	e := New(t, WithCodex(c))
+	p := e.Project("paint", colorManifest)
 	start := time.Now()
-	id := e.run(p, "work")
-	if got := e.waitState(id, "done", "error"); got.State != "done" || time.Since(start) > 8*time.Second {
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || time.Since(start) > 8*time.Second {
 		t.Fatalf("an app-server that stays after its turn is killed and the turn counts: %+v in %s", got, time.Since(start))
 	}
 }
@@ -346,11 +347,11 @@ func TestCodexThatClosesItsOutputButStaysIsKilled(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.streamText(1, strings.Replace(string(raw), `{"hang": true}`, `{"deaf": true}`, 1))
-	e, _ := codexEnv(t, c)
-	p := e.createProject("paint", colorManifest)
+	e := New(t, WithCodex(c))
+	p := e.Project("paint", colorManifest)
 	start := time.Now()
-	id := e.run(p, "work")
-	if got := e.pollState(id, 20*time.Second, 50*time.Millisecond, "done", "error"); got.State != "done" || time.Since(start) > 15*time.Second {
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || time.Since(start) > 15*time.Second {
 		t.Fatalf("the app-server is killed and the turn counts: %+v in %s", got, time.Since(start))
 	}
 }
@@ -361,8 +362,8 @@ func TestCodexLimitReachedAfterItsTurnLeavesTheResult(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "spent_after.jsonl")
-	e, _ := codexEnv(t, c)
-	if got := e.waitState(e.run(e.createProject("paint", colorManifest), "work"), "done", "error", "rate_limited"); got.State != "done" {
+	e := New(t, WithCodex(c))
+	if got := e.WaitState(e.Run(e.Project("paint", colorManifest), "work"), "done", "error", "rate_limited"); got.State != "done" {
 		t.Fatalf("the completed turn counts: %+v", got)
 	}
 }
@@ -403,20 +404,19 @@ func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
 	fake := &Fake{script: func(ctx context.Context, call *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"color":"red"}`)}
 	}}
-	e := newEnvBuiltin(t, home, []provider.Provider{fake, c.adapter(home)}, withClock(clock))
-	e.Clock = clock
+	e := New(t, WithHome(home), WithProvider(fake, c.adapter(home)), WithClock(clock))
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
-	h := e.waitHealth("provider:codex", "error")
+	h := e.WaitHealth("provider:codex", "error")
 	if h.Version != "0.155.1" || !strings.Contains(h.Error, "self-check of 0.155.1 failed") {
 		t.Fatalf("a failed self-check of Codex is red with the version and the reason: %+v", h)
 	}
-	on := e.createProject("paint", colorManifest)
-	main := e.createProject("main", colorManifest)
-	e.useModels("paint.work", "codex")
-	id := e.run(on, "work")
-	e.waitState(id, "waiting_provider")
-	if got := e.waitState(e.run(main, "work"), "done", "error"); got.State != "done" {
+	on := e.Project("paint", colorManifest)
+	main := e.Project("main", colorManifest)
+	e.UseModels("paint.work", "codex")
+	id := e.Run(on, "work")
+	e.WaitState(id, "waiting_provider")
+	if got := e.WaitState(e.Run(main, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the main provider goes on while Codex is red: %+v", got)
 	}
 	before := c.calls()
@@ -424,15 +424,15 @@ func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
 	c.stream(before+2, "selfcheck_resume.jsonl")
 	c.stream(before+3, "selfcheck_offline.jsonl")
 	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
-	e.settle()
+	e.Settle()
 	if c.calls() != before {
 		t.Fatalf("a red self-check is retried by its timer, not sooner: %d calls", c.calls())
 	}
 	e.App.Providers.Checks(ctx, e.Clock.Add(21*time.Minute))
-	if h := e.waitHealth("provider:codex", "ok"); h.Version != "0.155.1" {
+	if h := e.WaitHealth("provider:codex", "ok"); h.Version != "0.155.1" {
 		t.Fatalf("the retried self-check is green: %+v", h)
 	}
-	if got := e.waitState(id, "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
 		t.Fatalf("the held process runs on Codex once it is green: %+v", got)
 	}
 }
@@ -454,13 +454,13 @@ func TestCodexSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 		for i, s := range tc.streams {
 			c.stream(i+1, s)
 		}
-		e, _ := codexEnv(t, c)
+		e := New(t, WithCodex(c))
 		e.App.Providers.Checks(context.Background(), time.Now())
 		status := "error"
 		if tc.want == "no valid login" {
 			status = "needs_login"
 		}
-		if h := e.waitHealth("provider:codex", status); !strings.Contains(h.Error, tc.want) {
+		if h := e.WaitHealth("provider:codex", status); !strings.Contains(h.Error, tc.want) {
 			t.Fatalf("%v: the self-check is %s with %q: %+v", tc.streams, status, tc.want, h)
 		}
 	}
@@ -474,15 +474,15 @@ func TestCodexResumeAfterALateAnswerAsksForTheResultAgain(t *testing.T) {
 	c.stream(1, "ask.jsonl")
 	c.stream(2, "resume.jsonl")
 	home := t.TempDir()
-	e := newEnvWith(t, home, c.adapter(home), func(cfg *app.Config) { cfg.QuestionWait = 200 * time.Millisecond })
-	p := e.createProject("paint", colorManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "waiting_answer")
+	e := New(t, WithHome(home), WithProvider(c.adapter(home)), WithConfig(func(cfg *app.Config) { cfg.QuestionWait = 200 * time.Millisecond }))
+	p := e.Project("paint", colorManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "waiting_answer")
 	if m := c.call(1).mcp; len(m) == 0 || m[0]["is_error"] != true || !strings.Contains(m[0]["text"].(string), "not answered yet") {
 		t.Fatalf("an unanswered ask tells the agent to stop and wait: %v", m)
 	}
-	e.answer(e.waitAsk().ID, "blue")
-	got := e.waitState(id, "done", "error")
+	e.Answer(e.WaitAsk().ID, "blue")
+	got := e.WaitState(id, "done", "error")
 	var input []struct{ Text string }
 	_ = json.Unmarshal(c.call(2).request("turn/start")["input"], &input)
 	if got.State != "done" || len(input) != 1 || !strings.Contains(input[0].Text, "blue") ||
@@ -498,15 +498,15 @@ func TestCodexSessionWithoutItsThreadStartsOver(t *testing.T) {
 	c.stream(2, "ok.jsonl")
 	c.stream(3, "resume.jsonl")
 	home := t.TempDir()
-	e := newEnvWith(t, home, c.adapter(home), func(cfg *app.Config) { cfg.QuestionWait = 200 * time.Millisecond })
-	p := e.createProject("paint", colorManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "waiting_answer")
+	e := New(t, WithHome(home), WithProvider(c.adapter(home)), WithConfig(func(cfg *app.Config) { cfg.QuestionWait = 200 * time.Millisecond }))
+	p := e.Project("paint", colorManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "waiting_answer")
 	if err := os.RemoveAll(filepath.Join(deckhome.Layout(home).State(), "codex", "sessions")); err != nil {
 		t.Fatal(err)
 	}
-	e.answer(e.waitAsk().ID, "blue")
-	if got := e.waitState(id, "done", "error"); got.State != "done" || c.call(2).request("thread/start") == nil {
+	e.Answer(e.WaitAsk().ID, "blue")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || c.call(2).request("thread/start") == nil {
 		t.Fatalf("a session whose thread deck no longer knows starts a new thread: %+v", got)
 	}
 }
@@ -515,13 +515,13 @@ func TestCodexNetworkEscalationInAProjectWithoutNetworkIsDeclined(t *testing.T) 
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "escalation_network.jsonl")
-	e, _ := codexEnv(t, c)
-	p := e.createProject("outside", strings.Replace(outsideManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
-	id := e.run(p, "work")
-	got := e.waitState(id, "done", "error")
+	e := New(t, WithCodex(c))
+	p := e.Project("outside", strings.Replace(outsideManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
+	id := e.Run(p, "work")
+	got := e.WaitState(id, "done", "error")
 	cc := c.call(1)
-	var asks []askView
-	_, out := e.call("deck.asks_list", nil)
+	var asks []Ask
+	_, out := e.Call("deck.asks_list", nil)
 	_ = json.Unmarshal(out, &asks)
 	if got.State != "done" || len(asks) != 0 || len(cc.answers) != 1 || !strings.Contains(string(mustJSON(cc.answers[0])), `"decline"`) ||
 		!strings.Contains(string(cc.request("turn/steer")["input"]), "no network") {
@@ -538,10 +538,10 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	dynamic := `{"method": "item/started", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "inProgress"}, ` + ids + `}}` + "\n" +
 		`{"method": "item/completed", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "failed"}, ` + ids + `}}` + "\n"
 	c.streamText(1, strings.Join(lines[:9], "")+dynamic+strings.Join(lines[9:], ""))
-	e, _ := codexEnv(t, c)
-	p := e.createProject("outside", outsideManifest)
-	id := e.run(p, "work")
-	a := e.waitAsk()
+	e := New(t, WithCodex(c))
+	p := e.Project("outside", outsideManifest)
+	id := e.Run(p, "work")
+	a := e.WaitAsk()
 	if l := e.log(id); !slices.ContainsFunc(l, func(x map[string]any) bool {
 		return x["kind"] == "tool" && x["id"] == "dyn1" && x["title"] == "lookup" && strings.Contains(fmt.Sprint(x["text"]), "moon")
 	}) || !slices.ContainsFunc(l, func(x map[string]any) bool {
@@ -557,8 +557,8 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	}) {
 		t.Fatalf("the log has the patch as a tool call with its id and file: %v", l)
 	}
-	e.answer(a.ID, "allow")
-	got := e.waitState(id, "done", "error")
+	e.Answer(a.ID, "allow")
+	got := e.WaitState(id, "done", "error")
 	if cc := c.call(1); got.State != "done" || len(cc.answers) != 1 || !strings.Contains(string(mustJSON(cc.answers[0])), `"accept"`) {
 		t.Fatalf("yes accepts the patch: %+v %v", got, cc.answers)
 	}
@@ -568,12 +568,12 @@ func TestCodexApprovalOfAnotherTurnIsDeclinedWithoutAsking(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "escalation_staleturn.jsonl")
-	e, _ := codexEnv(t, c)
-	p := e.createProject("outside", outsideManifest)
-	id := e.run(p, "work")
-	got := e.waitState(id, "done", "error")
-	var asks []askView
-	_, out := e.call("deck.asks_list", nil)
+	e := New(t, WithCodex(c))
+	p := e.Project("outside", outsideManifest)
+	id := e.Run(p, "work")
+	got := e.WaitState(id, "done", "error")
+	var asks []Ask
+	_, out := e.Call("deck.asks_list", nil)
 	_ = json.Unmarshal(out, &asks)
 	if cc := c.call(1); got.State != "done" || len(asks) != 0 || len(cc.answers) != 1 || !strings.Contains(string(mustJSON(cc.answers[0])), `"decline"`) {
 		t.Fatalf("a request that is not of the running turn is declined without the owner: %+v %v %v", got, asks, cc.answers)
@@ -584,10 +584,10 @@ func TestCodexOwnerServerNamedDeckIsAnError(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "deckserver.jsonl")
-	e, _ := codexEnv(t, c)
-	p := e.createProject("paint", colorManifest)
-	id := e.run(p, "work")
-	if got := e.waitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "MCP server named deck") {
+	e := New(t, WithCodex(c))
+	p := e.Project("paint", colorManifest)
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "MCP server named deck") {
 		t.Fatalf("an MCP server of the owner named deck stops the turn with a clear error: %+v", got)
 	}
 }
@@ -608,10 +608,10 @@ func TestCodexTurnGoesOnWhenTheAppServerStopsReadingWhileItWrites(t *testing.T) 
 		}
 	}
 	c.streamText(0, strings.Join(out, "\n")+"\n")
-	e, _ := codexEnv(t, c)
+	e := New(t, WithCodex(c))
 	m := strings.Replace(colorManifest, "Ask the owner which color the report should use.", strings.Repeat("Pick blue. ", 30000), 1)
-	p := e.createProject("paint", m)
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+	p := e.Project("paint", m)
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
 		t.Fatalf("deck reads the output while its long input waits for the app-server: %+v", got)
 	}
 }
@@ -620,7 +620,7 @@ func TestTheFinalAnswerOfCodexIsTheTextOfItsTurn(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
 	c.stream(0, "reply.jsonl")
-	e, _ := codexEnv(t, c)
+	e := New(t, WithCodex(c))
 	topic := e.say(0, "We are out of oat milk.")
 	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into groceries." {
 		t.Fatalf("the final answer of a Codex turn is its text: %+v", said)
@@ -634,9 +634,9 @@ func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
 	c.stream(1, "ok.jsonl")
-	e, _ := codexEnv(t, c)
-	listed := e.createProject("paint", strings.Replace(colorManifest, `"version": 13,`, `"version": 13, "domains": {"read": ["data.example.org"]},`, 1))
-	e.waitState(e.run(listed, "work"), "done", "error")
+	e := New(t, WithCodex(c))
+	listed := e.Project("paint", strings.Replace(colorManifest, `"version": 13,`, `"version": 13, "domains": {"read": ["data.example.org"]},`, 1))
+	e.WaitState(e.Run(listed, "work"), "done", "error")
 	cc := c.call(1)
 	mode, _ := cc.config("permissions.deck.network.mode")
 	proxy, _ := cc.config("features.network_proxy")
@@ -644,8 +644,8 @@ func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
 	if mode != "" || proxy != "" || net != "true" {
 		t.Fatalf("the shell has the whole network without the proxy of Codex: %s %s %s", mode, proxy, net)
 	}
-	closed := e.createProject("closed", strings.Replace(colorManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
-	e.waitState(e.run(closed, "work"), "done", "error")
+	closed := e.Project("closed", strings.Replace(colorManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
+	e.WaitState(e.Run(closed, "work"), "done", "error")
 	if net, _ := c.call(2).config("permissions.deck.network.enabled"); net != "false" {
 		t.Fatalf("a project without network gives the shell none: %s", net)
 	}
@@ -656,11 +656,11 @@ func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
 func TestCodexIsNotOfferedACommandThatNeedsALocalBrowser(t *testing.T) {
 	c := newCodex(t)
 	t.Setenv("CODEX_HOME", t.TempDir())
-	e, _ := codexEnv(t, c)
+	e := New(t, WithCodex(c))
 	browser := strings.Replace(colorManifest, `"class": "internal",`, `"class": "internal", "requires": ["local_browser"],`, 1)
-	e.createProject("paint", browser)
-	e.refused("paint.work", map[string]any{}, 422, "local_browser")
-	if code, out := e.call("deck.project_create", map[string]any{"name": "quiet", "manifest": strings.Replace(browser, `"version": 13,`, `"version": 13, "no_network": true,`, 1)}); code != 422 || !strings.Contains(string(out), "requires local_browser") {
+	e.Project("paint", browser)
+	e.Refused("paint.work", map[string]any{}, 422, "local_browser")
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "quiet", "manifest": strings.Replace(browser, `"version": 13,`, `"version": 13, "no_network": true,`, 1)}); code != 422 || !strings.Contains(string(out), "requires local_browser") {
 		t.Fatalf("a project without network cannot require a local browser: %d %s", code, out)
 	}
 }

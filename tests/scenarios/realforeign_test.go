@@ -25,9 +25,9 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 	if b, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("the foreign page builds: %v\n%s", err, b)
 	}
-	e := newEnv(t, webNotesAgent())
-	e.createProject("web", routedManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
+	e := New(t, WithAgent(webNotesAgent()))
+	e.Project("web", routedManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
 	deck, _ := url.Parse(e.URL)
 	api, files := httputil.NewSingleHostReverseProxy(deck), http.FileServer(http.Dir(out))
 	page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +41,7 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(page.URL + "/?token=" + token + "&project=web&screen=main")
+	b.OpenVia(page.URL, e, "&project=web&screen=main")
 	b.until("the screen drawn by the stock renderer", `document.querySelector('[data-foreign] [data-screen]') && !document.body.hasAttribute('data-foreign-error') && document.body.innerText.includes('alpha')`)
 	b.until("the dialog as a stock Modal with a stock Button of a stock Text", `[...document.querySelectorAll('.a2ui-modal-trigger button')].some((x) => x.innerText === 'Score again')`)
 	b.shot("foreign-screen")
@@ -53,7 +53,7 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 	b.until("a press as an A2UI action named by its command with the button as its context",
 		`JSON.parse(document.querySelector('[data-foreign-actions]').innerText).some((a) => a.name === 'web.tell' && a.context.command === 'web.tell' && a.sourceComponentId === 'b1')`)
 
-	b.open(page.URL + "/?token=" + token + "&screen=spend")
+	b.OpenVia(page.URL, e, "&screen=spend")
 	b.until("deck's tabs as stock Tabs", `document.querySelectorAll('.a2ui-tab-button').length === 3 && !document.body.hasAttribute('data-foreign-error')`)
 	b.eval(`(document.querySelectorAll('.a2ui-tab-button')[2].click(), '')`)
 	b.until("the third tab with its chart", `document.querySelector('[data-chart-block]')`)

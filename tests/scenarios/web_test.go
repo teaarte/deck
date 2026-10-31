@@ -32,8 +32,8 @@ func searxng(t *testing.T, failing *atomic.Int32) *service {
 // useSearch adds a search service at url as the owner does: a connection, a model of kind search, its assignment.
 func (e *Env) useSearch(name, url string) {
 	e.T.Helper()
-	e.must("deck.connection_set", map[string]any{"name": name, "api": "raw", "url": url, "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": name, "model": name, "name": name, "kind": "search", "free": true}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": name, "api": "raw", "url": url, "local": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": name, "model": name, "name": name, "kind": "search", "free": true}, nil)
 }
 
 // TestAgentsSearchAndReadPagesThroughDeck: an agent searches the web through the search service of deck's settings
@@ -49,7 +49,7 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 	})
 	var mu sync.Mutex
 	got := map[string][]string{}
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		var out []string
 		for _, call := range []struct {
 			tool string
@@ -66,13 +66,14 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 		got[c.command()] = out
 		mu.Unlock()
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	})
+	}))
+
 	e.useSearch("searxng", search.URL)
-	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
 	open := `{"version": 13, "domains": {"read": ["127.0.0.1"]}, "commands": [` + agentCommand("look", "") + `]}`
-	e.waitState(e.run(e.createProject("open", open), "look"), "done")
+	e.WaitState(e.Run(e.Project("open", open), "look"), "done")
 	closed := `{"version": 13, "no_network": true, "commands": [` + agentCommand("hide", "") + `]}`
-	e.waitState(e.run(e.createProject("closed", closed), "hide"), "done")
+	e.WaitState(e.Run(e.Project("closed", closed), "hide"), "done")
 
 	mu.Lock()
 	look, hide := got["look"], got["hide"]
@@ -98,13 +99,13 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 	}
 
 	failing.Store(http.StatusInternalServerError)
-	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "raw", "url": search.URL, "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "spare", "name": "spare", "kind": "search", "free": true}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng", "spare"}}, nil)
-	if code, out := e.call("deck.web_search", map[string]any{"query": "down"}); code < 400 {
+	e.Must("deck.connection_set", map[string]any{"name": "spare", "api": "raw", "url": search.URL, "local": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "spare", "model": "spare", "name": "spare", "kind": "search", "free": true}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng", "spare"}}, nil)
+	if code, out := e.Call("deck.web_search", map[string]any{"query": "down"}); code < 400 {
 		t.Fatalf("a search no service answers fails: %d %s", code, out)
 	}
-	if h := e.waitHealth("model:searxng", "error"); !strings.Contains(h.Error, "spare takes its work") {
+	if h := e.WaitHealth("model:searxng", "error"); !strings.Contains(h.Error, "spare takes its work") {
 		t.Fatalf("a search service that fails is red in health with the one that takes its work: %+v", h)
 	}
 }
@@ -112,12 +113,12 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 // TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold: a search with nothing assigned says how to set SearXNG up.
 func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	if code, out := e.call("deck.web_search", map[string]any{"query": "deck"}); code != 422 || !strings.Contains(string(out), "searxng/searxng") ||
+	e := New(t)
+	if code, out := e.Call("deck.web_search", map[string]any{"query": "deck"}); code != 422 || !strings.Contains(string(out), "searxng/searxng") ||
 		!strings.Contains(string(out), "only read pages") {
 		t.Fatalf("a search with no service says how to add one: %d %s", code, out)
 	}
-	if code, out := e.call("deck.model_set", map[string]any{"connection": "none", "model": "x", "kind": "search"}); code != 404 {
+	if code, out := e.Call("deck.model_set", map[string]any{"connection": "none", "model": "x", "kind": "search"}); code != 404 {
 		t.Fatalf("model_set takes the kind search: %d %s", code, out)
 	}
 }
@@ -126,14 +127,12 @@ func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 // set up the health of a command that calls deck.web_search there says the agent only reads pages.
 func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
 	t.Parallel()
-	e := acpEnv(t, newACP(t), "goose", acpLLM(t))
+	e := New(t, WithACP(newACP(t), acpLLM(t)))
 	scout := strings.Replace(agentCommand("scout", ""), `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.web_search"]`, 1)
-	e.createProject("scout", `{"version": 13, "commands": [`+scout+`]}`)
-	e.useModels("scout.scout", "acp")
+	e.Project("scout", `{"version": 13, "commands": [`+scout+`]}`)
+	e.UseModels("scout.scout", "acp")
 	warned := func() string {
-		var rows []struct{ Subject, Error string }
-		e.must("deck.health_list", map[string]any{"project": "scout"}, &rows)
-		for _, r := range rows {
+		for _, r := range e.Health("scout") {
 			if r.Subject == "command:scout.scout" {
 				return r.Error
 			}
@@ -145,7 +144,7 @@ func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
 	}
 	var failing atomic.Int32
 	e.useSearch("searxng", searxng(t, &failing).URL)
-	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
 	if w := warned(); w != "" {
 		t.Fatalf("with a search the command is healthy: %q", w)
 	}
@@ -158,17 +157,18 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 	var failing atomic.Int32
 	search := searxng(t, &failing)
 	var said string
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		said, _ = c.Tool(ctx, "web_search", map[string]any{"query": "deck"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	})
-	e.must("deck.connection_set", map[string]any{"name": "paid", "api": "raw", "url": search.URL}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "paid", "model": "paid", "name": "paid", "kind": "search", "call_usd": 0.01}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"paid"}}, nil)
-	e.createProject("sketch", `{"version": 13, "commands": [`+agentCommand("look", "")+`]}`)
+	}))
+
+	e.Must("deck.connection_set", map[string]any{"name": "paid", "api": "raw", "url": search.URL}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "paid", "model": "paid", "name": "paid", "kind": "search", "call_usd": 0.01}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"paid"}}, nil)
+	e.Project("sketch", `{"version": 13, "commands": [`+agentCommand("look", "")+`]}`)
 	var try struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"live": true, "command": "sketch.look"}, &try)
-	e.waitState(try.Process, "done")
+	e.Must("deck.command_try", map[string]any{"live": true, "command": "sketch.look"}, &try)
+	e.WaitState(try.Process, "done")
 	if !strings.Contains(said, "trial run") || len(search.requests()) != 0 {
 		t.Fatalf("a trial does not search through a paid service: %q, %d requests", said, len(search.requests()))
 	}
@@ -178,17 +178,15 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 // run SearXNG; the warning goes once a search is assigned.
 func TestHealthSaysHowToSetUpSearch(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	row := e.waitHealth("search", "warning")
+	e := New(t)
+	row := e.WaitHealth("search", "warning")
 	if !strings.Contains(row.Error, "docker run") || !strings.Contains(row.Error, `default_lang: "en"`) || !strings.Contains(row.Error, "only read pages") {
 		t.Fatalf("the warning says how to set up search: %s", row.Error)
 	}
 	var failing atomic.Int32
 	e.useSearch("searxng", searxng(t, &failing).URL)
-	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
-	var hs []healthRow
-	e.must("deck.health_list", nil, &hs)
-	for _, h := range hs {
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
+	for _, h := range e.Health() {
 		if h.Subject == "search" {
 			t.Fatalf("an assigned search leaves no warning: %+v", h)
 		}

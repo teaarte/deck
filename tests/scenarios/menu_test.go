@@ -39,7 +39,7 @@ func (e *Env) menuEntry(project string) menuView {
 func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		switch c.command() {
 		case "score":
 			select {
@@ -52,15 +52,16 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 				{"question": "Which one?", "header": "One", "options": []map[string]any{{"label": "a"}, {"label": "b"}}}}})
 			return provider.Result{Structured: json.RawMessage(`{}`)}
 		}
-	})
+	}))
+
 	defer close(release)
 	manifest := strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"name": "main", "title": "Web",`, `{"name": "main", "title": "Web", "icon": "chart-line",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1)
-	p := e.createProject("web", manifest)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
+	p := e.Project("web", manifest)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
 	drawn, _ := json.Marshal(e.screenMessages("web", "main", nil))
 	for _, want := range []string{`"icon":"chart-line"`, `"icon":"notes"`, `"icon":"arrow-right"`} {
 		if !strings.Contains(string(drawn), want) {
@@ -77,14 +78,14 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 		m.Open == nil || m.Open.Name != "main" {
 		t.Fatalf("a quiet project carries the icons of its manifest and no status, and its one screen opens from its header: %+v", m)
 	}
-	if code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(manifest, `"rocket"`, `"Rocket Ship"`, 1)}); code != 422 {
+	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(manifest, `"rocket"`, `"Rocket Ship"`, 1)}); code != 422 {
 		t.Fatalf("an icon is a name of the icon set: %d %s", code, out)
 	}
 
-	e.start("web", "score", map[string]any{"title": "x"})
-	e.waitFor("a running process in the menu", func() bool { return e.menuEntry("web").Running == 1 })
-	e.start("web", "tell", nil)
-	e.waitAsk()
+	e.Start("web", "score", map[string]any{"title": "x"})
+	e.Until("a running process in the menu", func() bool { return e.menuEntry("web").Running == 1 })
+	e.Start("web", "tell", nil)
+	e.WaitAsk()
 	if m := e.menuEntry("web"); m.Asks != 1 || m.Running != 2 {
 		t.Fatalf("the menu counts the open question and both running processes, the one that asks too: %+v", m)
 	}
@@ -100,16 +101,17 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
 	defer close(release)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		select {
 		case <-release:
 		case <-ctx.Done():
 		}
 		return provider.Result{Text: "cut"}
-	})
-	e.createProject("clips", strings.Replace(cutModule, `{"version": 13,`, `{"version": 13, "tools": {"http": [
+	}))
+
+	e.Project("clips", strings.Replace(cutModule, `{"version": 13,`, `{"version": 13, "tools": {"http": [
     {"name": "photos", "description": "d", "method": "GET", "url": "https://example.com/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]},`, 1))
-	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "running")
+	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "a"}), "running")
 	var m struct {
 		Pulse struct {
 			Asks, Running, Errors int64
@@ -117,10 +119,10 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 		}
 		Projects []menuView
 	}
-	e.must("deck.menu", nil, &m)
+	e.Must("deck.menu", nil, &m)
 	h := e.today("")
 	var feed []struct{ Kind, Check string }
-	e.must("deck.feed_list", map[string]any{"failures": true}, &feed)
+	e.Must("deck.feed_list", map[string]any{"failures": true}, &feed)
 	if m.Pulse.Running != 1 || m.Pulse.Errors != 1 || m.Pulse.Asks != 0 || m.Pulse.State != "errors" || h.Line != "Nothing to decide. One failure is in the feed below." ||
 		len(feed) != 1 || feed[0].Kind != "failure" || feed[0].Check == "" || len(m.Projects) != 1 || m.Projects[0].Running != 1 || m.Projects[0].Errors != 1 {
 		t.Fatalf("the pulse, the line and the feed of Today and the menu count one run and one unset secret: %+v; %+v; %+v", m, h, feed)
@@ -133,22 +135,23 @@ func TestThePulseSaysTalkingWhileOnlyTheMasterWorks(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
 	defer close(release)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		select {
 		case <-release:
 		case <-ctx.Done():
 		}
 		return provider.Result{Text: "done"}
-	})
+	}))
+
 	state := func() string {
 		var m struct{ Pulse struct{ State string } }
-		e.must("deck.menu", nil, &m)
+		e.Must("deck.menu", nil, &m)
 		return m.Pulse.State
 	}
 	e.say(0, "plan my week")
-	e.waitFor("the master at work", func() bool { return state() == "talking" })
-	e.createProject("clips", cutModule)
-	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "running")
+	e.Until("the master at work", func() bool { return state() == "talking" })
+	e.Project("clips", cutModule)
+	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "a"}), "running")
 	if got := state(); got != "running" {
 		t.Fatalf("a run of a module beside the master is running: %s", got)
 	}
@@ -161,7 +164,7 @@ func (e *Env) side() ([]string, string) {
 		Projects []struct{ Project string }
 		Master   *struct{ Project string }
 	}
-	e.must("deck.menu", map[string]any{}, &menu)
+	e.Must("deck.menu", map[string]any{}, &menu)
 	names := []string{}
 	for _, p := range menu.Projects {
 		names = append(names, p.Project)
@@ -176,15 +179,15 @@ func (e *Env) side() ([]string, string) {
 // stays at the foot, paused or not.
 func TestAPausedProjectLeavesTheMenu(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	e.createProject("alpha", notesManifest)
-	e.createProject("beta", plainManifest)
-	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
-	e.must("deck.project_pause", map[string]any{"project": "master", "paused": true}, nil)
+	e := New(t, WithAgent(ok))
+	e.Project("alpha", notesManifest)
+	e.Project("beta", plainManifest)
+	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
+	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": true}, nil)
 	if names, master := e.side(); !slices.Equal(names, []string{"beta"}) || master != "master" {
 		t.Fatalf("a paused project leaves the side list, the master stays: %v %q", names, master)
 	}
-	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)
+	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)
 	if names, _ := e.side(); !slices.Equal(names, []string{"alpha", "beta"}) {
 		t.Fatalf("a resumed project is in the side list again: %v", names)
 	}

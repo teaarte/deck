@@ -16,18 +16,16 @@ func TestResumeAfterEarlyCrashStartsTheSessionAgain(t *testing.T) {
 	c.stream(2, "noconversation.jsonl")
 	c.stream(3, "ok.jsonl")
 	home := t.TempDir()
-	e1 := newEnvWith(t, home, c.adapter(home))
-	p := e1.createProject("plain", plainManifest)
-	id := e1.run(p, "work")
+	e1 := New(t, WithHome(home), WithProvider(c.adapter(home)))
+	p := e1.Project("plain", plainManifest)
+	id := e1.Run(p, "work")
 	sid := e1.session(id)
-	e1.waitWithin("the CLI started", 5*time.Second, func() bool { return c.calls() > 0 })
+	e1.Until("the CLI started", func() bool { return c.calls() > 0 })
 	_ = e1.App.Close()
 
-	e2 := newEnvWith(t, home, c.adapter(home))
-	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if got := e2.waitState(id, "done", "error"); got.State != "done" {
+	e2 := New(t, WithHome(home), WithProvider(c.adapter(home)))
+	e2.Resume()
+	if got := e2.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
 	if v, ok := flag(c.call(2).args, "--resume"); !ok || v != sid {
@@ -45,21 +43,21 @@ func TestLostLoginWaitsForOwnerAndRetries(t *testing.T) {
 	c.stream(4, "nologin.jsonl")
 	c.stream(5, "ok.jsonl")
 	e := checkedCLIEnv(t, c, t.TempDir())
-	p := e.createProject("plain", plainManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "needs_login")
-	a := e.waitAsk()
+	p := e.Project("plain", plainManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "needs_login")
+	a := e.WaitAsk()
 	if a.Kind != "login" || !strings.Contains(a.Text, "Not logged in") || !strings.Contains(string(a.Payload), "new_session") {
 		t.Fatalf("want a login ask with the choices, got %+v", a)
 	}
 	if h := e.health("provider:claude-code"); h["status"] != "needs_login" || !strings.Contains(h["error"].(string), "Not logged in") {
 		t.Fatalf("the provider health must show the lost login: %v", h)
 	}
-	if code, _ := e.call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "yes"}); code != 422 {
+	if code, _ := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "yes"}); code != 422 {
 		t.Fatalf("a login ask takes only retry or new_session, got %d", code)
 	}
-	e.answer(a.ID, "retry")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	e.Answer(a.ID, "retry")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
 	second := c.call(5)
@@ -77,9 +75,9 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	c.stream(4, "nologin.jsonl")
 	c.stream(5, "ok.jsonl")
 	e := checkedCLIEnv(t, c, t.TempDir())
-	p := e.createProject("plain", plainManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "needs_login")
+	p := e.Project("plain", plainManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "needs_login")
 	first := e.session(id)
 	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(time.Now()), WorkspaceID: 1, ProcessID: store.ID(id), ProjectID: store.ID(p), Tool: "records_upsert", Class: "internal", Outcome: "done"})
@@ -88,8 +86,8 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.answer(e.waitAsk().ID, "new_session")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	e.Answer(e.WaitAsk().ID, "new_session")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
 	second := c.call(5)
@@ -109,11 +107,11 @@ func TestRetryAfterLostLoginFinishesWhenTheSessionWasNeverSaved(t *testing.T) {
 	c.stream(5, "noconversation.jsonl")
 	c.stream(6, "ok.jsonl")
 	e := checkedCLIEnv(t, c, t.TempDir())
-	p := e.createProject("plain", plainManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "needs_login")
-	e.answer(e.waitAsk().ID, "retry")
-	if got := e.waitState(id, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), "ok") {
+	p := e.Project("plain", plainManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "needs_login")
+	e.Answer(e.WaitAsk().ID, "retry")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), "ok") {
 		t.Fatalf("want done with the result, got %+v", got)
 	}
 }
@@ -127,9 +125,9 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	c.stream(7, "ok.jsonl")
 	home := t.TempDir()
 	e1 := checkedCLIEnv(t, c, home)
-	p := e1.createProject("plain", plainManifest)
-	id := e1.run(p, "work")
-	e1.waitState(id, "needs_login")
+	p := e1.Project("plain", plainManifest)
+	id := e1.Run(p, "work")
+	e1.WaitState(id, "needs_login")
 	err := e1.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(time.Now()), WorkspaceID: 1, ProcessID: store.ID(id), ProjectID: store.ID(p), Tool: "records_upsert", Class: "internal", Outcome: "done"})
 		return err
@@ -137,15 +135,13 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e1.answer(e1.waitAsk().ID, "new_session")
-	waitCalls(t, c, 5)
+	e1.Answer(e1.WaitAsk().ID, "new_session")
+	Until(t, "the CLI to start 5 times", func() bool { return c.calls() >= 5 })
 	_ = e1.App.Close()
 
-	e2 := newEnvWith(t, home, c.adapter(home))
-	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if got := e2.waitState(id, "done", "error"); got.State != "done" {
+	e2 := New(t, WithHome(home), WithProvider(c.adapter(home)))
+	e2.Resume()
+	if got := e2.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
 	fourth := c.call(7)
@@ -163,22 +159,20 @@ func TestResultSeenWhileDeckStopsIsNotTheOutcome(t *testing.T) {
 	home := t.TempDir()
 	slow := c.adapter(home)
 	slow.Linger = time.Minute
-	e1 := newEnvWith(t, home, slow)
-	p := e1.createProject("plain", plainManifest)
-	id := e1.run(p, "work")
-	waitCalls(t, c, 1)
+	e1 := New(t, WithHome(home), WithProvider(slow))
+	p := e1.Project("plain", plainManifest)
+	id := e1.Run(p, "work")
+	Until(t, "the CLI to start", func() bool { return c.calls() >= 1 })
 	// Deck reads the result line before it stops; no read shows that.
 	time.Sleep(200 * time.Millisecond)
 	_ = e1.App.Close()
 
-	e2 := newEnvWith(t, home, c.adapter(home))
-	if got := e2.process(id); got.State != "running" {
+	e2 := New(t, WithHome(home), WithProvider(c.adapter(home)))
+	if got := e2.Proc(id); got.State != "running" {
 		t.Fatalf("a turn cut by the stop of deck must stay running, got %+v", got)
 	}
-	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	e2.waitState(id, "done")
+	e2.Resume()
+	e2.WaitState(id, "done")
 	if _, ok := flag(c.call(2).args, "--resume"); !ok {
 		t.Fatalf("the process must continue its session after the start: %v", c.call(2).args)
 	}
@@ -191,9 +185,9 @@ func checkedCLIEnv(t *testing.T, c *fakeCLI, home string) *Env {
 	c.stream(1, "selfcheck.jsonl")
 	c.stream(2, "selfcheck_resume.jsonl")
 	c.approving()
-	e := newEnvWith(t, home, c.adapter(home))
+	e := New(t, WithHome(home), WithProvider(c.adapter(home)))
 	e.App.Providers.Checks(context.Background(), time.Now())
-	e.waitHealth("provider:claude-code", "ok")
-	waitCalls(t, c, 3)
+	e.WaitHealth("provider:claude-code", "ok")
+	Until(t, "the CLI to start 3 times", func() bool { return c.calls() >= 3 })
 	return e
 }

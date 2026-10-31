@@ -12,10 +12,10 @@ func TestAnAgentKilledFromOutsideGoesOnInItsSession(t *testing.T) {
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	c.before(`if [ "$n" = 1 ]; then sed "s/{{session}}/$session/g" "$d/stream" | head -2; exit 143; fi`)
-	e, _ := cliEnv(t, c)
-	p := e.createProject("plain", plainManifest)
-	id := e.run(p, "work")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	e := New(t, WithCLI(c))
+	p := e.Project("plain", plainManifest)
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the killed turn goes on in its session: %+v", got)
 	}
 	if args := c.call(2).args; !slices.Contains(args, "--resume") || !slices.Contains(args, e.session(id)) {
@@ -32,9 +32,9 @@ func TestAnAgentKilledTwiceSaysWhoKilledIt(t *testing.T) {
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	c.before(`sed "s/{{session}}/$session/g" "$d/stream" | head -2; kill -TERM $$`)
-	e, _ := cliEnv(t, c)
-	p := e.createProject("plain", plainManifest)
-	got := e.waitState(e.run(p, "work"), "done", "error")
+	e := New(t, WithCLI(c))
+	p := e.Project("plain", plainManifest)
+	got := e.WaitState(e.Run(p, "work"), "done", "error")
 	if got.State != "error" || c.calls() != 2 || !strings.Contains(got.Error, "SIGTERM") || !strings.Contains(got.Error, "not deck") {
 		t.Fatalf("a turn killed twice fails once, naming the signal and that it came from outside deck: %d calls, %+v", c.calls(), got)
 	}

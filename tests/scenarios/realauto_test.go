@@ -54,7 +54,7 @@ func TestRealCodexAutonomy(t *testing.T) {
 
 func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string) {
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-	e := newEnvWith(t, home, p, realWaits)
+	e := New(t, WithHome(home), WithProvider(p), WithConfig(realWaits), WithWait(6*time.Minute))
 	owner := []byte("owner-token-" + fmt.Sprint(time.Now().UnixNano()))
 	if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), owner, 0o600); err != nil {
 		t.Fatal(err)
@@ -63,14 +63,16 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 		name, extra string
 		web         bool
 	}{{"open", "", true}, {"closed", `, "no_network": true`, false}} {
-		p := e.createProject(tc.name, autoManifest(prompt, tc.name, svc.URL, tc.extra, deckhome.Layout(home).State()))
-		id := e.run(p, "work")
-		var asks []askView
+		p := e.Project(tc.name, autoManifest(prompt, tc.name, svc.URL, tc.extra, deckhome.Layout(home).State()))
+		id := e.Run(p, "work")
+		var asks []Ask
 		confirmed := 0
 		answered := map[int64]bool{}
-		deadline := time.Now().Add(6 * time.Minute)
-		for st := e.process(id).State; time.Now().Before(deadline) && st != "done" && st != "error"; st = e.process(id).State {
-			_, out := e.call("deck.asks_list", nil)
+		e.Until(tc.name+": the run to end", func() bool {
+			if st := e.Proc(id).State; st == "done" || st == "error" {
+				return true
+			}
+			_, out := e.Call("deck.asks_list", nil)
 			_ = json.Unmarshal(out, &asks)
 			for _, ask := range asks {
 				if answered[ask.ID] {
@@ -81,12 +83,12 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 					t.Fatalf("%s: only the external deck tool waits for the owner, got %+v", tc.name, ask)
 				}
 				t.Logf("%s: confirm: %s", tc.name, ask.Text)
-				e.answer(ask.ID, "allow")
+				e.Answer(ask.ID, "allow")
 				confirmed++
 			}
-			time.Sleep(500 * time.Millisecond)
-		}
-		got := e.process(id)
+			return false
+		})
+		got := e.Proc(id)
 		b, _ := os.ReadFile(filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "work", "marker.txt"))
 		t.Logf("%s: state %s, file %q, result %s, error %s", tc.name, got.State, strings.TrimSpace(string(b)), got.Result, got.Error)
 		var res struct {

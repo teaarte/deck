@@ -14,7 +14,7 @@ import (
 func TestALongLogComesInPages(t *testing.T) {
 	t.Parallel()
 	long := strings.Repeat("x", 3000)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		for i := range 180 {
 			id := fmt.Sprintf("t%d", i)
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: id, Title: "read", Text: `{"n": ` + fmt.Sprint(i) + `}`})
@@ -29,9 +29,10 @@ func TestALongLogComesInPages(t *testing.T) {
 		}
 		c.Req.OnEvent(provider.Event{Kind: provider.EventStderr, Text: "warning: disk"})
 		return provider.Result{Text: "ok"}
-	})
-	id := e.run(e.createProject("plain", plainManifest), "work")
-	e.waitState(id, "done", "error")
+	}))
+
+	id := e.Run(e.Project("plain", plainManifest), "work")
+	e.WaitState(id, "done", "error")
 
 	type event struct {
 		N                      int64
@@ -40,7 +41,7 @@ func TestALongLogComesInPages(t *testing.T) {
 	page := func(in map[string]any) []event {
 		in["process"] = id
 		var out []event
-		e.must("deck.process_log", in, &out)
+		e.Must("deck.process_log", in, &out)
 		return out
 	}
 	last := page(map[string]any{})
@@ -87,7 +88,7 @@ func TestALongLogComesInPages(t *testing.T) {
 		t.Fatalf("only the tool calls and their results: %d", len(tools))
 	}
 	var short []map[string]any
-	e.must("deck.process_log", map[string]any{"process": id, "fields": []string{"n", "kind"}, "limit": 2}, &short)
+	e.Must("deck.process_log", map[string]any{"process": id, "fields": []string{"n", "kind"}, "limit": 2}, &short)
 	if len(short) != 2 || len(short[0]) != 2 {
 		t.Fatalf("fields cut each event: %v", short)
 	}

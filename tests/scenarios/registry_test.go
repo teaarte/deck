@@ -29,11 +29,11 @@ type commandView struct {
 func (e *Env) commands() []commandView {
 	e.T.Helper()
 	var rows []struct{ Name string }
-	e.must("deck.commands_list", nil, &rows)
+	e.Must("deck.commands_list", nil, &rows)
 	out := make([]commandView, 0, len(rows))
 	for _, r := range rows {
 		var c commandView
-		e.must("deck.command_describe", map[string]any{"command": r.Name}, &c)
+		e.Must("deck.command_describe", map[string]any{"command": r.Name}, &c)
 		out = append(out, c)
 	}
 	return out
@@ -66,9 +66,9 @@ func intentType(p paramSchema, list bool) bool {
 
 func TestEveryCommandFitsAppIntents(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("ideas", ideasManifest)
-	if code, _ := e.do("GET", "/api/commands", nil); code != 404 && code != 405 {
+	e := New(t)
+	e.Project("ideas", ideasManifest)
+	if code, _ := e.Do("GET", "/api/commands", nil); code != 404 && code != 405 {
 		t.Fatalf("the list of commands is commands_list alone: %d", code)
 	}
 	cmds := e.commands()
@@ -101,8 +101,8 @@ func TestEveryCommandFitsAppIntents(t *testing.T) {
 
 func TestCommandsListDeckSelectsBuiltins(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	e.createProject("ideas", ideasManifest)
+	e := New(t, WithAgent(ok))
+	e.Project("ideas", ideasManifest)
 	for _, kind := range []string{registry.Owner, registry.Master} {
 		act := registry.Actor{Kind: kind, Workspace: 1}
 		out, err := e.App.Registry.Invoke(t.Context(), act, "deck.commands_list", json.RawMessage(`{"project":"deck","fields":["name","description","owner_only","form","form_params"]}`))
@@ -135,7 +135,7 @@ func TestCommandsListDeckSelectsBuiltins(t *testing.T) {
 		}
 	}
 	var module []struct{ Name string }
-	e.must("deck.commands_list", map[string]any{"project": "ideas"}, &module)
+	e.Must("deck.commands_list", map[string]any{"project": "ideas"}, &module)
 	if len(module) == 0 {
 		t.Fatal("module filter is empty")
 	}
@@ -144,20 +144,20 @@ func TestCommandsListDeckSelectsBuiltins(t *testing.T) {
 			t.Fatalf("module filter includes %s", row.Name)
 		}
 	}
-	e.refused("deck.commands_list", map[string]any{"project": "missing"}, 404, `no project "missing"`)
+	e.Refused("deck.commands_list", map[string]any{"project": "missing"}, 404, `no project "missing"`)
 }
 
 func TestUnknownCommandAndBadInput(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	if code, _ := e.call("deck.nope", nil); code != 404 {
+	e := New(t)
+	if code, _ := e.Call("deck.nope", nil); code != 404 {
 		t.Fatalf("unknown command: want 404, got %d", code)
 	}
-	code, out := e.call("deck.project_create", map[string]any{"name": "x", "manifest": "{}", "color": "red"})
+	code, out := e.Call("deck.project_create", map[string]any{"name": "x", "manifest": "{}", "color": "red"})
 	if code != 422 || !strings.Contains(string(out), "color") {
 		t.Fatalf("unknown parameter: want 422, got %d %s", code, out)
 	}
-	code, out = e.call("deck.project_create", map[string]any{"name": "Deck", "manifest": ideasManifest})
+	code, out = e.Call("deck.project_create", map[string]any{"name": "Deck", "manifest": ideasManifest})
 	if code != 422 {
 		t.Fatalf("bad project name: want 422, got %d %s", code, out)
 	}
@@ -174,9 +174,9 @@ type docView struct {
 
 func TestManifestRevisionsAndRevert(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var created struct{ ID int64 }
-	e.must("deck.project_create", map[string]any{"name": "ideas", "manifest": ideasManifest, "prompt": "# Ideas of the day\nShort ideas for a solo developer."}, &created)
+	e.Must("deck.project_create", map[string]any{"name": "ideas", "manifest": ideasManifest, "prompt": "# Ideas of the day\nShort ideas for a solo developer."}, &created)
 	p := created.ID
 	var projects []struct {
 		Name, Description string
@@ -189,7 +189,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 
 	noTrigger := strings.Replace(ideasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`, `"triggers": []`, 1)
 	var saved struct{ Revision int64 }
-	e.must("deck.manifest_save", map[string]any{"project": "ideas", "manifest": noTrigger, "reason": "no schedule"}, &saved)
+	e.Must("deck.manifest_save", map[string]any{"project": "ideas", "manifest": noTrigger, "reason": "no schedule"}, &saved)
 	if saved.Revision != 2 {
 		t.Fatalf("want revision 2, got %d", saved.Revision)
 	}
@@ -197,7 +197,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		t.Fatalf("removed trigger must be dropped, got %+v", ts)
 	}
 
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": `{"version": 13, "commands": [{"name": "x"}]}`})
+	code, out := e.Call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": `{"version": 13, "commands": [{"name": "x"}]}`})
 	if code != 422 || !strings.Contains(string(out), "title") || !strings.Contains(string(out), "executor") {
 		t.Fatalf("invalid manifest: want 422 with reason, got %d %s", code, out)
 	}
@@ -205,7 +205,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		Document, Revision int64
 		Manifest           string
 	}
-	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
+	e.Must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
 	if cur.Revision != 2 || cur.Manifest != manifest.Canonical(noTrigger) {
 		t.Fatalf("rejected manifest must leave revision 2, got %d", cur.Revision)
 	}
@@ -218,13 +218,13 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 			Current  bool
 		}
 	}
-	e.must("deck.document_get", map[string]any{"document": cur.Document, "history": true}, &h)
+	e.Must("deck.document_get", map[string]any{"document": cur.Document, "history": true}, &h)
 	revs := h.Revisions
 	if len(revs) != 2 || revs[0].Reason != "no schedule" || revs[0].Author != "owner" || !revs[0].Current {
 		t.Fatalf("revisions: %+v", revs)
 	}
-	e.must("deck.document_revert", map[string]any{"document": cur.Document, "revision": 1}, &saved)
-	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
+	e.Must("deck.document_revert", map[string]any{"document": cur.Document, "revision": 1}, &saved)
+	e.Must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
 	if saved.Revision != 3 || cur.Manifest != manifest.Canonical(ideasManifest) {
 		t.Fatalf("revert must bring revision 1 back as revision 3, got %d", saved.Revision)
 	}
@@ -235,29 +235,29 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 
 func TestDocumentsWithRevisions(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var d docView
-	e.must("deck.document_save", map[string]any{"name": "notes/rules.md", "kind": "doc", "text": "v1"}, &d)
-	e.must("deck.document_save", map[string]any{"name": "notes/rules.md", "kind": "doc", "text": "v2", "reason": "sharper"}, &d)
+	e.Must("deck.document_save", map[string]any{"name": "notes/rules.md", "kind": "doc", "text": "v1"}, &d)
+	e.Must("deck.document_save", map[string]any{"name": "notes/rules.md", "kind": "doc", "text": "v2", "reason": "sharper"}, &d)
 	if d.Revision != 2 {
 		t.Fatalf("want revision 2, got %+v", d)
 	}
 	var got docView
-	e.must("deck.document_get", map[string]any{"name": "notes/rules.md"}, &got)
+	e.Must("deck.document_get", map[string]any{"name": "notes/rules.md"}, &got)
 	if got.Text != "v2" {
 		t.Fatalf("current text: %+v", got)
 	}
-	e.must("deck.document_get", map[string]any{"document": d.ID, "revision": 1}, &got)
+	e.Must("deck.document_get", map[string]any{"document": d.ID, "revision": 1}, &got)
 	if got.Text != "v1" || got.Revision != 1 {
 		t.Fatalf("revision 1: %+v", got)
 	}
-	e.must("deck.document_revert", map[string]any{"document": d.ID, "revision": 1}, nil)
-	e.must("deck.document_get", map[string]any{"document": d.ID}, &got)
+	e.Must("deck.document_revert", map[string]any{"document": d.ID, "revision": 1}, nil)
+	e.Must("deck.document_get", map[string]any{"document": d.ID}, &got)
 	if got.Text != "v1" || got.Revision != 3 {
 		t.Fatalf("revert: %+v", got)
 	}
 	var list []docView
-	e.must("deck.documents_list", map[string]any{"kind": "doc"}, &list)
+	e.Must("deck.documents_list", map[string]any{"kind": "doc"}, &list)
 	if len(list) != 1 || list[0].Name != "notes/rules.md" {
 		t.Fatalf("documents_list: %+v", list)
 	}
@@ -277,23 +277,23 @@ func TestDocumentsWithRevisions(t *testing.T) {
 		{"name": "manifest.json", "kind": "manifest", "text": "{}"},
 		{"name": "a.md", "kind": "poem", "text": "x"},
 	} {
-		if code, out := e.call("deck.document_save", bad); code != 422 {
+		if code, out := e.Call("deck.document_save", bad); code != 422 {
 			t.Errorf("%v: want 422, got %d %s", bad, code, out)
 		}
 	}
 	skill := "---\nname: writer\ndescription: Writes in the owner's voice.\n---\n# Writer\n"
-	e.must("deck.document_save", map[string]any{"name": "skills/writer/SKILL.md", "kind": "skill", "text": skill}, nil)
+	e.Must("deck.document_save", map[string]any{"name": "skills/writer/SKILL.md", "kind": "skill", "text": skill}, nil)
 }
 
 func TestRecordCommands(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("ideas", ideasManifest)
+	e := New(t)
+	e.Project("ideas", ideasManifest)
 	var up struct {
 		Written int
 		Errors  []string
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "ideas", "collection": "ideas",
+	e.Must("deck.records_upsert", map[string]any{"project": "ideas", "collection": "ideas",
 		"records": jsonl(map[string]any{"title": "alpha", "score": 7}, map[string]any{"title": "beta", "score": 3}) + "not json\n"}, &up)
 	if up.Written != 2 || len(up.Errors) != 1 || !strings.Contains(up.Errors[0], "line 3") {
 		t.Fatalf("upsert: %+v", up)
@@ -304,47 +304,48 @@ func TestRecordCommands(t *testing.T) {
 		Title string
 		Data  map[string]any
 	}
-	e.must("deck.records_list", map[string]any{"project": "ideas", "collection": "ideas"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "ideas", "collection": "ideas"}, &recs)
 	if len(recs) != 2 || recs[0].Title != "alpha" || recs[0].Key != "alpha" {
 		t.Fatalf("records_list: %+v", recs)
 	}
-	code, out := e.call("deck.record_update", map[string]any{"record": recs[0].ID, "data": `{"title": "renamed", "score": 7}`})
+	code, out := e.Call("deck.record_update", map[string]any{"record": recs[0].ID, "data": `{"title": "renamed", "score": 7}`})
 	if code != 422 || !strings.Contains(string(out), "key") {
 		t.Fatalf("key change must be refused, got %d %s", code, out)
 	}
-	e.must("deck.record_update", map[string]any{"record": recs[0].ID, "data": `{"title": "alpha", "score": 8}`}, nil)
-	e.must("deck.records_list", map[string]any{"project": "ideas", "collection": "ideas", "limit": 1}, &recs)
+	e.Must("deck.record_update", map[string]any{"record": recs[0].ID, "data": `{"title": "alpha", "score": 8}`}, nil)
+	e.Must("deck.records_list", map[string]any{"project": "ideas", "collection": "ideas", "limit": 1}, &recs)
 	if len(recs) != 1 || recs[0].Title != "beta" {
 		t.Fatalf("limit keeps the newest: %+v", recs)
 	}
-	e.must("deck.records_list", map[string]any{"project": "ideas", "collection": "ideas"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "ideas", "collection": "ideas"}, &recs)
 	if recs[0].Data["score"] != float64(8) {
 		t.Fatalf("record_update not applied: %+v", recs[0])
 	}
-	if code, _ := e.call("deck.record_update", map[string]any{"record": recs[0].ID, "data": `{"title": "alpha"}`}); code != 422 {
+	if code, _ := e.Call("deck.record_update", map[string]any{"record": recs[0].ID, "data": `{"title": "alpha"}`}); code != 422 {
 		t.Fatalf("data outside the schema must be refused, got %d", code)
 	}
 }
 
 func TestProcessCommands(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	})
-	p := e.createProject("ideas", ideasManifest)
-	e.createProject("other", ideasManifest)
-	id := e.run(p, "collect")
-	e.waitState(id, "done")
-	var ps []proc
-	e.must("deck.processes_list", map[string]any{"project": "other"}, &ps)
+	}))
+
+	p := e.Project("ideas", ideasManifest)
+	e.Project("other", ideasManifest)
+	id := e.Run(p, "collect")
+	e.WaitState(id, "done")
+	var ps []Proc
+	e.Must("deck.processes_list", map[string]any{"project": "other"}, &ps)
 	if len(ps) != 0 {
 		t.Fatalf("filter by project: %+v", ps)
 	}
-	e.must("deck.processes_list", map[string]any{"project": "ideas", "state": "done"}, &ps)
+	e.Must("deck.processes_list", map[string]any{"project": "ideas", "state": "done"}, &ps)
 	if len(ps) != 1 || ps[0].ID != id {
 		t.Fatalf("filter by project and state: %+v", ps)
 	}
-	if code, _ := e.call("deck.process_get", map[string]any{"process": 999}); code != 404 {
+	if code, _ := e.Call("deck.process_get", map[string]any{"process": 999}); code != 404 {
 		t.Fatalf("unknown process: want 404, got %d", code)
 	}
 }
@@ -357,7 +358,7 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 		artifact, other string
 	}
 	var s seen
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		res, _ := c.Session.ListTools(ctx, &mcp.ListToolsParams{})
 		for _, tl := range res.Tools {
 			s.tools = append(s.tools, tl.Name)
@@ -373,10 +374,11 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 		}
 		s.other, _ = c.Tool(ctx, "manifest_get", map[string]any{"project": "other"})
 		return provider.Result{Structured: json.RawMessage(`{"written": 1}`)}
-	})
-	p := e.createProject("ideas", ideasManifest)
-	e.createProject("other", ideasManifest)
-	e.waitState(e.run(p, "collect"), "done")
+	}))
+
+	p := e.Project("ideas", ideasManifest)
+	e.Project("other", ideasManifest)
+	e.WaitState(e.Run(p, "collect"), "done")
 
 	for _, want := range []string{"records_upsert", "document_save", "ideas__collect", "process_get"} {
 		if !slices.Contains(s.tools, want) {
@@ -402,12 +404,12 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 		Name      string
 		OwnerKind string `json:"owner_kind"`
 	}
-	e.must("deck.documents_list", map[string]any{"project": "ideas", "kind": "artifact"}, &list)
+	e.Must("deck.documents_list", map[string]any{"project": "ideas", "kind": "artifact"}, &list)
 	if len(list) != 1 || list[0].OwnerKind != "record" {
 		t.Fatalf("artifact listing: %+v", list)
 	}
 	var h struct{ Revisions []struct{ Author string } }
-	e.must("deck.document_get", map[string]any{"document": d.ID, "history": true}, &h)
+	e.Must("deck.document_get", map[string]any{"document": d.ID, "history": true}, &h)
 	revs := h.Revisions
 	if len(revs) != 1 || !strings.HasPrefix(revs[0].Author, "agent:") {
 		t.Fatalf("artifact author: %+v", revs)
@@ -416,13 +418,13 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 
 func TestOutOfRangeIntegersAreRefused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, idle)
-	e.createProject("nums", calcManifest)
+	e := New(t, WithAgent(idle))
+	e.Project("nums", calcManifest)
 	var res struct {
 		Written int
 		Errors  []string
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums",
+	e.Must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums",
 		"records": "{\"n\": 18446744073709551614}\n{\"n\": 18446744073709551615}\n"}, &res)
 	if res.Written != 0 || len(res.Errors) != 2 || !strings.Contains(res.Errors[0], "does not fit") {
 		t.Fatalf("integers beyond 64 bits must be refused, not rounded into one key: %+v", res)
@@ -431,9 +433,9 @@ func TestOutOfRangeIntegersAreRefused(t *testing.T) {
 
 func TestCommandInputKeepsLargeIntegers(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, idle)
-	e.createProject("nums", calcManifest)
-	code, body := e.do("POST", "/api/commands/nums.calc", map[string]any{"n": int64(9007199254740993)})
+	e := New(t, WithAgent(idle))
+	e.Project("nums", calcManifest)
+	code, body := e.Do("POST", "/api/commands/nums.calc", map[string]any{"n": int64(9007199254740993)})
 	if code != 200 {
 		t.Fatalf("%d %s", code, body)
 	}
@@ -443,28 +445,28 @@ func TestCommandInputKeepsLargeIntegers(t *testing.T) {
 	if !strings.Contains(p.Input, "9007199254740993") {
 		t.Fatalf("input integers must reach the process exactly: %s", p.Input)
 	}
-	e.waitState(started.Process, "done")
+	e.WaitState(started.Process, "done")
 }
 
 func TestComposedInputSchemasAreRefused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, idle)
+	e := New(t, WithAgent(idle))
 	m := strings.Replace(calcManifest, `"input": {"type": "object", "properties": {"n": {"type": "integer"}}}`,
 		`"input": {"type": "object", "allOf": [{"properties": {"config": {"type": "object"}}, "required": ["config"]}]}`, 1)
-	e.refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, `"allOf" is not allowed`)
+	e.Refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, `"allOf" is not allowed`)
 	nested := strings.Replace(calcManifest, `"n": {"type": "integer"}}}`, `"n": {"type": "integer", "anyOf": [{"type": "object"}]}}}`, 1)
-	e.refused("deck.project_create", map[string]any{"name": "b", "manifest": nested}, 422, `"anyOf" is not allowed`)
+	e.Refused("deck.project_create", map[string]any{"name": "b", "manifest": nested}, 422, `"anyOf" is not allowed`)
 }
 
 func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, idle)
-	e.createProject("nums", calcManifest)
+	e := New(t, WithAgent(idle))
+	e.Project("nums", calcManifest)
 	var res struct {
 		Written int
 		Errors  []string
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums",
+	e.Must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums",
 		"records": "{\"n\": 18446744073709551614.0}\n{\"n\": 1.0}\n"}, &res)
 	if res.Written != 1 || len(res.Errors) != 1 || !strings.Contains(res.Errors[0], "does not fit") {
 		t.Fatalf("a whole number beyond 64 bits is refused in any spelling: %+v", res)
@@ -475,29 +477,29 @@ func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
 // description says; deck takes it as its JSON text.
 func TestAJSONParamTakesAnObjectAsWellAsItsText(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var m map[string]any
 	if err := json.Unmarshal([]byte(plainManifest), &m); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.project_create", map[string]any{"name": "notes", "manifest": m}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "notes", "manifest": m}, nil)
 	var tried struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"live": true, "command": "notes.work", "input": map[string]any{}}, &tried)
+	e.Must("deck.command_try", map[string]any{"live": true, "command": "notes.work", "input": map[string]any{}}, &tried)
 	if tried.Process == 0 {
 		t.Fatal("a trial takes its input as an object")
 	}
-	e.refused("deck.command_try", map[string]any{"command": "notes.work", "input": 5}, 422, "want string")
+	e.Refused("deck.command_try", map[string]any{"command": "notes.work", "input": 5}, 422, "want string")
 }
 
 // TestAToolNameOfACommandIsAnsweredWithItsName: an agent that passes the name of the tool it sees is told the
 // name of the command.
 func TestAToolNameOfACommandIsAnsweredWithItsName(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("notes", plainManifest)
-	e.refused("deck.command_try", map[string]any{"command": "notes__work"}, 404, `as "notes.work"`)
-	e.refused("deck.command_describe", map[string]any{"command": "command_try"}, 404, `as "deck.command_try"`)
-	e.refused("deck.command_try", map[string]any{"command": "nothing"}, 404, `unknown command "nothing"`)
+	e := New(t)
+	e.Project("notes", plainManifest)
+	e.Refused("deck.command_try", map[string]any{"command": "notes__work"}, 404, `as "notes.work"`)
+	e.Refused("deck.command_describe", map[string]any{"command": "command_try"}, 404, `as "deck.command_try"`)
+	e.Refused("deck.command_try", map[string]any{"command": "nothing"}, 404, `unknown command "nothing"`)
 }
 
 // TestAnAgentCallsOnlyWhatItsCommandLists: an agent whose command lists its calls reads by them and is refused the
@@ -506,15 +508,16 @@ func TestAnAgentCallsOnlyWhatItsCommandLists(t *testing.T) {
 	t.Parallel()
 	var listedBad, written bool
 	var wrote string
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		_, listedBad = c.Tool(ctx, "records_list", map[string]any{"collection": "ideas"})
 		wrote, written = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": jsonl(map[string]any{"title": "x", "score": 1})})
 		written = !written
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	})
-	p := e.createProject("ideas", strings.Replace(ideasManifest, `"prompt": "Write three ideas into the ideas collection."`,
+	}))
+
+	p := e.Project("ideas", strings.Replace(ideasManifest, `"prompt": "Write three ideas into the ideas collection."`,
 		`"prompt": "Read the ideas.", "calls": ["deck.records_list"]`, 1))
-	e.waitState(e.run(p, "collect"), "done")
+	e.WaitState(e.Run(p, "collect"), "done")
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
 	if listedBad || written || len(recs) != 0 {
 		t.Fatalf("the agent reads by its calls and writes nothing else: %v %v %s %d", listedBad, written, wrote, len(recs))
@@ -529,7 +532,7 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 	var record, process int64
 	var updated, got string
 	var updBad, getBad bool
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		mu.Lock()
 		r, p := record, process
 		mu.Unlock()
@@ -541,11 +544,12 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 			mu.Unlock()
 		}
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	})
-	p := e.createProject("ideas", ideasManifest)
-	other := e.createProject("other", ideasManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": jsonl(map[string]any{"title": "theirs", "score": 1})}, nil)
-	theirs := e.waitState(e.run(other, "collect"), "done").ID
+	}))
+
+	p := e.Project("ideas", ideasManifest)
+	other := e.Project("other", ideasManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": jsonl(map[string]any{"title": "theirs", "score": 1})}, nil)
+	theirs := e.WaitState(e.Run(other, "collect"), "done").ID
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: other, Collection: "ideas"})
 	if len(recs) != 1 {
 		t.Fatalf("the record of the other project: %+v", recs)
@@ -553,7 +557,7 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 	mu.Lock()
 	record, process = recs[0].ID, theirs
 	mu.Unlock()
-	e.waitState(e.run(p, "collect"), "done")
+	e.WaitState(e.Run(p, "collect"), "done")
 	mu.Lock()
 	defer mu.Unlock()
 	if !updBad || !getBad || !strings.Contains(updated, "another project") || strings.Contains(got, `"command"`) {
@@ -569,9 +573,9 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 // calls, each with the address of its form taken from the stored screens, and rows without their descriptions.
 func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	cmd := strings.Replace(agentCommand("tune", `{"type": "object", "properties": {"level": {"type": "string"}}}`), `"executor":`, `"callers": ["owner"], "executor":`, 1)
-	e.createProject("radio", fmt.Sprintf(`{"version": 13, "commands": [%s, %s],
+	e.Project("radio", fmt.Sprintf(`{"version": 13, "commands": [%s, %s],
   "screens": [{"name": "main", "title": "Main", "params": {"level": "string"}, "blocks": [
     {"type": "dialog", "name": "tune", "title": "Tune", "blocks": [{"type": "form", "command": "tune", "values": {"level": "=param.level"}}]}]}]}`,
 		cmd, agentCommand("play", "")))
@@ -618,7 +622,7 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 		Name, Description string
 		OwnerOnly         bool `json:"owner_only"`
 	}
-	e.must("deck.commands_list", nil, &owner)
+	e.Must("deck.commands_list", nil, &owner)
 	for _, r := range owner {
 		if r.OwnerOnly || r.Description == "" {
 			t.Fatalf("the owner's rows keep their descriptions and mark nothing: %+v", r)

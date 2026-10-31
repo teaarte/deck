@@ -42,13 +42,13 @@ var unused = [][2]string{
 // with any of unused is refused.
 func TestAManifestRefusesWhatNoModuleUsed(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	p := e.createProject("shorts", videosManifest)
+	p := e.Project("shorts", videosManifest)
 	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "eu-solar.webm"), []byte("webm"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
 		map[string]any{"slug": "eu-solar", "file": "eu-solar.webm", "length": 75})}, nil)
 	check.messages(t, e.screenMessages("shorts", "watch", nil))
 	var files []map[string]any
@@ -60,7 +60,7 @@ func TestAManifestRefusesWhatNoModuleUsed(t *testing.T) {
 		if u[1] == unused[7][1] {
 			continue
 		}
-		if code, out := e.call("deck.manifest_save", map[string]any{"project": "shorts", "manifest": strings.Replace(videosManifest, u[0], u[1], 1)}); code != 422 {
+		if code, out := e.Call("deck.manifest_save", map[string]any{"project": "shorts", "manifest": strings.Replace(videosManifest, u[0], u[1], 1)}); code != 422 {
 			t.Fatalf("a manifest has no %s: %d %s", u[1], code, out)
 		}
 	}
@@ -77,8 +77,8 @@ func TestRealBrowserVideo(t *testing.T) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg makes the video")
 	}
-	e := newEnv(t, nil)
-	p := e.createProject("shorts", strings.Replace(videosManifest, `"screens": [`, `"screens": [{"name": "scenes", "title": "Scenes", "blocks": [
+	e := New(t)
+	p := e.Project("shorts", strings.Replace(videosManifest, `"screens": [`, `"screens": [{"name": "scenes", "title": "Scenes", "blocks": [
     {"type": "media", "title": "All", "source": {"collection": "videos", "sort": "slug"}, "item": {"file": "file", "title": "slug"}}]}, `, 1))
 	data := e.App.Home.Data(p)
 	_ = os.MkdirAll(data, 0o700)
@@ -91,19 +91,19 @@ func TestRealBrowserVideo(t *testing.T) {
 			t.Fatalf("ffmpeg: %v %s", err, out)
 		}
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
 		map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, nil)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1200, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/p/shorts/watch")
+	b.Open(e, "#/p/shorts/watch")
 	b.until("the video in the browser's own player", `(() => { const v = document.querySelector('video[data-player="video"]'); return v && v.controls && v.readyState >= 1 && Math.abs(v.duration - 3) < 0.1 })()`)
 	b.eval(`(document.querySelector('[data-player="video"]').muted = true, document.querySelector('[data-player="video"]').play(), '')`)
 	b.until("the video playing", `!document.querySelector('[data-player="video"]').paused`)
 	b.shot("video")
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
 		map[string]any{"slug": "voice", "file": "voice.wav"})}, nil)
-	b.open(e.URL + "/?token=" + token + "#/p/shorts/scenes")
+	b.Open(e, "#/p/shorts/scenes")
 	b.eval(`(localStorage.removeItem('deck-files-view'), '')`)
 	b.until("the files as tiles", `document.querySelectorAll('[data-tile]').length === 2`)
 	b.eval(`([...document.querySelectorAll('[data-tile]')].find((x) => x.innerText.includes('voice')).click(), '')`)
@@ -117,15 +117,15 @@ func TestRealBrowserVideo(t *testing.T) {
 // file a field of the record names.
 func TestAMediaBlockOnARecordPageShowsAFileOfTheRecord(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	m := strings.Replace(videosManifest, `"screens": [`, `"screens": [{"name": "video", "title": "Video", "record": "videos", "blocks": [
     {"type": "media", "title": "The video", "item": {"file": "file", "title": "slug"}}]}, `, 1)
-	p := e.createProject("shorts", m)
+	p := e.Project("shorts", m)
 	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "eu-solar.webm"), []byte("webm"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
 	var w struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, &w)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, &w)
 	var files []struct{ Type, Name, Title string }
 	_ = json.Unmarshal(e.screenData("shorts", "video", map[string]any{"record": w.IDs[0]})["b0"]["files"], &files)
 	if len(files) != 1 || files[0].Name != "eu-solar.webm" || files[0].Type != "video/webm" || files[0].Title != "eu-solar" {

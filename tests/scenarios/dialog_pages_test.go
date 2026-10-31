@@ -16,9 +16,9 @@ var pagedNotes = strings.Replace(webNotes, `{"name": "main", "title": "Web", "bl
 // open one does, read alone too; a table shows its limit a page at a time; a save still checks the dialogs.
 func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", pagedNotes)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e := New(t)
+	e.Project("web", pagedNotes)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 1}, map[string]any{"title": "c", "score": 1},
 			map[string]any{"title": "d", "score": 1}, map[string]any{"title": "e", "score": 1})}, nil)
 
@@ -45,9 +45,9 @@ func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 		}
 	}
 
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "f"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "f"})}, nil)
 	var saved struct{ Screens []string }
-	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": pagedNotes}, &saved)
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": pagedNotes}, &saved)
 	if len(saved.Screens) == 0 || !strings.Contains(strings.Join(saved.Screens, "\n"), `table block "Broken"`) {
 		t.Fatalf("the check of a saved manifest reads the blocks of its dialogs too: %q", saved.Screens)
 	}
@@ -57,8 +57,8 @@ func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 // the screen's grid, or inside columns the standard weight of the child.
 func TestASpanOfAContainerInsideColumnsIsItsWeight(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := New(t)
+	e.Project("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "columns", "span": 2, "blocks": [{"type": "document", "document": "a.md"},
         {"type": "tabs", "span": 2, "tabs": [{"title": "One", "blocks": [{"type": "document", "document": "a.md"}]}]}]},`, 1))
 	comps := map[string]map[string]any{}

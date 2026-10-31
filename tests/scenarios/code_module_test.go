@@ -85,10 +85,10 @@ func addTracker(t *testing.T, dir, url string) {
 func (e *Env) importEnabled(dir, name string) int64 {
 	e.T.Helper()
 	var p struct{ ID int64 }
-	e.must("deck.project_import", map[string]any{"folder": dir, "name": name}, &p)
+	e.Must("deck.project_import", map[string]any{"folder": dir, "name": name}, &p)
 	var m struct{ Revision int64 }
-	e.must("deck.manifest_get", map[string]any{"project": name}, &m)
-	e.must("deck.project_enable", map[string]any{"project": name, "revision": m.Revision}, nil)
+	e.Must("deck.manifest_get", map[string]any{"project": name}, &m)
+	e.Must("deck.project_enable", map[string]any{"project": name, "revision": m.Revision}, nil)
 	e.names[p.ID] = name
 	return p.ID
 }
@@ -143,16 +143,15 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 		jsonReply(w, string(b))
 	})
 	clock := &Clock{now: time.Now()}
-	e := newEnv(t, ok, withClock(clock))
-	e.Clock = clock
-	e.must("deck.secret_set", map[string]any{"name": "gitlab", "value": "glpat-secret"}, nil)
+	e := New(t, WithAgent(ok), WithClock(clock))
+	e.Must("deck.secret_set", map[string]any{"name": "gitlab", "value": "glpat-secret"}, nil)
 	e.importEnabled(codeModule(t, svc.URL), "code")
-	if got := e.waitScript(e.start("code", "follow_gitlab", map[string]any{"project": "team/app"}), "done", "error"); got.State != "done" {
+	if got := e.WaitState(e.Start("code", "follow_gitlab", map[string]any{"project": "team/app"}), "done", "error"); got.State != "done" {
 		t.Fatalf("follow: %+v", got)
 	}
-	poll := func() proc {
+	poll := func() Proc {
 		t.Helper()
-		got := e.waitScript(e.start("code", "poll_gitlab", nil), "done", "error")
+		got := e.WaitState(e.Start("code", "poll_gitlab", nil), "done", "error")
 		if got.State != "done" {
 			t.Fatalf("poll: %+v", got)
 		}
@@ -161,7 +160,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	board := func() []string {
 		t.Helper()
 		var rs []recordRow
-		e.must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
+		e.Must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
 		slices.SortFunc(rs, func(a, b recordRow) int { return int(a.ID - b.ID) })
 		var out []string
 		for _, r := range rs {
@@ -171,9 +170,9 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	}
 	clock.Add(16 * time.Minute)
 	e.App.Scheduler.Tick(context.Background())
-	var first procFull
-	e.waitFor("the poll on its schedule", func() bool {
-		for _, p := range e.processes() {
+	var first Proc
+	e.Until("the poll on its schedule", func() bool {
+		for _, p := range e.Procs() {
 			if p.Command == "poll_gitlab" && p.Trigger != 0 && (p.State == "done" || p.State == "error") {
 				first = p
 				return true
@@ -217,7 +216,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 		}
 	}
 	var recs []struct{ Data map[string]any }
-	e.must("deck.records_list", map[string]any{"project": "code", "collection": "intake"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "code", "collection": "intake"}, &recs)
 	if len(recs) != 1 || recs[0].Data["cursor"] != day+"T14:04:00.000Z" {
 		t.Fatalf("the cursor is in the record: %+v", recs)
 	}
@@ -232,7 +231,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 // button and the table of tasks, and its run command waits for the owner's folder.
 func TestTheCodeExampleImportsWithItsTasksAndRunButton(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	check := newCatalogCheck(t)
 	p := e.importEnabled(codeModule(t, ""), "code")
 	msgs := e.screenMessages("code", "tasks", nil)
@@ -243,10 +242,10 @@ func TestTheCodeExampleImportsWithItsTasksAndRunButton(t *testing.T) {
 			t.Fatalf("the tasks screen has %s", want)
 		}
 	}
-	e.refused("code.run", map[string]any{"do": "run"}, 422, "has no folder yet")
-	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
-	id := e.run(p, "run")
-	e.waitState(id, "done")
+	e.Refused("code.run", map[string]any{"do": "run"}, 422, "has no folder yet")
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	id := e.Run(p, "run")
+	e.WaitState(id, "done")
 	c := e.Fake.Calls()[0]
 	if !c.Repo || !strings.Contains(c.Prompt, "as deck process "+itoa(id)) || !strings.Contains(c.Prompt, "git stash push -u -m") {
 		t.Fatalf("the run works in the repo with the md of the module and knows its process: repo %v", c.Repo)

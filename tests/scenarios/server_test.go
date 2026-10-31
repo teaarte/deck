@@ -63,13 +63,7 @@ func TestServerFromScratch(t *testing.T) {
 	run("docker", "run", "-d", "--privileged", "--name", name, "-e", "DOCKER_TLS_CERTDIR=", "docker:dind")
 	t.Cleanup(func() { _ = exec.Command("docker", "rm", "-f", "-v", name).Run() })
 	in := func(args ...string) string { return run("docker", append([]string{"exec", name}, args...)...) }
-	deadline := time.Now().Add(time.Minute)
-	for exec.Command("docker", "exec", name, "docker", "info").Run() != nil {
-		if time.Now().After(deadline) {
-			t.Fatal("docker in docker did not start")
-		}
-		time.Sleep(time.Second)
-	}
+	Until(t, "docker in docker to start", func() bool { return exec.Command("docker", "exec", name, "docker", "info").Run() == nil })
 	save := exec.Command("sh", "-c", "docker save ghcr.io/teaarte/deck:latest caddy:2 | docker exec -i "+name+" docker load")
 	if out, err := save.CombinedOutput(); err != nil {
 		t.Fatalf("the images in the bare docker: %v\n%s", err, out)
@@ -91,16 +85,19 @@ func TestServerFromScratch(t *testing.T) {
 	}
 	compose("up", "-d")
 
-	var token string
-	deadline = time.Now().Add(2 * time.Minute)
-	for token == "" {
-		if m := regexp.MustCompile(`url="https://localhost/\?token=([0-9a-f]+)"`).FindStringSubmatch(compose("logs", "deck")); m != nil {
-			token = m[1]
-		} else if time.Now().After(deadline) {
-			t.Fatalf("no link with the token in the log of deck:\n%s", compose("logs", "deck"))
+	var token, logs string
+	defer func() {
+		if token == "" {
+			t.Logf("the log of deck:\n%s", logs)
 		}
-		time.Sleep(time.Second)
-	}
+	}()
+	Until(t, "the link with the token in the log of deck", func() bool {
+		logs = compose("logs", "deck")
+		if m := regexp.MustCompile(`url="https://localhost/\?token=([0-9a-f]+)"`).FindStringSubmatch(logs); m != nil {
+			token = m[1]
+		}
+		return token != ""
+	})
 	// Caddy's own certificate for localhost stands for the one it gets for a domain.
 	curl := func(args ...string) string {
 		return compose(append([]string{"exec", "-T", "deck", "curl", "-sk", "--max-time", "60", "--connect-to", "localhost:443:caddy:443",
@@ -131,17 +128,16 @@ func TestServerFromScratch(t *testing.T) {
 	}
 	waitHealth := func(subject, want string) {
 		t.Helper()
-		deadline := time.Now().Add(4 * time.Minute)
-		for {
-			status, text := health(subject)
-			if status == want {
-				return
+		var status, text string
+		defer func() {
+			if status != want {
+				t.Logf("%s is %s, want %s: %s", subject, status, want, text)
 			}
-			if time.Now().After(deadline) {
-				t.Fatalf("%s is %s, want %s: %s", subject, status, want, text)
-			}
-			time.Sleep(2 * time.Second)
-		}
+		}()
+		UntilWithin(t, 4*time.Minute, subject+" to be "+want, func() bool {
+			status, text = health(subject)
+			return status == want
+		})
 	}
 	waitHealth("provider:claude-code", "needs_login")
 	waitHealth("provider:codex", "needs_login")
@@ -170,8 +166,7 @@ print(json.dumps({"uid": os.getuid(), "deck": deck("deck.records_list", {"collec
 `})
 	var started struct{ Process int64 }
 	_ = json.Unmarshal(call("tools.collect", map[string]any{}), &started)
-	deadline = time.Now().Add(2 * time.Minute)
-	for {
+	Until(t, "the script of the module to end", func() bool {
 		var pr struct {
 			State  string
 			Result json.RawMessage
@@ -185,13 +180,13 @@ print(json.dumps({"uid": os.getuid(), "deck": deck("deck.records_list", {"collec
 			if fmt.Sprint(out.UID) == deckUID || out.Deck != 200 {
 				t.Fatalf("the script runs as the user of agents and calls deck: %s (deck is %s)", pr.Result, deckUID)
 			}
-			break
+			return true
 		}
-		if pr.State == "error" || time.Now().After(deadline) {
+		if pr.State == "error" {
 			t.Fatalf("the script of the module: %s %s", pr.State, pr.Error)
 		}
-		time.Sleep(time.Second)
-	}
+		return false
+	})
 	if out := compose("logs", "deck"); strings.Contains(out, "panic") {
 		t.Fatalf("deck panicked:\n%s", out)
 	}

@@ -17,14 +17,14 @@ var lightScreens = map[string]int{"settings": 26_000, "files": 25_000, "spend": 
 // lightEnv is deck with a working week behind it: modules with many records and files, runs and a long chat.
 func lightEnv(t *testing.T) *Env {
 	t.Helper()
-	e := newEnv(t, nil)
+	e := New(t)
 	for _, name := range []string{"notes", "clips", "jobs"} {
-		p := e.createProject(name, strings.Replace(webNotes, `"menu": ["main"]}`, `"menu": ["main"]}`, 1))
+		p := e.Project(name, strings.Replace(webNotes, `"menu": ["main"]}`, `"menu": ["main"]}`, 1))
 		var recs []map[string]any
 		for i := range 200 {
 			recs = append(recs, map[string]any{"title": fmt.Sprintf("%s note %03d", name, i), "source": "web", "note": strings.Repeat("words ", 20)})
 		}
-		e.must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": jsonl(recs...)}, nil)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": jsonl(recs...)}, nil)
 		for i := range 60 {
 			e.upload(name, fmt.Sprintf("file-%02d.txt", i), "text/plain", strings.Repeat("x", 100))
 		}
@@ -67,9 +67,9 @@ func TestRealBrowserStaysQuick(t *testing.T) {
 	checkBuiltClient(t)
 	e := lightEnv(t)
 	var recs []recordRow
-	e.must("deck.records_list", map[string]any{"project": "notes", "collection": "notes"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "notes", "collection": "notes"}, &recs)
 	b := newPlaywright(t)
-	b.open(e.URL + "/?token=" + token + "#/")
+	b.Open(e, "#/")
 	b.until("the cards", `document.querySelector('[data-app-tile]')`)
 	// move opens hash and waits in the page for ready, then says how long it took and what drew how often.
 	move := func(name, hash, ready string) map[string]float64 {

@@ -46,14 +46,15 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	e, home := cliEnv(t, c)
+	e := New(t, WithCLI(c))
+	home := e.Home
 	_ = os.WriteFile(filepath.Join(home, "deck.log"), []byte("deck listening url=http://127.0.0.1:7700/?token=x"), 0o600)
-	e.createProject("other", plainManifest)
-	p := e.createProject("notes", postManifest("http://127.0.0.1:1", ""))
+	e.Project("other", plainManifest)
+	p := e.Project("notes", postManifest("http://127.0.0.1:1", ""))
 	var id int64
 	for id < 10 {
-		id = e.run(p, "work")
-		if got := e.waitState(id, "done", "error"); got.State != "done" {
+		id = e.Run(p, "work")
+		if got := e.WaitState(id, "done", "error"); got.State != "done" {
 			t.Fatalf("want done, got %+v", got)
 		}
 	}
@@ -119,9 +120,9 @@ func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	e, _ := cliEnv(t, c)
-	p := e.createProject("health", noNetworkManifest)
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
+	e := New(t, WithCLI(c))
+	p := e.Project("health", noNetworkManifest)
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
 	call := c.call(1)
@@ -146,15 +147,15 @@ func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
 		Waiting int64
 		Widens  []string
 	}
-	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "health", "manifest": open})
+	code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "health", "manifest": open})
 	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Equal(w.Widens, []string{"no_network removed: agents get their own web"}) {
 		t.Fatalf("removing no_network waits for the owner's button: %d %s", code, out)
 	}
 	if rev := e.manifestRevision("health"); rev != 1 {
 		t.Fatalf("the project stays without network until the owner allows: revision %d", rev)
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "health", "manifest": open}, nil)
-	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "health", "manifest": noNetworkManifest}); code != 200 || strings.Contains(string(out), "waiting") {
+	e.Must("deck.manifest_save", map[string]any{"project": "health", "manifest": open}, nil)
+	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "health", "manifest": noNetworkManifest}); code != 200 || strings.Contains(string(out), "waiting") {
 		t.Fatalf("setting no_network narrows rights and applies at once: %d %s", code, out)
 	}
 }
@@ -175,7 +176,7 @@ func selfCheckWith(t *testing.T, fixture, before, offline, status string) string
 	}
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	return e.waitHealth("provider:claude-code", status).Error
+	return e.WaitHealth("provider:claude-code", status).Error
 }
 
 func TestSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
@@ -207,14 +208,14 @@ func TestNoNetworkReachesAProcessStartedBeforeIt(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	e, _ := cliEnv(t, c)
-	p := e.createProject("notes", plainManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "done")
-	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(plainManifest, `"screens": []`, `"screens": [], "no_network": true`, 1)}, nil)
-	e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
-	e.waitState(id, "done", "error")
-	waitCalls(t, c, 2)
+	e := New(t, WithCLI(c))
+	p := e.Project("notes", plainManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "done")
+	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(plainManifest, `"screens": []`, `"screens": [], "no_network": true`, 1)}, nil)
+	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
+	e.WaitState(id, "done", "error")
+	Until(t, "the CLI to start 2 times", func() bool { return c.calls() >= 2 })
 	if call := c.call(2); !slices.Contains(call.args, "--resume") || !slices.Contains(call.args, "--tools") {
 		t.Fatalf("a resumed session of a process started before no_network is without network too: %v", call.args)
 	}

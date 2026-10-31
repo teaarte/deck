@@ -67,28 +67,28 @@ func TestRealACPAgents(t *testing.T) {
 	for agent, bin := range bins {
 		t.Run(agent, func(t *testing.T) {
 			svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-			e := newEnv(t, nil, func(c *app.Config) {
+			e := New(t, WithConfig(func(c *app.Config) {
 				c.ACPBinaries = map[string]string{agent: bin}
 				c.SelfCheckCeiling, c.QuestionWait, c.ConfirmWait = 20*time.Minute, 4*time.Minute, 4*time.Minute
-			})
+			}), WithWait(25*time.Minute))
+
 			start := time.Now()
 			add := map[string]any{"name": "acp", "url": url, "model": model, "no_cloud": true, "agent": agent}
 			if key := os.Getenv("DECK_ACP_KEY"); key != "" {
-				e.must("deck.secret_set", map[string]any{"name": "model_key", "value": key}, nil)
+				e.Must("deck.secret_set", map[string]any{"name": "model_key", "value": key}, nil)
 				add["key_secret"], add["no_cloud"] = "model_key", false
 			}
 			e.mustAgentModel(add)
 			var h db.Health
 			for try := 1; try <= 3; try++ {
 				if try > 1 {
-					e.must("deck.provider_check", map[string]any{"provider": "acp"}, nil)
+					e.Must("deck.provider_check", map[string]any{"provider": "acp"}, nil)
 					time.Sleep(time.Second)
 				}
-				h, _ = health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
-				for deadline := time.Now().Add(21 * time.Minute); h.Status == "checking" && time.Now().Before(deadline); {
-					time.Sleep(time.Second)
+				e.Until("the self-check to end", func() bool {
 					h, _ = health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
-				}
+					return h.Status != "checking"
+				})
 				t.Logf("%s %s: self-check %d %s in %s: %s", h.Version, model, try, h.Status, time.Since(start).Round(time.Second), h.Error)
 				if h.Status == "ok" {
 					break
@@ -103,7 +103,7 @@ func TestRealACPAgents(t *testing.T) {
 				t.Fatal(err)
 			}
 			var all []struct{ ID int64 }
-			e.must("deck.projects_list", nil, &all)
+			e.Must("deck.projects_list", nil, &all)
 			next := int64(1)
 			for _, p := range all {
 				next = max(next, p.ID+1)
@@ -114,13 +114,15 @@ func TestRealACPAgents(t *testing.T) {
 				if p != next+int64(i) {
 					t.Fatalf("project %s got id %d, the data folder in its prompt is for %d", tc.name, p, next+int64(i))
 				}
-				id := e.run(p, "work")
+				id := e.Run(p, "work")
 				confirmed, asked, answered := 0, 0, map[int64]bool{}
 				var lastLog []byte
-				deadline := time.Now().Add(25 * time.Minute)
-				for st := e.process(id).State; time.Now().Before(deadline) && st != "done" && st != "error"; st = e.process(id).State {
-					var asks []askView
-					_, out := e.call("deck.asks_list", nil)
+				e.Until(tc.name+": the run to end", func() bool {
+					if st := e.Proc(id).State; st == "done" || st == "error" {
+						return true
+					}
+					var asks []Ask
+					_, out := e.Call("deck.asks_list", nil)
 					_ = json.Unmarshal(out, &asks)
 					for _, ask := range asks {
 						if answered[ask.ID] {
@@ -129,22 +131,22 @@ func TestRealACPAgents(t *testing.T) {
 						answered[ask.ID] = true
 						if ask.Kind == "question" {
 							t.Logf("%s: the model asked: %s", tc.name, ask.Text)
-							e.answer(ask.ID, "yes, go on")
+							e.Answer(ask.ID, "yes, go on")
 							asked++
 							continue
 						}
 						if ask.Kind != "call" || !strings.Contains(ask.Text, tc.name+".post") {
 							t.Fatalf("%s: only the external deck tool waits for the owner, got %+v", tc.name, ask)
 						}
-						e.answer(ask.ID, "allow")
+						e.Answer(ask.ID, "allow")
 						confirmed++
 					}
-					if _, out := e.call("deck.process_log", map[string]any{"process": id}); len(out) > 2 {
+					if _, out := e.Call("deck.process_log", map[string]any{"process": id}); len(out) > 2 {
 						lastLog = out
 					}
-					time.Sleep(time.Second)
-				}
-				got := e.process(id)
+					return false
+				})
+				got := e.Proc(id)
 				read := func(name string) string {
 					b, _ := os.ReadFile(filepath.Join(data, name))
 					return strings.TrimSpace(string(b))

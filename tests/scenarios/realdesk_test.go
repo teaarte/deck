@@ -16,18 +16,18 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	for _, name := range []string{"alpha", "beta"} {
-		e.createProject(name, plainManifest)
+		e.Project(name, plainManifest)
 	}
-	e.createProject("shelf", widgetsManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": jsonl(map[string]any{"name": "a", "n": 1})}, nil)
+	e.Project("shelf", widgetsManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": jsonl(map[string]any{"name": "a", "n": 1})}, nil)
 	b := newPlaywright(t)
 	cell := func(id string) string {
 		return `(() => { const r = document.querySelector('[data-cell="` + id + `"]').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)].join(' ') })()`
 	}
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
-	b.open(e.URL + "/?token=" + token)
+	b.Open(e, "")
 	b.until("the cards in cells, Today first", `document.querySelector('[data-cell="today"]') && document.querySelector('[data-cell="beta"]') && document.querySelector('[data-cell="shelf"] [data-widget] [data-block]')`)
 	before := b.eval(cell("beta"))
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const r = await page.locator('[data-cell="alpha"]').boundingBox();
@@ -38,7 +38,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		const room = await page.locator('[data-cols]').boundingBox();
 		await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2); await page.mouse.down();
 		await page.mouse.move(r.x + r.width / 2 + 10, r.y + r.height * 2.6, { steps: 8 }); await page.mouse.move(room.x + r.width / 2, r.y + r.height * 2.6, { steps: 8 }); await page.mouse.up(); }`})
-	e.waitFor("the moved card kept", func() bool {
+	e.Until("the moved card kept", func() bool {
 		v := e.desk(b.eval(`localStorage.getItem('deck-device')`), colsOf(b))
 		for _, c := range v.Cards {
 			if c.ID == "beta" && c.Y >= 2 {
@@ -50,7 +50,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const h = await page.locator('[data-cell="beta"] .react-resizable-handle').boundingBox();
 		await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await page.mouse.down();
 		await page.mouse.move(h.x + 260, h.y + 40, { steps: 10 }); await page.mouse.up(); }`})
-	e.waitFor("the grown card kept", func() bool {
+	e.Until("the grown card kept", func() bool {
 		for _, c := range e.desk(b.eval(`localStorage.getItem('deck-device')`), colsOf(b)).Cards {
 			if c.ID == "beta" && c.W >= 2 {
 				return true
@@ -109,15 +109,15 @@ func TestRealBrowserTenWidgetsStayQuick(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	for i := range 10 {
 		name := fmt.Sprintf("shelf%d", i)
-		e.createProject(name, widgetsManifest)
-		e.must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(map[string]any{"name": "a", "n": 1})}, nil)
+		e.Project(name, widgetsManifest)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(map[string]any{"name": "a", "n": 1})}, nil)
 	}
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
-	b.open(e.URL + "/?token=" + token + "#/deck/schedule")
+	b.Open(e, "#/deck/schedule")
 	b.until("deck open", `document.querySelector('[data-block]')`)
 	b.eval(`(window.t1 = 0, window.t0 = performance.now(), location.hash = '#/',
 		(function wait() { if (document.querySelectorAll('[data-widget] [data-block]').length >= 11) window.t1 = performance.now(); else requestAnimationFrame(wait) })(), '')`)
@@ -130,7 +130,7 @@ func TestRealBrowserTenWidgetsStayQuick(t *testing.T) {
 		t.Errorf("ten views take %d ms to draw", n)
 	}
 	b.eval(`(window.deckDraws = {}, '')`)
-	e.must("deck.records_upsert", map[string]any{"project": "shelf3", "collection": "items", "records": jsonl(map[string]any{"name": "b", "n": 2})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shelf3", "collection": "items", "records": jsonl(map[string]any{"name": "b", "n": 2})}, nil)
 	b.until("the changed card read again", `[...document.querySelectorAll('[data-module="shelf3"] [data-widget]')].some((x) => x.innerText.includes('2'))`)
 	time.Sleep(800 * time.Millisecond)
 	var got map[string]float64

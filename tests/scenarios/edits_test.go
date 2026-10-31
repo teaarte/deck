@@ -13,11 +13,11 @@ import (
 // with new ones, each old part must occur once, and if_revision guards against a change made meanwhile.
 func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
+	e := New(t)
+	e.Project("web", webNotes)
 	save := func(in map[string]any) (int, string) {
 		in["project"], in["name"], in["kind"] = "web", "notes/a.md", "doc"
-		code, body := e.call("deck.document_save", in)
+		code, body := e.Call("deck.document_save", in)
 		return code, string(body)
 	}
 	if code, body := save(map[string]any{"text": "one\ntwo\nthree two"}); code != 200 {
@@ -27,7 +27,7 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 		t.Fatalf("a part of the text changes: %d %s", code, body)
 	}
 	var d documentV
-	e.must("deck.document_get", map[string]any{"project": "web", "name": "notes/a.md"}, &d)
+	e.Must("deck.document_get", map[string]any{"project": "web", "name": "notes/a.md"}, &d)
 	if d.Text != "one\n2\nthree two" || d.Revision != 2 {
 		t.Fatalf("the change of a part is a new revision of the whole text: %+v", d)
 	}
@@ -55,20 +55,20 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 	if code, body := save(map[string]any{"old": []string{"one", "three"}, "new": []string{"three", "3"}}); code != 200 {
 		t.Fatalf("each old part is found in the current text: %d %s", code, body)
 	}
-	e.must("deck.document_get", map[string]any{"project": "web", "name": "notes/a.md"}, &d)
+	e.Must("deck.document_get", map[string]any{"project": "web", "name": "notes/a.md"}, &d)
 	if d.Text != "three\n2\n3 x" {
 		t.Fatalf("a new part is not taken for an old one: %q", d.Text)
 	}
 
 	var saved struct{ Revision int64 }
-	e.must("deck.manifest_save", map[string]any{"project": "web", "reason": "rename",
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "reason": "rename",
 		"old": []string{`"title": "Notes"`}, "new": []string{`"title": "All notes"`}}, &saved)
 	var m struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &m)
 	if want := manifest.Canonical(strings.Replace(webNotes, `"title": "Notes"`, `"title": "All notes"`, 1)); saved.Revision != 2 || m.Manifest != want {
 		t.Fatalf("an old part changes and the manifest is stored in deck's one form: %d\n%s", saved.Revision, m.Manifest)
 	}
-	if code, body := e.call("deck.manifest_save", map[string]any{"project": "web",
+	if code, body := e.Call("deck.manifest_save", map[string]any{"project": "web",
 		"old": []string{"\"menu\": [\n    \"main\"\n  ]"}, "new": []string{`"menu": ["none"]`}}); code != 422 || !strings.Contains(string(body), "none") {
 		t.Fatalf("a manifest changed by parts is checked like a whole one: %d %s", code, body)
 	}
@@ -82,7 +82,7 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 		{map[string]any{"patch": `[{"op": "replace", "path": "/menu/0", "value": "main"}]`}, 422, "patch"},
 	} {
 		c.in["project"] = "web"
-		if code, body := e.call("deck.manifest_save", c.in); code != c.code || !strings.Contains(string(body), c.says) {
+		if code, body := e.Call("deck.manifest_save", c.in); code != c.code || !strings.Contains(string(body), c.says) {
 			t.Fatalf("%v: want %d %q, got %d %s", c.in, c.code, c.says, code, body)
 		}
 	}
@@ -92,10 +92,10 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 // record is named in the answer of the save, so the one who saved sees it before the owner does.
 func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e := New(t)
+	e.Project("web", webNotes)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "a", "score": 3}, map[string]any{"title": "b"})}, nil)
 	column := func(bind string) []string {
 		var saved struct{ Screens []string }
@@ -104,8 +104,8 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 		changed := strings.Replace(strings.Replace(webNotes, column,
 			`"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": `+string(b)+`}]`, 1),
 			edit, edit+`, {"type": "card", "fields": [{"label": "Score", "bind": `+string(b)+`}]}`, 1)
-		e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": changed}, &saved)
-		e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": webNotes}, nil)
+		e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": changed}, &saved)
+		e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": webNotes}, nil)
 		return saved.Screens
 	}
 	got := column("score > 0 ? score : nil")
@@ -122,32 +122,32 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 // module lacks says how to open a screen of deck; overlapping old texts name each other.
 func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webNotesAgent())
+	e := New(t, WithAgent(webNotesAgent()))
 	broken := strings.Replace(webNotes, `"title": "Web"`, `"title": "Web",,`, 1)
 	if broken == webNotes {
 		t.Fatal("fixture replacement did not apply")
 	}
-	code, out := e.call("deck.project_create", map[string]any{"name": "web", "manifest": broken})
+	code, out := e.Call("deck.project_create", map[string]any{"name": "web", "manifest": broken})
 	if code != 422 || !regexp.MustCompile(`line \d+, column \d+`).Match(out) || !strings.Contains(string(out), `Web\",,`) {
 		t.Fatalf("a JSON error gives its line, column and the text around it: %d %s", code, out)
 	}
 	lost := strings.Replace(routedManifest, `"screen": "main", "params"`, `"screen": "process", "params"`, 1)
-	code, out = e.call("deck.project_create", map[string]any{"name": "web", "manifest": lost})
+	code, out = e.Call("deck.project_create", map[string]any{"name": "web", "manifest": lost})
 	if code != 422 || !strings.Contains(string(out), `unknown screen "process"`) || !strings.Contains(string(out), "#/deck/") {
 		t.Fatalf("a button to a screen the module lacks says how to open a screen of deck: %d %s", code, out)
 	}
 	deckCmd := strings.Replace(webNotes, `{"label": "Mark", "command": "mark"}`, `{"label": "Mark", "command": "deck.model_set"}`, 1)
-	code, out = e.call("deck.project_create", map[string]any{"name": "web", "manifest": deckCmd})
+	code, out = e.Call("deck.project_create", map[string]any{"name": "web", "manifest": deckCmd})
 	if code != 422 || !strings.Contains(string(out), `unknown command "deck.model_set"`) || !strings.Contains(string(out), "#/deck/") {
 		t.Fatalf("a button to a command of deck says how to open a screen of deck: %d %s", code, out)
 	}
-	e.must("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact", "text": "one two three"}, nil)
-	code, out = e.call("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact",
+	e.Must("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact", "text": "one two three"}, nil)
+	code, out = e.Call("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact",
 		"old": []string{"one two", "two three"}, "new": []string{"1 2", "2 3"}})
 	if code != 422 || !strings.Contains(string(out), "old text 2 overlaps old text 1") {
 		t.Fatalf("overlapping old texts name each other: %d %s", code, out)
 	}
-	code, out = e.call("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact",
+	code, out = e.Call("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact",
 		"old": []string{"two three", "one two"}, "new": []string{"2 3", "1 2"}})
 	if code != 422 || !strings.Contains(string(out), `old text 2 overlaps old text 1 ("two three")`) {
 		t.Fatalf("the overlap quotes old text 1: %d %s", code, out)
@@ -158,13 +158,13 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 // with & as it is, so an old part with a literal & finds it; an escaped backslash stays.
 func TestAManifestWrittenWithEscapedAmpersandsChangesByItsCharacters(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	escaped := strings.Replace(webNotes, `"title": "Notes"`, `"title": "Notes \u0026 links \u003cold\u003E", "description": "a \\u0026 b"`, 1)
-	e.createProject("web", escaped)
-	e.must("deck.manifest_save", map[string]any{"project": "web", "reason": "rename",
+	e.Project("web", escaped)
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "reason": "rename",
 		"old": []string{`"title": "Notes & links <old>"`}, "new": []string{`"title": "Notes & more"`}}, nil)
 	var m struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &m)
 	if !strings.Contains(m.Manifest, `"title": "Notes & more",`) || !strings.Contains(m.Manifest, `"description": "a \\u0026 b"`) || strings.Contains(m.Manifest, `\u0026 more`) {
 		t.Fatalf("the old part matches the escaped text, the escaped backslash stays, and the manifest is stored with &:\n%s", m.Manifest)
 	}
@@ -174,11 +174,11 @@ func TestAManifestWrittenWithEscapedAmpersandsChangesByItsCharacters(t *testing.
 // them around it; many such places or none show the closest text; a manifest takes unindented lines alike.
 func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
+	e := New(t)
+	e.Project("web", webNotes)
 	save := func(in map[string]any) (int, string) {
 		in["project"], in["name"], in["kind"] = "web", "notes/skill.md", "doc"
-		code, body := e.call("deck.document_save", in)
+		code, body := e.Call("deck.document_save", in)
 		return code, string(body)
 	}
 	text := "# Skill\n\nA trial that ends done is a result, not a\nfailure: read it.\n\ntwo  words and\ntwo\nwords and.\n"
@@ -189,7 +189,7 @@ func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
 		t.Fatalf("an old part across a hard line break: %d %s", code, body)
 	}
 	var d documentV
-	e.must("deck.document_get", map[string]any{"project": "web", "name": "notes/skill.md"}, &d)
+	e.Must("deck.document_get", map[string]any{"project": "web", "name": "notes/skill.md"}, &d)
 	if want := strings.Replace(text, "not a\nfailure: read", "not a\nfailure, so read", 1); d.Text != want {
 		t.Fatalf("the found place takes the new text, the breaks around it stay:\n%q\nwant\n%q", d.Text, want)
 	}
@@ -204,7 +204,7 @@ func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
 
 	other := func(in map[string]any) (int, string) {
 		in["project"], in["name"], in["kind"] = "web", "notes/b.md", "doc"
-		code, body := e.call("deck.document_save", in)
+		code, body := e.Call("deck.document_save", in)
 		return code, string(body)
 	}
 	other(map[string]any{"text": "x x x\nlimit = 10\n"})
@@ -218,13 +218,13 @@ func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
 		}
 	}
 
-	e.createProject("notes", sourceManifest)
-	if code, body := e.call("deck.manifest_save", map[string]any{"project": "notes", "old": []string{"\"name\": \"private\",\n\"description\": \"Not shared.\""},
+	e.Project("notes", sourceManifest)
+	if code, body := e.Call("deck.manifest_save", map[string]any{"project": "notes", "old": []string{"\"name\": \"private\",\n\"description\": \"Not shared.\""},
 		"new": []string{"\"name\": \"private\",\n      \"description\": \"Kept apart.\""}}); code != 200 {
 		t.Fatalf("lines of the manifest without their indentation: %d %s", code, body)
 	}
 	var m struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "notes"}, &m)
 	if !strings.Contains(m.Manifest, "\"name\": \"private\",\n      \"description\": \"Kept apart.\"") {
 		t.Fatalf("the manifest took the edit: %s", m.Manifest)
 	}
@@ -234,12 +234,12 @@ func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
 // is refused with the closest text instead of being found loosely.
 func TestAnOldPartOfAScriptKeepsItsSpaces(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
+	e := New(t)
+	e.Project("web", webNotes)
 	text := "def run(x):\n  if x:\n    y = 1\n  return y\n"
 	save := func(in map[string]any) (int, string) {
 		in["project"], in["name"], in["kind"] = "web", "scripts/run.py", "script"
-		code, body := e.call("deck.document_save", in)
+		code, body := e.Call("deck.document_save", in)
 		return code, string(body)
 	}
 	if code, body := save(map[string]any{"text": text}); code != 200 {
@@ -253,7 +253,7 @@ func TestAnOldPartOfAScriptKeepsItsSpaces(t *testing.T) {
 		t.Fatalf("the exact part: %d %s", code, body)
 	}
 	var d documentV
-	e.must("deck.document_get", map[string]any{"project": "web", "name": "scripts/run.py"}, &d)
+	e.Must("deck.document_get", map[string]any{"project": "web", "name": "scripts/run.py"}, &d)
 	if want := strings.Replace(text, "y = 1", "y = 2", 1); d.Text != want {
 		t.Fatalf("the script: %q, want %q", d.Text, want)
 	}

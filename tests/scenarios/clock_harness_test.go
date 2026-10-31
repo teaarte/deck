@@ -2,7 +2,6 @@ package scenarios
 
 import (
 	"context"
-	"deck2/internal/app"
 	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
@@ -10,20 +9,10 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 )
 
 var t0 = time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)
-
-// newClockEnv starts deck with a fake agent on a test clock that reads 08:00.
-func newClockEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
-	t.Helper()
-	clock := &Clock{now: t0}
-	e := newEnv(t, script, append([]func(*app.Config){withClock(clock)}, cfg...)...)
-	e.Clock = clock
-	return e
-}
 
 var commandOf = regexp.MustCompile(`running command "([^"]+)"`)
 
@@ -89,15 +78,10 @@ func (c *Clock) Add(d time.Duration) time.Time {
 	return c.now
 }
 
-// withClock runs deck on a test clock that starts at start.
-func withClock(clock *Clock) func(*app.Config) {
-	return func(c *app.Config) { c.Now = clock.Now }
-}
-
 // passWaits moves the clock past every wait for the owner until ok holds.
 func (e *Env) passWaits(what string, ok func() bool) {
 	e.T.Helper()
-	e.waitFor(what, func() bool {
+	e.Until(what, func() bool {
 		if ok() {
 			return true
 		}
@@ -107,11 +91,11 @@ func (e *Env) passWaits(what string, ok func() bool) {
 }
 
 // passState moves the clock past every wait for the owner until process id is in one of states.
-func (e *Env) passState(id int64, states ...string) proc {
+func (e *Env) passState(id int64, states ...string) Proc {
 	e.T.Helper()
-	var p proc
+	var p Proc
 	e.passWaits(fmt.Sprintf("process %d to reach %v", id, states), func() bool {
-		p = e.process(id)
+		p = e.Proc(id)
 		return slices.Contains(states, p.State)
 	})
 	return p

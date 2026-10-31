@@ -13,11 +13,11 @@ func TestRealBrowserThemeStylesTheCards(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	e.createProject("web", webNotes)
+	e := New(t, WithAgent(ok))
+	e.Project("web", webNotes)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/apps")
+	b.Open(e, "#/deck/apps")
 	b.until("the cockpit's card in the accent", `(() => { const c = document.querySelector('[data-app-tile][data-big]'); return c && getComputedStyle(c).backgroundImage.includes('gradient') })()`)
 	b.shot("tiles-juce")
 
@@ -26,8 +26,8 @@ func TestRealBrowserThemeStylesTheCards(t *testing.T) {
     "tile-icon": "#faece7", "tile-min": "240px", "tile-height": "200px", "tile-gap": "24px",
     "meadow": "radial-gradient(70% 100% at 22% 100%, #b7d79a 0%, transparent 75%)"},
   "parts": {"tile": {"radius": "24px", "shadow": "var(--ring), var(--shadow)", "background": "#ffffff"}}}`
-	e.must("deck.theme_save", map[string]any{"name": "cards", "text": cards}, nil)
-	e.must("deck.theme_use", map[string]any{"name": "cards"}, nil)
+	e.Must("deck.theme_save", map[string]any{"name": "cards", "text": cards}, nil)
+	e.Must("deck.theme_use", map[string]any{"name": "cards"}, nil)
 	for _, size := range []struct {
 		name          string
 		width, height int

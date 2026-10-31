@@ -14,10 +14,10 @@ func TestRealBrowserThemePictures(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, idle)
+	e := New(t, WithAgent(idle))
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 820})
-	b.open(e.URL + "/?token=" + token + "#/")
+	b.Open(e, "#/")
 	b.until("the clouds of juce behind the tiles", `(() => { const p = document.querySelector('[data-backdrop-picture]');
 		return !!p && getComputedStyle(p).backgroundImage.startsWith('url("blob:') })()`)
 	b.shot("pictures-juce")
@@ -28,9 +28,9 @@ func TestRealBrowserThemePictures(t *testing.T) {
 		c            color.RGBA
 	}{{"cockpit", "light", color.RGBA{40, 90, 70, 255}}, {"cockpit", "dark", color.RGBA{20, 40, 30, 255}}, {"pattern", "light", color.RGBA{230, 220, 200, 255}}} {
 		id := e.upload("master", x.slot+".png", "image/png", solid(x.c))
-		e.must("deck.theme_image", map[string]any{"theme": "paper", "slot": x.slot, "scheme": x.scheme, "file": fmt.Sprint(id)}, nil)
+		e.Must("deck.theme_image", map[string]any{"theme": "paper", "slot": x.slot, "scheme": x.scheme, "file": fmt.Sprint(id)}, nil)
 	}
-	e.must("deck.theme_use", map[string]any{"name": "paper"}, nil)
+	e.Must("deck.theme_use", map[string]any{"name": "paper"}, nil)
 	for _, scheme := range []string{"light", "dark"} {
 		b.open(e.URL + "/?theme=paper&scheme=" + scheme + "#/")
 		b.until("the scene of Today and the pattern behind in "+scheme, `(() => { const p = document.querySelector('[data-backdrop-pattern]');

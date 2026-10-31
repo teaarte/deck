@@ -14,11 +14,11 @@ func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	for i := range 3 {
 		name := fmt.Sprintf("lab%d", i)
-		e.createProject(name, strings.Replace(widgetsOfWork, `"screens": [`, `"screens": [{"name": "main", "title": "Main", "blocks": [{"type": "table", "source": {"collection": "items"}, "columns": [{"label": "Name", "bind": "name"}]}]}, `, 1))
-		e.must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(map[string]any{"name": "one", "n": 1})}, nil)
+		e.Project(name, strings.Replace(widgetsOfWork, `"screens": [`, `"screens": [{"name": "main", "title": "Main", "blocks": [{"type": "table", "source": {"collection": "items"}, "columns": [{"label": "Name", "bind": "name"}]}]}, `, 1))
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(map[string]any{"name": "one", "n": 1})}, nil)
 	}
 	b := newPlaywright(t)
 	// back goes back to the tiles and watches them for a second: they stand in the first frames the address is theirs,
@@ -45,7 +45,7 @@ func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
 	})`
 	for _, size := range []struct{ w, h int }{{1400, 1000}, {390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.w, "height": size.h})
-		b.open(e.URL + "/?token=" + token + "#/")
+		b.Open(e, "#/")
 		b.until("the cards", `document.querySelector('[data-cell="today"] [data-widget]') && document.querySelector('[data-cols]')`)
 		cols := int64(colsOf(b))
 		// The owner's own layout: the modules first, Today after them.

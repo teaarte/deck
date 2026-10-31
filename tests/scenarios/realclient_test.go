@@ -38,21 +38,20 @@ func TestRealBrowserWebClient(t *testing.T) {
 
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	clock := &Clock{now: time.Now()}
-	e := newEnv(t, webAgent(), withClock(clock), withTTL)
-	e.Clock = clock
-	p := e.createProject("notes", webManifest(svc.URL))
-	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
+	e := New(t, WithAgent(webAgent()), WithClock(clock), WithConfig(withTTL))
+	p := e.Project("notes", webManifest(svc.URL))
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)
-	e.waitState(e.run(p, "work"), "waiting_answer", "done")
+	e.WaitState(e.Run(p, "work"), "waiting_answer", "done")
 	e.App.Sweep(context.Background(), clock.Add(24*time.Hour+time.Minute))
-	e.run(p, "work")
-	e.waitFor("the fresh confirmation", func() bool { return len(e.cockpitItems()) == 2 })
-	asking := e.run(p, "ask")
-	e.waitFor("the question", func() bool { return len(e.cockpitItems()) == 3 })
+	e.Run(p, "work")
+	e.Until("the fresh confirmation", func() bool { return len(e.cockpitItems()) == 2 })
+	asking := e.Run(p, "ask")
+	e.Until("the question", func() bool { return len(e.cockpitItems()) == 3 })
 
 	front := newFront(t, e.URL)
 	b := newPlaywright(t)
-	b.open(front.URL + "/?token=" + token + "#/deck/cockpit")
+	b.OpenVia(front.URL, e, "#/deck/cockpit")
 	card := `document.querySelector('[data-focus-card]')`
 	buttons := `[...` + card + `.querySelectorAll('button')].map(x => x.innerText.trim())`
 	press := func(label string) string {
@@ -93,7 +92,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 	b.eval(`(() => { const x = [...` + card + `.querySelectorAll('button')].find(x => x.innerText === 'Allow: post'); x.click(); x.click(); return '' })()`)
 	b.until("the allowed one steps aside at once", `document.querySelector('[data-of]')?.innerText === '1 of 2'`)
 	b.shot("cockpit-hold")
-	e.waitFor("the answer once its moment passed", func() bool { return front.answers.Load() == 1 })
+	e.Until("the answer once its moment passed", func() bool { return front.answers.Load() == 1 })
 	b.until("the allowed one gone", `document.querySelector('[data-focus]')?.dataset.left === '2'`)
 	if n, calls := front.answers.Load(), len(svc.requests()); n != 1 || calls != 1 {
 		t.Fatalf("a second press while the call waits sends nothing: %d answers, %d calls", n, calls)
@@ -109,16 +108,16 @@ func TestRealBrowserWebClient(t *testing.T) {
 	b.until("the expired one last", `document.querySelector('[data-of]')?.innerText === '1 of 1' && `+card+`.innerText.includes('Deny')`)
 	b.eval(press("Deny"))
 	b.until("all decided, Deki glad", `document.querySelector('[data-focus-done] [data-deki="done"]')`)
-	e.waitState(asking, "done")
-	e.waitFor("every answer sent", func() bool { return len(e.cockpitItems()) == 0 })
+	e.WaitState(asking, "done")
+	e.Until("every answer sent", func() bool { return len(e.cockpitItems()) == 0 })
 
 	front.slow.Store(true)
-	late := e.run(p, "work")
-	e.waitFor("the delayed read", func() bool { return front.delayed.Load() })
+	late := e.Run(p, "work")
+	e.Until("the delayed read", func() bool { return front.delayed.Load() })
 	for _, it := range e.cockpitItems() {
-		e.must("deck.ask_answer", map[string]any{"ask": it.ID, "answer": "deny"}, nil)
+		e.Must("deck.ask_answer", map[string]any{"ask": it.ID, "answer": "deny"}, nil)
 	}
-	e.waitState(late, "done", "error")
+	e.WaitState(late, "done", "error")
 	time.Sleep(3 * time.Second)
 	if got := b.eval(`String(!!document.querySelector('[data-focus-done]') && !document.querySelector('[data-focus-card]'))`); got != "true" {
 		t.Fatalf("a late read does not bring back what a newer one cleared: %s", got)
@@ -138,13 +137,13 @@ func TestRealBrowserWebClient(t *testing.T) {
 
 	before := front.full.Load()
 	b.eval(`(document.dispatchEvent(new Event('visibilitychange')), '')`)
-	e.waitFor("a full read on return", func() bool { return front.full.Load() > before })
+	e.Until("a full read on return", func() bool { return front.full.Load() > before })
 	front.cut()
 	b.until("the stale mark while the live connection is down", `document.querySelector('[data-stale]')`)
-	e.waitFor("a refused reconnect", func() bool { return front.refused.Load() > 0 })
+	e.Until("a refused reconnect", func() bool { return front.refused.Load() > 0 })
 	before = front.full.Load()
 	b.eval(`(document.dispatchEvent(new Event('visibilitychange')), '')`)
-	e.waitFor("a full read while the live connection is down", func() bool { return front.full.Load() > before })
+	e.Until("a full read while the live connection is down", func() bool { return front.full.Load() > before })
 	time.Sleep(300 * time.Millisecond)
 	if b.eval(`String(!!document.querySelector('[data-stale]'))`) != "true" {
 		t.Fatal("a read while the live connection is down leaves the stale mark")
@@ -434,19 +433,23 @@ func (b *playwright) look(name, value string) {
 
 func (b *playwright) until(what, cond string) {
 	b.t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
+	done := false
+	defer func() {
+		if !done {
+			b.shot("failed")
+			b.t.Logf("no %s in the page:\n%s", what, b.eval("document.body.innerText"))
+		}
+	}()
+	Until(b.t, what+" in the page", func() bool {
 		out, failed := b.try("browser_evaluate", map[string]any{"function": "() => { const W = document.querySelector('[data-block]') ?? document; return String(!!(" + cond + ")) }"})
 		if failed && !strings.Contains(out, "Execution context was destroyed") {
+			done = true
 			b.t.Fatalf("browser_evaluate: %s", out)
 		}
-		if _, after, _ := strings.Cut(out, "### Result"); !failed && strings.HasPrefix(strings.TrimSpace(after), `"true"`) {
-			return
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	b.shot("failed")
-	b.t.Fatalf("no %s in the page:\n%s", what, b.eval("document.body.innerText"))
+		_, after, _ := strings.Cut(out, "### Result")
+		done = !failed && strings.HasPrefix(strings.TrimSpace(after), `"true"`)
+		return done
+	})
 }
 
 func (b *playwright) shot(name string) {
@@ -472,3 +475,9 @@ func (b *playwright) reviewAndEnable(name string) {
 func itemOf(title, part string) string {
 	return `[...document.querySelectorAll('[data-item]')].find((x) => x.innerText.split('\n')[0].trim() === '` + title + `' && x.innerText.includes('` + part + `'))`
 }
+
+// Open opens deck of e as its owner, rest after the sign-in: more of the query, then the route of the client.
+func (b *playwright) Open(e *Env, rest string) { b.open(e.OwnerURL(e.URL, rest)) }
+
+// OpenVia is Open through a server before deck at base.
+func (b *playwright) OpenVia(base string, e *Env, rest string) { b.open(e.OwnerURL(base, rest)) }

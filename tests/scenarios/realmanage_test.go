@@ -15,20 +15,21 @@ func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the model is down"}
-	})
-	e.createProject("digest", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
-	e.createProject("inbox", filesManifest())
+	}))
+
+	e.Project("digest", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	e.Project("inbox", filesManifest())
 	e.upload("inbox", "invoice.pdf", "application/pdf", "%PDF-1.4")
 	var ts []struct {
 		ID          int64
 		LastProcess int64 `json:"last_process"`
 	}
-	e.must("deck.triggers_list", map[string]any{"project": "digest"}, &ts)
-	e.must("deck.trigger_run", map[string]any{"trigger": ts[0].ID}, nil)
-	e.must("deck.triggers_list", map[string]any{"project": "digest"}, &ts)
-	e.waitState(ts[0].LastProcess, "error")
+	e.Must("deck.triggers_list", map[string]any{"project": "digest"}, &ts)
+	e.Must("deck.trigger_run", map[string]any{"trigger": ts[0].ID}, nil)
+	e.Must("deck.triggers_list", map[string]any{"project": "digest"}, &ts)
+	e.WaitState(ts[0].LastProcess, "error")
 
 	b := newPlaywright(t)
 	fits := func(what string) {
@@ -43,7 +44,7 @@ func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 		width, height int
 	}{{"", 1280, 820}, {"-phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
-		b.open(e.URL + "/?token=" + token + "#/deck/settings")
+		b.Open(e, "#/deck/settings")
 		b.until("Models first, then Modules, Health and Advanced", `document.querySelector('[role=tab][aria-selected=true]')?.innerText.includes('Models') &&
 			[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.replace(/[0-9]/g, '').trim()).join(',') === 'Models,Modules,Health,Advanced'`)
 		b.open(e.URL + "/#/deck/settings?tab=Health")

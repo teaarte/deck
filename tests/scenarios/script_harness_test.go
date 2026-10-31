@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 // scriptManifest is a manifest with one python script command; extra goes into the manifest object.
@@ -31,54 +30,49 @@ func scriptManifest(command, result, extra string) string {
 
 func (e *Env) saveScript(project, name, text string) {
 	e.T.Helper()
-	e.must("deck.document_save", map[string]any{"project": project, "name": name, "kind": "script", "text": text}, nil)
+	e.Must("deck.document_save", map[string]any{"project": project, "name": name, "kind": "script", "text": text}, nil)
 }
 
-// start runs a command of a project with input and returns its process.
-func (e *Env) start(project, command string, input map[string]any) int64 {
-	e.T.Helper()
-	if input == nil {
-		input = map[string]any{}
-	}
-	var r struct{ Process int64 }
-	e.must(project+"."+command, input, &r)
-	return r.Process
-}
-
-type healthRow struct {
+// HealthRow is a row of deck's health.
+type HealthRow struct {
 	Subject string `json:"subject"`
 	Status  string `json:"status"`
 	Error   string `json:"error"`
 	Version string `json:"version"`
 }
 
-// waitHealth waits until the health of subject is status, or any status for "", and returns it.
-func (e *Env) waitHealth(subject, status string) healthRow {
+// Health is deck's health, of a project when one is named.
+func (e *Env) Health(project ...string) []HealthRow {
 	e.T.Helper()
-	deadline := time.Now().Add(within(2 * time.Minute))
-	for time.Now().Before(deadline) {
-		var hs []healthRow
-		e.must("deck.health_list", nil, &hs)
-		for _, h := range hs {
-			if h.Subject == subject && (status == "" || h.Status == status) {
-				return h
-			}
-		}
-		time.Sleep(50 * time.Millisecond)
+	in := map[string]any{}
+	if len(project) > 0 {
+		in["project"] = project[0]
 	}
-	e.T.Fatalf("health of %s did not become %s", subject, status)
-	return healthRow{}
+	var hs []HealthRow
+	e.Must("deck.health_list", in, &hs)
+	return hs
 }
 
-func (e *Env) waitScript(id int64, states ...string) proc {
+// WaitHealth waits until the health of subject is status, or any status for "", and returns it.
+func (e *Env) WaitHealth(subject, status string) HealthRow {
 	e.T.Helper()
-	return e.pollState(id, 2*time.Minute, 50*time.Millisecond, states...)
+	var got HealthRow
+	e.Until("health of "+subject+" to be "+status, func() bool {
+		for _, h := range e.Health() {
+			if h.Subject == subject && (status == "" || h.Status == status) {
+				got = h
+				return true
+			}
+		}
+		return false
+	})
+	return got
 }
 
 func (e *Env) warnings(contains string) int {
 	e.T.Helper()
 	n := 0
-	for _, f := range e.notes() {
+	for _, f := range e.Notes() {
 		if f.Author == "deck" && !f.Read && strings.Contains(f.Text, contains) {
 			n++
 		}
@@ -87,7 +81,7 @@ func (e *Env) warnings(contains string) int {
 }
 
 // feedNote is a note of the owner's feed.
-type feedNote struct {
+type Note struct {
 	ID           int64
 	Author, Text string
 	CreatedAt    string `json:"created_at"`
@@ -96,19 +90,19 @@ type feedNote struct {
 }
 
 // notes are the notes of the owner's feed, newest first.
-func (e *Env) notes() []feedNote {
+func (e *Env) Notes() []Note {
 	e.T.Helper()
-	var out []feedNote
-	e.must("deck.feed_list", map[string]any{"kind": "note"}, &out)
+	var out []Note
+	e.Must("deck.feed_list", map[string]any{"kind": "note"}, &out)
 	return out
 }
 
 // waitNote waits for an unread note of deck that holds contains.
-func (e *Env) waitNote(contains string) feedNote {
+func (e *Env) WaitNote(contains string) Note {
 	e.T.Helper()
-	var got feedNote
-	e.waitFor("a note of deck with "+contains, func() bool {
-		for _, f := range e.notes() {
+	var got Note
+	e.Until("a note of deck with "+contains, func() bool {
+		for _, f := range e.Notes() {
 			if f.Author == "deck" && !f.Read && strings.Contains(f.Text, contains) {
 				got = f
 				return true

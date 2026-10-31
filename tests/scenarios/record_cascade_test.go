@@ -44,12 +44,12 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 // videos writes videos to the cascade module and gives the id of each by its slug.
 func (e *Env) videos(recs ...map[string]any) map[string]int64 {
 	e.T.Helper()
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(recs...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(recs...)}, nil)
 	var all []struct {
 		ID  int64
 		Key string
 	}
-	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &all)
+	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &all)
 	ids := map[string]int64{}
 	for _, v := range all {
 		ids[v.Key] = v.ID
@@ -61,7 +61,7 @@ func (e *Env) videos(recs ...map[string]any) map[string]int64 {
 func (e *Env) partNames(record int64) string {
 	e.T.Helper()
 	var parts []struct{ Kind, Name string }
-	e.must("deck.record_parts", map[string]any{"record": record}, &parts)
+	e.Must("deck.record_parts", map[string]any{"record": record}, &parts)
 	var names []string
 	for _, p := range parts {
 		names = append(names, p.Kind+" "+p.Name)
@@ -78,8 +78,8 @@ func exists(path string) bool {
 // record also gives, or one inside or around another record's, stays.
 func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	pid := e.createProject("shorts", cascadeModule)
+	e := New(t)
+	pid := e.Project("shorts", cascadeModule)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	for _, d := range []string{"keep", "shared", "nest/inner"} {
 		if err := os.MkdirAll(filepath.Join(data, "videos", d), 0o700); err != nil {
@@ -96,7 +96,7 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 		if got := e.partNames(ids[k]); strings.Contains(got, "folder") {
 			t.Fatalf("%s takes no folder: %s", k, got)
 		}
-		e.must("deck.record_delete", map[string]any{"record": ids[k]}, nil)
+		e.Must("deck.record_delete", map[string]any{"record": ids[k]}, nil)
 	}
 	if !exists(filepath.Join(data, "videos", "keep", "f.txt")) || !exists(filepath.Join(data, "videos", "shared", "f.txt")) ||
 		!exists(filepath.Join(data, "videos", "nest", "inner", "f.txt")) {
@@ -112,9 +112,9 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 	if got := e.partNames(ids["d"]); !strings.Contains(got, "folder videos/shared/") {
 		t.Fatalf("the last record that holds a folder takes it: %s", got)
 	}
-	e.must("deck.record_delete", map[string]any{"record": ids["d"]}, nil)
-	e.must("deck.record_delete", map[string]any{"record": ids["inner"]}, nil)
-	e.drained()
+	e.Must("deck.record_delete", map[string]any{"record": ids["d"]}, nil)
+	e.Must("deck.record_delete", map[string]any{"record": ids["inner"]}, nil)
+	e.Drained()
 	if exists(filepath.Join(data, "videos", "shared")) || exists(filepath.Join(data, "videos", "nest", "inner")) || !exists(filepath.Join(data, "videos", "keep")) {
 		t.Fatal("a folder no other record holds goes with its record")
 	}
@@ -124,16 +124,16 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 // takes nothing.
 func TestAnExpressionErrorStopsADeletion(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("shorts", cascadeModule)
+	e := New(t)
+	e.Project("shorts", cascadeModule)
 	ids := e.videos(map[string]any{"slug": "nodir"})
-	if code, out := e.call("deck.record_parts", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") {
+	if code, out := e.Call("deck.record_parts", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") {
 		t.Fatalf("record_parts says the folder could not be worked out: %d %s", code, out)
 	}
-	if code, out := e.call("deck.record_delete", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") || !strings.Contains(string(out), "nodir") {
+	if code, out := e.Call("deck.record_delete", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") || !strings.Contains(string(out), "nodir") {
 		t.Fatalf("the deletion stops: %d %s", code, out)
 	}
-	if code, _ := e.call("deck.record_get", map[string]any{"record": ids["nodir"]}); code != 200 {
+	if code, _ := e.Call("deck.record_get", map[string]any{"record": ids["nodir"]}); code != 200 {
 		t.Fatal("the record stays")
 	}
 }
@@ -142,8 +142,8 @@ func TestAnExpressionErrorStopsADeletion(t *testing.T) {
 // large its id, and not of a record another field names.
 func TestAProcessBelongsToARecordOnlyByItsRecordField(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	pid := e.createProject("shorts", cascadeModule)
+	e := New(t)
+	pid := e.Project("shorts", cascadeModule)
 	e.saveScript("shorts", "scripts/render.py", renderScript)
 	low := e.videos(map[string]any{"slug": "low", "dir": "low"})["low"]
 	if _, err := e.App.Store.DB.Exec(`UPDATE sqlite_sequence SET seq = 999999 WHERE name = 'record'`); err != nil {
@@ -153,13 +153,13 @@ func TestAProcessBelongsToARecordOnlyByItsRecordField(t *testing.T) {
 	if big < 1000000 {
 		t.Fatalf("a large record id: %d", big)
 	}
-	run := e.start("shorts", "render", map[string]any{"record": big, "take": low})
-	if got := e.waitScript(run, "done", "error"); got.State != "done" {
+	run := e.Start("shorts", "render", map[string]any{"record": big, "take": low})
+	if got := e.WaitState(run, "done", "error"); got.State != "done" {
 		t.Fatalf("the render runs: %+v", got)
 	}
 	runs := func(record int64) []int64 {
 		var ps []struct{ ID int64 }
-		e.must("deck.processes_list", map[string]any{"project": "shorts", "record": record}, &ps)
+		e.Must("deck.processes_list", map[string]any{"project": "shorts", "record": record}, &ps)
 		var out []int64
 		for _, p := range ps {
 			out = append(out, p.ID)
@@ -178,13 +178,13 @@ func TestAProcessBelongsToARecordOnlyByItsRecordField(t *testing.T) {
 	if got := e.partNames(big); !strings.Contains(got, "file frame.png") || !strings.Contains(got, "file log.txt") {
 		t.Fatalf("a large record takes the files of its run: %s", got)
 	}
-	e.must("deck.record_delete", map[string]any{"record": low}, nil)
+	e.Must("deck.record_delete", map[string]any{"record": low}, nil)
 	var n int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE project_id = ?`, pid).Scan(&n)
 	if n != 2 {
 		t.Fatalf("the files of a run of another record stay: %d", n)
 	}
-	e.must("deck.record_delete", map[string]any{"record": big}, nil)
+	e.Must("deck.record_delete", map[string]any{"record": big}, nil)
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE project_id = ?`, pid).Scan(&n)
 	if n != 0 {
 		t.Fatalf("the files of a large record's run go with it: %d", n)
@@ -194,27 +194,28 @@ func TestAProcessBelongsToARecordOnlyByItsRecordField(t *testing.T) {
 // TestDeletingARecordStopsItsOpenProcesses: a process still open for a record is listed and stopped with it.
 func TestDeletingARecordStopsItsOpenProcesses(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		<-ctx.Done()
 		return provider.Result{}
-	})
-	e.createProject("shorts", cascadeModule)
+	}))
+
+	e.Project("shorts", cascadeModule)
 	ids := e.videos(map[string]any{"slug": "knights", "dir": "knights"}, map[string]any{"slug": "snails", "dir": "snails"})
-	watch := e.start("shorts", "watch", map[string]any{"record": ids["knights"]})
-	other := e.start("shorts", "watch", map[string]any{"record": ids["snails"]})
-	e.waitState(watch, "running")
-	e.waitState(other, "running")
+	watch := e.Start("shorts", "watch", map[string]any{"record": ids["knights"]})
+	other := e.Start("shorts", "watch", map[string]any{"record": ids["snails"]})
+	e.WaitState(watch, "running")
+	e.WaitState(other, "running")
 	if got := e.partNames(ids["knights"]); !strings.Contains(got, "process watch") {
 		t.Fatalf("the owner sees the open process the deletion stops: %s", got)
 	}
-	e.must("deck.record_delete", map[string]any{"record": ids["knights"]}, nil)
-	if got := e.waitState(watch, "stopped", "done", "error"); got.State != "stopped" {
+	e.Must("deck.record_delete", map[string]any{"record": ids["knights"]}, nil)
+	if got := e.WaitState(watch, "stopped", "done", "error"); got.State != "stopped" {
 		t.Fatalf("the process of the record is stopped: %+v", got)
 	}
-	if got := e.process(other); got.State != "running" {
+	if got := e.Proc(other); got.State != "running" {
 		t.Fatalf("the process of another record goes on: %+v", got)
 	}
-	e.must("deck.process_stop", map[string]any{"process": other}, nil)
+	e.Must("deck.process_stop", map[string]any{"process": other}, nil)
 }
 
 // TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade: the master's own record with a file and folder of the
@@ -223,7 +224,7 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	said := map[string]string{}
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		_, text, found := strings.Cut(c.Req.Prompt, "new message in chat topic")
 		if !found {
 			return provider.Result{Text: "Noted."}
@@ -245,18 +246,19 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 			mu.Unlock()
 		}
 		return provider.Result{Text: "Done."}
-	})
-	pid := e.createProject("shorts", cascadeModule)
+	}))
+
+	pid := e.Project("shorts", cascadeModule)
 	e.saveScript("shorts", "scripts/render.py", renderScript)
 	topic := e.say(0, "write knights")
 	e.masterSaid(topic, 1)
 	e.say(topic, "write snails")
 	e.masterSaid(topic, 2)
 	ids := e.videos()
-	if got := e.waitScript(e.start("shorts", "render", map[string]any{"record": ids["knights"]}), "done", "error"); got.State != "done" {
+	if got := e.WaitState(e.Start("shorts", "render", map[string]any{"record": ids["knights"]}), "done", "error"); got.State != "done" {
 		t.Fatalf("the render runs: %+v", got)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(map[string]any{"video": "snails", "n": 1})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(map[string]any{"video": "snails", "n": 1})}, nil)
 
 	e.say(topic, fmt.Sprintf("delete %d", ids["snails"]))
 	e.masterSaid(topic, 3)
@@ -275,17 +277,17 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	if !strings.Contains(waiting, `"waiting"`) {
 		t.Fatalf("the master's deletion of what the module made waits for the owner: %s", waiting)
 	}
-	if code, _ := e.call("deck.record_get", map[string]any{"record": ids["knights"]}); code != 200 {
+	if code, _ := e.Call("deck.record_get", map[string]any{"record": ids["knights"]}); code != 200 {
 		t.Fatal("nothing goes before the owner says yes")
 	}
-	a := e.waitAsk()
+	a := e.WaitAsk()
 	for _, want := range []string{"frame.png", "log.txt", "videos/knights/", "Delete record"} {
 		if !strings.Contains(a.Text+fmt.Sprint(e.askWhat(a.ID)), want) {
 			t.Fatalf("the owner sees all the deletion takes (%s): %+v", want, a)
 		}
 	}
-	e.answer(a.ID, "allow")
-	if code, _ := e.call("deck.record_get", map[string]any{"record": ids["knights"]}); code != 404 {
+	e.Answer(a.ID, "allow")
+	if code, _ := e.Call("deck.record_get", map[string]any{"record": ids["knights"]}); code != 404 {
 		t.Fatal("the owner's yes deletes the record")
 	}
 	var n int
@@ -296,13 +298,13 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 
 	e.say(topic, "write rats")
 	var rats int64
-	e.waitFor("the master's record", func() bool { rats = e.videos()["rats"]; return rats != 0 })
+	e.Until("the master's record", func() bool { rats = e.videos()["rats"]; return rats != 0 })
 	e.say(topic, fmt.Sprintf("delete %d", rats))
-	e.waitFor("the ask of the deletion", func() bool { a = e.waitAsk(); return strings.Contains(a.Text, "rats") })
-	e.must("deck.record_delete", map[string]any{"record": rats}, nil)
-	e.answer(a.ID, "allow")
-	var left []askView
-	e.must("deck.asks_list", nil, &left)
+	e.Until("the ask of the deletion", func() bool { a = e.WaitAsk(); return strings.Contains(a.Text, "rats") })
+	e.Must("deck.record_delete", map[string]any{"record": rats}, nil)
+	e.Answer(a.ID, "allow")
+	var left []Ask
+	e.Must("deck.asks_list", nil, &left)
 	if len(left) != 0 {
 		t.Fatalf("a yes to a record already gone closes the ask: %+v", left)
 	}
@@ -314,7 +316,7 @@ func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	said := map[string]string{}
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		_, text, found := strings.Cut(c.Req.Prompt, "new message in chat topic")
 		if !found {
 			return provider.Result{Text: "Noted."}
@@ -333,8 +335,9 @@ func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
 		said[text] = out
 		mu.Unlock()
 		return provider.Result{Text: "Done."}
-	})
-	pid := e.createProject("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, "", 1))
+	}))
+
+	pid := e.Project("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, "", 1))
 	e.saveScript("shorts", "scripts/render.py", renderScript)
 	topic := e.say(0, "write knights")
 	e.masterSaid(topic, 1)
@@ -343,11 +346,11 @@ func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
 	ids := e.videos()
 	e.say(topic, fmt.Sprintf("render %d", ids["knights"]))
 	e.masterSaid(topic, 3)
-	if got := e.waitScript(e.start("shorts", "render", map[string]any{"record": ids["snails"]}), "done", "error"); got.State != "done" {
+	if got := e.WaitState(e.Start("shorts", "render", map[string]any{"record": ids["snails"]}), "done", "error"); got.State != "done" {
 		t.Fatalf("the owner's render runs: %+v", got)
 	}
 	var n int
-	e.waitFor("the frames of both", func() bool {
+	e.Until("the frames of both", func() bool {
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE project_id = ? AND owner_kind = 'record'`, pid).Scan(&n)
 		return n == 2
 	})
@@ -377,7 +380,7 @@ func (e *Env) askWhat(id int64) string {
 		ID   int64
 		What string
 	}
-	e.must("deck.asks_list", nil, &as)
+	e.Must("deck.asks_list", nil, &as)
 	for _, a := range as {
 		if a.ID == id {
 			return a.What
@@ -390,8 +393,8 @@ func (e *Env) askWhat(id int64) string {
 // collection, go with their child records and folders.
 func TestRetentionAndCollectionDeleteTakeWhatBelongsToARecord(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	pid := e.createProject("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1))
+	e := New(t, WithClock())
+	pid := e.Project("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1))
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	count := func(collection string) int {
 		var n int
@@ -399,23 +402,23 @@ func TestRetentionAndCollectionDeleteTakeWhatBelongsToARecord(t *testing.T) {
 		return n
 	}
 	e.videos(map[string]any{"slug": "old", "dir": "old"})
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(map[string]any{"video": "old", "n": 1})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(map[string]any{"video": "old", "n": 1})}, nil)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "old"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	e.Clock.Add(31 * 24 * time.Hour)
 	e.videos(map[string]any{"slug": "new", "dir": "new"})
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(map[string]any{"video": "new", "n": 1})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(map[string]any{"video": "new", "n": 1})}, nil)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "new"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	e.sweep()
-	e.drained()
+	e.Drained()
 	if count("videos") != 1 || count("scenes") != 1 || exists(filepath.Join(data, "videos", "old")) || !exists(filepath.Join(data, "videos", "new")) {
 		t.Fatalf("an expired record goes with its scene and folder: %d videos, %d scenes", count("videos"), count("scenes"))
 	}
-	e.must("deck.collection_delete", map[string]any{"project": "shorts", "collection": "videos"}, nil)
-	e.drained()
+	e.Must("deck.collection_delete", map[string]any{"project": "shorts", "collection": "videos"}, nil)
+	e.Drained()
 	if count("videos") != 0 || count("scenes") != 0 || exists(filepath.Join(data, "videos", "new")) {
 		t.Fatalf("a deleted collection takes the scenes and folders of its records: %d videos, %d scenes", count("videos"), count("scenes"))
 	}
@@ -425,8 +428,8 @@ func TestRetentionAndCollectionDeleteTakeWhatBelongsToARecord(t *testing.T) {
 // red in the health of the outbox, which turns green once it goes.
 func TestAFolderThatWillNotGoIsTheHealthOfTheOutbox(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	pid := e.createProject("shorts", cascadeModule)
+	e := New(t)
+	pid := e.Project("shorts", cascadeModule)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "knights", "deep"), 0o700); err != nil {
 		t.Fatal(err)
@@ -436,8 +439,8 @@ func TestAFolderThatWillNotGoIsTheHealthOfTheOutbox(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(filepath.Join(data, "videos", "knights"), 0o700) })
 	ids := e.videos(map[string]any{"slug": "knights", "dir": "knights"})
-	e.must("deck.record_delete", map[string]any{"record": ids["knights"]}, nil)
-	e.drained()
+	e.Must("deck.record_delete", map[string]any{"record": ids["knights"]}, nil)
+	e.Drained()
 	e.App.Sweep(context.Background(), time.Now())
 	e.App.Sweep(context.Background(), time.Now())
 	if h := e.health("outbox"); h == nil || h["status"] != "error" || !strings.Contains(fmt.Sprint(h["error"]), "videos/knights") {
@@ -454,8 +457,8 @@ func TestAFolderThatWillNotGoIsTheHealthOfTheOutbox(t *testing.T) {
 // loses the folder on the next round of deck.
 func TestTheFolderOfADeletedProjectGoesEvenAfterACrash(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	pid := e.createProject("shorts", cascadeModule)
+	e := New(t)
+	pid := e.Project("shorts", cascadeModule)
 	dir := deckhome.Layout(e.App.Cfg.Home).Project(pid)
 	if err := os.MkdirAll(filepath.Join(dir, "data", "videos"), 0o700); err != nil {
 		t.Fatal(err)
@@ -473,10 +476,10 @@ func TestTheFolderOfADeletedProjectGoesEvenAfterACrash(t *testing.T) {
 // which is red in its health once.
 func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
-	e.createProject("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1))
+	e := New(t, WithClock())
+	e.Project("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1))
 	ids := e.videos(map[string]any{"slug": "old", "dir": "old"}, map[string]any{"slug": "nodir"})
-	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "a.txt", "content": "YQ=="}, nil)
+	e.Must("deck.file_upload", map[string]any{"project": "shorts", "name": "a.txt", "content": "YQ=="}, nil)
 	if _, err := e.App.Store.DB.Exec(`UPDATE file SET owner_kind = 'record', owner_id = ?`, ids["old"]); err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +492,7 @@ func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 	if n != 1 || files != 1 {
 		t.Fatalf("retention is red in health and the record keeps its file: %d rows, %d files", n, files)
 	}
-	if code, _ := e.call("deck.record_get", map[string]any{"record": ids["old"]}); code != 200 {
+	if code, _ := e.Call("deck.record_get", map[string]any{"record": ids["old"]}); code != 200 {
 		t.Fatal("the expired record stays until deck can plan it")
 	}
 }
@@ -498,11 +501,11 @@ func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 // health, naming the record and why, and the owner reads each apart.
 func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
 	t.Parallel()
-	e := newClockEnv(t, nil)
+	e := New(t, WithClock())
 	module := strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1)
 	for _, name := range []string{"shorts", "clips"} {
-		e.createProject(name, module)
-		e.must("deck.records_upsert", map[string]any{"project": name, "collection": "videos", "records": jsonl(map[string]any{"slug": "nodir-" + name})}, nil)
+		e.Project(name, module)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "videos", "records": jsonl(map[string]any{"slug": "nodir-" + name})}, nil)
 	}
 	e.Clock.Add(31 * 24 * time.Hour)
 	e.sweep()
@@ -519,14 +522,14 @@ func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
 			t.Fatalf("retention of %s is red, naming the record and why: %v", name, why)
 		}
 	}
-	e.must("deck.health_seen", map[string]any{"subject": "retention:clips", "project": "clips"}, nil)
+	e.Must("deck.health_seen", map[string]any{"subject": "retention:clips", "project": "clips"}, nil)
 	if seen, _ := e.healthSeen("clips", "retention:clips"); !seen {
 		t.Fatal("the owner reads the retention of one project")
 	}
 	if seen, failing := e.healthSeen("shorts", "retention:shorts"); seen || !failing {
 		t.Fatal("the retention of another project stays unread")
 	}
-	if code, _ := e.call("deck.health_seen", map[string]any{"subject": "retention:shorts", "project": "clips"}); code == 200 {
+	if code, _ := e.Call("deck.health_seen", map[string]any{"subject": "retention:shorts", "project": "clips"}); code == 200 {
 		t.Fatal("a check is read only in its own project")
 	}
 }
@@ -536,28 +539,31 @@ func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
 func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "ext-1"}`) })
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		c.Tool(ctx, "shorts__post", map[string]any{"id": "a", "text": "hi"})
 		<-ctx.Done()
 		return provider.Result{}
-	}, withTTL)
-	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	}), WithConfig(
+
+		withTTL))
+
+	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	module := strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1)
 	post := postManifest(svc.URL, "")
 	module = strings.Replace(module, `"scripts": [`, post[strings.Index(post, `"tools"`):len(post)-1]+`, "scripts": [`, 1)
-	pid := e.createProject("shorts", module)
+	pid := e.Project("shorts", module)
 	id := e.videos(map[string]any{"slug": "old", "dir": "old"})["old"]
-	watch := e.start("shorts", "watch", map[string]any{"record": id})
-	a := e.waitAsk()
+	watch := e.Start("shorts", "watch", map[string]any{"record": id})
+	a := e.WaitAsk()
 	if _, err := e.App.Store.DB.Exec(`UPDATE record SET created_at = '2000-01-01T00:00:00.000Z' WHERE project_id = ?`, pid); err != nil {
 		t.Fatal(err)
 	}
 	e.App.Sweep(context.Background(), time.Now())
-	if got := e.waitState(watch, "stopped", "done", "error"); got.State != "stopped" {
+	if got := e.WaitState(watch, "stopped", "done", "error"); got.State != "stopped" {
 		t.Fatalf("the process of the expired record is stopped: %+v", got)
 	}
-	e.settle()
-	if code, out := e.call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 200 || len(svc.requests()) != 1 {
+	e.Settle()
+	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 200 || len(svc.requests()) != 1 {
 		t.Fatalf("the owner may still allow the call the process froze: %d %s", code, out)
 	}
 }

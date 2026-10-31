@@ -68,30 +68,30 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 		}
 		jsonReply(w, `{"ok": true}`)
 	})
-	e := newEnv(t, nil)
-	e.createProject("media", bodiesManifest(svc.URL))
+	e := New(t)
+	e.Project("media", bodiesManifest(svc.URL))
 	doc := fmt.Sprint(e.upload("media", "photo.jpg", "image/jpeg", "JPEGDATA"))
 
-	if p := e.waitState(e.start("media", "put", map[string]any{"doc": doc}), "done", "error"); p.State != "done" || got["put"][0] != "image/jpeg JPEGDATA" {
+	if p := e.WaitState(e.Start("media", "put", map[string]any{"doc": doc}), "done", "error"); p.State != "done" || got["put"][0] != "image/jpeg JPEGDATA" {
 		t.Fatalf("a file body sends the file as it is: %+v %v", p, got)
 	}
-	if p := e.waitState(e.start("media", "form", map[string]any{"doc": doc, "title": "Sea"}), "done", "error"); p.State != "done" ||
+	if p := e.WaitState(e.Start("media", "form", map[string]any{"doc": doc, "title": "Sea"}), "done", "error"); p.State != "done" ||
 		strings.Join(got["form"], ";") != "title||Title: Sea;upload|photo.jpg|JPEGDATA" {
 		t.Fatalf("a multipart body sends file fields as files, with a length: %+v %v", p, got["form"])
 	}
 	tricky := fmt.Sprint(e.upload("media", "note.txt", "text/plain", "a\r\n--deck-form-boundary\r\nb"))
 	got["form"] = nil
-	if p := e.waitState(e.start("media", "form", map[string]any{"doc": tricky, "title": "x"}), "done", "error"); p.State != "done" ||
+	if p := e.WaitState(e.Start("media", "form", map[string]any{"doc": tricky, "title": "x"}), "done", "error"); p.State != "done" ||
 		strings.Join(got["form"], ";") != "title||Title: x;upload|note.txt|a\r\n--deck-form-boundary\r\nb" {
 		t.Fatalf("a file holding the text of a boundary reaches the form whole: %+v %q", p, got["form"])
 	}
 	e.saveScript("media", "scripts/make.py", makeScript)
-	if p := e.waitScript(e.start("media", "make", nil), "done", "error"); !strings.Contains(string(p.Result), `"status":200`) ||
+	if p := e.WaitState(e.Start("media", "make", nil), "done", "error"); !strings.Contains(string(p.Result), `"status":200`) ||
 		!strings.Contains(string(p.Result), `"escape":422`) ||
 		got["put"][1] != "video/mp4 clip bytes" {
 		t.Fatalf("a file of the results folder goes to a tool while the script still runs: %+v %v", p, got["put"])
 	}
-	code, out := e.call("media.put_file", map[string]any{"doc": "results/../../../deck.db"})
+	code, out := e.Call("media.put_file", map[string]any{"doc": "results/../../../deck.db"})
 	if code == 200 || !strings.Contains(string(out), "results file") {
 		t.Fatalf("a results file needs a process: %d %s", code, out)
 	}
@@ -99,17 +99,17 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 
 func TestACommandCallLargerThan32MBIsRefusedWhole(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	big := map[string]any{"text": strings.Repeat("x", 33<<20)}
-	if code, out := e.call("deck.projects_list", big); code != http.StatusRequestEntityTooLarge {
+	if code, out := e.Call("deck.projects_list", big); code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("the API refuses a body over 32 MB: %d %.200s", code, out)
 	}
-	e.createProject("big", scriptManifest("send", "", ""))
+	e.Project("big", scriptManifest("send", "", ""))
 	e.saveScript("big", "scripts/main.py", pythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "x" * (33 << 20)})})
 print(json.dumps({"status": st}))
 `)
-	if p := e.waitScript(e.start("big", "send", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "413") {
+	if p := e.WaitState(e.Start("big", "send", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "413") {
 		t.Fatalf("the entry of scripts refuses a body over 32 MB rather than cutting it: %+v", p)
 	}
 }
@@ -120,10 +120,10 @@ func TestATextAnswerOverTheLimitIsNotPassedOnCut(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte(strings.Repeat("x", 11<<20)))
 	})
-	e := newEnv(t, nil)
-	e.createProject("big", fmt.Sprintf(`{"version": 13, "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET",
+	e := New(t)
+	e.Project("big", fmt.Sprintf(`{"version": 13, "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET",
   "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, svc.URL+"/page"))
-	if code, out := e.call("big.page", map[string]any{}); code == 200 || !strings.Contains(string(out), "cut answer") {
+	if code, out := e.Call("big.page", map[string]any{}); code == 200 || !strings.Contains(string(out), "cut answer") {
 		t.Fatalf("an answer over 10 MB is an error, not its first 10 MB: %d %.200s", code, out)
 	}
 }

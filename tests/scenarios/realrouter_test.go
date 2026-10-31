@@ -12,12 +12,12 @@ func TestRealBrowserRouter(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, webNotesAgent())
-	e.createProject("web", routedManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
+	e := New(t, WithAgent(webNotesAgent()))
+	e.Project("web", routedManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.Open(e, "#/p/web/main")
 	b.until("the screen", `document.querySelector('[data-dialog-open="rescore"]') && document.querySelector('[data-verb], button')`)
 	if got := b.eval(`String(!!document.querySelector('[data-back]'))`); got != "false" {
 		t.Fatalf("no back button on the first screen: %s", got)

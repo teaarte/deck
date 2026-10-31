@@ -19,7 +19,7 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 	checkBuiltClient(t)
 	hold := make(chan struct{})
 	t.Cleanup(func() { close(hold) })
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "score" {
 			select {
 			case <-hold:
@@ -27,8 +27,9 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 			}
 		}
 		return webNotesAgent()(ctx, c)
-	})
-	e.createProject("web", webNotes)
+	}))
+
+	e.Project("web", webNotes)
 	b := newPlaywright(t)
 	at := `JSON.stringify(document.querySelector('[data-screen-head] [data-dialog-open="changes"]')?.getBoundingClientRect())`
 	for _, size := range []struct {
@@ -36,20 +37,20 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 		width, height int
 	}{{"desktop", 1400, 900}, {"phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
-		b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+		b.Open(e, "#/deck/cockpit")
 		b.until("History in the head of Today", `document.querySelector('[data-screen-head] [data-dialog-open="changes"]') && !document.querySelector('[data-grid] [data-dialog-open]')`)
 		before := b.eval(at)
 		b.shot("cockpit-history-" + size.name)
-		id := e.start("web", "score", map[string]any{"title": "x"})
-		e.waitState(id, "running")
+		id := e.Start("web", "score", map[string]any{"title": "x"})
+		e.WaitState(id, "running")
 		b.until("the running chip on Today", `document.querySelector('[data-chips] [data-chip]')`)
 		if after := b.eval(at); after != before {
 			t.Fatalf("History keeps its place on a %s when a list comes in: %s, then %s", size.name, before, after)
 		}
 		b.shot("cockpit-history-" + size.name + "-running")
-		e.must("deck.process_stop", map[string]any{"process": id}, nil)
+		e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 		_, tok := e.token("ask-"+size.name, "deck.model_set")
-		if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "none", "model": size.name}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
+		if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": size.name}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 			t.Fatalf("a token's model waits for the owner: %d %s", code, out)
 		}
 		b.until("the decision on Today", `document.querySelector('[data-focus-card]')`)
@@ -69,14 +70,14 @@ func TestRealBrowserCards(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	e.createProject("notes", notesManifest)
-	e.createProject("plain", plainManifest)
+	e := New(t, WithAgent(ok))
+	e.Project("notes", notesManifest)
+	e.Project("plain", plainManifest)
 	png := e.upload("notes", "cover.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
-	e.must("deck.project_cover", map[string]any{"project": "notes", "file": strconv.FormatInt(png, 10)}, nil)
+	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": strconv.FormatInt(png, 10)}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token)
+	b.Open(e, "")
 	b.until("the tiles, Today first, then the modules, one with its cover faded in", `(() => { const c = [...document.querySelectorAll('[data-app]')].map((a) => a.dataset.app);
 		const notes = document.querySelector('[data-app=notes]')?.closest('[data-app-tile]');
 		return c[0] === 'cockpit' && c.includes('notes') && c.includes('plain') && notes.dataset.cover === 'true' && notes.querySelector('[data-cover-img][data-shown]') })()`)
@@ -102,7 +103,7 @@ func TestRealBrowserCards(t *testing.T) {
 	b.until("the master is told in the chat", `document.querySelector('[data-chat-panel]')?.innerText.includes('a paper boat')`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	dark := e.upload("plain", "dark.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
-	e.must("deck.project_cover", map[string]any{"project": "plain", "file": strconv.FormatInt(dark, 10), "scheme": "dark"}, nil)
+	e.Must("deck.project_cover", map[string]any{"project": "plain", "file": strconv.FormatInt(dark, 10), "scheme": "dark"}, nil)
 	b.until("the cover of the module in its settings", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.startsWith('Covers') && x.querySelector('img'))`)
 	b.eval(`(document.querySelector('[data-apps-home]').click(), '')`)
 	b.until("the way home", `document.querySelector('[data-apps]')`)

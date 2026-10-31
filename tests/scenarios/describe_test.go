@@ -10,9 +10,9 @@ import (
 // command closed to it, and a call that misses a field says which one in plain words.
 func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	_, tok := e.token("helper", "deck.command_describe", "deck.connection_set")
-	code, out := e.callWith(tok, "deck.command_describe", map[string]any{"command": "deck.connection_set"})
+	code, out := e.As(tok).Call("deck.command_describe", map[string]any{"command": "deck.connection_set"})
 	var spec struct {
 		Name    string
 		Callers []string
@@ -28,12 +28,12 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 		strings.Join(spec.Input.Properties["api"].Enum, ",") != "openai,google,anthropic,raw" {
 		t.Fatalf("the master sees the fields of the connection form and the APIs to pick: %s", out)
 	}
-	if code, out := e.callWith(tok, "deck.connection_set", map[string]any{"name": "x", "api": "openai", "url": "https://x.example/v1"}); code != 403 {
+	if code, out := e.As(tok).Call("deck.connection_set", map[string]any{"name": "x", "api": "openai", "url": "https://x.example/v1"}); code != 403 {
 		t.Fatalf("describing a command does not open it: %d %s", code, out)
 	}
-	e.refused("deck.model_set", map[string]any{"connection": "x"}, 422,
+	e.Refused("deck.model_set", map[string]any{"connection": "x"}, 422,
 		"input of deck.model_set: missing property 'model'; deck.command_describe gives its parameters")
-	e.refused("deck.model_set", map[string]any{"connection": "x", "model": "m", "agent": "foo"}, 422,
+	e.Refused("deck.model_set", map[string]any{"connection": "x", "model": "m", "agent": "foo"}, 422,
 		"agent: value must be 'goose'")
 }
 
@@ -41,12 +41,12 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 // screen can show them.
 func TestReadsGiveTheirResultSchema(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	for _, name := range []string{"records_list", "record_get", "manifest_get", "chat"} {
 		var d struct {
 			Result json.RawMessage `json:"result"`
 		}
-		e.must("deck.command_describe", map[string]any{"command": "deck." + name}, &d)
+		e.Must("deck.command_describe", map[string]any{"command": "deck." + name}, &d)
 		if len(d.Result) == 0 || string(d.Result) == "{}" {
 			t.Errorf("%s gives the schema of its result: %s", name, d.Result)
 		}

@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"os"
 	"path/filepath"
@@ -95,9 +96,11 @@ func flag(args []string, name string) (string, bool) {
 	return "", false
 }
 
-func cliEnv(t *testing.T, c *fakeCLI) (*Env, string) {
-	home := t.TempDir()
-	return newEnvWith(t, home, c.adapter(home)), home
+// WithCLI runs deck on the fake Claude Code CLI.
+func WithCLI(c *fakeCLI) Option {
+	return func(s *setup) {
+		s.providers = append(s.providers, func(home string) provider.Provider { return c.adapter(home) })
+	}
 }
 
 func (e *Env) session(id int64) string {
@@ -105,19 +108,8 @@ func (e *Env) session(id int64) string {
 	var p struct {
 		SessionID string `json:"session_id"`
 	}
-	e.must("deck.process_get", map[string]any{"process": id}, &p)
+	e.Must("deck.process_get", map[string]any{"process": id}, &p)
 	return p.SessionID
-}
-
-func waitCalls(t *testing.T, c *fakeCLI, n int) {
-	t.Helper()
-	deadline := time.Now().Add(within(5 * time.Second))
-	for c.calls() < n {
-		if time.Now().After(deadline) {
-			t.Fatalf("the CLI was started %d times, want %d", c.calls(), n)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
 }
 
 // models sets what the fake CLI lists as its models, from a recorded answer to initialize.

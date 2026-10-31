@@ -60,20 +60,20 @@ type screenTable struct {
 // the file of deck and the change of a document —, says what is not listed, and its page undoes each.
 func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("finds", leftManifest)
+	e := New(t)
+	e.Project("finds", leftManifest)
 	e.saveScript("finds", "scripts/collect.py", leftScript)
-	e.must("deck.document_save", map[string]any{"project": "finds", "name": "notes.md", "kind": "doc", "text": "the owner wrote this"}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "finds", "name": "notes.md", "kind": "doc", "text": "the owner wrote this"}, nil)
 	var tried struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"live": true, "command": "finds.collect"}, &tried)
-	if p := e.waitScript(tried.Process, "done", "error"); p.State != "done" {
+	e.Must("deck.command_try", map[string]any{"live": true, "command": "finds.collect"}, &tried)
+	if p := e.WaitState(tried.Process, "done", "error"); p.State != "done" {
 		t.Fatalf("the trial runs: %+v", p)
 	}
 	var got struct {
 		Left     []leftRow
 		LeftNote string `json:"left_note"`
 	}
-	e.must("deck.process_get", map[string]any{"process": tried.Process}, &got)
+	e.Must("deck.process_get", map[string]any{"process": tried.Process}, &got)
 	kinds := map[string]leftRow{}
 	for _, l := range got.Left {
 		kinds[l.Kind] = l
@@ -107,9 +107,9 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 		}
 	}
 	var doc struct{ Text string }
-	e.must("deck.document_get", map[string]any{"project": "finds", "name": "notes.md"}, &doc)
+	e.Must("deck.document_get", map[string]any{"project": "finds", "name": "notes.md"}, &doc)
 	var recs []map[string]any
-	e.must("deck.records_list", map[string]any{"project": "finds", "collection": "items"}, &recs)
+	e.Must("deck.records_list", map[string]any{"project": "finds", "collection": "items"}, &recs)
 	if doc.Text != "the owner wrote this" || len(recs) != 0 {
 		t.Fatalf("the buttons undo the change and delete the record: %q %v", doc.Text, recs)
 	}
@@ -117,8 +117,8 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 		t.Fatalf("a trial that left nothing has no table of it: %+v", left.Rows)
 	}
 	var plain struct{ Left []leftRow }
-	run := e.waitScript(e.start("finds", "collect", nil), "done").ID
-	e.must("deck.process_get", map[string]any{"process": run}, &plain)
+	run := e.WaitState(e.Start("finds", "collect", nil), "done").ID
+	e.Must("deck.process_get", map[string]any{"process": run}, &plain)
 	if plain.Left != nil {
 		t.Fatalf("only a trial lists in process_get what it left: %+v", plain.Left)
 	}

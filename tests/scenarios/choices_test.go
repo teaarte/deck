@@ -29,12 +29,12 @@ var choicesManifest = strings.NewReplacer(
 // block names, a project field the projects; deck's forms pick providers and agent commands.
 func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	check := newCatalogCheck(t)
-	e.createProject("web", choicesManifest)
-	e.createProject("tools", scriptManifest("take", "", ""))
+	e.Project("web", choicesManifest)
+	e.Project("tools", scriptManifest("take", "", ""))
 	var recs struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "beta"}, map[string]any{"title": "alpha"})}, &recs)
 
 	check.messages(t, e.screenMessages("web", "main", nil))
@@ -65,12 +65,12 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 	if strings.Join(cmds, " ") != "web.hand web.ingest web.mark web.publish web.score web.tag web.tell web.touch" {
 		t.Fatalf("every agent command of the project has its model picker: %v", cmds)
 	}
-	e.must("deck.secret_set", map[string]any{"name": "or-key", "value": "x"}, nil)
+	e.Must("deck.secret_set", map[string]any{"name": "or-key", "value": "x"}, nil)
 	add := blockData[struct{ Choices map[string][]choiceV }](t, e.screenForm("", "settings", "deck.connection_set")["value"])
 	if k := add.Choices["key_secret"]; len(k) != 1 || k[0].Value != "or-key" {
 		t.Fatalf("the key of a connection is picked from the secrets: %+v", add.Choices)
 	}
-	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1", "key_secret": "or-key"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1", "key_secret": "or-key"}, nil)
 	if a := e.button("", "settings", map[string]any{"dialog": "connections"}, "", map[string]any{"dialog": "connections", "name": "router"}); a["params"].(map[string]any)["key_secret"] != "or-key" {
 		t.Fatalf("the edit of a connection starts from the secret of its key: %+v", a)
 	}
@@ -88,7 +88,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		if !strings.Contains(choicesManifest, tc.from) {
 			t.Fatalf("fixture lacks %s", tc.from)
 		}
-		code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(choicesManifest, tc.from, tc.to, 1)})
+		code, out := e.Call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(choicesManifest, tc.from, tc.to, 1)})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
@@ -99,10 +99,10 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 // command; the result can be kept as records; on a record page the form edits the record with its schema.
 func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webNotesAgent())
+	e := New(t, WithAgent(webNotesAgent()))
 	check := newCatalogCheck(t)
-	e.createProject("web", webNotes)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	e.Project("web", webNotes)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	check.messages(t, e.screenMessages("web", "main", nil))
 
 	f := blockData[formV](t, e.screenData("web", "main", nil)["b1"]["value"])
@@ -119,14 +119,14 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	}
 
 	var started struct{ Process int64 }
-	e.must("web.score", map[string]any{"title": "alpha", "n": 2}, &started)
-	p := e.waitState(started.Process, "done")
+	e.Must("web.score", map[string]any{"title": "alpha", "n": 2}, &started)
+	p := e.WaitState(started.Process, "done")
 	var rows []map[string]any
 	_ = json.Unmarshal(p.Result, &rows)
 	if len(rows) != 2 || rows[1]["score"] != float64(5) {
 		t.Fatalf("the form shows the result of the process: %s", p.Result)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": `{"title": "alpha", "score": 3, "source": "form"}` + "\n" + `{"title": "beta", "score": 5, "source": "import"}`}, nil)
 
 	table := e.screenData("web", "main", nil)["b3"]
@@ -156,7 +156,7 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	if code, out := e.press(merge(edit.Send, map[string]any{"params": merge(edit.Send["params"].(map[string]any), map[string]any{"data": `{"title": "alpha", "score": 9, "source": "form"}`})})); code != 200 {
 		t.Fatalf("the edit goes by the button of the form: %d %s", code, out)
 	}
-	e.refused("deck.record_update", map[string]any{"record": rec, "data": `{"title": "alpha", "score": 9, "source": "other"}`}, 422, "source")
+	e.Refused("deck.record_update", map[string]any{"record": rec, "data": `{"title": "alpha", "score": 9, "source": "other"}`}, 422, "source")
 
 	share := blockData[formV](t, e.screenData("", "share", nil)["b0"]["value"])
 	names := []string{}

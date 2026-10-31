@@ -34,7 +34,7 @@ func (e *Env) screenMessages(project, screen string, extra map[string]any) []map
 		in[k] = v
 	}
 	var msgs []map[string]json.RawMessage
-	e.must("deck.screen", in, &msgs)
+	e.Must("deck.screen", in, &msgs)
 	return msgs
 }
 
@@ -253,7 +253,7 @@ func (e *Env) press(a map[string]any) (int, []byte) {
 	if params == nil {
 		params = map[string]any{}
 	}
-	return e.call(a["command"].(string), params)
+	return e.Call(a["command"].(string), params)
 }
 
 // catalogCheck validates resolved components and block data against schemas/catalog.json.

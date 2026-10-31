@@ -12,17 +12,17 @@ func TestRealBrowserDekiAndMotion(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
-	e.createProject("shorts", plainManifest)
-	e.createProject("picker", scriptManifest("main", "", `, "screens": [{"name": "main", "title": "Picker", "blocks": [
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.Project("shorts", plainManifest)
+	e.Project("picker", scriptManifest("main", "", `, "screens": [{"name": "main", "title": "Picker", "blocks": [
     {"type": "actions", "title": "Run", "actions": [{"label": "Run", "command": "main", "params": {"method": "deck.models_list", "form": "{}"}}]}]}], "menu": ["main"]`))
 	e.saveScript("picker", "scripts/main.py", deckCallScript)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/")
+	b.Open(e, "#/")
 	deki := `document.querySelector('[data-card-deki] [data-pose]:not([data-leaving])')`
 	b.until("Deki greeting on the first open of the device", deki+`?.dataset.pose === 'hello'`)
 	b.until("Deki at rest after the greeting", `['chill', 'sleepy'].includes(`+deki+`?.dataset.pose)`)

@@ -10,7 +10,7 @@ import (
 // filled in later by hand.
 func TestNewLeavesNoServiceHalfBuilt(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	app := reflect.ValueOf(e.App).Elem()
 	var missing []string
 	for i := range app.NumField() {

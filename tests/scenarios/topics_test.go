@@ -33,5 +33,5 @@ func TestTheTopicsOfReadsAreTheOnesDeckPublishes(t *testing.T) {
 			t.Fatalf("a read of a topic deck does not publish keeps deck from starting: %v", p)
 		}
 	}()
-	newEnv(t, nil, func(c *app.Config) { c.Commands = append(c.Commands, typo) })
+	New(t, WithConfig(func(c *app.Config) { c.Commands = append(c.Commands, typo) }))
 }

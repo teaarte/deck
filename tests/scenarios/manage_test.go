@@ -23,10 +23,11 @@ import (
 // count and on top of the Schedule, each with its way to run it again; closed once, it is red nowhere.
 func TestTodayHealthAndTheScheduleSayOneThing(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the model is down"}
-	})
-	e.createProject("digest", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	}))
+
+	e.Project("digest", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
 	var ts []struct {
 		ID           int64
 		Title        string
@@ -39,15 +40,15 @@ func TestTodayHealthAndTheScheduleSayOneThing(t *testing.T) {
 	}
 	read := func() {
 		ts = nil
-		e.must("deck.triggers_list", map[string]any{"project": "digest", "lang": "ru"}, &ts)
+		e.Must("deck.triggers_list", map[string]any{"project": "digest", "lang": "ru"}, &ts)
 	}
 	read()
 	if len(ts) != 1 || ts[0].Title != "work" || ts[0].ProjectTitle != "digest" || ts[0].NextAt == "" || ts[0].LastAt != "" {
 		t.Fatalf("the schedule says what runs, of which module, and when next: %+v", ts)
 	}
-	e.must("deck.trigger_run", map[string]any{"trigger": ts[0].ID}, nil)
+	e.Must("deck.trigger_run", map[string]any{"trigger": ts[0].ID}, nil)
 	read()
-	e.waitState(ts[0].LastProcess, "error")
+	e.WaitState(ts[0].LastProcess, "error")
 	read()
 	if ts[0].Failure == "" || ts[0].LastTone != "error" || ts[0].LastAt == "" {
 		t.Fatalf("a failed last run is a failure of the schedule with when it ran: %+v", ts)
@@ -83,7 +84,7 @@ func TestTodayHealthAndTheScheduleSayOneThing(t *testing.T) {
 	if i < 0 || got[i].Command != "deck.process_dismiss" {
 		t.Fatalf("got it closes the failure: %+v", got)
 	}
-	e.must("deck.process_dismiss", map[string]any{"process": ts[0].LastProcess}, nil)
+	e.Must("deck.process_dismiss", map[string]any{"process": ts[0].LastProcess}, nil)
 	read()
 	if h := e.today(""); h.Failed != 0 || ts[0].Failure != "" || ts[0].LastTone == "error" {
 		t.Fatalf("a closed failure is red nowhere: %+v %+v", h, ts)
@@ -101,13 +102,13 @@ func hasLabel(acts []map[string]any, label string) bool {
 // shows those, as the chat does.
 func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	_, tok := e.token("asker", "deck.model_set")
-	if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "none", "model": "x"}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
+	if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": "x"}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 		t.Fatalf("a token's call waits for the owner: %d %s", code, out)
 	}
 	var asks []struct{ Actions []map[string]any }
-	e.must("deck.asks_list", map[string]any{"lang": "ru"}, &asks)
+	e.Must("deck.asks_list", map[string]any{"lang": "ru"}, &asks)
 	if len(asks) != 1 || len(asks[0].Actions) < 3 {
 		t.Fatalf("a decision carries its buttons: %+v", asks)
 	}
@@ -125,7 +126,7 @@ func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 	own := `{"version": 13, "collections": [{"name": "notes", "description": "Notes.", "key": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}],
   "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "list", "source": {"collection": "notes"}, "item": {"title": "title", "actions": "actions"}}]}]}`
-	if code, out := e.call("deck.manifest_check", map[string]any{"manifest": own}); code != 200 || !strings.Contains(string(out), "only on deck's own screens") {
+	if code, out := e.Call("deck.manifest_check", map[string]any{"manifest": own}); code != 200 || !strings.Contains(string(out), "only on deck's own screens") {
 		t.Fatalf("a module names its buttons itself: %d %s", code, out)
 	}
 }
@@ -134,8 +135,8 @@ func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 // and data folder, by steps of its own; the master is a folder with what it holds, and a search finds a file by name.
 func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	p := e.createProject("inbox", filesManifest())
+	e := New(t)
+	p := e.Project("inbox", filesManifest())
 	e.upload("inbox", "invoice-october.pdf", "application/pdf", "%PDF-1.4")
 	e.upload("inbox", "notes.txt", "text/plain", "hello")
 	data := e.App.Home.Data(p)
@@ -197,7 +198,7 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 		t.Fatalf("the search finds a file by the words of its name: %+v", hits)
 	}
 	var all []struct{ Name string }
-	e.must("deck.files_list", map[string]any{"search": "INVOICE pdf"}, &all)
+	e.Must("deck.files_list", map[string]any{"search": "INVOICE pdf"}, &all)
 	if len(all) != 1 || all[0].Name != "invoice-october.pdf" {
 		t.Fatalf("files_list looks for the words through every file: %+v", all)
 	}
@@ -210,10 +211,10 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 // nothing; a button that only opens the chat is refused, as the button of Deki opens it.
 func TestAManifestIsCheckedWithoutASave(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
+	e := New(t)
+	e.Project("web", webNotes)
 	var before struct{ Revision int64 }
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &before)
+	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &before)
 	chat := strings.Replace(webNotes, `"screens": [`, `"screens": [{"name": "inbox", "title": "Inbox", "blocks": [{"type": "list", "source": {"collection": "notes"},
     "item": {"title": "title"}, "actions": [{"label": "New note", "chat": true}]}]},`, 1)
 	var c struct {
@@ -222,42 +223,42 @@ func TestAManifestIsCheckedWithoutASave(t *testing.T) {
 		Widens   []string
 		Warnings []string
 	}
-	e.must("deck.manifest_check", map[string]any{"project": "web", "manifest": chat}, &c)
+	e.Must("deck.manifest_check", map[string]any{"project": "web", "manifest": chat}, &c)
 	if c.Ok || !slices.ContainsFunc(c.Refused, func(r string) bool { return strings.Contains(r, "button of Deki") }) {
 		t.Fatalf("a chat button is refused by the check: %+v", c)
 	}
 	wider := strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "domains": {"read": ["example.com"]},`, 1)
-	e.must("deck.manifest_check", map[string]any{"project": "web", "manifest": wider}, &c)
+	e.Must("deck.manifest_check", map[string]any{"project": "web", "manifest": wider}, &c)
 	if !c.Ok || len(c.Widens) == 0 {
 		t.Fatalf("the check says what a manifest widens: %+v", c)
 	}
-	e.must("deck.manifest_check", map[string]any{"manifest": `{"version": 13, "commands": [{"name": "x"}]}`}, &c)
+	e.Must("deck.manifest_check", map[string]any{"manifest": `{"version": 13, "commands": [{"name": "x"}]}`}, &c)
 	if c.Ok || len(c.Refused) == 0 {
 		t.Fatalf("a manifest alone is checked too: %+v", c)
 	}
 	var after struct{ Revision int64 }
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &after)
+	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &after)
 	if after.Revision != before.Revision {
 		t.Fatalf("a check saves nothing: %d → %d", before.Revision, after.Revision)
 	}
-	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": chat}, 422, "button of Deki")
+	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": chat}, 422, "button of Deki")
 }
 
 // TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme: a module in Settings and in Files shows the cover its card
 // wears in the theme in use, with buttons to draw another and to take it off.
 func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("notes", filesManifest())
+	e := New(t)
+	e.Project("notes", filesManifest())
 	img := image.NewRGBA(image.Rect(0, 0, 800, 450))
 	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
 	var b bytes.Buffer
 	_ = png.Encode(&b, img)
-	e.must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(e.upload("notes", "blue.png", "image/png", b.String()))}, nil)
+	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(e.upload("notes", "blue.png", "image/png", b.String()))}, nil)
 	var m struct {
 		Projects []struct{ Project, Cover string }
 	}
-	e.must("deck.menu", nil, &m)
+	e.Must("deck.menu", nil, &m)
 	type card struct {
 		Title, Text, Meta string
 		Cover             map[string]string
@@ -282,13 +283,13 @@ func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 	}
 	foreign := strings.Replace(filesManifest(), `"commands": [`, `"screens": [{"name": "wall", "title": "Wall", "blocks": [{"type": "list", "source": {"collection": "items"},
     "item": {"title": "name", "cover": "{'light': 'https://example.com/x.png'}"}}]}], "commands": [`, 1)
-	e.createProject("wall", foreign)
-	e.must("deck.records_upsert", map[string]any{"project": "wall", "collection": "items", "records": jsonl(map[string]any{"name": "a"})}, nil)
+	e.Project("wall", foreign)
+	e.Must("deck.records_upsert", map[string]any{"project": "wall", "collection": "items", "records": jsonl(map[string]any{"name": "a"})}, nil)
 	if wall := e.screenData("wall", "wall", nil)["b0"]; strings.Contains(string(wall["items"]), "example.com") {
 		t.Fatalf("a screen of a module names no address of a cover: %s", wall["items"])
 	}
 	off := cards[i].Actions[slices.IndexFunc(cards[i].Actions, func(a map[string]any) bool { return a["label"] == "Take off the cover" })]
-	e.must(fmt.Sprint(off["command"]), off["params"], nil)
+	e.Must(fmt.Sprint(off["command"]), off["params"], nil)
 	cards = nil
 	_ = json.Unmarshal(e.settingsBlock("Modules", nil)["items"], &cards)
 	if i := slices.IndexFunc(cards, func(c card) bool { return c.Title == "notes" }); cards[i].Cover != nil {

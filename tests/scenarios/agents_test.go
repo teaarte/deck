@@ -21,17 +21,18 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(f.dir, "version"), []byte(" 1.53.0"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	e := newEnv(t, nil, func(c *app.Config) {
+	e := New(t, WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
-	})
+	}))
+
 	e.App.Providers.Checks(t.Context(), time.Now())
-	if h := e.waitHealth("agent:goose", "ok"); h.Version != "goose 1.53.0" {
+	if h := e.WaitHealth("agent:goose", "ok"); h.Version != "goose 1.53.0" {
 		t.Fatalf("an agent is found with its version: %+v", h)
 	}
 	found := func(e *Env) string {
 		var m modelsOut
-		e.must("deck.models_list", nil, &m)
+		e.Must("deck.models_list", nil, &m)
 		for _, a := range m.Agents {
 			if a.Name == "goose" {
 				return a.Version + "|" + a.Status
@@ -42,7 +43,7 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	if got := found(e); got != "goose 1.53.0|ok" {
 		t.Fatalf("the models list shows the agent with its version: %s", got)
 	}
-	gone := newEnv(t, nil, func(c *app.Config) { c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "no-goose")} })
+	gone := New(t, WithConfig(func(c *app.Config) { c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "no-goose")} }))
 	gone.App.Providers.Checks(t.Context(), time.Now())
 	if _, err := health.Get(t.Context(), gone.App.Store.Q, health.Of{}, "agent:goose"); err == nil {
 		t.Fatal("an agent that is not installed has no health row")
@@ -64,23 +65,24 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatal(err)
 	}
 	llm := acpLLM(t)
-	e := newEnv(t, nil, func(c *app.Config) {
+	e := New(t, WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
-	})
+	}))
+
 	e.App.Providers.Checks(t.Context(), time.Now())
-	e.waitHealth("agent:goose", "error")
-	e.must("deck.secret_set", map[string]any{"name": "wiki", "value": "w"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic", "kind": "image", "call_usd": 0.04}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "acp", "agent": "goose"}, nil)
-	e.waitHealth("provider:acp", "error")
-	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"router/x/pic"}}, nil)
+	e.WaitHealth("agent:goose", "error")
+	e.Must("deck.secret_set", map[string]any{"name": "wiki", "value": "w"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic", "kind": "image", "call_usd": 0.04}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "acp", "agent": "goose"}, nil)
+	e.WaitHealth("provider:acp", "error")
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"router/x/pic"}}, nil)
 	var kept struct {
 		Kind    string
 		CallUSD float64 `json:"call_usd"`
 	}
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic"}, &kept)
+	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic"}, &kept)
 	if kept.Kind != "image" || kept.CallUSD != 0.04 {
 		t.Fatalf("a model changed without its kind and price keeps them: %+v", kept)
 	}
@@ -131,12 +133,13 @@ func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	e := newEnv(t, nil, func(c *app.Config) {
+	e := New(t, WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
-	})
+	}))
+
 	e.App.Providers.Checks(t.Context(), time.Now())
-	if h := e.waitHealth("agent:goose", "error"); h.Version != "" || !strings.Contains(h.Error, "--version") {
+	if h := e.WaitHealth("agent:goose", "error"); h.Version != "" || !strings.Contains(h.Error, "--version") {
 		t.Fatalf("a failing --version is the error it is: %+v", h)
 	}
 }
@@ -145,17 +148,17 @@ func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 // assigned to it anyway refuses with the agents to set it in.
 func TestAModelInNoAgentRunsNoCommand(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/free", "name": "free", "kind": "text"}, nil)
-	e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
-	if code, out := e.call("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"free"}}); code != 422 || !strings.Contains(string(out), "goose") {
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "x/free", "name": "free", "kind": "text"}, nil)
+	e.Project("plain", testManifest([]string{agentCommand("work", "")}, nil))
+	if code, out := e.Call("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"free"}}); code != 422 || !strings.Contains(string(out), "goose") {
 		t.Fatalf("a model in no agent is not assigned: %d %s", code, out)
 	}
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'work', 'agent', '["free"]' FROM project WHERE name = 'plain'`); err != nil {
 		t.Fatal(err)
 	}
-	if code, out := e.call("plain.work", map[string]any{}); code == 200 || !strings.Contains(string(out), "goose") {
+	if code, out := e.Call("plain.work", map[string]any{}); code == 200 || !strings.Contains(string(out), "goose") {
 		t.Fatalf("a command on it refuses with the reason: %d %s", code, out)
 	}
 }
@@ -166,16 +169,17 @@ func TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls(t *testing.T) {
 	t.Parallel()
 	f := newACP(t)
 	llm := acpLLM(t)
-	e := newEnv(t, nil, func(c *app.Config) {
+	e := New(t, WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
-	})
-	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "qwen", "kind": "text"}, nil)
+	}))
+
+	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "qwen", "kind": "text"}, nil)
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO health (subject, workspace_id, status, error) VALUES ('model:qwen', 1, 'error', 'did not answer')`); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "qwen", "agent": "goose"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "qwen", "agent": "goose"}, nil)
 	var n int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'model:qwen'`).Scan(&n)
 	if n != 0 {

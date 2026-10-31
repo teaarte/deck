@@ -19,19 +19,19 @@ func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	for _, m := range []string{"qwen", "gemma"} {
-		e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
+		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
 	}
-	e.createProject("shorts", plainManifest)
-	e.createProject("picker", pickerManifest)
+	e.Project("shorts", plainManifest)
+	e.Project("picker", pickerManifest)
 	e.saveScript("picker", "scripts/apply.py", slowApplyScript)
 	var rows []map[string]any
 	for i := range 10 {
 		rows = append(rows, map[string]any{"name": fmt.Sprint("p", i), "project": "shorts", "models": []string{"openrouter/qwen", "openrouter/gemma"}[i%2]})
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals", "records": jsonl(rows...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals", "records": jsonl(rows...)}, nil)
 
 	b := newPlaywright(t)
 	applies := `[...document.querySelectorAll('[data-block] button')].filter((x) => x.innerText.trim() === 'Apply')`
@@ -45,7 +45,7 @@ func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 		width, height int
 	}{{"desktop", 1400, 900}, {"phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
-		b.open(e.URL + "/?token=" + token + "#/p/picker/main")
+		b.Open(e, "#/p/picker/main")
 		b.until("ten Apply buttons", applies+`.length === 10`)
 		// A busy button hides its label, so the busy ones are counted as they go, from the press on.
 		b.eval(`(() => { window.most = 0; const t0 = performance.now(); (function watch() {
@@ -57,7 +57,7 @@ func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 			`[...document.querySelectorAll('.mantine-Notification-root')].some((x) => x.innerText.includes('already running'))`)
 		b.shot("ten-presses-" + size.name)
 		want := 10 * (i + 1)
-		e.waitFor("a run of every press", func() bool { return runs() == want })
+		e.Until("a run of every press", func() bool { return runs() == want })
 		b.until("every press told how it went, nothing to answer over the screen", applies+`.length === 10 && `+applies+`.every((x) => x.dataset.loading === undefined) && !document.querySelector('[data-press-ask]')`)
 		b.until("the ends of the runs told in one note", `[...document.querySelectorAll('.mantine-Notification-root')].some((x) => x.innerText.includes('Apply: done ×'))`)
 		b.shot("ten-presses-done-" + size.name)
@@ -78,14 +78,14 @@ func TestRealBrowserFallbacksOpenAtOnce(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	for _, m := range []string{"qwen", "gemma"} {
-		e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
+		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
 	}
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/settings?tab=Models")
+	b.Open(e, "#/deck/settings?tab=Models")
 	b.until("the fallbacks of a work", `document.querySelector('[data-verb="fallbacks"]')`)
 	b.eval(`(() => { window.reads = 0; const f = window.fetch;
 		window.fetch = (u, o) => { if (String(u).includes('deck.screen') && !String(o?.body ?? '').includes('"block"')) window.reads++; return f(u, o) }; return '' })()`)
@@ -111,15 +111,15 @@ func TestRealBrowserANewAskComesToTodayLive(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
-	e.createProject("shorts", plainManifest)
-	e.createProject("picker", scriptManifest("main", "", ""))
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.Project("shorts", plainManifest)
+	e.Project("picker", scriptManifest("main", "", ""))
 	e.saveScript("picker", "scripts/main.py", deckCallScript)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/")
+	b.Open(e, "#/")
 	b.until("the card of Today, calm", `document.body.innerText.includes('All is well')`)
 	b.eval(`(window.seen = 0, (function wait() { if (document.body.innerText.includes('One decision waits')) window.seen = performance.now(); else requestAnimationFrame(wait) })(), '')`)
 	e.scriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})

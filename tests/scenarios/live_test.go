@@ -35,10 +35,10 @@ func TestOwnerMessageReachesTheLiveTurn(t *testing.T) {
 		started <- struct{}{}
 		return provider.Result{Text: "heard: " + heard(ctx, c)}
 	}}
-	e := newEnvWith(t, t.TempDir(), fake)
+	e := New(t, WithProvider(fake))
 	topic := e.say(0, "start a long job")
 	<-started
-	e.waitFor("the live turn", func() bool {
+	e.Until("the live turn", func() bool {
 		ms := e.chatMessages(topic)
 		return ms[0].Reply != nil && ms[0].Reply.State == "running"
 	})
@@ -52,16 +52,16 @@ func TestOwnerMessageReachesTheLiveTurn(t *testing.T) {
 		t.Fatalf("both messages belong to the one reply: %+v", ms)
 	}
 
-	p := e.createProject("job", tellManifest)
-	id := e.run(p, "work")
+	p := e.Project("job", tellManifest)
+	id := e.Run(p, "work")
 	<-started
-	e.waitState(id, "running")
+	e.WaitState(id, "running")
 	var out struct{ Delivered string }
-	e.must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, &out)
-	if got := e.waitState(id, "done"); out.Delivered != "now" || !strings.Contains(string(got.Result), "use the blue folder") {
+	e.Must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, &out)
+	if got := e.WaitState(id, "done"); out.Delivered != "now" || !strings.Contains(string(got.Result), "use the blue folder") {
 		t.Fatalf("process_tell reaches a live turn of any agent: %s %+v", out.Delivered, got)
 	}
-	if code, _ := e.call("deck.process_tell", map[string]any{"process": id, "text": "late"}); code != 422 {
+	if code, _ := e.Call("deck.process_tell", map[string]any{"process": id, "text": "late"}); code != 422 {
 		t.Fatal("a finished process takes a remark, not a message")
 	}
 }
@@ -69,7 +69,7 @@ func TestOwnerMessageReachesTheLiveTurn(t *testing.T) {
 func TestMessageWaitsForAProviderWithoutLiveInput(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
 			select {
 			case <-release:
@@ -78,24 +78,25 @@ func TestMessageWaitsForAProviderWithoutLiveInput(t *testing.T) {
 			return provider.Result{Text: "first done"}
 		}
 		return provider.Result{Text: "then: " + lastLine(strings.Split(c.Req.Prompt, "Continue the task.")[0])}
-	})
-	p := e.createProject("job", tellManifest)
-	id := e.run(p, "work")
-	e.waitFor("the turn", func() bool { return len(e.Fake.Calls()) == 1 })
+	}))
+
+	p := e.Project("job", tellManifest)
+	id := e.Run(p, "work")
+	e.Until("the turn", func() bool { return len(e.Fake.Calls()) == 1 })
 	var out struct{ Delivered string }
-	e.must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, &out)
+	e.Must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, &out)
 	if out.Delivered != "after the turn" {
 		t.Fatalf("a provider without live input gets the message after its turn: %+v", out)
 	}
 	close(release)
-	got := e.waitState(id, "done")
+	got := e.WaitState(id, "done")
 	calls := e.Fake.Calls()
 	if len(calls) != 2 || !calls[1].Resume || !strings.Contains(calls[1].Prompt, "The owner wrote while you worked:\nuse the blue folder") ||
 		!strings.Contains(string(got.Result), "use the blue folder") {
 		t.Fatalf("the turn ends, the same session goes on with the message: %d calls %+v", len(calls), got)
 	}
-	var asks []askView
-	e.must("deck.asks_list", nil, &asks)
+	var asks []Ask
+	e.Must("deck.asks_list", nil, &asks)
 	if len(asks) != 0 {
 		t.Fatalf("a message of the owner is not something that waits for the owner: %+v", asks)
 	}
@@ -104,26 +105,27 @@ func TestMessageWaitsForAProviderWithoutLiveInput(t *testing.T) {
 func TestTerminalCommandOfAProcess(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		<-release
 		return provider.Result{Text: "ok"}
-	})
-	p := e.createProject("job", tellManifest)
-	id := e.run(p, "work")
-	e.waitFor("the turn", func() bool { return len(e.Fake.Calls()) == 1 })
+	}))
+
+	p := e.Project("job", tellManifest)
+	id := e.Run(p, "work")
+	e.Until("the turn", func() bool { return len(e.Fake.Calls()) == 1 })
 	var v struct {
 		Terminal string `json:"terminal"`
 	}
-	e.must("deck.process_get", map[string]any{"process": id}, &v)
+	e.Must("deck.process_get", map[string]any{"process": id}, &v)
 	session := e.Fake.Calls()[0].SessionID
 	work := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(id), "work")
 	if v.Terminal != "cd '"+work+"' && fake --resume "+session {
 		t.Fatalf("the folder of the turn and the command that goes on with its session: %q", v.Terminal)
 	}
 	close(release)
-	e.waitState(id, "done")
+	e.WaitState(id, "done")
 	_ = os.RemoveAll(work)
-	e.must("deck.process_get", map[string]any{"process": id}, &v)
+	e.Must("deck.process_get", map[string]any{"process": id}, &v)
 	if v.Terminal != "fake --resume "+session {
 		t.Fatalf("without the folder only the command: %q", v.Terminal)
 	}
@@ -137,18 +139,18 @@ func TestClaudeCodeTakesTheOwnersMessageIntoItsTurn(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(c.dir, "before"), []byte(before), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	e, _ := cliEnv(t, c)
-	p := e.createProject("plain", plainManifest)
-	id := e.run(p, "work")
-	waitCalls(t, c, 1)
-	e.waitFor("the CLI to report its session", func() bool {
+	e := New(t, WithCLI(c))
+	p := e.Project("plain", plainManifest)
+	id := e.Run(p, "work")
+	Until(t, "the CLI to start", func() bool { return c.calls() >= 1 })
+	e.Until("the CLI to report its session", func() bool {
 		return c.files(1)("ready") != "" || fileExists(filepath.Join(c.dir, "calls", "1", "ready"))
 	})
 	// Deck reads the session line of the CLI; no read shows that.
 	time.Sleep(200 * time.Millisecond)
 	var out struct{ Delivered string }
-	e.must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, &out)
-	if got := e.waitState(id, "done", "error"); got.State != "done" || out.Delivered != "now" {
+	e.Must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, &out)
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || out.Delivered != "now" {
 		t.Fatalf("the running CLI takes the message and the turn ends with its one result: %s %+v", out.Delivered, got)
 	}
 	stdin := c.files(1)("stdin")
@@ -161,9 +163,9 @@ func TestABackgroundTaskOfClaudeCodeEndsTheTurnWithItsLastResult(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "background.jsonl")
-	e, _ := cliEnv(t, c)
-	p := e.createProject("plain", plainManifest)
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `"background said done"` {
+	e := New(t, WithCLI(c))
+	p := e.Project("plain", plainManifest)
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `"background said done"` {
 		t.Fatalf("a background task that wakes the session gives one more result, and the last one counts: %+v", got)
 	}
 }
@@ -182,9 +184,9 @@ func TestAnEmptyResultWhileBackgroundAgentsRunIsNotTheEndOfTheTurn(t *testing.T)
 		t.Fatal(err)
 	}
 	c.after(`sleep 1; sed "s/{{session}}/$session/g" "$d/rest"` + "\n")
-	e, _ := cliEnv(t, c)
-	p := e.createProject("plain", plainManifest)
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `"agents said done"` {
+	e := New(t, WithCLI(c))
+	p := e.Project("plain", plainManifest)
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `"agents said done"` {
 		t.Fatalf("the CLI outlives its linger while its background agent runs, and the later result counts: %+v", got)
 	}
 }

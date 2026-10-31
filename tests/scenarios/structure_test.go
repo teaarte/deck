@@ -18,7 +18,7 @@ import (
 
 func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	var recovered any
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		defer func() { recovered = recover() }()
@@ -32,8 +32,8 @@ func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {
 
 func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("mine", ideasManifest)
+	e := New(t)
+	e.Project("mine", ideasManifest)
 	ctx := context.Background()
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
@@ -51,10 +51,10 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	if len(projects) != 1 || projects[0].Name != "mine" {
 		t.Fatalf("projects of another workspace must not be listed: %+v", projects)
 	}
-	if code, _ := e.call("deck.manifest_get", map[string]any{"project": "theirs"}); code != 404 {
+	if code, _ := e.Call("deck.manifest_get", map[string]any{"project": "theirs"}); code != 404 {
 		t.Fatalf("a project of another workspace must look missing, got %d", code)
 	}
-	if code, _ := e.call("theirs.collect", nil); code != 404 {
+	if code, _ := e.Call("theirs.collect", nil); code != 404 {
 		t.Fatalf("commands of another workspace must look missing, got %d", code)
 	}
 	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -64,29 +64,27 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var hs []healthRow
-	e.must("deck.health_list", nil, &hs)
-	for _, h := range hs {
+	for _, h := range e.Health() {
 		if strings.Contains(h.Subject, "theirs") {
 			t.Fatalf("health of another workspace's commands must not be listed: %+v", h)
 		}
 	}
-	e.createProject("theirs", ideasManifest)
-	if code, out := e.call("deck.manifest_get", map[string]any{"project": "theirs"}); code != 200 || !strings.Contains(string(out), "collect") {
+	e.Project("theirs", ideasManifest)
+	if code, out := e.Call("deck.manifest_get", map[string]any{"project": "theirs"}); code != 200 || !strings.Contains(string(out), "collect") {
 		t.Fatalf("a name finds the project of the caller's workspace: %d %s", code, out)
 	}
 }
 
 func TestCoreDocumentNamesKeepTheirKind(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("ideas", ideasManifest)
+	e := New(t)
+	e.Project("ideas", ideasManifest)
 	for _, name := range []string{"prompt.md", "manifest.json"} {
-		if code, _ := e.call("deck.document_save", map[string]any{"project": "ideas", "name": name, "kind": "artifact", "text": "Injected"}); code != 422 {
+		if code, _ := e.Call("deck.document_save", map[string]any{"project": "ideas", "name": name, "kind": "artifact", "text": "Injected"}); code != 422 {
 			t.Errorf("%s must be reserved for its kind, got %d", name, code)
 		}
 	}
-	e.must("deck.document_save", map[string]any{"project": "ideas", "name": "prompt.md", "kind": "prompt", "text": "Real prompt"}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "ideas", "name": "prompt.md", "kind": "prompt", "text": "Real prompt"}, nil)
 }
 
 func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
@@ -95,8 +93,8 @@ func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	e := newEnvWith(t, home, &Fake{})
-	e.createProject("mine", ideasManifest)
+	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	e.Project("mine", ideasManifest)
 	if _, err := os.Stat(filepath.Join(deckhome.Layout(home).State(), "deck.db")); err != nil {
 		t.Fatalf("the database lives in the home of deck: %v", err)
 	}
@@ -105,7 +103,7 @@ func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
 // TestAWriteOutsideATransactionFailsLoudly: every write runs in Store.Tx; one through the shared queries panics.
 func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	defer func() {
 		if p := recover(); p == nil || !strings.Contains(fmt.Sprint(p), "outside a transaction") {
 			t.Fatalf("a write through Store.Q panics: %v", p)
@@ -118,9 +116,9 @@ func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
 // project of the same name in another workspace keeps its own.
 func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	ctx := context.Background()
-	mine := e.createProject("x", plainManifest)
+	mine := e.Project("x", plainManifest)
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +138,7 @@ func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.project_delete", map[string]any{"project": "x"}, nil)
+	e.Must("deck.project_delete", map[string]any{"project": "x"}, nil)
 	var n int
 	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM health WHERE subject = 'tool:x.get' AND workspace_id = 2`).Scan(&n)
 	if n != 1 {
@@ -165,8 +163,8 @@ func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
 // a manifest saved) holds no screen, and a read of another context inside a transaction does not freeze deck.
 func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("mine", ideasManifest)
+	e := New(t)
+	e.Project("mine", ideasManifest)
 	hold, held := make(chan struct{}), make(chan struct{})
 	go func() {
 		_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
@@ -179,16 +177,11 @@ func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 	defer close(hold)
 	done := make(chan int, 1)
 	go func() {
-		code, _ := e.call("deck.projects_list", nil)
+		code, _ := e.Call("deck.projects_list", nil)
 		done <- code
 	}()
-	select {
-	case code := <-done:
-		if code != 200 {
-			t.Fatalf("projects_list: %d", code)
-		}
-	case <-time.After(within(5 * time.Second)):
-		t.Fatal("a read waits for an open transaction")
+	if code := Receive(t, "a read while a transaction is open", done); code != 200 {
+		t.Fatalf("projects_list: %d", code)
 	}
 }
 
@@ -196,7 +189,7 @@ func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 // its deadline is an error with the stack in the log, not deck frozen without a line.
 func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	e.App.Store.Wait = time.Second
 	done := make(chan error, 1)
 	go func() {
@@ -204,13 +197,8 @@ func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t 
 			return e.App.Store.Tx(context.Background(), func(context.Context, *db.Queries) error { return nil })
 		})
 	}()
-	select {
-	case err := <-done:
-		if err == nil || !strings.Contains(err.Error(), "waited") {
-			t.Fatalf("a nested transaction fails with why: %v", err)
-		}
-	case <-time.After(within(10 * time.Second)):
-		t.Fatal("a transaction inside a transaction freezes deck")
+	if err := Receive(t, "a transaction inside a transaction to fail", done); err == nil || !strings.Contains(err.Error(), "waited") {
+		t.Fatalf("a nested transaction fails with why: %v", err)
 	}
 }
 
@@ -219,7 +207,7 @@ func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t 
 func TestATableWithoutATopicKeepsDeckFromStarting(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
+	e := New(t, WithHome(home), WithProvider(&Fake{}))
 	if _, err := e.App.Store.DB.Exec(`CREATE TABLE stray (id INTEGER PRIMARY KEY, project_id INTEGER)`); err != nil {
 		t.Fatal(err)
 	}
@@ -233,8 +221,8 @@ func TestATableWithoutATopicKeepsDeckFromStarting(t *testing.T) {
 // events and its files, but no command; a command takes the token in its header.
 func TestATokenInTheAddressOpensOnlyReads(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	r, err := http.Post(e.URL+"/api/commands/deck.projects_list?token="+token, "application/json", strings.NewReader("{}"))
+	e := New(t)
+	r, err := http.Post(e.URL+"/api/commands/deck.projects_list?token="+e.OwnerToken(), "application/json", strings.NewReader("{}"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +230,7 @@ func TestATokenInTheAddressOpensOnlyReads(t *testing.T) {
 	if r.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("a command with the token only in its address is refused: %d", r.StatusCode)
 	}
-	g, err := http.Get(e.URL + "/api/events?token=" + token)
+	g, err := http.Get(e.URL + "/api/events?token=" + e.OwnerToken())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,8 +16,8 @@ import (
 
 func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	e.createProject("links", fullManifest)
+	e := New(t, WithAgent(ok))
+	e.Project("links", fullManifest)
 	docs := []map[string]any{
 		{"name": "prompt.md", "kind": "prompt", "text": "# Collects links\nMore."},
 		{"name": "scripts/parse.py", "kind": "script", "text": "print('{}')\n"},
@@ -28,18 +28,18 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	}
 	for _, d := range docs {
 		d["project"] = "links"
-		e.must("deck.document_save", d, nil)
+		e.Must("deck.document_save", d, nil)
 	}
 	var up struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
-	e.must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
+	e.Must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
 	_, tok := e.token("terminal", "deck.*")
 	s, err := e.terminal(tok)
 	if err != nil {
 		t.Fatal(err)
 	}
 	modules := t.TempDir()
-	e.must("deck.folder_add", map[string]any{"project": "links", "name": "modules", "path": modules}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "links", "name": "modules", "path": modules}, nil)
 	dir := filepath.Join(modules, "links-copy")
 	exportLikeTheSkill(t, s, "links", dir)
 	var files []string
@@ -68,7 +68,7 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 		t.Fatalf("import creates a draft named after the folder and shows its rights: %+v", im)
 	}
 	var list []docView
-	e.must("deck.documents_list", map[string]any{"project": "links-copy"}, &list)
+	e.Must("deck.documents_list", map[string]any{"project": "links-copy"}, &list)
 	kinds := map[string]string{}
 	for _, d := range list {
 		kinds[d.Name] = d.Kind
@@ -84,17 +84,17 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 
 	bad := t.TempDir()
 	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(`{"version": 13, "commands": [{"name": "x"}]}`), 0o644)
-	if code, out := e.call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "manifest") {
+	if code, out := e.Call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "manifest") {
 		t.Fatalf("an invalid manifest is refused with the reason: %d %s", code, out)
 	}
 	_ = os.WriteFile(filepath.Join(bad, deckdocs.ManifestName), []byte(`{"version": 13}`), 0o644)
 	_ = os.WriteFile(filepath.Join(bad, "logo.png"), []byte{0x89, 'P', 'N', 'G', 0xff, 0xfe}, 0o644)
-	if code, out := e.call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "logo.png: not text") {
+	if code, out := e.Call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "logo.png: not text") {
 		t.Fatalf("a folder with a file deck cannot take is refused: %d %s", code, out)
 	}
 	_ = os.Remove(filepath.Join(bad, "logo.png"))
 	_ = os.WriteFile(filepath.Join(bad, "_init.py"), []byte("x"), 0o644)
-	if code, out := e.call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "_init.py") {
+	if code, out := e.Call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "_init.py") {
 		t.Fatalf("a file name deck cannot store is refused: %d %s", code, out)
 	}
 	var ps []projectV
@@ -102,14 +102,14 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	if len(ps) != 2 {
 		t.Fatalf("a refused import leaves no project behind: %+v", ps)
 	}
-	if code, _ := e.call("deck.project_import", map[string]any{"folder": "relative/path"}); code != 422 {
+	if code, _ := e.Call("deck.project_import", map[string]any{"folder": "relative/path"}); code != 422 {
 		t.Fatalf("folders are absolute paths: %d", code)
 	}
 }
 
 func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	_, tok := e.token("terminal", "deck.*")
 	s, err := e.terminal(tok)
 	if err != nil {
@@ -131,13 +131,13 @@ func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
 		t.Fatalf("a skill that grants tools does not come in: %s", out)
 	}
 	m := strings.Replace(plainManifest, `"prompt": "Do the work."}`, `"prompt": "Do the work.", "skills": ["voice"]}`, 1)
-	p := e.createProject("plain", m)
-	e.waitState(e.run(p, "work"), "done")
+	p := e.Project("plain", m)
+	e.WaitState(e.Run(p, "work"), "done")
 	if got := e.Fake.Calls()[0].Skills; len(got) != 2 || got["voice/examples/one.md"] != "An example." {
 		t.Fatalf("an imported workspace skill reaches the agents that list it: %v", got)
 	}
 	var doc struct{ Text string }
-	e.must("deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}, &doc)
+	e.Must("deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}, &doc)
 	if !strings.Contains(doc.Text, "name: module-builder") || !strings.Contains(doc.Text, "Import the owner's Claude Code skills") {
 		t.Fatalf("the built-in skill tells how to import skills: %.200s", doc.Text)
 	}
@@ -145,13 +145,13 @@ func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
 
 func TestImportTakesNoLinks(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, deckdocs.ManifestName), []byte(`{"version": 13}`), 0o644)
 	secret := filepath.Join(t.TempDir(), "secret.txt")
 	_ = os.WriteFile(secret, []byte("owner's secret"), 0o600)
 	_ = os.Symlink(secret, filepath.Join(dir, "notes.md"))
-	if code, out := e.call("deck.project_import", map[string]any{"folder": dir, "name": "linked"}); code != 422 || !strings.Contains(string(out), "notes.md: a symbolic link") {
+	if code, out := e.Call("deck.project_import", map[string]any{"folder": dir, "name": "linked"}); code != 422 || !strings.Contains(string(out), "notes.md: a symbolic link") {
 		t.Fatalf("an import does not follow links out of its folder: %d %s", code, out)
 	}
 }
@@ -180,12 +180,12 @@ func exportLikeTheSkill(t *testing.T, s *mcp.ClientSession, project, dir string)
 func TestBuiltInSkillsReachEveryWorkspace(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	first := newEnvWith(t, home, &Fake{script: ok})
+	first := New(t, WithHome(home), WithProvider(&Fake{script: ok}))
 	if _, err := first.App.Store.DB.Exec(`INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
 	}
 	_ = first.App.Close()
-	e := newEnvWith(t, home, &Fake{script: ok})
+	e := New(t, WithHome(home), WithProvider(&Fake{script: ok}))
 	var n int
 	err := e.App.Store.DB.QueryRow(`SELECT COUNT(*) FROM document WHERE workspace_id = 2 AND name = 'skills/module-builder/SKILL.md'`).Scan(&n)
 	if err != nil || n != 1 {

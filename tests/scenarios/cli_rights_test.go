@@ -17,9 +17,10 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	t.Setenv("HOME", user)
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	e, home := cliEnv(t, c)
-	p := e.createProject("notes", postManifest("http://127.0.0.1:1", ""))
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
+	e := New(t, WithCLI(c))
+	home := e.Home
+	p := e.Project("notes", postManifest("http://127.0.0.1:1", ""))
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
 	call := c.call(1)

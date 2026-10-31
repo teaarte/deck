@@ -16,16 +16,16 @@ func TestRealBrowserClientKeepsWhatItShows(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	svc := newService(t, nil)
-	e := newEnv(t, nil)
-	e.createProject("notes", webManifest(svc.URL))
-	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
+	e := New(t)
+	e.Project("notes", webManifest(svc.URL))
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)
 	var d struct{ ID int64 }
-	e.must("deck.document_save", map[string]any{"project": "notes", "name": "plan.md", "kind": "doc", "text": "# Plan"}, &d)
+	e.Must("deck.document_save", map[string]any{"project": "notes", "name": "plan.md", "kind": "doc", "text": "# Plan"}, &d)
 
 	front := newFront(t, e.URL)
 	b := newPlaywright(t)
-	b.open(front.URL + "/?token=" + token + "#/p/notes/main")
+	b.OpenVia(front.URL, e, "#/p/notes/main")
 	b.until("the project screen", `document.body.innerText.includes('All notes')`)
 
 	front.fail.Store(true)
@@ -46,19 +46,19 @@ func TestRealBrowserClientKeepsWhatItShows(t *testing.T) {
 	}
 
 	b.eval(`(document.querySelector('[data-edit]').click(), '')`)
-	e.must("deck.document_save", map[string]any{"project": "notes", "name": "plan.md", "kind": "doc", "text": "# Plan of the agent"}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "notes", "name": "plan.md", "kind": "doc", "text": "# Plan of the agent"}, nil)
 	b.type_(`document.querySelector('[data-draft]')`, "# Plan of the owner")
 	b.eval(`(document.querySelector('[data-save-document]').click(), '')`)
 	b.until("the refusal of a save over a newer revision", `document.body.innerText.includes('revision 2 now')`)
 	var got struct{ Text string }
-	e.must("deck.document_get", map[string]any{"document": d.ID}, &got)
+	e.Must("deck.document_get", map[string]any{"document": d.ID}, &got)
 	if got.Text != "# Plan of the agent" {
 		t.Fatalf("the owner's save does not overwrite the revision written meanwhile: %q", got.Text)
 	}
 
 	front.cut()
 	b.until("the stale mark while the live connection is down", `document.querySelector('[data-stale]')`)
-	e.waitFor("a refused reconnect", func() bool { return front.refused.Load() > 0 })
+	e.Until("a refused reconnect", func() bool { return front.refused.Load() > 0 })
 	b.eval(`(location.hash = '#/p/notes/main', '')`)
 	front.heal()
 	b.until("the project screen again", `document.body.innerText.includes('All notes')`)

@@ -15,25 +15,18 @@ const liveManifest = `{"version": 13, "commands": [{"name": "wait", "title": "Wa
 
 // realLive starts the waiting command on a real provider, tells it the code word while it sleeps and reads the result.
 func realLive(t *testing.T, pv provider.Provider, home string) {
-	e := newEnvWith(t, home, pv, realWaits)
-	p := e.createProject("live", liveManifest)
-	id := e.run(p, "wait")
-	deadline := time.Now().Add(2 * time.Minute)
-	delivered := ""
-	for delivered != "now" && time.Now().Before(deadline) {
+	e := New(t, WithHome(home), WithProvider(pv), WithConfig(realWaits))
+	p := e.Project("live", liveManifest)
+	id := e.Run(p, "wait")
+	e.Until("the running turn to take the message", func() bool {
 		time.Sleep(4 * time.Second)
-		if e.process(id).State != "running" {
-			break
+		if p := e.Proc(id); p.State != "running" {
+			t.Fatalf("the running turn did not take the message: %+v", p)
 		}
-		code, body := e.call("deck.process_tell", map[string]any{"process": id, "text": "The code word is OCTOPUS."})
-		if code == 200 && strings.Contains(string(body), `"now"`) {
-			delivered = "now"
-		}
-	}
-	if delivered != "now" {
-		t.Fatalf("the running turn did not take the message: %+v", e.process(id))
-	}
-	got := e.pollState(id, 4*time.Minute, time.Second, "done", "error")
+		code, body := e.Call("deck.process_tell", map[string]any{"process": id, "text": "The code word is OCTOPUS."})
+		return code == 200 && strings.Contains(string(body), `"now"`)
+	})
+	got := e.WaitState(id, "done", "error")
 	t.Logf("result: %s", got.Result)
 	if got.State != "done" || !strings.Contains(strings.ToUpper(string(got.Result)), "OCTOPUS") {
 		t.Fatalf("the turn answers with the word told in it: %+v", got)

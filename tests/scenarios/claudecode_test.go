@@ -25,10 +25,11 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 	}
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	e, home := cliEnv(t, c)
-	p := e.createProject("plain", plainManifest)
-	id := e.run(p, "work")
-	if got := e.waitState(id, "done", "error"); got.State != "done" {
+	e := New(t, WithCLI(c))
+	home := e.Home
+	p := e.Project("plain", plainManifest)
+	id := e.Run(p, "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
 	call := c.call(1)
@@ -83,12 +84,12 @@ func TestLargeValuesAreNotArguments(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	e, _ := cliEnv(t, c)
+	e := New(t, WithCLI(c))
 	desc := strings.Repeat("d", 200*1024)
 	m := strings.Replace(ideasManifest, `"properties": {"written": {"type": "integer"}}`,
 		`"properties": {"written": {"type": "integer", "description": "`+desc+`"}}`, 1)
-	p := e.createProject("ideas", m)
-	e.waitState(e.run(p, "collect"), "done", "error")
+	p := e.Project("ideas", m)
+	e.WaitState(e.Run(p, "collect"), "done", "error")
 	call := c.call(1)
 	for _, a := range call.args {
 		if len(a) > 8*1024 {
@@ -119,10 +120,10 @@ func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 			c := newCLI(t)
 			c.stream(0, "ok.jsonl")
 			c.after(after)
-			e, _ := cliEnv(t, c)
-			p := e.createProject("plain", plainManifest)
+			e := New(t, WithCLI(c))
+			p := e.Project("plain", plainManifest)
 			start := time.Now()
-			got := e.waitState(e.run(p, "work"), "done", "error")
+			got := e.WaitState(e.Run(p, "work"), "done", "error")
 			if got.State != "done" || !strings.Contains(string(got.Result), "ok") {
 				t.Fatalf("the result must be kept, got %+v", got)
 			}
@@ -134,7 +135,7 @@ func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			e.waitWithin(fmt.Sprintf("child %d of the CLI to exit", pid), 3*time.Second, func() bool { return syscall.Kill(pid, 0) != nil })
+			e.Until(fmt.Sprintf("child %d of the CLI to exit", pid), func() bool { return syscall.Kill(pid, 0) != nil })
 		})
 	}
 }
@@ -169,9 +170,9 @@ func TestTurnSucceedsOnlyStrictly(t *testing.T) {
 			if tc.prompt != "" {
 				m = strings.Replace(m, "Do the work.", tc.prompt, 1)
 			}
-			e, _ := cliEnv(t, c)
-			p := e.createProject("plain", m)
-			got := e.waitState(e.run(p, "work"), "done", "error")
+			e := New(t, WithCLI(c))
+			p := e.Project("plain", m)
+			got := e.WaitState(e.Run(p, "work"), "done", "error")
 			if got.State != "error" || !strings.Contains(got.Error, tc.want) {
 				t.Fatalf("want error with %q, got %+v", tc.want, got)
 			}
@@ -181,7 +182,7 @@ func TestTurnSucceedsOnlyStrictly(t *testing.T) {
 
 func (e *Env) health(subject string) map[string]any {
 	var hs []map[string]any
-	e.must("deck.health_list", nil, &hs)
+	e.Must("deck.health_list", nil, &hs)
 	for _, h := range hs {
 		if h["subject"] == subject {
 			return h
@@ -196,10 +197,9 @@ func TestPromptMentionsOnlyConnectedTools(t *testing.T) {
 		fake := &Fake{noQuestions: noQuestions, script: func(context.Context, *Call) provider.Result {
 			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 		}}
-		e := newEnvWith(t, t.TempDir(), fake)
-		e.Fake = fake
-		p := e.createProject("ideas", ideasManifest)
-		e.waitState(e.run(p, "collect"), "done")
+		e := New(t, WithProvider(fake))
+		p := e.Project("ideas", ideasManifest)
+		e.WaitState(e.Run(p, "collect"), "done")
 		prompt := fake.Calls()[0].Prompt
 		if strings.Contains(prompt, "AskUserQuestion") == noQuestions || !strings.Contains(prompt, "records_upsert") {
 			t.Fatalf("question tool present=%v, prompt:\n%s", !noQuestions, prompt)
@@ -211,12 +211,13 @@ func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	e, home := cliEnv(t, c)
+	e := New(t, WithCLI(c))
+	home := e.Home
 	skilled := strings.Replace(plainManifest, `"prompt": "Do the work."}`, `"prompt": "Do the work.", "skills": ["reader"]}`, 1)
-	p := e.createProject("plain", skilled)
+	p := e.Project("plain", skilled)
 	skill := "---\nname: reader\ndescription: Reads.\n---\nRead.\n"
-	e.must("deck.document_save", map[string]any{"project": "plain", "name": "skills/reader/SKILL.md", "kind": "skill", "text": skill}, nil)
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
+	e.Must("deck.document_save", map[string]any{"project": "plain", "name": "skills/reader/SKILL.md", "kind": "skill", "text": skill}, nil)
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
 	call := c.call(1)
@@ -235,8 +236,8 @@ func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 		t.Fatalf("the plugin folder is removed after the turn: %v", err)
 	}
 
-	e.createProject("bare", plainManifest)
-	e.waitState(e.start("bare", "work", nil), "done")
+	e.Project("bare", plainManifest)
+	e.WaitState(e.Start("bare", "work", nil), "done")
 	if _, ok := flag(c.call(2).args, "--plugin-dir"); ok {
 		t.Fatal("a command without skills gets no plugin")
 	}
@@ -246,10 +247,10 @@ func TestModelCallsCountTokensFromTheTurnResult(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	e, _ := cliEnv(t, c)
-	p := e.createProject("plain", plainManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "done")
+	e := New(t, WithCLI(c))
+	p := e.Project("plain", plainManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "done")
 	var calls []map[string]any
 	e.modelCalls("", id, &calls)
 	if len(calls) != 1 {
@@ -272,16 +273,16 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 	c.stream(0, "ok.jsonl")
 	e := clockCLIEnv(t, c)
 	e.Clock.Add(time.Unix(1790379000, 0).Add(-2 * time.Hour).Sub(e.Clock.Now()))
-	p := e.createProject("plain", plainManifest)
-	id := e.run(p, "work")
-	e.waitState(id, "rate_limited")
+	p := e.Project("plain", plainManifest)
+	id := e.Run(p, "work")
+	e.WaitState(id, "rate_limited")
 	pp, _ := e.App.Store.Q.GetProcess(context.Background(), id)
 	if pp.PauseUntilMs.Int64 != 1790379000*1000 {
 		t.Fatalf("the next try is the reset time of the refusal: %d", pp.PauseUntilMs.Int64)
 	}
 	e.Clock.Add(time.Unix(1790379000, 1).Sub(e.Clock.Now()))
 	e.sweep()
-	if got := e.waitState(id, "done", "error"); got.State != "done" || !slices.Contains(c.call(2).args, "--resume") {
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || !slices.Contains(c.call(2).args, "--resume") {
 		t.Fatalf("after the reset the session is resumed: %+v %v", got, c.call(2).args)
 	}
 }
@@ -292,7 +293,7 @@ func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	e, _ := cliEnv(t, c)
+	e := New(t, WithCLI(c))
 	for i, tc := range []struct {
 		domains string
 		sandbox bool
@@ -301,8 +302,8 @@ func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
 		{`"domains": {"read": ["*"]},`, false},
 		{`"no_network": true,`, true},
 	} {
-		p := e.createProject(fmt.Sprintf("ideas%d", i), strings.Replace(ideasManifest, `"version": 13,`, `"version": 13, `+tc.domains, 1))
-		e.waitState(e.run(p, "collect"), "done", "error")
+		p := e.Project(fmt.Sprintf("ideas%d", i), strings.Replace(ideasManifest, `"version": 13,`, `"version": 13, `+tc.domains, 1))
+		e.WaitState(e.Run(p, "collect"), "done", "error")
 		var set struct {
 			Sandbox *struct {
 				Enabled                  bool `json:"enabled"`
@@ -329,9 +330,9 @@ func TestClaudeCodeReadsInItsFoldersAndShowsWhatItRefused(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "denied.jsonl")
-	e, _ := cliEnv(t, c)
-	id := e.run(e.createProject("ideas", ideasManifest), "collect")
-	e.waitState(id, "done", "error")
+	e := New(t, WithCLI(c))
+	id := e.Run(e.Project("ideas", ideasManifest), "collect")
+	e.WaitState(id, "done", "error")
 	call := c.call(c.calls())
 	var set struct {
 		AutoMode struct{ Environment, Allow []string } `json:"autoMode"`

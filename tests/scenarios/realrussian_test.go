@@ -22,7 +22,7 @@ func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	var from atomic.Int64
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		switch {
 		case c.command() == "work":
 			return provider.Result{Text: "Посчитал: **3 записи**."}
@@ -36,10 +36,11 @@ func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 			return r
 		}
 		return provider.Result{Text: "Готово."}
-	})
-	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	e.createProject("shelf", widgetsManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": jsonl(map[string]any{"name": "a", "n": 1})}, nil)
+	}))
+
+	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Project("shelf", widgetsManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": jsonl(map[string]any{"name": "a", "n": 1})}, nil)
 	topic := e.say(0, "посчитай записи")
 	e.told(topic, "done", "ru")
 	e.say(topic, "подумай ещё")
@@ -53,7 +54,7 @@ func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 			look = "phone"
 			b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 		}
-		b.open(e.URL + "/?token=" + token + "&tab=" + look + "#/")
+		b.Open(e, "&tab="+look+"#/")
 		b.until("Today's card in Russian, with how long ago", `document.querySelector('[data-cell="today"] [data-since]') && document.querySelector('[data-cell="today"]').innerText.includes('Сегодня')`)
 		time.Sleep(500 * time.Millisecond)
 		if got := b.eval(english + `(document.querySelector('[data-cell="today"]'), ` + names + `)`); got != "" {

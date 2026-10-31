@@ -31,12 +31,12 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image"}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"openrouter/google/gemini-3.1-flash-lite-image"}}, nil)
-	e.createProject("art", pictureModule)
-	got := e.waitState(e.start("art", "picture", map[string]any{"scene": "a desk"}), "done", "error")
+	e := New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image"}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"openrouter/google/gemini-3.1-flash-lite-image"}}, nil)
+	e.Project("art", pictureModule)
+	got := e.WaitState(e.Start("art", "picture", map[string]any{"scene": "a desk"}), "done", "error")
 	var res struct {
 		File  any `json:"file"`
 		Files []struct {
@@ -50,7 +50,7 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 	id := res.Files[0].File
 	var name string
 	_ = e.App.Store.DB.QueryRow(`SELECT name FROM file WHERE id = ?`, id).Scan(&name)
-	e.must("deck.records_upsert", map[string]any{"project": "art", "collection": "pics", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "art", "collection": "pics", "records": jsonl(
 		map[string]any{"title": "a number", "file": id}, map[string]any{"title": "b digits", "file": fmt.Sprint(id)},
 		map[string]any{"title": "c name", "file": name})}, nil)
 	raw, _ := json.Marshal(e.screenMessages("art", "main", nil))
@@ -64,14 +64,15 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 	t.Parallel()
 	var linked int64
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		results := c.Req.Dirs[len(c.Req.Dirs)-1]
 		if err := os.WriteFile(filepath.Join(results, "voice-1.wav"), []byte("RIFF"), 0o600); err != nil {
 			return provider.Result{Outcome: provider.Failed, Text: err.Error()}
 		}
 		return provider.Result{Text: fmt.Sprintf("Here it is, and [the old one](#/file/%d).", linked)}
-	})
-	e.createProject("art", pictureModule)
+	}))
+
+	e.Project("art", pictureModule)
 	linked = e.upload("art", "old.txt", "text/plain", "an older take")
 	topic := e.say(0, "make a voice")
 	e.masterSaid(topic, 1)

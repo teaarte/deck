@@ -18,7 +18,7 @@ func TestRealBrowserChatInput(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "think long") {
 			c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Reading the list"})
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t2", Title: "records_list", Text: "{}"})
@@ -28,13 +28,14 @@ func TestRealBrowserChatInput(t *testing.T) {
 			return provider.Result{}
 		}
 		return provider.Result{Text: "Put it into groceries."}
-	})
-	e.must("deck.theme_save", map[string]any{"name": "ringed", "text": `{"version": 1, "title": {"en": "Ringed"}, "mood": "flat", "radius": "md",
+	}))
+
+	e.Must("deck.theme_save", map[string]any{"name": "ringed", "text": `{"version": 1, "title": {"en": "Ringed"}, "mood": "flat", "radius": "md",
 		"css": ".field:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }"}`}, nil)
-	e.must("deck.theme_use", map[string]any{"name": "ringed"}, nil)
+	e.Must("deck.theme_use", map[string]any{"name": "ringed"}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.Open(e, "#/deck/cockpit")
 	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the chat", `document.querySelector('[data-chat-input]')`)

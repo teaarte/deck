@@ -12,13 +12,13 @@ import (
 // block; the second origin serves only the proxy page with a CSP without network.
 func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotes)
+	e := New(t, WithAgent(webNotesAgent()))
+	e.Project("web", webNotes)
 	if b := e.screenData("web", "main", nil)["b2"]; blockData[string](t, b["error"]) != `no custom document "custom/chart.html"` {
 		t.Fatalf("a custom block without its document shows why: %s", b["error"])
 	}
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a", "score": 2}`}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a", "score": 2}`}, nil)
 	v := blockData[struct {
 		HTML    string           `json:"html"`
 		Items   []map[string]any `json:"items"`
@@ -85,31 +85,31 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 // record of the page, whatever the block reads.
 func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
+	e := New(t)
+	e.Project("web", webNotes)
 	page := `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
 	custom := func(field string) string {
 		return strings.Replace(webNotes, page, page+`, {"type": "custom", "document": "custom/c.html", "source": {"from": "deck.asks_list"},
 			"actions": [{"label": "Touch", "command": "touch", "params": {"note": "=`+field+`"}}]}`, 1)
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("score")}, nil)
-	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("what")}, 422, `unknown field "what"`)
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("score")}, nil)
+	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("what")}, 422, `unknown field "what"`)
 }
 
 // TestCustomBlockGetsItsParamsResolved: params of a custom block are fixed text or expressions over the param of the
 // screen and the record of the page, resolved by deck and given beside its items; an unknown field fails the save.
 func TestCustomBlockGetsItsParamsResolved(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	chart := `"document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},`
 	page := `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
 	m := strings.NewReplacer(`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"kind": "string"}, "blocks": [`,
 		chart, chart+` "params": {"mode": "voice", "speed": "=1.5", "kind": "=param.kind", "none": ""},`,
 		page, page+`, {"type": "custom", "document": "custom/chart.html", "params": {"title": "=title + '!'", "double": "=score * 2"}}`).Replace(webNotes)
-	e.createProject("web", m)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	e.Project("web", m)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	var put struct{ IDs []int64 }
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}`}, &put)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}`}, &put)
 	type custom struct {
 		Params map[string]any   `json:"params"`
 		Items  []map[string]any `json:"items"`
@@ -122,7 +122,7 @@ func TestCustomBlockGetsItsParamsResolved(t *testing.T) {
 	if len(v.Params) != 2 || v.Params["title"] != "a!" || v.Params["double"] != float64(4) {
 		t.Fatalf("params of a custom block on a record page read the record: %+v", v.Params)
 	}
-	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(m, `"=score * 2"`, `"=what"`, 1)},
+	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(m, `"=score * 2"`, `"=what"`, 1)},
 		422, `params "double": unknown field "what"`)
 }
 
@@ -130,13 +130,13 @@ func TestCustomBlockGetsItsParamsResolved(t *testing.T) {
 // each of the others keeps the class of its own command, so an external call still waits for the owner.
 func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webNotesAgent())
+	e := New(t, WithAgent(webNotesAgent()))
 	m := strings.Replace(webNotes, `"actions": [{"label": "Mark", "command": "mark"},`, `"actions": [{"label": "Mark", "command": "mark", "when": "false"},`, 1)
 	if m == webNotes {
 		t.Fatal("fixture lacks the Mark button")
 	}
-	e.createProject("web", m)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	e.Project("web", m)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	v := blockData[struct {
 		Actions []map[string]any `json:"actions"`
 	}](t, e.screenData("web", "main", nil)["b2"]["value"])
@@ -149,35 +149,35 @@ func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
 // after where and sort read the whole item; another block is refused them.
 func TestACustomBlockGetsOnlyTheFieldsItsSourceNames(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	chart := `"document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},`
 	cut := `"document": "custom/chart.html", "source": {"collection": "notes", "where": "score > 1", "sort": "-score", "fields": ["title"]},`
-	e.createProject("web", strings.Replace(webNotes, chart, cut, 1))
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}` + "\n" + `{"title": "b", "score": 3}` + "\n" + `{"title": "c", "score": 1}`}, nil)
+	e.Project("web", strings.Replace(webNotes, chart, cut, 1))
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}` + "\n" + `{"title": "b", "score": 3}` + "\n" + `{"title": "c", "score": 1}`}, nil)
 	v := blockData[struct {
 		Items []map[string]any `json:"items"`
 	}](t, e.screenData("web", "main", nil)["b2"]["value"])
 	if len(v.Items) != 2 || v.Items[0]["title"] != "b" || len(v.Items[0]) != 2 || v.Items[0]["_id"] == nil || v.Items[0]["score"] != nil {
 		t.Fatalf("each item has only the fields named and its id, picked and sorted by the whole item: %+v", v.Items)
 	}
-	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(webNotes, chart, `"document": "custom/chart.html", "source": {"collection": "notes", "fields": ["what"]},`, 1)}, 422, `unknown field "what"`)
+	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(webNotes, chart, `"document": "custom/chart.html", "source": {"collection": "notes", "fields": ["what"]},`, 1)}, 422, `unknown field "what"`)
 	table := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "table", "source": {"collection": "notes", "fields": ["title"]}, "columns": [{"label": "Title", "bind": "title"}]}`, 1)
-	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "fields are for a custom block")
+	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "fields are for a custom block")
 }
 
 // TestACustomButtonNamesTheFieldsItsBlockFills: from_block names the input fields a custom block fills itself, a
 // required one too; a record of them is marked for the host to take only an item's, and only on a custom block.
 func TestACustomButtonNamesTheFieldsItsBlockFills(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	mark := `{"label": "Mark", "command": "mark"}`
 	with := func(button string) string {
 		return strings.Replace(webNotes, mark, `{"label": "Mark", "command": "mark", "from_block": ["text"]}, `+button, 1)
 	}
-	e.createProject("web", with(`{"label": "Score", "command": "score", "from_block": ["title", "n"], "params": {"scan": "x"}}, {"label": "Touch", "command": "touch", "from_block": ["note"]}`))
-	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": with(`{"label": "Score", "command": "score"}`)}, 422, `needs param "title"`)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	e.Project("web", with(`{"label": "Score", "command": "score", "from_block": ["title", "n"], "params": {"scan": "x"}}, {"label": "Touch", "command": "touch", "from_block": ["note"]}`))
+	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": with(`{"label": "Score", "command": "score"}`)}, 422, `needs param "title"`)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	v := blockData[struct {
 		Actions []map[string]any `json:"actions"`
 	}](t, e.screenData("web", "main", nil)["b2"]["value"])
@@ -189,31 +189,31 @@ func TestACustomButtonNamesTheFieldsItsBlockFills(t *testing.T) {
 		`{"label": "Score", "command": "score", "from_block": ["title", "what"]}`:                   `no input field "what"`,
 		`{"label": "Score", "command": "score", "from_block": ["title"], "params": {"title": "a"}}`: "is a param of the button already",
 	} {
-		e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": with(button)}, 422, want)
+		e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": with(button)}, 422, want)
 	}
 	table := strings.Replace(webNotes, `"actions": [{"label": "Open", "screen": "note"}]`, `"actions": [{"label": "Mark", "command": "mark", "from_block": ["text"]}]`, 1)
-	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "from_block names the fields a custom block fills")
+	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "from_block names the fields a custom block fills")
 	deckRows := strings.Replace(with(`{"label": "Touch", "command": "touch", "from_block": ["note"]}`), `"source": {"collection": "notes", "sort": "title"},`, `"source": {"from": "deck.asks_list"},`, 1)
-	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": deckRows}, 422, "the block holds no records of the module")
+	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": deckRows}, 422, "the block holds no records of the module")
 }
 
 // TestATableAndACustomBlockHaveButtonsInTheirHead: a table and a custom block take a head as a list does, over the
 // rows of their source; an empty table keeps its head, so its one button needs no actions block.
 func TestATableAndACustomBlockHaveButtonsInTheirHead(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, webNotesAgent())
+	e := New(t, WithAgent(webNotesAgent()))
 	m := strings.Replace(webNotes, `"document": "custom/chart.html",`, `"document": "custom/chart.html", "head": [{"label": "Mark all", "command": "mark"}],`, 1)
 	m = strings.Replace(m, `"columns": [{"label": "Title", "bind": "title"}], "actions"`,
 		`"columns": [{"label": "Title", "bind": "title"}], "head": [{"label": "='Mark (' + string(len(rows)) + ')'", "command": "mark"}], "actions"`, 1)
-	e.createProject("web", m)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	e.Project("web", m)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	head := func(block string) []map[string]any {
 		return blockData[[]map[string]any](t, e.screenData("web", "main", nil)[block]["head"])
 	}
 	if h := head("b3"); len(h) != 1 || h[0]["label"] != "Mark (0)" || h[0]["command"] != "web.mark" {
 		t.Fatalf("an empty table keeps the button of its head: %+v", h)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a"}`}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a"}`}, nil)
 	if h := head("b3"); len(h) != 1 || h[0]["label"] != "Mark (2)" {
 		t.Fatalf("the head of a table reads its rows: %+v", h)
 	}

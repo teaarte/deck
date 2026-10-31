@@ -26,7 +26,7 @@ func TestRealBrowserMasterQuestions(t *testing.T) {
 	opt := func(label, description string) map[string]any {
 		return map[string]any{"label": label, "description": description}
 	}
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Reading the lists"})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "records_list", Text: "{}"})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t2", Title: "document_read", Text: "{}"})
@@ -57,8 +57,11 @@ func TestRealBrowserMasterQuestions(t *testing.T) {
 			got = append(got, fmt.Sprint(answers[q.(map[string]any)["question"].(string)]))
 		}
 		return provider.Result{Text: "Answers: " + strings.Join(got, " | ")}
-	}, func(c *app.Config) { c.QuestionWait = 5 * time.Minute; c.ConfirmTTL = time.Hour })
-	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": tasksManifest}, nil)
+	}), WithConfig(
+
+		func(c *app.Config) { c.QuestionWait = 5 * time.Minute; c.ConfirmTTL = time.Hour }))
+
+	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": tasksManifest}, nil)
 
 	b := newPlaywright(t)
 	say := func(text string) {
@@ -83,7 +86,7 @@ func TestRealBrowserMasterQuestions(t *testing.T) {
 		screen string
 	}{{"pc", 1400, 900, "#/p/groceries/tasks"}, {"phone", 390, 844, "#/deck/cockpit"}} {
 		b.call("browser_resize", map[string]any{"width": look.w, "height": look.h})
-		b.open(e.URL + "/?token=" + token + look.screen)
+		b.Open(e, look.screen)
 		if look.name == "pc" {
 			b.until("the tasks", `document.querySelector('[data-block]')`)
 			b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)

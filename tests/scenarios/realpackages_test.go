@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 )
 
 const realPythonScript = `#!/usr/bin/env -S uv run --script
@@ -34,7 +33,7 @@ func TestRealScriptPackages(t *testing.T) {
 			t.Skipf("%s is not installed", prog)
 		}
 	}
-	e := newEnv(t, nil)
+	e := New(t)
 	cases := []struct{ project, runtime, file, src, domains, want string }{
 		{"py", `"runtime": "exec", "programs": ["uv"]`, "scripts/main.py", realPythonScript, `"pypi.org", "files.pythonhosted.org"`, "1.16.0"},
 		{"js", `"runtime": "node", "programs": ["npm"]`, "scripts/main.js", realNodeScript, `"registry.npmjs.org"`, "007"},
@@ -42,9 +41,9 @@ func TestRealScriptPackages(t *testing.T) {
 	for _, c := range cases {
 		m := strings.NewReplacer(`"scripts/main.py", "runtime": "python"`, `"`+c.file+`", `+c.runtime).
 			Replace(scriptManifest("use", "", `, "domains": {"read": [`+c.domains+`]}`))
-		e.createProject(c.project, m)
+		e.Project(c.project, m)
 		e.saveScript(c.project, c.file, c.src)
-		p := e.waitScript(e.start(c.project, "use", nil), "done", "error")
+		p := e.WaitState(e.Start(c.project, "use", nil), "done", "error")
 		if p.State != "done" || !strings.Contains(string(p.Result), c.want) {
 			t.Fatalf("%s: the script installs its package from the registry: %+v", c.project, p)
 		}
@@ -116,7 +115,7 @@ func TestRealReferenceScripts(t *testing.T) {
 			t.Skipf("%s is not installed", prog)
 		}
 	}
-	e := newEnv(t, nil)
+	e := New(t)
 	cases := []struct{ project, runtime, file, src, domains, want string }{
 		{"hf", `"runtime": "exec", "programs": ["uv"]`, "scripts/main.py", realHFScript, `"pypi.org", "files.pythonhosted.org", "huggingface.co", "hf.co"`, `"cached":true`},
 		{"git", `"runtime": "python", "programs": ["git"]`, "scripts/main.py", realGitScript, `"github.com"`, `"commits":2`},
@@ -127,23 +126,23 @@ func TestRealReferenceScripts(t *testing.T) {
 		t.Run(c.project, func(t *testing.T) {
 			m := strings.NewReplacer(`"scripts/main.py", "runtime": "python"`, `"`+c.file+`", `+c.runtime).
 				Replace(scriptManifest("use", "", `, "domains": {"read": [`+c.domains+`]}`))
-			e.createProject(c.project, m)
+			e.Project(c.project, m)
 			e.saveScript(c.project, c.file, c.src)
-			id := e.start(c.project, "use", nil)
-			if p := e.pollState(id, 10*time.Minute, time.Second, "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), c.want) {
+			id := e.Start(c.project, "use", nil)
+			if p := e.WaitState(id, "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), c.want) {
 				t.Fatalf("the script %s runs in the sandbox: %+v\n%v", c.project, p, e.log(id))
 			}
 		})
 	}
 	t.Run("npx", func(t *testing.T) {
-		e.createProject("everything", `{"version": 13,
+		e.Project("everything", `{"version": 13,
   "commands": [{"name": "echo", "title": "Echo", "description": "Echoes a message.", "class": "internal",
     "input": {"type": "object", "properties": {"message": {"type": "string"}}, "required": ["message"]},
     "executor": {"type": "tool", "tool": "everything.echo"}}],
   "tools": {"mcp": {"servers": {"everything": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-everything"],
     "toolFilter": ["echo"], "classes": {"echo": "internal"}}}}}}`)
-		id := e.start("everything", "echo", map[string]any{"message": "sandboxed hello"})
-		if p := e.pollState(id, 5*time.Minute, time.Second, "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "sandboxed hello") {
+		id := e.Start("everything", "echo", map[string]any{"message": "sandboxed hello"})
+		if p := e.WaitState(id, "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "sandboxed hello") {
 			t.Fatalf("an MCP server run by npx answers in the sandbox: %+v", p)
 		}
 	})

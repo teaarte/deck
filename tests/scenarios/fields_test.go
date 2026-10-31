@@ -25,17 +25,17 @@ func keysOf(m map[string]any) []string {
 // the one list of an object, or of the object; without fields it gives all; records_list cuts the data of records.
 func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	p := e.createProject("source", sourceManifest)
-	e.must("deck.records_upsert", map[string]any{"project": "source", "collection": "items",
+	e := New(t)
+	p := e.Project("source", sourceManifest)
+	e.Must("deck.records_upsert", map[string]any{"project": "source", "collection": "items",
 		"records": "{\"name\": \"a\", \"size\": 3}\n{\"name\": \"b\", \"size\": 5}"}, nil)
 
 	var rows []map[string]any
-	e.must("deck.records_list", map[string]any{"project": "source", "collection": "items", "fields": []string{"size", "nope"}}, &rows)
+	e.Must("deck.records_list", map[string]any{"project": "source", "collection": "items", "fields": []string{"size", "nope"}}, &rows)
 	if len(rows) != 2 || rows[0]["key"] != "a" || !slices.Equal(keysOf(rows[0]["data"].(map[string]any)), []string{"size"}) {
 		t.Fatalf("records_list keeps its own fields, those of the data of each record: %v", rows)
 	}
-	e.must("deck.records_list", map[string]any{"project": "source", "collection": "items"}, &rows)
+	e.Must("deck.records_list", map[string]any{"project": "source", "collection": "items"}, &rows)
 	if len(rows) != 2 || len(rows[0]) < 5 || len(rows[0]["data"].(map[string]any)) != 2 {
 		t.Fatalf("records_list without fields gives whole rows: %v", rows)
 	}
@@ -52,7 +52,7 @@ func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 	}
 
 	var m map[string]any
-	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"project", "revision"}}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"project", "revision"}}, &m)
 	if !slices.Equal(keysOf(m), []string{"project", "revision"}) || m["project"] != "source" {
 		t.Fatalf("manifest_get cuts the keys of its object: %v", m)
 	}
@@ -60,19 +60,19 @@ func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 	data := deckhome.Layout(e.App.Cfg.Home).Data(p)
 	_ = os.MkdirAll(filepath.Join(data, "cache"), 0o700)
 	_ = os.WriteFile(filepath.Join(data, "state.json"), []byte(`{}`), 0o600)
-	e.must("deck.data_read", map[string]any{"project": "source", "fields": []string{"name"}}, &m)
+	e.Must("deck.data_read", map[string]any{"project": "source", "fields": []string{"name"}}, &m)
 	entries, _ := m["entries"].([]any)
 	if len(entries) != 2 || !slices.Equal(keysOf(entries[0].(map[string]any)), []string{"name"}) || m["path"] == nil {
 		t.Fatalf("data_read cuts the rows of its entries and keeps the rest: %v", m)
 	}
 	m = nil
-	e.must("deck.data_read", map[string]any{"project": "source", "fields": []string{"name", "path"}}, &m)
+	e.Must("deck.data_read", map[string]any{"project": "source", "fields": []string{"name", "path"}}, &m)
 	entries, _ = m["entries"].([]any)
 	if len(entries) != 2 || !slices.Equal(keysOf(entries[0].(map[string]any)), []string{"name", "path"}) {
 		t.Fatalf("a name of both the rows and the object cuts the rows: %v", m)
 	}
 	m = nil
-	e.must("deck.data_read", map[string]any{"project": "source", "fields": []string{"path", "entries.name"}}, &m)
+	e.Must("deck.data_read", map[string]any{"project": "source", "fields": []string{"path", "entries.name"}}, &m)
 	entries, _ = m["entries"].([]any)
 	if !slices.Equal(keysOf(m), []string{"entries", "path"}) || len(entries) != 2 || !slices.Equal(keysOf(entries[0].(map[string]any)), []string{"name"}) {
 		t.Fatalf("a dotted name reaches into a field: %v", m)
@@ -87,12 +87,12 @@ func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 			Required []string
 		}
 	}
-	e.must("deck.command_describe", map[string]any{"command": "deck.health_list"}, &d)
+	e.Must("deck.command_describe", map[string]any{"command": "deck.health_list"}, &d)
 	if f := d.Input.Properties["fields"]; f.Type != "array" || f.Items.Type != "string" || slices.Contains(d.Input.Required, "fields") {
 		t.Fatalf("a read shows its optional fields: %+v", d.Input)
 	}
 	d.Input.Properties = nil
-	e.must("deck.command_describe", map[string]any{"command": "deck.records_upsert"}, &d)
+	e.Must("deck.command_describe", map[string]any{"command": "deck.records_upsert"}, &d)
 	if _, ok := d.Input.Properties["fields"]; ok {
 		t.Fatalf("a command that writes takes no fields: %+v", d.Input)
 	}
@@ -102,16 +102,16 @@ func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 // stored in, an item of a named list by its name, and an old part for manifest_save may come from that text.
 func TestFieldsReachIntoTheManifestText(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("source", sourceManifest)
+	e := New(t)
+	e.Project("source", sourceManifest)
 	var whole struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "source"}, &whole)
+	e.Must("deck.manifest_get", map[string]any{"project": "source"}, &whole)
 
 	var m struct {
 		Revision int64
 		Manifest string
 	}
-	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"revision", "manifest.collections.private"}}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"revision", "manifest.collections.private"}}, &m)
 	want := "{\n  \"collections\": [\n    {\n      \"name\": \"private\",\n      \"description\": \"Not shared.\","
 	if m.Revision == 0 || !strings.HasPrefix(m.Manifest, want) || strings.Contains(m.Manifest, `"items"`) || strings.Contains(m.Manifest, `"version"`) {
 		t.Fatalf("a named item of a list comes as text, its keys in their order:\n%s", m.Manifest)
@@ -121,7 +121,7 @@ func TestFieldsReachIntoTheManifestText(t *testing.T) {
 			t.Fatalf("each line of the part is a line of the whole text: %q", l)
 		}
 	}
-	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.name", "manifest.version"}}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.name", "manifest.version"}}, &m)
 	var part struct {
 		Version     int
 		Collections []map[string]any
@@ -130,13 +130,13 @@ func TestFieldsReachIntoTheManifestText(t *testing.T) {
 		t.Fatalf("a field of every item of a list: %s", m.Manifest)
 	}
 
-	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.nowhere"}}, &m)
+	e.Must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.nowhere"}}, &m)
 	if strings.Contains(m.Manifest, "{}") {
 		t.Fatalf("a part that names no item nor a field of one is none, not empty items: %s", m.Manifest)
 	}
 
-	e.must("deck.manifest_save", map[string]any{"project": "source", "old": []string{`"description": "Not shared."`}, "new": []string{`"description": "Kept apart."`}}, nil)
-	e.must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.private.description"}}, &m)
+	e.Must("deck.manifest_save", map[string]any{"project": "source", "old": []string{`"description": "Not shared."`}, "new": []string{`"description": "Kept apart."`}}, nil)
+	e.Must("deck.manifest_get", map[string]any{"project": "source", "fields": []string{"manifest.collections.private.description"}}, &m)
 	if !strings.Contains(m.Manifest, "Kept apart.") {
 		t.Fatalf("an old part taken from a part of the manifest saves: %s", m.Manifest)
 	}

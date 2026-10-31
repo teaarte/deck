@@ -76,7 +76,7 @@ func (e *Env) say(topic int64, text string, more ...map[string]any) int64 {
 	var out struct {
 		Topic int64 `json:"topic"`
 	}
-	e.must("deck.chat_send", in, &out)
+	e.Must("deck.chat_send", in, &out)
 	return out.Topic
 }
 
@@ -96,7 +96,7 @@ func (e *Env) chatTopics(archived bool, out any) {
 		Topics   json.RawMessage `json:"topics"`
 		Archived json.RawMessage `json:"archived"`
 	}
-	e.must("deck.chat_topics", nil, &view)
+	e.Must("deck.chat_topics", nil, &view)
 	raw := view.Topics
 	if archived {
 		raw = view.Archived
@@ -110,7 +110,7 @@ func (e *Env) chatTopics(archived bool, out any) {
 func (e *Env) masterSaid(topic int64, n int) []chatMessage {
 	e.T.Helper()
 	var said []chatMessage
-	e.waitFor("the master's replies", func() bool {
+	e.Until("the master's replies", func() bool {
 		said = nil
 		for _, m := range e.chatMessages(topic) {
 			if m.Role == "master" {
@@ -132,7 +132,7 @@ func lastLine(s string) string {
 func (e *Env) projectsOf(out any) {
 	e.T.Helper()
 	var all []map[string]any
-	e.must("deck.projects_list", nil, &all)
+	e.Must("deck.projects_list", nil, &all)
 	mine := []map[string]any{}
 	for _, p := range all {
 		if p["builtin"] != true {
@@ -159,7 +159,7 @@ func (e *Env) menuList(in map[string]any, master bool, out any) {
 		Projects []json.RawMessage
 		Master   json.RawMessage
 	}
-	e.must("deck.menu", in, &m)
+	e.Must("deck.menu", in, &m)
 	all := append([]json.RawMessage{m.Deck}, m.Projects...)
 	if master && m.Master != nil {
 		all = append(all, m.Master)
@@ -177,9 +177,9 @@ func (e *Env) chatRead(in map[string]any, out any) {
 	for _, read := range []string{"deck.chat_topics", "deck.chat_turn", "deck.chat"} {
 		var part map[string]json.RawMessage
 		if lang, _ := in["lang"].(string); read == "deck.chat_topics" {
-			e.must(read, map[string]any{"lang": lang}, &part)
+			e.Must(read, map[string]any{"lang": lang}, &part)
 		} else {
-			e.must(read, in, &part)
+			e.Must(read, in, &part)
 		}
 		maps.Copy(all, part)
 	}

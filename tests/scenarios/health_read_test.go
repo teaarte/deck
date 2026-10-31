@@ -15,7 +15,7 @@ func (e *Env) healthSeen(project, subject string) (bool, bool) {
 		Subject, Project, Status string
 		Seen                     bool
 	}
-	e.must("deck.health_list", nil, &hs)
+	e.Must("deck.health_list", nil, &hs)
 	for _, h := range hs {
 		if h.Subject == subject && h.Project == project {
 			return h.Seen, h.Status == "error"
@@ -28,7 +28,7 @@ func (e *Env) healthSeen(project, subject string) (bool, bool) {
 func (e *Env) pulseErrors() int64 {
 	e.T.Helper()
 	var m struct{ Pulse struct{ Errors int64 } }
-	e.must("deck.menu", nil, &m)
+	e.Must("deck.menu", nil, &m)
 	return m.Pulse.Errors
 }
 
@@ -36,12 +36,12 @@ func (e *Env) pulseErrors() int64 {
 func TestAReadCheckIsOfItsProject(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
-	e := newEnv(t, nil)
+	e := New(t)
 	for _, name := range []string{"stock", "photos"} {
-		e.createProject(name, fmt.Sprintf(`{"version": 13, "tools": {"http": [
+		e.Project(name, fmt.Sprintf(`{"version": 13, "tools": {"http": [
     {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL))
 	}
-	e.must("deck.health_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
+	e.Must("deck.health_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
 	if seen, failing := e.healthSeen("photos", "secret:photos.pexels"); !seen || !failing {
 		t.Fatal("the owner reads the check of one project")
 	}
@@ -56,19 +56,19 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	pid := e.createProject("broken", `{"version": 13}`)
+	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	pid := e.Project("broken", `{"version": 13}`)
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 13, "nonsense": true}'
 		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
+	e = New(t, WithHome(home), WithProvider(&Fake{}))
 	before := e.pulseErrors()
 	if seen, failing := e.healthSeen("broken", "project:broken"); seen || !failing {
 		t.Fatalf("a manifest that does not load is a failing check of the pulse: %d", before)
 	}
-	e.must("deck.health_seen", map[string]any{"subject": "project:broken", "project": "broken"}, nil)
+	e.Must("deck.health_seen", map[string]any{"subject": "project:broken", "project": "broken"}, nil)
 	if seen, _ := e.healthSeen("broken", "project:broken"); !seen || e.pulseErrors() != before-1 {
 		t.Fatalf("once read it counts no more: %d", e.pulseErrors())
 	}
@@ -78,7 +78,7 @@ func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 // out of the call.
 func TestMarkReadOfACheckOfTheMachine(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	health.Write(t.Context(), e.App.Store, health.Of{}, "tool:web.fetch", "error", "the server exited: 1")
 	a := e.rowAction("", "settings", "deck.health_seen", map[string]any{"subject": "tool:web.fetch"})
 	if _, ok := a["params"].(map[string]any)["project"]; ok {
@@ -97,8 +97,8 @@ func TestMarkReadOfACheckOfTheMachine(t *testing.T) {
 func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
-	pid := e.createProject("shorts", modelManifest)
+	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	pid := e.Project("shorts", modelManifest)
 	if h := e.health("command:shorts.factcheck"); h == nil {
 		t.Fatal("a model command no model takes is a row of health")
 	}
@@ -107,7 +107,7 @@ func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
+	e = New(t, WithHome(home), WithProvider(&Fake{}))
 	if h := e.health("command:shorts.factcheck"); h != nil || e.health("project:shorts") == nil {
 		t.Fatalf("the manifest that does not read is the row, not its commands: %v", h)
 	}
@@ -118,12 +118,12 @@ func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 func TestTheBuiltInMasterOnceFreeIsWell(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
+	e := New(t, WithHome(home), WithProvider(&Fake{}))
 	if _, err := e.App.Store.DB.Exec(`UPDATE project SET builtin = 0 WHERE name = 'master'`); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
+	e = New(t, WithHome(home), WithProvider(&Fake{}))
 	if h := e.health("master"); h == nil || h["status"] != "error" {
 		t.Fatalf("a project of the owner named master is red in health: %v", h)
 	}
@@ -131,7 +131,7 @@ func TestTheBuiltInMasterOnceFreeIsWell(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
+	e = New(t, WithHome(home), WithProvider(&Fake{}))
 	if h := e.health("master"); h != nil {
 		t.Fatalf("once the name is free the row goes: %v", h)
 	}

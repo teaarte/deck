@@ -62,8 +62,8 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, ok)
-	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e := New(t, WithAgent(ok))
+	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	sizes := [][2]int{{1, 1}, {2, 1}, {2, 2}, {3, 2}, {1, 2}, {3, 3}}
 	at := time.Now().Add(-39 * time.Second).UTC().Format(time.RFC3339)
 	var recs []map[string]any
@@ -72,8 +72,8 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 	}
 	for i := range sizes {
 		name := fmt.Sprintf("lab%d", i)
-		e.createProject(name, widgetsOfWork)
-		e.must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(recs...)}, nil)
+		e.Project(name, widgetsOfWork)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(recs...)}, nil)
 	}
 	b := newPlaywright(t)
 	for _, phone := range []bool{false, true} {
@@ -82,7 +82,7 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 			width, height, look = 390, 844, "phone"
 		}
 		b.call("browser_resize", map[string]any{"width": width, "height": height})
-		b.open(e.URL + "/?token=" + token)
+		b.Open(e, "")
 		b.until("the cards", `document.querySelector('[data-cell="today"] [data-widget]') && document.querySelector('[data-cols]')`)
 		cols := colsOf(b)
 		device := b.eval(`localStorage.getItem('deck-device')`)

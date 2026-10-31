@@ -30,8 +30,8 @@ const shortsModule = `{"version": 13,
 // processes, which the owner sees listed first.
 func TestDeletingARecordTakesWhatBelongsToIt(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	pid := e.createProject("shorts", shortsModule)
+	e := New(t)
+	pid := e.Project("shorts", shortsModule)
 	e.saveScript("shorts", "scripts/render.py", `import json, os, sys
 inp = json.load(sys.stdin)
 res = os.environ["DECK_RESULTS"]
@@ -39,20 +39,20 @@ open(os.path.join(res, "frame.png"), "w").write("png")
 open(os.path.join(res, "log.txt"), "w").write("log")
 print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"path": "log.txt"}]}))
 `)
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
 		map[string]any{"slug": "knights", "title": "Knights"}, map[string]any{"slug": "snails", "title": "Snails"})}, nil)
 	var video int64
 	var all []struct {
 		ID  int64
 		Key string
 	}
-	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &all)
+	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &all)
 	for _, v := range all {
 		if v.Key == "knights" {
 			video = v.ID
 		}
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(
 		map[string]any{"video": "knights", "n": 1}, map[string]any{"video": "snails", "n": 1})}, nil)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "knights"), 0o700); err != nil {
@@ -61,11 +61,11 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 	if err := os.WriteFile(filepath.Join(data, "videos", "knights", "out.mp4"), []byte("mp4"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := e.waitScript(e.start("shorts", "render", map[string]any{"record": video}), "done", "error"); got.State != "done" {
+	if got := e.WaitState(e.Start("shorts", "render", map[string]any{"record": video}), "done", "error"); got.State != "done" {
 		t.Fatalf("the render runs: %+v", got)
 	}
 	var parts []struct{ Kind, Name string }
-	e.must("deck.record_parts", map[string]any{"record": video}, &parts)
+	e.Must("deck.record_parts", map[string]any{"record": video}, &parts)
 	var names []string
 	for _, p := range parts {
 		names = append(names, p.Kind+" "+p.Name)
@@ -74,8 +74,8 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 	if want := "file frame.png|file log.txt|folder videos/knights/|record scenes: knights-1|record videos: Knights"; strings.Join(names, "|") != want {
 		t.Fatalf("the owner sees all a deletion takes: %v", names)
 	}
-	e.must("deck.record_delete", map[string]any{"record": video}, nil)
-	e.drained()
+	e.Must("deck.record_delete", map[string]any{"record": video}, nil)
+	e.Drained()
 	count := func(q string, args ...any) int {
 		var n int
 		_ = e.App.Store.DB.QueryRow(q, args...).Scan(&n)
@@ -91,8 +91,8 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 // first as tiles that open them, then files; the modules at the root and the files of a module are tiles too.
 func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	pid := e.createProject("shorts", shortsModule)
+	e := New(t)
+	pid := e.Project("shorts", shortsModule)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	if err := errors.Join(os.MkdirAll(filepath.Join(data, "cache", "zz"), 0o700), os.WriteFile(filepath.Join(data, "cache", "tiles.bin"), []byte("x"), 0o600)); err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 	if s := string(raw); !strings.Contains(s, `"path":"shorts"`) || !strings.Contains(s, `"title":"Shorts"`) && !strings.Contains(s, `"title":"shorts"`) {
 		t.Fatalf("the modules are folder tiles at the root: %s", s)
 	}
-	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "frame.png", "content": base64.StdEncoding.EncodeToString([]byte("png"))}, nil)
+	e.Must("deck.file_upload", map[string]any{"project": "shorts", "name": "frame.png", "content": base64.StdEncoding.EncodeToString([]byte("png"))}, nil)
 	raw, _ = json.Marshal(e.screenData("shorts", "documents", map[string]any{"params": `{"path": "files"}`}))
 	if s := string(raw); !strings.Contains(s, `"name":"frame.png"`) {
 		t.Fatalf("the files screen of a module shows its files: %s", s)

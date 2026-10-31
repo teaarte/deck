@@ -182,9 +182,9 @@ func asksEachTime(g, in *manifest.Manifest, w string) bool {
 // never granted, what deck runs widens nothing beyond the grant but what asks the owner on every call.
 func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	ctx := context.Background()
-	e.createProject("other", `{"version": 13, "collections": [
+	e.Project("other", `{"version": 13, "collections": [
     {"name": "items", "description": "An item.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
     {"name": "notes", "description": "A note.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`)
 	r := rand.New(rand.NewPCG(1, 2))
@@ -198,7 +198,7 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 			t.Fatalf("a generated manifest does not read: %v\n%s", err, next)
 		}
 		name := fmt.Sprintf("p%d", i)
-		e.createProject(name, granted)
+		e.Project(name, granted)
 		p, err := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: name})
 		if err != nil {
 			t.Fatal(err)

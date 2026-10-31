@@ -49,26 +49,26 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 		fmt.Fprintf(w, "BEGIN:VCALENDAR\nURL:https://%s%s\nEND:VCALENDAR\n", r.Host, r.URL.Path)
 	}))
 	t.Cleanup(svc.Close)
-	e := newEnv(t, nil)
+	e := New(t)
 	link := svc.URL + "/owa/calendar/me@x.com/tok-0123456789/calendar.ics"
-	e.must("deck.secret_set", map[string]any{"name": "outlook", "value": link}, nil)
+	e.Must("deck.secret_set", map[string]any{"name": "outlook", "value": link}, nil)
 	tool := func(extra string) string {
 		return fmt.Sprintf(`{"version": 13, "tools": {"http": [{"name": "ics", "description": "d", "method": "GET", "class": "internal",
       "url": "$secret.outlook?from={from}"%s, "input": {"type": "object", "properties": {"from": {"type": "string"}}, "required": ["from"]}}]}}`, extra)
 	}
-	if code, out := e.call("deck.project_create", map[string]any{"name": "nohosts", "manifest": tool("")}); code != 422 || !strings.Contains(string(out), "needs hosts") {
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "nohosts", "manifest": tool("")}); code != 422 || !strings.Contains(string(out), "needs hosts") {
 		t.Fatalf("a url from a secret without hosts is refused: %d %s", code, out)
 	}
 	fixed := `{"version": 13, "tools": {"http": [{"name": "t", "description": "d", "method": "GET", "url": "https://a.com/x", "hosts": ["a.com"]}]}}`
-	if code, out := e.call("deck.project_create", map[string]any{"name": "fixed", "manifest": fixed}); code != 422 || !strings.Contains(string(out), "hosts go only with a url from a secret") {
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "fixed", "manifest": fixed}); code != 422 || !strings.Contains(string(out), "hosts go only with a url from a secret") {
 		t.Fatalf("hosts beside a written url are refused: %d %s", code, out)
 	}
-	e.createProject("cal", tool(`, "hosts": ["127.0.0.1"]`))
+	e.Project("cal", tool(`, "hosts": ["127.0.0.1"]`))
 	var got struct {
 		Status int
 		Text   string
 	}
-	e.must("cal.ics", map[string]any{"from": "2026-10-26 00:00"}, &got)
+	e.Must("cal.ics", map[string]any{"from": "2026-10-26 00:00"}, &got)
 	mu.Lock()
 	first := seen[0]
 	mu.Unlock()
@@ -79,25 +79,25 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 		t.Fatalf("what the service says of the link reaches the caller as [secret]: %q", got.Text)
 	}
 	var echoed map[string]string
-	e.must("cal.ics", map[string]any{"from": "json"}, &echoed)
+	e.Must("cal.ics", map[string]any{"from": "json"}, &echoed)
 	if strings.Contains(echoed["url"], "0123456789") {
 		t.Fatalf("a link echoed with escaped slashes is cut too: %v", echoed)
 	}
-	if code, out := e.call("cal.ics", map[string]any{"from": "404"}); code == 200 || strings.Contains(string(out), "0123456789") {
+	if code, out := e.Call("cal.ics", map[string]any{"from": "404"}); code == 200 || strings.Contains(string(out), "0123456789") {
 		t.Fatalf("a page that echoes only the path keeps the token out of the error: %d %s", code, out)
 	}
 	for _, bad := range []string{link + "#x", strings.Replace(link, "https://", "http://", 1), "https://evil.example/tok-0123456789/calendar.ics"} {
-		e.must("deck.secret_set", map[string]any{"name": "outlook", "value": bad}, nil)
-		code, out := e.call("cal.ics", map[string]any{"from": "x"})
+		e.Must("deck.secret_set", map[string]any{"name": "outlook", "value": bad}, nil)
+		code, out := e.Call("cal.ics", map[string]any{"from": "x"})
 		if code == 200 || !strings.Contains(string(out), "no https address on the hosts of the tool, 127.0.0.1") || strings.Contains(string(out), "0123456789") {
 			t.Fatalf("a link that is not https on the hosts of the tool is refused without showing it: %d %s", code, out)
 		}
 	}
-	e.must("deck.secret_set", map[string]any{"name": "outlook", "value": link}, nil)
+	e.Must("deck.secret_set", map[string]any{"name": "outlook", "value": link}, nil)
 	svc.Close()
-	code, out := e.call("cal.ics", map[string]any{"from": "x"})
+	code, out := e.Call("cal.ics", map[string]any{"from": "x"})
 	var hs []map[string]any
-	e.must("deck.health_list", nil, &hs)
+	e.Must("deck.health_list", nil, &hs)
 	if code == 200 || strings.Contains(string(out), "0123456789") || strings.Contains(fmt.Sprint(hs), "0123456789") {
 		t.Fatalf("a failed call keeps the link out of its error and of health: %d %s %v", code, out, hs)
 	}

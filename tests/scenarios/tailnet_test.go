@@ -40,10 +40,10 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	control.HTTPTestServer.Start()
 	t.Cleanup(control.HTTPTestServer.Close)
 
-	e := newEnv(t, nil)
+	e := New(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	srv := api.New(e.App, token, web.FS())
+	srv := api.New(e.App, e.OwnerToken(), web.FS())
 	srv.Pair(tsnet.Ports(true))
 	node, err := tsnet.Start(ctx, tsnet.Config{Hostname: "deck", Dir: t.TempDir(), ControlURL: control.HTTPTestServer.URL, Plain: true,
 		Health: e.App.TailnetHealth}, srv)
@@ -53,9 +53,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	t.Cleanup(func() { _ = node.Close() })
 
 	health := func() (string, string) {
-		var hs []struct{ Subject, Status, Error string }
-		e.must("deck.health_list", nil, &hs)
-		for _, h := range hs {
+		for _, h := range e.Health() {
 			if h.Subject == "tailscale" {
 				return h.Status, h.Error
 			}
@@ -63,7 +61,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 		return "", ""
 	}
 	var link string
-	e.waitFor("the sign-in link in health", func() bool {
+	e.Until("the sign-in link in health", func() bool {
 		status, text := health()
 		link, _ = strings.CutPrefix(text, "sign in to Tailscale: ")
 		return status == "needs_login" && link != text
@@ -71,7 +69,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	if !control.CompleteAuth(link) {
 		t.Fatalf("the link in health signs deck in: %s", link)
 	}
-	e.waitFor("deck on the tailnet", func() bool { s, _ := health(); return s == "ok" })
+	e.Until("deck on the tailnet", func() bool { s, _ := health(); return s == "ok" })
 	if _, text := health(); text != "https://deck.tail-scale.ts.net" {
 		t.Fatalf("health says where deck is: %s", text)
 	}
@@ -86,7 +84,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 			}
 		}
 	}()
-	e.waitFor("the phone on the tailnet", func() bool {
+	e.Until("the phone on the tailnet", func() bool {
 		lc, err := phone.LocalClient()
 		if err != nil {
 			return false
@@ -106,7 +104,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	client := phone.HTTPClient()
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	req, _ := http.NewRequestWithContext(ctx, "POST", "http://"+addr+"/api/commands/deck.menu", strings.NewReader("{}"))
-	req.Header.Set("Authorization", "Bearer "+token)
+	e.Sign(req)
 	r, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)

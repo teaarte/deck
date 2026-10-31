@@ -24,9 +24,9 @@ import (
 // first; a read of the block of another tab gives its blocks, as the client does when the owner shows it.
 func TestATabNotShownIsReadWhenShown(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("notes", webManifest("http://127.0.0.1:1"))
-	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "score": 7})}, nil)
+	e := New(t)
+	e.Project("notes", webManifest("http://127.0.0.1:1"))
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "score": 7})}, nil)
 	read := func(extra map[string]any) []string {
 		return slices.Sorted(maps.Keys(dataOf(t, e.screenMessages("notes", "main", extra))))
 	}
@@ -56,15 +56,15 @@ func TestATabNotShownIsReadWhenShown(t *testing.T) {
 // repeat the cell are left out, a save names such a block on a collection past a page.
 func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	m := strings.Replace(webNotes, `"columns": [{"label": "Title", "bind": "title"}]`,
 		`"columns": [{"label": "Title", "bind": "title", "details": "title"}, {"label": "Note", "bind": "source", "details": "note"}]`, 1)
-	e.createProject("web", m)
+	e.Project("web", m)
 	var recs []map[string]any
 	for i := range 60 {
 		recs = append(recs, map[string]any{"title": fmt.Sprintf("note %02d", i), "source": "web", "note": "longer"})
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(recs...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(recs...)}, nil)
 	data := dataOf(t, e.screenMessages("web", "main", nil))
 	rows := blockData[[]screenRow](t, data["b3"]["rows"])
 	if len(rows) != 50 || string(data["b3"]["more"]) != "10" || len(blockData[[]map[string]any](t, data["b0"]["items"])) != 50 {
@@ -78,7 +78,7 @@ func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 		t.Fatalf("the next page shows the rest: %d", n)
 	}
 	var saved struct{ Warnings []string }
-	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": m}, &saved)
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": m}, &saved)
 	if len(saved.Warnings) != 2 || !strings.Contains(saved.Warnings[0], `screen main block "Notes" has no limit and notes holds 60 records`) {
 		t.Fatalf("a save names the blocks without a limit on a collection past a page: %v", saved.Warnings)
 	}
@@ -92,8 +92,8 @@ func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 // picture, a small one is its own; a picture of a data folder has one made when asked; the copies are no files.
 func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
-	p := e.createProject("shorts", videosManifest)
+	e := New(t)
+	p := e.Project("shorts", videosManifest)
 	png := func(w, h int) string {
 		img := image.NewRGBA(image.Rect(0, 0, w, h))
 		draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{20, 120, 220, 255}}, image.Point{}, draw.Src)
@@ -115,7 +115,7 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		Thumb, Color  string
 		Width, Height int
 	}
-	e.must("deck.files_list", map[string]any{"project": "shorts"}, &list)
+	e.Must("deck.files_list", map[string]any{"project": "shorts"}, &list)
 	seen := map[int64]string{}
 	for _, f := range list {
 		seen[f.ID] = fmt.Sprintf("%s %dx%d %t", f.Thumb, f.Width, f.Height, f.Color != "")
@@ -124,7 +124,7 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		strings.Contains(seen[big], fmt.Sprintf("/api/files/%d ", big)) {
 		t.Fatalf("a picture has its light copy with its size, a small one is its own, and the copies are no files: %v", seen)
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
 		map[string]any{"slug": "a", "file": fmt.Sprint(big)}, map[string]any{"slug": "b", "file": "wide.png"})}, nil)
 	var files []struct {
 		URL, Thumb    string
@@ -135,7 +135,7 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		t.Fatalf("a media block gives the light copy and the size of each picture: %+v", files)
 	}
 	req, _ := http.NewRequest("GET", e.URL+files[1].Thumb, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	e.Sign(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 // turn apart; a line of a log reads the turn alone, and only a line of the master's.
 func TestAChatReadsItsPartsByTheirOwnTopics(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, nil)
+	e := New(t)
 	paths := func(extra map[string]any) []string {
 		var out []string
 		for _, m := range e.screenMessages("", "chat", extra) {

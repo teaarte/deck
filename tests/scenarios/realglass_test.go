@@ -42,17 +42,17 @@ func TestRealBrowserGlass(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, webNotesAgent())
+	e := New(t, WithAgent(webNotesAgent()))
 	e.example("glass")
 	e.example("default")
-	e.createProject("web", webNotesMark)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+	e.Project("web", webNotesMark)
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "source": "mail"}, map[string]any{"title": "beta", "source": "web"})}, nil)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/deck/look")
+	b.Open(e, "#/deck/look")
 	b.until("the appearance tab with juce for a new device", `document.querySelector('[data-look="theme"][data-value="juce"]')`)
 	style := func(sel, prop string) string {
 		return b.eval(`getComputedStyle(document.querySelector('` + sel + `')).` + prop)
@@ -88,7 +88,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	if got := b.eval(`(() => { const s = getComputedStyle(` + table + `); return s.backdropFilter + ' ' + s.backgroundColor })()`); got != "none rgb(255, 255, 255)" {
 		t.Fatalf("a block with a table stays solid: %s", got)
 	}
-	e.waitFor("the custom block to report its theme", func() bool { return len(e.themesSeen()) > 0 })
+	e.Until("the custom block to report its theme", func() bool { return len(e.themesSeen()) > 0 })
 	if got, body := e.themesSeen()[0], b.eval(`getComputedStyle(document.documentElement).getPropertyValue('--mantine-color-body').trim()`); got.Bg != body {
 		t.Fatalf("a custom block gets the solid body of the host as its background: %+v, want %s", got, body)
 	}

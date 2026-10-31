@@ -27,23 +27,23 @@ type deskView struct {
 func (e *Env) desk(device string, columns int) deskView {
 	e.T.Helper()
 	var v deskView
-	e.must("deck.layout", map[string]any{"device": device, "columns": columns}, &v)
+	e.Must("deck.layout", map[string]any{"device": device, "columns": columns}, &v)
 	return v
 }
 
 func (e *Env) place(device string, columns int, cards ...deskCard) {
 	e.T.Helper()
 	raw, _ := json.Marshal(cards)
-	e.must("deck.layout_set", map[string]any{"device": device, "columns": columns, "cards": string(raw)}, nil)
+	e.Must("deck.layout_set", map[string]any{"device": device, "columns": columns, "cards": string(raw)}, nil)
 }
 
 // TestTheTilesStandWhereEachDevicePutThem: a device keeps its cards for its columns, derives a narrower grid from its
 // wider one, starts from another's or the order alone; the menu follows the order, a paused module keeps its cell.
 func TestTheTilesStandWhereEachDevicePutThem(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
+	e := New(t, WithAgent(ok))
 	for _, name := range []string{"alpha", "beta", "gamma"} {
-		e.createProject(name, plainManifest)
+		e.Project(name, plainManifest)
 	}
 	if v := e.desk("laptop", 4); len(v.Cards) != 0 || v.Own {
 		t.Fatalf("a deck nobody placed gives no layout: %+v", v)
@@ -67,8 +67,8 @@ func TestTheTilesStandWhereEachDevicePutThem(t *testing.T) {
 	if names, _ := e.side(); !slices.Equal(names, []string{"gamma", "alpha", "beta"}) {
 		t.Fatalf("the menu goes in the order of the newest layout: %v", names)
 	}
-	e.refused("deck.layout_set", map[string]any{"device": "laptop", "columns": 4, "cards": `[{"id": "gamma", "x": 3, "y": 0, "w": 2, "h": 1}]`}, 422, "does not fit")
-	e.refused("deck.layout_set", map[string]any{"device": "laptop", "columns": 4, "cards": `[{"id": "today", "x": 0, "y": 0, "w": 1, "h": 1}]`}, 422, "two cells")
+	e.Refused("deck.layout_set", map[string]any{"device": "laptop", "columns": 4, "cards": `[{"id": "gamma", "x": 3, "y": 0, "w": 2, "h": 1}]`}, 422, "does not fit")
+	e.Refused("deck.layout_set", map[string]any{"device": "laptop", "columns": 4, "cards": `[{"id": "today", "x": 0, "y": 0, "w": 1, "h": 1}]`}, 422, "two cells")
 	e.place("desk", 3, deskCard{"today", 0, 0, 2, 1}, deskCard{"beta", 2, 0, 1, 1})
 	if v := e.desk("desk", 5); !v.Own || v.Columns != 3 {
 		t.Fatalf("a wider grid of a device takes its narrower layout as it is: %+v", v)
@@ -77,9 +77,9 @@ func TestTheTilesStandWhereEachDevicePutThem(t *testing.T) {
 	if v := e.desk("pocket", 2); !v.Own || v.Columns != 2 || !slices.Equal(v.Cards, []deskCard{{"today", 0, 0, 2, 3}, {"beta", 0, 3, 2, 2}}) {
 		t.Fatalf("the cards of a grid of one column go across a wider one, their heights kept: %+v", v)
 	}
-	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
+	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
 	e.place("laptop", 4, deskCard{"today", 0, 0, 2, 1}, deskCard{"gamma", 2, 0, 2, 2}, deskCard{"beta", 3, 3, 1, 1})
-	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)
+	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)
 	if v := e.desk("laptop", 4); !slices.Contains(v.Cards, deskCard{"alpha", 0, 1, 1, 1}) {
 		t.Fatalf("a paused module keeps its cell for its resume: %+v", v)
 	}
@@ -98,15 +98,15 @@ const widgetsManifest = `{"version": 13,
 // it holds; the menu names the sizes, and a view is only of stat, list and chart blocks.
 func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	e.createProject("shelf", widgetsManifest)
+	e := New(t, WithAgent(ok))
+	e.Project("shelf", widgetsManifest)
 	var recs []map[string]any
 	for i := range 12 {
 		recs = append(recs, map[string]any{"name": fmt.Sprintf("item %d", i), "n": i})
 	}
-	e.must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": jsonl(recs...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": jsonl(recs...)}, nil)
 	var m struct{ Projects []struct{ Widgets []string } }
-	e.must("deck.menu", nil, &m)
+	e.Must("deck.menu", nil, &m)
 	if len(m.Projects) != 1 || !slices.Equal(m.Projects[0].Widgets, []string{"1x1", "2x2"}) {
 		t.Fatalf("the menu names the views of the card: %+v", m)
 	}
@@ -121,8 +121,8 @@ func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	if len(big) != 7 || big[0].Title != "item 11" {
 		t.Fatalf("a large card shows the list as long as it holds, three lines a row less the head and the title: %d %+v", len(big), big)
 	}
-	e.createProject("lab", widgetsOfWork)
-	e.must("deck.records_upsert", map[string]any{"project": "lab", "collection": "items", "records": jsonl(recs...)}, nil)
+	e.Project("lab", widgetsOfWork)
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "items", "records": jsonl(recs...)}, nil)
 	low := e.screenData("lab", "widget", map[string]any{"widget": "2x1"})
 	if n := len(blockData[[]listItem](t, low["b1"]["items"])); n != 1 || low["b0"] == nil {
 		t.Fatalf("a low card shows its number and one line under it: %d", n)
@@ -132,24 +132,25 @@ func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	if len(needs) != 2 || len(fresh) != 2 {
 		t.Fatalf("two lists share the card: the first its limit, the next what is left under its title: %d %d", len(needs), len(fresh))
 	}
-	e.refused("deck.screen", map[string]any{"project": "shelf", "screen": "widget", "widget": "big"}, 422, "size")
+	e.Refused("deck.screen", map[string]any{"project": "shelf", "screen": "widget", "widget": "big"}, 422, "size")
 	bad := strings.Replace(widgetsManifest, `{"type": "stat", "title": "Items", "source": {"collection": "items"}}`,
 		`{"type": "table", "title": "Items", "source": {"collection": "items"}, "columns": [{"label": "Name", "bind": "name"}]}`, 1)
-	e.refused("deck.manifest_save", map[string]any{"project": "shelf", "manifest": bad}, 422, "stat, list and chart")
+	e.Refused("deck.manifest_save", map[string]any{"project": "shelf", "manifest": bad}, 422, "stat, list and chart")
 }
 
 // TestTodayInBriefSaysTheMostPressingFirst: the card of Today says what waits first, then what failed and runs, and
 // on a calm day that all is well, with what the day cost and what runs next.
 func TestTodayInBriefSaysTheMostPressingFirst(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the model is down"}
-	})
-	e.createProject("digest", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	}))
+
+	e.Project("digest", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
 	var lines []struct{ Kind, Title string }
 	read := func() []string {
 		lines = nil
-		e.must("deck.today", map[string]any{"lang": "ru"}, &lines)
+		e.Must("deck.today", map[string]any{"lang": "ru"}, &lines)
 		var kinds []string
 		for _, l := range lines {
 			kinds = append(kinds, l.Kind)
@@ -159,9 +160,9 @@ func TestTodayInBriefSaysTheMostPressingFirst(t *testing.T) {
 	if kinds := read(); !slices.Equal(kinds, []string{"calm", "day", "spent", "next"}) || lines[1].Title != "Сделано сегодня: 0" || !strings.HasPrefix(lines[3].Title, "Дальше: work") {
 		t.Fatalf("a calm day says so, what it cost and what runs next: %+v", lines)
 	}
-	e.waitState(e.start("digest", "work", nil), "error")
+	e.WaitState(e.Start("digest", "work", nil), "error")
 	_, tok := e.token("asker", "deck.model_set")
-	if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "none", "model": "x"}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
+	if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": "x"}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 		t.Fatalf("a token's call waits for the owner: %d %s", code, out)
 	}
 	if kinds := read(); !slices.Equal(kinds[:2], []string{"asks", "failures"}) || lines[0].Title != "Ждёт одно решение" {
@@ -176,17 +177,17 @@ func TestTodayInBriefSaysTheMostPressingFirst(t *testing.T) {
 // model of the role widget once the owner picked one.
 func TestDekiDrawsAViewForTheSizeOfACard(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, ok)
-	e.createProject("shelf", widgetsManifest)
+	e := New(t, WithAgent(ok))
+	e.Project("shelf", widgetsManifest)
 	var sent struct{ Topic int64 }
-	e.must("deck.widget_draw", map[string]any{"project": "shelf", "size": "4x2", "wish": "the newest first"}, &sent)
+	e.Must("deck.widget_draw", map[string]any{"project": "shelf", "size": "4x2", "wish": "the newest first"}, &sent)
 	msgs := e.chatMessages(sent.Topic)
 	if len(msgs) == 0 || !strings.Contains(msgs[0].Text, "shelf") || !strings.Contains(msgs[0].Text, "4x2") || !strings.Contains(msgs[0].Text, "the newest first") {
 		t.Fatalf("the master is told the module, the size and the wish: %+v", msgs)
 	}
-	e.refused("deck.widget_draw", map[string]any{"project": "shelf", "size": "huge"}, 422, "size")
-	e.must("deck.assignment_set", map[string]any{"role": "widget", "models": []string{"quiet"}}, nil)
-	e.must("deck.widget_draw", map[string]any{"project": "shelf", "size": "1x1"}, &sent)
+	e.Refused("deck.widget_draw", map[string]any{"project": "shelf", "size": "huge"}, 422, "size")
+	e.Must("deck.assignment_set", map[string]any{"role": "widget", "models": []string{"quiet"}}, nil)
+	e.Must("deck.widget_draw", map[string]any{"project": "shelf", "size": "1x1"}, &sent)
 	var topics []struct {
 		ID    int64
 		Model string

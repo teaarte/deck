@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -32,11 +33,14 @@ func (c *fakeCodex) adapter(home string) *codex.Adapter {
 	return &codex.Adapter{Binary: filepath.Join(c.dir, "codex"), Home: deckhome.Layout(home), Dir: deckhome.Layout(home).Codex(), Linger: 300 * time.Millisecond}
 }
 
-// codexEnv runs deck on a clock a few minutes before the limit reset the recorded streams carry.
-func codexEnv(t *testing.T, c *fakeCodex) (*Env, string) {
-	home := t.TempDir()
+// WithCodex runs deck on the fake Codex app-server, on a clock a few minutes before the limit reset the recorded
+// streams carry.
+func WithCodex(c *fakeCodex) Option {
 	shift := time.Until(time.Unix(1790481864-600, 0))
-	return newEnvWith(t, home, c.adapter(home), func(cfg *app.Config) { cfg.Now = func() time.Time { return time.Now().Add(shift) } }), home
+	return func(s *setup) {
+		s.providers = append(s.providers, func(home string) provider.Provider { return c.adapter(home) })
+		s.cfg = append(s.cfg, func(cfg *app.Config) { cfg.Now = func() time.Time { return time.Now().Add(shift) } })
+	}
 }
 
 type codexCall struct {

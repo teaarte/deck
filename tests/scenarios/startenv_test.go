@@ -64,15 +64,17 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 			}
 		}
 	}()
-	select {
-	case m := <-up:
-		return &deckBinary{cmd: cmd, url: m[1], token: m[2]}
-	case <-time.After(within(30 * time.Second)):
-		mu.Lock()
-		defer mu.Unlock()
-		t.Fatalf("deck did not start; it said:\n%s", strings.Join(said, "\n"))
-	}
-	return nil
+	started := false
+	defer func() {
+		if !started {
+			mu.Lock()
+			defer mu.Unlock()
+			t.Logf("deck said:\n%s", strings.Join(said, "\n"))
+		}
+	}()
+	m := Receive(t, "deck to start", up)
+	started = true
+	return &deckBinary{cmd: cmd, url: m[1], token: m[2]}
 }
 
 func (d *deckBinary) call(name string, in any) (int, string, error) {
@@ -126,11 +128,7 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 		code, out, err := d.call("late.slow", map[string]any{})
 		got <- answer{code, out, err}
 	}()
-	for deadline := time.Now().Add(within(10 * time.Second)); len(slow.requests()) == 0; time.Sleep(20 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatal("the call did not reach the tool")
-		}
-	}
+	Until(t, "the call to reach the tool", func() bool { return len(slow.requests()) > 0 })
 	_ = d.cmd.Process.Signal(syscall.SIGTERM)
 	a := <-got
 	if a.err != nil || a.code != 200 || !strings.Contains(a.out, "ok") {
@@ -138,11 +136,7 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() { done <- d.cmd.Wait() }()
-	select {
-	case <-done:
-	case <-time.After(within(15 * time.Second)):
-		t.Fatal("deck does not exit after the stop")
-	}
+	Receive(t, "deck to exit after the stop", done)
 }
 
 func TestTheHomeAndTheTokenOfDeckAreOnlyTheOwners(t *testing.T) {

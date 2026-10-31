@@ -23,7 +23,7 @@ import (
 // runs without asking, only the question reaches deck's permission tool, and curl fails without network.
 func (c *fakeCLI) approving() {
 	self := fakes
-	offline, _ := filepath.Abs("testdata/claude/selfcheck_offline.jsonl")
+	offline := Testdata("claude/selfcheck_offline.jsonl")
 	c.before(`if grep -q -- --tools "$c/args" && grep -q 'self-check of deck' "$c/stdin"; then
   sed "s/{{session}}/$session/g" '` + offline + `'
   exit 0

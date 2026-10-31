@@ -192,7 +192,7 @@ func TestRealClaudeCodeKnowsFakeFlags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile("testdata/claude/fake.sh")
+	b, _ := os.ReadFile(Testdata("claude/fake.sh"))
 	flags := regexp.MustCompile(`--[a-zA-Z-]+`).FindAllString(string(b), -1)
 	if len(flags) < 10 {
 		t.Fatalf("found only %v in the fake", flags)

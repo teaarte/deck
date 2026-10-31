@@ -65,7 +65,7 @@ func serveCodex(dir string) {
 			srv.violate("unexpected argument %q", args[i])
 		}
 	}
-	b, err := os.ReadFile(filepath.Join(os.Getenv("DECK_FAKE_CODEX_ROOT"), "..", "..", "internal", "provider", "codex", "protocol.schema.json"))
+	b, err := os.ReadFile(filepath.Join(Root, "internal", "provider", "codex", "protocol.schema.json"))
 	if err != nil {
 		srv.violate("no schema: %v", err)
 	}

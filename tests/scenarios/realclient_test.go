@@ -162,7 +162,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 // checkBuiltClient builds the client from its sources and fails when the embedded build is not that one.
 func checkBuiltClient(t *testing.T) {
 	t.Helper()
-	dir, _ := filepath.Abs("../../web")
+	dir := filepath.Join(Root, "web")
 	out := t.TempDir()
 	cmd := exec.Command("npm", "run", "build", "--", "--outDir", out, "--emptyOutDir")
 	cmd.Dir = dir

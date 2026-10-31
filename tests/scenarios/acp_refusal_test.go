@@ -51,7 +51,7 @@ func TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout(t *testing.T) 
 func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 	t.Parallel()
 	read := func(name string) string {
-		b, err := os.ReadFile(filepath.Join("testdata/acp", name))
+		b, err := os.ReadFile(filepath.Join(Testdata("acp"), name))
 		if err != nil {
 			t.Fatal(err)
 		}

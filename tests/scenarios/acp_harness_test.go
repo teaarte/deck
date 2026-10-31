@@ -36,7 +36,7 @@ func newACP(t *testing.T) *fakeACP {
 	if err := os.WriteFile(filepath.Join(dir, "goose"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return &fakeACP{fakeBin{t: t, dir: dir, fixtures: "testdata/acp", version: "agent", who: "the agent"}}
+	return &fakeACP{fakeBin{t: t, dir: dir, fixtures: Testdata("acp"), version: "agent", who: "the agent"}}
 }
 
 // acpSchema is the ACP schema of the SDK version deck is built with.

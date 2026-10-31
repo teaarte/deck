@@ -20,7 +20,7 @@ import (
 // agent adds a tracker by the code-project skill (testdata/tracker).
 func codeModule(t *testing.T, url string) string {
 	t.Helper()
-	src, _ := filepath.Abs("../../skills/code-project/example")
+	src := filepath.Join(Root, "skills/code-project/example")
 	dst := filepath.Join(t.TempDir(), "code")
 	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -49,7 +49,7 @@ func codeModule(t *testing.T, url string) string {
 func addTracker(t *testing.T, dir, url string) {
 	t.Helper()
 	var m, in map[string]any
-	for path, v := range map[string]*map[string]any{filepath.Join(dir, "manifest.json"): &m, "testdata/tracker/intake.json": &in} {
+	for path, v := range map[string]*map[string]any{filepath.Join(dir, "manifest.json"): &m, Testdata("tracker/intake.json"): &in} {
 		b, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
@@ -69,7 +69,7 @@ func addTracker(t *testing.T, dir, url string) {
 	b, _ := json.Marshal(m)
 	files := map[string][]byte{"manifest.json": b}
 	for _, f := range []string{"poll_gitlab.py", "follow_gitlab.py"} {
-		src, err := os.ReadFile(filepath.Join("testdata/tracker", f))
+		src, err := os.ReadFile(filepath.Join(Testdata("tracker"), f))
 		if err != nil {
 			t.Fatal(err)
 		}

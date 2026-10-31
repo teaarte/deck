@@ -342,7 +342,7 @@ func TestCodexThatDoesNotExitAfterItsTurnIsKilled(t *testing.T) {
 func TestCodexThatClosesItsOutputButStaysIsKilled(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
-	raw, err := os.ReadFile("testdata/codex/hang.jsonl")
+	raw, err := os.ReadFile(Testdata("codex/hang.jsonl"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -532,7 +532,7 @@ func TestCodexNetworkEscalationInAProjectWithoutNetworkIsDeclined(t *testing.T) 
 func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
-	raw, _ := os.ReadFile("testdata/codex/filechange.jsonl")
+	raw, _ := os.ReadFile(Testdata("codex/filechange.jsonl"))
 	lines := strings.SplitAfter(string(raw), "\n")
 	ids := regexp.MustCompile(`"threadId": "[^"]+", "turnId": "[^"]+"`).FindString(lines[9])
 	dynamic := `{"method": "item/started", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "inProgress"}, ` + ids + `}}` + "\n" +
@@ -595,7 +595,7 @@ func TestCodexOwnerServerNamedDeckIsAnError(t *testing.T) {
 func TestCodexTurnGoesOnWhenTheAppServerStopsReadingWhileItWrites(t *testing.T) {
 	t.Parallel()
 	c := newCodex(t)
-	b, _ := os.ReadFile("testdata/codex/ok.jsonl")
+	b, _ := os.ReadFile(Testdata("codex/ok.jsonl"))
 	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
 	var out []string
 	for _, l := range lines {

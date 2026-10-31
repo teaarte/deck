@@ -373,7 +373,7 @@ func TestSkillsAndPromptsNameOnlyCommandsDeckHas(t *testing.T) {
 	for _, c := range cmds {
 		have[strings.TrimPrefix(c.Name, "deck.")] = true
 	}
-	for _, root := range []string{"../../skills", "../../master"} {
+	for _, root := range []string{filepath.Join(Root, "skills"), filepath.Join(Root, "master")} {
 		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
 				return err
@@ -420,7 +420,7 @@ func TestTheSkillNamesOnlyBlocksAndChartsTheCatalogHas(t *testing.T) {
 	e := New(t)
 	var d struct{ Text string }
 	e.Must("deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}, &d)
-	raw, err := os.ReadFile("../../schemas/catalog.json")
+	raw, err := os.ReadFile(filepath.Join(Root, "schemas/catalog.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

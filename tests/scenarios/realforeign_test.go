@@ -18,7 +18,7 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
-	dir, _ := filepath.Abs("../../web")
+	dir := filepath.Join(Root, "web")
 	out := t.TempDir()
 	build := exec.Command(filepath.Join(dir, "node_modules/.bin/vite"), "build", "foreign", "--outDir", out, "--emptyOutDir")
 	build.Dir = dir

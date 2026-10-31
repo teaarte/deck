@@ -30,7 +30,7 @@ var listening = regexp.MustCompile(`url="(http://[^/]+)/\?token=([0-9a-f]+)"`)
 func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "deck")
-	if out, err := exec.Command("go", "build", "-o", bin, "../../cmd/deck").CombinedOutput(); err != nil {
+	if out, err := exec.Command("go", "build", "-o", bin, filepath.Join(Root, "cmd/deck")).CombinedOutput(); err != nil {
 		t.Fatalf("build deck: %v\n%s", err, out)
 	}
 	// Agent CLIs that fail stand before the owner's, so a self-check never runs on the owner's accounts.

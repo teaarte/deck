@@ -369,7 +369,7 @@ func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
 func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 	t.Parallel()
 	read := func(name string) string {
-		b, err := os.ReadFile(filepath.Join("testdata/acp", name))
+		b, err := os.ReadFile(filepath.Join(Testdata("acp"), name))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -679,7 +679,7 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 		f.stream(i, "selfcheck_"+itoa(int64(i-3))+".jsonl")
 	}
 	slow := strings.Replace(acpInit, `{"reply": "initialize"`, `{"shell": "sleep 1"}`+"\n"+`{"reply": "initialize"`, 1)
-	b, _ := os.ReadFile("testdata/acp/selfcheck_1.jsonl")
+	b, _ := os.ReadFile(Testdata("acp/selfcheck_1.jsonl"))
 	f.streamText(1, strings.Replace(string(b), acpInit, slow, 1))
 	llm := acpLLM(t)
 	e := New(t, WithConfig(func(c *app.Config) {

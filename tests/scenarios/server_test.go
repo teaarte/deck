@@ -39,10 +39,7 @@ func TestServerFromScratch(t *testing.T) {
 	if os.Getenv("DECK_SERVER") == "" {
 		t.Skip("set DECK_SERVER=1 to run deck's image on a bare docker; needs docker with buildx")
 	}
-	root, err := filepath.Abs("../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := Root
 	run := func(name string, args ...string) string {
 		t.Helper()
 		out, err := exec.Command(name, args...).CombinedOutput()

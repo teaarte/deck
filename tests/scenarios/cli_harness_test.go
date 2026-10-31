@@ -28,7 +28,7 @@ type fakeCLI struct{ fakeBin }
 func newCLI(t *testing.T) *fakeCLI {
 	t.Helper()
 	dir := t.TempDir()
-	b, err := os.ReadFile("testdata/claude/fake.sh")
+	b, err := os.ReadFile(Testdata("claude/fake.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func newCLI(t *testing.T) *fakeCLI {
 			t.Errorf("a helper of the fake CLI failed: %s", b)
 		}
 	})
-	return &fakeCLI{fakeBin{t: t, dir: dir, fixtures: "testdata/claude", version: "CLI", who: "the CLI"}}
+	return &fakeCLI{fakeBin{t: t, dir: dir, fixtures: Testdata("claude"), version: "CLI", who: "the CLI"}}
 }
 
 // after sets shell code the fake runs once the stream is out; $c is the call folder, $n the call number.
@@ -127,8 +127,8 @@ func (c *fakeCLI) models(fixture string) {
 // mode and replays the recorded self-check turn and its resume.
 func (c *fakeCLI) checksPass() {
 	c.approving()
-	first, _ := filepath.Abs("testdata/claude/selfcheck.jsonl")
-	resume, _ := filepath.Abs("testdata/claude/selfcheck_resume.jsonl")
+	first := Testdata("claude/selfcheck.jsonl")
+	resume := Testdata("claude/selfcheck_resume.jsonl")
 	b, _ := os.ReadFile(filepath.Join(c.dir, "before"))
 	c.before(string(b) + `
 if grep -q 'deck-check-' "$c/stdin"; then stream='` + first + `'; fi

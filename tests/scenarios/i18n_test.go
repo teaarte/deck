@@ -88,7 +88,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 			titles[c.Title] = true
 		}
 	}
-	files, err := filepath.Glob("../../internal/app/screens/shipped/*.json")
+	files, err := filepath.Glob(filepath.Join(Root, "internal/app/screens/shipped/*.json"))
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no screens of deck: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 		}
 	}
 	var code strings.Builder
-	_ = filepath.WalkDir("../../internal", func(p string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(filepath.Join(Root, "internal"), func(p string, d os.DirEntry, err error) error {
 		if err == nil && strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, "_test.go") {
 			b, _ := os.ReadFile(p)
 			code.Write(b)
@@ -171,7 +171,7 @@ func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 // passes it hands the screen nothing.
 func TestEveryParamADeckScreenReadsIsDeclared(t *testing.T) {
 	t.Parallel()
-	files, _ := filepath.Glob("../../internal/app/screens/shipped/*.json")
+	files, _ := filepath.Glob(filepath.Join(Root, "internal/app/screens/shipped/*.json"))
 	used := regexp.MustCompile(`param\.([a-z_]+)`)
 	for _, f := range files {
 		raw, err := os.ReadFile(f)
@@ -265,21 +265,21 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 	t.Parallel()
 	e := New(t)
 	var ru map[string]string
-	raw, err := os.ReadFile("../../internal/app/screens/shipped/ru.json")
+	raw, err := os.ReadFile(filepath.Join(Root, "internal/app/screens/shipped/ru.json"))
 	if err != nil || json.Unmarshal(raw, &ru) != nil {
 		t.Fatalf("no ru of deck: %v", err)
 	}
 	var master struct {
 		I18n map[string]map[string]string `json:"i18n"`
 	}
-	mraw, err := os.ReadFile("../../master/manifest.json")
+	mraw, err := os.ReadFile(filepath.Join(Root, "master/manifest.json"))
 	if err != nil || json.Unmarshal(mraw, &master) != nil {
 		t.Fatalf("no manifest of the master: %v", err)
 	}
 	var cmds []struct{ Name, Title string }
 	e.Must("deck.commands_list", nil, &cmds)
 	forms := map[string]bool{}
-	files, _ := filepath.Glob("../../internal/app/screens/shipped/*.json")
+	files, _ := filepath.Glob(filepath.Join(Root, "internal/app/screens/shipped/*.json"))
 	for _, f := range files {
 		b, _ := os.ReadFile(f)
 		for _, m := range regexp.MustCompile(`"type": *"form", "command": *"(deck\.[a-z_]+)"`).FindAllSubmatch(b, -1) {

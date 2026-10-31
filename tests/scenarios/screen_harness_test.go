@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -267,7 +268,7 @@ type catalogCheck struct {
 
 func newCatalogCheck(t *testing.T) *catalogCheck {
 	t.Helper()
-	raw, err := os.ReadFile("../../schemas/catalog.json")
+	raw, err := os.ReadFile(filepath.Join(Root, "schemas/catalog.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

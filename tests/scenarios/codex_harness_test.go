@@ -21,12 +21,11 @@ func newCodex(t *testing.T) *fakeCodex {
 	t.Helper()
 	dir := t.TempDir()
 	self := fakes
-	root, _ := filepath.Abs(".")
-	script := "#!/bin/sh\nexec env DECK_FAKE_CODEX='" + dir + "' DECK_FAKE_CODEX_ROOT='" + root + "' '" + self + "' \"$@\"\n"
+	script := "#!/bin/sh\nexec env DECK_FAKE_CODEX='" + dir + "' '" + self + "' \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(dir, "codex"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return &fakeCodex{fakeBin{t: t, dir: dir, fixtures: "testdata/codex", version: "CLI", who: "the app-server"}}
+	return &fakeCodex{fakeBin{t: t, dir: dir, fixtures: Testdata("codex"), version: "CLI", who: "the app-server"}}
 }
 
 func (c *fakeCodex) adapter(home string) *codex.Adapter {

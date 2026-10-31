@@ -147,7 +147,7 @@ func TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne(t *testing.T) {
 	c := newCLI(t)
 	c.models("models.jsonl")
 	c.checksPass()
-	raw, _ := os.ReadFile("testdata/claude/ratelimit_rejected.jsonl")
+	raw, _ := os.ReadFile(Testdata("claude/ratelimit_rejected.jsonl"))
 	if err := os.WriteFile(filepath.Join(c.dir, "stream.opus"), raw, 0o644); err != nil {
 		t.Fatal(err)
 	}

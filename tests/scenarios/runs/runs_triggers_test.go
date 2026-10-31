@@ -1,4 +1,4 @@
-package scenarios
+package runs
 
 import (
 	"context"
@@ -17,6 +17,27 @@ import (
 	"testing"
 	"time"
 )
+
+// TestADraftsScheduleSaysItDoesNotRun: a trigger of a draft has no next run and says why.
+func TestADraftsScheduleSaysItDoesNotRun(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	draft := strings.Replace(harness.PlainManifest, `"triggers": []`, `"triggers": [{"command": "work", "cron": "30 * * * *"}]`, 1)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(draft), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.Must("deck.project_import", map[string]any{"folder": dir, "name": "bench"}, nil)
+	var ts []struct {
+		Project   string
+		NextRunAt string `json:"next_at"`
+		Draft     bool
+	}
+	e.Must("deck.triggers_list", map[string]any{"project": "bench"}, &ts)
+	if len(ts) != 1 || !ts[0].Draft || ts[0].NextRunAt != "" {
+		t.Fatalf("a draft's trigger shows no next run: %+v", ts)
+	}
+}
 
 func TestANewModuleWithoutCode(t *testing.T) {
 	t.Parallel()

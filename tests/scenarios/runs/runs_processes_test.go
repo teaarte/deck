@@ -1,4 +1,4 @@
-package scenarios
+package runs
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -21,6 +22,100 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+func writeIdeas(ctx context.Context, c *harness.Call, topic string) {
+	c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(
+		map[string]any{"title": "alpha", "score": 7, "topic": topic}, map[string]any{"title": "beta", "score": 3, "topic": topic},
+		map[string]any{"title": "gamma", "score": 9, "topic": topic}, map[string]any{"title": "broken"})})
+}
+
+func TestManifestIsValidatedOnSave(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(context.Context, *harness.Call) provider.Result { return provider.Result{} }))
+	bad := strings.NewReplacer(`"collection": "ideas", "where"`, `"collection": "nope", "where"`, `"0 9 * * *"`, `"every day"`).Replace(harness.IdeasManifest)
+	code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": bad})
+	if code != 422 || !strings.Contains(string(out), "unknown collection") || !strings.Contains(string(out), "cron") {
+		t.Fatalf("want 422 with reasons, got %d %s", code, out)
+	}
+}
+
+func TestCommandWritesRecordsAndScreenShowsThem(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		writeIdeas(ctx, c, "x")
+		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
+	}))
+
+	p := e.Project("ideas", harness.IdeasManifest)
+	id := e.Run(p, "collect")
+	got := e.WaitState(id, "done")
+	if got.NotBySchema || string(got.Result) != `{"written":3}` {
+		t.Fatalf("unexpected result %+v", got)
+	}
+	rows := e.ScreenRows(p, "main")
+	if len(rows) != 2 || rows[0].Cells[0] != "gamma" || rows[1].Cells[0] != "alpha" {
+		t.Fatalf("want gamma, alpha filtered and sorted, got %v", rows)
+	}
+	e.WaitState(e.Run(p, "collect"), "done")
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
+	if len(recs) != 3 {
+		t.Fatalf("upsert by key must not duplicate, got %d records", len(recs))
+	}
+}
+
+func TestResultNotBySchemaAfterOneRetry(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{"count": 1}`)}
+	}))
+
+	p := e.Project("ideas", harness.IdeasManifest)
+	id := e.Run(p, "collect")
+	got := e.WaitState(id, "done")
+	if !got.NotBySchema || string(got.Result) != `{"count":1}` {
+		t.Fatalf("want raw result marked not by schema, got %+v", got)
+	}
+	calls := e.Fake.Calls()
+	if len(calls) != 2 || !strings.Contains(calls[1].Prompt, "did not match") {
+		t.Fatalf("want exactly one retry asking for JSON only, got %d calls", len(calls))
+	}
+}
+
+// TestAToolAddedToTheProjectReachesARunningTurn: a command added to the manifest while an agent works is a tool of
+// its session at once, and a command taken out is gone, so the master tries what it just built in the same turn.
+func TestAToolAddedToTheProjectReachesARunningTurn(t *testing.T) {
+	t.Parallel()
+	saved, listed := make(chan struct{}), make(chan []string, 2)
+	names := func(ctx context.Context, c *harness.Call) []string {
+		var out []string
+		for tool, err := range c.Session.Tools(ctx, nil) {
+			if err == nil {
+				out = append(out, tool.Name)
+			}
+		}
+		return out
+	}
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		listed <- names(ctx, c)
+		<-saved
+		time.Sleep(300 * time.Millisecond)
+		listed <- names(ctx, c)
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	}))
+
+	p := e.Project("notes", harness.PlainManifest)
+	id := e.Run(p, "work")
+	before := <-listed
+	more := strings.Replace(harness.PlainManifest, `"commands": [{`, `"commands": [{"name": "extra", "title": "Extra", "description": "Does more", "class": "internal",
+    "executor": {"type": "agent", "prompt": "More."}}, {`, 1)
+	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": more}, nil)
+	close(saved)
+	after := <-listed
+	if slices.Contains(before, "notes__extra") || !slices.Contains(after, "notes__extra") {
+		t.Fatalf("the new command is a tool of the running turn: before %v after %v", before, after)
+	}
+	e.WaitState(id, "done")
+}
 
 func TestAgentCallsReturnAtOnceAndRetryKeyReusesTheProcess(t *testing.T) {
 	t.Parallel()
@@ -765,4 +860,32 @@ func TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns(t *testing.T) {
 	if want := fmt.Sprintf("the processes it started still run: #%d child", kid); !strings.Contains(got.Error, want) {
 		t.Fatalf("the error at the ceiling names what still runs: %q", got.Error)
 	}
+}
+
+// TestASecondPressWithARetryKeyReturnsTheRunningProcess: a button that passes a retry key in its params starts the
+// work once; a press while it runs returns the same process.
+func TestASecondPressWithARetryKeyReturnsTheRunningProcess(t *testing.T) {
+	t.Parallel()
+	release := make(chan struct{})
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		<-release
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	}))
+
+	e.Project("web", strings.Replace(harness.WebNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
+		`"actions": [{"label": "Open", "screen": "note"}, {"label": "Touch", "command": "touch", "params": {"note": "=_id", "retry_key": "='touch:' + string(_id)"}}]`, 1))
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
+	a := e.RowAction("web", "main", "web.touch", nil)
+	var first, second struct{ Process int64 }
+	for _, out := range []*struct{ Process int64 }{&first, &second} {
+		code, body := e.Press(a)
+		if code != 200 || json.Unmarshal(body, out) != nil {
+			t.Fatalf("a press calls the command: %d %s", code, body)
+		}
+	}
+	close(release)
+	if first.Process == 0 || second.Process != first.Process {
+		t.Fatalf("a second press with the key of a running process returns it: %d %d", first.Process, second.Process)
+	}
+	e.WaitState(first.Process, "done")
 }

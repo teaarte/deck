@@ -67,7 +67,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		t.Fatalf("every agent command of the project has its model picker: %v", cmds)
 	}
 	e.Must("deck.secret_set", map[string]any{"name": "or-key", "value": "x"}, nil)
-	add := harness.BlockData[struct{ Choices map[string][]choiceV }](t, screenForm(e, "", "settings", "deck.connection_set")["value"])
+	add := harness.BlockData[struct{ Choices map[string][]choiceV }](t, e.ScreenForm("", "settings", "deck.connection_set")["value"])
 	if k := add.Choices["key_secret"]; len(k) != 1 || k[0].Value != "or-key" {
 		t.Fatalf("the key of a connection is picked from the secrets: %+v", add.Choices)
 	}

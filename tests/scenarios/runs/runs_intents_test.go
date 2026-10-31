@@ -1,4 +1,4 @@
-package scenarios
+package runs
 
 import (
 	"context"
@@ -8,66 +8,19 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
 
-// hangingService answers the requests numbered in hang only when released, like a service deck lost the
-// answer of; release(0) frees all of them.
-func hangingService(t *testing.T, hang ...int) (*harness.Service, func(n int)) {
-	t.Helper()
-	gates := map[int]chan struct{}{}
-	for _, n := range hang {
-		gates[n] = make(chan struct{})
-	}
-	var mu sync.Mutex
-	release := func(n int) {
-		mu.Lock()
-		defer mu.Unlock()
-		for k, g := range gates {
-			if n == 0 || n == k {
-				close(g)
-				delete(gates, k)
-			}
-		}
-	}
-	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
-		mu.Lock()
-		g := gates[n]
-		mu.Unlock()
-		if g != nil {
-			<-g
-		}
-		harness.JsonReply(w, fmt.Sprintf(`{"id": "job-%d"}`, n))
-	})
-	t.Cleanup(func() { release(0) })
-	return svc, release
-}
-
-func generateManifest(url string) string {
-	return fmt.Sprintf(`{"version": 13,
-  "commands": [
-    {"name": "make", "title": "Make", "description": "Starts a paid generation.", "class": "external",
-     "input": {"type": "object", "properties": {"topic": {"type": "string"}}},
-     "executor": {"type": "tool", "tool": "generate"}},
-    {"name": "work", "title": "Work", "description": "Asks for a generation.", "class": "internal",
-     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Generate."}}],
-  "triggers": [{"command": "make", "cron": "0 9 * * *", "params": {"topic": "cats"}}],
-  "tools": {"http": [{"name": "generate", "description": "Starts a generation", "method": "POST", "url": "%s/gen",
-    "input": {"type": "object", "properties": {"topic": {"type": "string"}}}}]},
-  "allowed_external": ["generate", "make"]}`, url)
-}
-
 // restart opens a second deck on the same home while the first one hangs, as after a crash of the first.
 func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) {
 	t.Parallel()
-	svc, release := hangingService(t, 1, 2)
+	svc, release := harness.HangingService(t, 1, 2)
 	defer release(0)
 	home := t.TempDir()
 	clock := &harness.Clock{At: time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
-	e.Project("clips", generateManifest(svc.URL))
+	e.Project("clips", harness.GenerateManifest(svc.URL))
 	clock.Add(time.Hour + time.Minute)
 	e.App.Scheduler.Tick(context.Background())
 	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
@@ -135,7 +88,7 @@ func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) 
 
 func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 	t.Parallel()
-	svc, release := hangingService(t, 1)
+	svc, release := harness.HangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()
 	started := make(chan struct{})
@@ -147,7 +100,7 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 	}}
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
-	p := e.Project("clips", generateManifest(svc.URL))
+	p := e.Project("clips", harness.GenerateManifest(svc.URL))
 	id := e.Run(p, "work")
 	<-started
 	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
@@ -217,12 +170,12 @@ UPDATE tool_call SET run = 'running' WHERE ask_id = ?`, a.ID, a.ID); err != nil 
 // is journaled under it and its command list still applies.
 func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 	t.Parallel()
-	svc, release := hangingService(t, 1)
+	svc, release := harness.HangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
-	e.Project("clips", generateManifest(svc.URL))
+	e.Project("clips", harness.GenerateManifest(svc.URL))
 	tid, tok := e.Token("shortcuts", "clips.*")
 	go func() {
 		req, _ := http.NewRequest("POST", e.URL+"/api/commands/clips.generate", strings.NewReader(`{"topic": "owls"}`))
@@ -253,7 +206,7 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 // restart the owner has one unknown outcome to decide, and the agent hears that the call did not succeed.
 func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 	t.Parallel()
-	svc, release := hangingService(t, 1)
+	svc, release := harness.HangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()
 	first := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {

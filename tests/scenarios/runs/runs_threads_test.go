@@ -1,4 +1,4 @@
-package scenarios
+package runs
 
 import (
 	"context"
@@ -12,64 +12,6 @@ import (
 	"testing"
 	"time"
 )
-
-// clipsModule keeps clips: new makes one, check follows it, tally follows check with no record, revise edits a clip,
-// render (a script) follows revise.
-const clipsModule = `{"version": 13,
-  "collections": [{"name": "clips", "description": "A clip.", "key": "slug",
-    "schema": {"type": "object", "properties": {"slug": {"type": "string"}}, "required": ["slug"]}}],
-  "commands": [
-    {"name": "new", "title": "New", "description": "Makes a clip.", "class": "internal",
-     "input": {"type": "object", "properties": {"note": {"type": "string"}}},
-     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Make a clip."}},
-    {"name": "check", "title": "Check", "description": "Checks a clip.", "class": "internal",
-     "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}, "record": {"type": "integer", "format": "record"}}},
-     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Check the clip."}},
-    {"name": "tally", "title": "Tally", "description": "Counts checks.", "class": "internal",
-     "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
-     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}},
-    {"name": "revise", "title": "Revise", "description": "Edits a clip.", "class": "internal",
-     "input": {"type": "object", "properties": {"record": {"type": "integer", "format": "record"}, "note": {"type": "string"}}},
-     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Edit the clip."}},
-    {"name": "render", "title": "Render", "description": "Renders a clip.", "class": "internal",
-     "input": {"type": "object", "properties": {"record": {"type": "integer", "format": "record"}, "process": {"type": "integer", "format": "process"},
-       "n": {"type": "integer"}, "wait": {"type": "number"}}},
-     "result": {"type": "object"}, "executor": {"type": "script", "script": "render"}}],
-  "scripts": [{"name": "render", "file": "scripts/render.py", "runtime": "python"}],
-  "triggers": [{"after": "new", "command": "check"}, {"after": "check", "command": "tally"}, {"after": "revise", "command": "render"}]}`
-
-const clipsRender = `import json, sys, time
-inp = json.load(sys.stdin)
-time.sleep(inp.get("wait", 0))
-print(json.dumps({"n": inp.get("n", 0), "record": inp.get("record")}))
-`
-
-// clipsEnv is deck with the clips module and the fake agent script.
-func clipsEnv(t *testing.T, script harness.Script, opts ...harness.Option) *harness.Env {
-	t.Helper()
-	e := harness.New(t, append([]harness.Option{harness.WithAgent(script)}, opts...)...)
-	e.Project("clips", clipsModule)
-	e.SaveScript("clips", "scripts/render.py", clipsRender)
-	return e
-}
-
-// clip writes a clip and gives its record.
-func clip(e *harness.Env, slug string) int64 {
-	e.T.Helper()
-	e.Must("deck.records_upsert", map[string]any{"project": "clips", "collection": "clips", "records": harness.Jsonl(map[string]any{"slug": slug})}, nil)
-	var all []struct {
-		ID  int64
-		Key string
-	}
-	e.Must("deck.records_list", map[string]any{"project": "clips", "collection": "clips"}, &all)
-	for _, r := range all {
-		if r.Key == slug {
-			return r.ID
-		}
-	}
-	e.T.Fatalf("no clip %s", slug)
-	return 0
-}
 
 // runsOfRecord are the processes of a record, oldest first.
 func runsOfRecord(e *harness.Env, record int64) []harness.Proc {
@@ -93,7 +35,7 @@ func runsOfCommand(e *harness.Env, command string) []harness.Proc {
 // process, from its input or the one record it made; a step without the field gets the process only.
 func TestAStepAfterACommandGoesOnWithItsRecord(t *testing.T) {
 	t.Parallel()
-	e := clipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "new" {
 			if out, bad := c.Tool(ctx, "records_upsert", map[string]any{"project": "clips", "collection": "clips", "records": `{"slug": "made"}`}); bad {
 				return provider.Result{Outcome: provider.Failed, Text: out}
@@ -102,7 +44,7 @@ func TestAStepAfterACommandGoesOnWithItsRecord(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	e.WaitState(e.Start("clips", "new", nil), "done")
-	made := clip(e, "made")
+	made := e.Clip("made")
 	var check, tally int64
 	e.Until("check and tally", func() bool {
 		cs, ts := runsOfCommand(e, "check"), runsOfCommand(e, "tally")
@@ -118,7 +60,7 @@ func TestAStepAfterACommandGoesOnWithItsRecord(t *testing.T) {
 		t.Fatalf("a step without a record field gets the process only: %v", in)
 	}
 
-	other := clip(e, "other")
+	other := e.Clip("other")
 	e.WaitState(e.Start("clips", "revise", map[string]any{"record": other, "note": "shorter"}), "done")
 	var renders []harness.Proc
 	e.Until("render after revise", func() bool { renders = runsOfCommand(e, "render"); return len(renders) == 1 })
@@ -135,10 +77,10 @@ func TestAStepAfterACommandGoesOnWithItsRecord(t *testing.T) {
 // record in its project, with how they ended, and not those of another record.
 func TestAnAgentOfARecordReadsWhatItsThreadDid(t *testing.T) {
 	t.Parallel()
-	e := clipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"done": "moved the crown"}`)}
 	})
-	a, b := clip(e, "a"), clip(e, "b")
+	a, b := e.Clip("a"), e.Clip("b")
 	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
 	e.WaitState(first, "done")
 	e.App.Runner.Wait()
@@ -182,9 +124,9 @@ func TestACallForARecordJoinsItsRunningAgent(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}}
 	e := harness.New(t, harness.WithProvider(fake))
-	e.Project("clips", clipsModule)
-	e.SaveScript("clips", "scripts/render.py", clipsRender)
-	a, b := clip(e, "a"), clip(e, "b")
+	e.Project("clips", harness.ClipsModule)
+	e.SaveScript("clips", "scripts/render.py", harness.ClipsRender)
+	a, b := e.Clip("a"), e.Clip("b")
 	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
 	<-started
 	if again := e.Start("clips", "revise", map[string]any{"record": a, "note": "the background at 5.2 s"}); again != first {
@@ -228,7 +170,7 @@ func TestAStepAlreadyGoingForARecordIsNotStartedTwice(t *testing.T) {
 	release := make(chan struct{})
 	var mu sync.Mutex
 	var told []string
-	e := clipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "check" {
 			started <- struct{}{}
 			<-release
@@ -240,9 +182,9 @@ func TestAStepAlreadyGoingForARecordIsNotStartedTwice(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": strings.Replace(clipsModule,
+	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": strings.Replace(harness.ClipsModule,
 		`{"after": "new", "command": "check"}`, `{"after": "revise", "command": "check"}`, 1)}, nil)
-	a := clip(e, "a")
+	a := e.Clip("a")
 	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
 	e.WaitState(first, "done")
 	<-started
@@ -283,8 +225,8 @@ func TestAStepAlreadyGoingForARecordIsNotStartedTwice(t *testing.T) {
 // that run; once it ends, one more run takes the last of them.
 func TestAScriptCalledForItsRecordWhileItRunsRunsOnceMoreAfter(t *testing.T) {
 	t.Parallel()
-	e := clipsEnv(t, nil)
-	a := clip(e, "a")
+	e := harness.ClipsEnv(t, nil)
+	a := e.Clip("a")
 	first := e.Start("clips", "render", map[string]any{"record": a, "n": 1, "wait": 3})
 	if got := e.Proc(first); got.State != "running" {
 		t.Fatalf("the first render runs: %+v", got)
@@ -320,12 +262,12 @@ func TestAScriptCalledForItsRecordWhileItRunsRunsOnceMoreAfter(t *testing.T) {
 func TestDeckStopsAreDecks(t *testing.T) {
 	t.Parallel()
 	started := make(chan struct{}, 2)
-	e := clipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		started <- struct{}{}
 		<-ctx.Done()
 		return provider.Result{}
 	})
-	a, b := clip(e, "a"), clip(e, "b")
+	a, b := e.Clip("a"), e.Clip("b")
 	gone := e.Start("clips", "revise", map[string]any{"record": a, "note": "x"})
 	<-started
 	e.Must("deck.record_delete", map[string]any{"record": a}, nil)
@@ -348,7 +290,7 @@ func TestTheNextModelHearsWhatTheOwnerWroteAndKeepsTheRetryKey(t *testing.T) {
 	t.Parallel()
 	told := make(chan struct{})
 	release := make(chan struct{})
-	e, backup, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e, backup, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		<-told
 		return harness.Limited(harness.T0)
 	}, func(ctx context.Context, c *harness.Call) provider.Result {
@@ -399,9 +341,9 @@ func TestTheMasterSeesTheProcessesOfItsTopic(t *testing.T) {
 	main := &harness.Fake{Script: script}
 	other := &harness.Fake{Script: script, ProviderName: "other"}
 	e := harness.New(t, harness.WithProvider(main, other))
-	e.Project("clips", clipsModule)
-	e.SaveScript("clips", "scripts/render.py", clipsRender)
-	clip(e, "a")
+	e.Project("clips", harness.ClipsModule)
+	e.SaveScript("clips", "scripts/render.py", harness.ClipsRender)
+	e.Clip("a")
 	topic := e.Say(0, "make a clip")
 	e.MasterSaid(topic, 1)
 	var runs []harness.Proc
@@ -454,9 +396,9 @@ func TestAScheduleOfARecordJoinsItsRunOncePerSlot(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}), harness.WithClock())
 
-	e.Project("clips", strings.Replace(clipsModule, `"triggers": [`, `"triggers": [{"command": "revise", "cron": "0 9 * * *", "params": {"record": 1, "note": "nightly"}}, `, 1))
-	e.SaveScript("clips", "scripts/render.py", clipsRender)
-	if a := clip(e, "a"); a != 1 {
+	e.Project("clips", strings.Replace(harness.ClipsModule, `"triggers": [`, `"triggers": [{"command": "revise", "cron": "0 9 * * *", "params": {"record": 1, "note": "nightly"}}, `, 1))
+	e.SaveScript("clips", "scripts/render.py", harness.ClipsRender)
+	if a := e.Clip("a"); a != 1 {
 		t.Fatalf("the clip is record 1: %d", a)
 	}
 	first := e.Start("clips", "revise", map[string]any{"record": 1, "note": "the crown"})
@@ -498,23 +440,23 @@ func TestAScheduleOfARecordJoinsItsRunOncePerSlot(t *testing.T) {
 // clip free, so the next call renders it.
 func TestARunAfterThatDidNotStartLetsItsRecordGo(t *testing.T) {
 	t.Parallel()
-	e := clipsEnv(t, nil)
-	a := clip(e, "a")
+	e := harness.ClipsEnv(t, nil)
+	a := e.Clip("a")
 	first := e.Start("clips", "render", map[string]any{"record": a, "n": 1, "wait": 3})
 	if id := e.Start("clips", "render", map[string]any{"record": a, "n": 2}); id != first {
 		t.Fatal("the call joins the running render")
 	}
-	start := strings.Index(clipsModule, `,
+	start := strings.Index(harness.ClipsModule, `,
     {"name": "render"`)
-	end := strings.Index(clipsModule, `"script": "render"}}]`) + len(`"script": "render"}}`)
-	gone := strings.Replace(clipsModule[:start]+clipsModule[end:], `, {"after": "revise", "command": "render"}`, ``, 1)
+	end := strings.Index(harness.ClipsModule, `"script": "render"}}]`) + len(`"script": "render"}}`)
+	gone := strings.Replace(harness.ClipsModule[:start]+harness.ClipsModule[end:], `, {"after": "revise", "command": "render"}`, ``, 1)
 	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": gone}, nil)
 	e.WaitState(first, "done")
 	if note := e.WaitNote(fmt.Sprintf("did not run render again for the calls that came while process #%d ran", first)); !strings.Contains(note.Text, `no command "render"`) {
 		t.Fatalf("the note says why: %s", note.Text)
 	}
 	e.App.Runner.Wait()
-	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": clipsModule}, nil)
+	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": harness.ClipsModule}, nil)
 	next := e.Start("clips", "render", map[string]any{"record": a, "n": 3})
 	if next == first {
 		t.Fatal("a run after that did not start does not hold the clip")
@@ -532,7 +474,7 @@ func TestACallAFailedAgentDidNotHearRunsOnceAfter(t *testing.T) {
 	release := make(chan struct{})
 	var mu sync.Mutex
 	var prompts []string
-	e := clipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		mu.Lock()
 		prompts = append(prompts, c.Req.Prompt)
 		mu.Unlock()
@@ -543,9 +485,9 @@ func TestACallAFailedAgentDidNotHearRunsOnceAfter(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": strings.Replace(clipsModule,
+	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": strings.Replace(harness.ClipsModule,
 		`, {"after": "revise", "command": "render"}`, ``, 1)}, nil)
-	a := clip(e, "a")
+	a := e.Clip("a")
 	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
 	<-started
 	for _, note := range []string{"the sky", "the background"} {
@@ -577,10 +519,10 @@ func TestACallAFailedAgentDidNotHearRunsOnceAfter(t *testing.T) {
 func TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen(t *testing.T) {
 	t.Parallel()
 	clock := &harness.Clock{At: harness.T0}
-	e := clipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}, harness.WithClock(clock))
-	m := strings.Replace(clipsModule, `"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
+	m := strings.Replace(harness.ClipsModule, `"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}}`,
 		`"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}, "record": {"type": "string"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}},
@@ -590,7 +532,7 @@ func TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen(t *testing.T) {
 	m = strings.Replace(m, `{"after": "check", "command": "tally"}`, `{"after": "check", "command": "tally"}, {"after": "check", "command": "label"}`, 1)
 	m = strings.Replace(m, `"scripts": [`, `"scripts": [{"name": "label", "file": "scripts/label.py", "runtime": "python"}, `, 1)
 	e.Must("deck.manifest_save", map[string]any{"project": "clips", "manifest": m}, nil)
-	a := clip(e, "a")
+	a := e.Clip("a")
 	check := e.Start("clips", "check", map[string]any{"record": a})
 	e.WaitState(check, "done")
 	var tally []harness.Proc
@@ -609,7 +551,7 @@ func TestAHelperCallingBackForTheRecordDoesNotJoinItsCaller(t *testing.T) {
 	t.Parallel()
 	helped := make(chan string, 1)
 	var a int64
-	e := clipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
 		case c.Command() == "revise" && strings.Contains(c.Req.Prompt, "the crown"):
 			if out, bad := c.Tool(ctx, "clips__tally", map[string]any{}); bad {
@@ -622,7 +564,7 @@ func TestAHelperCallingBackForTheRecordDoesNotJoinItsCaller(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	a = clip(e, "a")
+	a = e.Clip("a")
 	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
 	e.WaitState(first, "done")
 	e.Until("the helper's revise", func() bool { return len(runsOfCommand(e, "revise")) == 2 })

@@ -1,4 +1,4 @@
-package scenarios
+package runs
 
 import (
 	"context"
@@ -13,28 +13,11 @@ import (
 	"time"
 )
 
-// twoModels is deck with the main fake and a backup one, the command work of plain assigned to both in that order.
-func twoModels(t *testing.T, main, backup func(context.Context, *harness.Call) provider.Result, opts ...harness.Option) (*harness.Env, *harness.Fake, int64) {
-	t.Helper()
-	m, b := &harness.Fake{Script: main}, &harness.Fake{ProviderName: "backup", Script: backup}
-	e := harness.New(t, append([]harness.Option{harness.WithProvider(m, b)}, opts...)...)
-	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", `{"type": "object", "properties": {"n": {"type": "integer"}}}`)}, nil))
-	e.UseModels("plain.work", "fake", "backup")
-	return e, b, p
-}
-
-func startWork(e *harness.Env, n int) int64 {
-	e.T.Helper()
-	var r struct{ Process int64 }
-	e.Must("plain.work", map[string]any{"n": n}, &r)
-	return r.Process
-}
-
 // TestAModelAtItsLimitHandsTheWorkOnToTheNextModel: the model's failure on a limit goes on on the next model with the
 // same input, told what was done; the feed says so, the model waits for its reset, the cockpit is clear.
 func TestAModelAtItsLimitHandsTheWorkOnToTheNextModel(t *testing.T) {
 	t.Parallel()
-	e, backup, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e, backup, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Req.Emit(provider.Event{Kind: provider.EventMessage, Text: "rendered the stills of scene 1"})
 		c.Req.Emit(provider.Event{Kind: provider.EventTool, Title: "shell", Text: "render --stills scene1"})
 		c.Req.Emit(provider.Event{Kind: provider.EventRateLimit, Text: "workspace_member_credits_depleted"})
@@ -42,7 +25,7 @@ func TestAModelAtItsLimitHandsTheWorkOnToTheNextModel(t *testing.T) {
 	}, func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
-	id := startWork(e, 7)
+	id := e.StartWork(7)
 	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" || e.Fault(id).Whose != "model" {
 		t.Fatalf("the refused process closes as the model's failure: %+v %+v", got, e.Fault(id))
 	}
@@ -82,7 +65,7 @@ func TestAModelAtItsLimitHandsTheWorkOnToTheNextModel(t *testing.T) {
 // does; a turn whose task failed stays a failure of the module on its model.
 func TestAModelThatDoesNotAnswerHandsOnButAFailedTaskDoesNot(t *testing.T) {
 	t.Parallel()
-	e, backup, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e, backup, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, `"n": 2`) || strings.Contains(c.Req.Prompt, `"n":2`) {
 			return provider.Result{Outcome: provider.Failed, Text: "the file to edit is not there"}
 		}
@@ -90,14 +73,14 @@ func TestAModelThatDoesNotAnswerHandsOnButAFailedTaskDoesNot(t *testing.T) {
 	}, func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
-	id := startWork(e, 1)
+	id := e.StartWork(1)
 	e.WaitState(id, "error")
 	if got := e.Fault(id); got.ErrorType != "model.unavailable" {
 		t.Fatalf("a model that did not answer: %+v", got)
 	}
 	e.WaitState(e.Following(id), "done")
 	calls := len(backup.Calls())
-	failed := startWork(e, 2)
+	failed := e.StartWork(2)
 	e.WaitState(failed, "error")
 	e.App.Runner.Wait()
 	if got := e.Fault(failed); got.ErrorType != "task.failed" || len(got.FollowedBy) != 0 || len(backup.Calls()) != calls {
@@ -120,14 +103,14 @@ func TestAModelAtItsLimitWithoutANextOneWaitsForTheReset(t *testing.T) {
 // TestTheNextModelHearsWhatTheOwnerAnswered: an answer of the owner to the refused process goes on with its work.
 func TestTheNextModelHearsWhatTheOwnerAnswered(t *testing.T) {
 	t.Parallel()
-	e, backup, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e, backup, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which account?",
 			"options": []any{map[string]any{"label": "first"}, map[string]any{"label": "second"}}}}})
 		return harness.Limited(harness.T0)
 	}, func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
-	id := startWork(e, 1)
+	id := e.StartWork(1)
 	e.Answer(e.WaitAsk().ID, "second")
 	e.WaitState(e.Following(id), "done", "error")
 	if calls := backup.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "Which account?") || !strings.Contains(calls[0].Prompt, "second") {
@@ -146,14 +129,14 @@ func silent(ctx context.Context, c *harness.Call) provider.Result {
 func TestAModelThatGivesNoSignHandsTheTurnOnLongBeforeTheCeiling(t *testing.T) {
 	t.Parallel()
 	clock := &harness.Clock{At: harness.T0}
-	e, backup, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e, backup, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, `"n": 2`) || strings.Contains(c.Req.Prompt, `"n":2`) {
 			c.Req.Emit(provider.Event{Kind: provider.EventThought, Text: "reading the task"})
 		}
 		<-ctx.Done()
 		return provider.Result{}
 	}, harness.Ok, harness.WithClock(clock))
-	id := startWork(e, 1)
+	id := e.StartWork(1)
 	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
 	clock.Add(4 * time.Minute)
 	e.Sweep()
@@ -170,7 +153,7 @@ func TestAModelThatGivesNoSignHandsTheTurnOnLongBeforeTheCeiling(t *testing.T) {
 		t.Fatalf("the next model does the work: %+v", got)
 	}
 	e.WaitNote("gave no sign for 5 minutes")
-	spoke := startWork(e, 2)
+	spoke := e.StartWork(2)
 	e.Until("the model speaks", func() bool { return len(e.Fake.Calls()) == 2 && len(e.Log(spoke)) == 1 })
 	clock.Add(time.Hour - time.Minute)
 	e.Sweep()
@@ -185,7 +168,7 @@ func TestAModelThatGivesNoSignHandsTheTurnOnLongBeforeTheCeiling(t *testing.T) {
 func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	t.Parallel()
 	clock := &harness.Clock{At: harness.T0}
-	e, backup, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e, backup, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, `"n": 2`) || strings.Contains(c.Req.Prompt, `"n":2`) {
 			return harness.Limited(harness.T0.Add(time.Hour))
 		}
@@ -193,9 +176,9 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 		<-ctx.Done()
 		return provider.Result{}
 	}, harness.Ok, harness.WithClock(clock))
-	id := startWork(e, 1)
+	id := e.StartWork(1)
 	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
-	e.WaitState(e.Following(startWork(e, 2)), "done")
+	e.WaitState(e.Following(e.StartWork(2)), "done")
 	e.WaitHealth("provider:fake", "paused")
 	e.Sweep()
 	e.WaitState(id, "error")
@@ -219,7 +202,7 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return process.ProviderHealth(ctx, q, "fake", "ok", "")
 	})
-	alone := startWork(e, 3)
+	alone := e.StartWork(3)
 	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 3 })
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return process.ProviderHealth(ctx, q, "fake", "paused", "usage limit reached")
@@ -247,7 +230,7 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 // the agent; the turn goes on on the next model.
 func TestAnAgentInALoopLeavesItsModel(t *testing.T) {
 	t.Parallel()
-	e, backup, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e, backup, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		for i := range 5 {
 			id := harness.Itoa(int64(i))
 			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: "a" + id, Title: "mcp__deck__records_list", Text: `{"collection": "searches"}`})
@@ -263,7 +246,7 @@ func TestAnAgentInALoopLeavesItsModel(t *testing.T) {
 		<-ctx.Done()
 		return provider.Result{}
 	}, harness.Ok)
-	id := startWork(e, 1)
+	id := e.StartWork(1)
 	e.WaitState(id, "error")
 	if got := e.Fault(id); got.ErrorType != "agent.loop" || got.Whose != "model" || !strings.Contains(got.Error, "mcp__deck__records_list 3 times in a row") {
 		t.Fatalf("a loop is the model's failure of its own type: %+v", got)

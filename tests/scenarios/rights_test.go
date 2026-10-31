@@ -98,7 +98,7 @@ func TestAnAgentDeletesTheRecordsOfItsOwnProject(t *testing.T) {
 	var mu sync.Mutex
 	outs := map[string]string{}
 	var own, other int64
-	e := clipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "tally" {
 			for key, id := range map[string]int64{"own": own, "other": other} {
 				out, bad := c.Tool(ctx, "record_delete", map[string]any{"record": id})
@@ -112,8 +112,8 @@ func TestAnAgentDeletesTheRecordsOfItsOwnProject(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.Project("reels", clipsModule)
-	own = clip(e, "a")
+	e.Project("reels", harness.ClipsModule)
+	own = e.Clip("a")
 	e.Must("deck.records_upsert", map[string]any{"project": "reels", "collection": "clips", "records": harness.Jsonl(map[string]any{"slug": "b"})}, nil)
 	var reels []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "reels", "collection": "clips"}, &reels)

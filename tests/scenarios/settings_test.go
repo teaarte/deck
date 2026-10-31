@@ -79,20 +79,6 @@ func formID(t *testing.T, e *harness.Env, command string) string {
 	return ""
 }
 
-// screenForm is the data of the form of a screen that calls this command, in a dialog or not.
-func screenForm(e *harness.Env, project, screen, command string) map[string]json.RawMessage {
-	e.T.Helper()
-	for _, extra := range append([]map[string]any{nil}, e.DialogsOf(project, screen)...) {
-		for _, d := range e.ScreenData(project, screen, extra) {
-			if strings.Contains(string(d["value"]), `"commands":[{`) && strings.Contains(string(d["value"]), `"name":"`+command+`"`) {
-				return d
-			}
-		}
-	}
-	e.T.Fatalf("%s has no form of %s", screen, command)
-	return nil
-}
-
 func findItem(t *testing.T, items []harness.ListItem, prefix string) harness.ListItem {
 	t.Helper()
 	for _, it := range items {
@@ -145,7 +131,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	if notes = findItem(t, items(), "notes"); !strings.HasPrefix(notes.Meta, "enabled, paused") || !harness.HasVerb(notes.Actions, "resume") {
 		t.Fatalf("a paused project says so and resumes: %+v", notes)
 	}
-	if f := screenForm(e, "notes", "settings", "deck.command_try"); !strings.Contains(string(f["value"]), `"deck.command_try"`) {
+	if f := e.ScreenForm("notes", "settings", "deck.command_try"); !strings.Contains(string(f["value"]), `"deck.command_try"`) {
 		t.Fatalf("trying a command is a form of the settings of the project: %s", f["value"])
 	}
 }
@@ -156,7 +142,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	stream := e.Events(t.Context())
-	form := harness.BlockData[harness.FormV](t, screenForm(e, "", "settings", "deck.secret_set")["value"])
+	form := harness.BlockData[harness.FormV](t, e.ScreenForm("", "settings", "deck.secret_set")["value"])
 	if form.Commands[0].Input.Properties["value"]["writeOnly"] != true {
 		t.Fatalf("the value of a secret is a field that hides what is typed: %+v", form.Commands[0].Input.Properties)
 	}
@@ -228,7 +214,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	}))
 
 	stream := e.Events(t.Context())
-	if f := screenForm(e, "", "settings", "deck.model_set"); !strings.Contains(string(f["value"]), `"deck.model_set"`) {
+	if f := e.ScreenForm("", "settings", "deck.model_set"); !strings.Contains(string(f["value"]), `"deck.model_set"`) {
 		t.Fatalf("the models tab adds a model with a form: %s", f["value"])
 	}
 	e.Must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": "http://127.0.0.1:1/v1", "local": true}, nil)

@@ -1,9 +1,10 @@
-package scenarios
+package runs
 
 import (
 	"context"
 	"deck2/internal/app"
 	"deck2/internal/provider"
+	"deck2/internal/store"
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
@@ -36,7 +37,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret-value\n"}, nil)
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 
-	for _, c := range commands(e) {
+	for _, c := range e.Commands() {
 		if c.Name == "notes.post" && c.Class != "external" {
 			t.Fatalf("a tool without a class is external: %+v", c)
 		}
@@ -408,5 +409,69 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 	e.Settle()
 	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": b.ID, "answer": "allow"}); code != 200 || len(svc.Requests()) != 2 {
 		t.Fatalf("a stop by another than the owner leaves the frozen call to the owner: %d %s", code, out)
+	}
+}
+
+func TestConfirmationRejectedWithReason(t *testing.T) {
+	t.Parallel()
+	var msg string
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		d := c.Approve(ctx, "Bash", map[string]any{"command": "git push"})
+		msg, _ = d["message"].(string)
+		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
+	}))
+
+	p := e.Project("ideas", harness.IdeasManifest)
+	id := e.Run(p, "collect")
+	a := e.WaitAsk()
+	if a.Kind != "confirm" || !strings.Contains(a.Text, "git push") {
+		t.Fatalf("unexpected ask %+v", a)
+	}
+	e.Answer(a.ID, "deny:not now")
+	e.WaitState(id, "done")
+	if !strings.Contains(msg, "rejected") || !strings.Contains(msg, "not now") {
+		t.Fatalf("agent must get the refusal with reason, got %q", msg)
+	}
+	calls, _ := e.App.Store.Q.ListToolCalls(context.Background(), store.ID(id))
+	if len(calls) < 2 || calls[len(calls)-1].Outcome != "rejected" {
+		t.Fatalf("tool call journal: %+v", calls)
+	}
+}
+
+// TestADecisionSaysWhoAsksWhyAndWhatChanges: a held call says who asks, why in the agent's last words and what it
+// changes; the raw call is only in its details, and a call allowed only once has no button to allow it always.
+func TestADecisionSaysWhoAsksWhyAndWhatChanges(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		c.Req.Emit(provider.Event{Kind: provider.EventMessage, Text: "groq answers 413 on this work, so nemotron should take it"})
+		c.Tool(ctx, "assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"quiet"}})
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}))
+
+	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
+	e.Run(p, "work")
+	e.WaitAsk()
+	var asks []struct {
+		Who, What, Where, Why, By, Always string
+		Payload                           map[string]any
+	}
+	e.Until("the decision", func() bool {
+		e.Must("deck.asks_list", map[string]any{"lang": "ru"}, &asks)
+		return len(asks) == 1 && asks[0].Why != ""
+	})
+	a := asks[0]
+	if a.Who != "work" || a.Why != "groq answers 413 on this work, so nemotron should take it" || !strings.HasPrefix(a.Where, "агент для plain.work: ") ||
+		!strings.HasSuffix(a.Where, "→ quiet") || !strings.HasPrefix(a.By, "#") {
+		t.Fatalf("who asks in words, why in its own words, was → becomes in Russian, the process apart: %+v", a)
+	}
+	if a.Always != "" || a.Payload["role"] != "agent" || a.Payload["caller"] != nil || a.Payload["workspace"] != nil {
+		t.Fatalf("a change allowed once offers no always, and the details hold only the call: %+v", a)
+	}
+	for _, it := range e.CockpitItems() {
+		for _, act := range it.Actions {
+			if act["params"].(map[string]any)["answer"] == "allow_always" {
+				t.Fatalf("no button to allow always a change allowed once: %+v", it.Actions)
+			}
+		}
 	}
 }

@@ -258,12 +258,12 @@ func TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks(t *testing.T) {
 // TestARunCutByARestartIsInTheCockpit: a call deck lost to a restart did not work, so it waits in the cockpit.
 func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 	t.Parallel()
-	svc, release := hangingService(t, 1)
+	svc, release := harness.HangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
-	e.Project("clips", generateManifest(svc.URL))
+	e.Project("clips", harness.GenerateManifest(svc.URL))
 	id := e.Start("clips", "make", map[string]any{"topic": "cats"})
 	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
 	e2 := e.Restart(harness.WithProvider(&harness.Fake{}))

@@ -1,4 +1,4 @@
-package scenarios
+package runs
 
 import (
 	deckhome "deck2/internal/home"

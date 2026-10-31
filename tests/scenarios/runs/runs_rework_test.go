@@ -1,4 +1,4 @@
-package scenarios
+package runs
 
 import (
 	"context"

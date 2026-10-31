@@ -1,4 +1,4 @@
-package scenarios
+package runs
 
 import (
 	"context"
@@ -274,7 +274,7 @@ func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 	f := harness.BlockData[struct {
 		Values   map[string]any
 		Readonly []string
-	}](t, screenForm(e, "notes", "settings", "deck.folder_add")["value"])
+	}](t, e.ScreenForm("notes", "settings", "deck.folder_add")["value"])
 	if f.Values["project"] != "notes" || !slices.Contains(f.Readonly, "project") {
 		t.Fatalf("adding a folder on the settings of a project works on that project: %+v", f)
 	}

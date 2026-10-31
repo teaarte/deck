@@ -71,7 +71,7 @@ func TestFullManifestIsAccepted(t *testing.T) {
 		t.Fatalf("the model reads the form of each block of the catalog and its rules in words: %s", b)
 	}
 	found := false
-	for _, c := range commands(e) {
+	for _, c := range e.Commands() {
 		if c.Name == "links.parse" {
 			found = strings.Contains(string(c.Input), `"record"`)
 		}

@@ -17,20 +17,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// commands are what the owner may call, each as command_describe tells it.
-func commands(e *harness.Env) []harness.CommandView {
-	e.T.Helper()
-	var rows []struct{ Name string }
-	e.Must("deck.commands_list", nil, &rows)
-	out := make([]harness.CommandView, 0, len(rows))
-	for _, r := range rows {
-		var c harness.CommandView
-		e.Must("deck.command_describe", map[string]any{"command": r.Name}, &c)
-		out = append(out, c)
-	}
-	return out
-}
-
 type paramSchema struct {
 	Type   string       `json:"type"`
 	Format string       `json:"format"`
@@ -63,7 +49,7 @@ func TestEveryCommandFitsAppIntents(t *testing.T) {
 	if code, _ := e.Do("GET", "/api/commands", nil); code != 404 && code != 405 {
 		t.Fatalf("the list of commands is commands_list alone: %d", code)
 	}
-	cmds := commands(e)
+	cmds := e.Commands()
 	names := map[string]bool{}
 	for _, c := range cmds {
 		names[c.Name] = true

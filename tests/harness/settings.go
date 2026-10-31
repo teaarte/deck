@@ -99,6 +99,20 @@ func (e *Env) FindBlock(project, screen, title string) (string, map[string]any) 
 	return "", nil
 }
 
+// ScreenForm is the data of the form of a screen that calls this command, in a dialog or not.
+func (e *Env) ScreenForm(project, screen, command string) map[string]json.RawMessage {
+	e.T.Helper()
+	for _, extra := range append([]map[string]any{nil}, e.DialogsOf(project, screen)...) {
+		for _, d := range e.ScreenData(project, screen, extra) {
+			if strings.Contains(string(d["value"]), `"commands":[{`) && strings.Contains(string(d["value"]), `"name":"`+command+`"`) {
+				return d
+			}
+		}
+	}
+	e.T.Fatalf("%s has no form of %s", screen, command)
+	return nil
+}
+
 func Verb(t *testing.T, acts []map[string]any, v string) map[string]any {
 	t.Helper()
 	for _, a := range acts {

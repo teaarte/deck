@@ -229,7 +229,7 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 	if code, raw = e.As(tok).Call("deck.manifest_save", map[string]any{"project": "draft", "manifest": internal}); code != 200 {
 		t.Fatalf("a draft saves what it widens, to be granted when enabled: %d %s", code, raw)
 	}
-	for _, c := range commands(e) {
+	for _, c := range e.Commands() {
 		if c.Name == "draft.publish" && c.Class != "external" {
 			t.Fatalf("a draft's command keeps the class the owner granted until the owner enables it: %+v", c)
 		}

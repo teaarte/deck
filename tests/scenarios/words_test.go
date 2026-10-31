@@ -4,21 +4,19 @@ import (
 	"context"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
-	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TestDecksOwnSentencesSpeakTheLanguageOfTheScreen: what deck writes itself — the failure of a process, a row of
 // health, a note, a phrase inside another — reads in the owner's language; the words of a model API stay as they came.
 func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
 	t.Parallel()
-	e, _, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+	e, _, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Unavailable, Text: "API Error: overloaded"}
 	}, harness.Ok)
-	id := startWork(e, 1)
+	id := e.StartWork(1)
 	e.WaitState(e.Following(id), "done")
 	var run struct{ Error string }
 	e.Must("deck.process_get", map[string]any{"process": id, "lang": "ru"}, &run)
@@ -32,94 +30,4 @@ func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
 			return strings.HasPrefix(n.Text, "fake не закончила «work», продолжает backup: fake не ответила: API Error")
 		})
 	})
-}
-
-// TestADecisionSaysWhoAsksWhyAndWhatChanges: a held call says who asks, why in the agent's last words and what it
-// changes; the raw call is only in its details, and a call allowed only once has no button to allow it always.
-func TestADecisionSaysWhoAsksWhyAndWhatChanges(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		c.Req.Emit(provider.Event{Kind: provider.EventMessage, Text: "groq answers 413 on this work, so nemotron should take it"})
-		c.Tool(ctx, "assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"quiet"}})
-		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	}))
-
-	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
-	e.Run(p, "work")
-	e.WaitAsk()
-	var asks []struct {
-		Who, What, Where, Why, By, Always string
-		Payload                           map[string]any
-	}
-	e.Until("the decision", func() bool {
-		e.Must("deck.asks_list", map[string]any{"lang": "ru"}, &asks)
-		return len(asks) == 1 && asks[0].Why != ""
-	})
-	a := asks[0]
-	if a.Who != "work" || a.Why != "groq answers 413 on this work, so nemotron should take it" || !strings.HasPrefix(a.Where, "агент для plain.work: ") ||
-		!strings.HasSuffix(a.Where, "→ quiet") || !strings.HasPrefix(a.By, "#") {
-		t.Fatalf("who asks in words, why in its own words, was → becomes in Russian, the process apart: %+v", a)
-	}
-	if a.Always != "" || a.Payload["role"] != "agent" || a.Payload["caller"] != nil || a.Payload["workspace"] != nil {
-		t.Fatalf("a change allowed once offers no always, and the details hold only the call: %+v", a)
-	}
-	for _, it := range e.CockpitItems() {
-		for _, act := range it.Actions {
-			if act["params"].(map[string]any)["answer"] == "allow_always" {
-				t.Fatalf("no button to allow always a change allowed once: %+v", it.Actions)
-			}
-		}
-	}
-}
-
-// TestNotesOfOneCauseOfADayAreOneNote: notes of modules naming one cause, and deck's own about the same model, are
-// one unread note with each module's part; another cause or another day is a note of its own.
-func TestNotesOfOneCauseOfADayAreOneNote(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t, harness.WithClock())
-	for _, name := range []string{"shorts", "btc"} {
-		e.Project(name, harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
-	}
-	e.Must("deck.notify", map[string]any{"project": "shorts", "text": "Groq does not answer; move shorts to nemotron", "cause": "provider:groq"}, nil)
-	e.Must("deck.notify", map[string]any{"project": "btc", "text": "Groq refuses with 413; move btc to local-qwen", "cause": "provider:groq"}, nil)
-	e.Must("deck.notify", map[string]any{"project": "btc", "text": "The forecast is ready"}, nil)
-	var notes []struct {
-		Text     string
-		Cause    string
-		Projects []string
-		Parts    []struct{ Project, Text string }
-	}
-	e.Must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
-	if len(notes) != 2 {
-		t.Fatalf("two notes of one cause are one: %+v", notes)
-	}
-	i := slices.IndexFunc(notes, func(n struct {
-		Text     string
-		Cause    string
-		Projects []string
-		Parts    []struct{ Project, Text string }
-	}) bool {
-		return n.Cause == "provider:groq"
-	})
-	if i < 0 || !slices.Equal(notes[i].Projects, []string{"shorts", "btc"}) || len(notes[i].Parts) != 2 || !strings.Contains(notes[i].Parts[1].Text, "local-qwen") {
-		t.Fatalf("the note of the cause holds each module's part: %+v", notes)
-	}
-	e.Must("deck.notify", map[string]any{"project": "btc", "text": "Groq refuses with 413; move btc to local-qwen", "cause": "provider:groq"}, nil)
-	e.Must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
-	if i := slices.IndexFunc(notes, func(n struct {
-		Text     string
-		Cause    string
-		Projects []string
-		Parts    []struct{ Project, Text string }
-	}) bool {
-		return n.Cause == "provider:groq"
-	}); len(notes) != 2 || len(notes[i].Parts) != 2 {
-		t.Fatalf("the same note again adds no part: %+v", notes)
-	}
-	e.Clock.Add(24 * time.Hour)
-	e.Must("deck.notify", map[string]any{"project": "shorts", "text": "Groq does not answer again", "cause": "provider:groq"}, nil)
-	e.Must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
-	if len(notes) != 3 {
-		t.Fatalf("a note of the cause on another day is its own: %+v", notes)
-	}
 }

@@ -47,8 +47,8 @@ func HangingService(t *testing.T, hang ...int) (*Service, func(n int)) {
 	return svc, release
 }
 
-// TrustTestTLS makes the tools of deck trust the certificate of test servers on https, as a public service's.
-func TrustTestTLS() {
+// trustTestTLS makes the tools of deck trust the certificate of test servers on https, as a public service's.
+func trustTestTLS() {
 	s := httptest.NewTLSServer(http.NotFoundHandler())
 	defer s.Close()
 	pool, err := x509.SystemCertPool()

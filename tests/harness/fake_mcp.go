@@ -72,7 +72,7 @@ func Main(m *testing.M) {
 	if Serve() {
 		return
 	}
-	TrustTestTLS()
+	trustTestTLS()
 	os.Exit(runWithFakes(m))
 }
 

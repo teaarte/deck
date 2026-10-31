@@ -31,7 +31,6 @@ type fakeRelease struct {
 }
 
 func newRelease(t *testing.T) *fakeRelease {
-	harness.TrustTestTLS()
 	_, key, _ := ed25519.GenerateKey(rand.Reader)
 	r := &fakeRelease{key: key, files: map[string][]byte{}}
 	r.srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

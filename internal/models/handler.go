@@ -29,6 +29,8 @@ type Policy struct {
 	Answer func(provider.Answer)
 	// Plain, once set, drops the reasoning such a call hands back, as the model refused it.
 	Plain *atomic.Bool
+	// Started hears the id of a job a call started, such as a video, so only its caller asks after it.
+	Started func(hops []Hop, job string)
 }
 
 // Handler serves calls of models by p: it reads what each asks, routes it, lets p allow it and sends it through
@@ -72,6 +74,14 @@ func Handler(p Policy) http.Handler {
 		}
 		r = r.WithContext(ctx)
 		replace := ask.InBody || p.Named
+		if !turn && p.Started != nil && Starts(ask.Method, ask.Path) {
+			j := &job{ResponseWriter: w}
+			ServeHops(j, r, path, body, replace, hops)
+			if id := j.id(); id != "" {
+				p.Started(hops, id)
+			}
+			return
+		}
 		if !turn {
 			ServeHops(w, r, path, body, replace, hops)
 			return
@@ -212,4 +222,45 @@ func withoutReasoning(body []byte) []byte {
 		return body
 	}
 	return out
+}
+
+// Starts reports whether a request starts a job a model runs on, such as a video, that is asked after later.
+func Starts(method, path string) bool {
+	return method == http.MethodPost && strings.Trim(path, "/") == "videos"
+}
+
+// job passes an answer on and keeps its head, where a started job says its id.
+type job struct {
+	http.ResponseWriter
+	code int
+	head bytes.Buffer
+}
+
+func (j *job) WriteHeader(code int) {
+	j.code = code
+	j.ResponseWriter.WriteHeader(code)
+}
+
+func (j *job) Write(b []byte) (int, error) {
+	if j.head.Len() < 64<<10 {
+		j.head.Write(b[:min(len(b), 64<<10-j.head.Len())])
+	}
+	return j.ResponseWriter.Write(b)
+}
+
+func (j *job) Flush() {
+	if f, ok := j.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// id is the id of the job a successful answer names.
+func (j *job) id() string {
+	var v struct {
+		ID string `json:"id"`
+	}
+	if j.code >= 300 || json.Unmarshal(j.head.Bytes(), &v) != nil {
+		return ""
+	}
+	return v.ID
 }

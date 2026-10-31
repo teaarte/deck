@@ -24,6 +24,7 @@ import (
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
+	"deck2/internal/nonce"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/store"
@@ -58,8 +59,8 @@ type Browser struct {
 	// Ctx ends the proxy the browser without sign-ins goes through.
 	Ctx context.Context
 
-	proxyOnce sync.Once
-	proxyAt   string
+	proxyOnce         sync.Once
+	proxyAt, proxyKey string
 
 	mu     sync.Mutex
 	headed bool
@@ -73,10 +74,10 @@ func (b *Browser) spec(open bool) mcphost.Spec {
 	args := append(slices.Clone(b.Argv[1:]), "--user-data-dir", b.dir("profile"), "--output-dir", b.dir("out"))
 	write, read := []string{b.dir("profile"), b.dir("out")}, []string(nil)
 	if open {
-		script := b.noWebRTC()
+		script, config := b.noWebRTC(), b.proxyConfig()
 		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"), "--init-script", script,
-			"--proxy-server", "http://"+cmp.Or(b.proxy(), "127.0.0.1:1"), "--proxy-bypass", "<-loopback>")
-		write, read = []string{b.dir("open-out")}, []string{script}
+			"--config", config)
+		write, read = []string{b.dir("open-out")}, []string{script, config}
 	}
 	if !b.headed || open {
 		args = append(args, "--headless")
@@ -104,23 +105,37 @@ const noWebRTC = `for (const k of ['RTCPeerConnection', 'webkitRTCPeerConnection
   try { Object.defineProperty(window, k, { value: undefined, configurable: false, writable: false }); } catch {}
 }`
 
-// proxy is where the browser without sign-ins reaches the web: a host is dialled at the public address deck
-// resolved, so a name cannot turn into a local address after the check.
-func (b *Browser) proxy() string {
+// proxyConfig is the config of Playwright MCP that sends the browser without sign-ins through deck's proxy with its key.
+func (b *Browser) proxyConfig() string {
+	at, key := b.proxy()
+	conf, _ := json.Marshal(map[string]any{"browser": map[string]any{"launchOptions": map[string]any{"proxy": map[string]any{
+		"server": "http://" + cmp.Or(at, "127.0.0.1:1"), "bypass": "<-loopback>", "username": "deck", "password": key}}}})
+	path := b.dir("open-config.json")
+	if os.MkdirAll(b.dir(""), 0o700) != nil || home.WriteFile(path, conf) != nil {
+		slog.Error("browser config", "path", path)
+	}
+	return path
+}
+
+// proxy is where the browser without sign-ins reaches the web, under a key of its own: a host is dialled at the
+// public address deck resolved, so a name cannot turn into a local address after the check.
+func (b *Browser) proxy() (string, string) {
 	b.proxyOnce.Do(func() {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			slog.Error("browser proxy", "err", err)
 			return
 		}
-		b.proxyAt = ln.Addr().String()
+		b.proxyAt, b.proxyKey = ln.Addr().String(), nonce.Hex(16)
 		srv := &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_ = egress.Proxy(b.Ctx, w, r, openWeb)
+			if sandbox.Keyed(w, r, b.proxyKey) {
+				_ = egress.Proxy(b.Ctx, w, r, openWeb)
+			}
 		})}
 		go func() { <-b.Ctx.Done(); _ = srv.Close() }()
 		go func() { _ = srv.Serve(ln) }()
 	})
-	return b.proxyAt
+	return b.proxyAt, b.proxyKey
 }
 
 // Load reads the tools the server listed last time, so agents see them before the browser starts.

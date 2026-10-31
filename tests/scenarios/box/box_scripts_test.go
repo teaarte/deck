@@ -41,6 +41,12 @@ checks["direct_network_blocked"] = fetch(inp["allowed"], proxy=False) != 200
 import re
 checks["proxy_needs_token"] = fetch(inp["allowed"], proxy=re.sub("//[^@]*@", "//", os.environ["HTTP_PROXY"])) == 407
 checks["proxy_key_is_not_the_token"] = fetch(inp["allowed"], proxy=re.sub("//[^@]*@", "//deck:" + TOKEN + "@", os.environ["HTTP_PROXY"])) == 407
+try:
+    urllib.request.urlopen(urllib.request.Request(URL.rsplit("/", 1)[0] + "/commands/deck.record_upsert", data=b"{}",
+        headers={"Authorization": "Bearer " + TOKEN}), timeout=20)
+    checks["deck_needs_door_key"] = False
+except urllib.error.HTTPError as e:
+    checks["deck_needs_door_key"] = e.code == 407
 checks["outside_write_blocked"] = not can_write(os.path.join(inp["outside"], "x"))
 checks["secret_hidden"] = not can_read(inp["secret"])
 checks["owner_key_hidden"] = not can_read(inp["key"])
@@ -104,7 +110,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 		Files  []struct{ Record int64 }
 	}
 	_ = json.Unmarshal(p.Result, &res)
-	for _, c := range []string{"internal_call", "no_command_list", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked", "proxy_needs_token", "proxy_key_is_not_the_token",
+	for _, c := range []string{"internal_call", "no_command_list", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked", "proxy_needs_token", "proxy_key_is_not_the_token", "deck_needs_door_key",
 		"outside_write_blocked", "secret_hidden", "owner_key_hidden", "late_key_hidden", "host_socket_blocked"} {
 		// deck's container as the sandbox leaves the network to a program that does not take the proxy.
 		if !res.Checks[c] && !(c == "direct_network_blocked" && sandbox.Contained()) {

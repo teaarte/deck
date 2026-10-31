@@ -139,7 +139,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.tokenCreate),
 		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens by name with their commands, never the tokens themselves; revoked ones too.",
-			registry.OwnerSide, s.tokensList).On("tokens"),
+			registry.OwnerSide, s.tokensList).On("tokens").NoTokens(),
 		registry.Def("token_revoke", "Revoke token",
 			"Revokes an automation token; calls with it are refused from then on.",
 			registry.OwnerOnly, s.tokenRevoke).As(registry.External),

@@ -58,6 +58,7 @@ type Service struct {
 	check map[string]*checks
 	// plain are the models whose API refused the reasoning an agent hands back, by address and model, while deck runs.
 	plain sync.Map
+	jobs  sync.Map
 	// found is set once the ACP agents were looked for.
 	found bool
 	// logins are the sign-ins of CLI agents from deck, by provider.

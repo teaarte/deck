@@ -24,7 +24,7 @@ var exceptions = map[string][]string{
 		"internal/script/check.go:5", "internal/script/run.go:14", "internal/script/runtime.go:7",
 	},
 	"write": {
-		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:52", "cmd/deck/main.go:238",
+		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:52", "cmd/deck/main.go:239",
 		"internal/app/snapshots/snapshot.go:100", "internal/app/updates/updates.go:286", "internal/process/script.go:119",
 		"internal/provider/child.go:27", "internal/provider/claudecode/selfcheck.go:93",
 		"internal/provider/claudecode/settings.go:134", "internal/provider/codex/gen/main.go:93",

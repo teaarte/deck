@@ -204,3 +204,39 @@ func TestALongCallOfAnAgentTellsItThatItStillRuns(t *testing.T) {
 		t.Fatalf("a call that waits for a job tells the agent it still runs")
 	}
 }
+
+// TestAVideoJobIsAskedAfterOnlyByTheModuleThatStartedIt: a module that polls a job of a video another module
+// started through deck gets no answer of it; the one that started it does.
+func TestAVideoJobIsAskedAfterOnlyByTheModuleThatStartedIt(t *testing.T) {
+	t.Parallel()
+	cloud := videoJob(t, `{"id": "job-1", "status": "in_progress"}`)
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1", "key": "sk-or"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan", "kind": "video"}, nil)
+	for _, p := range []string{"films", "other"} {
+		e.Project(p, harness.ScriptManifest("media", "", `, "models": ["openrouter"]`))
+		e.SaveScript(p, "scripts/main.py", modelScript)
+	}
+	call := func(project string, in map[string]any) map[string]any {
+		t.Helper()
+		got := e.WaitState(e.Start(project, "media", in), "done", "error")
+		var out map[string]any
+		if got.State != "done" || json.Unmarshal(got.Result, &out) != nil {
+			t.Fatalf("the script ran: %+v", got)
+		}
+		return out
+	}
+	if out := call("films", map[string]any{"key": "openrouter/videos", "other": `{"model": "alibaba/wan-2.6", "prompt": "a snail"}`}); out["status"] != 202.0 {
+		t.Fatalf("the module starts a job: %v", out)
+	}
+	poll := map[string]any{"key": "openrouter/videos/job-1", "method": "GET"}
+	if out := call("other", poll); out["status"] != 404.0 {
+		t.Fatalf("another module does not ask after the job: %v", out)
+	}
+	if out := call("films", poll); out["status"] != 200.0 || !strings.Contains(fmt.Sprint(out["answer"]), "in_progress") {
+		t.Fatalf("the module that started the job asks after it: %v", out)
+	}
+	if n := len(slices.DeleteFunc(cloud.Calls(), func(c harness.ModelCall) bool { return c.Path != "/api/v1/videos/job-1" })); n != 1 {
+		t.Fatalf("only the poll of the module that started the job reached the service: %d", n)
+	}
+}

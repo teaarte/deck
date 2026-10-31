@@ -77,8 +77,8 @@ func (r *Registry) Clearance() Clearance {
 // Confined is an actor that stays inside its own project: an agent or a trigger.
 func (a Actor) Confined() bool { return a.Kind == Agent || a.Kind == Trigger }
 
-// OwnerSide is the owner or the master, who work across the projects of the workspace; a token counts as the master.
-func (a Actor) OwnerSide() bool { return slices.Contains(OwnerSide, a.As()) }
+// OwnerSide is the owner or the master, who work across the projects of the workspace; a token is not.
+func (a Actor) OwnerSide() bool { return slices.Contains(OwnerSide, a.Kind) }
 
 // MayCall says the list of commands of a token, or of an agent whose command lists its calls, lets it call name.
 func (a Actor) MayCall(name string) bool {

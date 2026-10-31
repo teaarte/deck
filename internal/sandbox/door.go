@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,7 +29,7 @@ type Door struct {
 }
 
 // Open opens a door of sb: a request to another host that carries the key goes through egress to domains, none
-// goes without domains; deck serves the rest, and nil answers 404.
+// goes without domains; deck serves a path under the key, and nil answers 404; a request without the key gets 407.
 func Open(sb Sandbox, domains []string, deck http.Handler) (*Door, error) {
 	dir, err := os.MkdirTemp("", "deck-")
 	if err != nil {
@@ -46,7 +47,9 @@ func Open(sb Sandbox, domains []string, deck http.Handler) (*Door, error) {
 	d := &Door{ln: ln, dir: dir, self: sb.Addr(ln), key: nonce.Hex(16), cut: cut}
 	d.srv = &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodConnect && (!r.URL.IsAbs() || r.URL.Host == d.self) {
-			deck.ServeHTTP(w, r)
+			if r, ok := d.under(w, r); ok {
+				deck.ServeHTTP(w, r)
+			}
 			return
 		}
 		if !d.authorized(w, r) {
@@ -65,8 +68,8 @@ func Open(sb Sandbox, domains []string, deck http.Handler) (*Door, error) {
 	return d, nil
 }
 
-// URL is the address the confined program reaches deck at.
-func (d *Door) URL() string { return "http://" + d.self }
+// URL is the address the confined program reaches deck at, the key its first part.
+func (d *Door) URL() string { return "http://" + d.self + "/" + d.key }
 
 // Env sends the web of the program through the door, deck reached directly; it goes last, over the program's own.
 func (d *Door) Env() []string { return Proxy("http://deck:"+d.key+"@"+d.self, d.self) }
@@ -100,13 +103,32 @@ func (d *Door) Refused() []string {
 	return slices.Clone(d.refused)
 }
 
+// under is a request to deck with the key taken off its path; without the key it answers 407.
+func (d *Door) under(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
+	seg, rest, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	if subtle.ConstantTimeCompare([]byte(seg), []byte(d.key)) != 1 {
+		deny(w)
+		return nil, false
+	}
+	r = r.Clone(r.Context())
+	r.URL.Path, r.URL.RawPath = "/"+rest, ""
+	return r, true
+}
+
 // authorized reports whether a proxy request carries the key as its password, and answers 407 when not.
-func (d *Door) authorized(w http.ResponseWriter, r *http.Request) bool {
+func (d *Door) authorized(w http.ResponseWriter, r *http.Request) bool { return Keyed(w, r, d.key) }
+
+// Keyed reports whether a proxy request carries key as its password, and answers 407 when not.
+func Keyed(w http.ResponseWriter, r *http.Request, key string) bool {
 	_, pass, _ := (&http.Request{Header: http.Header{"Authorization": r.Header.Values("Proxy-Authorization")}}).BasicAuth()
-	if subtle.ConstantTimeCompare([]byte(pass), []byte(d.key)) == 1 {
+	if subtle.ConstantTimeCompare([]byte(pass), []byte(key)) == 1 {
 		return true
 	}
-	w.Header().Set("Proxy-Authenticate", `Basic realm="deck"`)
-	http.Error(w, "deck: the proxy needs the key of a running program", http.StatusProxyAuthRequired)
+	deny(w)
 	return false
+}
+
+func deny(w http.ResponseWriter) {
+	w.Header().Set("Proxy-Authenticate", `Basic realm="deck"`)
+	http.Error(w, "deck: the door needs the key of a running program", http.StatusProxyAuthRequired)
 }

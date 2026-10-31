@@ -76,10 +76,8 @@ func run() (*release.Restart, error) {
 	if err := sandbox.AgentUserErr(); err != nil {
 		return nil, err
 	}
-	// With a user of agents what deck writes is its own, so that user reads only what deck hands it.
-	if sandbox.HasAgentUser() {
-		syscall.Umask(0o077)
-	}
+	// What deck writes is its own: another user reads only what deck hands it.
+	syscall.Umask(0o077)
 
 	home := os.Getenv("DECK_HOME")
 	if home == "" {
@@ -95,6 +93,9 @@ func run() (*release.Restart, error) {
 		return nil, err
 	}
 	defer lock.Close()
+	if err := os.Chmod(deckhome.Layout(home).State(), 0o700); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
 	if sandbox.HasAgentUser() {
 		if err := private(deckhome.Layout(home)); err != nil {
 			return nil, err

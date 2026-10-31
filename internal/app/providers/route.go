@@ -89,6 +89,10 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 			return nil, registry.Refuse("connection %s speaks the %s API, so the request names its model itself; the header %s is for a raw service whose API has no model field",
 				connection, c.Api, models.Header)
 		case asked == "" && c.Api != "raw" && models.Polls(ask.Method, ask.Path):
+			id, _, _ := strings.Cut(strings.TrimPrefix(strings.TrimPrefix(ask.Path, "/"), "videos/"), "/")
+			if by, ok := s.jobs.Load(jobKey(act.Workspace, c.Name, id)); !ok || by != act.ProjectID {
+				return nil, registry.NotFound("no job %s of connection %s that this caller started", id, connection)
+			}
 			picks = append(picks, pick{db.Model{ConnectionID: c.ID, Name: c.Name}, c})
 		case asked == "" || err != nil:
 			what := "a request naming no model"
@@ -276,6 +280,11 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(p
 func (s *Service) Proxy(act registry.Actor, permit func(ctx context.Context, act registry.Actor, command string, input json.RawMessage, wait string) error) http.Handler {
 	return models.Handler(models.Policy{
 		Route: func(ctx context.Context, ask models.Ask) ([]models.Hop, error) { return s.Route(ctx, act, ask) },
+		Started: func(hops []models.Hop, job string) {
+			for _, h := range hops {
+				s.jobs.Store(jobKey(act.Workspace, h.Connection, job), act.ProjectID)
+			}
+		},
 		Allow: func(ctx context.Context, ask models.Ask, body []byte) error {
 			in := map[string]string{"connection": ask.Connection, "path": ask.Path}
 			if ask.ByHeader || ask.InForm {
@@ -290,4 +299,10 @@ func (s *Service) Proxy(act registry.Actor, permit func(ctx context.Context, act
 			input, _ := json.Marshal(in)
 			return permit(ctx, act, gateway.ModelCommand, input, "a draft or a trial calls through $DECK_MODELS only the free models and those of the owner's machine its manifest names in models; this call was not made: the owner enables the project, or an agent asks with "+gateway.ModelCommand+", which waits for the owner's yes")
 		}})
+}
+
+// jobKey names a job a model started on a connection of a workspace; jobs holds the project that started each, for
+// as long as deck runs.
+func jobKey(workspace int64, connection, id string) string {
+	return strconv.FormatInt(workspace, 10) + "/" + connection + "/" + id
 }

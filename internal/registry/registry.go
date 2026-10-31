@@ -86,8 +86,9 @@ type Command struct {
 	// params are the parameters Def read from the input struct; json the fields of the input that hold a JSON text.
 	params []Param
 	json   []string
-	// foreign marks an input schema from elsewhere, not held to App Intents types; retries one that takes a retry key.
-	foreign, retries, keyed bool
+	// foreign marks an input schema from elsewhere, not held to App Intents types; retries one that takes a retry key;
+	// untokened one no automation token calls.
+	foreign, retries, keyed, untokened bool
 }
 
 // Loose declares a command not written in Go: of a module, an HTTP tool, an MCP server or the browser, its input
@@ -100,6 +101,12 @@ func Loose(name, title, desc, class string, callers []string, input json.RawMess
 // Foreign marks a command whose input schema comes from elsewhere: it is not held to App Intents types.
 func (c *Command) Foreign() *Command {
 	c.foreign = true
+	return c
+}
+
+// NoTokens keeps a command from automation tokens, whatever commands they list.
+func (c *Command) NoTokens() *Command {
+	c.untokened = true
 	return c
 }
 
@@ -521,6 +528,9 @@ func (r *Registry) reachable(a Actor, c *Command) error {
 			who += " (" + a.Run + ")"
 		}
 		return Refuse("%s cannot be called by %s; only %s may call it", c.Name, who, strings.Join(c.Callers, ", "))
+	}
+	if c.untokened && a.Kind == Token {
+		return Refuse("%s is not open to automation tokens", c.Name)
 	}
 	if c.ProjectID != 0 && (a.Kind == Agent || a.Kind == Trigger) && a.ProjectID != c.ProjectID {
 		return Refuse("%s belongs to another project", c.Name)

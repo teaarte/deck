@@ -1,6 +1,7 @@
 package egress
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -304,17 +305,28 @@ func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("research", harness.BrowserManifest(`{"read": ["*"]}`))
 	e.WaitState(e.Start("research", "browse", harness.Steps(harness.Nav("https://198.51.100.4/a"))), "done")
-	var proxy string
-	for _, l := range harness.FakeLog(e.Browser) {
-		if p, ok := strings.CutPrefix(l, "proxy:"); ok {
-			proxy = p
+	var config struct {
+		Browser struct {
+			LaunchOptions struct {
+				Proxy struct{ Server, Bypass, Username, Password string }
+			}
 		}
 	}
-	u, err := url.Parse(proxy)
-	if err != nil || proxy == "" {
-		t.Fatalf("the browser without sign-ins starts with deck's proxy: %v", harness.FakeLog(e.Browser))
+	for _, l := range harness.FakeLog(e.Browser) {
+		if p, ok := strings.CutPrefix(l, "config:"); ok {
+			raw, _ := os.ReadFile(p)
+			_ = json.Unmarshal(raw, &config)
+		}
 	}
-	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(u)}}
+	proxy := config.Browser.LaunchOptions.Proxy
+	u, err := url.Parse(proxy.Server)
+	if err != nil || proxy.Server == "" || proxy.Password == "" {
+		t.Fatalf("the browser without sign-ins starts with deck's proxy and its key: %v %+v", harness.FakeLog(e.Browser), proxy)
+	}
+	bare := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(u)}}
+	keyed := *u
+	keyed.User = url.UserPassword(proxy.Username, proxy.Password)
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(&keyed)}}
 	get := func() int {
 		res, err := client.Get(local.URL)
 		if err != nil {
@@ -322,6 +334,9 @@ func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 		}
 		res.Body.Close()
 		return res.StatusCode
+	}
+	if res, err := bare.Get("http://198.51.100.4/"); err != nil || res.StatusCode != http.StatusProxyAuthRequired {
+		t.Fatalf("deck's proxy of the browser turns away a request without its key: %v %v", res, err)
 	}
 	if code := get(); code != http.StatusForbidden || hits.Load() != 0 {
 		t.Fatalf("a page of any site does not reach a local address: %d, %d hits", code, hits.Load())

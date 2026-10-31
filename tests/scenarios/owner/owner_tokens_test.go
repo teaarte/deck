@@ -336,3 +336,22 @@ func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 		t.Fatalf("the yes to the outer call does not make the inner one: %d calls, %v", inner.Load(), nested)
 	}
 }
+
+// TestAnAutomationTokenDoesNotListSecretsOrTokens: a token that lists the secrets and tokens of the workspace, or all
+// of deck, is refused them; the owner reads them.
+func TestAnAutomationTokenDoesNotListSecretsOrTokens(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	_, tok := e.Token("terminal", "deck.secrets_list", "deck.tokens_list", "deck.*")
+	for _, name := range []string{"deck.secrets_list", "deck.tokens_list"} {
+		e.As(tok).Refused(name, map[string]any{}, 403, "not open to automation tokens")
+		e.Must(name, map[string]any{}, nil)
+	}
+	s, err := e.Terminal(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if names := harness.ToolNames(s); slices.Contains(names, "secrets_list") || slices.Contains(names, "tokens_list") || !slices.Contains(names, "projects_list") {
+		t.Fatalf("a token is not offered the secrets and tokens: %v", names)
+	}
+}

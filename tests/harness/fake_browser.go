@@ -22,7 +22,7 @@ func browserTools(dir string) []fakeTool {
 		mode += ":isolated"
 	}
 	note(dir, "start:"+mode)
-	for flag, name := range map[string]string{"--proxy-server": "proxy", "--init-script": "init"} {
+	for flag, name := range map[string]string{"--config": "config", "--init-script": "init"} {
 		if i := slices.Index(os.Args, flag); i >= 0 && i+1 < len(os.Args) {
 			note(dir, name+":"+os.Args[i+1])
 		}

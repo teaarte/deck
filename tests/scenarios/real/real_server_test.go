@@ -61,7 +61,16 @@ func TestServerFromScratch(t *testing.T) {
 	t.Cleanup(func() { _ = exec.Command("docker", "rm", "-f", "-v", name).Run() })
 	in := func(args ...string) string { return run("docker", append([]string{"exec", name}, args...)...) }
 	harness.Until(t, "docker in docker to start", func() bool { return exec.Command("docker", "exec", name, "docker", "info").Run() == nil })
-	save := exec.Command("sh", "-c", "docker save ghcr.io/teaarte/deck:latest caddy:2 | docker exec -i "+name+" docker load")
+	spec, err := os.ReadFile(filepath.Join(root, "compose.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	caddy := regexp.MustCompile(`image: (caddy\S*)`).FindSubmatch(spec)
+	if caddy == nil {
+		t.Fatal("compose.yaml names no image of caddy")
+	}
+	run("docker", "pull", string(caddy[1]))
+	save := exec.Command("sh", "-c", "docker save ghcr.io/teaarte/deck:latest "+string(caddy[1])+" | docker exec -i "+name+" docker load")
 	if out, err := save.CombinedOutput(); err != nil {
 		t.Fatalf("the images in the bare docker: %v\n%s", err, out)
 	}

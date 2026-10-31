@@ -219,16 +219,22 @@ func execUse(f *ast.File, fset *token.FileSet) []int {
 	return out
 }
 
-// clientLit are the lines of composite literals of http.Client and http.Transport.
+// clientLit are the lines of composite literals of http.Client and http.Transport, and of the default client of
+// net/http.
 func clientLit(f *ast.File, fset *token.FileSet) []int {
-	return composite(f, fset, "net/http", "Client", "Transport")
+	return append(composite(f, fset, "net/http", "Client", "Transport"),
+		calls(f, fset, "net/http", "DefaultClient", "DefaultTransport", "Get", "Post", "Head", "PostForm")...)
 }
 
 // fileWrite are the lines that call os.Rename, os.CreateTemp or os.WriteFile.
-func fileWrite(f *ast.File, fset *token.FileSet) []int { return calls(f, fset, "os", "Rename", "CreateTemp", "WriteFile") }
+func fileWrite(f *ast.File, fset *token.FileSet) []int {
+	return calls(f, fset, "os", "Rename", "CreateTemp", "WriteFile")
+}
 
 // envRead are the lines that read the environment of deck.
-func envRead(f *ast.File, fset *token.FileSet) []int { return calls(f, fset, "os", "Getenv", "LookupEnv", "Environ") }
+func envRead(f *ast.File, fset *token.FileSet) []int {
+	return calls(f, fset, "os", "Getenv", "LookupEnv", "Environ")
+}
 
 // composite are the lines of composite literals of the named types of the package at path.
 func composite(f *ast.File, fset *token.FileSet, path string, names ...string) []int {

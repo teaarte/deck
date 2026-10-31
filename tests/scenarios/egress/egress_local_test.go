@@ -23,7 +23,9 @@ func TestAnMCPServerByURLIsNotRedirectedToTheLocalNetwork(t *testing.T) {
 	t.Parallel()
 	inner := mcp.NewServer(&mcp.Implementation{Name: "inner", Version: "0"}, nil)
 	inner.AddTool(&mcp.Tool{Name: "ping", Description: "Answers pong.", InputSchema: map[string]any{"type": "object"}},
-		func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) { return harness.Text("pong"), nil })
+		func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return harness.Text("pong"), nil
+		})
 	var reached atomic.Int64
 	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reached.Add(1)

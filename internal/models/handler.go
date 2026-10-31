@@ -39,30 +39,40 @@ func Handler(p Policy) http.Handler {
 		if err != nil {
 			return
 		}
+		turn := p.Answer != nil && turnCall(body)
+		refuse := func(err error) {
+			if !turn {
+				http.Error(w, err.Error(), fault.Status(err))
+				return
+			}
+			a := &answer{w: w, heard: p.Answer}
+			http.Error(a, err.Error(), fault.Status(err))
+			p.Answer(a.said(a.words.String()))
+		}
 		connection, path := p.Connection, strings.TrimPrefix(r.URL.Path, "/")
 		if connection == "" {
 			connection, path, _ = strings.Cut(path, "/")
 		}
 		ask, err := AskOf(connection, r.Method, path, r.Header, body)
 		if err != nil {
-			http.Error(w, err.Error(), fault.Status(err))
+			refuse(err)
 			return
 		}
 		hops, err := p.Route(r.Context(), ask)
 		if err != nil {
-			http.Error(w, err.Error(), fault.Status(err))
+			refuse(err)
 			return
 		}
 		ctx := WithRoute(r.Context(), ask, hops)
 		if p.Allow != nil {
 			if err := p.Allow(ctx, ask, body); err != nil {
-				http.Error(w, err.Error(), fault.Status(err))
+				refuse(err)
 				return
 			}
 		}
 		r = r.WithContext(ctx)
 		replace := ask.InBody || p.Named
-		if p.Answer == nil || !turnCall(body) {
+		if !turn {
 			ServeHops(w, r, path, body, replace, hops)
 			return
 		}

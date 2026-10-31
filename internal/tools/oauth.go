@@ -178,7 +178,7 @@ func (o *OAuth) exchange(ctx context.Context, workspace int64, a manifest.Auth, 
 	return err
 }
 
-// tokenClient is the client of the token URL of conf, at a public address or one the domains name.
+// tokenClient is the client of the token URL of conf, at a public address.
 func tokenClient(conf *oauth2.Config) *http.Client {
 	return egress.Client(egress.With(nil, conf.Endpoint.TokenURL), time.Minute)
 }

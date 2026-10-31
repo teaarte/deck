@@ -80,6 +80,7 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		"internal/tools/t.go:9: an HTTP client or transport built outside internal/egress",
 		"internal/tools/t.go:10: a file written by hand",
 		"internal/tools/t.go:11: the environment of deck read outside cmd/deck",
+		"internal/tools/t.go:13: an HTTP client or transport built outside internal/egress",
 	} {
 		if !strings.Contains(all, want) {
 			t.Errorf("missing violation %q in:\n%s", want, all)

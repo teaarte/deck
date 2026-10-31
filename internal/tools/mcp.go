@@ -60,7 +60,7 @@ func reached(m *manifest.Manifest) []string {
 
 func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MCPServer, domains []string) (mcphost.Spec, error) {
 	if s.URL != "" {
-		return mcphost.Spec{URL: s.URL}, nil
+		return mcphost.Spec{URL: s.URL, Domains: domains}, nil
 	}
 	dir := x.Home.MCP(p.ID, name)
 	env := sandbox.Env(dir, dir)

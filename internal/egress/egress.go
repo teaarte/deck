@@ -108,14 +108,16 @@ func Public(ip netip.Addr) bool {
 	if v4, ok := embedded(ip); ok {
 		return Public(v4)
 	}
-	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !shared.Contains(ip)
+	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !shared.Contains(ip) && !nat64Local.Contains(ip)
 }
 
 var (
 	// shared is the carrier-grade NAT range, which tailnets use.
 	shared = netip.MustParsePrefix("100.64.0.0/10")
 	nat64  = netip.MustParsePrefix("64:ff9b::/96")
-	sixTo4 = netip.MustParsePrefix("2002::/16")
+	// nat64Local is the NAT64 prefix of a local network, which may reach any IPv4 address.
+	nat64Local = netip.MustParsePrefix("64:ff9b:1::/48")
+	sixTo4     = netip.MustParsePrefix("2002::/16")
 )
 
 // embedded is the IPv4 address a NAT64 or 6to4 address reaches.
@@ -159,7 +161,7 @@ func Local(domain string) bool {
 var local = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("10.0.0.0/8"),
 	netip.MustParsePrefix("172.16.0.0/12"), netip.MustParsePrefix("192.168.0.0/16"), netip.MustParsePrefix("169.254.0.0/16"),
 	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("::1/128"),
-	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10"), nat64, sixTo4}
+	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10"), nat64, nat64Local, sixTo4}
 
 // With is domains and the host of a URL a manifest names, such as of an HTTP tool or an MCP server: a name, or an
 // address that is public; any other address the domains name themselves.

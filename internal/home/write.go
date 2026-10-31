@@ -15,12 +15,15 @@ type Temp struct {
 	kept bool
 }
 
+// TempPattern is the name of a Temp a crash left behind, to sweep.
+const TempPattern = ".tmp-*"
+
 // Create opens a Temp in dir with mode 600, making dir.
 func Create(dir string) (*Temp, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	f, err := os.CreateTemp(dir, ".tmp-*")
+	f, err := os.CreateTemp(dir, TempPattern)
 	if err != nil {
 		return nil, err
 	}

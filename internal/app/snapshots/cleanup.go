@@ -78,7 +78,7 @@ func (s *Service) cleanup(ctx context.Context, now time.Time) {
 	if err != nil {
 		slog.Error("purge files", "err", err)
 	}
-	left, _ := filepath.Glob(filepath.Join(s.Home.Files(), ".upload-*"))
+	left, _ := filepath.Glob(filepath.Join(s.Home.Files(), home.TempPattern))
 	for _, f := range left {
 		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {
 			_ = os.Remove(f)

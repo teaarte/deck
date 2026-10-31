@@ -312,7 +312,7 @@ func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 	if p := e.Fake.Calls()[1].Prompt; strings.Contains(p, dir) {
 		t.Fatalf("the master hears of it once:\n%s", p)
 	}
-	importEnabled(e, dir, "kept")
+	e.ImportEnabled(dir, "kept")
 	var gone struct{ Folder string }
 	e.Must("deck.project_delete", map[string]any{"project": "kept"}, &gone)
 	if gone.Folder != "" {

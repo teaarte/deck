@@ -1,4 +1,4 @@
-package scenarios
+package real
 
 import (
 	"deck2/internal/provider"
@@ -79,7 +79,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(newProvider(home)), harness.WithConfig(realWaits))
-	importEnabled(e, codeModule(t, ""), "code")
+	e.ImportEnabled(harness.CodeModule(t, ""), "code")
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
 	for _, c := range []struct{ title, text string }{
 		{"Add subtract", "Add a function subtract(a, b) to calc.py that returns a - b, with a test in test_calc.py."},

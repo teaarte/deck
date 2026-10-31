@@ -1,4 +1,4 @@
-package scenarios
+package real
 
 import (
 	"deck2/internal/app"

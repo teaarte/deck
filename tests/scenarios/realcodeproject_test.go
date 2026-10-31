@@ -16,7 +16,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	checkBuiltClient(t)
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	repo := repoFolder(t)
-	module := codeModule(t, "")
+	module := harness.CodeModule(t, "")
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})

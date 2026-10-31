@@ -44,11 +44,6 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == APICLI {
 		return nil, registry.Invalid("connection %s is the %s CLI on the owner's subscription, which deck keeps itself; name another one", in.Name, in.Name)
 	}
-	if key := strings.TrimSpace(in.Key); key != "" {
-		if err := s.WriteKey(act.Workspace, in.Name, key); err != nil {
-			return nil, err
-		}
-	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: in.API, Url: in.URL,
 			Local: store.Bool(in.Local)})
@@ -56,6 +51,11 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 	})
 	if err != nil {
 		return nil, err
+	}
+	if key := strings.TrimSpace(in.Key); key != "" {
+		if err := s.WriteKey(act.Workspace, in.Name, key); err != nil {
+			return nil, err
+		}
 	}
 	return map[string]any{"connection": in.Name, "key": in.Key != ""}, nil
 }

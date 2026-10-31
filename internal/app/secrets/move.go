@@ -78,7 +78,7 @@ func (s *Service) move(ctx context.Context, ws int64) error {
 	if err != nil {
 		return err
 	}
-	to, err := s.targets(ctx, ws)
+	to, unread, err := s.targets(ctx, ws)
 	if err != nil {
 		return err
 	}
@@ -100,6 +100,9 @@ func (s *Service) move(ctx context.Context, ws int64) error {
 				return err
 			}
 		}
+		if unread {
+			continue
+		}
 		if err := os.Remove(filepath.Join(wait, name)); err != nil {
 			return err
 		}
@@ -111,12 +114,12 @@ func (s *Service) move(ctx context.Context, ws int64) error {
 }
 
 // targets are where each old secret of a workspace goes: the key of a connection only to the keys of the connections
-// that hold it, any other to each project that names it.
-func (s *Service) targets(ctx context.Context, ws int64) (map[string][]string, error) {
+// that hold it, any other to each project that names it; unread says a manifest did not read, so the old files stay.
+func (s *Service) targets(ctx context.Context, ws int64) (map[string][]string, bool, error) {
 	to := map[string][]string{}
 	conns, err := s.St.Q.ListConnections(ctx, ws)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	for _, c := range conns {
 		if c.KeySecret != "" {
@@ -129,12 +132,14 @@ func (s *Service) targets(ctx context.Context, ws int64) (map[string][]string, e
 	}
 	ps, err := s.St.Q.ListWorkspaceProjects(ctx, ws)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
+	unread := false
 	for _, p := range ps {
 		m, err := docs.Manifest(ctx, s.St.Q, p)
 		if err != nil {
-			slog.Warn("the manifest of a project does not read, so its secrets do not move to it", "project", p.Name, "err", err)
+			slog.Warn("the manifest of a project does not read; the old secrets stay in ~before", "project", p.Name, "err", err)
+			unread = true
 			continue
 		}
 		for _, name := range m.Secrets() {
@@ -148,5 +153,5 @@ func (s *Service) targets(ctx context.Context, ws int64) (map[string][]string, e
 			}
 		}
 	}
-	return to, nil
+	return to, unread, nil
 }

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -172,13 +173,21 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			ps["record"], act["confirm"], act["parts"] = id, true, manifest.RecordParts
 		}
 		delete(ps, registry.AllowsKey)
+		calls := ""
 		if len(a.Allows) > 0 && !r.deck() && !r.inCustom {
-			ps[registry.AllowsKey] = registry.SignAllows(name, r.allows(a.Allows, env, &failed))
+			calls = r.allows(a.Allows, env, &failed)
 		}
 		// A press of a button of a module again while its run goes is that run, said to be running already.
 		if _, ok := ps[registry.RetryKey]; !ok && a.Input == "" && len(a.FromBlock) == 0 && a.Verb != "undo" && !registry.IsBuiltin(name) {
-			b, _ := json.Marshal(ps)
+			key := maps.Clone(ps)
+			if calls != "" {
+				key[registry.AllowsKey] = calls
+			}
+			b, _ := json.Marshal(key)
 			ps[registry.RetryKey] = "press:" + string(b)
+		}
+		if calls != "" {
+			ps[registry.AllowsKey] = registry.SignAllows(name, calls)
 		}
 		act["command"], act["params"] = name, ps
 		fromBlock := slices.DeleteFunc(slices.Clone(a.FromBlock), registry.Reserved)

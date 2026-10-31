@@ -342,10 +342,11 @@ func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 func TestAnAutomationTokenDoesNotListSecretsOrTokens(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
+	e.Project("mail", harness.PostManifest("https://api.example", ""))
 	_, tok := e.Token("terminal", "deck.secrets_list", "deck.tokens_list", "deck.*")
-	for _, name := range []string{"deck.secrets_list", "deck.tokens_list"} {
-		e.As(tok).Refused(name, map[string]any{}, 403, "not open to automation tokens")
-		e.Must(name, map[string]any{}, nil)
+	for name, in := range map[string]map[string]any{"deck.secrets_list": {"project": "mail"}, "deck.tokens_list": {}} {
+		e.As(tok).Refused(name, in, 403, "not open to automation tokens")
+		e.Must(name, in, nil)
 	}
 	s, err := e.Terminal(tok)
 	if err != nil {

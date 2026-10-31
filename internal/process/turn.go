@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"deck2/master"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -209,7 +210,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	if a.sub != nil {
 		a.req.ResultSchema = nil
 		if t.resume {
-			a.req.Prompt += "\nWhen you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.\n"
+			a.req.Prompt += master.Text("again", again{Why: "resume", Submit: true})
 		}
 	}
 	if a.req.Skills, err = r.deps.Skills(ctx, t.project, t.cmd.Executor.Skills); err == nil {
@@ -305,11 +306,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			revived = true
 			req.Emit(provider.Event{Kind: provider.EventStderr, Text: "deck: " + killed.Error() + "; the turn goes on in its session"})
 			req.Resume = true
-			req.Prompt = "deck: a signal from outside deck killed your turn mid-work. What you did so far stays: check it, do not" +
-				" redo it, and go on where you stopped.\n"
-			if a.sub != nil {
-				req.Prompt += "When you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.\n"
-			}
+			req.Prompt = master.Text("again", again{Why: "killed", Submit: a.sub != nil})
 			continue
 		case errors.As(err, &killed):
 			fail(fault.With(fault.Killed, killed.Error(), killed.Stderr))
@@ -371,13 +368,10 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		default:
 			retried = true
 			req.Resume = true
-			req.Prompt = "Your final JSON did not match the result schema: " + verr.Error() +
-				"\nDo not redo the work. Send only the corrected JSON."
 			if a.sub != nil {
 				a.sub.Spend()
-				req.Prompt = "You ended your turn without handing in the result with the result_submit tool: " + verr.Error() +
-					"\nDo not redo the work. Call result_submit with only the JSON result."
 			}
+			req.Prompt = master.Text("again", again{Why: "result", Submit: a.sub != nil, Error: verr.Error()})
 			continue
 		}
 		return
@@ -410,4 +404,11 @@ func callLimit(pv provider.Provider) time.Duration {
 func submitted(s *gateway.Submit) bool {
 	got, _ := s.Result()
 	return got != nil
+}
+
+// again is what deck says to a turn it sends on, master/templates/again.md filled in: after a kill, on a resume, or
+// for a result it could not take.
+type again struct {
+	Why, Error string
+	Submit     bool
 }

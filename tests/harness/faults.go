@@ -1,6 +1,6 @@
 package harness
 
-type FaultView struct {
+type faultView struct {
 	ID           int64
 	State        string
 	Error        string
@@ -13,9 +13,16 @@ type FaultView struct {
 	Retry        bool
 }
 
-func (e *Env) Fault(id int64) FaultView {
+func (e *Env) Fault(id int64) faultView {
 	e.T.Helper()
-	var v FaultView
+	var v faultView
 	e.Must("deck.process_get", map[string]any{"process": id}, &v)
 	return v
+}
+
+func (e *Env) FailedRuns() []faultView {
+	e.T.Helper()
+	var out []faultView
+	e.Must("deck.processes_list", map[string]any{"failed": true}, &out)
+	return out
 }

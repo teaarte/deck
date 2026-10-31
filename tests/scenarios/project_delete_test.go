@@ -140,7 +140,7 @@ func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("web", harness.WebNotes)
-	del := verb(t, findItem(t, harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Modules", nil)["items"]), "web").Actions, "delete")
+	del := harness.Verb(t, findItem(t, harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Modules", nil)["items"]), "web").Actions, "delete")
 	if del["confirm"] != true || del["command"] != "deck.project_delete" {
 		t.Fatalf("delete asks the owner first: %+v", del)
 	}

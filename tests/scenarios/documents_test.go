@@ -75,7 +75,7 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 		Actions          []map[string]any
 	}
 	root := harness.BlockData[[]tileV](t, e.ScreenData("web", "documents", nil)["b0"]["files"])
-	if len(root) != 3 || verb(t, root[1].Actions, "open")["params"].(map[string]any)["path"] != "documents" {
+	if len(root) != 3 || harness.Verb(t, root[1].Actions, "open")["params"].(map[string]any)["path"] != "documents" {
 		t.Fatalf("the files screen of a module holds its files, documents and data folder: %+v", root)
 	}
 	list := e.ScreenData("web", "documents", map[string]any{"params": `{"path": "documents"}`})["b0"]
@@ -88,7 +88,7 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 		tiles[byName["report.md"]].Url != "" || tiles[byName["custom/chart.html"]].Icon != "file-text" {
 		t.Fatalf("the documents folder is a file manager of every document of the project, a tile of its kind each: %+v", tiles)
 	}
-	open := verb(t, tiles[byName["notes/criteria.md"]].Actions, "open")
+	open := harness.Verb(t, tiles[byName["notes/criteria.md"]].Actions, "open")
 	if open["screen"] != "document" || open["project"] != "web" || open["record"] != float64(crit.ID) || open["primary"] != true {
 		t.Fatalf("a tile opens the page of its document: %+v", open)
 	}

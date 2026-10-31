@@ -110,8 +110,8 @@ func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 	if crumbs := string(block["crumbs"]); !strings.Contains(crumbs, `"path":"shorts/data"`) {
 		t.Fatalf("the way up is in the steps of the folder: %s", crumbs)
 	}
-	params, _ := verb(t, tiles[0].Actions, "open")["params"].(map[string]any)
-	if open := verb(t, tiles[0].Actions, "open"); open["primary"] != true || open["screen"] != "files" || params["path"] != "shorts/data/cache/zz" {
+	params, _ := harness.Verb(t, tiles[0].Actions, "open")["params"].(map[string]any)
+	if open := harness.Verb(t, tiles[0].Actions, "open"); open["primary"] != true || open["screen"] != "files" || params["path"] != "shorts/data/cache/zz" {
 		t.Fatalf("a folder tile opens the folder: %+v", open)
 	}
 	if len(tiles[1].Actions) != 0 {

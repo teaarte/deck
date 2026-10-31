@@ -1,4 +1,4 @@
-package scenarios
+package providers
 
 import (
 	"deck2/tests/harness"
@@ -73,7 +73,7 @@ func TestATurnOnAModelOfAConnectionOnASubscriptionCostsNoMoney(t *testing.T) {
 	}
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	id := e.Run(e.AcpProject("paint", colorManifest), "work")
+	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn runs: %+v", got)
 	}

@@ -52,10 +52,10 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 
 	var cmds []string
 	for _, r := range harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "settings", "Models", nil)["rows"]) {
-		if !hasVerb(r.Actions, "model") {
+		if !harness.HasVerb(r.Actions, "model") {
 			continue
 		}
-		pick := verb(t, r.Actions, "model")
+		pick := harness.Verb(t, r.Actions, "model")
 		params, _ := pick["params"].(map[string]any)
 		if pick["command"] != "deck.assignment_set" || pick["pick"] != "model" || params["role"] != "agent" {
 			t.Fatalf("the model of an agent command is picked in its row: %+v", pick)
@@ -76,7 +76,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		t.Fatalf("the edit of a connection starts from the secret of its key: %+v", a)
 	}
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "settings", "Models", nil)["rows"])
-	if opts, _ := json.Marshal(verb(t, rows[0].Actions, "model")["options"]); !strings.Contains(string(opts), "fake") || strings.Contains(string(opts), "whisper") {
+	if opts, _ := json.Marshal(harness.Verb(t, rows[0].Actions, "model")["options"]); !strings.Contains(string(opts), "fake") || strings.Contains(string(opts), "whisper") {
 		t.Fatalf("the model of an agent command is picked from the models that run agents, not those of another kind: %s", opts)
 	}
 

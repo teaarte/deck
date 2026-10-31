@@ -37,7 +37,7 @@ func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 	}
 	held := e.Run(p, "hold")
 	e.Until("the held process to run", func() bool { return e.Proc(held).State == "running" })
-	if hasVerb(cardActions(held), "rework") || !hasVerb(cardActions(held), "stop") {
+	if harness.HasVerb(cardActions(held), "rework") || !harness.HasVerb(cardActions(held), "stop") {
 		t.Fatalf("an open process is stopped, not sent back: %+v", cardActions(held))
 	}
 	release <- struct{}{}
@@ -45,7 +45,7 @@ func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 
 	job := e.Run(p, "job")
 	e.WaitState(job, "done")
-	rework := verb(t, cardActions(job), "rework")
+	rework := harness.Verb(t, cardActions(job), "rework")
 	if rework["input"] != "remark" || rework["command"] != "deck.process_rework" || rework["primary"] != true {
 		t.Fatalf("rework asks for the remark and sends it back: %+v", rework)
 	}
@@ -63,7 +63,7 @@ func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 	e.SaveScript("tools", "scripts/main.py", "import json\nprint(json.dumps({}))\n")
 	s := e.Start("tools", "take", nil)
 	e.WaitState(s, "done")
-	if hasVerb(cardActions(s), "rework") {
+	if harness.HasVerb(cardActions(s), "rework") {
 		t.Fatalf("a script has no session to send back: %+v", cardActions(s))
 	}
 }

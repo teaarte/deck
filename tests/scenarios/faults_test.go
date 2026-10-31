@@ -13,13 +13,6 @@ import (
 	"testing"
 )
 
-func failedRuns(e *harness.Env) []harness.FaultView {
-	e.T.Helper()
-	var out []harness.FaultView
-	e.Must("deck.processes_list", map[string]any{"failed": true}, &out)
-	return out
-}
-
 // TestAScriptReportsItsFailureInTheOneForm: {"error", "type", "details"} a script prints as it fails gives its failure,
 // a type a script may not give is script.failed; with stderr alone its last line is the text, the rest the details.
 func TestAScriptReportsItsFailureInTheOneForm(t *testing.T) {
@@ -74,7 +67,7 @@ sys.exit(1)
 	for i := 1; i <= 3; i++ {
 		ids = append(ids, e.WaitState(e.Start("work", "run", map[string]any{"n": i}), "error").ID)
 	}
-	rows := failedRuns(e)
+	rows := e.FailedRuns()
 	if len(rows) != 1 || rows[0].ID != ids[2] || rows[0].Repeats != 3 || rows[0].ErrorType != "network" || rows[0].Whose != "environment" {
 		t.Fatalf("three of the same failure are one row, the newest, counted: %+v", rows)
 	}
@@ -89,7 +82,7 @@ sys.exit(1)
 		t.Fatalf("the page of the process says the type and whose it is: %s", page)
 	}
 	e.Must("deck.process_dismiss", map[string]any{"process": ids[2]}, nil)
-	if rows := failedRuns(e); len(rows) != 0 {
+	if rows := e.FailedRuns(); len(rows) != 0 {
 		t.Fatalf("closing the row closes the failures it stands for: %+v", rows)
 	}
 	failed := e.WaitState(e.Start("work", "run", map[string]any{"n": 7}), "error").ID
@@ -102,7 +95,7 @@ sys.exit(1)
 	if got := e.Fault(failed); len(got.FollowedBy) != 1 || got.FollowedBy[0] != again.Process {
 		t.Fatalf("the failure names the run that repeated it: %+v", got)
 	}
-	if rows := failedRuns(e); len(rows) != 1 || rows[0].ID != again.Process {
+	if rows := e.FailedRuns(); len(rows) != 1 || rows[0].ID != again.Process {
 		t.Fatalf("only the end of the chain is in the cockpit: %+v", rows)
 	}
 }

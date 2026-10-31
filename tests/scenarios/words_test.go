@@ -19,7 +19,7 @@ func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
 		return provider.Result{Outcome: provider.Unavailable, Text: "API Error: overloaded"}
 	}, harness.Ok)
 	id := startWork(e, 1)
-	e.WaitState(following(e, id), "done")
+	e.WaitState(e.Following(id), "done")
 	var run struct{ Error string }
 	e.Must("deck.process_get", map[string]any{"process": id, "lang": "ru"}, &run)
 	if run.Error != "fake не ответила: API Error: overloaded" {

@@ -1,4 +1,4 @@
-package scenarios
+package providers
 
 import (
 	"context"
@@ -428,7 +428,7 @@ fi`)
 	if runs := e.RunsOf("master", "on_error"); len(runs) != 0 {
 		t.Fatalf("deck's failure is in health, not a run of the master that would fail the same way: %+v", runs)
 	}
-	if rows := failedRuns(e); len(rows) != 0 {
+	if rows := e.FailedRuns(); len(rows) != 0 {
 		t.Fatalf("a failure without deck's tools is one row of health, not rows of the cockpit: %+v", rows)
 	}
 }
@@ -588,7 +588,7 @@ func TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext(t *testing.
 	limited.Store(true)
 	refused := e.Run(p, "work")
 	e.WaitState(refused, "error")
-	e.WaitState(following(e, refused), "done")
+	e.WaitState(e.Following(refused), "done")
 	e.WaitHealth("provider:fake", "paused")
 	var v struct{ Provider string }
 	fresh := e.Run(p, "work")

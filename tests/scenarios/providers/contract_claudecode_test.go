@@ -1,4 +1,4 @@
-package scenarios
+package providers
 
 // Contract tests of the Claude Code adapter on recorded streams.
 

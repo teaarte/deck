@@ -88,6 +88,16 @@ func (cc codexCall) Config(key string) (string, bool) {
 	return "", false
 }
 
+const ColorManifest = `{"version": 13,
+  "commands": [{"name": "work", "title": "Work", "description": "Asks the owner", "class": "internal",
+    "result": {"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}},
+    "executor": {"type": "agent", "prompt": "Ask the owner which color the report should use."}}]}`
+
+func QuoteTOML(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
 func MustJSON(v any) []byte {
 	b, _ := json.Marshal(v)
 	return b

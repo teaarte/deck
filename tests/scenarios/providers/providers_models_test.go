@@ -1,17 +1,76 @@
-package scenarios
+package providers
 
 import (
 	"context"
 	"deck2/internal/health"
 	"deck2/internal/provider"
+	"deck2/internal/store"
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"math"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 )
+
+// TestTwinsOfAModelMergeIntoTheFirst: models of one connection with the same API name, kind and options become the
+// first of them on upgrade, which takes their agent, assignments, chat topics, processes and sessions.
+func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "deck.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO connection (workspace_id, name, url) VALUES (1, 'google', 'http://127.0.0.1:9')`,
+		`INSERT INTO model (workspace_id, connection_id, name, model, options) SELECT 1, id, 'google/flash', 'flash', '{}' FROM connection WHERE name = 'google'`,
+		`INSERT INTO model (workspace_id, connection_id, name, model, options, agent) SELECT 1, id, 'google-flash', 'flash', '{ }', 'goose' FROM connection WHERE name = 'google'`,
+		`INSERT INTO model (workspace_id, connection_id, name, model, options) SELECT 1, id, 'flash-ru', 'flash', '{"language": "ru"}' FROM connection WHERE name = 'google'`,
+		`INSERT INTO assignment (workspace_id, role, models) VALUES (1, 'agent', '["google-flash", "flash-ru", "google/flash"]')`,
+		`INSERT INTO chat_topic (workspace_id, title, model) VALUES (1, 'talk', 'google-flash')`,
+		`INSERT INTO chat_session (topic_id, provider, session_id) SELECT id, 'google-flash', 's1' FROM chat_topic`,
+		`INSERT INTO project (workspace_id, name) VALUES (1, 'work')`,
+		`INSERT INTO process (project_id, command, state, provider) SELECT id, 'run', 'paused', 'google-flash' FROM project WHERE name = 'work'`,
+		`DROP TABLE picture`, `DROP TABLE layout`,
+		`ALTER TABLE file DROP COLUMN thumb_id`, `ALTER TABLE file DROP COLUMN width`, `ALTER TABLE file DROP COLUMN height`,
+		`ALTER TABLE file DROP COLUMN color`,
+		`DROP INDEX process_finished`, `ALTER TABLE process DROP COLUMN allows`, `ALTER TABLE process DROP COLUMN wrote`,
+		`DROP INDEX feed_line`, `DROP INDEX feed_run`, `ALTER TABLE feed DROP COLUMN line_id`, `ALTER TABLE feed DROP COLUMN what`,
+		`DELETE FROM goose_db_version WHERE version_id >= 46`,
+	} {
+		if _, err := st.DB.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	st.Close()
+	if st, err = store.Open(path); err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var names, agent, models, topic, session, provider string
+	for _, r := range []struct {
+		q   string
+		out *string
+	}{
+		{`SELECT group_concat(name, ',') FROM (SELECT name FROM model WHERE model = 'flash' ORDER BY id)`, &names},
+		{`SELECT agent FROM model WHERE name = 'google/flash'`, &agent},
+		{`SELECT models FROM assignment WHERE role = 'agent'`, &models},
+		{`SELECT model FROM chat_topic`, &topic},
+		{`SELECT provider FROM chat_session`, &session},
+		{`SELECT provider FROM process`, &provider},
+	} {
+		if err := st.DB.QueryRow(r.q).Scan(r.out); err != nil {
+			t.Fatalf("%s: %v", r.q, err)
+		}
+	}
+	if names != "google/flash,flash-ru" || agent != "goose" || models != `["google/flash","flash-ru"]` ||
+		topic != "google/flash" || session != "google/flash" || provider != "google/flash" {
+		t.Fatalf("a twin merges into the first, one with its own options stays: %s %s %s %s %s %s", names, agent, models, topic, session, provider)
+	}
+}
 
 // TestAnAssignmentTakesItsFallbackWhileTheFirstIsDown: a new turn of a project starts on the first provider of
 // its assignment, and on the next one while the first is red, waiting for a login or paused by a limit.
@@ -70,14 +129,6 @@ print(json.dumps({"status": status, "answer": text[:4000], "keys": keys}))
 const picture = `{"model": "google/gemini-3.1-flash-lite-image", "messages": [{"role": "user", "content": "A medieval manuscript painter"}],
   "modalities": ["image", "text"], "image_config": {"aspect_ratio": "9:16"}}`
 
-type spendRow struct {
-	Provider string   `json:"gen_ai.provider.name"`
-	Model    string   `json:"gen_ai.request.model"`
-	Process  int64    `json:"process"`
-	Command  string   `json:"command"`
-	Cost     *float64 `json:"cost_usd"`
-}
-
 // TestAScriptCallsAModelThroughDeckWithoutItsKey: a script calls a model through DECK_MODELS without its key, deck
 // keeps what OpenRouter says it cost; a connection takes no daily limit.
 func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
@@ -108,7 +159,7 @@ func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 		calls[0].Body["image_config"].(map[string]any)["aspect_ratio"] != "9:16" {
 		t.Fatalf("deck put in the key and passed the body on: %+v", calls)
 	}
-	var spend []spendRow
+	var spend []harness.SpendRow
 	e.ModelCalls("shorts", 0, &spend)
 	if len(spend) != 3 || spend[0].Provider != "painter" || spend[0].Model != "google/gemini-3.1-flash-lite-image" || spend[0].Command != "media" ||
 		spend[0].Process == 0 || spend[0].Cost == nil || *spend[0].Cost != 0.033631 {
@@ -130,7 +181,7 @@ func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
 		`{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`))
 	e := harness.New(t, harness.WithACP(f, llm))
 	e.Must("deck.model_set", map[string]any{"connection": "acp", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
-	p := e.AcpProject("paint", colorManifest)
+	p := e.AcpProject("paint", harness.ColorManifest)
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the first turn runs: %+v", got)
 	}
@@ -138,7 +189,7 @@ func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
 	if last := reqs[len(reqs)-1]; last.Model != "m" {
 		t.Fatalf("an agent reaches only the model of its turn: %+v", last)
 	}
-	var spend []spendRow
+	var spend []harness.SpendRow
 	e.ModelCalls("paint", 0, &spend)
 	if len(spend) != 1 || spend[0].Cost == nil || math.Abs(*spend[0].Cost-0.12) > 1e-9 {
 		t.Fatalf("a turn is priced by its model, 100 tokens in and 10 out: %+v", spend)
@@ -174,7 +225,7 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	if b, s := busy.Calls(), spare.Calls(); len(b) != 1 || b[0].Model != "voice-1" || len(s) != 1 || s[0].Model != "voice-2" || s[0].Body["voice"] != "alloy" {
 		t.Fatalf("each model got the body with its own name in place of the role: %+v %+v", b, s)
 	}
-	var spend []spendRow
+	var spend []harness.SpendRow
 	e.ModelCalls("shorts", 0, &spend)
 	if len(spend) != 1 || spend[0].Provider != "spare/voice-2" || spend[0].Cost == nil || *spend[0].Cost != 0.02 {
 		t.Fatalf("the call is counted on the model that made it, by its price per call: %+v", spend)
@@ -398,7 +449,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	}
 	e.Refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions",
 		"body": `{"model": "qwen", "messages": []}`}, 404, "model_request")
-	var spend []spendRow
+	var spend []harness.SpendRow
 	e.ModelCalls("shorts", 0, &spend)
 	got := map[string]float64{}
 	for _, s := range spend {

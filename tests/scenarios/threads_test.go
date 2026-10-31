@@ -173,7 +173,7 @@ func TestACallForARecordJoinsItsRunningAgent(t *testing.T) {
 	fake := &harness.Fake{Live: true, Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "the crown") {
 			started <- struct{}{}
-			text := heard(ctx, c)
+			text := harness.Heard(ctx, c)
 			mu.Lock()
 			heardText = text
 			mu.Unlock()
@@ -295,7 +295,7 @@ func TestAScriptCalledForItsRecordWhileItRunsRunsOnceMoreAfter(t *testing.T) {
 		}
 	}
 	e.WaitState(first, "done")
-	next := following(e, first)
+	next := e.Following(first)
 	if got := e.WaitState(next, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), `"n":3`) {
 		t.Fatalf("one more render with the last call: %+v", got)
 	}
@@ -350,7 +350,7 @@ func TestTheNextModelHearsWhatTheOwnerWroteAndKeepsTheRetryKey(t *testing.T) {
 	release := make(chan struct{})
 	e, backup, _ := twoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		<-told
-		return limited(harness.T0)
+		return harness.Limited(harness.T0)
 	}, func(ctx context.Context, c *harness.Call) provider.Result {
 		<-release
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
@@ -361,7 +361,7 @@ func TestTheNextModelHearsWhatTheOwnerWroteAndKeepsTheRetryKey(t *testing.T) {
 	e.WaitState(id, "running")
 	e.Must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, nil)
 	close(told)
-	next := following(e, id)
+	next := e.Following(id)
 	e.Must("plain.work", map[string]any{"n": 1, "retry_key": "k1"}, &r)
 	if r.Process != next {
 		t.Fatalf("a call with the retry key finds the process that took the work: %d, %d", r.Process, next)
@@ -555,7 +555,7 @@ func TestACallAFailedAgentDidNotHearRunsOnceAfter(t *testing.T) {
 	}
 	close(release)
 	e.WaitState(first, "error")
-	next := following(e, first)
+	next := e.Following(first)
 	e.WaitState(next, "done")
 	e.App.Runner.Wait()
 	mu.Lock()

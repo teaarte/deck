@@ -735,7 +735,7 @@ func TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns(t *testing.T) {
 		var started struct{ Process int64 }
 		_ = json.Unmarshal([]byte(out), &started)
 		child <- started.Process
-		told <- heard(ctx, c)
+		told <- harness.Heard(ctx, c)
 		<-proceed
 		at := time.Now()
 		c.Tool(ctx, "process_get", map[string]any{"process": started.Process, "wait": 1800})

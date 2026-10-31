@@ -1,4 +1,4 @@
-package scenarios
+package providers
 
 import (
 	"deck2/internal/app"
@@ -89,10 +89,10 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Who does what", nil)["rows"])
 	i := slices.IndexFunc(rows, func(r harness.ScreenRow) bool { return r.Cells[1] == "image" })
-	if i < 0 || rows[i].Cells[0] != "deck" || rows[i].Cells[2] != "router/x/pic" || rows[i].Cells[3] != "$0.04 a call" || !hasVerb(rows[i].Actions, "remove") {
+	if i < 0 || rows[i].Cells[0] != "deck" || rows[i].Cells[2] != "router/x/pic" || rows[i].Cells[3] != "$0.04 a call" || !harness.HasVerb(rows[i].Actions, "remove") {
 		t.Fatalf("the assignments show which models do which work and which one does it now: %+v", rows)
 	}
-	if pick := verb(t, rows[i].Actions, "model"); fmt.Sprint(pick["options"]) != "[router/x/pic]" || fmt.Sprint(pick["groups"]) != "[router]" {
+	if pick := harness.Verb(t, rows[i].Actions, "model"); fmt.Sprint(pick["options"]) != "[router/x/pic]" || fmt.Sprint(pick["groups"]) != "[router]" {
 		t.Fatalf("the models a row picks from stand under their provider: %+v", pick)
 	}
 	var acp *harness.ListItem
@@ -106,7 +106,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("the models are the built-in providers and the models of connections, by provider: %+v", models)
 	}
 	whole := acp.Details
-	if !strings.Contains(whole, "--version") || !hasVerb(acp.Actions, "check") {
+	if !strings.Contains(whole, "--version") || !harness.HasVerb(acp.Actions, "check") {
 		t.Fatalf("the error of a model is in full on demand, and its check runs again: %+v", acp)
 	}
 	agents := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Agents", nil)["rows"])
@@ -114,7 +114,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("the agents show why one gives no version: %+v", agents)
 	}
 	conns := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Connections", nil)["rows"])
-	if len(conns) != 4 || conns[2].Cells[0] != "router" || conns[3].Cells[0] != "whisper" || fmt.Sprint(verb(t, conns[3].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
+	if len(conns) != 4 || conns[2].Cells[0] != "router" || conns[3].Cells[0] != "whisper" || fmt.Sprint(harness.Verb(t, conns[3].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
 		t.Fatalf("the connections tab lists the connections, the whisper of deck too, and edits each as it is: %+v", conns)
 	}
 	if conns[0].Cells[0] != "claude-code" || conns[1].Cells[0] != "codex" || len(conns[0].Actions)+len(conns[1].Actions) != 0 {

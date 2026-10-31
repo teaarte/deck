@@ -1,9 +1,6 @@
-package scenarios
+package providers
 
 import (
-	"bytes"
-	"cmp"
-	"compress/gzip"
 	"deck2/internal/app"
 	"deck2/internal/health"
 	deckhome "deck2/internal/home"
@@ -14,15 +11,89 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 )
+
+// TestACPSelfCheckTellsWhyNoResultCame: a first turn without result_submit is told apart: the API refused what the
+// agent sent or its tools, the model made no tool call, or it forgot result_submit, which it is reminded of once.
+func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
+	t.Parallel()
+	read := func(name string) string {
+		b, err := os.ReadFile(filepath.Join(harness.Testdata("acp"), name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	first, second, third := read("selfcheck_1.jsonl"), read("selfcheck_2.jsonl"), read("selfcheck_3.jsonl")
+	submit := `{"mcp": {"tool": "result_submit", "arguments": {"result": {"word": "{{word}}", "answer": "{{word}}-answered"}}}}` + "\n"
+	forgot := strings.Replace(first, submit, "", 1)
+	words := harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "The word is written."}}}`, `{"end": "end_turn"}`)
+	for _, tc := range []struct {
+		name    string
+		refuse  string
+		streams []string
+		status  string
+		wants   []string
+	}{
+		{"format", `'messages.2' : property 'foo' is unsupported`, []string{forgot}, "error",
+			[]string{"self-check of goose", "the model API refused what goose sent (400", "property 'foo'", "do not fit"}},
+		{"unknown model", "404:The model `m` does not exist or you do not have access to it.", []string{forgot}, "error",
+			[]string{"self-check of goose", "does not know the model (404", "check the model id"}},
+		{"no tools", `tool calling is not supported for this model`, []string{forgot}, "error",
+			[]string{"self-check of goose", "refused a call with tools", "may not take tool calls"}},
+		{"a field of tools", `'messages.3' : property 'tool_call_id' is unsupported`, []string{forgot}, "error",
+			[]string{"the model API refused what goose sent (400", "tool_call_id", "do not fit"}},
+		{"tools of the model", `'tools' is not supported with this model`, []string{forgot}, "error", []string{"refused a call with tools"}},
+		{"words", "", []string{words}, "error", []string{"the model does not manage", "made no tool call", "The word is written."}},
+		{"forgot twice", "", []string{forgot, strings.Replace(second, submit, "", 1)}, "error",
+			[]string{"the model does not manage", "reminded of result_submit", "without calling result_submit"}},
+		{"reminded", "", []string{forgot, second, second, third}, "ok", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := harness.NewACP(t)
+			for i, s := range tc.streams {
+				f.StreamText(i+1, s)
+			}
+			llm := harness.NewLLM(t, func(int, harness.ChatRequest) harness.ChatReply {
+				if tc.refuse != "" {
+					status, words := 400, tc.refuse
+					if w, ok := strings.CutPrefix(words, "404:"); ok {
+						status, words = 404, w
+					}
+					b, _ := json.Marshal(map[string]any{"error": map[string]any{"message": words, "type": "invalid_request_error"}})
+					return harness.ChatReply{Status: status, Body: string(b)}
+				}
+				return harness.TextReply("ok")
+			})
+			h := harness.New(t, harness.WithACP(f, nil)).AddACP(f, llm)
+			if h.Status != tc.status {
+				t.Fatalf("want %s: %+v", tc.status, h)
+			}
+			for _, w := range tc.wants {
+				if !strings.Contains(h.Error, w) {
+					t.Fatalf("want %q in: %s", w, h.Error)
+				}
+			}
+			if tc.refuse != "" && strings.Contains(h.Error, "stronger") {
+				t.Fatalf("a refusal of the API is no weak model: %s", h.Error)
+			}
+			if tc.name == "reminded" {
+				rpc, _ := json.Marshal(f.Call(2).Rpc)
+				if !strings.Contains(string(rpc), "without handing in the result") {
+					t.Fatalf("the second turn reminds of result_submit: %s", rpc)
+				}
+			}
+		})
+	}
+}
 
 // gooseInit is the initialize of Goose: no session/resume, session/load instead.
 const gooseInit = `{"reply": "initialize", "result": {"protocolVersion": 1, "agentCapabilities": {"loadSession": true, "mcpCapabilities": {"http": true}, "sessionCapabilities": {"list": {}, "close": {}}}, "authMethods": []}}`
@@ -57,7 +128,7 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 		harness.AcpModel,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`,
 		`{"end": "end_turn"}`}, "\n"))
-	id := e.Run(e.AcpProject("paint", colorManifest), "work")
+	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
 	got := e.WaitState(id, "done", "error")
 	c := f.Call(4)
 	if got.State != "done" || string(got.Result) != `{"color":"blue"}` || c.Violation != "" {
@@ -116,7 +187,7 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 	f.StreamText(5, harness.AcpStream(gooseInit, `{"reply": "session/load", "result": {}, "replay": [{"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi again."}}]}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)), harness.WithConfig(func(c *app.Config) { c.QuestionWait = 10 * time.Minute }))
-	id := e.Run(e.AcpProject("paint", colorManifest), "work")
+	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
 	a := e.WaitAsk()
 	if a.Kind != "question" || !strings.Contains(a.Text, "Which color") {
 		t.Fatalf("the question reaches the owner: %+v", a)
@@ -163,7 +234,7 @@ func TestACPAgentPermissionIsAllowedOnceWithoutTheOwner(t *testing.T) {
 		`{"permission": {"toolCall": {"toolCallId": "c2"}, "options": [{"optionId": "always", "name": "Always", "kind": "allow_always"}, {"optionId": "no", "name": "No", "kind": "reject_once"}]}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "red"}}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	id := e.Run(e.AcpProject("paint", colorManifest), "work")
+	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
 	got := e.WaitState(id, "done", "error")
 	c := f.Call(4)
 	if got.State != "done" || len(c.Answers) != 2 || c.Violation != "" {
@@ -188,7 +259,7 @@ func TestACPResultWithoutItsFieldIsRefused(t *testing.T) {
 		`{"mcp": {"tool": "result_submit", "arguments": {"null": "None"}}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": null}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	loose := strings.Replace(colorManifest, `{"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}}`, `{"type": ["object", "null"]}`, 1)
+	loose := strings.Replace(harness.ColorManifest, `{"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}}`, `{"type": ["object", "null"]}`, 1)
 	got := e.WaitState(e.Run(e.AcpProject("paint", loose), "work"), "done", "error")
 	c := f.Call(4)
 	if got.State != "done" || string(got.Result) != "null" || len(c.Mcp) < 2 || !strings.Contains(fmt.Sprint(c.Mcp[0]), "no result field") {
@@ -255,63 +326,17 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 	}
 }
 
-// TestACPSessionTheAgentLostStartsOver: a resume the agent refuses for a session it no longer lists starts anew.
-func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
-	t.Parallel()
-	f := harness.NewACP(t)
-	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
-		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi."}}}`,
-		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "Read "}}}`,
-		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "first."}}}`,
-		`{"update": {"sessionUpdate": "tool_call", "toolCallId": "c1", "title": "read", "kind": "read", "status": "pending"}}`,
-		`{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "in_progress", "rawInput": {"path": "a.txt"}}}`,
-		`{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "completed", "rawInput": {"path": "a.txt"}, "rawOutput": {"output": "text of a"}}}`,
-		`{"mcp": {"tool": "ask", "arguments": {"question": "Which color should the report use?"}}}`, `{"end": "end_turn"}`))
-	f.StreamText(5, harness.AcpStream(harness.AcpInit, `{"reply": "session/resume", "error": {"code": -32602, "message": "Invalid params: session is not resumable: s-1"}}`,
-		`{"reply": "session/list", "result": {"sessions": []}}`))
-	f.StreamText(6, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, `{"end": "end_turn"}`))
-	f.StreamText(7, harness.AcpStream(harness.AcpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
-		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	id := e.Run(e.AcpProject("paint", colorManifest), "work")
-	a := e.WaitAsk()
-	e.WaitState(id, "waiting_answer")
-	e.Answer(a.ID, "blue")
-	// Three starts of the agent in the sandbox, one after another.
-	got := e.WaitState(id, "done", "error")
-	var resume struct{ SessionID string }
-	if f.Calls() == 7 {
-		_ = json.Unmarshal(f.Call(7).Request("session/resume"), &resume)
-	}
-	if got.State != "done" || f.Call(6).Request("session/new") == nil || resume.SessionID != "s-2" {
-		t.Fatalf("a session the agent lost starts over and the answer reaches the new one: %+v, %d calls, %+v", got, f.Calls(), resume)
-	}
-}
-
 // TestACPStopCancelsTheTurn: a stop of the process sends session/cancel and the agent ends the turn.
 func TestACPStopCancelsTheTurn(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, `{"hang": true}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	id := e.Run(e.AcpProject("paint", colorManifest), "work")
+	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
 	e.Until("the turn", func() bool { return f.Calls() >= 4 && f.Call(4).Request("session/prompt") != nil })
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 	e.WaitState(id, "stopped")
 	e.Until("the cancel", func() bool { return f.Call(4).Request("session/cancel") != nil })
-}
-
-// TestACPRecordedTurnOfGoose replays a turn recorded from Goose through the adapter.
-func TestACPRecordedTurnOfGoose(t *testing.T) {
-	t.Parallel()
-	f := harness.NewACP(t)
-	f.Stream(4, "goose_turn.jsonl")
-	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	got := e.WaitState(e.Run(e.AcpProject("notes", writtenManifest), "work"), "done", "error")
-	c := f.Call(4)
-	if got.State != "done" || string(got.Result) != `{"written":1}` || c.Violation != "" {
-		t.Fatalf("the recorded turn hands its result in: %+v %s", got, c.Violation)
-	}
 }
 
 // TestACPSelfCheckPastItsCeilingSaysWhy: a self-check that runs out of time tells a key the model API refused
@@ -397,13 +422,13 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 				t.Fatalf("the models list shows the agent and the verdict %q: %+v", verdict, pl.Models)
 			}
 			for _, r := range e.AllModels(nil) {
-				if r.Title == "acp" && !hasVerb(r.Actions, "check") {
+				if r.Title == "acp" && !harness.HasVerb(r.Actions, "check") {
 					t.Fatalf("a provider with a self-check can run it again: %+v", r.Actions)
 				}
 			}
 			f.StreamText(0, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 				`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-			id := e.Run(e.AcpProject("paint", colorManifest), "work")
+			id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
 			if verdict == "model" {
 				e.WaitState(id, "done")
 				return
@@ -413,178 +438,6 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 				t.Fatalf("a process on a provider whose adapter is broken waits; one whose model fails runs: %d calls", n)
 			}
 		})
-	}
-}
-
-// TestFakeACPRejectsWhatTheSchemaLacks: the fake agent refuses a method or a field the ACP schema does not have.
-func TestFakeACPRejectsWhatTheSchemaLacks(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct{ line, want string }{
-		{`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"bogus":true}}`, "unknown field bogus"},
-		{`{"jsonrpc":"2.0","id":1,"method":"session/fork","params":{}}`, "unknown method"},
-		{`{"jsonrpc":"2.0","id":1,"method":"session/new","params":{"cwd":"/tmp"}}`, "does not match the schema"},
-	} {
-		f := harness.NewACP(t)
-		f.StreamText(0, harness.AcpInit)
-		cmd := exec.Command(filepath.Join(f.Dir, "goose"))
-		cmd.Stdin = strings.NewReader(tc.line + "\n")
-		_ = cmd.Run()
-		if v := f.Call(1).Violation; !strings.Contains(v, tc.want) {
-			t.Fatalf("%s: the fake refuses with %q, got %q", tc.line, tc.want, v)
-		}
-	}
-}
-
-// TestACPTurnSucceedsOnlyOnEndTurn: another stop reason or a failed prompt is an error; the last answer of the model
-// API tells a refused key (a login) and a usage limit (a pause until Retry-After) apart.
-func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
-	t.Parallel()
-	failed := `{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`
-	for _, tc := range []struct {
-		end         string
-		status      int
-		state, want string
-	}{
-		{`{"end": "cancelled"}`, 200, "error", "interrupted"},
-		{`{"end": "max_tokens"}`, 200, "error", "max_tokens"},
-		{`{"end": "refusal"}`, 200, "error", "refusal"},
-		{failed, 200, "error", "turn failed"},
-		{failed, 401, "needs_login", ""},
-		{failed, 429, "rate_limited", ""},
-	} {
-		t.Run(cmp.Or(tc.want, tc.state), func(t *testing.T) {
-			t.Parallel()
-			f := harness.NewACP(t)
-			llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
-				if n <= 3 || tc.status == 200 {
-					return harness.TextReply("ok")
-				}
-				return harness.ChatReply{Status: tc.status, Header: http.Header{"Retry-After": {"120"}}, Body: `{"error": {"message": "no"}}`}
-			})
-			// A result handed in wins over a later refusal, so a refused key or a limit comes before any.
-			submit := `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`
-			if tc.status != 200 {
-				submit = harness.AcpModel
-			}
-			f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
-				submit, tc.end))
-			e := harness.New(t, harness.WithACP(f, llm))
-			id := e.Run(e.AcpProject("paint", colorManifest), "work")
-			got := e.WaitState(id, "done", "error", "needs_login", "rate_limited")
-			if got.State != tc.state || !strings.Contains(got.Error, tc.want) {
-				t.Fatalf("%s %d: want %s with %q, got %+v", tc.end, tc.status, tc.state, tc.want, got)
-			}
-			if tc.status == 429 {
-				pp, _ := e.App.Store.Q.GetProcess(t.Context(), id)
-				if left := time.Until(time.UnixMilli(pp.PauseUntilMs.Int64)); left < 100*time.Second || left > 121*time.Second {
-					t.Fatalf("the pause lasts until Retry-After: %s", left)
-				}
-			}
-		})
-	}
-}
-
-// TestAFailedTurnTellsTheEndOfWhatTheAgentWroteToStderr: the error of an agent is at the end of its stderr, so a
-// failed turn keeps that end.
-func TestAFailedTurnTellsTheEndOfWhatTheAgentWroteToStderr(t *testing.T) {
-	t.Parallel()
-	f := harness.NewACP(t)
-	noise, _ := json.Marshal(strings.Repeat("loading a plugin\n", 300) + "Error: the config is broken")
-	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
-		`{"stderr": `+string(noise)+`}`, `{"exit": 3}`))
-	e := harness.New(t, harness.WithACP(f, harness.NewLLM(t, func(int, harness.ChatRequest) harness.ChatReply { return harness.TextReply("ok") })))
-	got := e.WaitState(e.Run(e.AcpProject("paint", colorManifest), "work"), "done", "error")
-	if got.State != "error" || !strings.Contains(got.Error, "the config is broken") {
-		t.Fatalf("the failed turn tells the end of stderr: %+v", got)
-	}
-}
-
-// TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal: Goose ends its turn as end_turn with the error of the model
-// API in its text, so the last answer of the API still tells a usage limit and a refused key.
-func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		status int
-		state  string
-	}{{429, "rate_limited"}, {401, "needs_login"}} {
-		t.Run(tc.state, func(t *testing.T) {
-			t.Parallel()
-			f := harness.NewACP(t)
-			llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
-				if n <= 3 {
-					return harness.TextReply("ok")
-				}
-				return harness.ChatReply{Status: tc.status, Header: http.Header{"Retry-After": {"120"}}, Body: `{"error": {"message": "no"}}`}
-			})
-			f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
-				`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: Rate limit exceeded."}}}`,
-				`{"end": "end_turn"}`))
-			e := harness.New(t, harness.WithACP(f, llm))
-			if got := e.WaitState(e.Run(e.AcpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != tc.state {
-				t.Fatalf("%d: want %s, got %+v", tc.status, tc.state, got)
-			}
-			if tc.state != "needs_login" {
-				return
-			}
-			if a := e.WaitAsk(); !strings.Contains(a.Text, "key of its connection") || strings.Contains(a.Text, "terminal") {
-				t.Fatalf("a refused key of a model is about the key of its connection, not a login in a terminal: %+v", a)
-			}
-		})
-	}
-}
-
-// TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused: a call of the model refused after the result,
-// such as the title of a session Goose asks for on the side, does not undo the turn.
-func TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused(t *testing.T) {
-	t.Parallel()
-	f := harness.NewACP(t)
-	llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
-		if n <= 3 {
-			return harness.TextReply("ok")
-		}
-		return harness.ChatReply{Status: 429, Header: http.Header{"Retry-After": {"120"}}, Body: `{"error": {"message": "no"}}`}
-	})
-	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
-		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, harness.AcpModel, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, llm))
-	if got := e.WaitState(e.Run(e.AcpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
-		t.Fatalf("the turn that handed in its result is done: %+v", got)
-	}
-}
-
-// TestACPTurnIsNotUndoneByARefusedCallOnTheSide: a call of the model without tools, such as the title of a session
-// Goose asks for, tells nothing of the turn: a turn whose answer is its text is done though that call was refused.
-func TestACPTurnIsNotUndoneByARefusedCallOnTheSide(t *testing.T) {
-	t.Parallel()
-	f := harness.NewACP(t)
-	llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
-		if n <= 4 {
-			return harness.TextReply("ok")
-		}
-		return harness.ChatReply{Status: 429, Header: http.Header{"Retry-After": {"120"}}, Body: `{"error": {"message": "no"}}`}
-	})
-	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
-		harness.AcpModel, `{"model": {"model": "m", "messages": [{"role": "user", "content": "a title for this session"}]}}`,
-		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Checked the page."}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, llm))
-	open := strings.Replace(harness.NoNetworkManifest, `"no_network": true,`, "", 1)
-	if got := e.WaitState(e.Run(e.AcpProject("open", open), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || !strings.Contains(string(got.Result), "Checked the page.") {
-		t.Fatalf("a turn is done though a call on its side was refused: %+v", got)
-	}
-}
-
-// TestACPAgentThatDiscoversTheGatewayOpensASession: Goose asks server/discover first; told the method is not there,
-// it opens a session with initialize, which the gateway needs (told otherwise, it calls without one).
-func TestACPAgentThatDiscoversTheGatewayOpensASession(t *testing.T) {
-	t.Parallel()
-	f := harness.NewACP(t)
-	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
-		`{"discover": true}`, `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	got := e.WaitState(e.Run(e.AcpProject("paint", colorManifest), "work"), "done", "error")
-	d := harness.JsonLines[map[string]any](f.Files(4)("discover.jsonl"))
-	if got.State != "done" || len(d) != 1 || !strings.Contains(fmt.Sprint(d[0]["body"]), "-32601") {
-		t.Fatalf("server/discover is a method the gateway does not have: %+v %v", got, d)
 	}
 }
 
@@ -605,7 +458,7 @@ func TestACPDeckWritesNothingThroughWhatTheAgentLeft(t *testing.T) {
 		`{"shell": "cat \"$HOME/.agents/skills/reader/SKILL.md\" > seen.txt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	skilled := strings.Replace(colorManifest, `"prompt": "Ask the owner which color the report should use."}`,
+	skilled := strings.Replace(harness.ColorManifest, `"prompt": "Ask the owner which color the report should use."}`,
 		`"prompt": "Ask the owner which color the report should use.", "skills": ["reader"]}`, 1)
 	p := e.AcpProject("paint", skilled)
 	e.Must("deck.document_save", map[string]any{"project": "paint", "name": "skills/reader/SKILL.md", "kind": "skill",
@@ -631,7 +484,7 @@ func TestACPStopDuringSetupEndsTheAgent(t *testing.T) {
 	f := harness.NewACP(t)
 	f.StreamText(4, `{"hang": true}`)
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	id := e.Run(e.AcpProject("paint", colorManifest), "work")
+	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
 	e.Until("the agent", func() bool { return f.Calls() >= 4 && f.Call(4).Request("initialize") != nil })
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 	e.WaitState(id, "stopped")
@@ -688,36 +541,6 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 	}
 }
 
-// TestACPCountsTokensOfCompressedReplies: a model API that compresses its answers still has its tokens counted.
-func TestACPCountsTokensOfCompressedReplies(t *testing.T) {
-	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body := []byte(harness.TextReply("ok").Body)
-		w.Header().Set("Content-Type", "application/json")
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			var b bytes.Buffer
-			zw := gzip.NewWriter(&b)
-			_, _ = zw.Write(body)
-			_ = zw.Close()
-			w.Header().Set("Content-Encoding", "gzip")
-			body = b.Bytes()
-		}
-		_, _ = w.Write(body)
-	}))
-	t.Cleanup(srv.Close)
-	f := harness.NewACP(t)
-	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
-		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, &harness.FakeLLM{T: t, URL: srv.URL + "/v1"}))
-	id := e.Run(e.AcpProject("paint", colorManifest), "work")
-	e.WaitState(id, "done")
-	var calls []map[string]any
-	e.ModelCalls("", id, &calls)
-	if len(calls) != 1 || calls[0]["gen_ai.usage.output_tokens"] != 10.0 {
-		t.Fatalf("the tokens of a compressed reply are counted: %v", calls)
-	}
-}
-
 // TestACPProviderIsNotUsedBeforeItsFirstSelfCheck: a command started right after the provider is added waits for the
 // self-check instead of running on an agent nobody checked.
 func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
@@ -735,7 +558,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
 	}))
 
-	p := e.Project("paint", colorManifest)
+	p := e.Project("paint", harness.ColorManifest)
 	e.Must("deck.secret_set", map[string]any{"name": "k", "value": "v"}, nil)
 	go func() {
 		_, _ = e.AgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose"})
@@ -822,7 +645,7 @@ func TestAnACPAgentCallsOnlyItsModelThroughDeck(t *testing.T) {
 	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"get": "files"}`, harness.AcpModel, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, llm))
-	e.WaitState(e.Run(e.AcpProject("paint", colorManifest), "work"), "done", "error")
+	e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error")
 	got := harness.JsonLines[map[string]any](f.Files(4)("get.jsonl"))
 	if len(got) != 1 || got[0]["status"] != 403.0 {
 		t.Fatalf("a request other than a call of the model is refused: %v", got)
@@ -840,7 +663,7 @@ func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
 		c.ACPCallLimit = 2 * time.Second
 	}))
 
-	cmd := strings.Replace(folderCommand("files", "true"), `"executor":`, `"requires": ["no_cloud"], "executor":`, 1)
+	cmd := strings.Replace(harness.FolderCommand("files", "true"), `"executor":`, `"requires": ["no_cloud"], "executor":`, 1)
 	cmd = strings.Replace(cmd, `"prompt": "Do files."`, `"prompt": "Do files.", "skills": ["reader"]`, 1)
 	p := e.Project("music", harness.TestManifest([]string{cmd}, nil))
 	e.Must("deck.document_save", map[string]any{"project": "music", "name": "skills/reader/SKILL.md", "kind": "skill",
@@ -896,7 +719,7 @@ func TestACPTurnPastTheLimitOfItsModelGoesOnWithoutAPause(t *testing.T) {
 	e := harness.New(t, harness.WithACP(f, llm))
 	before := len(llm.Requests())
 	e.Must("deck.model_set", map[string]any{"connection": "acp", "name": "acp", "model": "m", "tpm": 10}, nil)
-	got := e.WaitState(e.Run(e.AcpProject("paint", colorManifest), "work"), "done", "error", "rate_limited")
+	got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error", "rate_limited")
 	if fl := e.Fault(got.ID); got.State != "error" || fl.ErrorType != "model.limit" || !strings.Contains(fl.Error, "tokens a minute acp takes") {
 		t.Fatalf("a call past the limit of the model is the model's limit: %+v %+v", got, fl)
 	}

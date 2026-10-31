@@ -104,21 +104,6 @@ func findItem(t *testing.T, items []harness.ListItem, prefix string) harness.Lis
 	return harness.ListItem{}
 }
 
-func verb(t *testing.T, acts []map[string]any, v string) map[string]any {
-	t.Helper()
-	for _, a := range acts {
-		if a["verb"] == v {
-			return a
-		}
-	}
-	t.Fatalf("no %s button in %+v", v, acts)
-	return nil
-}
-
-func hasVerb(acts []map[string]any, v string) bool {
-	return slices.ContainsFunc(acts, func(a map[string]any) bool { return a["verb"] == v })
-}
-
 // TestSettingsProjectsEnableADraftAtTheRevisionItShows: a draft shows the rights enabling grants; the enable
 // button carries the revision the row shows, so a change after it is refused.
 func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
@@ -143,7 +128,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 		params, _ := json.Marshal(map[string]string{"project": fmt.Sprint(p["project"]), "revision": fmt.Sprint(p["revision"])})
 		return e.Button("", review["screen"].(string), map[string]any{"params": string(params)}, "deck.project_enable", nil)
 	}
-	stale := enable(verb(t, notes.Actions, "review"))
+	stale := enable(harness.Verb(t, notes.Actions, "review"))
 	if stale["params"].(map[string]any)["revision"] != float64(e.ManifestRevision("notes")) {
 		t.Fatalf("enable on the page of what a draft may do carries the revision the row shows: %+v", stale)
 	}
@@ -151,13 +136,13 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"title": "Work"`}, "new": []string{`"title": "Work again"`}}, nil)
 	notes = findItem(t, items(), "notes")
 	e.Refused(stale["command"].(string), stale["params"], 409, "look at its rights again")
-	press(enable(verb(t, notes.Actions, "review")))
+	press(enable(harness.Verb(t, notes.Actions, "review")))
 	notes = findItem(t, items(), "notes")
-	if notes.Meta != "" || hasVerb(notes.Actions, "review") {
+	if notes.Meta != "" || harness.HasVerb(notes.Actions, "review") {
 		t.Fatalf("an enabled project has no enable button and asks for nothing: %+v", notes)
 	}
-	press(verb(t, findItem(t, items(), "notes").Actions, "pause"))
-	if notes = findItem(t, items(), "notes"); !strings.HasPrefix(notes.Meta, "enabled, paused") || !hasVerb(notes.Actions, "resume") {
+	press(harness.Verb(t, findItem(t, items(), "notes").Actions, "pause"))
+	if notes = findItem(t, items(), "notes"); !strings.HasPrefix(notes.Meta, "enabled, paused") || !harness.HasVerb(notes.Actions, "resume") {
 		t.Fatalf("a paused project says so and resumes: %+v", notes)
 	}
 	if f := screenForm(e, "notes", "settings", "deck.command_try"); !strings.Contains(string(f["value"]), `"deck.command_try"`) {
@@ -179,10 +164,10 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	harness.WaitEvent(t, stream, events.Event{Topic: "secrets"})
 	secrets := e.SettingsBlock("Secrets", map[string]any{"topic": "secrets"})
 	got := harness.BlockData[[]harness.ScreenRow](t, secrets["rows"])
-	if len(got) != 1 || got[0].Cells[0] != "mail-key" || !hasVerb(got[0].Actions, "replace") || verb(t, got[0].Actions, "delete")["confirm"] != true {
+	if len(got) != 1 || got[0].Cells[0] != "mail-key" || !harness.HasVerb(got[0].Actions, "replace") || harness.Verb(t, got[0].Actions, "delete")["confirm"] != true {
 		t.Fatalf("the secrets tab lists names with replace and delete, and follows the secrets topic: %s", secrets["rows"])
 	}
-	del := verb(t, got[0].Actions, "delete")
+	del := harness.Verb(t, got[0].Actions, "delete")
 	e.Must(del["command"].(string), del["params"], nil)
 	harness.WaitEvent(t, stream, events.Event{Topic: "secrets"})
 	if left := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Secrets", nil)["rows"]); len(left) != 0 {
@@ -203,14 +188,14 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	if len(rows) != 1 || rows[0].Cells[0] != "shortcuts" || rows[0].Cells[2] != "deck.notify, web.*" || rows[0].Cells[1] != "live" {
 		t.Fatalf("a token shows its name, commands and state: %+v", rows)
 	}
-	revoke := verb(t, rows[0].Actions, "revoke")
+	revoke := harness.Verb(t, rows[0].Actions, "revoke")
 	if revoke["confirm"] != true {
 		t.Fatalf("revoking asks the owner first: %+v", revoke)
 	}
 	e.Must(revoke["command"].(string), revoke["params"], nil)
 	harness.WaitEvent(t, stream, events.Event{Topic: "tokens"})
 	rows = harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Automation tokens", nil)["rows"])
-	if rows[0].Cells[1] != "revoked" || hasVerb(rows[0].Actions, "revoke") {
+	if rows[0].Cells[1] != "revoked" || harness.HasVerb(rows[0].Actions, "revoke") {
 		t.Fatalf("a revoked token stays in the list without the button: %+v", rows)
 	}
 	if code, _ := e.As(made.Token).Call("deck.notify", map[string]any{"text": "hi"}); code != 401 {
@@ -253,18 +238,18 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	for _, r := range e.AllModels(map[string]any{"topic": "health"}) {
 		if r.Title == "ollama-small" {
 			added = r
-		} else if r.Text == "subscription" && hasVerb(r.Actions, "remove") {
+		} else if r.Text == "subscription" && harness.HasVerb(r.Actions, "remove") {
 			t.Fatalf("a built-in provider cannot be removed: %+v", r)
 		}
 	}
-	if !hasVerb(added.Actions, "check") || added.Group != "ollama" {
+	if !harness.HasVerb(added.Actions, "check") || added.Group != "ollama" {
 		t.Fatalf("a model in an ACP agent has a self-check and its button, under its connection: %+v", added)
 	}
-	remove := verb(t, added.Actions, "remove")
+	remove := harness.Verb(t, added.Actions, "remove")
 	if remove["confirm"] != true || added.Meta != "agent" {
 		t.Fatalf("an added model in an agent says so and is removed after a yes: %+v", added)
 	}
-	edit := verb(t, added.Actions, "edit")["params"].(map[string]any)
+	edit := harness.Verb(t, added.Actions, "edit")["params"].(map[string]any)
 	if edit["dialog"] != "model" || edit["model"] != "small" || edit["connection"] != "ollama" || edit["agent"] != "goose" {
 		t.Fatalf("edit opens the dialog of the model filled with its values: %+v", edit)
 	}
@@ -414,7 +399,7 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 		return out
 	}
 	project := harness.BlockData[[]harness.ListItem](t, e.ScreenBlock("notes", "settings", "Module", nil)["items"])
-	if len(project) != 1 || project[0].Title != "notes" || !strings.HasPrefix(project[0].Meta, "enabled") || !hasVerb(project[0].Actions, "pause") || !hasVerb(project[0].Actions, "delete") {
+	if len(project) != 1 || project[0].Title != "notes" || !strings.HasPrefix(project[0].Meta, "enabled") || !harness.HasVerb(project[0].Actions, "pause") || !harness.HasVerb(project[0].Actions, "delete") {
 		t.Fatalf("the settings show the project with its buttons: %+v", project)
 	}
 	if c := cells("Commands"); len(c) != 1 || c[0][0] != "Collect" {

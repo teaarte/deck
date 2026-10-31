@@ -1,4 +1,4 @@
-package scenarios
+package providers
 
 import (
 	"context"
@@ -102,7 +102,7 @@ func TestAVideoModelMakesAClipOfTheJobItStarted(t *testing.T) {
 		!strings.Contains(fmt.Sprint(body["prompt"]), "Slow camera push") || !strings.Contains(fmt.Sprint(body["prompt"]), "a knight meets a snail") {
 		t.Fatalf("the job gets the model, the prompt with the input, the frames as pictures and the options: %s %v", frames, body)
 	}
-	var spend []spendRow
+	var spend []harness.SpendRow
 	e.ModelCalls("shorts", 0, &spend)
 	if len(spend) != 1 || spend[0].Provider != "wan" || spend[0].Cost == nil || *spend[0].Cost != 0.25 {
 		t.Fatalf("the clip is counted once, with the cost its job reported: %+v", spend)
@@ -137,7 +137,7 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 	if n := len(spare.Calls()); n != 0 {
 		t.Fatalf("a job a service took goes to no other model: %d calls", n)
 	}
-	var spend []spendRow
+	var spend []harness.SpendRow
 	e.ModelCalls("shorts", 0, &spend)
 	costs := map[string]float64{}
 	for _, s := range spend {

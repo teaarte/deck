@@ -84,7 +84,7 @@ func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
 	if said := e.MasterSaid(topic, 1); said[0].Text != "Put it into groceries." {
 		t.Fatalf("the text goes to the master as the owner's message: %+v", said)
 	}
-	var calls []spendRow
+	var calls []harness.SpendRow
 	e.ModelCalls("", 0, &calls)
 	if len(calls) != 1 || calls[0].Provider != "whisper" || calls[0].Model != "whisper" {
 		t.Fatalf("speech to text is a call of its model in the journal: %+v", calls)

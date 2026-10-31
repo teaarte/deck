@@ -105,3 +105,11 @@ func PictureAnswer(cost float64) string {
 		"usage": map[string]any{"prompt_tokens": 58, "completion_tokens": 1290, "total_tokens": 1348, "cost": cost}})
 	return string(b)
 }
+
+type SpendRow struct {
+	Provider string   `json:"gen_ai.provider.name"`
+	Model    string   `json:"gen_ai.request.model"`
+	Process  int64    `json:"process"`
+	Command  string   `json:"command"`
+	Cost     *float64 `json:"cost_usd"`
+}

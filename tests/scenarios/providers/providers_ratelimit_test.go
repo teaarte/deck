@@ -1,4 +1,4 @@
-package scenarios
+package providers
 
 import (
 	"context"
@@ -11,14 +11,6 @@ import (
 	"time"
 )
 
-func limited(resetsAt time.Time) provider.Result {
-	r := provider.Result{Outcome: provider.Limited, Text: "You've hit your limit"}
-	if !resetsAt.IsZero() {
-		r.ResetsAt = resetsAt.Unix()
-	}
-	return r
-}
-
 func TestProviderLimitPausesAndContinuesTheSameSession(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
@@ -28,7 +20,7 @@ func TestProviderLimitPausesAndContinuesTheSameSession(t *testing.T) {
 		prompts = append(prompts, c.Req.Prompt)
 		mu.Unlock()
 		if c.N == 1 {
-			return limited(harness.T0.Add(2 * time.Hour))
+			return harness.Limited(harness.T0.Add(2 * time.Hour))
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}), harness.WithClock())
@@ -69,7 +61,7 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 		mu.Lock()
 		defer mu.Unlock()
 		if !ok {
-			return limited(time.Time{})
+			return harness.Limited(time.Time{})
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 2}`)}
 	}}}
@@ -128,7 +120,7 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 		mu.Unlock()
 		if c.N == 1 {
 			c.Tool(ctx, "notes__post", map[string]any{"text": "hi"})
-			return limited(time.Time{})
+			return harness.Limited(time.Time{})
 		}
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}), harness.WithClock())

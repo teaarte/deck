@@ -92,10 +92,10 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 		acts := r.Actions
 		var a map[string]any
 		switch {
-		case hasVerb(acts, "undo"):
-			a = verb(t, acts, "undo")
-		case hasVerb(acts, "delete"):
-			a = verb(t, acts, "delete")
+		case harness.HasVerb(acts, "undo"):
+			a = harness.Verb(t, acts, "undo")
+		case harness.HasVerb(acts, "delete"):
+			a = harness.Verb(t, acts, "delete")
 		default:
 			t.Fatalf("each thing it left has its button: %+v", r)
 		}

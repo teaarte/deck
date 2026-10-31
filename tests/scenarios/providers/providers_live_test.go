@@ -1,4 +1,4 @@
-package scenarios
+package providers
 
 import (
 	"context"
@@ -16,24 +16,12 @@ import (
 const tellManifest = `{"version": 13, "commands": [{"name": "work", "title": "Work", "description": "Works a while", "class": "internal",
   "executor": {"type": "agent", "prompt": "Work."}}]}`
 
-// heard waits for a message of the owner on the live channel of a turn and takes it.
-func heard(ctx context.Context, c *harness.Call) string {
-	select {
-	case m := <-c.Req.Live:
-		m.Taken <- true
-		return m.Text
-	case <-ctx.Done():
-	case <-time.After(harness.Within(10 * time.Second)):
-	}
-	return ""
-}
-
 func TestOwnerMessageReachesTheLiveTurn(t *testing.T) {
 	t.Parallel()
 	started := make(chan struct{}, 4)
 	fake := &harness.Fake{Live: true, Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		started <- struct{}{}
-		return provider.Result{Text: "heard: " + heard(ctx, c)}
+		return provider.Result{Text: "heard: " + harness.Heard(ctx, c)}
 	}}
 	e := harness.New(t, harness.WithProvider(fake))
 	topic := e.Say(0, "start a long job")

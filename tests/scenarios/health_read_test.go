@@ -98,7 +98,7 @@ func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	pid := e.Project("shorts", modelManifest)
+	pid := e.Project("shorts", harness.ModelManifest)
 	if h := e.HealthRowOf("command:shorts.factcheck"); h == nil {
 		t.Fatal("a model command no model takes is a row of health")
 	}

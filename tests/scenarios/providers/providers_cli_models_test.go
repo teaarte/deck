@@ -1,4 +1,4 @@
-package scenarios
+package providers
 
 import (
 	"deck2/tests/harness"
@@ -163,7 +163,7 @@ func TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne(t *testing.T) {
 	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" {
 		t.Fatalf("opus at its limit fails as the model's: %+v %+v", got, e.Fault(id))
 	}
-	next := following(e, id)
+	next := e.Following(id)
 	var in struct{ Provider string }
 	e.Must("deck.process_get", map[string]any{"process": next}, &in)
 	if got := e.WaitState(next, "done", "error"); got.State != "done" || in.Provider != "sonnet-low" {
@@ -194,7 +194,7 @@ func TestAModelOfCodexRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	}
 	e.Must("deck.provider_check", map[string]any{"provider": "luna-low"}, nil)
 	e.WaitHealth("provider:luna-low", "ok")
-	p := e.Project("paint", colorManifest)
+	p := e.Project("paint", harness.ColorManifest)
 	e.UseModels("paint.work", "luna-low")
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {

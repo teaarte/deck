@@ -2,7 +2,9 @@ package harness
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
+	"testing"
 )
 
 // SettingsBlock is the data of the block of deck's settings with this title, found by its component.
@@ -95,4 +97,19 @@ func (e *Env) FindBlock(project, screen, title string) (string, map[string]any) 
 		}
 	}
 	return "", nil
+}
+
+func Verb(t *testing.T, acts []map[string]any, v string) map[string]any {
+	t.Helper()
+	for _, a := range acts {
+		if a["verb"] == v {
+			return a
+		}
+	}
+	t.Fatalf("no %s button in %+v", v, acts)
+	return nil
+}
+
+func HasVerb(acts []map[string]any, v string) bool {
+	return slices.ContainsFunc(acts, func(a map[string]any) bool { return a["verb"] == v })
 }

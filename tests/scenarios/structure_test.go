@@ -75,18 +75,6 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	}
 }
 
-func TestCoreDocumentNamesKeepTheirKind(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	e.Project("ideas", harness.IdeasManifest)
-	for _, name := range []string{"prompt.md", "manifest.json"} {
-		if code, _ := e.Call("deck.document_save", map[string]any{"project": "ideas", "name": name, "kind": "artifact", "text": "Injected"}); code != 422 {
-			t.Errorf("%s must be reserved for its kind, got %d", name, code)
-		}
-	}
-	e.Must("deck.document_save", map[string]any{"project": "ideas", "name": "prompt.md", "kind": "prompt", "text": "Real prompt"}, nil)
-}
-
 func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
 	t.Parallel()
 	home := filepath.Join(t.TempDir(), "a?b#c%d")

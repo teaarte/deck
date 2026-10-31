@@ -27,33 +27,12 @@ import (
 	"time"
 )
 
-const seedScript = harness.PythonLib + `
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
-with open(os.path.join(os.environ["DECK_RESULTS"], "photo.jpg"), "w") as f:
-    f.write("record photo")
-print(json.dumps({"record": out["ids"][0], "files": [{"path": "photo.jpg", "record": out["ids"][0]}]}))
-`
-
-const readScript = harness.PythonLib + `
-inp = json.load(sys.stdin)
-doc, photo = inp["doc"], inp.get("photo", "")
-checks = {
-    "doc_read": open(doc).read() == "uploaded text",
-    "doc_not_writable": not can_write(doc),
-    "record_file_read": photo == "" or open(photo).read() == "record photo",
-    "record_file_not_writable": photo == "" or not can_write(photo),
-    "input_folder_not_writable": not can_write(os.path.join(os.path.dirname(doc), "new.txt")),
-}
-files = [{"file": int(os.path.basename(doc).split("-")[0]), "record": inp["rec"]}] if inp.get("rec") else []
-print(json.dumps({"checks": checks, "files": files}))
-`
-
 func TestUploadedAndRecordFilesReachTheScriptReadOnly(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("docs", harness.FilesManifest())
-	e.SaveScript("docs", "scripts/seed.py", seedScript)
-	e.SaveScript("docs", "scripts/read.py", readScript)
+	e.SaveScript("docs", "scripts/seed.py", harness.SeedScript)
+	e.SaveScript("docs", "scripts/read.py", harness.ReadScript)
 	seed := e.WaitState(e.Start("docs", "seed", nil), "done", "error")
 	var s struct{ Record int64 }
 	if json.Unmarshal(seed.Result, &s) != nil || s.Record == 0 {
@@ -172,7 +151,7 @@ func TestAResultWithAMissingFileHandsOverNoInputFileEither(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("docs", harness.FilesManifest())
-	e.SaveScript("docs", "scripts/seed.py", seedScript)
+	e.SaveScript("docs", "scripts/seed.py", harness.SeedScript)
 	e.SaveScript("docs", "scripts/read.py", `import json, os, sys
 inp = json.load(sys.stdin)
 given = int(os.path.basename(inp["doc"]).split("-")[0])

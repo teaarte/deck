@@ -113,6 +113,17 @@ func (e *Env) ScreenForm(project, screen, command string) map[string]json.RawMes
 	return nil
 }
 
+func FindItem(t *testing.T, items []ListItem, prefix string) ListItem {
+	t.Helper()
+	for _, it := range items {
+		if strings.HasPrefix(it.Title, prefix) {
+			return it
+		}
+	}
+	t.Fatalf("no item %q in %+v", prefix, items)
+	return ListItem{}
+}
+
 func Verb(t *testing.T, acts []map[string]any, v string) map[string]any {
 	t.Helper()
 	for _, a := range acts {

@@ -79,17 +79,6 @@ func formID(t *testing.T, e *harness.Env, command string) string {
 	return ""
 }
 
-func findItem(t *testing.T, items []harness.ListItem, prefix string) harness.ListItem {
-	t.Helper()
-	for _, it := range items {
-		if strings.HasPrefix(it.Title, prefix) {
-			return it
-		}
-	}
-	t.Fatalf("no item %q in %+v", prefix, items)
-	return harness.ListItem{}
-}
-
 // TestSettingsProjectsEnableADraftAtTheRevisionItShows: a draft shows the rights enabling grants; the enable
 // button carries the revision the row shows, so a change after it is refused.
 func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
@@ -103,7 +92,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 		return harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Modules", nil)["items"])
 	}
 	press := func(a map[string]any) { t.Helper(); e.Must(a["command"].(string), a["params"], nil) }
-	notes := findItem(t, items(), "notes")
+	notes := harness.FindItem(t, items(), "notes")
 	if notes.Title != "notes" || !strings.HasPrefix(notes.Meta, "draft") || strings.Contains(notes.Meta, "autonomy") ||
 		!strings.Contains(notes.Meta, "enabling grants: "+strings.Join(e.ProjectRow("notes").Rights, "; ")) {
 		t.Fatalf("a draft shows the rights enabling grants: %+v", notes)
@@ -120,15 +109,15 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	}
 
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"title": "Work"`}, "new": []string{`"title": "Work again"`}}, nil)
-	notes = findItem(t, items(), "notes")
+	notes = harness.FindItem(t, items(), "notes")
 	e.Refused(stale["command"].(string), stale["params"], 409, "look at its rights again")
 	press(enable(harness.Verb(t, notes.Actions, "review")))
-	notes = findItem(t, items(), "notes")
+	notes = harness.FindItem(t, items(), "notes")
 	if notes.Meta != "" || harness.HasVerb(notes.Actions, "review") {
 		t.Fatalf("an enabled project has no enable button and asks for nothing: %+v", notes)
 	}
-	press(harness.Verb(t, findItem(t, items(), "notes").Actions, "pause"))
-	if notes = findItem(t, items(), "notes"); !strings.HasPrefix(notes.Meta, "enabled, paused") || !harness.HasVerb(notes.Actions, "resume") {
+	press(harness.Verb(t, harness.FindItem(t, items(), "notes").Actions, "pause"))
+	if notes = harness.FindItem(t, items(), "notes"); !strings.HasPrefix(notes.Meta, "enabled, paused") || !harness.HasVerb(notes.Actions, "resume") {
 		t.Fatalf("a paused project says so and resumes: %+v", notes)
 	}
 	if f := e.ScreenForm("notes", "settings", "deck.command_try"); !strings.Contains(string(f["value"]), `"deck.command_try"`) {

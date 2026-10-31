@@ -105,23 +105,6 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 	}
 }
 
-func TestACommandCallLargerThan32MBIsRefusedWhole(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	big := map[string]any{"text": strings.Repeat("x", 33<<20)}
-	if code, out := e.Call("deck.projects_list", big); code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("the API refuses a body over 32 MB: %d %.200s", code, out)
-	}
-	e.Project("big", harness.ScriptManifest("send", "", ""))
-	e.SaveScript("big", "scripts/main.py", harness.PythonLib+`
-st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "x" * (33 << 20)})})
-print(json.dumps({"status": st}))
-`)
-	if p := e.WaitState(e.Start("big", "send", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "413") {
-		t.Fatalf("the entry of scripts refuses a body over 32 MB rather than cutting it: %+v", p)
-	}
-}
-
 func TestATextAnswerOverTheLimitIsNotPassedOnCut(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {

@@ -28,7 +28,7 @@ func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 			<-answered
 			return provider.Result{Text: "stopped"}
 		}
-		writeIdeas(ctx, c, "late")
+		harness.WriteIdeas(ctx, c, "late")
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 	}), harness.WithClock())
 

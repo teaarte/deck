@@ -44,7 +44,7 @@ func TestANewModuleWithoutCode(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch c.Command() {
 		case "collect":
-			writeIdeas(ctx, c, "x")
+			harness.WriteIdeas(ctx, c, "x")
 			return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 		default:
 			var in struct{ Process int64 }

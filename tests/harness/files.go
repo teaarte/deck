@@ -50,3 +50,24 @@ func FilesManifest() string {
   "scripts": [{"name": "seed", "file": "scripts/seed.py", "runtime": "python"},
     {"name": "read", "file": "scripts/read.py", "runtime": "python"}]}`
 }
+
+const SeedScript = PythonLib + `
+st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
+with open(os.path.join(os.environ["DECK_RESULTS"], "photo.jpg"), "w") as f:
+    f.write("record photo")
+print(json.dumps({"record": out["ids"][0], "files": [{"path": "photo.jpg", "record": out["ids"][0]}]}))
+`
+
+const ReadScript = PythonLib + `
+inp = json.load(sys.stdin)
+doc, photo = inp["doc"], inp.get("photo", "")
+checks = {
+    "doc_read": open(doc).read() == "uploaded text",
+    "doc_not_writable": not can_write(doc),
+    "record_file_read": photo == "" or open(photo).read() == "record photo",
+    "record_file_not_writable": photo == "" or not can_write(photo),
+    "input_folder_not_writable": not can_write(os.path.join(os.path.dirname(doc), "new.txt")),
+}
+files = [{"file": int(os.path.basename(doc).split("-")[0]), "record": inp["rec"]}] if inp.get("rec") else []
+print(json.dumps({"checks": checks, "files": files}))
+`

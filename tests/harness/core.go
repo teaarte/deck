@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 )
@@ -35,6 +36,12 @@ func Jsonl(recs ...map[string]any) string {
 		b.WriteByte('\n')
 	}
 	return b.String()
+}
+
+func WriteIdeas(ctx context.Context, c *Call, topic string) {
+	c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": Jsonl(
+		map[string]any{"title": "alpha", "score": 7, "topic": topic}, map[string]any{"title": "beta", "score": 3, "topic": topic},
+		map[string]any{"title": "gamma", "score": 9, "topic": topic}, map[string]any{"title": "broken"})})
 }
 
 const CalcManifest = `{

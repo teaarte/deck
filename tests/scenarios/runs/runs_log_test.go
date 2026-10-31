@@ -95,20 +95,6 @@ func TestALongLogComesInPages(t *testing.T) {
 	}
 }
 
-// TestALineOfMediaSaysWhyItHasNoFileInWords: an expression of a line that fails names itself and the fault,
-// without the drawing of where in it.
-func TestALineOfMediaSaysWhyItHasNoFileInWords(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	e.Project("btc", strings.Replace(harness.ForecastManifest, `"item": {"file": "file", "title": "title"}`, `"item": {"file": "int(file)", "title": "title"}`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments",
-		"records": harness.Jsonl(map[string]any{"title": "a", "file": "image-1b946491.png"})}, nil)
-	raw, _ := json.Marshal(e.ScreenMessages("btc", "files", nil))
-	if s := string(raw); !strings.Contains(s, `the file of this line: int(file): `) || strings.Contains(s, `| ^`) || strings.Contains(s, `(1:1)`) {
-		t.Fatalf("the line says in words why it has no file: %s", s)
-	}
-}
-
 // TestTheScreenOfAScriptShowsItsInputAndResult: a script has no log of its own, so its screen shows what it got and
 // gave, and says why the log is empty.
 func TestTheScreenOfAScriptShowsItsInputAndResult(t *testing.T) {

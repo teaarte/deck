@@ -8,22 +8,6 @@ import (
 	"testing"
 )
 
-// healthSeen is whether the owner read the failing check of a subject in a project.
-func healthSeen(e *harness.Env, project, subject string) (bool, bool) {
-	e.T.Helper()
-	var hs []struct {
-		Subject, Project, Status string
-		Seen                     bool
-	}
-	e.Must("deck.health_list", nil, &hs)
-	for _, h := range hs {
-		if h.Subject == subject && h.Project == project {
-			return h.Seen, h.Status == "error"
-		}
-	}
-	return false, false
-}
-
 // pulseErrors is the count of failing checks the pulse of the menu shows.
 func pulseErrors(e *harness.Env) int64 {
 	e.T.Helper()
@@ -42,10 +26,10 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
     {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL))
 	}
 	e.Must("deck.health_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
-	if seen, failing := healthSeen(e, "photos", "secret:photos.pexels"); !seen || !failing {
+	if seen, failing := e.HealthSeen("photos", "secret:photos.pexels"); !seen || !failing {
 		t.Fatal("the owner reads the check of one project")
 	}
-	if seen, failing := healthSeen(e, "stock", "secret:stock.pexels"); seen || !failing {
+	if seen, failing := e.HealthSeen("stock", "secret:stock.pexels"); seen || !failing {
 		t.Fatal("the same check of another project stays unread")
 	}
 
@@ -65,11 +49,11 @@ func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	before := pulseErrors(e)
-	if seen, failing := healthSeen(e, "broken", "project:broken"); seen || !failing {
+	if seen, failing := e.HealthSeen("broken", "project:broken"); seen || !failing {
 		t.Fatalf("a manifest that does not load is a failing check of the pulse: %d", before)
 	}
 	e.Must("deck.health_seen", map[string]any{"subject": "project:broken", "project": "broken"}, nil)
-	if seen, _ := healthSeen(e, "broken", "project:broken"); !seen || pulseErrors(e) != before-1 {
+	if seen, _ := e.HealthSeen("broken", "project:broken"); !seen || pulseErrors(e) != before-1 {
 		t.Fatalf("once read it counts no more: %d", pulseErrors(e))
 	}
 }
@@ -87,7 +71,7 @@ func TestMarkReadOfACheckOfTheMachine(t *testing.T) {
 	if code, out := e.Press(a); code != 200 {
 		t.Fatalf("mark read: %d %s", code, out)
 	}
-	if seen, failing := healthSeen(e, "", "tool:web.fetch"); !seen || !failing {
+	if seen, failing := e.HealthSeen("", "tool:web.fetch"); !seen || !failing {
 		t.Fatal("the check of the machine is read")
 	}
 }

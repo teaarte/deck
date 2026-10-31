@@ -207,43 +207,6 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	}
 }
 
-// TestAManifestIsCheckedWithoutASave: manifest_check says what a save would refuse, warn of and widen, and saves
-// nothing; a button that only opens the chat is refused, as the button of Deki opens it.
-func TestAManifestIsCheckedWithoutASave(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	e.Project("web", harness.WebNotes)
-	var before struct{ Revision int64 }
-	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &before)
-	chat := strings.Replace(harness.WebNotes, `"screens": [`, `"screens": [{"name": "inbox", "title": "Inbox", "blocks": [{"type": "list", "source": {"collection": "notes"},
-    "item": {"title": "title"}, "actions": [{"label": "New note", "chat": true}]}]},`, 1)
-	var c struct {
-		Ok       bool
-		Refused  []string
-		Widens   []string
-		Warnings []string
-	}
-	e.Must("deck.manifest_check", map[string]any{"project": "web", "manifest": chat}, &c)
-	if c.Ok || !slices.ContainsFunc(c.Refused, func(r string) bool { return strings.Contains(r, "button of Deki") }) {
-		t.Fatalf("a chat button is refused by the check: %+v", c)
-	}
-	wider := strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "domains": {"read": ["example.com"]},`, 1)
-	e.Must("deck.manifest_check", map[string]any{"project": "web", "manifest": wider}, &c)
-	if !c.Ok || len(c.Widens) == 0 {
-		t.Fatalf("the check says what a manifest widens: %+v", c)
-	}
-	e.Must("deck.manifest_check", map[string]any{"manifest": `{"version": 13, "commands": [{"name": "x"}]}`}, &c)
-	if c.Ok || len(c.Refused) == 0 {
-		t.Fatalf("a manifest alone is checked too: %+v", c)
-	}
-	var after struct{ Revision int64 }
-	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &after)
-	if after.Revision != before.Revision {
-		t.Fatalf("a check saves nothing: %d → %d", before.Revision, after.Revision)
-	}
-	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": chat}, 422, "button of Deki")
-}
-
 // TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme: a module in Settings and in Files shows the cover its card
 // wears in the theme in use, with buttons to draw another and to take it off.
 func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {

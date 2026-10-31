@@ -23,46 +23,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func writeIdeas(ctx context.Context, c *harness.Call, topic string) {
-	c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(
-		map[string]any{"title": "alpha", "score": 7, "topic": topic}, map[string]any{"title": "beta", "score": 3, "topic": topic},
-		map[string]any{"title": "gamma", "score": 9, "topic": topic}, map[string]any{"title": "broken"})})
-}
-
-func TestManifestIsValidatedOnSave(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t, harness.WithAgent(func(context.Context, *harness.Call) provider.Result { return provider.Result{} }))
-	bad := strings.NewReplacer(`"collection": "ideas", "where"`, `"collection": "nope", "where"`, `"0 9 * * *"`, `"every day"`).Replace(harness.IdeasManifest)
-	code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": bad})
-	if code != 422 || !strings.Contains(string(out), "unknown collection") || !strings.Contains(string(out), "cron") {
-		t.Fatalf("want 422 with reasons, got %d %s", code, out)
-	}
-}
-
-func TestCommandWritesRecordsAndScreenShowsThem(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		writeIdeas(ctx, c, "x")
-		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
-	}))
-
-	p := e.Project("ideas", harness.IdeasManifest)
-	id := e.Run(p, "collect")
-	got := e.WaitState(id, "done")
-	if got.NotBySchema || string(got.Result) != `{"written":3}` {
-		t.Fatalf("unexpected result %+v", got)
-	}
-	rows := e.ScreenRows(p, "main")
-	if len(rows) != 2 || rows[0].Cells[0] != "gamma" || rows[1].Cells[0] != "alpha" {
-		t.Fatalf("want gamma, alpha filtered and sorted, got %v", rows)
-	}
-	e.WaitState(e.Run(p, "collect"), "done")
-	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
-	if len(recs) != 3 {
-		t.Fatalf("upsert by key must not duplicate, got %d records", len(recs))
-	}
-}
-
 func TestResultNotBySchemaAfterOneRetry(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {

@@ -19,7 +19,7 @@ func TestQuestionAnsweredLive(t *testing.T) {
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{
 			{"question": "Which topic?", "header": "Topic", "options": []map[string]any{{"label": "go"}, {"label": "rust"}}}}})
 		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
-		writeIdeas(ctx, c, answers["Which topic?"].(string))
+		harness.WriteIdeas(ctx, c, answers["Which topic?"].(string))
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 	}))
 
@@ -123,7 +123,7 @@ func TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks(t *testing.T) {
 				{"question": "Which topic?", "options": []map[string]any{{"label": "go"}, {"label": "rust"}}}}}})
 			return provider.Result{Outcome: provider.Failed, Text: `MCP server "deck" transport dropped mid-call`}
 		}
-		writeIdeas(ctx, c, map[bool]string{true: "rust", false: "?"}[strings.Contains(c.Req.Prompt, "rust")])
+		harness.WriteIdeas(ctx, c, map[bool]string{true: "rust", false: "?"}[strings.Contains(c.Req.Prompt, "rust")])
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 	}))
 
@@ -158,7 +158,7 @@ func TestQuestionAnsweredLateResumesSession(t *testing.T) {
 		if strings.Contains(c.Req.Prompt, "rust") {
 			topic = "rust"
 		}
-		writeIdeas(ctx, c, topic)
+		harness.WriteIdeas(ctx, c, topic)
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
 	}), harness.WithConfig(
 

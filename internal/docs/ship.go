@@ -106,24 +106,36 @@ func ship(ctx context.Context, q *db.Queries, ref Ref, f File) (changed bool, no
 	}
 	owner := cur.Author == registry.Owner
 	merged, conflicts := carry(f.Kind, cur.Text, base, f.Text, owner)
+	if merged != "" {
+		if bad := checkText(f.Kind, ref.Name, merged); bad != nil {
+			merged, conflicts = "", []string{fmt.Sprintf("the merged text does not hold: %v", bad)}
+		}
+	}
 	reason := fmt.Sprintf("shipped by deck; the edit of revision %d follows", cur.N)
 	if _, _, _, err := Save(ctx, q, ref, f.Kind, f.Text, Deck, reason); err != nil {
 		return false, "", err
 	}
-	if merged != "" && merged != f.Text {
-		if bad := checkText(f.Kind, ref.Name, merged); bad != nil {
-			conflicts = []string{fmt.Sprintf("the merged text does not hold (%v); the whole edit:\n%s", bad, prefixed("+ ", strings.Split(cur.Text, "\n")))}
-		} else if _, _, _, err := Save(ctx, q, ref, f.Kind, merged, cur.Author, fmt.Sprintf("the edit of revision %d carried over to what deck shipped", cur.N)); err != nil {
+	switch {
+	case merged == "" && owner && checkText(f.Kind, ref.Name, cur.Text) == nil:
+		// The owner's text stays current over deck's, which is the base of the next merge.
+		if _, _, _, err := Save(ctx, q, ref, f.Kind, cur.Text, cur.Author, "the owner's edit stays: what deck shipped does not merge with it"); err != nil {
+			return false, "", err
+		}
+		conflicts = append(conflicts, "deck's new text:\n"+prefixed("  ", strings.Split(f.Text, "\n")))
+	case merged == "":
+		conflicts = append(conflicts, "the whole edit:\n"+prefixed("+ ", strings.Split(cur.Text, "\n")))
+	case merged != f.Text:
+		if _, _, _, err := Save(ctx, q, ref, f.Kind, merged, cur.Author, fmt.Sprintf("the edit of revision %d carried over to what deck shipped", cur.N)); err != nil {
 			return false, "", err
 		}
 	}
 	switch {
 	case len(conflicts) > 0 && owner:
-		note = fmt.Sprintf("deck shipped a new %s and merged the owner's edit of revision %d into it, but in %d places the owner changed the "+
-			"same part and their text stands; tell the owner what of deck's new text they miss:\n\n%s", ref.Name, cur.N, len(conflicts), strings.Join(conflicts, "\n\n"))
+		note = fmt.Sprintf("deck shipped a new %s, but in %d places the owner's edit of revision %d changed the same part and their text "+
+			"stands; tell the owner what of deck's new text they miss:\n\n%s", ref.Name, len(conflicts), cur.N, strings.Join(conflicts, "\n\n"))
 	case len(conflicts) > 0:
-		note = fmt.Sprintf("deck shipped a new %s and merged the edit of revision %d by %s into it, but in %d places deck changed the same "+
-			"part and its text stands; bring back what of the edit still holds:\n\n%s", ref.Name, cur.N, cur.Author, len(conflicts), strings.Join(conflicts, "\n\n"))
+		note = fmt.Sprintf("deck shipped a new %s, but in %d places it changed the same part as the edit of revision %d by %s and its "+
+			"text stands; bring back what of the edit still holds:\n\n%s", ref.Name, len(conflicts), cur.N, cur.Author, strings.Join(conflicts, "\n\n"))
 	}
 	return true, note, nil
 }
@@ -139,7 +151,7 @@ func carry(kind, edit, base, next string, editWins bool) (string, []string) {
 		}
 		merged, cs, err := manifest.Merge3([]byte(a), []byte(base), []byte(b))
 		if err != nil {
-			return "", []string{fmt.Sprintf("the edit does not merge (%v); the whole edit:\n%s", err, prefixed("+ ", strings.Split(edit, "\n")))}
+			return "", []string{fmt.Sprintf("the edit does not merge: %v", err)}
 		}
 		for _, c := range cs {
 			e, n := c.Edit, c.Next

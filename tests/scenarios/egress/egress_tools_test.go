@@ -398,7 +398,7 @@ func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 		}
 		return out
 	}
-	if got := rows(); !strings.HasPrefix(got["secret:stock.pexels"], "error ") || !strings.Contains(got["secret:stock.pexels"], "Advanced → Secrets") ||
+	if got := rows(); !strings.HasPrefix(got["secret:stock.pexels"], "error ") || !strings.Contains(got["secret:stock.pexels"], "the tools that send it fail") ||
 		got["secret:stock.tok"] != "" || got["project:stock"] != "" {
 		t.Fatalf("an unset secret is red in the health of the module, the token of a sign-in is not, and no row sums the project up: %v", got)
 	}

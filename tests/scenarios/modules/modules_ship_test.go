@@ -101,3 +101,54 @@ func TestTheOwnersEditOfTheMastersManifestMergesWithWhatDeckShips(t *testing.T) 
 		t.Fatalf("the master hears deck's icon did not take: %q %v", note, err)
 	}
 }
+
+// TestTheOwnersEditThatDoesNotMergeWithWhatDeckShipsStays: where the owner's edit and deck's new manifest merge into
+// one that does not read, the owner's stays and the master hears what of deck's it lacks.
+func TestTheOwnersEditThatDoesNotMergeWithWhatDeckShipsStays(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithHome(t.TempDir()), harness.WithProvider(&harness.Fake{}))
+	raw, err := os.ReadFile(filepath.Join(harness.Root, "master/manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	without := func(list any, drop func(map[string]any) bool) []any {
+		var out []any
+		for _, x := range list.([]any) {
+			if !drop(x.(map[string]any)) {
+				out = append(out, x)
+			}
+		}
+		return out
+	}
+	review := func(x map[string]any) bool { return x["command"] == "review" || x["name"] == "review" }
+	m["triggers"] = without(m["triggers"], review)
+	older, _ := json.Marshal(m)
+	m["commands"] = without(m["commands"], review)
+	edit, _ := json.Marshal(m)
+	// The manifest an older deck shipped, without the trigger of review this one adds.
+	e.PlantRevision("master", "manifest.json", string(older))
+	e.Must("deck.manifest_save", map[string]any{"project": "master", "manifest": string(edit), "reason": "the owner's edit"}, nil)
+
+	e = e.Restart()
+	var got struct{ Manifest string }
+	e.Must("deck.manifest_get", map[string]any{"project": "master"}, &got)
+	if strings.Contains(got.Manifest, `"name": "review"`) {
+		t.Fatalf("the owner's manifest without review stays: %.200s", got.Manifest)
+	}
+	var note string
+	// Notes to the master wait for its next turn; no read lists them.
+	if err := e.SQLRow(`SELECT text FROM feed WHERE for_master = 1 AND text LIKE '%manifest.json%' ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil ||
+		!strings.Contains(note, "their text stands") || !strings.Contains(note, "does not hold") || !strings.Contains(note, `"review"`) {
+		t.Fatalf("the master hears deck's manifest did not take, with its text: %q %v", note, err)
+	}
+	e = e.Restart()
+	var notes int
+	// Notes to the master wait for its next turn; no read lists them.
+	if err := e.SQLRow(`SELECT count(*) FROM feed WHERE for_master = 1 AND text LIKE '%manifest.json%'`).Scan(&notes); err != nil || notes != 1 {
+		t.Fatalf("a second start tells nothing again: %d %v", notes, err)
+	}
+}

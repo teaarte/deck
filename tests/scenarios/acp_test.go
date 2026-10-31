@@ -32,15 +32,11 @@ const writtenManifest = `{"version": 13,
     "result": {"type": "object", "required": ["written"], "properties": {"written": {"type": "integer"}}},
     "executor": {"type": "agent", "prompt": "Write the file."}}]}`
 
-func acpLLM(t *testing.T) *harness.FakeLLM {
-	return harness.NewLLM(t, func(int, harness.ChatRequest) harness.ChatReply { return harness.TextReply("ok") })
-}
-
 // TestACPCommandAgentWorksThroughTheGateway: an ACP agent in the sandbox of deck writes in its folder, cannot read
 // what deck hides, calls the model with the key only deck's proxy knows and hands its result in with result_submit.
 func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 	f := harness.NewACP(t)
-	llm := acpLLM(t)
+	llm := harness.AcpLLM(t)
 	t.Setenv("DEEPSEEK_API_KEY", "sk-from-the-environment-of-deck")
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	e := harness.New(t, harness.WithACP(f, llm), harness.WithConfig(func(c *app.Config) {
@@ -119,7 +115,7 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 		`{"mcp": {"tool": "ask", "arguments": {"question": "Which color should the report use?"}}}`, `{"end": "end_turn"}`))
 	f.StreamText(5, harness.AcpStream(gooseInit, `{"reply": "session/load", "result": {}, "replay": [{"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi again."}}]}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)), harness.WithConfig(func(c *app.Config) { c.QuestionWait = 10 * time.Minute }))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)), harness.WithConfig(func(c *app.Config) { c.QuestionWait = 10 * time.Minute }))
 	id := e.Run(e.AcpProject("paint", colorManifest), "work")
 	a := e.WaitAsk()
 	if a.Kind != "question" || !strings.Contains(a.Text, "Which color") {
@@ -166,7 +162,7 @@ func TestACPAgentPermissionIsAllowedOnceWithoutTheOwner(t *testing.T) {
 		`{"permission": {"toolCall": {"toolCallId": "c1", "title": "cat notes", "kind": "execute"}, "options": [{"optionId": "always", "name": "Always", "kind": "allow_always"}, {"optionId": "once", "name": "Once", "kind": "allow_once"}, {"optionId": "no", "name": "No", "kind": "reject_once"}]}}`,
 		`{"permission": {"toolCall": {"toolCallId": "c2"}, "options": [{"optionId": "always", "name": "Always", "kind": "allow_always"}, {"optionId": "no", "name": "No", "kind": "reject_once"}]}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "red"}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	id := e.Run(e.AcpProject("paint", colorManifest), "work")
 	got := e.WaitState(id, "done", "error")
 	c := f.Call(4)
@@ -191,7 +187,7 @@ func TestACPResultWithoutItsFieldIsRefused(t *testing.T) {
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"null": "None"}}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": null}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	loose := strings.Replace(colorManifest, `{"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}}`, `{"type": ["object", "null"]}`, 1)
 	got := e.WaitState(e.Run(e.AcpProject("paint", loose), "work"), "done", "error")
 	c := f.Call(4)
@@ -209,7 +205,7 @@ func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 		`{"mcp": {"tool": "notes__post", "arguments": {"id": "a1", "text": "hi"}}}`, `{"end": "end_turn"}`))
 	f.StreamText(5, harness.AcpStream(harness.AcpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"posted": true}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	id := e.Run(e.AcpProject("notes", harness.PostManifest(svc.URL, "")), "work")
 	a := e.WaitAsk()
@@ -238,7 +234,7 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 			`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "the page."}}}`,
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
 	}
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	open := strings.Replace(harness.NoNetworkManifest, `"no_network": true,`, "", 1)
 	if got := e.WaitState(e.Run(e.AcpProject("open", open), "work"), "done"); !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("what the agent said is the result of a command without a schema: %s", got.Result)
@@ -276,7 +272,7 @@ func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
 	f.StreamText(6, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, `{"end": "end_turn"}`))
 	f.StreamText(7, harness.AcpStream(harness.AcpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	id := e.Run(e.AcpProject("paint", colorManifest), "work")
 	a := e.WaitAsk()
 	e.WaitState(id, "waiting_answer")
@@ -297,7 +293,7 @@ func TestACPStopCancelsTheTurn(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, `{"hang": true}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	id := e.Run(e.AcpProject("paint", colorManifest), "work")
 	e.Until("the turn", func() bool { return f.Calls() >= 4 && f.Call(4).Request("session/prompt") != nil })
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
@@ -310,7 +306,7 @@ func TestACPRecordedTurnOfGoose(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
 	f.Stream(4, "goose_turn.jsonl")
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	got := e.WaitState(e.Run(e.AcpProject("notes", writtenManifest), "work"), "done", "error")
 	c := f.Call(4)
 	if got.State != "done" || string(got.Result) != `{"written":1}` || c.Violation != "" {
@@ -388,7 +384,7 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 				f.StreamText(i+1, s)
 			}
 			e := harness.New(t, harness.WithACP(f, nil))
-			h := e.AddACP(f, acpLLM(t))
+			h := e.AddACP(f, harness.AcpLLM(t))
 			if h.Status != "error" || !strings.Contains(h.Error, tc.want) || !strings.HasPrefix(h.Error, tc.verdict) {
 				t.Fatalf("the self-check is red with %q, told as %q: %+v", tc.want, tc.verdict, h)
 			}
@@ -584,7 +580,7 @@ func TestACPAgentThatDiscoversTheGatewayOpensASession(t *testing.T) {
 	f := harness.NewACP(t)
 	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"discover": true}`, `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	got := e.WaitState(e.Run(e.AcpProject("paint", colorManifest), "work"), "done", "error")
 	d := harness.JsonLines[map[string]any](f.Files(4)("discover.jsonl"))
 	if got.State != "done" || len(d) != 1 || !strings.Contains(fmt.Sprint(d[0]["body"]), "-32601") {
@@ -608,7 +604,7 @@ func TestACPDeckWritesNothingThroughWhatTheAgentLeft(t *testing.T) {
 	f.StreamText(5, harness.AcpStream(harness.AcpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"shell": "cat \"$HOME/.agents/skills/reader/SKILL.md\" > seen.txt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	skilled := strings.Replace(colorManifest, `"prompt": "Ask the owner which color the report should use."}`,
 		`"prompt": "Ask the owner which color the report should use.", "skills": ["reader"]}`, 1)
 	p := e.AcpProject("paint", skilled)
@@ -634,7 +630,7 @@ func TestACPStopDuringSetupEndsTheAgent(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
 	f.StreamText(4, `{"hang": true}`)
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	id := e.Run(e.AcpProject("paint", colorManifest), "work")
 	e.Until("the agent", func() bool { return f.Calls() >= 4 && f.Call(4).Request("initialize") != nil })
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
@@ -674,7 +670,7 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 	slow := strings.Replace(harness.AcpInit, `{"reply": "initialize"`, `{"shell": "sleep 1"}`+"\n"+`{"reply": "initialize"`, 1)
 	b, _ := os.ReadFile(harness.Testdata("acp/selfcheck_1.jsonl"))
 	f.StreamText(1, strings.Replace(string(b), harness.AcpInit, slow, 1))
-	llm := acpLLM(t)
+	llm := harness.AcpLLM(t)
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
 		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
@@ -733,7 +729,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(f.Dir, "slowversion"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	llm := acpLLM(t)
+	llm := harness.AcpLLM(t)
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
 		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
@@ -791,7 +787,7 @@ func TestACPAgentDoesNotReadTheOwnersHome(t *testing.T) {
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"shell": "cat `+filepath.Join(owner, ".zshrc")+`"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	id := e.Run(e.AcpProject("paint", writtenManifest), "work")
 	e.WaitState(id, "done")
 	if strings.Contains(f.Call(4).Shell[0]["out"], "private") {
@@ -809,7 +805,7 @@ func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"shell": "curl -s -m 5 -o /dev/null -w '%{http_code}' http://`+addr+`/"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	m := strings.Replace(writtenManifest, `{"version": 13,`, fmt.Sprintf(`{"version": 13, "domains": {"read": [%q]},`, addr), 1)
 	e.WaitState(e.Run(e.AcpProject("paint", m), "work"), "done")
 	if got := f.Call(4).Shell[0]["out"]; got != "200" || len(local.Requests()) != 1 {
@@ -822,7 +818,7 @@ func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
 func TestAnACPAgentCallsOnlyItsModelThroughDeck(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
-	llm := acpLLM(t)
+	llm := harness.AcpLLM(t)
 	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"get": "files"}`, harness.AcpModel, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, llm))
@@ -866,7 +862,7 @@ func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
 	if r := unfit(); r == nil || r.Status != "error" || !strings.Contains(r.Error, "no provider fits music.files") {
 		t.Fatalf("a command no provider fits is a red row of health: %+v", r)
 	}
-	e.SetACP(f, 1, "local", "goose", acpLLM(t), true)
+	e.SetACP(f, 1, "local", "goose", harness.AcpLLM(t), true)
 	if r := unfit(); r != nil {
 		t.Fatalf("the row goes once a model fits: %+v", r)
 	}
@@ -894,7 +890,7 @@ func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
 func TestACPTurnPastTheLimitOfItsModelGoesOnWithoutAPause(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
-	llm := acpLLM(t)
+	llm := harness.AcpLLM(t)
 	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		harness.AcpModel, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, llm))

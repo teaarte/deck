@@ -50,19 +50,6 @@ func tryExternal(ctx context.Context, c *harness.Call) provider.Result {
 	return provider.Result{Structured: out}
 }
 
-func project(e *harness.Env, name string) harness.ProjectV {
-	e.T.Helper()
-	var ps []harness.ProjectV
-	e.Must("deck.projects_list", nil, &ps)
-	for _, p := range ps {
-		if p.Name == name {
-			return p
-		}
-	}
-	e.T.Fatalf("no project %s in %+v", name, ps)
-	return harness.ProjectV{}
-}
-
 func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	t.Parallel()
 	var quiet atomic.Bool
@@ -72,7 +59,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	if p := project(e, "notes"); p.Status != store.ProjectDraft || !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
+	if p := e.ProjectRow("notes"); p.Status != store.ProjectDraft || !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
 		t.Fatalf("a project the master creates is a draft that shows the rights it asks for: %+v", p)
 	}
 
@@ -114,7 +101,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	e.Settle()
 
 	e.Clock.Add(24 * time.Hour)
-	shown := project(e, "notes")
+	shown := e.ProjectRow("notes")
 	if code, out := e.As(tok).Call("deck.project_enable", map[string]any{"project": "notes", "revision": shown.Revision}); code != 403 {
 		t.Fatalf("only the owner enables a draft: %d %s", code, out)
 	}
@@ -129,11 +116,11 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 		Status string
 		Rights []string
 	}
-	e.Must("deck.project_enable", map[string]any{"project": "notes", "revision": project(e, "notes").Revision}, &en)
+	e.Must("deck.project_enable", map[string]any{"project": "notes", "revision": e.ProjectRow("notes").Revision}, &en)
 	if en.Status != store.ProjectEnabled || len(en.Rights) != 2 {
 		t.Fatalf("enable: %+v", en)
 	}
-	if code, _ := e.Call("deck.project_enable", map[string]any{"project": "notes", "revision": project(e, "notes").Revision}); code != 409 {
+	if code, _ := e.Call("deck.project_enable", map[string]any{"project": "notes", "revision": e.ProjectRow("notes").Revision}); code != 409 {
 		t.Fatalf("enabling twice is refused: %d", code)
 	}
 	quiet.Store(true)
@@ -211,7 +198,7 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 	if len(feed) != 0 {
 		t.Fatalf("changes to a draft are not done without the owner: %v", feed)
 	}
-	if p := project(e, "notes"); !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
+	if p := e.ProjectRow("notes"); !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
 		t.Fatalf("the draft shows the rights enabling it grants: %+v", p)
 	}
 }
@@ -236,7 +223,7 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 	if err != nil || len(due) != 1 {
 		t.Fatalf("the missed run is due: %v %v", due, err)
 	}
-	e.Must("deck.project_enable", map[string]any{"project": "late", "revision": project(e, "late").Revision}, nil)
+	e.Must("deck.project_enable", map[string]any{"project": "late", "revision": e.ProjectRow("late").Revision}, nil)
 	if _, err := e.App.Triggers.Fire(context.Background(), due[0], map[string]any{}); err == nil || !strings.Contains(err.Error(), "moved") {
 		t.Fatalf("a firing picked before enable does not run after it: %v", err)
 	}
@@ -308,7 +295,7 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": m}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	if p := project(e, "notes"); !slices.Equal(p.Asks, []string{"post"}) {
+	if p := e.ProjectRow("notes"); !slices.Equal(p.Asks, []string{"post"}) {
 		t.Fatalf("the draft names the external tool, which asks every time, and not its reversible command: %+v", p)
 	}
 	var items []harness.ListItem

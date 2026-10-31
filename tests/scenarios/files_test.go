@@ -27,33 +27,6 @@ import (
 	"time"
 )
 
-// upload sends a file to deck as a form would and returns its id.
-func upload(e *harness.Env, project, name, ctype, content string) int64 {
-	e.T.Helper()
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	h := make(map[string][]string)
-	h["Content-Disposition"] = []string{fmt.Sprintf(`form-data; name="file"; filename=%q`, name)}
-	h["Content-Type"] = []string{ctype}
-	w, _ := mw.CreatePart(h)
-	_, _ = io.WriteString(w, content)
-	_ = mw.Close()
-	req, _ := http.NewRequest("POST", e.URL+"/api/files?project="+project, &buf)
-	e.Sign(req)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		e.T.Fatal(err)
-	}
-	defer resp.Body.Close()
-	out, _ := io.ReadAll(resp.Body)
-	var files []struct{ ID int64 }
-	if resp.StatusCode != 200 || json.Unmarshal(out, &files) != nil || len(files) != 1 {
-		e.T.Fatalf("upload: %d %s", resp.StatusCode, out)
-	}
-	return files[0].ID
-}
-
 func filesManifest() string {
 	return `{"version": 13,
   "collections": [{"name": "items", "description": "An item.", "key": "name",
@@ -101,7 +74,7 @@ func TestUploadedAndRecordFilesReachTheScriptReadOnly(t *testing.T) {
 	if json.Unmarshal(seed.Result, &s) != nil || s.Record == 0 {
 		t.Fatalf("seed: %+v", seed)
 	}
-	doc := upload(e, "docs", "note.txt", "text/plain", "uploaded text")
+	doc := e.Upload("docs", "note.txt", "text/plain", "uploaded text")
 	var photos []struct{ ID int64 }
 	e.Must("deck.files_list", map[string]any{"record": s.Record}, &photos)
 	if len(photos) != 1 {
@@ -127,7 +100,7 @@ func TestUploadedAndRecordFilesReachTheScriptReadOnly(t *testing.T) {
 
 	other := e.Project("other", filesManifest())
 	_ = other
-	code, body := e.Call("docs.read", map[string]any{"doc": fmt.Sprint(upload(e, "other", "x.txt", "text/plain", "x")), "rec": s.Record})
+	code, body := e.Call("docs.read", map[string]any{"doc": fmt.Sprint(e.Upload("other", "x.txt", "text/plain", "x")), "rec": s.Record})
 	if code == 200 || !strings.Contains(string(body), "no file") {
 		t.Fatalf("a file of another project is not an input: %d %s", code, body)
 	}
@@ -162,7 +135,7 @@ func TestUploadsNeedTheProjectAndGoWhenNoCommandTookThem(t *testing.T) {
 	if code := form(wide); code != 200 {
 		t.Fatalf("a token for the whole project uploads: %d", code)
 	}
-	kept := upload(e, "docs", "kept.txt", "text/plain", "k")
+	kept := e.Upload("docs", "kept.txt", "text/plain", "k")
 	e.WaitState(e.Start("docs", "read", map[string]any{"doc": fmt.Sprint(kept)}), "done", "error")
 	e.App.Sweep(context.Background(), e.Clock.Add(25*time.Hour))
 	var uploads, all int
@@ -223,7 +196,7 @@ print(json.dumps({"files": [{"file": given, "record": inp["rec"]}, {"path": "mis
 	seed := e.WaitState(e.Start("docs", "seed", nil), "done", "error")
 	var s struct{ Record int64 }
 	_ = json.Unmarshal(seed.Result, &s)
-	doc := upload(e, "docs", "note.txt", "text/plain", "uploaded text")
+	doc := e.Upload("docs", "note.txt", "text/plain", "uploaded text")
 	id := e.Start("docs", "read", map[string]any{"doc": fmt.Sprint(doc), "rec": s.Record})
 	if p := e.WaitState(id, "done", "error"); p.State != "error" || !strings.Contains(p.Error, "missing.txt") {
 		t.Fatalf("a result naming a file that is not there fails: %+v", p)
@@ -242,7 +215,7 @@ func TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject(t *testing.T) {
 	e := harness.New(t)
 	e.Project("docs", filesManifest())
 	e.Project("other", filesManifest())
-	id := upload(e, "docs", "отчёт <1>.html", "text/html", "<script>alert(1)</script>")
+	id := e.Upload("docs", "отчёт <1>.html", "text/html", "<script>alert(1)</script>")
 	_, narrow := e.Token("narrow", "docs.read")
 	_, wide := e.Token("wide", "docs.*")
 	_, stranger := e.Token("stranger", "other.*")
@@ -313,7 +286,7 @@ func TestAgentGetsACopyOfItsInputFile(t *testing.T) {
 	e.Project("docs", `{"version": 13, "commands": [{"name": "look", "title": "Look", "description": "Looks at a file.", "class": "internal",
 	  "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}, "result": {"type": "object"},
 	  "executor": {"type": "agent", "prompt": "Look."}}]}`)
-	doc := upload(e, "docs", "a.txt", "text/plain", "hello")
+	doc := e.Upload("docs", "a.txt", "text/plain", "hello")
 	e.WaitState(e.Start("docs", "look", map[string]any{"doc": fmt.Sprint(doc)}), "done")
 	if !read || same {
 		t.Fatalf("an agent reads its input file from a copy, never the stored file itself: read %v, same %v", read, same)
@@ -415,7 +388,7 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 		return b.String()
 	}
 	set := func(name string, c color.RGBA, in map[string]any) int64 {
-		id := upload(e, "notes", name, "image/png", picture(c))
+		id := e.Upload("notes", name, "image/png", picture(c))
 		in["project"], in["file"] = "notes", fmt.Sprint(id)
 		e.Must("deck.project_cover", in, nil)
 		return id
@@ -455,7 +428,7 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 		t.Fatalf("another theme shows the cover for every theme: %+v", got)
 	}
 	e.Refused("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(red), "theme": "nowhere"}, 404, "theme")
-	text := upload(e, "notes", "a.txt", "text/plain", "hello")
+	text := e.Upload("notes", "a.txt", "text/plain", "hello")
 	e.Refused("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(text)}, 422, "picture")
 	e.Refused("deck.project_cover", map[string]any{"project": "notes"}, 422, "remove")
 
@@ -503,7 +476,7 @@ func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
 	// set gives the light copy a card shows and the picture itself.
 	set := func(name string, c color.RGBA, in map[string]any) (int64, int64) {
 		var out struct{ Cover int64 }
-		in["project"], in["file"] = "notes", fmt.Sprint(upload(e, "notes", name, "image/png", picture(c)))
+		in["project"], in["file"] = "notes", fmt.Sprint(e.Upload("notes", name, "image/png", picture(c)))
 		e.Must("deck.project_cover", in, &out)
 		for _, r := range shown() {
 			if r.Theme == fmt.Sprint(cmp.Or(in["theme"], any(""))) {
@@ -555,12 +528,12 @@ func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
 	e.Must("deck.file_restore", map[string]any{"file": greenFile, "owner_kind": "upload"}, nil)
 
 	e.Project("old", harness.PlainManifest)
-	old := upload(e, "old", "old.png", "image/png", picture(color.RGBA{10, 10, 10, 255}))
+	old := e.Upload("old", "old.png", "image/png", picture(color.RGBA{10, 10, 10, 255}))
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'old'`, old); err != nil {
 		t.Fatal(err)
 	}
 	var out struct{ Cover int64 }
-	e.Must("deck.project_cover", map[string]any{"project": "old", "file": fmt.Sprint(upload(e, "old", "new.png", "image/png", picture(color.RGBA{200, 200, 10, 255})))}, &out)
+	e.Must("deck.project_cover", map[string]any{"project": "old", "file": fmt.Sprint(e.Upload("old", "new.png", "image/png", picture(color.RGBA{200, 200, 10, 255})))}, &out)
 	var theme string
 	_ = e.App.Store.DB.QueryRow(`SELECT theme FROM picture WHERE file_id = ?`, old).Scan(&theme)
 	if theme != "pixel" {
@@ -577,7 +550,7 @@ func TestAPictureWithoutALightCopyGetsOne(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 300, 200))
 	var b bytes.Buffer
 	_ = png.Encode(&b, img)
-	id := upload(e, "notes", "old.png", "image/png", b.String())
+	id := e.Upload("notes", "old.png", "image/png", b.String())
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'notes'`, id); err != nil {
 		t.Fatal(err)
 	}

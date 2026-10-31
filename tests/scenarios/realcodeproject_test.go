@@ -43,7 +43,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	submit("deck.project_import")
 	b.until("the imported draft", itemOf("code", "draft"))
 	b.reviewAndEnable("code")
-	e.Until("the enabled project", func() bool { return project(e, "code").Status == "enabled" })
+	e.Until("the enabled project", func() bool { return e.ProjectRow("code").Status == "enabled" })
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the enabled project", itemOf("code", ""))
 

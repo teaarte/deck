@@ -69,7 +69,7 @@ func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
 
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "whisper", "model": "whisper", "kind": "stt", "name": "whisper", "free": true, "options": `{"language": "en"}`}, nil)
-	id := upload(e, "master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
+	id := e.Upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
 	var out struct{ Text string }
 	e.Must("deck.transcribe", map[string]any{"file": harness.Itoa(id)}, &out)
 	mu.Lock()
@@ -90,7 +90,7 @@ func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
 		t.Fatalf("speech to text is a call of its model in the journal: %+v", calls)
 	}
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": "http://127.0.0.1:1/inference", "local": true}, nil)
-	id = upload(e, "master", "voice.wav", "audio/wav", "RIFF")
+	id = e.Upload("master", "voice.wav", "audio/wav", "RIFF")
 	if code, msg := e.Call("deck.transcribe", map[string]any{"file": harness.Itoa(id)}); code != 422 || !strings.Contains(string(msg), "speech to text") {
 		t.Fatalf("a whisper that does not answer is an error the owner reads: %d %s", code, msg)
 	}
@@ -318,12 +318,12 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 	t.Cleanup(whisper.Close)
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
-	id := upload(e, "master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
+	id := e.Upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
 	e.Must("deck.transcribe", map[string]any{"file": harness.Itoa(id)}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "openai", "api": "openai", "url": whisper.URL + "/v1", "key": "sk-o"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openai", "model": "whisper-1", "kind": "stt"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"openai/whisper-1"}}, nil)
-	id = upload(e, "master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
+	id = e.Upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
 	e.Must("deck.transcribe", map[string]any{"file": harness.Itoa(id)}, nil)
 	mu.Lock()
 	defer mu.Unlock()

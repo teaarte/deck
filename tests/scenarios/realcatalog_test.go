@@ -101,7 +101,7 @@ func TestRealBrowserMedia(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 64, 48))
 	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
 	_ = png.Encode(&pic, img)
-	scan := upload(e, "btc", "scan.png", "image/png", pic.String())
+	scan := e.Upload("btc", "scan.png", "image/png", pic.String())
 	pdf := "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj " +
 		"3 0 obj<</Type/Page/MediaBox[0 0 200 100]/Parent 2 0 R>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF"
 	data := e.App.Home.Data(id)

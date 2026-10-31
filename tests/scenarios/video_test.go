@@ -29,9 +29,9 @@ func quickVideo(c *app.Config) { c.VideoPoll, c.VideoCeiling = 20*time.Milliseco
 
 // videoJob is a service of video jobs: a POST starts job-1, its polls answer the states in turn, the last one
 // kept, and its content is a clip.
-func videoJob(t *testing.T, states ...string) *fakeModels {
+func videoJob(t *testing.T, states ...string) *harness.FakeModels {
 	polls := 0
-	return newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	return harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/videos": func(int, map[string]any) (int, string, string) {
 			return 202, "application/json", `{"id": "job-1", "polling_url": "/api/v1/videos/job-1", "status": "pending"}`
 		},
@@ -89,7 +89,7 @@ func TestAVideoModelMakesAClipOfTheJobItStarted(t *testing.T) {
 		res.Cost == nil || *res.Cost != 0.25 {
 		t.Fatalf("the clip is a file of the result with the model that made it and its cost: %+v", got)
 	}
-	c := slices.DeleteFunc(cloud.calls(), func(c modelCall) bool { return c.Path == "/api/v1/models" })
+	c := slices.DeleteFunc(cloud.Calls(), func(c harness.ModelCall) bool { return c.Path == "/api/v1/models" })
 	if len(c) != 4 || c[0].Path != "/api/v1/videos" || c[1].Path != "/api/v1/videos/job-1" || c[3].Path != "/api/v1/videos/job-1/content" || c[3].Auth != "Bearer sk-or" {
 		t.Fatalf("deck starts the job, polls it until it is done and takes its content with its key: %+v", c)
 	}
@@ -122,7 +122,7 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 	stuck := videoJob(t, `{"id": "job-1", "status": "in_progress"}`)
 	spare := videoJob(t, `{"id": "job-1", "status": "completed"}`)
 	e := harness.New(t, harness.WithConfig(quickVideo))
-	for name, api := range map[string]*fakeModels{"failed": failed, "stuck": stuck, "spare": spare} {
+	for name, api := range map[string]*harness.FakeModels{"failed": failed, "stuck": stuck, "spare": spare} {
 		e.Must("deck.connection_set", map[string]any{"name": name, "api": "openai", "url": api.URL + "/api/v1"}, nil)
 		e.Must("deck.model_set", map[string]any{"connection": name, "model": "veo", "name": name, "kind": "video", "call_usd": 0.4}, nil)
 	}
@@ -134,7 +134,7 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 			t.Fatalf("%s: the job is an error with what happened and its id: %+v", c.first, got)
 		}
 	}
-	if n := len(spare.calls()); n != 0 {
+	if n := len(spare.Calls()); n != 0 {
 		t.Fatalf("a job a service took goes to no other model: %d calls", n)
 	}
 	var spend []spendRow

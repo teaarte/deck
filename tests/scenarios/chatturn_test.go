@@ -49,7 +49,7 @@ func TestTheTopicShowsWhatItsTurnWaitsToBeAllowed(t *testing.T) {
 		return provider.Result{Text: "posted"}
 	}), harness.WithConfig(
 
-		withTTL))
+		harness.WithTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	e.Project("notes", harness.PostManifest(svc.URL, ""))

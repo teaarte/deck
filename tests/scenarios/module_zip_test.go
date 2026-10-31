@@ -65,7 +65,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		t.Fatal("no secret leaves deck in an export")
 	}
 
-	id := upload(e, "", "links.zip", "application/zip", string(body))
+	id := e.Upload("", "links.zip", "application/zip", string(body))
 	var im struct {
 		Name, Status string
 		Rights       []string
@@ -105,7 +105,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		t.Fatalf("its button enables the revision the owner read: %s", b)
 	}
 	e.Must("deck.project_enable", map[string]any{"project": "links-shared", "revision": rev}, nil)
-	if project(e, "links-shared").Status != store.ProjectEnabled {
+	if e.ProjectRow("links-shared").Status != store.ProjectEnabled {
 		t.Fatal("the draft is enabled")
 	}
 }
@@ -124,10 +124,10 @@ func TestAZipThatLeavesItsFolderIsRefused(t *testing.T) {
 		return buf.String()
 	}
 	for _, evil := range []string{"../evil.md", "a/../../evil.md", "/etc/evil.md"} {
-		id := upload(e, "", "evil.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, evil: "x"}))
+		id := e.Upload("", "evil.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, evil: "x"}))
 		e.Refused("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, 422, "leaves the module folder")
 	}
-	id := upload(e, "", "plain.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, ".hidden/x.md": "x", "__MACOSX/._manifest.json": "x"}))
+	id := e.Upload("", "plain.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, ".hidden/x.md": "x", "__MACOSX/._manifest.json": "x"}))
 	var im struct{ Name string }
 	e.Must("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, &im)
 	if im.Name != "plain" {

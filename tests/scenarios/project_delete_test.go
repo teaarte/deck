@@ -38,7 +38,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	id := e.Project("gone", withTrigger)
 	e.Must("deck.records_upsert", map[string]any{"project": "gone", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	e.Must("deck.document_save", map[string]any{"project": "gone", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	scan := upload(e, "gone", "scan.txt", "text/plain", "a page")
+	scan := e.Upload("gone", "scan.txt", "text/plain", "a page")
 	e.WaitState(e.Start("gone", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
 	e.UseModels("gone.score", "fake")
 	data := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects", fmt.Sprint(id), "data")

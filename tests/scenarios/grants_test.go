@@ -60,7 +60,7 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 		t.Fatalf("a draft reads no other project: %s", b0)
 	}
 
-	e.Must("deck.project_enable", map[string]any{"project": "leak", "revision": project(e, "leak").Revision}, nil)
+	e.Must("deck.project_enable", map[string]any{"project": "leak", "revision": e.ProjectRow("leak").Revision}, nil)
 	code, posted := e.As(tok).Call("leak.post", map[string]any{"id": "a", "text": "hi"})
 	if seen := svc.Requests(); code != 200 || len(seen) != 1 || seen[0].Header.Get("X-Key") != "s3cret" {
 		t.Fatalf("once enabled, the tool has the rights of the revision the owner saw: %d %s %+v", code, posted, seen)

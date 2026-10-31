@@ -28,7 +28,7 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 	t.Parallel()
 	cloud, local := harness.NewACP(t), harness.NewACP(t)
 	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithACPPair(cloud, local))
-	e.SetACP(cloud, 1, "cloud", "goose", acpLLM(t), false)
+	e.SetACP(cloud, 1, "cloud", "goose", harness.AcpLLM(t), false)
 	p := e.Project("notes", notesManifest)
 	if code, body := e.Call("notes.collect", map[string]any{}); code == 200 || !strings.Contains(string(body), "no provider fits") ||
 		!strings.Contains(string(body), "add a model that has it in Settings → Models") {
@@ -38,7 +38,7 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 		!strings.Contains(string(body), "no_cloud") {
 		t.Fatalf("a cloud provider is not picked for a command that stays off the cloud: %d %s", code, body)
 	}
-	e.SetACP(local, 1, "local", "goose", acpLLM(t), true)
+	e.SetACP(local, 1, "local", "goose", harness.AcpLLM(t), true)
 	var list []struct {
 		Name, Model string
 		Choices     []string
@@ -54,7 +54,7 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 	if got := e.WaitState(e.Run(p, "collect"), "done", "error"); got.State != "done" || local.Calls() != 4 {
 		t.Fatalf("the command runs on the chosen provider: %+v", got)
 	}
-	e.SetACP(local, 5, "local", "goose", acpLLM(t), false)
+	e.SetACP(local, 5, "local", "goose", harness.AcpLLM(t), false)
 	if code, body := e.Call("notes.collect", map[string]any{}); code == 200 || !strings.Contains(string(body), "no_cloud") {
 		t.Fatalf("a chosen provider that moved to the cloud is refused at the start: %d %s", code, body)
 	}
@@ -67,11 +67,11 @@ func TestProviderThatLeftTheOwnersHardwareStopsTheNextTurn(t *testing.T) {
 	t.Parallel()
 	local := harness.NewACP(t)
 	e := harness.New(t, harness.WithACPPair(local, harness.NewACP(t)))
-	e.SetACP(local, 1, "acp", "goose", acpLLM(t), true)
+	e.SetACP(local, 1, "acp", "goose", harness.AcpLLM(t), true)
 	local.StreamText(4, harness.AcpTurn(`{"written": 1}`))
 	id := e.Run(e.AcpProject("notes", notesManifest), "collect")
 	e.WaitState(id, "done")
-	e.SetACP(local, 5, "acp", "goose", acpLLM(t), false)
+	e.SetACP(local, 5, "acp", "goose", harness.AcpLLM(t), false)
 	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "one more"}, nil)
 	got := e.WaitState(id, "error", "done")
 	if got.State != "error" || !strings.Contains(got.Error, "no longer fits") || local.Calls() != 7 {
@@ -86,7 +86,7 @@ func TestProviderIsSwitchedWithoutARestart(t *testing.T) {
 		return provider.Result{Text: "from the main provider"}
 	}), harness.WithACPPair(api, harness.NewACP(t)))
 	api.StreamText(0, harness.AcpTurn(`"from the API"`))
-	e.SetACP(api, 1, "api", "goose", acpLLM(t), false)
+	e.SetACP(api, 1, "api", "goose", harness.AcpLLM(t), false)
 	p := e.Project("plain", harness.PlainManifest)
 	if got := e.WaitState(e.Run(p, "work"), "done"); string(got.Result) != `"from the main provider"` {
 		t.Fatalf("without a setting the main provider runs: %+v", got)
@@ -117,7 +117,7 @@ func TestProviderWithoutAKeySendsNone(t *testing.T) {
 	e := harness.New(t, harness.WithACPPair(local, harness.NewACP(t)))
 	local.SelfCheck()
 	local.StreamText(4, harness.AcpTurn(`"ok"`))
-	llm := acpLLM(t)
+	llm := harness.AcpLLM(t)
 	e.MustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose", "no_cloud": true})
 	e.Until("the self-check", func() bool {
 		h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
@@ -135,7 +135,7 @@ func TestResultSubmitGetsOneRebuild(t *testing.T) {
 	t.Parallel()
 	local := harness.NewACP(t)
 	e := harness.New(t, harness.WithACPPair(local, harness.NewACP(t)))
-	e.SetACP(local, 1, "acp", "goose", acpLLM(t), true)
+	e.SetACP(local, 1, "acp", "goose", harness.AcpLLM(t), true)
 	local.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": "one"}}}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": "still one"}}}}`,
@@ -184,7 +184,7 @@ func TestTheModelColumnFollowsAssignmentSet(t *testing.T) {
 	t.Parallel()
 	api := harness.NewACP(t)
 	e := harness.New(t, harness.WithACPPair(api, harness.NewACP(t)))
-	e.SetACP(api, 1, "api", "goose", acpLLM(t), false)
+	e.SetACP(api, 1, "api", "goose", harness.AcpLLM(t), false)
 	e.Project("plain", harness.PlainManifest)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -203,8 +203,8 @@ func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
 	t.Parallel()
 	cloud, local := harness.NewACP(t), harness.NewACP(t)
 	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithACPPair(cloud, local))
-	e.SetACP(cloud, 1, "cloud", "goose", acpLLM(t), false)
-	e.SetACP(local, 1, "local", "goose", acpLLM(t), true)
+	e.SetACP(cloud, 1, "cloud", "goose", harness.AcpLLM(t), false)
+	e.SetACP(local, 1, "local", "goose", harness.AcpLLM(t), true)
 	e.Project("notes", notesManifest)
 	var rows []struct {
 		Name    string   `json:"name"`

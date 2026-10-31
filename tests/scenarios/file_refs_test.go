@@ -28,7 +28,7 @@ const pictureModule = `{"version": 13,
 // media block takes that id as a number or as digits; the name the file had is no file.
 func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
 	})
 	e := harness.New(t)
@@ -73,7 +73,7 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 	}))
 
 	e.Project("art", pictureModule)
-	linked = upload(e, "art", "old.txt", "text/plain", "an older take")
+	linked = e.Upload("art", "old.txt", "text/plain", "an older take")
 	topic := e.Say(0, "make a voice")
 	e.MasterSaid(topic, 1)
 	var view struct {

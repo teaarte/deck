@@ -20,7 +20,7 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	clock := &harness.Clock{At: time.Now()}
-	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(withTTL))
+	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(harness.WithTTL))
 	check := harness.NewCatalogCheck(t)
 	p := e.Project("notes", webManifest(svc.URL))
 
@@ -94,7 +94,7 @@ func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	clock := &harness.Clock{At: time.Now()}
-	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(withTTL))
+	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(harness.WithTTL))
 	p := e.Project("notes", webManifest(svc.URL))
 	e.Run(p, "work")
 	a := e.WaitAsk()
@@ -115,7 +115,7 @@ func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 func TestAConfirmationOfAChangedToolIsClosedAsOutOfDate(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
-	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithConfig(withTTL))
+	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithConfig(harness.WithTTL))
 	p := e.Project("notes", webManifest(svc.URL))
 	id := e.Run(p, "work")
 	e.WaitAsk()

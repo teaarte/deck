@@ -26,7 +26,7 @@ func TestAFileGoesOnlyWithItsRowEvenAcrossACrash(t *testing.T) {
 	dir := t.TempDir()
 	e := harness.New(t, harness.WithHome(dir), harness.WithProvider(&harness.Fake{}))
 	e.Project("notes", harness.PlainManifest)
-	kept, gone := upload(e, "notes", "kept.txt", "text/plain", "stays"), upload(e, "notes", "gone.txt", "text/plain", "goes")
+	kept, gone := e.Upload("notes", "kept.txt", "text/plain", "stays"), e.Upload("notes", "gone.txt", "text/plain", "goes")
 	path := func(id int64) string { return filepath.Join(home.Layout(dir).Files(), fmt.Sprint(id)) }
 	failed := errors.New("rolled back")
 	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
@@ -184,7 +184,7 @@ func TestAFileThatWillNotGoIsInHealthUntilItGoes(t *testing.T) {
 	dir := t.TempDir()
 	e := harness.New(t, harness.WithHome(dir), harness.WithProvider(&harness.Fake{}))
 	e.Project("notes", harness.PlainManifest)
-	id := upload(e, "notes", "stuck.txt", "text/plain", "stays")
+	id := e.Upload("notes", "stuck.txt", "text/plain", "stays")
 	var stored string
 	_ = filepath.WalkDir(home.Layout(dir).Files(), func(path string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() {

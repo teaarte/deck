@@ -545,7 +545,7 @@ func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
 		return provider.Result{}
 	}), harness.WithConfig(
 
-		withTTL))
+		harness.WithTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	module := strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1)

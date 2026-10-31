@@ -230,4 +230,8 @@ const AcpInit = `{"reply": "initialize", "result": {"protocolVersion": 1, "agent
 // AcpModel is a call of the model of a turn, which carries the tools of the agent.
 const AcpModel = `{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}], "tools": [{"type": "function", "function": {"name": "shell"}}]}}`
 
+func AcpLLM(t *testing.T) *FakeLLM {
+	return NewLLM(t, func(int, ChatRequest) ChatReply { return TextReply("ok") })
+}
+
 func AcpStream(lines ...string) string { return strings.Join(lines, "\n") }

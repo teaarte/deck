@@ -34,7 +34,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	e.Project("quiet", harness.WebNotes)
 	tell := e.Start("web", "tell", nil)
 	e.WaitState(tell, "waiting_answer")
-	scan := upload(e, "web", "scan.txt", "text/plain", "a page")
+	scan := e.Upload("web", "scan.txt", "text/plain", "a page")
 	e.WaitState(e.Start("web", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
 	e.Must("deck.snapshot_create", nil, nil)
 	if err := os.WriteFile(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", "deck-20200101T000000.tar.gz"), []byte("old"), 0o600); err != nil {
@@ -151,7 +151,7 @@ func TestTheJournalKeepsHalfAYear(t *testing.T) {
 func TestStoppingAProcessJournalsTheCallsItDropped(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("pics", toolManifest("http://127.0.0.1:1", ""))
+	e.Project("pics", harness.ToolManifest("http://127.0.0.1:1", ""))
 	id := e.Start("pics", "send", map[string]any{"text": "hi"})
 	e.WaitState(id, "waiting_answer")
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)

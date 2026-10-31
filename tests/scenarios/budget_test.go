@@ -26,7 +26,7 @@ func lightEnv(t *testing.T) *harness.Env {
 		}
 		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": harness.Jsonl(recs...)}, nil)
 		for i := range 60 {
-			upload(e, name, fmt.Sprintf("file-%02d.txt", i), "text/plain", strings.Repeat("x", 100))
+			e.Upload(name, fmt.Sprintf("file-%02d.txt", i), "text/plain", strings.Repeat("x", 100))
 		}
 		for i := range 20 {
 			if _, err := e.App.Store.DB.Exec(`INSERT INTO process (project_id, command, kind, state, started_at, finished_at) VALUES (?, 'score', 'agent', ?, ?, ?)`,

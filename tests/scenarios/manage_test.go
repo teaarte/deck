@@ -137,8 +137,8 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	p := e.Project("inbox", filesManifest())
-	upload(e, "inbox", "invoice-october.pdf", "application/pdf", "%PDF-1.4")
-	upload(e, "inbox", "notes.txt", "text/plain", "hello")
+	e.Upload("inbox", "invoice-october.pdf", "application/pdf", "%PDF-1.4")
+	e.Upload("inbox", "notes.txt", "text/plain", "hello")
 	data := e.App.Home.Data(p)
 	if err := errors.Join(os.MkdirAll(filepath.Join(data, "cache", "empty"), 0o700), os.WriteFile(filepath.Join(data, "cache", "seen.json"), []byte("{}"), 0o600)); err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
 	var b bytes.Buffer
 	_ = png.Encode(&b, img)
-	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(upload(e, "notes", "blue.png", "image/png", b.String()))}, nil)
+	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(e.Upload("notes", "blue.png", "image/png", b.String()))}, nil)
 	var m struct {
 		Projects []struct{ Project, Cover string }
 	}

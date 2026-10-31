@@ -42,19 +42,13 @@ const modelManifest = `{"version": 13,
      "executor": {"type": "model", "kind": "music", "prompt": "Instrumental background music, no vocals.", "options": {"seconds": 40}}}
   ]}`
 
-func chatText(content string) string {
-	b, _ := json.Marshal(map[string]any{"id": "c-1", "model": "fact-model", "choices": []any{map[string]any{"message": map[string]any{"role": "assistant", "content": content}}},
-		"usage": map[string]any{"prompt_tokens": 200, "completion_tokens": 20}})
-	return string(b)
-}
-
 // TestAModelCommandAnswersByItsSchema: a command of type model sends its prompt and input to the model assigned to
 // text with its result schema, and the JSON the model answers is its result.
 func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
-			return 200, "application/json", chatText("```json\n{\"verdict\": \"false\", \"confidence\": 0.9}\n```")
+			return 200, "application/json", harness.ChatText("```json\n{\"verdict\": \"false\", \"confidence\": 0.9}\n```")
 		},
 	})
 	e := harness.New(t)
@@ -66,7 +60,7 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 	if got.State != "done" || got.NotBySchema || string(got.Result) != `{"confidence":0.9,"verdict":"false"}` {
 		t.Fatalf("the model's JSON is the result: %+v", got)
 	}
-	c := api.calls()
+	c := api.Calls()
 	if len(c) != 1 || c[0].Auth != "Bearer gsk-1" || c[0].Model != "fact-model" {
 		t.Fatalf("one call to the assigned model with deck's key: %+v", c)
 	}
@@ -86,7 +80,7 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 // no images path) and speech are files of the result; stt sends the recording of the input field.
 func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
 		"/api/v1/audio/speech":     func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
 		"/api/v1/audio/transcriptions": func(int, map[string]any) (int, string, string) {
@@ -118,7 +112,7 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 			t.Fatalf("%s: what the model made is a file of the result: %+v, %d kept", c.command, got, kept)
 		}
 	}
-	calls := api.made()
+	calls := made(api)
 	if len(calls) != 3 || calls[0].Path != "/api/v1/images/generations" || calls[1].Path != "/api/v1/chat/completions" ||
 		calls[1].Body["image_config"].(map[string]any)["aspect_ratio"] != "9:16" || fmt.Sprint(calls[1].Body["modalities"]) != "[image text]" {
 		t.Fatalf("a picture is asked of the images path, then of chat completions with the options of the command: %+v", calls)
@@ -132,7 +126,7 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 	if got.State != "done" || !strings.Contains(string(got.Result), `"text":"Knights against snails"`) || !strings.Contains(string(got.Result), `"words"`) {
 		t.Fatalf("the words of the recording are the result: %+v", got)
 	}
-	if last := api.made()[3]; last.Path != "/api/v1/audio/transcriptions" {
+	if last := made(api)[3]; last.Path != "/api/v1/audio/transcriptions" {
 		t.Fatalf("the recording goes to transcriptions: %+v", last)
 	}
 }
@@ -141,9 +135,9 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 // process parks, and the yes makes the call and ends the process with the answer.
 func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
-			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.6}`)
+			return 200, "application/json", harness.ChatText(`{"verdict": "true", "confidence": 0.6}`)
 		},
 	})
 	e := harness.New(t)
@@ -154,7 +148,7 @@ func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
 	var tried struct{ Process int64 }
 	e.Must("deck.command_try", map[string]any{"live": true, "only": true, "command": "shorts.factcheck", "input": map[string]any{"claim": "two"}}, &tried)
 	e.WaitState(tried.Process, "waiting_answer")
-	if n := len(api.made()); n != 0 {
+	if n := len(made(api)); n != 0 {
 		t.Fatalf("a trial's call of a paid model does not reach it before the yes: %d calls", n)
 	}
 	a := e.WaitAsk()
@@ -168,9 +162,9 @@ func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
 // OpenAI-compatible address of Google answers.
 func TestAModelCallSpeaksTheOpenAICompatibleProtocol(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1beta/openai/chat/completions": func(int, map[string]any) (int, string, string) {
-			return 200, "application/json", chatText(`{"verdict": "unclear", "confidence": 0.4}`)
+			return 200, "application/json", harness.ChatText(`{"verdict": "unclear", "confidence": 0.4}`)
 		},
 	})
 	e := harness.New(t, harness.WithProvider(&harness.Fake{}))
@@ -178,20 +172,20 @@ func TestAModelCallSpeaksTheOpenAICompatibleProtocol(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "native", "model": "gemini-3.8-flash", "name": "native-gemini", "kind": "text"}, nil)
 	e.Project("shorts", strings.Replace(modelManifest, `"kind": "text",`, `"kind": "text", "model": "native-gemini",`, 1))
 	got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
-	if got.State != "error" || !strings.Contains(got.Error, "OpenAI-compatible") || len(api.made()) != 0 {
+	if got.State != "error" || !strings.Contains(got.Error, "OpenAI-compatible") || len(made(api)) != 0 {
 		t.Fatalf("a connection of the Google API says to use its OpenAI-compatible address: %+v", got)
 	}
 	e.Must("deck.connection_set", map[string]any{"name": "native", "api": "openai", "url": api.URL + "/v1beta/openai", "key": "AIza-1"}, nil)
 	got = e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
-	if got.State != "done" || string(got.Result) != `{"confidence":0.4,"verdict":"unclear"}` || api.made()[0].Auth != "Bearer AIza-1" {
-		t.Fatalf("the OpenAI-compatible address of Google answers: %+v %+v", got, api.made())
+	if got.State != "done" || string(got.Result) != `{"confidence":0.4,"verdict":"unclear"}` || made(api)[0].Auth != "Bearer AIza-1" {
+		t.Fatalf("the OpenAI-compatible address of Google answers: %+v %+v", got, made(api))
 	}
 }
 
 // made are the calls the fake got past reading its catalog.
-func (f *fakeModels) made() []modelCall {
-	var out []modelCall
-	for _, c := range f.calls() {
+func made(f *harness.FakeModels) []harness.ModelCall {
+	var out []harness.ModelCall
+	for _, c := range f.Calls() {
 		if !strings.HasSuffix(c.Path, "/models") {
 			out = append(out, c)
 		}
@@ -227,9 +221,9 @@ func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 		_ = conn.Close()
 	}))
 	t.Cleanup(cut.Close)
-	spare := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	spare := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
-			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 1}`)
+			return 200, "application/json", harness.ChatText(`{"verdict": "true", "confidence": 1}`)
 		},
 	})
 	e := harness.New(t)
@@ -239,7 +233,7 @@ func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "spare", "model": "b", "kind": "text", "free": true}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"cut/a", "spare/b"}}, nil)
 	e.Project("shorts", modelManifest)
-	if got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error"); got.State != "error" || len(spare.made()) != 0 {
+	if got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error"); got.State != "error" || len(made(spare)) != 0 {
 		t.Fatalf("a cut answer is an error and the fallback is not asked: %+v", got)
 	}
 }
@@ -248,14 +242,14 @@ func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 // removed; a removed model leaves its assignment to the next one, and the connection goes once its models have.
 func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
-			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.5}`)
+			return 200, "application/json", harness.ChatText(`{"verdict": "true", "confidence": 0.5}`)
 		},
 	})
 	f := harness.NewACP(t)
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, `{"hang": true}`))
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	id := e.Run(e.AcpProject("paint", writtenManifest), "work")
 	e.Until("the turn", func() bool { return f.Calls() >= 4 && f.Call(4).Request("session/prompt") != nil })
 	e.Refused("deck.model_remove", map[string]any{"name": "acp"}, 422, "still run on acp")
@@ -275,7 +269,7 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 	e.Must("deck.model_remove", map[string]any{"name": "groq/fact-model"}, nil)
 	e.Project("shorts", modelManifest)
 	got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "Owls are birds"}), "done", "error")
-	if c := api.calls(); got.State != "done" || len(c) != 1 || c[0].Model != "spare-model" {
+	if c := api.Calls(); got.State != "done" || len(c) != 1 || c[0].Model != "spare-model" {
 		t.Fatalf("the assignment goes on with the next model: %+v %+v", got, c)
 	}
 	e.Refused("deck.connection_remove", map[string]any{"name": "groq"}, 422, "model groq/spare-model")
@@ -294,10 +288,10 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 // its health red and the assignment shows the fallback that took the work; its first answer turns it green.
 func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	t.Parallel()
-	cloud := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	cloud := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
 	})
-	local := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	local := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/images/generations": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", `{"data": [{"b64_json": "iVBORw0KGgo="}]}`
 		},
@@ -338,7 +332,7 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	}) {
 		t.Fatalf("the red model is on the list of health: %+v", rows)
 	}
-	refusing := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	refusing := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/images/generations": func(int, map[string]any) (int, string, string) {
 			return 401, "application/json", `{"error": "bad key"}`
 		},
@@ -349,7 +343,7 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 		t.Fatalf("a refusal is no good answer: %s", status)
 	}
 	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": local.URL + "/v1", "local": true}, nil)
-	if got := e.WaitState(e.Start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" || len(local.calls()) != 1 {
+	if got := e.WaitState(e.Start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" || len(local.Calls()) != 1 {
 		t.Fatalf("the first model draws again once it is up: %+v", got)
 	}
 	if status, _ := health(); status != "ok" || using() != "local-image" {
@@ -373,12 +367,12 @@ func audioStream(pieces ...string) string {
 // of chat completions with audio out when the API has no such path; either way the track is a file of the result.
 func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
 	t.Parallel()
-	local := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	local := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/music": func(int, map[string]any) (int, string, string) {
 			return 200, "audio/wav", "RIFF\x24\x00\x00\x00WAVEfmt "
 		},
 	})
-	cloud := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	cloud := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "text/event-stream", audioStream("ID3\x04\x00", "-track")
 		},
@@ -409,12 +403,12 @@ func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
 		}
 	}
 	track("local-music", "audio/wav")
-	if c := local.calls(); len(c) != 1 || c[0].Model != "medium" || c[0].Body["seconds"] != 40.0 ||
+	if c := local.Calls(); len(c) != 1 || c[0].Model != "medium" || c[0].Body["seconds"] != 40.0 ||
 		!strings.Contains(fmt.Sprint(c[0].Body["input"]), "no vocals") || !strings.Contains(fmt.Sprint(c[0].Body["input"]), "calm") {
 		t.Fatalf("music is asked of audio/music with the prompt and input as input and the options: %+v", c)
 	}
 	track("lyria", "audio/mpeg")
-	c := cloud.calls()
+	c := cloud.Calls()
 	if len(c) != 2 || c[0].Path != "/api/v1/audio/music" || c[1].Path != "/api/v1/chat/completions" ||
 		fmt.Sprint(c[1].Body["modalities"]) != "[audio text]" || c[1].Body["stream"] != true {
 		t.Fatalf("without an audio/music path music is asked of chat completions with audio out, streamed: %+v", c)
@@ -437,7 +431,7 @@ func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
 func TestAModelPricedPerCharOrSecondCostsWhatItTook(t *testing.T) {
 	t.Parallel()
 	heard := 0
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
 		"/api/v1/audio/transcriptions": func(int, map[string]any) (int, string, string) {
 			heard++
@@ -495,8 +489,10 @@ func TestAModelPricedPerCharOrSecondCostsWhatItTook(t *testing.T) {
 // options and price, are each called and counted by their own name.
 func TestTwoModelsOfOneAPIModelKeepTheirOwnNames(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
-		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.ChatText("hi")
+		},
 	})
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
@@ -671,7 +667,7 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 // set it; with one it speaks mp3, its check is one phrase, and a tts price from the catalog counts characters.
 func TestSpeechTakesItsVoiceFromTheOptionsOfItsModel(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/audio/speech": func(_ int, body map[string]any) (int, string, string) {
 			if body["voice"] == nil {
 				return 400, "application/json", `{"error": {"message": "Unknown voice"}}`
@@ -706,7 +702,7 @@ func TestSpeechTakesItsVoiceFromTheOptionsOfItsModel(t *testing.T) {
 	}
 	var out struct{ Type string }
 	e.Must("deck.model_call", check, &out)
-	got := api.calls()
+	got := api.Calls()
 	last := got[len(got)-1]
 	if out.Type != "audio/mpeg" || last.Body["voice"] != "21m00Tcm4TlvDq8ikWAM" || last.Body["response_format"] != "mp3" || last.Body["input"] != check["text"] {
 		t.Fatalf("speech goes with the voice of the options as mp3: %+v %+v", out, last)
@@ -717,7 +713,7 @@ func TestSpeechTakesItsVoiceFromTheOptionsOfItsModel(t *testing.T) {
 // its name and size, a call sends it whole, a save of what the form shows keeps it, and new options drop it.
 func TestABigOptionOfAModelIsAFileOfIt(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
 	})
 	e := harness.New(t)
@@ -744,10 +740,10 @@ func TestABigOptionOfAModelIsAFileOfIt(t *testing.T) {
 	}
 	check := map[string]any{"kind": "tts", "model": "voice", "text": "Hello."}
 	e.Must("deck.model_call", check, nil)
-	if got := api.calls(); got[len(got)-1].Body["ref_audio"] != sample {
+	if got := api.Calls(); got[len(got)-1].Body["ref_audio"] != sample {
 		t.Fatal("a call sends the big option whole")
 	}
-	other := upload(e, "", "other.txt", "text/plain", "not of the model")
+	other := e.Upload("", "other.txt", "text/plain", "not of the model")
 	set["options"] = fmt.Sprintf(`{"ref_audio": {"$file": %d}}`, other)
 	e.Refused("deck.model_set", set, 422, "no file of model voice")
 	if shown() != form {
@@ -756,7 +752,7 @@ func TestABigOptionOfAModelIsAFileOfIt(t *testing.T) {
 	set["options"] = form
 	e.Must("deck.model_set", set, nil)
 	e.Must("deck.model_call", check, nil)
-	if got := api.calls(); got[len(got)-1].Body["ref_audio"] != sample || shown() != form {
+	if got := api.Calls(); got[len(got)-1].Body["ref_audio"] != sample || shown() != form {
 		t.Fatalf("what the form showed saves back to the same file: %s", shown())
 	}
 	set["options"] = `{"voice": "own"}`
@@ -772,7 +768,7 @@ func TestABigOptionOfAModelIsAFileOfIt(t *testing.T) {
 // limit, red in the health of that model, and does not go to the master; a refused key is the model's login.
 func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(_ int, body map[string]any) (int, string, string) {
 			if body["model"] == "keyless" {
 				return 403, "application/json", `{"error": {"message": "the key is refused"}}`
@@ -822,9 +818,9 @@ func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 // short call that shows in the status of its row.
 func TestATextModelOfAnAPIHasACheckThatCallsIt(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1beta/openai/chat/completions": func(int, map[string]any) (int, string, string) {
-			return 200, "application/json", chatText("ok")
+			return 200, "application/json", harness.ChatText("ok")
 		},
 	})
 	e := harness.New(t)
@@ -834,8 +830,8 @@ func TestATextModelOfAnAPIHasACheckThatCallsIt(t *testing.T) {
 	if check == nil || check["verb"] != "check" {
 		t.Fatalf("the row of a text model has a check: %v", check)
 	}
-	if code, out := e.Press(check); code != 200 || len(api.made()) != 1 {
-		t.Fatalf("the check is one call of the model: %d %s %+v", code, out, api.made())
+	if code, out := e.Press(check); code != 200 || len(made(api)) != 1 {
+		t.Fatalf("the check is one call of the model: %d %s %+v", code, out, made(api))
 	}
 	var models struct {
 		Models []struct{ Name, Status string }
@@ -851,7 +847,7 @@ func TestATextModelOfAnAPIHasACheckThatCallsIt(t *testing.T) {
 func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 	t.Parallel()
 	const tpm = `{"error": {"message": "Request too large for model openai/gpt-oss-120b in organization org_1 service tier on_demand on tokens per minute (TPM): Limit 8000, Requested 15234, please reduce your message size and try again.", "type": "tokens", "code": "rate_limit_exceeded"}}`
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(_ int, body map[string]any) (int, string, string) {
 			switch body["model"] {
 			case "gpt-oss":
@@ -863,7 +859,7 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 			case "daily":
 				return 413, "application/json", `{"error": {"message": "Daily quota of requests used up", "code": "rate_limit_exceeded"}}`
 			}
-			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.9}`)
+			return 200, "application/json", harness.ChatText(`{"verdict": "true", "confidence": 0.9}`)
 		},
 	})
 	e := harness.New(t)
@@ -908,9 +904,9 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 // model takes it, the last is the model's limit, and an assignment warns when a usual request is past them.
 func TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(_ int, body map[string]any) (int, string, string) {
-			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.9}`)
+			return 200, "application/json", harness.ChatText(`{"verdict": "true", "confidence": 0.9}`)
 		},
 	})
 	e := harness.New(t)
@@ -938,7 +934,7 @@ func TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce(t *testing.T) {
 	if got := e.WaitState(e.Start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
 		t.Fatalf("the next model takes a request past the limit: %+v", e.Fault(got.ID))
 	}
-	for _, c := range api.calls() {
+	for _, c := range api.Calls() {
 		if c.Model == "small" {
 			t.Fatalf("no request past its limit reaches the model: %+v", c)
 		}

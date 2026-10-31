@@ -64,7 +64,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(f.Dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	llm := acpLLM(t)
+	llm := harness.AcpLLM(t)
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
 		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
@@ -168,7 +168,7 @@ func TestAModelInNoAgentRunsNoCommand(t *testing.T) {
 func TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
-	llm := acpLLM(t)
+	llm := harness.AcpLLM(t)
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
 		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}

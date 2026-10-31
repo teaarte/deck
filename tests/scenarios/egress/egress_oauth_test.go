@@ -1,4 +1,4 @@
-package scenarios
+package egress
 
 import (
 	"crypto/sha256"

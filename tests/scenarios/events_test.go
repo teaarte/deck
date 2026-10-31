@@ -92,7 +92,7 @@ func TestAWriteTellsTheReadersOfItsTable(t *testing.T) {
 	e := harness.New(t)
 	e.Project("web", harness.WebNotes)
 	ev := e.Events(t.Context())
-	upload(e, "web", "scan.txt", "text/plain", "a page")
+	e.Upload("web", "scan.txt", "text/plain", "a page")
 	harness.WaitEvent(t, ev, events.Event{Topic: "files", Project: "web"})
 }
 

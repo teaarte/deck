@@ -26,7 +26,7 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 	}))
 
 	e.Project("web", harness.WebNotes)
-	id := upload(e, "master", "plan.txt", "text/plain", "the plan")
+	id := e.Upload("master", "plan.txt", "text/plain", "the plan")
 	topic := e.Say(0, "look at the plan", map[string]any{"screen": `{"project":"web","screen":"main"}`, "files": []string{fmt.Sprint(id)}})
 	e.MasterSaid(topic, 1)
 	ms := e.ChatMessages(topic)
@@ -71,7 +71,7 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 func TestARetriedMessageDoesNotAttachItsFilesAgain(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Read it."} }))
-	id := upload(e, "master", "plan.txt", "text/plain", "the plan")
+	id := e.Upload("master", "plan.txt", "text/plain", "the plan")
 	in := map[string]any{"files": []string{fmt.Sprint(id)}, "retry_key": "k1"}
 	topic := e.Say(0, "look at the plan", in)
 	if err := os.Remove(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Files(), fmt.Sprint(id))); err != nil {
@@ -88,7 +88,7 @@ func TestTheFilesOfADeletedTopicGoWithTheTopic(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Read it."} }), harness.WithClock())
 	e.Sweep()
-	id := upload(e, "master", "plan.txt", "text/plain", "the plan")
+	id := e.Upload("master", "plan.txt", "text/plain", "the plan")
 	topic := e.Say(0, "look", map[string]any{"files": []string{fmt.Sprint(id)}})
 	e.MasterSaid(topic, 1)
 	e.Must("deck.chat_topic_delete", map[string]any{"topic": topic}, nil)
@@ -159,7 +159,7 @@ func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 	e.WaitState(busy, "running")
 	topic := e.Say(0, "first")
 	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
-	file := upload(e, "master", "plan.txt", "text/plain", "the plan")
+	file := e.Upload("master", "plan.txt", "text/plain", "the plan")
 	e.Say(topic, "second, sent by mistake", map[string]any{"files": []string{fmt.Sprint(file)}})
 	var ms []harness.ChatMessage
 	ms = e.ChatMessages(topic)
@@ -193,7 +193,7 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 	fake := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Read it."} }}
 	e := harness.New(t, harness.WithProvider(fake))
 	e.Project("web", harness.WebNotes)
-	id := upload(e, "web", "plan.txt", "text/plain", "the plan")
+	id := e.Upload("web", "plan.txt", "text/plain", "the plan")
 	topic := e.Say(0, "hello")
 	e.MasterSaid(topic, 1)
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO chat_message (topic_id, role, text, context) VALUES (?, 'owner', 'old plan', ?)`,

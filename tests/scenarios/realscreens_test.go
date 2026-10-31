@@ -138,11 +138,11 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the projects tab", itemOf("notes", "enabling grants"))
 	b.reviewAndEnable("notes")
-	e.Until("the enabled draft", func() bool { return project(e, "notes").Status == "enabled" })
+	e.Until("the enabled draft", func() bool { return e.ProjectRow("notes").Status == "enabled" })
 	b.shot("settings-draft")
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the enabled draft", itemOf("notes", "")+" && !"+itemOf("notes", "draft"))
-	if p := project(e, "notes"); p.Status != "enabled" {
+	if p := e.ProjectRow("notes"); p.Status != "enabled" {
 		t.Fatalf("enable on the projects tab turns the draft on: %+v", p)
 	}
 	b.shot("settings-projects")
@@ -387,7 +387,7 @@ func TestRealBrowserJournal(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"notes ü.txt", "100%.txt", `100% a;b".txt`} {
-		upload(e, "web", name, "text/html", "body of "+name)
+		e.Upload("web", name, "text/html", "body of "+name)
 	}
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
@@ -659,7 +659,7 @@ func customPictureIn(t *testing.T, browser ...string) {
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	p := e.Project("web", harness.WebNotesMark)
 	e.Project("other", harness.PlainManifest)
-	theirs := upload(e, "other", "theirs.png", "image/png", "theirs")
+	theirs := e.Upload("other", "theirs.png", "image/png", "theirs")
 	var pic bytes.Buffer
 	_ = png.Encode(&pic, image.NewRGBA(image.Rect(0, 0, 3, 2)))
 	data := deckhome.Layout(e.App.Cfg.Home).Data(p)

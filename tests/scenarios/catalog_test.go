@@ -340,8 +340,8 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 		t.Fatalf("media without files says so: %s", got["empty"])
 	}
 	png := "\x89PNG\r\n\x1a\nfake"
-	mine := upload(e, "btc", "scan.png", "image/png", png)
-	theirs := upload(e, "other", "theirs.png", "image/png", png)
+	mine := e.Upload("btc", "scan.png", "image/png", png)
+	theirs := e.Upload("other", "theirs.png", "image/png", png)
 	data := e.App.Home.Data(id)
 	_ = os.MkdirAll(filepath.Join(data, "charts"), 0o700)
 	_ = os.WriteFile(filepath.Join(data, "charts", "today 1.pdf"), []byte("%PDF-1.4 fake"), 0o600)

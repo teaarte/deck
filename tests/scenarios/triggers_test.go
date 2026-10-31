@@ -541,7 +541,7 @@ func TestEnablingADraftClearsWhyItsTriggersDidNotStart(t *testing.T) {
 	if h := e.WaitHealth("trigger:later.remind", "error"); !strings.Contains(h.Error, "draft") {
 		t.Fatalf("a schedule of a draft says why it did not start: %+v", h)
 	}
-	e.Must("deck.project_enable", map[string]any{"project": "later", "revision": project(e, "later").Revision}, nil)
+	e.Must("deck.project_enable", map[string]any{"project": "later", "revision": e.ProjectRow("later").Revision}, nil)
 	for _, h := range e.Health() {
 		if h.Subject == "trigger:later.remind" {
 			t.Fatalf("enabling the project clears why its schedule did not start: %+v", h)

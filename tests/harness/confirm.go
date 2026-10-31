@@ -1,8 +1,10 @@
 package harness
 
 import (
+	"deck2/internal/app"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // PostManifest has an agent command and an HTTP tool of the given extra fields that is not allowed yet.
@@ -15,6 +17,8 @@ func PostManifest(url, extra string) string {
     "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}, "n": {"type": "integer"}},
       "required": ["id", "text"]}}]}}`, url, extra)
 }
+
+func WithTTL(c *app.Config) { c.ConfirmTTL = 24 * time.Hour }
 
 // Calls lists the gateway journal of a process as "tool outcome external_id error" lines with params.
 func (e *Env) Calls(process int64) string {

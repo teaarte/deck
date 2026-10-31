@@ -7,13 +7,9 @@ import (
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math"
-	"net/http"
-	"net/http/httptest"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 )
 
@@ -49,53 +45,6 @@ func TestAnAssignmentTakesItsFallbackWhileTheFirstIsDown(t *testing.T) {
 		t.Fatalf("without the assignment the main provider runs: %s", got.Result)
 	}
 	e.Refused("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "models": []string{"nobody"}}, 404, "no provider")
-}
-
-// fakeModels is an API of models that answers each path with what its script gives and keeps what it got.
-type fakeModels struct {
-	URL  string
-	mu   sync.Mutex
-	got  []modelCall
-	path map[string]func(n int, body map[string]any) (int, string, string)
-}
-
-type modelCall struct {
-	Path, Auth, Model string
-	// Header is the X-Deck-Model the API got, which deck keeps to itself.
-	Header string
-	Body   map[string]any
-}
-
-func newModels(t *testing.T, path map[string]func(n int, body map[string]any) (int, string, string)) *fakeModels {
-	f := &fakeModels{path: path}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b, _ := io.ReadAll(r.Body)
-		var body map[string]any
-		_ = json.Unmarshal(b, &body)
-		model, _ := body["model"].(string)
-		f.mu.Lock()
-		f.got = append(f.got, modelCall{Path: r.URL.Path, Auth: r.Header.Get("Authorization"), Model: model, Header: r.Header.Get("X-Deck-Model"), Body: body})
-		n := len(f.got)
-		f.mu.Unlock()
-		answer := f.path[r.URL.Path]
-		if answer == nil {
-			http.NotFound(w, r)
-			return
-		}
-		status, ct, text := answer(n, body)
-		w.Header().Set("Content-Type", ct)
-		w.WriteHeader(status)
-		_, _ = io.WriteString(w, text)
-	}))
-	t.Cleanup(srv.Close)
-	f.URL = srv.URL
-	return f
-}
-
-func (f *fakeModels) calls() []modelCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return append([]modelCall{}, f.got...)
 }
 
 // pictureAnswer is how OpenRouter answers chat completions with an image: the picture in base64, the usage with its cost.
@@ -142,7 +91,7 @@ type spendRow struct {
 // keeps what OpenRouter says it cost; a connection takes no daily limit.
 func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", pictureAnswer(0.033631)
 		},
@@ -163,7 +112,7 @@ func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 			t.Fatalf("call %d reaches the model with the answer as it came and no key in the script: %v", i, out)
 		}
 	}
-	calls := api.calls()
+	calls := api.Calls()
 	if len(calls) != 3 || calls[0].Auth != "Bearer sk-or-real" || calls[0].Model != "google/gemini-3.1-flash-lite-image" ||
 		calls[0].Body["image_config"].(map[string]any)["aspect_ratio"] != "9:16" {
 		t.Fatalf("deck put in the key and passed the body on: %+v", calls)
@@ -209,12 +158,12 @@ func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
 // per call; a role reaches only the paths of model calls.
 func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	t.Parallel()
-	busy := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	busy := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/speech": func(int, map[string]any) (int, string, string) {
 			return 429, "application/json", `{"error": "rate limited"}`
 		},
 	})
-	spare := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	spare := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
 	})
 	e := harness.New(t)
@@ -231,7 +180,7 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 200.0 || out["answer"] != "ID3-voice" {
 		t.Fatalf("the fallback answers after the refusal of the first: %+v", got)
 	}
-	if b, s := busy.calls(), spare.calls(); len(b) != 1 || b[0].Model != "voice-1" || len(s) != 1 || s[0].Model != "voice-2" || s[0].Body["voice"] != "alloy" {
+	if b, s := busy.Calls(), spare.Calls(); len(b) != 1 || b[0].Model != "voice-1" || len(s) != 1 || s[0].Model != "voice-2" || s[0].Body["voice"] != "alloy" {
 		t.Fatalf("each model got the body with its own name in place of the role: %+v %+v", b, s)
 	}
 	var spend []spendRow
@@ -260,7 +209,7 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 	  {"id": "google/lyria-3-pro-preview", "pricing": {"prompt": "0", "completion": "0"}, "architecture": {"output_modalities": ["text", "audio"]}},
 	  {"id": "alibaba/wan-2.6", "pricing": {"prompt": "0", "completion": "0"}, "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["video"]}},
 	  {"id": "nvidia/nemotron-3:free", "architecture": {"output_modalities": ["text"]}}]}`
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/models": func(int, map[string]any) (int, string, string) { return 200, "application/json", catalog },
 	})
 	e := harness.New(t)
@@ -292,7 +241,7 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 	if !m.Free {
 		t.Fatalf("a model whose id ends in :free is free though the catalog lists no price: %+v", m)
 	}
-	if c := api.calls(); len(c) != 5 || c[0].Auth != "Bearer sk-or-new" {
+	if c := api.Calls(); len(c) != 5 || c[0].Auth != "Bearer sk-or-new" {
 		t.Fatalf("the key given with the connection is kept in a secret and used: %+v", c)
 	}
 	var secrets []struct{ Name string }
@@ -316,8 +265,10 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 // name waits for the owner's button, and a draft calls only a model that is free on this machine.
 func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
-		"/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.ChatText("hi")
+		},
 	})
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
@@ -355,11 +306,11 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	e.SaveScript("draft", "scripts/main.py", modelScript)
-	before := len(api.calls())
-	if out := call("draft", "openrouter/chat/completions"); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "only the free models") || len(api.calls()) != before {
+	before := len(api.Calls())
+	if out := call("draft", "openrouter/chat/completions"); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "only the free models") || len(api.Calls()) != before {
 		t.Fatalf("a draft's call of a paid model is refused with what to do: %v", out)
 	}
-	if out := call("draft", "ollama/chat/completions"); out["status"] != 200.0 || len(api.calls()) != before+1 {
+	if out := call("draft", "ollama/chat/completions"); out["status"] != 200.0 || len(api.Calls()) != before+1 {
 		t.Fatalf("a draft's call of a free model on the owner's machine goes: %v", out)
 	}
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "paid", "kind": "text", "call_usd": 0.1}, nil)
@@ -367,7 +318,7 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	e.Must("deck.manifest_save", map[string]any{"project": "draft", "manifest": harness.ScriptManifest("media", "", `, "models": ["@text"]`)}, nil)
 	got := e.WaitState(e.Start("draft", "media", map[string]any{"key": "@/chat/completions", "other": `{"model": "@text", "messages": []}`}), "done", "error")
 	var out map[string]any
-	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || len(api.calls()) != before+1 {
+	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || len(api.Calls()) != before+1 {
 		t.Fatalf("a draft's call that may fall back to a paid model is refused: %+v", got)
 	}
 }
@@ -376,8 +327,10 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 // X-Deck-Model) on a path of a model call; any other model or path is refused with what to do.
 func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	t.Parallel()
-	ok := func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") }
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	ok := func(int, map[string]any) (int, string, string) {
+		return 200, "application/json", harness.ChatText("hi")
+	}
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": ok, "/v1/images/edits": ok, "/v1/key": ok, "/v1/models/gemma:generateContent": ok, "/svc/v1/generate": ok,
 		"/v1/models/other:generateContent": ok, "/v1/videos/job-1": ok,
 	})
@@ -411,7 +364,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 			t.Fatalf("a model of deck's settings is called: %v %v", in, out)
 		}
 	}
-	before := len(api.calls())
+	before := len(api.Calls())
 	twice := strings.Replace(form, "--b--", "--b\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\nanthropic/claude-opus\r\n--b--", 1)
 	for _, c := range []struct {
 		in   map[string]any
@@ -439,7 +392,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 			t.Fatalf("a request past the models of deck's settings is refused with what to do: %v %v", c.in, out)
 		}
 	}
-	calls := api.calls()
+	calls := api.Calls()
 	if len(calls) != before {
 		t.Fatalf("a refused call reaches no API: %+v", calls[before:])
 	}

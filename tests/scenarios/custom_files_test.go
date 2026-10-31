@@ -26,8 +26,8 @@ func TestACustomBlockReadsOnlyTheFilesOfItsModule(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.txt"), []byte("outside"), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "big.mp4"), nil, 0o600)
 	_ = os.Truncate(filepath.Join(data, "big.mp4"), 201<<20)
-	own := upload(e, "web", "logo.svg", "image/svg+xml", "<svg/>")
-	theirs := upload(e, "other", "theirs.txt", "text/plain", "theirs")
+	own := e.Upload("web", "logo.svg", "image/svg+xml", "<svg/>")
+	theirs := e.Upload("other", "theirs.txt", "text/plain", "theirs")
 
 	block := harness.BlockData[map[string]any](t, e.ScreenData("web", "main", nil)["b2"]["value"])
 	if block["project"] != "web" {

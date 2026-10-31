@@ -21,7 +21,7 @@ func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 
 	e.Project("digest", harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
 	e.Project("inbox", filesManifest())
-	upload(e, "inbox", "invoice.pdf", "application/pdf", "%PDF-1.4")
+	e.Upload("inbox", "invoice.pdf", "application/pdf", "%PDF-1.4")
 	var ts []struct {
 		ID          int64
 		LastProcess int64 `json:"last_process"`

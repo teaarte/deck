@@ -28,7 +28,7 @@ func TestRealBrowserThemePictures(t *testing.T) {
 		slot, scheme string
 		c            color.RGBA
 	}{{"cockpit", "light", color.RGBA{40, 90, 70, 255}}, {"cockpit", "dark", color.RGBA{20, 40, 30, 255}}, {"pattern", "light", color.RGBA{230, 220, 200, 255}}} {
-		id := upload(e, "master", x.slot+".png", "image/png", solid(x.c))
+		id := e.Upload("master", x.slot+".png", "image/png", solid(x.c))
 		e.Must("deck.theme_image", map[string]any{"theme": "paper", "slot": x.slot, "scheme": x.scheme, "file": fmt.Sprint(id)}, nil)
 	}
 	e.Must("deck.theme_use", map[string]any{"name": "paper"}, nil)

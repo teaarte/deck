@@ -1,4 +1,4 @@
-package scenarios
+package egress
 
 import (
 	"context"
@@ -7,6 +7,10 @@ import (
 	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
+	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -15,25 +19,211 @@ import (
 	"time"
 )
 
-func toolManifest(url, extra string) string {
+func bodiesManifest(url string) string {
 	return fmt.Sprintf(`{"version": 13,
   "commands": [
-    {"name": "fetch", "title": "Fetch", "description": "Fetches a picture.", "class": "internal",
-     "input": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "string"}}},
-     "executor": {"type": "tool", "tool": "picture"}},
-    {"name": "send", "title": "Send", "description": "Sends a note.", "class": "internal",
-     "input": {"type": "object", "properties": {"text": {"type": "string"}}},
-     "result": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
-     "executor": {"type": "tool", "tool": "note"}},
-    {"name": "merge", "title": "Merge", "description": "Merges the work.", "class": "reversible",
-     "executor": {"type": "agent", "prompt": "Merge."}},
-    {"name": "work", "title": "Work", "description": "Works.", "class": "internal",
-     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
+    {"name": "put", "title": "Put", "description": "Sends a file as it is.", "class": "internal",
+     "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}, "required": ["doc"]},
+     "executor": {"type": "tool", "tool": "put_file"}},
+    {"name": "form", "title": "Form", "description": "Sends a file in a form.", "class": "internal",
+     "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}, "title": {"type": "string"}}, "required": ["doc"]},
+     "executor": {"type": "tool", "tool": "post_form"}},
+    {"name": "make", "title": "Make", "description": "Makes a clip and sends it at once.", "class": "internal",
+     "result": {"type": "object"}, "executor": {"type": "script", "script": "make"}}],
+  "scripts": [{"name": "make", "file": "scripts/make.py", "runtime": "python"}],
   "tools": {"http": [
-    {"name": "picture", "description": "A picture", "method": "GET", "url": "%[1]s/pics/{name}?size={size}", "class": "internal",
-     "input": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "string"}}}},
-    {"name": "note", "description": "Sends a note", "method": "POST", "url": "%[1]s/notes",
-     "input": {"type": "object", "properties": {"text": {"type": "string"}}}}]}%[2]s}`, url, extra)
+    {"name": "put_file", "description": "Puts a file", "method": "PUT", "url": "%[1]s/put", "class": "internal", "body": {"file": "{doc}"},
+     "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}, "required": ["doc"]}},
+    {"name": "post_form", "description": "Posts a form", "method": "POST", "url": "%[1]s/form", "class": "internal",
+     "body": {"multipart": {"upload": "{doc}", "title": "Title: {title}"}},
+     "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}, "title": {"type": "string"}}, "required": ["doc"]}}]}}`, url)
+}
+
+const makeScript = harness.PythonLib + `
+with open(os.path.join(os.environ["DECK_RESULTS"], "clip.mp4"), "wb") as f:
+    f.write(b"clip bytes")
+st, out = deck("media.put_file", {"doc": "results/clip.mp4"})
+os.symlink(os.path.join(os.environ["DECK_RESULTS"], "..", "stream"), os.path.join(os.environ["DECK_RESULTS"], "link"))
+escape, _ = deck("media.put_file", {"doc": "results/link"})
+print(json.dumps({"status": st, "escape": escape}))
+`
+
+func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	got := map[string][]string{}
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch r.URL.Path {
+		case "/put":
+			b, _ := io.ReadAll(r.Body)
+			got["put"] = append(got["put"], r.Header.Get("Content-Type")+" "+string(b))
+		case "/form":
+			_, params, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			mr := multipart.NewReader(r.Body, params["boundary"])
+			for {
+				p, err := mr.NextPart()
+				if err != nil {
+					break
+				}
+				b, _ := io.ReadAll(p)
+				got["form"] = append(got["form"], p.FormName()+"|"+p.FileName()+"|"+string(b))
+			}
+			if r.ContentLength <= 0 {
+				got["form"] = append(got["form"], "no length")
+			}
+		}
+		harness.JsonReply(w, `{"ok": true}`)
+	})
+	e := harness.New(t)
+	e.Project("media", bodiesManifest(svc.URL))
+	doc := fmt.Sprint(e.Upload("media", "photo.jpg", "image/jpeg", "JPEGDATA"))
+
+	if p := e.WaitState(e.Start("media", "put", map[string]any{"doc": doc}), "done", "error"); p.State != "done" || got["put"][0] != "image/jpeg JPEGDATA" {
+		t.Fatalf("a file body sends the file as it is: %+v %v", p, got)
+	}
+	if p := e.WaitState(e.Start("media", "form", map[string]any{"doc": doc, "title": "Sea"}), "done", "error"); p.State != "done" ||
+		strings.Join(got["form"], ";") != "title||Title: Sea;upload|photo.jpg|JPEGDATA" {
+		t.Fatalf("a multipart body sends file fields as files, with a length: %+v %v", p, got["form"])
+	}
+	tricky := fmt.Sprint(e.Upload("media", "note.txt", "text/plain", "a\r\n--deck-form-boundary\r\nb"))
+	got["form"] = nil
+	if p := e.WaitState(e.Start("media", "form", map[string]any{"doc": tricky, "title": "x"}), "done", "error"); p.State != "done" ||
+		strings.Join(got["form"], ";") != "title||Title: x;upload|note.txt|a\r\n--deck-form-boundary\r\nb" {
+		t.Fatalf("a file holding the text of a boundary reaches the form whole: %+v %q", p, got["form"])
+	}
+	e.SaveScript("media", "scripts/make.py", makeScript)
+	if p := e.WaitState(e.Start("media", "make", nil), "done", "error"); !strings.Contains(string(p.Result), `"status":200`) ||
+		!strings.Contains(string(p.Result), `"escape":422`) ||
+		got["put"][1] != "video/mp4 clip bytes" {
+		t.Fatalf("a file of the results folder goes to a tool while the script still runs: %+v %v", p, got["put"])
+	}
+	code, out := e.Call("media.put_file", map[string]any{"doc": "results/../../../deck.db"})
+	if code == 200 || !strings.Contains(string(out), "results file") {
+		t.Fatalf("a results file needs a process: %d %s", code, out)
+	}
+}
+
+func TestACommandCallLargerThan32MBIsRefusedWhole(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	big := map[string]any{"text": strings.Repeat("x", 33<<20)}
+	if code, out := e.Call("deck.projects_list", big); code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("the API refuses a body over 32 MB: %d %.200s", code, out)
+	}
+	e.Project("big", harness.ScriptManifest("send", "", ""))
+	e.SaveScript("big", "scripts/main.py", harness.PythonLib+`
+st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "x" * (33 << 20)})})
+print(json.dumps({"status": st}))
+`)
+	if p := e.WaitState(e.Start("big", "send", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "413") {
+		t.Fatalf("the entry of scripts refuses a body over 32 MB rather than cutting it: %+v", p)
+	}
+}
+
+func TestATextAnswerOverTheLimitIsNotPassedOnCut(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(strings.Repeat("x", 11<<20)))
+	})
+	e := harness.New(t)
+	e.Project("big", fmt.Sprintf(`{"version": 13, "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET",
+  "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, svc.URL+"/page"))
+	if code, out := e.Call("big.page", map[string]any{}); code == 200 || !strings.Contains(string(out), "cut answer") {
+		t.Fatalf("an answer over 10 MB is an error, not its first 10 MB: %d %.200s", code, out)
+	}
+}
+
+// jsonToolManifest is a project with an HTTP tool whose input field messages is JSON text, put into the body as
+// the list it holds, and one that sends its whole input as the body.
+func jsonToolManifest(url string) string {
+	return fmt.Sprintf(`{"version": 13,
+  "commands": [{"name": "ask", "title": "Ask", "description": "Asks a model.", "class": "internal",
+    "input": {"type": "object", "properties": {"messages": {"type": "string", "format": "json"}}},
+    "executor": {"type": "script", "script": "main"}}],
+  "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}],
+  "tools": {"http": [
+    {"name": "chat", "title": "Chat", "description": "Chat completions.", "class": "internal", "method": "POST", "url": "%[1]s/v1/chat/completions",
+     "input": {"type": "object", "properties": {"model": {"type": "string"}, "messages": {"type": "string", "format": "json"}}, "required": ["model", "messages"]},
+     "body": {"model": "{model}", "messages": "{messages}", "modalities": ["image", "text"], "note": "for {model}"}},
+    {"name": "plain", "title": "Plain", "description": "Posts its input.", "class": "internal", "method": "POST", "url": "%[1]s/v1/plain",
+     "input": {"type": "object", "properties": {"options": {"type": "string", "format": "json"}}}}]}}`, url)
+}
+
+// TestAJSONFieldGoesIntoTheBodyOfAToolAsItsValue: a field of format json is text for the caller (an App Intents
+// string) and the value it holds in the body of the request, whether the caller sent the text or the value.
+func TestAJSONFieldGoesIntoTheBodyOfAToolAsItsValue(t *testing.T) {
+	t.Parallel()
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.ChatText("hi")
+		},
+		"/v1/plain": func(int, map[string]any) (int, string, string) { return 200, "application/json", `{"ok": true}` },
+	})
+	e := harness.New(t)
+	e.Project("web", jsonToolManifest(api.URL))
+	e.SaveScript("web", "scripts/main.py", `import json, os, sys, urllib.request
+inp = json.load(sys.stdin)
+req = urllib.request.Request(os.environ["DECK_URL"] + "/commands/web.chat", data=json.dumps({"model": "m", "messages": inp["messages"]}).encode(),
+    headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
+with urllib.request.urlopen(req, timeout=60) as r:
+    print(json.dumps({"status": r.status}))
+`)
+	messages := `[{"role": "user", "content": "A painter at a desk"}]`
+	if got := e.WaitState(e.Start("web", "ask", map[string]any{"messages": messages}), "done", "error"); got.State != "done" {
+		t.Fatalf("the script calls the tool with the JSON text, as scripts send it: %+v", got)
+	}
+	_, tok := e.Token("agent", "web.*")
+	if code, out := e.As(tok).Call("web.chat", map[string]any{"model": "m", "messages": []any{map[string]any{"role": "user", "content": "A painter at a desk"}}}); code != 200 {
+		t.Fatalf("a caller may send the value itself: %d %s", code, out)
+	}
+	for i, c := range api.Calls() {
+		list, ok := c.Body["messages"].([]any)
+		if !ok || len(list) != 1 || list[0].(map[string]any)["content"] != "A painter at a desk" || c.Body["note"] != "for m" {
+			t.Fatalf("call %d: the json field is the list in the body, the other fields as before: %+v", i, c.Body)
+		}
+	}
+	e.Must("web.plain", map[string]any{"options": `{"voice": "onyx"}`}, nil)
+	if last := api.Calls()[2]; last.Body["options"].(map[string]any)["voice"] != "onyx" {
+		t.Fatalf("a tool that posts its input posts the json field as its value: %+v", last.Body)
+	}
+	if code, out := e.Call("web.chat", map[string]any{"model": "m", "messages": "[not json"}); code != 422 || !strings.Contains(string(out), "messages") {
+		t.Fatalf("text that is not JSON is refused for its field: %d %s", code, out)
+	}
+}
+
+// TestAToolGoesOnlyToTheHostItsManifestWrites: a field in the host of a tool's URL is refused on save; a call goes
+// to the addresses its host resolves to once, a name of the owner's machine only when the domains name its addresses.
+func TestAToolGoesOnlyToTheHostItsManifestWrites(t *testing.T) {
+	t.Parallel()
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/plain": func(int, map[string]any) (int, string, string) { return 200, "application/json", `{"ok": true}` },
+	})
+	e := harness.New(t)
+	code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": jsonToolManifest("http://{host}")})
+	if code != 422 || !strings.Contains(string(out), "cannot fill the host") {
+		t.Fatalf("a field in the host is refused on save: %d %s", code, out)
+	}
+	e.Project("named", jsonToolManifest(strings.Replace(api.URL, "127.0.0.1", "localhost", 1)))
+	if code, out := e.Call("named.plain", map[string]any{}); code != 403 || !strings.Contains(string(out), "not a public address") {
+		t.Fatalf("a name of the owner's machine is refused: %d %s", code, out)
+	}
+	if n := len(api.Calls()); n != 0 {
+		t.Fatalf("the refused call reached nothing: %d", n)
+	}
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(api.URL, "http://"))
+	// The addresses of the owner's machine are reached by name only once the domains name them.
+	listed := strings.Replace(jsonToolManifest("http://localhost:"+port), `"tools": {`, `"domains": {"read": ["127.0.0.1", "::1"]}, "tools": {`, 1)
+	e.Project("listed", listed)
+	e.Must("listed.plain", map[string]any{}, nil)
+	e.Project("nowhere", jsonToolManifest("http://nowhere.invalid"))
+	if code, out := e.Call("nowhere.plain", map[string]any{}); code != 502 || !strings.Contains(string(out), "does not resolve") {
+		t.Fatalf("a name that does not resolve is the network's: %d %s", code, out)
+	}
+	e.Project("web", jsonToolManifest(api.URL))
+	e.Must("web.plain", map[string]any{}, nil)
 }
 
 func TestToolCommandMakesOneToolCall(t *testing.T) {
@@ -47,7 +237,7 @@ func TestToolCommandMakesOneToolCall(t *testing.T) {
 		harness.JsonReply(w, `{"id": "n1"}`)
 	})
 	e := harness.New(t)
-	e.Project("pics", toolManifest(svc.URL, ""))
+	e.Project("pics", harness.ToolManifest(svc.URL, ""))
 	got := e.WaitState(e.Start("pics", "fetch", map[string]any{"name": "a&b=1", "size": "big-a&b=1"}), "done", "error")
 	if got.State != "done" || !strings.Contains(string(got.Result), `"type":"image/png"`) || svc.Requests()[0].Path != "/pics/a&b=1?size=big-a%26b%3D1" {
 		t.Fatalf("a tool command makes one call with parameters from its input: %+v %+v", got, svc.Requests())
@@ -82,7 +272,7 @@ func TestAllowAlwaysAddsTheToolToTheProjectList(t *testing.T) {
 		harness.JsonReply(w, fmt.Sprintf(`{"id": "n%d"}`, n))
 	})
 	e := harness.New(t)
-	e.Project("pics", toolManifest(svc.URL, ""))
+	e.Project("pics", harness.ToolManifest(svc.URL, ""))
 	var was struct{ Manifest string }
 	e.Must("deck.manifest_get", map[string]any{"project": "pics"}, &was)
 	id := e.Start("pics", "send", map[string]any{"text": "one"})
@@ -115,7 +305,7 @@ func TestAReversibleCommandRunsAtOnceAndAManifestHasNoAutonomy(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
 
-	m := toolManifest("http://127.0.0.1:1", "")
+	m := harness.ToolManifest("http://127.0.0.1:1", "")
 	p := e.Project("notes", m)
 	e.WaitState(e.Run(p, "work"), "done", "waiting_answer")
 	if !strings.Contains(out, `"process"`) {
@@ -276,7 +466,7 @@ func TestTextFromOutsideReachesTheAgentAsData(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}), harness.WithClock(), harness.WithConfig(
 
-		withTTL))
+		harness.WithTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))

@@ -1,4 +1,4 @@
-package scenarios
+package egress
 
 import (
 	"deck2/tests/harness"

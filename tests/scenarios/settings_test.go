@@ -134,7 +134,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	press := func(a map[string]any) { t.Helper(); e.Must(a["command"].(string), a["params"], nil) }
 	notes := findItem(t, items(), "notes")
 	if notes.Title != "notes" || !strings.HasPrefix(notes.Meta, "draft") || strings.Contains(notes.Meta, "autonomy") ||
-		!strings.Contains(notes.Meta, "enabling grants: "+strings.Join(project(e, "notes").Rights, "; ")) {
+		!strings.Contains(notes.Meta, "enabling grants: "+strings.Join(e.ProjectRow("notes").Rights, "; ")) {
 		t.Fatalf("a draft shows the rights enabling grants: %+v", notes)
 	}
 	enable := func(review map[string]any) map[string]any {

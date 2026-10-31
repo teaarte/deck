@@ -90,7 +90,7 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 	e.Must("deck.records_upsert", map[string]any{"project": "lab2", "collection": "prices", "records": harness.Jsonl(prices...)}, nil)
 	e.Must("deck.theme_save", map[string]any{"name": "pult", "text": `{"version": 1, "title": {"en": "Pult"}, "mood": "m", "accent": "orange"}`}, nil)
 	for _, scheme := range []string{"light", "dark"} {
-		id := upload(e, "master", "cockpit.png", "image/png", console())
+		id := e.Upload("master", "cockpit.png", "image/png", console())
 		e.Must("deck.theme_image", map[string]any{"theme": "pult", "slot": "cockpit", "scheme": scheme, "file": fmt.Sprint(id)}, nil)
 	}
 	e.Must("deck.theme_use", map[string]any{"name": "pult"}, nil)

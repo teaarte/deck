@@ -193,7 +193,7 @@ print("{}")
 // a type the script names stays, and a refusal it handled before a later call is not its type.
 func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(_ int, body map[string]any) (int, string, string) {
 			if body["model"] == "m2" {
 				return 500, "application/json", `{"error": {"message": "overloaded"}}`

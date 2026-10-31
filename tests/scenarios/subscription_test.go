@@ -67,7 +67,7 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 func TestATurnOnAModelOfAConnectionOnASubscriptionCostsNoMoney(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
-	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	if _, err := e.App.Store.DB.Exec(`UPDATE model SET subscription = 1, input_usd = 1000, output_usd = 1000 WHERE name = 'acp'`); err != nil {
 		t.Fatal(err)
 	}

@@ -105,8 +105,8 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		_ = gopng.Encode(&b, img)
 		return b.String()
 	}
-	big := upload(e, "shorts", "big.png", "image/png", png(1600, 900))
-	small := upload(e, "shorts", "small.png", "image/png", png(64, 36))
+	big := e.Upload("shorts", "big.png", "image/png", png(1600, 900))
+	small := e.Upload("shorts", "small.png", "image/png", png(64, 36))
 	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "wide.png"), []byte(png(1500, 500)), 0o600)); err != nil {
 		t.Fatal(err)
 	}

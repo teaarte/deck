@@ -1,4 +1,4 @@
-package scenarios
+package egress
 
 import (
 	"context"
@@ -127,7 +127,7 @@ func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 // set up the health of a command that calls deck.web_search there says the agent only reads pages.
 func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
 	t.Parallel()
-	e := harness.New(t, harness.WithACP(harness.NewACP(t), acpLLM(t)))
+	e := harness.New(t, harness.WithACP(harness.NewACP(t), harness.AcpLLM(t)))
 	scout := strings.Replace(harness.AgentCommand("scout", ""), `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.web_search"]`, 1)
 	e.Project("scout", `{"version": 13, "commands": [`+scout+`]}`)
 	e.UseModels("scout.scout", "acp")

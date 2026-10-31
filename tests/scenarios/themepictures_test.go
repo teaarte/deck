@@ -29,7 +29,7 @@ func TestAThemeHasItsPictures(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Must("deck.theme_save", map[string]any{"name": "paper", "text": `{"version": 1, "title": {"en": "Paper"}, "mood": "m", "tokens": {"tile-shade": "none", "cockpit": "#1b1b21"}}`}, nil)
 	put := func(slot, scheme string, c color.RGBA) {
-		id := upload(e, "master", slot+".png", "image/png", solid(c))
+		id := e.Upload("master", slot+".png", "image/png", solid(c))
 		e.Must("deck.theme_image", map[string]any{"theme": "paper", "slot": slot, "scheme": scheme, "file": fmt.Sprint(id)}, nil)
 	}
 	put("cockpit", "light", color.RGBA{250, 250, 245, 255})

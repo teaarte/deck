@@ -75,7 +75,7 @@ func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
 	e := harness.New(t, harness.WithClock())
 	e.Project("docs", filesManifest())
 	e.Sweep()
-	upload(e, "docs", "left.txt", "text/plain", "left")
+	e.Upload("docs", "left.txt", "text/plain", "left")
 	e.Clock.Add(24*time.Hour + 30*time.Minute)
 	e.Must("deck.snapshot_create", nil, nil)
 	e.Clock.Add(time.Hour)

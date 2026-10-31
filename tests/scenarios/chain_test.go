@@ -13,8 +13,10 @@ import (
 // command an agent calls of its project is within its step, an agent command the next step.
 func TestAChainAskedInTheChatCountsAsTheOwnersButton(t *testing.T) {
 	t.Parallel()
-	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
-		"/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("a still") },
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.ChatText("a still")
+		},
 	})
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch c.Command() {

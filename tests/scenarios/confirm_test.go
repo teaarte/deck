@@ -14,8 +14,6 @@ import (
 	"time"
 )
 
-func withTTL(c *app.Config) { c.ConfirmTTL = 24 * time.Hour }
-
 func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
@@ -33,7 +31,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}), harness.WithClock(), harness.WithConfig(
 
-		withTTL))
+		harness.WithTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret-value\n"}, nil)
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
@@ -108,7 +106,7 @@ func TestNoBecauseReachesTheAgentAndTheToolKeepsItsOwnTerm(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}), harness.WithClock(), harness.WithConfig(
 
-		withTTL))
+		harness.WithTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	p := e.Project("notes", harness.PostManifest(svc.URL, `, "confirm_ttl_minutes": 10`))
@@ -208,7 +206,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}), harness.WithClock(), harness.WithConfig(
 
-		withTTL))
+		harness.WithTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
@@ -252,7 +250,7 @@ func TestIdenticalExternalCallIsNotMadeWhileTheFirstIsOut(t *testing.T) {
 		harness.JsonReply(w, `{"id": "x"}`)
 	})
 	e := harness.New(t)
-	e.Project("pics", toolManifest(svc.URL, `, "allowed_external": ["note"]`))
+	e.Project("pics", harness.ToolManifest(svc.URL, `, "allowed_external": ["note"]`))
 	first := make(chan int)
 	go func() { code, _ := e.Call("pics.note", map[string]any{"text": "pay"}); first <- code }()
 	e.Until("the first call is out", func() bool { return len(svc.Requests()) == 1 })
@@ -271,7 +269,7 @@ func TestConfirmationNamesTheMethodAndHost(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}), harness.WithClock(), harness.WithConfig(
 
-		withTTL))
+		harness.WithTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	e.Run(e.Project("notes", harness.PostManifest(svc.URL, "")), "work")
@@ -361,7 +359,7 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 		return provider.Result{}
 	}), harness.WithClock(), harness.WithConfig(
 
-		withTTL, func(c *app.Config) { c.ConfirmWait = 50 * time.Millisecond }))
+		harness.WithTTL, func(c *app.Config) { c.ConfirmWait = 50 * time.Millisecond }))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	stopped := e.Run(e.Project("notes", harness.PostManifest(svc.URL, "")), "work")

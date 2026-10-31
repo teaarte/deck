@@ -38,7 +38,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	clock := &harness.Clock{At: time.Now()}
-	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(withTTL))
+	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(harness.WithTTL))
 	p := e.Project("notes", webManifest(svc.URL))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)

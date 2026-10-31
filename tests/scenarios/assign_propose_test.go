@@ -115,7 +115,7 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 	}
 	ask, _ = callAsk(e, "deck.assignment_set")
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}}, nil)
-	e.Until("the owner's own assignment to close the proposal for the same place", func() bool { return askState(e, ask) == "answered" })
+	e.Until("the owner's own assignment to close the proposal for the same place", func() bool { return e.AskState(ask) == "answered" })
 	if code, out := e.In("ru").Call("deck.ask_answer", map[string]any{"ask": ask, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "на этот запрос уже ответили") {
 		t.Fatalf("a yes to an assignment that changed meanwhile is refused in the owner's words: %d %s", code, out)
 	}
@@ -137,7 +137,7 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 	}
 	ask, _ = callAsk(e, "deck.assignment_set")
 	e.App.Answers.Settle(t.Context())
-	if state := askState(e, ask); state != "open" {
+	if state := e.AskState(ask); state != "open" {
 		t.Fatalf("a pin of what a place only inherits is not in force there: %s", state)
 	}
 	e.Answer(ask, "deny")
@@ -145,13 +145,6 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 	if c := scriptCall(e, "picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"nope"}}); c.Status != 404 {
 		t.Fatalf("a proposal deck cannot apply is refused at once, not held: %+v", c)
 	}
-}
-
-// askState is the state of an ask as the store keeps it.
-func askState(e *harness.Env, id int64) string {
-	var state string
-	_ = e.App.Store.DB.QueryRow(`SELECT state FROM ask WHERE id = ?`, id).Scan(&state)
-	return state
 }
 
 // TestNoCallerAppliesAnAssignmentPastTheOwner: a token and an agent of a module wait for the owner too, and a trial

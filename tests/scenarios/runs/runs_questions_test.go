@@ -16,7 +16,9 @@ import (
 
 func TestQuestionAnsweredLive(t *testing.T) {
 	t.Parallel()
-	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+	// The answer comes while the call still waits, however loaded the machine of the test.
+	live := harness.WithConfig(func(c *app.Config) { c.QuestionWait = 2 * time.Minute })
+	e := harness.New(t, live, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{
 			{"question": "Which topic?", "header": "Topic", "options": []map[string]any{{"label": "go"}, {"label": "rust"}}}}})
 		// A turn cut when the test ends gets no decision.

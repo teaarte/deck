@@ -176,7 +176,7 @@ func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 		t.Fatalf("the delete of the server takes the message back: %d %s", code, out)
 	}
 	if left := e.ChatMessages(topic); len(left) != 1 || left[0].ID != ms[0].ID {
-		t.Fatalf("only the message nobody took goes: %+v", left)
+		t.Fatalf("only the message nobody took goes: %+v; the busy run: %+v", left, e.Proc(busy))
 	}
 	if fs, _ := e.App.Store.Q.ListFilesOf(context.Background(), db.ListFilesOfParams{ProjectID: mp.ID, OwnerKind: "chat_message", OwnerID: ms[1].ID}); len(fs) != 0 {
 		t.Fatalf("its file goes with it: %+v", fs)

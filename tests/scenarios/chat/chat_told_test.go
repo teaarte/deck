@@ -95,7 +95,11 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 			Reply *harness.TopicReply `json:"reply"`
 		} `json:"topic"`
 	}
-	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &after)
+	// The reply's words come a moment before its process ends.
+	e.Until("the third reply to end", func() bool {
+		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &after)
+		return after.Topic.Reply == nil || after.Topic.Reply.State != "running"
+	})
 	if after.Topic.Reply != nil && after.Topic.Reply.State != "done" {
 		t.Fatalf("a message of deck does not make its work the reply of the topic: %+v", after.Topic.Reply)
 	}

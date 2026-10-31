@@ -140,7 +140,7 @@ func (s *Service) failed(ctx context.Context, act registry.Actor, id int64) (db.
 func (s *Service) stillFailed(ctx context.Context, q *db.Queries, act registry.Actor, p db.Process) error {
 	ps, err := q.ListFailedProcesses(ctx, s.failedParams(act, p.ProjectID, p.ID, 1))
 	if err == nil && len(ps) == 0 {
-		err = registry.Invalid("deck: process %d is not among those that did not work", p.ID)
+		err = registry.Invalid("process %d is not among those that did not work", p.ID)
 	}
 	return err
 }
@@ -158,7 +158,7 @@ type processDismissIn struct {
 // processDismiss takes a failed process off the cockpit, or every one it shows.
 func (s *Service) processDismiss(ctx context.Context, act registry.Actor, in processDismissIn) (any, error) {
 	if in.All == (in.Process != 0) {
-		return nil, registry.Invalid("deck: give one process, or all")
+		return nil, registry.Invalid("give one process, or all")
 	}
 	if in.All {
 		return s.dismissAll(ctx, act)

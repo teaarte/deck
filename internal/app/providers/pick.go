@@ -125,7 +125,7 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 		}
 	}
 	if len(fits) == 0 {
-		return 0, nil, false, registry.Invalid("deck: no provider fits %s, which requires %s; %s", place, strings.Join(requires, ", "), s.change(ctx, p.WorkspaceID, requires))
+		return 0, nil, false, registry.Invalid("no provider fits %s, which requires %s; %s", place, strings.Join(requires, ", "), s.change(ctx, p.WorkspaceID, requires))
 	}
 	return p.WorkspaceID, fits, false, nil
 }

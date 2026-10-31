@@ -32,10 +32,10 @@ func (s *Service) projectCover(ctx context.Context, act registry.Actor, in proje
 		return nil, err
 	}
 	if in.Remove == (strings.TrimSpace(in.File) != "") {
-		return nil, registry.Invalid("deck: give the picture in file, or remove")
+		return nil, registry.Invalid("give the picture in file, or remove")
 	}
 	if in.Theme != "" && !s.Themed(ctx, act.Workspace, in.Theme) {
-		return nil, registry.NotFound("deck: no theme %q", in.Theme)
+		return nil, registry.NotFound("no theme %q", in.Theme)
 	}
 	if in.Remove {
 		schemes := []string{"light", "dark"}
@@ -73,7 +73,7 @@ func (s *Service) putPicture(ctx context.Context, act registry.Actor, p db.Proje
 		return 0, err
 	}
 	if !strings.HasPrefix(ref.Type, "image/") {
-		return 0, registry.Invalid("deck: a %s is a picture, not %s", slot, ref.Type)
+		return 0, registry.Invalid("a %s is a picture, not %s", slot, ref.Type)
 	}
 	owner := registry.Actor{Kind: registry.Owner, Workspace: act.Workspace}
 	f, _, err := ref.Open()

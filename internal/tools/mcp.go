@@ -210,7 +210,7 @@ func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, domains
 				}
 			}
 		}
-		return registry.Refuse("deck: %s changed since this call was checked; it was not made, call it again", name)
+		return registry.Refuse("%s changed since this call was checked; it was not made, call it again", name)
 	}
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		external := class == registry.External

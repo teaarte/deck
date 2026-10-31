@@ -19,6 +19,7 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/app/tokens"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -136,7 +137,7 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 		out, err = s.app.Registry.Invoke(r.Context(), act, r.PathValue("name"), body)
 	}
 	if err != nil {
-		http.Error(w, said(r, err.Error()), registry.Status(err))
+		http.Error(w, said(r, err.Error()), fault.Status(err))
 		return
 	}
 	send(w, out)
@@ -176,7 +177,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		}
 		f, err := s.app.Files.Upload(r.Context(), actor(r), r.URL.Query().Get("project"), part.FileName(), part.Header.Get("Content-Type"), part)
 		if err != nil {
-			http.Error(w, err.Error(), registry.Status(err))
+			http.Error(w, err.Error(), fault.Status(err))
 			return
 		}
 		out = append(out, f)
@@ -215,7 +216,7 @@ func (s *Server) downloadData(w http.ResponseWriter, r *http.Request) {
 
 func serveFile(w http.ResponseWriter, r *http.Request, name, typ string, file *os.File, err error) {
 	if err != nil {
-		http.Error(w, err.Error(), registry.Status(err))
+		http.Error(w, err.Error(), fault.Status(err))
 		return
 	}
 	defer file.Close()

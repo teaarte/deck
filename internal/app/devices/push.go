@@ -111,9 +111,9 @@ type pushSubscribeIn struct {
 func (dv *Service) pushSubscribe(ctx context.Context, act registry.Actor, in pushSubscribeIn) (any, error) {
 	switch {
 	case !strings.HasPrefix(in.Endpoint, "https://") && !strings.HasPrefix(in.Endpoint, "http://"):
-		return nil, registry.Invalid("deck: a push endpoint is an http or https url")
+		return nil, registry.Invalid("a push endpoint is an http or https url")
 	case in.P256dh == "" || in.Auth == "":
-		return nil, registry.Invalid("deck: a push subscription needs its keys p256dh and auth")
+		return nil, registry.Invalid("a push subscription needs its keys p256dh and auth")
 	}
 	device := strings.TrimSpace(in.Device)
 	if device == "" {
@@ -158,7 +158,7 @@ func (dv *Service) pushUnsubscribe(ctx context.Context, act registry.Actor, in p
 		return nil, err
 	}
 	if n == 0 {
-		return nil, registry.NotFound("deck: no such device")
+		return nil, registry.NotFound("no such device")
 	}
 	return map[string]any{"removed": n}, nil
 }

@@ -40,7 +40,7 @@ func (b *Browser) actor(tool string) registry.Handler {
 		page, err := b.current(ctx, readsAnySite(m))
 		approved, yes := gateway.Approved(ctx)
 		if err == nil && !on(m.Domains.Act, page) && !(yes && page != "" && approved == page) {
-			err = registry.Refuse("deck: the browser shows %s now, which is not on an act domain; look at the page again and repeat the call", untrusted.Line(page, 300))
+			err = registry.Refuse("the browser shows %s now, which is not on an act domain; look at the page again and repeat the call", untrusted.Line(page, 300))
 		}
 		if err != nil {
 			b.GW.Refused(ctx, act, act.ProjectID, name, raw, err)
@@ -75,7 +75,7 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 	runs := b.Home.Run(process)
 	base, err := filepath.EvalSymlinks(runs)
 	if process == 0 || err != nil {
-		return nil, "", registry.Refuse("deck: only a process sends files, from its own folder")
+		return nil, "", registry.Refuse("only a process sends files, from its own folder")
 	}
 	root, err := os.OpenRoot(base)
 	if err != nil {
@@ -100,7 +100,7 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 		real, err := files.Inside(base, s)
 		if err != nil || filepath.IsAbs(s) {
 			_ = os.RemoveAll(dest)
-			return nil, "", registry.Refuse("deck: %q is not a file in the folder of this process", p)
+			return nil, "", registry.Refuse("%q is not a file in the folder of this process", p)
 		}
 		rel, _ := filepath.Rel(base, real)
 		sub := filepath.Join(dest, strconv.Itoa(len(out)))
@@ -111,7 +111,7 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 		copied, err := copyOut(root, rel, filepath.Join(sub, filepath.Base(rel)))
 		if err != nil {
 			_ = os.RemoveAll(dest)
-			return nil, "", registry.Refuse("deck: %q is not a file in the folder of this process: %v", p, err)
+			return nil, "", registry.Refuse("%q is not a file in the folder of this process: %v", p, err)
 		}
 		out = append(out, copied)
 	}

@@ -45,7 +45,7 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 		return nil, err
 	}
 	if strings.TrimSpace(in.Text) == "" {
-		return nil, registry.Invalid("deck: owner_notify needs text")
+		return nil, registry.Invalid("owner_notify needs text")
 	}
 	m, err := docs.Manifest(ctx, dv.St.Q, p)
 	if err != nil {
@@ -55,28 +55,28 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 		s := manifest.DeckScreen(name)
 		switch {
 		case s == nil:
-			return nil, registry.Invalid("deck: deck has no screen %q", name)
+			return nil, registry.Invalid("deck has no screen %q", name)
 		case s.Record != "" && in.Record == 0:
-			return nil, registry.Invalid("deck: screen %q of deck shows a %s; give record", name, s.Record)
+			return nil, registry.Invalid("screen %q of deck shows a %s; give record", name, s.Record)
 		}
 	} else if in.Screen != "" {
 		s := m.Screen(in.Screen)
 		switch {
 		case s == nil:
-			return nil, registry.Invalid("deck: %s has no screen %q", p.Name, in.Screen)
+			return nil, registry.Invalid("%s has no screen %q", p.Name, in.Screen)
 		case s.Record != "" && in.Record == 0:
-			return nil, registry.Invalid("deck: screen %q shows a record of %s; give record", in.Screen, s.Record)
+			return nil, registry.Invalid("screen %q shows a record of %s; give record", in.Screen, s.Record)
 		case s.Record != "":
 			rec, err := dv.St.Q.GetRecord(ctx, in.Record)
 			if err != nil || rec.ProjectID != p.ID || rec.Collection != s.Record {
-				return nil, registry.Invalid("deck: no %s record %d", s.Record, in.Record)
+				return nil, registry.Invalid("no %s record %d", s.Record, in.Record)
 			}
 		}
 	}
 	var buttons []Button
 	if strings.TrimSpace(in.Actions) != "" {
 		if err := json.Unmarshal([]byte(in.Actions), &buttons); err != nil {
-			return nil, registry.Invalid("deck: actions: a JSON array of {label, command, params}: %v", err)
+			return nil, registry.Invalid("actions: a JSON array of {label, command, params}: %v", err)
 		}
 	}
 	for _, b := range buttons {
@@ -85,10 +85,10 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 			keys[k] = ""
 		}
 		if b.Label == "" {
-			return nil, registry.Invalid("deck: actions: a button needs label")
+			return nil, registry.Invalid("actions: a button needs label")
 		}
 		if err := m.CheckButton(manifest.Action{Label: b.Label, Command: b.Command, Params: keys}); err != nil {
-			return nil, registry.Invalid("deck: actions %q: %v", b.Label, err)
+			return nil, registry.Invalid("actions %q: %v", b.Label, err)
 		}
 	}
 	raw, _ := json.Marshal(buttons)

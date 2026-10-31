@@ -86,7 +86,7 @@ const maxChatText = 20000
 func (ch *Service) ownTopic(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.ChatTopic, error) {
 	t, err := q.GetTopic(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && t.WorkspaceID != act.Workspace {
-		return t, registry.NotFound("deck: no chat topic %d", id)
+		return t, registry.NotFound("no chat topic %d", id)
 	}
 	return t, err
 }
@@ -114,14 +114,14 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 	text := strings.TrimSpace(in.Text)
 	switch {
 	case text == "":
-		return nil, registry.Invalid("deck: the message is empty")
+		return nil, registry.Invalid("the message is empty")
 	case len(text) > maxChatText:
-		return nil, registry.Invalid("deck: a message is at most %d bytes", maxChatText)
+		return nil, registry.Invalid("a message is at most %d bytes", maxChatText)
 	}
 	var s screenContext
 	if strings.TrimSpace(in.Screen) != "" {
 		if err := json.Unmarshal([]byte(in.Screen), &s); err != nil {
-			return nil, registry.Invalid("deck: screen is a JSON object: %v", err)
+			return nil, registry.Invalid("screen is a JSON object: %v", err)
 		}
 	}
 	if in.RetryKey != "" {
@@ -133,7 +133,7 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 	for _, f := range in.Files {
 		id, err := strconv.ParseInt(f, 10, 64)
 		if err != nil {
-			return nil, registry.Invalid("deck: a file is the id of an upload: %q", f)
+			return nil, registry.Invalid("a file is the id of an upload: %q", f)
 		}
 		s.Files = append(s.Files, id)
 	}
@@ -185,7 +185,7 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 				return err
 			}
 			if n == 0 {
-				return registry.NotFound("deck: no upload %d of project master", id)
+				return registry.NotFound("no upload %d of project master", id)
 			}
 		}
 		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(ch.Now()), ID: t.ID})
@@ -213,7 +213,7 @@ func (ch *Service) topicModel(ctx context.Context, master db.Project, model stri
 		return err
 	}
 	if able := ch.Able(ctx, master.WorkspaceID, cmd); !slices.Contains(able, model) {
-		return registry.Invalid("deck: the master's replies do not run on %q; one of: %s", model, strings.Join(able, ", "))
+		return registry.Invalid("the master's replies do not run on %q; one of: %s", model, strings.Join(able, ", "))
 	}
 	return nil
 }
@@ -300,22 +300,22 @@ func (ch *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		m, err := q.GetMessage(ctx, in.Message)
 		if errors.Is(err, sql.ErrNoRows) {
-			return registry.NotFound("deck: no message %d", in.Message)
+			return registry.NotFound("no message %d", in.Message)
 		}
 		if err != nil {
 			return err
 		}
 		if _, err := ch.ownTopic(ctx, q, act, m.TopicID); err != nil {
-			return registry.NotFound("deck: no message %d", in.Message)
+			return registry.NotFound("no message %d", in.Message)
 		}
 		switch {
 		case m.Role != roleOwner:
-			return registry.Refuse("deck: only a message of the owner can be deleted")
+			return registry.Refuse("only a message of the owner can be deleted")
 		case m.ProcessID != 0:
-			return registry.Conflict("deck: the master's turn #%d has taken this message; it stays", m.ProcessID)
+			return registry.Conflict("the master's turn #%d has taken this message; it stays", m.ProcessID)
 		}
 		if n, err := q.DeleteWaitingMessage(ctx, m.ID); err != nil || n == 0 {
-			return cmp.Or(err, registry.Conflict("deck: the master has taken this message; it stays"))
+			return cmp.Or(err, registry.Conflict("the master has taken this message; it stays"))
 		}
 		return q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: FileOwner, OwnerID: m.ID})
 	})

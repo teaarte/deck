@@ -133,8 +133,13 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 			texts[v] = true
 		}
 	}
+	// A refusal of the registry gets deck's prefix from its constructor.
+	inCode := func(k string) bool {
+		bare, ok := strings.CutPrefix(k, "deck: ")
+		return strings.Contains(code.String(), strconv.Quote(k)) || ok && strings.Contains(code.String(), strconv.Quote(bare))
+	}
 	for k := range ru {
-		if !texts[k] && !titles[k] && !strings.Contains(code.String(), strconv.Quote(k)) && !strings.Contains(screens.String(), "'"+k+"'") {
+		if !texts[k] && !titles[k] && !inCode(k) && !strings.Contains(screens.String(), "'"+k+"'") {
 			t.Errorf("ru translates %q, which is no text", k)
 		}
 	}

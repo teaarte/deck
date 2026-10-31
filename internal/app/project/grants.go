@@ -125,7 +125,7 @@ func (pj *Service) MergeGrant(ctx context.Context, q db.Ask) (db.Ask, int64, err
 	case errors.Is(err, errFrozen):
 		return q, 0, nil
 	case err != nil:
-		return q, 0, registry.Conflict("deck: %v; deny this request and ask again", err)
+		return q, 0, registry.Conflict("%v; deny this request and ask again", err)
 	}
 	q.Payload, err = mergedCall(q.Payload, text, rev)
 	return q, rev, err

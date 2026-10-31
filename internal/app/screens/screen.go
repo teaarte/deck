@@ -37,18 +37,18 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Brief: act.Kind != registry.Owner && !act.Looks && in.Block == "", Dialog: in.Dialog, Tab: in.Tab, Sub: in.Sub, Block: in.Block}
 	if strings.TrimSpace(in.Pages) != "" {
 		if err := json.Unmarshal([]byte(in.Pages), &req.Pages); err != nil {
-			return nil, registry.Invalid("deck: pages: a JSON object of block id to a number: %v", err)
+			return nil, registry.Invalid("pages: a JSON object of block id to a number: %v", err)
 		}
 	}
 	if strings.TrimSpace(in.Filter) != "" {
 		if err := json.Unmarshal([]byte(in.Filter), &req.Filter); err != nil {
-			return nil, registry.Invalid("deck: filter: a JSON object of block id to field to value: %v", err)
+			return nil, registry.Invalid("filter: a JSON object of block id to field to value: %v", err)
 		}
 	}
 	if strings.TrimSpace(in.Params) != "" {
 		var ps map[string]any
 		if err := json.Unmarshal([]byte(in.Params), &ps); err != nil {
-			return nil, registry.Invalid("deck: params: a JSON object of names to text: %v", err)
+			return nil, registry.Invalid("params: a JSON object of names to text: %v", err)
 		}
 		req.Params = make(map[string]string, len(ps))
 		for k, v := range ps {
@@ -57,7 +57,7 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 	}
 	w, h, sized := manifest.Size(in.Widget)
 	if in.Widget != "" && !sized {
-		return nil, registry.Invalid("deck: widget: a size of cells such as 2x1, not %q", in.Widget)
+		return nil, registry.Invalid("widget: a size of cells such as 2x1, not %q", in.Widget)
 	}
 	if sized {
 		req.Size = [2]int{w, h}
@@ -89,13 +89,13 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 		}
 	}
 	if req.Screen == nil {
-		return nil, registry.NotFound("deck: no screen %q", in.Screen)
+		return nil, registry.NotFound("no screen %q", in.Screen)
 	}
 	req.Words, req.Lang = wordsOf(in.Lang, req.Manifest), in.Lang
 	drawn, err := screen.Render(ctx, ss.sources(act), req)
 	out, errs := drawn.Messages, drawn.Errors
 	if err != nil {
-		return nil, registry.NotFound("deck: %v", err)
+		return nil, registry.NotFound("%v", err)
 	}
 	// A block that fails is told by a whole read or a read of a block; a read of every block, or one that drew the
 	// block health names, says the screen drew.

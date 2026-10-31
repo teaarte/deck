@@ -68,10 +68,10 @@ func (s *Service) modelSetCommand() *registry.Command {
 func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetIn) (any, error) {
 	c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Connection})
 	if err != nil {
-		return nil, registry.NotFound("deck: no connection %q", in.Connection)
+		return nil, registry.NotFound("no connection %q", in.Connection)
 	}
 	if strings.TrimSpace(in.Model) == "" {
-		return nil, registry.Invalid("deck: a model needs its name in the API")
+		return nil, registry.Invalid("a model needs its name in the API")
 	}
 	if c.Api == APICLI && in.Name == "" {
 		base, _, _ := strings.Cut(in.Model, "[")
@@ -79,12 +79,12 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	}
 	in.Name = cmp.Or(in.Name, in.Connection+"/"+in.Model)
 	if strings.ContainsAny(in.Name, " @") {
-		return nil, registry.Invalid("deck: a model name has no spaces or @, got %q", in.Name)
+		return nil, registry.Invalid("a model name has no spaces or @, got %q", in.Name)
 	}
 	if c.Api == APICLI {
 		in.Agent = cmp.Or(in.Agent, c.Name)
 	} else if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.Agent == "" && old.Connection.Api == APICLI {
-		return nil, registry.Invalid("deck: %s is a model of %s; a model of connection %s takes another name, or an agent", in.Name, old.Connection.Name, c.Name)
+		return nil, registry.Invalid("%s is a model of %s; a model of connection %s takes another name, or an agent", in.Name, old.Connection.Name, c.Name)
 	}
 	if in.Agent != "" {
 		if err := s.checkAgent(ctx, act.Workspace, c, in); err != nil {
@@ -108,7 +108,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		out *int64
 	}{{in.TPM, &m.Tpm}, {in.Context, &m.Context}} {
 		if l.in != nil && *l.in < 0 {
-			return nil, registry.Invalid("deck: a limit of a model is a number of tokens, or 0 for none")
+			return nil, registry.Invalid("a limit of a model is a number of tokens, or 0 for none")
 		}
 		if l.in != nil {
 			*l.out = *l.in
@@ -116,7 +116,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	}
 	m.Unit = cmp.Or(m.Unit, UnitToken)
 	if m.Unit != UnitToken && m.OutputUsd.Valid {
-		return nil, registry.Invalid("deck: a model priced per %s has one price, input_usd per million; output_usd is for tokens", m.Unit)
+		return nil, registry.Invalid("a model priced per %s has one price, input_usd per million; output_usd is for tokens", m.Unit)
 	}
 	if c.Api != APICLI && (unpriced || m.Kind == "") {
 		if got, ok := s.catalog(ctx, act.Workspace, c, in.Model); ok {
@@ -142,7 +142,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if in.Options != "" {
 		var o map[string]any
 		if err := json.Unmarshal([]byte(in.Options), &o); err != nil {
-			return nil, registry.Invalid("deck: options are a JSON object: %v", err)
+			return nil, registry.Invalid("options are a JSON object: %v", err)
 		}
 		if err := s.checkFiles(ctx, act.Workspace, in.Name, o); err != nil {
 			return nil, err
@@ -160,7 +160,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			}
 		}
 		if twin, err := q.ModelTwin(ctx, db.ModelTwinParams{ConnectionID: c.ID, Model: m.Model, Kind: m.Kind, Options: m.Options, Name: m.Name}); err == nil {
-			return registry.Invalid("deck: %s of connection %s is already model %s; change that one, its agent too", m.Model, c.Name, twin)
+			return registry.Invalid("%s of connection %s is already model %s; change that one, its agent too", m.Model, c.Name, twin)
 		}
 		if in.Agent != "" {
 			if err := health.Clear(ctx, q, health.Of{Workspace: act.Workspace}, health.Model(in.Name)); err != nil {
@@ -198,28 +198,28 @@ func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connecti
 	cli, _ := s.builtinNamed(in.Agent).(provider.Modeled)
 	switch {
 	case c.Api == APICLI && in.Agent != c.Name:
-		return registry.Invalid("deck: the models of connection %s run in %s, not %s", c.Name, c.Name, in.Agent)
+		return registry.Invalid("the models of connection %s run in %s, not %s", c.Name, c.Name, in.Agent)
 	case cli != nil && c.Api != APICLI:
-		return registry.Invalid("deck: a model of %s is on its own connection %s, not %s", in.Agent, in.Agent, c.Name)
+		return registry.Invalid("a model of %s is on its own connection %s, not %s", in.Agent, in.Agent, c.Name)
 	case cli == nil && acp.Agents[in.Agent].Start == nil:
-		return registry.Invalid("deck: no agent %q; deck knows %s", in.Agent, strings.Join(s.agentNames(), ", "))
+		return registry.Invalid("no agent %q; deck knows %s", in.Agent, strings.Join(s.agentNames(), ", "))
 	case !access.ProjectName.MatchString(in.Name) || s.builtinNamed(in.Name) != nil:
-		return registry.Invalid("deck: a model in an agent is a provider; name it with lowercase letters, digits and '-', not %q or a built-in provider", in.Name)
+		return registry.Invalid("a model in an agent is a provider; name it with lowercase letters, digits and '-', not %q or a built-in provider", in.Name)
 	case cli == nil && c.Api != "openai":
-		return registry.Invalid("deck: an agent runs a model of an OpenAI-compatible connection, not %s", c.Api)
+		return registry.Invalid("an agent runs a model of an OpenAI-compatible connection, not %s", c.Api)
 	case in.CheckMinutes < 0 || in.CheckMinutes > 60:
-		return registry.Invalid("deck: check_minutes is 1 to 60, or 0 for deck's own ceiling")
+		return registry.Invalid("check_minutes is 1 to 60, or 0 for deck's own ceiling")
 	}
 	n, err := s.St.Q.ModelInOtherWorkspace(ctx, db.ModelInOtherWorkspaceParams{Name: in.Name, WorkspaceID: workspace})
 	switch {
 	case err != nil:
 		return err
 	case n > 0:
-		return registry.Invalid("deck: another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
+		return registry.Invalid("another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
 	case cli != nil:
 		return s.checkCLI(ctx, workspace, cli, in)
 	case !installed(cmp.Or(s.ACPBinaries[in.Agent], in.Agent)):
-		return registry.Invalid("deck: %s is not installed on this machine", in.Agent)
+		return registry.Invalid("%s is not installed on this machine", in.Agent)
 	}
 	return nil
 }
@@ -237,7 +237,7 @@ func (s *Service) checkCLI(ctx context.Context, workspace int64, cli provider.Mo
 	}
 	list, err := cli.Models(ctx)
 	if err != nil {
-		return registry.Invalid("deck: %v", err)
+		return registry.Invalid("%v", err)
 	}
 	var names []string
 	for _, m := range list {
@@ -247,26 +247,26 @@ func (s *Service) checkCLI(ctx context.Context, workspace int64, cli provider.Mo
 		}
 		switch {
 		case m.Refused != "":
-			return registry.Invalid("deck: %s: %s", in.Model, m.Refused)
+			return registry.Invalid("%s: %s", in.Model, m.Refused)
 		case effort != "" && len(m.Efforts) == 0:
-			return registry.Invalid("deck: %s takes no effort in %s; leave effort out of options", in.Model, in.Agent)
+			return registry.Invalid("%s takes no effort in %s; leave effort out of options", in.Model, in.Agent)
 		case effort != "" && !slices.Contains(m.Efforts, effort):
-			return registry.Invalid("deck: %s takes effort %s in %s, not %q", in.Model, strings.Join(m.Efforts, ", "), in.Agent, effort)
+			return registry.Invalid("%s takes effort %s in %s, not %q", in.Model, strings.Join(m.Efforts, ", "), in.Agent, effort)
 		}
 		return nil
 	}
-	return registry.Invalid("deck: %s lists no model %q; it lists %s", in.Agent, in.Model, strings.Join(names, ", "))
+	return registry.Invalid("%s lists no model %q; it lists %s", in.Agent, in.Model, strings.Join(names, ", "))
 }
 
 // cliEffort is the effort of the options of a model of a CLI, the one field they take.
 func cliEffort(options string) (string, error) {
 	var o map[string]any
 	if err := json.Unmarshal([]byte(options), &o); err != nil {
-		return "", registry.Invalid("deck: options are a JSON object: %v", err)
+		return "", registry.Invalid("options are a JSON object: %v", err)
 	}
 	effort, ok := o["effort"].(string)
 	if len(o) > 1 || len(o) == 1 && !ok {
-		return "", registry.Invalid(`deck: the options of a model of a CLI are its effort alone, such as {"effort": "low"}`)
+		return "", registry.Invalid(`the options of a model of a CLI are its effort alone, such as {"effort": "low"}`)
 	}
 	return effort, nil
 }
@@ -296,7 +296,7 @@ func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelR
 			return err
 		}
 		if active > 0 {
-			return registry.Invalid("deck: %d processes still run on %s; stop them or let them finish first", active, in.Name)
+			return registry.Invalid("%d processes still run on %s; stop them or let them finish first", active, in.Name)
 		}
 		if old, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
 			if err := q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: "model", OwnerID: old.Model.ID}); err != nil {
@@ -315,7 +315,7 @@ func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelR
 		return nil, err
 	}
 	if n == 0 {
-		return nil, registry.NotFound("deck: no model %q", in.Name)
+		return nil, registry.NotFound("no model %q", in.Name)
 	}
 	return map[string]any{"removed": in.Name}, nil
 }

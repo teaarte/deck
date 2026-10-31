@@ -13,6 +13,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -31,7 +32,7 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 	}
 	q, err := s.St.Q.GetAsk(ctx, in.Ask)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && q.WorkspaceID != act.Workspace {
-		return nil, registry.NotFound("deck: no ask %d", in.Ask)
+		return nil, registry.NotFound("no ask %d", in.Ask)
 	}
 	if err != nil {
 		return nil, err
@@ -60,7 +61,7 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 // dismissExpired clears an expired confirmation on deny; the agent was already told it expired.
 func (s *Service) dismissExpired(ctx context.Context, q db.Ask, answer string) (any, error) {
 	if answer != "deny" && !strings.HasPrefix(answer, "deny:") {
-		return nil, registry.Conflict("deck: this confirmation expired and the agent was told no; it can only be cleared")
+		return nil, registry.Conflict("this confirmation expired and the agent was told no; it can only be cleared")
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, tq *db.Queries) error {
 		_, err := tq.DismissExpiredAsk(ctx, q.ID)
@@ -111,10 +112,10 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 		switch {
 		case errors.Is(err, ask.ErrNotOpen):
 			return nil, err
-		case q.Kind == ask.KindGrant && registry.Status(err) == 409 && rev != 0:
-			return nil, registry.Conflict("deck: the manifest changed while you answered; allow it again")
-		case q.Kind == ask.KindGrant && registry.Status(err) == 409:
-			return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
+		case q.Kind == ask.KindGrant && fault.Status(err) == 409 && rev != 0:
+			return nil, registry.Conflict("the manifest changed while you answered; allow it again")
+		case q.Kind == ask.KindGrant && fault.Status(err) == 409:
+			return nil, registry.Conflict("the manifest changed after this request; deny it and ask again")
 		}
 		s.LateAnswer(ctx, q)
 		if err != nil || q.Kind == ask.KindGrant {
@@ -141,21 +142,21 @@ func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask)
 	}
 	p, err := s.St.Q.GetProject(ctx, q.ProjectID.Int64)
 	if err != nil {
-		return registry.Invalid("deck: only a tool or command of a project can be allowed always")
+		return registry.Invalid("only a tool or command of a project can be allowed always")
 	}
 	local, ok := strings.CutPrefix(f.Call.Command, p.Name+".")
 	if strings.HasPrefix(f.Call.Command, registry.Deck("browser_")) {
 		u, err := url.Parse(f.Tool)
 		if err != nil || u.Host == "" {
-			return registry.Invalid("deck: deck could not tell the page of this browser action; allow it once or add the site to domains.act")
+			return registry.Invalid("deck could not tell the page of this browser action; allow it once or add the site to domains.act")
 		}
 		return s.AddToList(ctx, act, p, u.Host, "domains", "act")
 	}
 	if !ok {
-		return registry.Invalid("deck: only a tool or command of the project can be allowed always")
+		return registry.Invalid("only a tool or command of the project can be allowed always")
 	}
 	if c, err := s.Registry.Lookup(ctx, p.WorkspaceID, f.Call.Command); err == nil && c.Class != registry.External {
-		return registry.Invalid("deck: %s is %s: it runs without asking, so only external ones are allowed always", c.Name, c.Class)
+		return registry.Invalid("%s is %s: it runs without asking, so only external ones are allowed always", c.Name, c.Class)
 	}
 	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {

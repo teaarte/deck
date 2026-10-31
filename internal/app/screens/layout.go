@@ -118,10 +118,10 @@ type layoutSetIn struct {
 func (ss *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutSetIn) (any, error) {
 	var cards []card
 	if err := json.Unmarshal([]byte(in.Cards), &cards); err != nil {
-		return nil, registry.Invalid("deck: cards are a JSON list of {id, x, y, w, h}: %v", err)
+		return nil, registry.Invalid("cards are a JSON list of {id, x, y, w, h}: %v", err)
 	}
 	if in.Device == "" || in.Columns < 1 || in.Columns > 24 {
-		return nil, registry.Invalid("deck: a layout is of a device and of 1 to 24 columns")
+		return nil, registry.Invalid("a layout is of a device and of 1 to 24 columns")
 	}
 	names, err := ss.projectNames(ctx, act.Workspace)
 	if err != nil {
@@ -143,11 +143,11 @@ func (ss *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutS
 		case !ok:
 			continue
 		case seen[c.ID]:
-			return nil, registry.Invalid("deck: card %s is placed twice", c.ID)
+			return nil, registry.Invalid("card %s is placed twice", c.ID)
 		case c.W < 1 || c.H < 1 || c.X < 0 || c.Y < 0 || c.X+c.W > in.Columns:
-			return nil, registry.Invalid("deck: card %s does not fit %d columns", c.ID, in.Columns)
+			return nil, registry.Invalid("card %s does not fit %d columns", c.ID, in.Columns)
 		case c.ID == Today && c.W < min(2, in.Columns):
-			return nil, registry.Invalid("deck: Today takes two cells of a row at least")
+			return nil, registry.Invalid("Today takes two cells of a row at least")
 		}
 		seen[c.ID] = true
 		keep = append(keep, storedCard{ID: id, X: c.X, Y: c.Y, W: c.W, H: c.H})

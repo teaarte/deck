@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"deck2/internal/fault"
 	"deck2/internal/registry"
 )
 
@@ -15,17 +16,17 @@ var ModelCommand = registry.Deck("model_call")
 func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registry.Actor, connection, path string, body []byte) {
 	ask, err := AskModel(connection, r.Method, path, r.Header, body)
 	if err != nil {
-		http.Error(w, err.Error(), registry.Status(err))
+		http.Error(w, err.Error(), fault.Status(err))
 		return
 	}
 	hops, err := g.cfg.Models(r.Context(), act, ask)
 	if err != nil {
-		http.Error(w, err.Error(), registry.Status(err))
+		http.Error(w, err.Error(), fault.Status(err))
 		return
 	}
 	c, err := g.reg.Lookup(r.Context(), act.Workspace, ModelCommand)
 	if err != nil {
-		http.Error(w, err.Error(), registry.Status(err))
+		http.Error(w, err.Error(), fault.Status(err))
 		return
 	}
 	in := map[string]string{"connection": connection, "path": path}
@@ -41,11 +42,11 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 	input, _ := json.Marshal(in)
 	now, err := g.gate(WithRoute(r.Context(), ask, hops), act, c, act.ProjectID, input)
 	if err == nil && !now {
-		err = registry.Refuse("deck: a draft or a trial calls through $DECK_MODELS only the free models and those of the owner's machine its manifest names in models; this call was not made: the owner enables the project, or an agent asks with deck.model_call, which waits for the owner's yes")
+		err = registry.Refuse("a draft or a trial calls through $DECK_MODELS only the free models and those of the owner's machine its manifest names in models; this call was not made: the owner enables the project, or an agent asks with deck.model_call, which waits for the owner's yes")
 	}
 	if err != nil {
 		g.journal(r.Context(), act, act.ProjectID, ModelCommand, c.Class, "rejected", Canonical(input), err.Error())
-		http.Error(w, err.Error(), registry.Status(err))
+		http.Error(w, err.Error(), fault.Status(err))
 		return
 	}
 	ServeHops(w, r, path, body, ask.InBody, hops)

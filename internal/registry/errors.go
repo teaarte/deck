@@ -1,41 +1,39 @@
 package registry
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
-// Error carries the text shown verbatim to the owner and the agent, and an HTTP status.
+// Error is a call refused at its entry: who calls, what or the input; the text goes verbatim to the owner and the
+// agent. Any other failure of a call is a fault.F; fault.Status gives the HTTP status of either.
 type Error struct {
-	Status int
-	Text   string
+	status int
+	text   string
 }
 
-func (e *Error) Error() string { return e.Text }
+func (e *Error) Error() string { return e.text }
 
-func Refuse(format string, a ...any) error {
-	return &Error{http.StatusForbidden, fmt.Sprintf(format, a...)}
+// Refused is the HTTP status the call is refused with.
+func (e *Error) Refused() int { return e.status }
+
+// refused is a refusal with deck's prefix before its text.
+func refused(status int, format string, a ...any) error {
+	text := fmt.Sprintf(format, a...)
+	if !strings.HasPrefix(text, "deck: ") {
+		text = "deck: " + text
+	}
+	return &Error{status, text}
 }
+
+func Refuse(format string, a ...any) error { return refused(http.StatusForbidden, format, a...) }
 
 func Invalid(format string, a ...any) error {
-	return &Error{http.StatusUnprocessableEntity, fmt.Sprintf(format, a...)}
+	return refused(http.StatusUnprocessableEntity, format, a...)
 }
 
-func NotFound(format string, a ...any) error {
-	return &Error{http.StatusNotFound, fmt.Sprintf(format, a...)}
-}
+func NotFound(format string, a ...any) error { return refused(http.StatusNotFound, format, a...) }
 
 // Conflict is a call made on a state that changed or ended since the caller read it.
-func Conflict(format string, a ...any) error {
-	return &Error{http.StatusConflict, fmt.Sprintf(format, a...)}
-}
-
-// Status maps an invocation error to an HTTP status.
-func Status(err error) int {
-	var e *Error
-	if errors.As(err, &e) {
-		return e.Status
-	}
-	return http.StatusInternalServerError
-}
+func Conflict(format string, a ...any) error { return refused(http.StatusConflict, format, a...) }

@@ -94,11 +94,11 @@ func RefOf(d db.Document) Ref {
 
 func checkDocName(name string) error {
 	if name == "" || len(name) > 200 {
-		return registry.Invalid("deck: document name must be 1-200 characters")
+		return registry.Invalid("document name must be 1-200 characters")
 	}
 	for _, seg := range strings.Split(name, "/") {
 		if !docSegment.MatchString(seg) {
-			return registry.Invalid("deck: document name %q must be a relative path of letters, digits, '.', '_' and '-'", name)
+			return registry.Invalid("document name %q must be a relative path of letters, digits, '.', '_' and '-'", name)
 		}
 	}
 	return nil
@@ -108,13 +108,13 @@ func checkDocName(name string) error {
 // has already is no new revision, and changed is false.
 func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reason string) (d db.Document, n int64, changed bool, err error) {
 	if !slices.Contains(Kinds, kind) {
-		return db.Document{}, 0, false, registry.Invalid("deck: unknown document kind %q; one of %s", kind, strings.Join(Kinds, ", "))
+		return db.Document{}, 0, false, registry.Invalid("unknown document kind %q; one of %s", kind, strings.Join(Kinds, ", "))
 	}
 	if err := checkDocName(ref.Name); err != nil {
 		return db.Document{}, 0, false, err
 	}
 	if want, ok := reservedNames[ref.Name]; ok && ref.OwnerKind == "" && kind != want {
-		return db.Document{}, 0, false, registry.Invalid("deck: %q is reserved for the %s document", ref.Name, want)
+		return db.Document{}, 0, false, registry.Invalid("%q is reserved for the %s document", ref.Name, want)
 	}
 	if err := checkSkillText(kind, ref.Name, text); err != nil {
 		return db.Document{}, 0, false, err
@@ -124,7 +124,7 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 	}
 	d, err = q.FindDocument(ctx, ref.Find())
 	if err == nil && d.DeletedAt.Valid && author != registry.Owner && !ownMemory(ctx, q, ref, kind, author) {
-		return d, 0, false, registry.Conflict("deck: %s was deleted; the owner can bring it back, or save it under another name", ref.Name)
+		return d, 0, false, registry.Conflict("%s was deleted; the owner can bring it back, or save it under another name", ref.Name)
 	}
 	restored := err == nil && d.DeletedAt.Valid
 	if restored {
@@ -144,7 +144,7 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 	case err != nil:
 		return d, 0, false, err
 	case d.Kind != kind:
-		return d, 0, false, registry.Invalid("deck: document %q is a %s, not a %s", ref.Name, d.Kind, kind)
+		return d, 0, false, registry.Invalid("document %q is a %s, not a %s", ref.Name, d.Kind, kind)
 	}
 	if d.Current != 0 && !restored {
 		if r, err := q.GetRevision(ctx, db.GetRevisionParams{DocumentID: d.ID, N: d.Current}); err == nil && r.Text == text {
@@ -209,7 +209,7 @@ var reservedNames = map[string]string{ManifestName: KindManifest, PromptName: Ki
 func Get(ctx context.Context, q *db.Queries, id int64) (db.Document, error) {
 	d, err := q.GetDocument(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && d.DeletedAt.Valid {
-		return d, registry.NotFound("deck: no document %d", id)
+		return d, registry.NotFound("no document %d", id)
 	}
 	return d, err
 }
@@ -220,7 +220,7 @@ func Revision(ctx context.Context, q *db.Queries, d db.Document, n int64) (db.Do
 	}
 	r, err := q.GetRevision(ctx, db.GetRevisionParams{DocumentID: d.ID, N: n})
 	if errors.Is(err, sql.ErrNoRows) {
-		return r, registry.NotFound("deck: document %d has no revision %d", d.ID, n)
+		return r, registry.NotFound("document %d has no revision %d", d.ID, n)
 	}
 	return r, err
 }

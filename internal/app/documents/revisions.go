@@ -58,9 +58,9 @@ func (dc *Service) documentRevert(ctx context.Context, act registry.Actor, in do
 		if cur, err := q.GetDocument(ctx, d.ID); err != nil || cur.DeletedAt.Valid || in.IfRevision != 0 && cur.Current != in.IfRevision {
 			switch {
 			case err == nil && cur.DeletedAt.Valid:
-				err = registry.NotFound("deck: no document %d", d.ID)
+				err = registry.NotFound("no document %d", d.ID)
 			case err == nil:
-				err = registry.Conflict("deck: document %d is at revision %d now, not %d", d.ID, cur.Current, in.IfRevision)
+				err = registry.Conflict("document %d is at revision %d now, not %d", d.ID, cur.Current, in.IfRevision)
 			}
 			return err
 		}

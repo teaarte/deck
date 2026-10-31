@@ -64,7 +64,7 @@ func (s *Service) pressAsks(ctx context.Context, act registry.Actor, in processA
 		}
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, registry.NotFound("deck: no process %d", in.Process)
+		return nil, registry.NotFound("no process %d", in.Process)
 	}
 	if err != nil {
 		return nil, err

@@ -87,13 +87,13 @@ func (d settingDef) value(text string) (string, error) {
 	}
 	if d.options != nil {
 		if !slices.Contains(d.options, text) {
-			return "", registry.Invalid("deck: %s is one of %s", d.name, strings.Join(d.options, ", "))
+			return "", registry.Invalid("%s is one of %s", d.name, strings.Join(d.options, ", "))
 		}
 		return text, nil
 	}
 	n, err := strconv.ParseInt(text, 10, 64)
 	if err != nil || n < d.min || n > d.max {
-		return "", registry.Invalid("deck: %s is from %d to %d", d.name, d.min, d.max)
+		return "", registry.Invalid("%s is from %d to %d", d.name, d.min, d.max)
 	}
 	return strconv.FormatInt(n, 10), nil
 }
@@ -106,14 +106,14 @@ type settingsSetIn struct {
 func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settingsSetIn) (any, error) {
 	i := slices.IndexFunc(settingDefs, func(d settingDef) bool { return d.name == in.Name })
 	if i < 0 {
-		return nil, registry.Invalid("deck: no setting %q; deck.settings_list names them", in.Name)
+		return nil, registry.Invalid("no setting %q; deck.settings_list names them", in.Name)
 	}
 	v, err := settingDefs[i].value(in.Value)
 	if err != nil {
 		return nil, err
 	}
 	if v == "" {
-		return nil, registry.Invalid("deck: give %s a value", in.Name)
+		return nil, registry.Invalid("give %s a value", in.Name)
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: "setting:" + in.Name, Value: v})

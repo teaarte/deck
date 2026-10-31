@@ -220,7 +220,7 @@ func (s *Service) seen(ctx context.Context, act registry.Actor, in seenIn) (any,
 		return nil, err
 	}
 	if n == 0 {
-		return nil, registry.NotFound("deck: no failing check %s", in.Subject)
+		return nil, registry.NotFound("no failing check %s", in.Subject)
 	}
 	return map[string]any{"ok": true}, nil
 }

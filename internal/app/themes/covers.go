@@ -39,7 +39,7 @@ func (s *Service) draw(ctx context.Context, act registry.Actor, in drawIn) (any,
 	if in.Project != "" {
 		p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: in.Project})
 		if err != nil {
-			return nil, registry.NotFound("deck: no module %q", in.Project)
+			return nil, registry.NotFound("no module %q", in.Project)
 		}
 		names = []string{p.Name}
 	} else {
@@ -60,7 +60,7 @@ func (s *Service) draw(ctx context.Context, act registry.Actor, in drawIn) (any,
 			}
 		}
 		if len(names) == 0 {
-			return nil, registry.Invalid("deck: every module has its cover in this theme")
+			return nil, registry.Invalid("every module has its cover in this theme")
 		}
 	}
 	model := in.Model

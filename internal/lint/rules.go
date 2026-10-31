@@ -28,6 +28,8 @@ var rules = []rule{
 	// fault names its types deck.<kind> and home its files deck.db, neither a command.
 	{"deck", "a name of deck's command written out: take registry.Deck or registry.IsBuiltin", []string{"internal/", "cmd/"},
 		[]string{"internal/registry/", "internal/fault/", "internal/home/", "internal/lint/"}, deckName},
+	{"refusal", "a refusal built by hand: take a constructor of registry or a failure of fault", []string{"internal/", "cmd/"},
+		[]string{"internal/registry/"}, refusalLit},
 }
 
 // Rules finds what breaks the conventions of the Go code under root outside the exceptions, and the exceptions

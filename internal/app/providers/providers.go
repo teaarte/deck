@@ -78,22 +78,22 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, registry.NotFound("deck: no provider %q; add a model with an agent with deck.model_set", name)
+		return nil, registry.NotFound("no provider %q; add a model with an agent with deck.model_set", name)
 	}
 	if err != nil {
 		return nil, err
 	}
 	m, c := row.Model, row.Connection
 	if strings.ContainsAny(c.Url, "@?#") {
-		return nil, registry.Invalid("deck: the url of connection %q holds a user, query or key; set it again with deck.connection_set and key", c.Name)
+		return nil, registry.Invalid("the url of connection %q holds a user, query or key; set it again with deck.connection_set and key", c.Name)
 	}
 	if m.Agent == "" {
-		return nil, registry.Invalid("deck: model %q runs in no agent; set it again with deck.model_set and agent %s", name, strings.Join(s.agentNames(), " or "))
+		return nil, registry.Invalid("model %q runs in no agent; set it again with deck.model_set and agent %s", name, strings.Join(s.agentNames(), " or "))
 	}
 	if c.Api == APICLI {
 		cli, ok := s.builtinNamed(m.Agent).(provider.Modeled)
 		if !ok {
-			return nil, registry.Invalid("deck: model %q runs in %s, which this deck does not run", name, m.Agent)
+			return nil, registry.Invalid("model %q runs in %s, which this deck does not run", name, m.Agent)
 		}
 		effort, err := cliEffort(m.Options)
 		if err != nil {
@@ -105,7 +105,7 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 		NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
 		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, m, c), Plain: s.plainOf(c.Url + " " + m.Model)})
 	if err != nil {
-		return nil, registry.Invalid("deck: %v", err)
+		return nil, registry.Invalid("%v", err)
 	}
 	return a, nil
 }
@@ -191,7 +191,7 @@ func (s *Service) agentCommand(ctx context.Context, workspace int64, place strin
 	name, command, _ := strings.Cut(place, ".")
 	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
 	if err != nil {
-		return p, nil, registry.NotFound("deck: no project %q", name)
+		return p, nil, registry.NotFound("no project %q", name)
 	}
 	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
@@ -199,7 +199,7 @@ func (s *Service) agentCommand(ctx context.Context, workspace int64, place strin
 	}
 	cmd := m.Command(command)
 	if cmd == nil || cmd.Executor.Type != process.KindAgent {
-		return p, nil, registry.Invalid("deck: %s is not an agent command; only agent commands call a model", place)
+		return p, nil, registry.Invalid("%s is not an agent command; only agent commands call a model", place)
 	}
 	return p, cmd, nil
 }
@@ -214,7 +214,7 @@ func (s *Service) providerCheck(ctx context.Context, act registry.Actor, in prov
 		return nil, err
 	}
 	if _, ok := pv.(provider.SelfChecker); !ok {
-		return nil, registry.Invalid("deck: provider %q has no self-check", in.Provider)
+		return nil, registry.Invalid("provider %q has no self-check", in.Provider)
 	}
 	if !s.startCheck(in.Provider, true) {
 		if s.Ctx.Err() != nil {

@@ -22,10 +22,10 @@ type themeImageIn struct {
 // main color, or takes it off; the one it replaces goes to the trash.
 func (s *Service) themeImage(ctx context.Context, act registry.Actor, in themeImageIn) (any, error) {
 	if !s.Themed(ctx, act.Workspace, in.Theme) {
-		return nil, registry.NotFound("deck: no theme %q", in.Theme)
+		return nil, registry.NotFound("no theme %q", in.Theme)
 	}
 	if in.Remove == (strings.TrimSpace(in.File) != "") {
-		return nil, registry.Invalid("deck: give the picture in file, or remove")
+		return nil, registry.Invalid("give the picture in file, or remove")
 	}
 	m, err := access.Master(ctx, s.St.Q, act.Workspace)
 	if err != nil {

@@ -69,7 +69,7 @@ func Check(kind, answer string) error {
 	if !ok || slices.ContainsFunc(a.ok, func(o string) bool { return answer == o || strings.HasSuffix(o, ":") && strings.HasPrefix(answer, o) }) {
 		return nil
 	}
-	return registry.Invalid("deck: %s", a.say)
+	return registry.Invalid("%s", a.say)
 }
 
 // New stores an ask a process waits on in the caller's transaction; a zero expires is no deadline.
@@ -89,7 +89,7 @@ func Remark(ctx context.Context, q *db.Queries, processID int64, text, at string
 }
 
 // ErrNotOpen is what an answer to an ask that is answered or expired already gets.
-var ErrNotOpen = registry.Conflict("deck: this ask is already answered or expired")
+var ErrNotOpen = registry.Conflict("this ask is already answered or expired")
 
 // Stale is the answer deck gives itself to a frozen call whose subject changed since it was asked for.
 const Stale = "stale"

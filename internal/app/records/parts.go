@@ -15,6 +15,7 @@ import (
 	"deck2/internal/app/access"
 	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/paths"
@@ -55,7 +56,7 @@ func folderOf(c *manifest.Collection, r db.Record) (string, error) {
 
 // unplanned names the record whose expression stops a plan and why, for the owner to fix its data or the manifest.
 func unplanned(r db.Record, err error) error {
-	return registry.Invalid("deck: record %d with key %q of %s stops the deletion: %v; fix its data or the expression of the collection",
+	return registry.Invalid("record %d with key %q of %s stops the deletion: %v; fix its data or the expression of the collection",
 		r.ID, r.Key, r.Collection, err)
 }
 
@@ -256,7 +257,7 @@ func (s *Service) settle(ctx context.Context, open []db.Process, caller int64, o
 		if pr.ID == caller {
 			continue
 		}
-		if err := s.Stop(ctx, pr.ID, "stopped: its record was deleted", owner); err != nil && registry.Status(err) >= 500 {
+		if err := s.Stop(ctx, pr.ID, "stopped: its record was deleted", owner); err != nil && fault.Status(err) >= 500 {
 			slog.Error("stop a process of a deleted record", "process", pr.ID, "err", err)
 		}
 	}
@@ -270,7 +271,7 @@ func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Pro
 	err := s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
 		rec, err := q.GetRecord(ctx, id)
 		if errors.Is(err, sql.ErrNoRows) || err == nil && rec.ProjectID != p.ID {
-			return registry.NotFound("deck: record %d no longer exists", id)
+			return registry.NotFound("record %d no longer exists", id)
 		}
 		if err != nil {
 			return err
@@ -336,7 +337,7 @@ func mastersOnly(ctx context.Context, q *db.Queries, p db.Project, pl plan) (oth
 	}
 	for _, r := range pl.records {
 		if ok, err := mine(r.ProcessID); err != nil || !ok {
-			return "", cmp.Or(err, registry.Refuse("deck: only the owner deletes records of an enabled project; the master only those its own processes wrote, with all that belongs to them"))
+			return "", cmp.Or(err, registry.Refuse("only the owner deletes records of an enabled project; the master only those its own processes wrote, with all that belongs to them"))
 		}
 	}
 	if len(pl.folders) > 0 {

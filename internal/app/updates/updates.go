@@ -202,7 +202,7 @@ func (s *Service) version(context.Context, registry.Actor, struct{}) (versionOut
 
 func (s *Service) checkNow(ctx context.Context, _ registry.Actor, _ struct{}) (any, error) {
 	if s.Version == "dev" {
-		return nil, registry.Invalid("deck: this deck is built from source; it updates with git pull and go build")
+		return nil, registry.Invalid("this deck is built from source; it updates with git pull and go build")
 	}
 	_, _ = s.check(ctx)
 	return s.out(), nil
@@ -211,12 +211,12 @@ func (s *Service) checkNow(ctx context.Context, _ registry.Actor, _ struct{}) (a
 // update puts the latest release in place and restarts deck in it; a launcher updates what it runs itself.
 func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any, error) {
 	if s.Version == "dev" {
-		return nil, registry.Invalid("deck: this deck is built from source; it updates with git pull and go build")
+		return nil, registry.Invalid("this deck is built from source; it updates with git pull and go build")
 	}
 	s.mu.Lock()
 	if s.busy {
 		s.mu.Unlock()
-		return nil, registry.Conflict("deck: an update is under way")
+		return nil, registry.Conflict("an update is under way")
 	}
 	s.busy = true
 	s.mu.Unlock()
@@ -229,25 +229,25 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 		}
 	}()
 	if s.Image != "" {
-		return nil, registry.Invalid("deck: this deck runs from the image %s; a newer one comes as a newer image: docker compose pull && docker compose up -d", s.Image)
+		return nil, registry.Invalid("this deck runs from the image %s; a newer one comes as a newer image: docker compose pull && docker compose up -d", s.Image)
 	}
 	fs, err := s.check(ctx)
 	if err != nil {
-		return nil, registry.Refuse("deck: the latest release: %v", err)
+		return nil, registry.Refuse("the latest release: %v", err)
 	}
 	if !release.Newer(fs.Version, s.Version) {
-		return nil, registry.Invalid("deck: %s is the latest release", s.Version)
+		return nil, registry.Invalid("%s is the latest release", s.Version)
 	}
 	if s.Launcher {
 		if !s.Go(func(context.Context) { time.Sleep(time.Second); s.Restart(release.Restart{Launcher: true}) }) {
-			return nil, registry.Conflict("deck: deck is stopping; update it once it has started again")
+			return nil, registry.Conflict("deck is stopping; update it once it has started again")
 		}
 		done = true
 		return map[string]any{"version": fs.Version, "by": "launcher"}, nil
 	}
 	f, ok := fs.File(s.Variant)
 	if !ok {
-		return nil, registry.Refuse("deck: release %s has no build %s", fs.Version, s.Variant)
+		return nil, registry.Refuse("release %s has no build %s", fs.Version, s.Variant)
 	}
 	exe, err := s.Exe()
 	if err == nil {
@@ -272,7 +272,7 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 	}
 	if err := s.Snapshot(ctx); err != nil {
 		os.Remove(fresh)
-		return nil, registry.Refuse("deck: a snapshot before the update: %v", err)
+		return nil, registry.Refuse("a snapshot before the update: %v", err)
 	}
 	os.Remove(old)
 	if err := errors.Join(os.Chmod(fresh, 0o755), os.Link(exe, old),
@@ -280,13 +280,13 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 		os.Remove(fresh)
 		os.Remove(old)
 		os.Remove(s.Pending)
-		return nil, registry.Refuse("deck: keep the binary before the update: %v", err)
+		return nil, registry.Refuse("keep the binary before the update: %v", err)
 	}
 	if err := os.Rename(fresh, exe); err != nil {
 		os.Remove(fresh)
 		os.Remove(old)
 		os.Remove(s.Pending)
-		return nil, registry.Refuse("deck: put the update in place: %v", err)
+		return nil, registry.Refuse("put the update in place: %v", err)
 	}
 	syncDir(filepath.Dir(exe))
 	done = true
@@ -306,7 +306,7 @@ func sameFile(path string, f release.File) error {
 	h := sha256.New()
 	n, err := io.Copy(h, in)
 	if err != nil || n != f.Size || hex.EncodeToString(h.Sum(nil)) != f.SHA256 {
-		return registry.Refuse("deck: the sha256 of %s is not the one of the signed list", f.Name)
+		return registry.Refuse("the sha256 of %s is not the one of the signed list", f.Name)
 	}
 	return nil
 }
@@ -323,11 +323,11 @@ func syncDir(dir string) {
 func (s *Service) download(ctx context.Context, f release.File, path string) error {
 	resp, err := gateway.Download(ctx, s.Source.Domains, s.Source.URL+f.Name)
 	if err != nil {
-		return registry.Refuse("deck: download %s: %v", f.Name, err)
+		return registry.Refuse("download %s: %v", f.Name, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || resp.Request.URL.Scheme != "https" {
-		return registry.Refuse("deck: download %s: %s", f.Name, resp.Status)
+		return registry.Refuse("download %s: %s", f.Name, resp.Status)
 	}
 	os.Remove(path)
 	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o700)
@@ -344,11 +344,11 @@ func (s *Service) download(ctx context.Context, f release.File, path string) err
 	}
 	switch {
 	case err != nil:
-		return registry.Refuse("deck: download %s: %v", f.Name, err)
+		return registry.Refuse("download %s: %v", f.Name, err)
 	case n != f.Size:
-		return registry.Refuse("deck: %s is %d bytes, the signed list says %d", f.Name, n, f.Size)
+		return registry.Refuse("%s is %d bytes, the signed list says %d", f.Name, n, f.Size)
 	case hex.EncodeToString(h.Sum(nil)) != f.SHA256:
-		return registry.Refuse("deck: the sha256 of %s is not the one of the signed list", f.Name)
+		return registry.Refuse("the sha256 of %s is not the one of the signed list", f.Name)
 	}
 	return nil
 }
@@ -359,10 +359,10 @@ func runs(ctx context.Context, bin, version string) error {
 	defer cancel()
 	out, err := exec.CommandContext(ctx, bin, "-version").Output()
 	if err != nil {
-		return registry.Refuse("deck: the new binary does not run here: %v", err)
+		return registry.Refuse("the new binary does not run here: %v", err)
 	}
 	if got, _, _ := strings.Cut(strings.TrimSpace(string(out)), " "); got != version {
-		return registry.Refuse("deck: the new binary says it is %q, not %s", got, version)
+		return registry.Refuse("the new binary says it is %q, not %s", got, version)
 	}
 	return nil
 }

@@ -42,7 +42,7 @@ func makeBody(t manifest.HTTPTool, in, values map[string]any, resolve func(strin
 		}
 		ref, _ := in[m[1]].(string)
 		if ref == "" {
-			return nil, true, registry.Invalid("deck: %s needs the file field %s", t.Name, m[1])
+			return nil, true, registry.Invalid("%s needs the file field %s", t.Name, m[1])
 		}
 		f, err := resolve(ref)
 		return &f, true, err
@@ -52,7 +52,7 @@ func makeBody(t manifest.HTTPTool, in, values map[string]any, resolve func(strin
 		if raw, ok := kinds["multipart"]; ok {
 			var tmpl map[string]string
 			if err := json.Unmarshal(raw, &tmpl); err != nil {
-				return nil, registry.Invalid("deck: multipart body of %s: %v", t.Name, err)
+				return nil, registry.Invalid("multipart body of %s: %v", t.Name, err)
 			}
 			b := &body{}
 			for _, name := range slices.Sorted(maps.Keys(tmpl)) {
@@ -78,7 +78,7 @@ func makeBody(t manifest.HTTPTool, in, values map[string]any, resolve func(strin
 				return nil, err
 			}
 			if f == nil {
-				return nil, registry.Invalid("deck: the file body of %s must be exactly one file field", t.Name)
+				return nil, registry.Invalid("the file body of %s must be exactly one file field", t.Name)
 			}
 			return &body{file: f}, nil
 		}
@@ -87,7 +87,7 @@ func makeBody(t manifest.HTTPTool, in, values map[string]any, resolve func(strin
 	d := json.NewDecoder(bytes.NewReader(t.Body))
 	d.UseNumber()
 	if err := d.Decode(&tmpl); err != nil {
-		return nil, registry.Invalid("deck: body template of %s: %v", t.Name, err)
+		return nil, registry.Invalid("body template of %s: %v", t.Name, err)
 	}
 	b, _ := json.Marshal(fill(tmpl, values))
 	return &body{json: b}, nil

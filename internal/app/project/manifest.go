@@ -78,14 +78,14 @@ func (pj *Service) manifestSave(ctx context.Context, act registry.Actor, in mani
 func (pj *Service) edited(ctx context.Context, p db.Project, in *manifestSaveIn) error {
 	if len(in.Old) > 0 || len(in.New) > 0 {
 		if in.Manifest != "" {
-			return registry.Invalid("deck: give the whole manifest or old and new parts, not both")
+			return registry.Invalid("give the whole manifest or old and new parts, not both")
 		}
 		d, err := docs.Find(ctx, pj.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
 		if err != nil {
 			return err
 		}
 		if in.IfRevision != 0 && d.Current != in.IfRevision {
-			return registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, d.Current, in.IfRevision)
+			return registry.Conflict("the manifest of %s is at revision %d now, not %d", p.Name, d.Current, in.IfRevision)
 		}
 		r, err := docs.Revision(ctx, pj.St.Q, d, 0)
 		if err != nil {
@@ -97,7 +97,7 @@ func (pj *Service) edited(ctx context.Context, p db.Project, in *manifestSaveIn)
 		in.IfRevision = d.Current
 	}
 	if strings.TrimSpace(in.Manifest) == "" {
-		return registry.Invalid("deck: give the whole manifest JSON, or old and new parts of the current one")
+		return registry.Invalid("give the whole manifest JSON, or old and new parts of the current one")
 	}
 	return nil
 }
@@ -127,14 +127,14 @@ type parsed struct {
 func parseManifest(raw []byte, builtin bool) (parsed, error) {
 	m, err := manifest.Parse(raw)
 	if err != nil {
-		return parsed{}, registry.Invalid("deck: %v", err)
+		return parsed{}, registry.Invalid("%v", err)
 	}
 	if w := m.Warnings(); len(w) > 0 {
-		return parsed{}, registry.Invalid("deck: %s", strings.Join(w, "\n"))
+		return parsed{}, registry.Invalid("%s", strings.Join(w, "\n"))
 	}
 	for _, t := range m.Triggers {
 		if t.On != "" && !builtin {
-			return parsed{}, registry.Invalid("deck: a trigger on %s belongs to the built-in project %s", t.On, master.Name)
+			return parsed{}, registry.Invalid("a trigger on %s belongs to the built-in project %s", t.On, master.Name)
 		}
 	}
 	return parsed{m: m, text: []byte(manifest.Canonical(string(m.Text())))}, nil
@@ -154,7 +154,7 @@ func (pj *Service) CreateProject(ctx context.Context, act registry.Actor, name s
 func (pj *Service) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
 	more func(ctx context.Context, q *db.Queries, p db.Project) error) (db.Project, error) {
 	if !access.ProjectName.MatchString(name) || name == registry.Builtin {
-		return db.Project{}, registry.Invalid("deck: project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
+		return db.Project{}, registry.Invalid("project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
 	}
 	pm, err := parseManifest(raw, false)
 	if err != nil {
@@ -163,7 +163,7 @@ func (pj *Service) createProject(ctx context.Context, act registry.Actor, name s
 	var p db.Project
 	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
-			return registry.Invalid("deck: project %q already exists", name)
+			return registry.Invalid("project %q already exists", name)
 		}
 		if err := checkKeys(ctx, q, act.Workspace, pm.m); err != nil {
 			return err
@@ -266,7 +266,7 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 			return err
 		}
 		if ifRevision != 0 && cur.Current != ifRevision {
-			return registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, cur.Current, ifRevision)
+			return registry.Conflict("the manifest of %s is at revision %d now, not %d", p.Name, cur.Current, ifRevision)
 		}
 		w, err := pj.widens(ctx, q, act, p.ID, pm.m)
 		if err != nil || len(w) > 0 {

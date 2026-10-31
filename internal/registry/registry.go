@@ -251,10 +251,10 @@ func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*C
 	}
 	if hint := CommandName(name); hint != "" {
 		if _, err := r.Lookup(ctx, workspace, hint); err == nil {
-			return nil, NotFound("deck: unknown command %q; commands are named by project, as %q", name, hint)
+			return nil, NotFound("unknown command %q; commands are named by project, as %q", name, hint)
 		}
 	}
-	return nil, NotFound("deck: unknown command %q", name)
+	return nil, NotFound("unknown command %q", name)
 }
 
 // CommandName is the command name a tool name stands for, as an agent sees it: records_list, code__run.
@@ -277,7 +277,7 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 	if a.Kind == Owner {
 		a.Allows, input = allows(input)
 	} else if got, _ := allows(input); got != "" {
-		return nil, Invalid("deck: %s comes only with a press of the owner", AllowsKey)
+		return nil, Invalid("%s comes only with a press of the owner", AllowsKey)
 	}
 	c, input, err := r.Check(ctx, a, name, input)
 	if err != nil {
@@ -303,7 +303,7 @@ func allows(input json.RawMessage) (string, json.RawMessage) {
 func (r *Registry) Check(ctx context.Context, a Actor, name string, input json.RawMessage) (*Command, json.RawMessage, error) {
 	c, input, err := r.Resolve(ctx, a, name, input)
 	if err == nil && a.Kind != Owner && c.Class != Internal && !a.Cleared(c.Name) {
-		err = Refuse("deck: %s is %s; only the gateway calls it for %s", c.Name, c.Class, a.Kind)
+		err = Refuse("%s is %s; only the gateway calls it for %s", c.Name, c.Class, a.Kind)
 	}
 	return c, input, err
 }
@@ -329,10 +329,10 @@ func (c *Command) Validate(input json.RawMessage) (json.RawMessage, error) {
 	input = c.jsonText(input)
 	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(input))
 	if err != nil {
-		return nil, Invalid("deck: input of %s is not JSON: %v", c.Name, err)
+		return nil, Invalid("input of %s is not JSON: %v", c.Name, err)
 	}
 	if err := c.schema.Validate(v); err != nil {
-		return nil, Invalid("deck: input of %s: %s; deck.command_describe gives its parameters", c.Name, schemaProblems(err))
+		return nil, Invalid("input of %s: %s; deck.command_describe gives its parameters", c.Name, schemaProblems(err))
 	}
 	return input, nil
 }
@@ -408,19 +408,19 @@ func (r *Registry) reachable(a Actor, c *Command) error {
 		if a.Run != "" {
 			who += " (" + a.Run + ")"
 		}
-		return Refuse("deck: %s cannot be called by %s; only %s may call it", c.Name, who, strings.Join(c.Callers, ", "))
+		return Refuse("%s cannot be called by %s; only %s may call it", c.Name, who, strings.Join(c.Callers, ", "))
 	}
 	if c.ProjectID != 0 && (a.Kind == Agent || a.Kind == Trigger) && a.ProjectID != c.ProjectID {
-		return Refuse("deck: %s belongs to another project", c.Name)
+		return Refuse("%s belongs to another project", c.Name)
 	}
 	if a.Kind == Token && !Permits(a.Commands, c.Name) {
-		return Refuse("deck: this automation token may not call %s", c.Name)
+		return Refuse("this automation token may not call %s", c.Name)
 	}
 	if a.Commands != nil && !Permits(a.Commands, c.Name) {
-		return Refuse("deck: the command of this agent does not list %s in its calls", c.Name)
+		return Refuse("the command of this agent does not list %s in its calls", c.Name)
 	}
 	if a.Trial && c.Class != Internal && c.Fingerprint == nil {
-		return Refuse("deck: trial run: %s is %s, so it was declined", c.Name, c.Class)
+		return Refuse("trial run: %s is %s, so it was declined", c.Name, c.Class)
 	}
 	return nil
 }
@@ -454,7 +454,7 @@ func Typed[T any](f func(ctx context.Context, a Actor, in T) (any, error)) Handl
 	return func(ctx context.Context, a Actor, raw json.RawMessage) (any, error) {
 		var in T
 		if err := json.Unmarshal(raw, &in); err != nil {
-			return nil, Invalid("deck: %v", err)
+			return nil, Invalid("%v", err)
 		}
 		return f(ctx, a, in)
 	}

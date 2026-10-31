@@ -106,7 +106,7 @@ func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry
 // deletes only drafts.
 func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) error {
 	if p.Builtin == 1 {
-		return registry.Invalid("deck: %s is built into deck; it cannot be deleted", p.Name)
+		return registry.Invalid("%s is built into deck; it cannot be deleted", p.Name)
 	}
 	if act.Kind != registry.Owner {
 		cur, err := q.GetProject(ctx, p.ID)
@@ -114,7 +114,7 @@ func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Ac
 			return err
 		}
 		if cur.Status != store.ProjectDraft {
-			return registry.Refuse("deck: %s is not a draft; only the owner deletes an enabled project", p.Name)
+			return registry.Refuse("%s is not a draft; only the owner deletes an enabled project", p.Name)
 		}
 		d, err := docs.Find(ctx, q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
 		if err != nil {
@@ -125,7 +125,7 @@ func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Ac
 			return err
 		}
 		if first.Author != act.Author() {
-			return registry.Refuse("deck: %s is a draft of %s; the master deletes only its own drafts, the owner any", p.Name, first.Author)
+			return registry.Refuse("%s is a draft of %s; the master deletes only its own drafts, the owner any", p.Name, first.Author)
 		}
 	}
 	open, err := q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
@@ -133,7 +133,7 @@ func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Ac
 		return err
 	}
 	if len(open) > 0 {
-		return registry.Invalid("deck: %d processes of %s are still open; stop them first", len(open), p.Name)
+		return registry.Invalid("%d processes of %s are still open; stop them first", len(open), p.Name)
 	}
 	others, err := q.ListWorkspaceProjects(ctx, p.WorkspaceID)
 	if err != nil {
@@ -150,7 +150,7 @@ func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Ac
 		}
 	}
 	if len(readers) > 0 {
-		return registry.Invalid("deck: %s reads %s; take it out of their reads first", strings.Join(readers, ", "), p.Name)
+		return registry.Invalid("%s reads %s; take it out of their reads first", strings.Join(readers, ", "), p.Name)
 	}
 	return nil
 }
@@ -166,7 +166,7 @@ func (pj *Service) projectDeleteCommands() []*registry.Command {
 // draftOfMaster lets the master delete a draft without the owner and refuses it any other project.
 func (pj *Service) draftOfMaster(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
 	if act.Kind != registry.Master {
-		return false, registry.Refuse("deck: only the owner and the master delete a project")
+		return false, registry.Refuse("only the owner and the master delete a project")
 	}
 	var in projectDeleteIn
 	if err := json.Unmarshal(input, &in); err != nil {
@@ -177,7 +177,7 @@ func (pj *Service) draftOfMaster(ctx context.Context, act registry.Actor, input 
 		return false, err
 	}
 	if p.Status != store.ProjectDraft {
-		return false, registry.Refuse("deck: %s is not a draft; only the owner deletes an enabled project", p.Name)
+		return false, registry.Refuse("%s is not a draft; only the owner deletes an enabled project", p.Name)
 	}
 	return true, nil
 }

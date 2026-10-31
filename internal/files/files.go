@@ -63,22 +63,22 @@ func (r Ref) Open() (*os.File, int64, error) {
 func Resolve(ctx context.Context, h home.Layout, q *db.Queries, project, process int64, ref string) (Ref, error) {
 	if rest, ok := strings.CutPrefix(ref, Results); ok {
 		if process == 0 {
-			return Ref{}, registry.Invalid("deck: %q is a results file, which only a process has", ref)
+			return Ref{}, registry.Invalid("%q is a results file, which only a process has", ref)
 		}
 		root := h.Results(process)
 		path, err := Inside(root, rest)
 		if err != nil {
-			return Ref{}, registry.Invalid("deck: %q is not a file in the results folder of this process", ref)
+			return Ref{}, registry.Invalid("%q is not a file in the results folder of this process", ref)
 		}
 		return Ref{Path: path, Name: filepath.Base(path), Type: typeOf(path), root: root, rel: filepath.Clean("/" + rest)[1:]}, nil
 	}
 	id, err := strconv.ParseInt(ref, 10, 64)
 	if err != nil || id <= 0 {
-		return Ref{}, registry.Invalid("deck: a file is a file id or results/<name>, not %q", ref)
+		return Ref{}, registry.Invalid("a file is a file id or results/<name>, not %q", ref)
 	}
 	f, err := q.GetFile(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && f.ProjectID != project {
-		return Ref{}, registry.NotFound("deck: no file %d in this project", id)
+		return Ref{}, registry.NotFound("no file %d in this project", id)
 	}
 	if err != nil {
 		return Ref{}, err

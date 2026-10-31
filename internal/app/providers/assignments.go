@@ -156,19 +156,19 @@ func (s *Service) planned(ctx context.Context, workspace int64, in assignmentSet
 				continue
 			}
 			if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
-				return 0, nil, registry.Invalid("deck: provider %s does not fit %s.%s: it lacks %s", name, in.Project, in.Command, strings.Join(missing, ", "))
+				return 0, nil, registry.Invalid("provider %s does not fit %s.%s: it lacks %s", name, in.Project, in.Command, strings.Join(missing, ", "))
 			}
 			continue
 		}
 		row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
 		if err != nil {
-			return 0, nil, registry.NotFound("deck: no model %q", name)
+			return 0, nil, registry.NotFound("no model %q", name)
 		}
 		if row.Connection.Api == APICLI {
-			return 0, nil, registry.Invalid("deck: model %s runs agent turns in %s; assign it to agent commands", name, row.Model.Agent)
+			return 0, nil, registry.Invalid("model %s runs agent turns in %s; assign it to agent commands", name, row.Model.Agent)
 		}
 		if row.Model.Kind != in.Role {
-			return 0, nil, registry.Invalid("deck: model %s is of kind %s, not %s", name, row.Model.Kind, in.Role)
+			return 0, nil, registry.Invalid("model %s is of kind %s, not %s", name, row.Model.Kind, in.Role)
 		}
 	}
 	return project, slices.Compact(slices.Clone(in.Models)), nil
@@ -177,13 +177,13 @@ func (s *Service) planned(ctx context.Context, workspace int64, in assignmentSet
 // place is the project of an assignment and, for agent turns of a command, the command; a removal needs none.
 func (s *Service) place(ctx context.Context, workspace int64, in assignmentSetIn) (int64, *manifest.Command, error) {
 	if in.Command != "" && in.Project == "" {
-		return 0, nil, registry.Invalid("deck: an assignment of a command names its project too")
+		return 0, nil, registry.Invalid("an assignment of a command names its project too")
 	}
 	var project int64
 	if in.Project != "" {
 		p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: in.Project})
 		if err != nil {
-			return 0, nil, registry.NotFound("deck: no project %q", in.Project)
+			return 0, nil, registry.NotFound("no project %q", in.Project)
 		}
 		project = p.ID
 	}
@@ -213,7 +213,7 @@ func (s *Service) assignmentCommand() *registry.Command {
 		return false, err
 	}
 	c.Free = func(context.Context, registry.Actor, json.RawMessage) (bool, error) {
-		return false, registry.Refuse("deck: a trial or a draft does not change the models of deck; propose the assignment once the module is enabled")
+		return false, registry.Refuse("a trial or a draft does not change the models of deck; propose the assignment once the module is enabled")
 	}
 	c.Fingerprint = func(ctx context.Context, workspace, _ int64, input json.RawMessage) string {
 		in, err := assignmentInput(input)
@@ -347,7 +347,7 @@ func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *m
 			var refused *registry.Error
 			_, fits, _, err := s.fitting(ctx, project, &c)
 			if errors.As(err, &refused) {
-				out[c.Name] = refused.Text
+				out[c.Name] = refused.Error()
 			} else if err == nil && !m.NoNetwork && c.Executor.Calls != nil && registry.Permits(c.Executor.Calls, registry.Deck("web_search")) {
 				// The first model that fits, as health tells of the assignment and not of who is up now.
 				search, _ := Assigned(ctx, s.St.Q, workspace, project, c.Name, RoleSearch)

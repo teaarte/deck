@@ -46,7 +46,7 @@ func (s *Service) fileRead(ctx context.Context, act registry.Actor, in fileReadI
 	}
 	// The master's own calls would carry whole files into its context; its shots read them in deck's browser.
 	if act.Kind == registry.Master && !act.Looks {
-		return resource{}, registry.Refuse("deck: file_read is for custom blocks; a file of the data folder reads with data_read")
+		return resource{}, registry.Refuse("file_read is for custom blocks; a file of the data folder reads with data_read")
 	}
 	u, err := url.Parse(in.URI)
 	rest := ""
@@ -54,7 +54,7 @@ func (s *Service) fileRead(ctx context.Context, act registry.Actor, in fileReadI
 		rest = strings.TrimPrefix(u.Path, "/")
 	}
 	if err != nil || u.Scheme != "deck" || u.Opaque != "" || u.User != nil || !filepath.IsLocal(rest) {
-		return resource{}, registry.Invalid("deck: a custom block reads deck://file/<id> or deck://data/<path> of its module, not %q", in.URI)
+		return resource{}, registry.Invalid("a custom block reads deck://file/<id> or deck://data/<path> of its module, not %q", in.URI)
 	}
 	out := resource{URI: in.URI}
 	var f *os.File
@@ -62,23 +62,23 @@ func (s *Service) fileRead(ctx context.Context, act registry.Actor, in fileReadI
 	case "file":
 		id, err := strconv.ParseInt(rest, 10, 64)
 		if err != nil {
-			return resource{}, registry.Invalid("deck: a stored file is deck://file/<id>, not %q", in.URI)
+			return resource{}, registry.Invalid("a stored file is deck://file/<id>, not %q", in.URI)
 		}
 		row, err := s.St.Q.GetFile(ctx, id)
 		if err != nil || row.ProjectID != p.ID {
-			return resource{}, registry.NotFound("deck: no file %d in %s", id, p.Name)
+			return resource{}, registry.NotFound("no file %d in %s", id, p.Name)
 		}
 		if f, err = os.Open(s.Home.File(row.ID)); err != nil {
-			return resource{}, registry.NotFound("deck: no file %d in %s", id, p.Name)
+			return resource{}, registry.NotFound("no file %d in %s", id, p.Name)
 		}
 		out.Name, out.Type = row.Name, row.Type
 	case "data":
 		if f, err = s.dataFile(p.ID, rest); err != nil {
-			return resource{}, registry.NotFound("deck: no file %q in the data folder of %s", rest, p.Name)
+			return resource{}, registry.NotFound("no file %q in the data folder of %s", rest, p.Name)
 		}
 		out.Name, out.Type = filepath.Base(rest), fileType(rest)
 	default:
-		return resource{}, registry.Invalid("deck: a custom block reads deck://file/<id> or deck://data/<path> of its module, not %q", in.URI)
+		return resource{}, registry.Invalid("a custom block reads deck://file/<id> or deck://data/<path> of its module, not %q", in.URI)
 	}
 	defer f.Close()
 	select {
@@ -92,14 +92,14 @@ func (s *Service) fileRead(ctx context.Context, act registry.Actor, in fileReadI
 		return resource{}, err
 	}
 	if out.Size = fi.Size(); out.Size > resourceLimit {
-		return resource{}, registry.Invalid("deck: %s is %d MB; a custom block reads files up to 200 MB", out.Name, out.Size>>20)
+		return resource{}, registry.Invalid("%s is %d MB; a custom block reads files up to 200 MB", out.Name, out.Size>>20)
 	}
 	b, err := io.ReadAll(io.LimitReader(f, resourceLimit+1))
 	if err != nil {
 		return resource{}, err
 	}
 	if len(b) > resourceLimit {
-		return resource{}, registry.Invalid("deck: %s grew past 200 MB; a custom block reads files up to 200 MB", out.Name)
+		return resource{}, registry.Invalid("%s grew past 200 MB; a custom block reads files up to 200 MB", out.Name)
 	}
 	out.Size, out.Blob = int64(len(b)), base64.StdEncoding.EncodeToString(b)
 	return out, nil

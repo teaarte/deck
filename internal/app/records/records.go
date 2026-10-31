@@ -16,6 +16,7 @@ import (
 
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -74,7 +75,7 @@ func (s *Service) recordsList(ctx context.Context, act registry.Actor, in record
 	}
 	c := m.Collection(in.Collection)
 	if c == nil {
-		return nil, registry.Invalid("deck: unknown collection %q", in.Collection)
+		return nil, registry.Invalid("unknown collection %q", in.Collection)
 	}
 	recs, err := s.St.Q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: in.Collection})
 	if err != nil {
@@ -83,12 +84,12 @@ func (s *Service) recordsList(ctx context.Context, act registry.Actor, in record
 	if where := strings.TrimSpace(in.Where); where != "" {
 		if strings.HasPrefix(where, "{") {
 			if where, err = equality(where); err != nil {
-				return nil, registry.Invalid("deck: where: %v", err)
+				return nil, registry.Invalid("where: %v", err)
 			}
 		}
 		keep, err := manifest.Filter(where)
 		if err != nil {
-			return nil, registry.Invalid("deck: where: %v", err)
+			return nil, registry.Invalid("where: %v", err)
 		}
 		kept := recs[:0]
 		for _, r := range recs {
@@ -99,7 +100,7 @@ func (s *Service) recordsList(ctx context.Context, act registry.Actor, in record
 			env["_id"], env["_updated"] = r.ID, r.UpdatedAt
 			ok, err := keep(env)
 			if err != nil {
-				return nil, registry.Invalid("deck: where: record %d: %v", r.ID, err)
+				return nil, registry.Invalid("where: record %d: %v", r.ID, err)
 			}
 			if ok {
 				kept = append(kept, r)
@@ -194,14 +195,14 @@ func (s *Service) collectionDelete(ctx context.Context, act registry.Actor, in c
 func (s *Service) recordOf(ctx context.Context, act registry.Actor, id int64) (db.Record, db.Project, error) {
 	rec, err := s.St.Q.GetRecord(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return rec, db.Project{}, registry.NotFound("deck: no record %d", id)
+		return rec, db.Project{}, registry.NotFound("no record %d", id)
 	}
 	if err != nil {
 		return rec, db.Project{}, err
 	}
 	p, err := s.St.Q.GetProject(ctx, rec.ProjectID)
 	if err == nil && p.WorkspaceID != act.Workspace {
-		err = registry.NotFound("deck: no record %d", id)
+		err = registry.NotFound("no record %d", id)
 	}
 	return rec, p, err
 }
@@ -216,7 +217,7 @@ func (s *Service) recordGet(ctx context.Context, act registry.Actor, in recordGe
 		return View{}, err
 	}
 	if err := access.MayRead(ctx, s.St.Q, act, p, rec.Collection, ""); err != nil {
-		return View{}, registry.NotFound("deck: no record %d", in.Record)
+		return View{}, registry.NotFound("no record %d", in.Record)
 	}
 	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
@@ -235,12 +236,12 @@ type recordDeleteIn struct {
 // draft only the owner does, by a button or by hand, and the master what its own processes wrote.
 func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recordDeleteIn) (any, error) {
 	rec, err := s.St.Q.GetRecord(ctx, in.Record)
-	rec, p, err := access.Owned(ctx, s.St.Q, act, rec, err, rec.ProjectID, registry.NotFound("deck: no record %d", in.Record))
+	rec, p, err := access.Owned(ctx, s.St.Q, act, rec, err, rec.ProjectID, registry.NotFound("no record %d", in.Record))
 	var out any
 	if err == nil {
 		out, err = s.deleteRecord(ctx, act, p, in.Record)
 	}
-	if _, replay := gateway.Approved(ctx); replay && registry.Status(err) == http.StatusNotFound {
+	if _, replay := gateway.Approved(ctx); replay && fault.Status(err) == http.StatusNotFound {
 		return map[string]any{"ok": true, "gone": "the record was deleted before the owner's yes"}, nil
 	}
 	return out, err

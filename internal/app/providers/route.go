@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -31,7 +32,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 	}
 	var picks []pick
 	notModel := func() error {
-		return registry.Refuse("deck: %s %s is not a call of a model, such as POST chat/completions; another API of a service goes through an HTTP tool of the manifest with its own secret",
+		return registry.Refuse("%s %s is not a call of a model, such as POST chat/completions; another API of a service goes through an HTTP tool of the manifest with its own secret",
 			ask.Method, ask.Path)
 	}
 	if role, ok := strings.CutPrefix(asked, "@"); ok {
@@ -39,10 +40,10 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 			return nil, notModel()
 		}
 		if role == RoleSearch && ask.Method != "" {
-			return nil, registry.Invalid("deck: @search is the web search of agents, deck.web_search, not a model to call")
+			return nil, registry.Invalid("@search is the web search of agents, deck.web_search, not a model to call")
 		}
 		if !slices.Contains(roles, role) || agentic(role) {
-			return nil, registry.Invalid("deck: no role %q to call; a role is @text, @image, @tts, @stt or @music", asked)
+			return nil, registry.Invalid("no role %q to call; a role is @text, @image, @tts, @stt or @music", asked)
 		}
 		names, err := Assigned(ctx, s.St.Q, act.Workspace, act.ProjectID, command, role)
 		if err != nil {
@@ -56,20 +57,20 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 		}
 		if len(picks) == 0 {
 			if len(names) > 0 {
-				return nil, registry.Invalid("deck: no model of %s is on connection %s; call %s through the path @ instead", asked, connection, asked)
+				return nil, registry.Invalid("no model of %s is on connection %s; call %s through the path @ instead", asked, connection, asked)
 			}
 			if role == RoleSearch {
-				return nil, registry.Invalid("deck: %s", noSearch)
+				return nil, registry.Invalid("%s", noSearch)
 			}
-			return nil, registry.Invalid("deck: no model is assigned to %s; the owner picks one in Settings → Models, or in the settings of the module", role)
+			return nil, registry.Invalid("no model is assigned to %s; the owner picks one in Settings → Models, or in the settings of the module", role)
 		}
 	} else {
 		c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: connection})
 		if err != nil {
-			return nil, registry.NotFound("deck: no connection %q; deck.models_list names the connections", connection)
+			return nil, registry.NotFound("no connection %q; deck.models_list names the connections", connection)
 		}
 		if c.Api == APICLI {
-			return nil, registry.Invalid("deck: connection %s is the %s CLI; its models run agent turns, not calls of a model", connection, connection)
+			return nil, registry.Invalid("connection %s is the %s CLI; its models run agent turns, not calls of a model", connection, connection)
 		}
 		if ask.Path != "" && c.Api != "raw" && !gateway.ModelPath(ask.Method, ask.Path) {
 			return nil, notModel()
@@ -82,7 +83,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 		}
 		switch {
 		case ask.ByHeader && c.Api != "raw":
-			return nil, registry.Refuse("deck: connection %s speaks the %s API, so the request names its model itself; the header %s is for a raw service whose API has no model field",
+			return nil, registry.Refuse("connection %s speaks the %s API, so the request names its model itself; the header %s is for a raw service whose API has no model field",
 				connection, c.Api, gateway.DeckModel)
 		case asked == "" && c.Api != "raw" && gateway.Polls(ask.Method, ask.Path):
 			picks = append(picks, pick{db.Model{ConnectionID: c.ID, Name: c.Name}, c})
@@ -91,7 +92,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 			if asked != "" {
 				what = strconv.Quote(asked)
 			}
-			return nil, registry.Refuse("deck: %s is not in deck's settings as a model of connection %s: a module calls only the models the owner added; name one in model (in the header %s when a raw service has no such field), or propose it with deck.model_set, which waits for the owner's button",
+			return nil, registry.Refuse("%s is not in deck's settings as a model of connection %s: a module calls only the models the owner added; name one in model (in the header %s when a raw service has no such field), or propose it with deck.model_set, which waits for the owner's button",
 				what, connection, gateway.DeckModel)
 		default:
 			picks = append(picks, pick{row.Model, c})
@@ -211,7 +212,7 @@ func (s *Service) manifestNames(ctx context.Context, act registry.Actor, input j
 		return nil
 	}
 	p, _ := s.St.Q.GetProject(ctx, act.ProjectID)
-	return registry.Refuse("deck: project %s does not name %s in the models of its manifest; add %q to models, and the owner grants it", p.Name, use, use)
+	return registry.Refuse("project %s does not name %s in the models of its manifest; add %q to models, and the owner grants it", p.Name, use, use)
 }
 
 // free says a call of a model costs nothing: every model it may reach is free or on the owner's own hardware, and
@@ -252,7 +253,7 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 				return
 			}
 			if _, err := gateway.AskModel(c.Name, r.Method, r.URL.Path, r.Header, body); err != nil {
-				http.Error(w, err.Error(), registry.Status(err))
+				http.Error(w, err.Error(), fault.Status(err))
 				return
 			}
 			if !gateway.ModelPath(r.Method, r.URL.Path) {

@@ -38,11 +38,11 @@ func bindInput(ctx context.Context, q *db.Queries, cmd *manifest.Command, projec
 		for _, v := range values(input[name]) {
 			id, err := strconv.ParseInt(fmt.Sprint(v), 10, 64)
 			if err != nil {
-				return registry.Invalid("deck: input field %s is a file id, not %v", name, v)
+				return registry.Invalid("input field %s is a file id, not %v", name, v)
 			}
 			f, err := q.GetFile(ctx, id)
 			if errors.Is(err, sql.ErrNoRows) || err == nil && f.ProjectID != projectID {
-				return registry.NotFound("deck: input field %s: no file %d in this project", name, id)
+				return registry.NotFound("input field %s: no file %d in this project", name, id)
 			}
 			if err != nil {
 				return err

@@ -123,7 +123,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call fun
 	}
 	if err != nil {
 		r.clearRun(dir)
-		r.finish(bg, id, StateError, "", false, callFault(err, tool))
+		r.finish(bg, id, StateError, "", false, fault.OfCall(err))
 		return
 	}
 	if _, ok := out.(gateway.Waiting); ok {
@@ -190,9 +190,4 @@ func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) 
 	}
 	r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.DeckInternal, "deck: the tool call got no decision"))
 	return nil
-}
-
-// callFault is the failure of a gateway call by the status it answered; a tool's upstream is the network, not a model.
-func callFault(err error, tool bool) *fault.F {
-	return fault.New(fault.OfStatus(registry.Status(err), !tool), err.Error())
 }

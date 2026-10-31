@@ -33,11 +33,11 @@ func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h
 		return nil, nil, err
 	}
 	if resp.StatusCode >= 400 {
-		err := registry.Invalid("deck: %s answered HTTP %d: %s", h.Connection, resp.StatusCode, untrusted.Cut(string(raw), 2000))
-		if st := fault.ModelStatus(resp.StatusCode); fault.Whose(fault.OfStatus(st, true)) == fault.OfModel {
-			err.(*registry.Error).Status = st
+		text := fmt.Sprintf("deck: %s answered HTTP %d: %s", h.Connection, resp.StatusCode, untrusted.Cut(string(raw), 2000))
+		if t := fault.OfStatus(fault.ModelStatus(resp.StatusCode), true); fault.Whose(t) == fault.OfModel {
+			return nil, nil, fault.New(t, text)
 		}
-		return nil, nil, err
+		return nil, nil, registry.Invalid("%s", text)
 	}
 	return nil, raw, nil
 }

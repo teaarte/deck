@@ -123,7 +123,7 @@ func (ch *Service) replyCommand(ctx context.Context, masterID int64) (*manifest.
 	if cmd := m.Command(m.EventCommand(manifest.OnMessage)); cmd != nil {
 		return cmd, nil
 	}
-	return nil, registry.Invalid("deck: project master has no trigger on %s", manifest.OnMessage)
+	return nil, registry.Invalid("project master has no trigger on %s", manifest.OnMessage)
 }
 
 // again is a reply that goes once more on another provider, told what the broken one it follows did.
@@ -141,34 +141,34 @@ type chatRetryIn struct {
 func (ch *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRetryIn) (any, error) {
 	m, err := ch.St.Q.GetMessage(ctx, in.Message)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && m.ProcessID == 0 {
-		return nil, registry.NotFound("deck: no reply of message %d", in.Message)
+		return nil, registry.NotFound("no reply of message %d", in.Message)
 	}
 	if err != nil {
 		return nil, err
 	}
 	t, err := ch.ownTopic(ctx, ch.St.Q, act, m.TopicID)
 	if err != nil {
-		return nil, registry.NotFound("deck: no message %d", in.Message)
+		return nil, registry.NotFound("no message %d", in.Message)
 	}
 	p, err := ch.St.Q.GetProcess(ctx, m.ProcessID)
 	if err != nil {
 		return nil, err
 	}
 	if mp, err := access.Master(ctx, ch.St.Q, t.WorkspaceID); err != nil || mp.ID != p.ProjectID || !broke(p) && !stopped(p) {
-		return nil, registry.Conflict("deck: the reply of message %d did not break off and was not stopped", in.Message)
+		return nil, registry.Conflict("the reply of message %d did not break off and was not stopped", in.Message)
 	}
 	switch {
 	case stopped(p) && in.Provider != p.Provider:
-		return nil, registry.Invalid("deck: a stopped reply goes on on its own provider %s", p.Provider)
+		return nil, registry.Invalid("a stopped reply goes on on its own provider %s", p.Provider)
 	case broke(p) && !slices.Contains(ch.others(ctx, p), in.Provider):
-		return nil, registry.Invalid("deck: %s is not another provider the master may answer on now", in.Provider)
+		return nil, registry.Invalid("%s is not another provider the master may answer on now", in.Provider)
 	}
 	note := ch.Runner.HandOnNote(ctx, p, p.Provider, untrusted.Line(p.Error, 300))
 	ch.start.Lock()
 	err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		n, err := q.ReleaseMessages(ctx, db.ReleaseMessagesParams{TopicID: t.ID, ProcessID: p.ID})
 		if err == nil && n == 0 {
-			err = registry.Conflict("deck: the messages of this reply went to another one already")
+			err = registry.Conflict("the messages of this reply went to another one already")
 		}
 		return err
 	})

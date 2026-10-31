@@ -33,7 +33,7 @@ func ValidSecret(name string) bool {
 func Project(ctx context.Context, q *db.Queries, act registry.Actor, name string) (db.Project, error) {
 	if name == "" {
 		if act.ProjectID == 0 {
-			return db.Project{}, registry.Invalid("deck: project is required")
+			return db.Project{}, registry.Invalid("project is required")
 		}
 		return q.GetProject(ctx, act.ProjectID)
 	}
@@ -48,7 +48,7 @@ func Project(ctx context.Context, q *db.Queries, act registry.Actor, name string
 func ByName(ctx context.Context, q *db.Queries, act registry.Actor, name string) (db.Project, error) {
 	p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name})
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.Project{}, registry.NotFound("deck: no project %q", name)
+		return db.Project{}, registry.NotFound("no project %q", name)
 	}
 	return p, err
 }
@@ -89,7 +89,7 @@ func Owned[T any](ctx context.Context, q *db.Queries, act registry.Actor, row T,
 // Within refuses a confined actor another project.
 func Within(act registry.Actor, projectID int64) error {
 	if !act.Within(projectID) {
-		return registry.Refuse("deck: this process cannot touch another project")
+		return registry.Refuse("this process cannot touch another project")
 	}
 	return nil
 }
@@ -122,7 +122,7 @@ func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Projec
 		return nil
 	}
 	if p.Builtin == 1 || strings.HasPrefix(document, docs.MemoryDir) {
-		return registry.Refuse("deck: the memory of a project and project %s are for its own agents and the master only", master.Name)
+		return registry.Refuse("the memory of a project and project %s are for its own agents and the master only", master.Name)
 	}
 	collections, documents, listed, err := reads(ctx, q, act, p.Name)
 	if err != nil {
@@ -141,7 +141,7 @@ func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Projec
 	if collection != "" || document != "" {
 		what += " " + collection + document
 	}
-	return registry.Refuse("deck: this project does not read %s; reads in its manifest lists what it may read, and it never writes to another project", what)
+	return registry.Refuse("this project does not read %s; reads in its manifest lists what it may read, and it never writes to another project", what)
 }
 
 // reads is the reads entry of the manifest in force of the actor's project for another project; listed is false
@@ -178,7 +178,7 @@ func ReadModels(ctx context.Context, q *db.Queries, act registry.Actor, name str
 			return p, nil
 		}
 	}
-	return p, registry.Refuse("deck: this project does not read which models do the work of %s; a reads entry of its manifest with \"models\": true gives that", p.Name)
+	return p, registry.Refuse("this project does not read which models do the work of %s; a reads entry of its manifest with \"models\": true gives that", p.Name)
 }
 
 // ReadRuns says whether a confined actor reads the runs of another project p in brief: a reads entry of its manifest
@@ -188,7 +188,7 @@ func ReadRuns(ctx context.Context, q *db.Queries, act registry.Actor, p db.Proje
 		return nil
 	}
 	if p.Builtin == 1 {
-		return registry.Refuse("deck: the runs of project %s are for the master only", master.Name)
+		return registry.Refuse("the runs of project %s are for the master only", master.Name)
 	}
 	m, err := docs.For(ctx, q, act, act.ProjectID)
 	if err != nil {
@@ -199,14 +199,14 @@ func ReadRuns(ctx context.Context, q *db.Queries, act registry.Actor, p db.Proje
 			return nil
 		}
 	}
-	return registry.Refuse("deck: this process cannot touch another project; a reads entry of its manifest with \"runs\": true reads its runs in brief")
+	return registry.Refuse("this process cannot touch another project; a reads entry of its manifest with \"runs\": true reads its runs in brief")
 }
 
 // Master is the built-in project master of a workspace.
 func Master(ctx context.Context, q *db.Queries, workspace int64) (db.Project, error) {
 	p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
 	if err != nil || p.Builtin == 0 {
-		return db.Project{}, registry.Invalid("deck: this workspace has no built-in project master")
+		return db.Project{}, registry.Invalid("this workspace has no built-in project master")
 	}
 	return p, nil
 }
@@ -239,5 +239,5 @@ func Files(act registry.Actor, project string, upload bool) error {
 	if act.Kind != registry.Token || registry.Permits(act.Commands, project+".*") || upload && registry.Permits(act.Commands, registry.Deck("command_try")) {
 		return nil
 	}
-	return registry.Refuse("deck: this automation token may not call every command of %s, so it does not touch its files", project)
+	return registry.Refuse("this automation token may not call every command of %s, so it does not touch its files", project)
 }

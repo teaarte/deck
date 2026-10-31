@@ -159,7 +159,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	reply := m.EventCommand(manifest.OnMessage)
 	cmd := m.Command(reply)
 	if cmd == nil {
-		return registry.Invalid("deck: project master has no trigger on %s", manifest.OnMessage)
+		return registry.Invalid("project master has no trigger on %s", manifest.OnMessage)
 	}
 	next := ch.againOf(topicID)
 	if next.provider == "" && t.Model != "" {

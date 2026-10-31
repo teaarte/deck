@@ -104,11 +104,11 @@ func (pj *Service) migrate(ctx context.Context, p db.Project, next *manifest.Man
 		}
 		stdout, err := pj.runMigration(ctx, p, next, c, input)
 		if err != nil {
-			return nil, registry.Invalid("deck: migration script %s of collection %q failed: %v", c.Migration, c.Name, err)
+			return nil, registry.Invalid("migration script %s of collection %q failed: %v", c.Migration, c.Name, err)
 		}
 		rows, err := parseEnvelopes(string(stdout))
 		if err != nil {
-			return nil, registry.Invalid("deck: migration script %s of collection %q: %v", c.Migration, c.Name, err)
+			return nil, registry.Invalid("migration script %s of collection %q: %v", c.Migration, c.Name, err)
 		}
 		ids := map[int64]bool{}
 		for _, r := range recs {
@@ -116,7 +116,7 @@ func (pj *Service) migrate(ctx context.Context, p db.Project, next *manifest.Man
 		}
 		for _, r := range rows {
 			if r.ID != 0 && !ids[r.ID] {
-				return nil, registry.Invalid("deck: migration script %s returned record id %d that was not in its input or twice", c.Migration, r.ID)
+				return nil, registry.Invalid("migration script %s returned record id %d that was not in its input or twice", c.Migration, r.ID)
 			}
 			delete(ids, r.ID)
 		}
@@ -158,7 +158,7 @@ func applyMigration(ctx context.Context, q *db.Queries, now string, projectID in
 		return err
 	}
 	if envelopes(recs) != mg.input {
-		return registry.Invalid("deck: records of %q changed while the migration ran; save the manifest again", c.Name)
+		return registry.Invalid("records of %q changed while the migration ran; save the manifest again", c.Name)
 	}
 	if err := q.CreateRecordSnapshot(ctx, db.CreateRecordSnapshotParams{ProjectID: projectID, Collection: c.Name,
 		FromRevision: from, Revision: to, Records: mg.input}); err != nil {

@@ -63,7 +63,9 @@ hold; look inside a package for the rest.
   way to the web: a name resolves once, the proxy dials its addresses, a name reaches only public ones; `Fetch` a
   page the same way — new outbound HTTP goes through it.
 - `internal/fault` — the one form of a failure: a type of a closed set, whose it is, text and details; a script
-  reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit.
+  reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit. A refusal of a call at its entry is
+  `registry.Error` (its constructors add `deck: `), any other failure `*fault.F`; `fault.Status` is the HTTP status of
+  both.
 - `internal/theme` — the themes of deck: the schema and catalog (`schemas/theme.json`), the check of tokens, parts,
   limited CSS and contrast, the CSS the client wears; the shipped themes in `shipped/`. `app/themes` its commands.
 - `internal/health` — health rows: state of what deck runs or reaches; events go to the feed.

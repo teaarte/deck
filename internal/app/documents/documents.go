@@ -79,7 +79,7 @@ func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in doc
 		return nil, err
 	}
 	if in.Deleted && act.Kind != registry.Owner {
-		return nil, registry.Refuse("deck: only the owner lists deleted documents")
+		return nil, registry.Refuse("only the owner lists deleted documents")
 	}
 	in.WithDeleted = in.WithDeleted && act.Kind == registry.Owner
 	var ds []db.Document
@@ -126,7 +126,7 @@ func (dc *Service) readableDocument(ctx context.Context, q *db.Queries, act regi
 		return d, err
 	}
 	if d.WorkspaceID != act.Workspace {
-		return d, registry.NotFound("deck: no document %d", id)
+		return d, registry.NotFound("no document %d", id)
 	}
 	if !d.ProjectID.Valid || act.Within(d.ProjectID.Int64) {
 		return d, nil
@@ -182,11 +182,11 @@ func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in docum
 		if err == nil {
 			d, err = docs.Find(ctx, dc.St.Q, ref)
 			if errors.Is(err, sql.ErrNoRows) {
-				err = registry.NotFound("deck: no document %q%s", in.Name, dc.withoutProject(ctx, act, in))
+				err = registry.NotFound("no document %q%s", in.Name, dc.withoutProject(ctx, act, in))
 			}
 		}
 	default:
-		err = registry.Invalid("deck: give a document id or a name")
+		err = registry.Invalid("give a document id or a name")
 	}
 	if err != nil {
 		return documentView{}, err
@@ -229,7 +229,7 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 		if in.Record != 0 {
 			rec, err := q.GetRecord(ctx, in.Record)
 			if errors.Is(err, sql.ErrNoRows) || err == nil && (s.Project == 0 || rec.ProjectID != s.Project) {
-				return registry.NotFound("deck: no record %d in this project", in.Record)
+				return registry.NotFound("no record %d in this project", in.Record)
 			}
 			if err != nil {
 				return err
@@ -239,7 +239,7 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 		if in.Kind == "" {
 			old, err := docs.Find(ctx, q, ref)
 			if errors.Is(err, sql.ErrNoRows) {
-				return registry.Invalid("deck: no document %q yet; give its kind to create it", in.Name)
+				return registry.Invalid("no document %q yet; give its kind to create it", in.Name)
 			}
 			if err != nil {
 				return err
@@ -278,9 +278,9 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 func ownSave(kind string) error {
 	switch kind {
 	case docs.KindManifest:
-		return registry.Invalid("deck: save manifests with deck.manifest_save")
+		return registry.Invalid("save manifests with deck.manifest_save")
 	case docs.KindTheme:
-		return registry.Invalid("deck: save themes with deck.theme_save")
+		return registry.Invalid("save themes with deck.theme_save")
 	}
 	return nil
 }
@@ -300,24 +300,24 @@ func mayWrite(ctx context.Context, q *db.Queries, act registry.Actor, s docs.Sco
 			return nil
 		}
 	}
-	return registry.Refuse("deck: this project does not write %s; its agents write artifacts, its memory and the documents writes in its manifest names (%q, or its folder with / at the end), and the owner grants it", name, name)
+	return registry.Refuse("this project does not write %s; its agents write artifacts, its memory and the documents writes in its manifest names (%q, or its folder with / at the end), and the owner grants it", name, name)
 }
 
 // editText checks if_revision and, for old and new parts, makes the text of the save from the current one.
 func editText(ctx context.Context, q *db.Queries, ref docs.Ref, in *documentSaveIn) error {
 	if len(in.Old) == 0 && len(in.New) == 0 && in.Text == "" {
-		return registry.Invalid("deck: give the full text, or old and new parts of the current one")
+		return registry.Invalid("give the full text, or old and new parts of the current one")
 	}
 	if len(in.Old) == 0 && len(in.New) == 0 && in.IfRevision == 0 {
 		return nil
 	}
 	if len(in.Old) > 0 && in.Text != "" {
-		return registry.Invalid("deck: give the full text or old and new parts, not both")
+		return registry.Invalid("give the full text or old and new parts, not both")
 	}
 	d, err := docs.Find(ctx, q, ref)
 	if errors.Is(err, sql.ErrNoRows) {
 		if in.IfRevision != 0 || len(in.Old) > 0 {
-			return registry.NotFound("deck: no document %q to change; save it with its full text", ref.Name)
+			return registry.NotFound("no document %q to change; save it with its full text", ref.Name)
 		}
 		return nil
 	}
@@ -325,7 +325,7 @@ func editText(ctx context.Context, q *db.Queries, ref docs.Ref, in *documentSave
 		return err
 	}
 	if in.IfRevision != 0 && d.Current != in.IfRevision {
-		return registry.Conflict("deck: %s is at revision %d now, not %d", ref.Name, d.Current, in.IfRevision)
+		return registry.Conflict("%s is at revision %d now, not %d", ref.Name, d.Current, in.IfRevision)
 	}
 	if len(in.Old) == 0 && len(in.New) == 0 {
 		return nil
@@ -366,20 +366,20 @@ func (dc *Service) documentDelete(ctx context.Context, act registry.Actor, in do
 		if s, err = dc.memoryScope(ctx, act, in.Project, in.Name); err == nil {
 			d, err = docs.Find(ctx, dc.St.Q, docs.Ref{Scope: s, Name: in.Name})
 			if errors.Is(err, sql.ErrNoRows) {
-				err = registry.NotFound("deck: no document %q", in.Name)
+				err = registry.NotFound("no document %q", in.Name)
 			}
 		}
 	default:
-		err = registry.Invalid("deck: give a document id or a name")
+		err = registry.Invalid("give a document id or a name")
 	}
 	if err != nil {
 		return nil, err
 	}
 	switch {
 	case d.Kind == docs.KindManifest || d.Kind == docs.KindPrompt && !d.RecordID.Valid:
-		return nil, registry.Invalid("deck: a project keeps its %s; change it instead", d.Name)
+		return nil, registry.Invalid("a project keeps its %s; change it instead", d.Name)
 	case act.Kind == registry.Agent && (d.Kind != docs.KindMemory || d.ProjectID.Int64 != act.ProjectID):
-		return nil, registry.Refuse("deck: agents delete only the memory of their project")
+		return nil, registry.Refuse("agents delete only the memory of their project")
 	}
 	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(dc.Now()), Valid: true}, ID: d.ID})
@@ -399,7 +399,7 @@ type documentRestoreIn struct {
 func (dc *Service) documentRestore(ctx context.Context, act registry.Actor, in documentRestoreIn) (any, error) {
 	d, err := dc.St.Q.GetDocument(ctx, in.Document)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && d.WorkspaceID != act.Workspace {
-		return nil, registry.NotFound("deck: no document %d", in.Document)
+		return nil, registry.NotFound("no document %d", in.Document)
 	}
 	if err != nil {
 		return nil, err
@@ -417,7 +417,7 @@ func (dc *Service) documentRestore(ctx context.Context, act registry.Actor, in d
 		return nil, err
 	}
 	if n == 0 {
-		return nil, registry.Conflict("deck: document %d is not deleted", d.ID)
+		return nil, registry.Conflict("document %d is not deleted", d.ID)
 	}
 	return map[string]any{"document": d.ID, "restored": true}, nil
 }

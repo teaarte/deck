@@ -27,7 +27,7 @@ const maxZipEntries = 2000
 // readUpload reads the text files of an uploaded .zip of a module folder, with the name of its folder; one
 // folder around them all is that folder. An entry that leaves the folder refuses the whole file.
 func (pj *Service) readUpload(ctx context.Context, act registry.Actor, ref string) (files []folderFile, skipped []string, name string, err error) {
-	missing := registry.NotFound("deck: no uploaded file %s", ref)
+	missing := registry.NotFound("no uploaded file %s", ref)
 	id, err := strconv.ParseInt(ref, 10, 64)
 	if err != nil {
 		return nil, nil, "", missing
@@ -40,7 +40,7 @@ func (pj *Service) readUpload(ctx context.Context, act registry.Actor, ref strin
 		return nil, nil, "", err
 	}
 	if f.Size > maxFolder {
-		return nil, nil, "", registry.Invalid("deck: %s is larger than 32 MB", f.Name)
+		return nil, nil, "", registry.Invalid("%s is larger than 32 MB", f.Name)
 	}
 	file, err := os.Open(pj.Home.File(f.ID))
 	if err != nil {
@@ -55,16 +55,16 @@ func (pj *Service) readUpload(ctx context.Context, act registry.Actor, ref strin
 func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, skipped []string, name string, err error) {
 	zr, err := zip.NewReader(r, size)
 	if err != nil {
-		return nil, nil, "", registry.Invalid("deck: %s is not a .zip: %v", fileName, err)
+		return nil, nil, "", registry.Invalid("%s is not a .zip: %v", fileName, err)
 	}
 	if len(zr.File) > maxZipEntries {
-		return nil, nil, "", registry.Invalid("deck: %s has more than %d entries", fileName, maxZipEntries)
+		return nil, nil, "", registry.Invalid("%s has more than %d entries", fileName, maxZipEntries)
 	}
 	total := 0
 	for _, e := range zr.File {
 		p := path.Clean(e.Name)
 		if strings.Contains(e.Name, `\`) || path.IsAbs(p) || p == ".." || strings.HasPrefix(p, "../") {
-			return nil, nil, "", registry.Invalid("deck: %s: %s leaves the module folder", fileName, e.Name)
+			return nil, nil, "", registry.Invalid("%s: %s leaves the module folder", fileName, e.Name)
 		}
 		if e.FileInfo().IsDir() || hidden(p) {
 			continue
@@ -79,13 +79,13 @@ func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, sk
 		}
 		r, err := e.Open()
 		if err != nil {
-			return nil, nil, "", registry.Invalid("deck: %s: %s: %v", fileName, p, err)
+			return nil, nil, "", registry.Invalid("%s: %s: %v", fileName, p, err)
 		}
 		b, err := io.ReadAll(io.LimitReader(r, documents.MaxFile+1))
 		_ = r.Close()
 		switch {
 		case err != nil:
-			return nil, nil, "", registry.Invalid("deck: %s: %s: %v", fileName, p, err)
+			return nil, nil, "", registry.Invalid("%s: %s: %v", fileName, p, err)
 		case len(b) > documents.MaxFile:
 			skipped = append(skipped, p+": larger than 1 MB")
 			continue
@@ -94,7 +94,7 @@ func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, sk
 			continue
 		}
 		if total += len(b); total > maxFolder {
-			return nil, nil, "", registry.Invalid("deck: %s holds more than 32 MB of text", fileName)
+			return nil, nil, "", registry.Invalid("%s holds more than 32 MB of text", fileName)
 		}
 		files = append(files, folderFile{path: p, text: string(b)})
 	}
@@ -146,7 +146,7 @@ func (pj *Service) projectExport(ctx context.Context, act registry.Actor, in pro
 		return nil, err
 	}
 	if p.Builtin == 1 {
-		return nil, registry.Invalid("deck: %s is built into deck; it is not exported", p.Name)
+		return nil, registry.Invalid("%s is built into deck; it is not exported", p.Name)
 	}
 	ds, err := pj.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
 	if err != nil {
@@ -196,7 +196,7 @@ func (pj *Service) projectRights(ctx context.Context, act registry.Actor, in pro
 	}
 	ms, failed := docs.All(ctx, pj.St.Q, []db.Project{p})
 	if err := failed[p.ID]; err != nil {
-		return nil, registry.Invalid("deck: the manifest of %s does not load: %v", p.Name, err)
+		return nil, registry.Invalid("the manifest of %s does not load: %v", p.Name, err)
 	}
 	v := pj.viewProject(ctx, p, ms[p.ID], nil, "")
 	out := []rightRow{}

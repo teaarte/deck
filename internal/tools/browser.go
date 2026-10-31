@@ -271,7 +271,7 @@ func (b *Browser) reader(tool string) registry.Handler {
 		}
 		if tool == "browser_navigate" || tool == "browser_tabs" && args.Action == "new" && args.URL != "" {
 			if !on(append(slices.Clone(m.Domains.Read), m.Domains.Act...), args.URL) {
-				return nil, registry.Refuse("deck: %s is not on a read or act domain of this project; the owner adds domains to its manifest (\"*\" in read reads any site)", args.URL)
+				return nil, registry.Refuse("%s is not on a read or act domain of this project; the owner adds domains to its manifest (\"*\" in read reads any site)", args.URL)
 			}
 		}
 		b.mu.Lock()
@@ -284,7 +284,7 @@ func (b *Browser) reader(tool string) registry.Handler {
 			ownTabs(res, append(slices.Clone(m.Domains.Read), m.Domains.Act...))
 		} else if tool != "browser_close" && tool != "browser_resize" {
 			if page, off := b.offDomains(ctx, act.ProjectID); off {
-				return nil, registry.Refuse("deck: the browser shows %s, which is not on a read or act domain of this project; what it shows is withheld", untrusted.Line(page, 300))
+				return nil, registry.Refuse("the browser shows %s, which is not on a read or act domain of this project; what it shows is withheld", untrusted.Line(page, 300))
 			}
 		}
 		return Content(b.Home, act.ProcessID, tool, res)
@@ -325,7 +325,7 @@ func (b *Browser) offDomains(ctx context.Context, project int64) (string, bool) 
 // Login opens a window of deck's browser at the page, for the owner to sign in with deck's profile.
 func (b *Browser) Login(ctx context.Context, page string) error {
 	if len(b.Argv) == 0 {
-		return registry.Invalid("deck: no browser is set up")
+		return registry.Invalid("no browser is set up")
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()

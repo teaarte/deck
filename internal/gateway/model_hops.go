@@ -128,14 +128,14 @@ func SendModel(ctx context.Context, t ModelTarget, c ModelCall) (*http.Response,
 // SendHops makes the call each hop builds, in order, past one unsent, a 429 or a 5xx; the usage of the answer
 // reaches the Done of its hop when its body closes.
 func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelCall, error)) (*http.Response, ModelHop, error) {
-	var last error = registry.Invalid("deck: no model to call")
+	var last error = registry.Invalid("no model to call")
 	for i, h := range hops {
 		c, err := build(h)
 		if err != nil {
 			return nil, h, err
 		}
 		if past := h.past(c.Body); past != "" {
-			last = &registry.Error{Status: http.StatusTooManyRequests, Text: past}
+			last = fault.New(fault.ModelLimit, past)
 			continue
 		}
 		release, waited, err := queued(ctx, h)
@@ -154,7 +154,7 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 			if h.Queue {
 				text = fmt.Sprintf("deck: the local model %s did not answer in %s (%d calls waited for it before): %v", h.Name, time.Since(start).Round(time.Second), waited, err)
 			}
-			last = &registry.Error{Status: http.StatusBadGateway, Text: text}
+			last = fault.New(fault.ModelUnavailable, text)
 			if Unsent(err) {
 				h.Done(ctx, 0, nil)
 				continue
@@ -166,7 +166,7 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 			// A request past what the model takes a minute: the next model takes it, and the model waits for nothing.
 			release()
 			h.Done(ctx, resp.StatusCode, nil)
-			last = &registry.Error{Status: http.StatusTooManyRequests, Text: fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, past)}
+			last = fault.New(fault.ModelLimit, fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, past))
 			continue
 		}
 		if Fallible(resp.StatusCode) && i < len(hops)-1 {
@@ -174,8 +174,7 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 			_ = resp.Body.Close()
 			release()
 			h.Done(ctx, resp.StatusCode, nil)
-			last = &registry.Error{Status: http.StatusBadGateway,
-				Text: fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500))}
+			last = fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500)))
 			continue
 		}
 		done, status := context.WithoutCancel(ctx), resp.StatusCode
@@ -286,10 +285,10 @@ func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte,
 		return ModelCall{Method: r.Method, Path: path, Query: r.URL.RawQuery, Header: r.Header, Body: b}, nil
 	})
 	if err != nil {
-		if registry.Status(err) == http.StatusTooManyRequests {
+		if fault.Status(err) == http.StatusTooManyRequests {
 			w.Header().Set(provider.PastLimit, "1")
 		}
-		http.Error(w, err.Error(), registry.Status(err))
+		http.Error(w, err.Error(), fault.Status(err))
 		return
 	}
 	defer resp.Body.Close()

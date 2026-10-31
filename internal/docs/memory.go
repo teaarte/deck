@@ -27,7 +27,7 @@ var memoryTypes = []string{"user", "feedback", "project", "reference"}
 // checkMemoryText checks that memory documents sit in memory/ and a fact carries its frontmatter.
 func checkMemoryText(kind, name, text string) error {
 	if (kind == KindMemory) != strings.HasPrefix(name, MemoryDir) {
-		return registry.Invalid("deck: memory documents are named memory/<name>.md, and only memory documents are")
+		return registry.Invalid("memory documents are named memory/<name>.md, and only memory documents are")
 	}
 	if kind != KindMemory || name == MemoryIndex {
 		return nil
@@ -35,12 +35,12 @@ func checkMemoryText(kind, name, text string) error {
 	file := strings.TrimPrefix(name, MemoryDir)
 	slug, ok := strings.CutSuffix(file, ".md")
 	if !ok || strings.Contains(slug, "/") {
-		return registry.Invalid("deck: a memory fact is one file memory/<name>.md")
+		return registry.Invalid("a memory fact is one file memory/<name>.md")
 	}
 	front, ok := strings.CutPrefix(text, "---\n")
 	end := strings.Index(front, "\n---")
 	if !ok || end < 0 {
-		return registry.Invalid("deck: a memory fact starts with YAML frontmatter between --- lines: name, description, type")
+		return registry.Invalid("a memory fact starts with YAML frontmatter between --- lines: name, description, type")
 	}
 	var meta struct {
 		Name, Description, Type string
@@ -48,23 +48,23 @@ func checkMemoryText(kind, name, text string) error {
 		Metadata                struct{ Type string }
 	}
 	if err := yaml.Unmarshal([]byte(front[:end]), &meta); err != nil {
-		return registry.Invalid("deck: the frontmatter of a memory fact is not YAML: %v", err)
+		return registry.Invalid("the frontmatter of a memory fact is not YAML: %v", err)
 	}
 	if meta.Type == "" {
 		meta.Type = meta.Metadata.Type
 	}
 	switch {
 	case meta.Name != slug:
-		return registry.Invalid("deck: a memory fact needs \"name: %s\", the name of its file", slug)
+		return registry.Invalid("a memory fact needs \"name: %s\", the name of its file", slug)
 	case strings.TrimSpace(meta.Description) == "":
-		return registry.Invalid("deck: a memory fact needs \"description\": one line that says when it matters")
+		return registry.Invalid("a memory fact needs \"description\": one line that says when it matters")
 	case !slices.Contains(memoryTypes, meta.Type):
-		return registry.Invalid("deck: a memory fact needs \"type:\" in its frontmatter (or under metadata:), one of %s; it has %q",
+		return registry.Invalid("a memory fact needs \"type:\" in its frontmatter (or under metadata:), one of %s; it has %q",
 			strings.Join(memoryTypes, ", "), meta.Type)
 	}
 	if meta.Expires != "" {
 		if _, err := time.Parse(time.DateOnly, meta.Expires); err != nil {
-			return registry.Invalid("deck: expires of a memory fact is a date, YYYY-MM-DD")
+			return registry.Invalid("expires of a memory fact is a date, YYYY-MM-DD")
 		}
 	}
 	return nil

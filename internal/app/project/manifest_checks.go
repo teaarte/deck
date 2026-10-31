@@ -24,31 +24,31 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 		onlyModels := !r.Data()
 		switch {
 		case r.Project == name:
-			return registry.Invalid("deck: reads: a project does not need to read itself")
+			return registry.Invalid("reads: a project does not need to read itself")
 		case r.Project == manifest.AnyProject && !onlyModels:
-			return registry.Invalid(`deck: reads: %s names every project only for which models do their work and their runs: {"project": "*", "models": true, "runs": true}`, manifest.AnyProject)
+			return registry.Invalid(`reads: %s names every project only for which models do their work and their runs: {"project": "*", "models": true, "runs": true}`, manifest.AnyProject)
 		case r.Project == manifest.AnyProject:
 			continue
 		}
 		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: r.Project})
 		if err != nil {
-			return registry.Invalid("deck: reads: no project %q", r.Project)
+			return registry.Invalid("reads: no project %q", r.Project)
 		}
 		if p.Builtin == 1 && (!onlyModels || r.Runs) {
-			return registry.Invalid("deck: reads: project %s keeps the owner's memory and topics; no project reads it", p.Name)
+			return registry.Invalid("reads: project %s keeps the owner's memory and topics; no project reads it", p.Name)
 		}
 		for _, d := range r.Documents {
 			if strings.HasPrefix(d, docs.MemoryDir) {
-				return registry.Invalid("deck: reads: the memory of %s is for its own agents and the master only", r.Project)
+				return registry.Invalid("reads: the memory of %s is for its own agents and the master only", r.Project)
 			}
 		}
 		other, err := docs.Manifest(ctx, q, p)
 		if err != nil {
-			return registry.Invalid("deck: reads: project %q has an invalid manifest: %v", r.Project, err)
+			return registry.Invalid("reads: project %q has an invalid manifest: %v", r.Project, err)
 		}
 		for _, c := range r.Collections {
 			if other.Collection(c) == nil {
-				return registry.Invalid("deck: reads: project %q has no collection %q", r.Project, c)
+				return registry.Invalid("reads: project %q has no collection %q", r.Project, c)
 			}
 		}
 	}
@@ -107,7 +107,7 @@ func checkKeys(ctx context.Context, q *db.Queries, workspace int64, m *manifest.
 	if err != nil || len(held) == 0 {
 		return err
 	}
-	return registry.Invalid("deck: %s", strings.Join(held, "\n"))
+	return registry.Invalid("%s", strings.Join(held, "\n"))
 }
 
 // checkToolFit checks tool commands whose tool is a builtin or an MCP tool deck has listed: the command
@@ -129,7 +129,7 @@ func (pj *Service) checkToolFit(ctx context.Context, q *db.Queries, workspace, p
 		if registry.IsBuiltin(name) {
 			t, err := pj.Registry.Lookup(ctx, workspace, name)
 			if err != nil {
-				return registry.Invalid("deck: command %q: no builtin tool %q", c.Name, name)
+				return registry.Invalid("command %q: no builtin tool %q", c.Name, name)
 			}
 			input = t.Input
 		} else if server, tool, ok := strings.Cut(name, "."); ok {
@@ -145,7 +145,7 @@ func (pj *Service) checkToolFit(ctx context.Context, q *db.Queries, workspace, p
 			continue
 		}
 		if err := manifest.FitsTool(c, name, input); err != nil {
-			return registry.Invalid("deck: command %q: %v", c.Name, err)
+			return registry.Invalid("command %q: %v", c.Name, err)
 		}
 	}
 	return nil
@@ -196,7 +196,7 @@ func checkRecords(ctx context.Context, q *db.Queries, p db.Project, next *manife
 		}
 	}
 	if len(msgs) > 0 {
-		return registry.Invalid("deck: %s", strings.Join(msgs, "\n"))
+		return registry.Invalid("%s", strings.Join(msgs, "\n"))
 	}
 	return nil
 }

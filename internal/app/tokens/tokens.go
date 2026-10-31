@@ -60,11 +60,11 @@ type tokenCreateIn struct {
 
 func (s *Service) tokenCreate(ctx context.Context, act registry.Actor, in tokenCreateIn) (any, error) {
 	if strings.TrimSpace(in.Name) == "" || len(in.Commands) == 0 {
-		return nil, registry.Invalid("deck: a token needs a name and at least one command")
+		return nil, registry.Invalid("a token needs a name and at least one command")
 	}
 	for _, c := range in.Commands {
 		if !commandPattern.MatchString(c) {
-			return nil, registry.Invalid("deck: %q is not a command name, project.* or *", c)
+			return nil, registry.Invalid("%q is not a command name, project.* or *", c)
 		}
 	}
 	raw := TokenPrefix + nonce.Hex(24)
@@ -125,7 +125,7 @@ func (s *Service) tokenRevoke(ctx context.Context, act registry.Actor, in tokenR
 		return nil, err
 	}
 	if n == 0 {
-		return nil, registry.NotFound("deck: no active token %d", in.Token)
+		return nil, registry.NotFound("no active token %d", in.Token)
 	}
 	s.Journal(ctx, act, 0, registry.Deck("token_revoke"), registry.External, "done", fmt.Sprintf(`{"token": %d}`, in.Token))
 	return map[string]any{"revoked": in.Token}, nil

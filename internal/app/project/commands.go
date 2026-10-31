@@ -117,7 +117,7 @@ func (pj *Service) startHandler(projectID int64, m *manifest.Manifest, command s
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		input, err := manifest.DecodeObject(raw)
 		if err != nil {
-			return nil, registry.Invalid("deck: input: %v", err)
+			return nil, registry.Invalid("input: %v", err)
 		}
 		key, _ := input[manifest.RetryKey].(string)
 		delete(input, manifest.RetryKey)
@@ -127,7 +127,7 @@ func (pj *Service) startHandler(projectID int64, m *manifest.Manifest, command s
 		if act.Kind == registry.Owner && act.Allows != "" {
 			var as []gateway.Allow
 			if err := json.Unmarshal([]byte(act.Allows), &as); err != nil {
-				return nil, registry.Invalid("deck: allows: %v", err)
+				return nil, registry.Invalid("allows: %v", err)
 			}
 			o.Allows = gateway.Allows(as)
 		}

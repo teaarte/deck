@@ -138,7 +138,7 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 		return c.Free(ctx, act, input)
 	}
 	if p.Status == store.ProjectDraft {
-		return false, registry.Refuse("deck: %s is a draft: %s is %s, so it was declined until the owner enables the project", p.Name, c.Name, c.Class)
+		return false, registry.Refuse("%s is a draft: %s is %s, so it was declined until the owner enables the project", p.Name, c.Name, c.Class)
 	}
 	m, err := docs.For(ctx, g.st.Q, act, project)
 	if err != nil {
@@ -232,7 +232,7 @@ type Outcome struct {
 }
 
 // ErrChanged refuses an old yes to a call whose tool or target changed since it was frozen.
-var ErrChanged = registry.Refuse("deck: what this call acts on changed after it was asked for: the tool, or what it would change; deny it, and the caller asks again")
+var ErrChanged = registry.Refuse("what this call acts on changed after it was asked for: the tool, or what it would change; deny it, and the caller asks again")
 
 type retryingKey struct{}
 

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/fault"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
@@ -58,13 +59,13 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	}
 	req, err := http.NewRequestWithContext(ctx, t.Method, u, nil)
 	if err != nil {
-		return nil, registry.Invalid("deck: %s: %v", t.Name, untrusted.Redact(err.Error(), out.secrets))
+		return nil, registry.Invalid("%s: %v", t.Name, untrusted.Redact(err.Error(), out.secrets))
 	}
 	if len(out.secrets) > 0 {
 		out.secrets = append(out.secrets, req.URL.String())
 	}
 	if req, err = gateway.Pin(req, append([]string{req.URL.Host}, domains...)); err != nil {
-		return nil, &registry.Error{Status: registry.Status(err), Text: fmt.Sprintf("deck: %s: %v", t.Name, err)}
+		return nil, fault.Wrap("deck: "+t.Name, err)
 	}
 	var serr error
 	header := func(s string) string {
@@ -83,7 +84,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	for k, v := range t.Headers {
 		v = header(v)
 		if strings.ContainsAny(v, "\r\n") {
-			return nil, registry.Invalid("deck: header %s of %s would contain a line break", k, t.Name)
+			return nil, registry.Invalid("header %s of %s would contain a line break", k, t.Name)
 		}
 		req.Header.Set(k, v)
 	}
@@ -106,7 +107,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 		return nil, serr
 	}
 	if len(missing) > 0 {
-		return nil, registry.Invalid("deck: %s needs input fields %s", t.Name, strings.Join(missing, ", "))
+		return nil, registry.Invalid("%s needs input fields %s", t.Name, strings.Join(missing, ", "))
 	}
 	out.req = req
 	return out, nil
@@ -128,7 +129,7 @@ func (h *HTTP) url(p db.Project, t manifest.HTTPTool, in map[string]any, out *ou
 	out.secrets = append(out.secrets, linkParts(v, u)...)
 	if err != nil || u.Scheme != "https" || u.User != nil || u.Fragment != "" ||
 		!slices.Contains(t.Hosts, strings.ToLower(u.Hostname())) {
-		return "", registry.Refuse("deck: %s: the secret %s holds no https address on the hosts of the tool, %s; the owner sets it again",
+		return "", registry.Refuse("%s: the secret %s holds no https address on the hosts of the tool, %s; the owner sets it again",
 			t.Name, name, strings.Join(t.Hosts, ", "))
 	}
 	if query != "" {
@@ -206,7 +207,7 @@ func jsonValues(t manifest.HTTPTool, in map[string]any) (map[string]any, error) 
 		}
 		v, err := manifest.DecodeValue([]byte(text))
 		if err != nil {
-			return nil, registry.Invalid("deck: input field %s of %s is JSON text: %v", name, t.Name, err)
+			return nil, registry.Invalid("input field %s of %s is JSON text: %v", name, t.Name, err)
 		}
 		out[name] = v
 	}

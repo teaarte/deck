@@ -89,12 +89,12 @@ func (s *Service) filesList(ctx context.Context, act registry.Actor, in filesLis
 		return s.newestFiles(ctx, act, in.Project, in.Search)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, registry.NotFound("deck: no %s %d", kind, id)
+		return nil, registry.NotFound("no %s %d", kind, id)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if _, err := access.Of(ctx, s.St.Q, act, projectID, registry.NotFound("deck: no %s %d", kind, id)); err != nil {
+	if _, err := access.Of(ctx, s.St.Q, act, projectID, registry.NotFound("no %s %d", kind, id)); err != nil {
 		return nil, err
 	}
 	fs, err := s.St.Q.ListFilesOf(ctx, db.ListFilesOfParams{ProjectID: projectID, OwnerKind: kind, OwnerID: id})
@@ -185,7 +185,7 @@ func (s *Service) Upload(ctx context.Context, act registry.Actor, project, name,
 		return View{}, err
 	}
 	if n > maxUpload {
-		return View{}, registry.Invalid("deck: a file may be at most 1 GB")
+		return View{}, registry.Invalid("a file may be at most 1 GB")
 	}
 	s.Mu.RLock()
 	defer s.Mu.RUnlock()
@@ -223,18 +223,18 @@ type fileUploadIn struct {
 
 func (s *Service) fileUpload(ctx context.Context, act registry.Actor, in fileUploadIn) (any, error) {
 	if base64.StdEncoding.DecodedLen(len(in.Content)) > maxTextUpload+3 {
-		return nil, registry.Invalid("deck: a file sent in a command may be at most 10 MB; upload bigger ones with POST /api/files")
+		return nil, registry.Invalid("a file sent in a command may be at most 10 MB; upload bigger ones with POST /api/files")
 	}
 	b, err := base64.StdEncoding.DecodeString(in.Content)
 	if err != nil {
-		return nil, registry.Invalid("deck: content is not base64: %v", err)
+		return nil, registry.Invalid("content is not base64: %v", err)
 	}
 	return s.Upload(ctx, act, in.Project, in.Name, "", bytes.NewReader(b))
 }
 
 // OpenFile opens a stored file for the owner, or for an automation token that may call every command of its project.
 func (s *Service) OpenFile(ctx context.Context, act registry.Actor, id int64) (View, *os.File, error) {
-	missing := registry.NotFound("deck: no file %d", id)
+	missing := registry.NotFound("no file %d", id)
 	f, err := s.St.Q.GetFile(ctx, id)
 	if err != nil {
 		return View{}, nil, missing

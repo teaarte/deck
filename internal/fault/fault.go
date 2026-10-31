@@ -90,6 +90,41 @@ func Of(err error) *F {
 	return &F{Type: DeckInternal, Text: err.Error()}
 }
 
+// OfCall is the failure of a call deck made: its own, a refusal's by its status, any other deck's own.
+func OfCall(err error) *F {
+	var f *F
+	var r refusal
+	switch {
+	case errors.As(err, &f):
+		return &F{Type: f.Type, Text: err.Error()}
+	case errors.As(err, &r):
+		return &F{Type: OfStatus(r.Refused(), false), Text: err.Error()}
+	}
+	return &F{Type: DeckInternal, Text: err.Error()}
+}
+
+// refusal is a call refused at its entry with a status of its own: the registry's refusal of the caller or the input.
+type refusal interface{ Refused() int }
+
+// statuses are the HTTP statuses of failures by type; any other is 500.
+var statuses = map[string]int{
+	ModelLimit: http.StatusTooManyRequests, ModelUnavailable: http.StatusBadGateway, ModelLogin: http.StatusUnauthorized,
+	Network: http.StatusBadGateway, RightsDenied: http.StatusForbidden, InputInvalid: http.StatusUnprocessableEntity,
+}
+
+// Status is the HTTP status deck answers a failed call with: a refusal's own, a failure's by its type, else 500.
+func Status(err error) int {
+	var r refusal
+	var f *F
+	switch {
+	case errors.As(err, &r):
+		return r.Refused()
+	case errors.As(err, &f) && statuses[f.Type] != 0:
+		return statuses[f.Type]
+	}
+	return http.StatusInternalServerError
+}
+
 // Wrap keeps the failure of err under a prefix of what deck was doing.
 func Wrap(prefix string, err error) *F {
 	f := *Of(err)

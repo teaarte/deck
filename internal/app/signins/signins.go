@@ -38,7 +38,7 @@ type Service struct {
 func siteOf(page string) (string, error) {
 	u, err := url.Parse(page)
 	if err != nil || u.Hostname() == "" {
-		return "", registry.Invalid("deck: %q is not a web address", page)
+		return "", registry.Invalid("%q is not a web address", page)
 	}
 	return u.Hostname(), nil
 }
@@ -89,7 +89,7 @@ func (c *Service) browserNeedsLogin(ctx context.Context, act registry.Actor, in 
 		return nil, err
 	}
 	if act.ProcessID == 0 {
-		return nil, registry.Invalid("deck: only a process waits for a sign-in")
+		return nil, registry.Invalid("only a process waits for a sign-in")
 	}
 	if err := health.Write(ctx, c.St, health.Of{}, health.Site(site), health.NeedsLogin, untrusted.Cut(in.Why, 300)); err != nil {
 		return nil, err
@@ -203,7 +203,7 @@ type oauthStartIn struct {
 func (c *Service) oauthStart(ctx context.Context, act registry.Actor, in oauthStartIn) (any, error) {
 	project, local, ok := strings.Cut(in.Tool, ".")
 	if !ok {
-		return nil, registry.Invalid("deck: name the tool as project.tool")
+		return nil, registry.Invalid("name the tool as project.tool")
 	}
 	p, err := access.Project(ctx, c.St.Q, act, project)
 	if err != nil {
@@ -214,7 +214,7 @@ func (c *Service) oauthStart(ctx context.Context, act registry.Actor, in oauthSt
 		return nil, err
 	}
 	if auth.Type != "oauth2" {
-		return nil, registry.Invalid("deck: %s is not an oauth2 tool of %s", local, p.Name)
+		return nil, registry.Invalid("%s is not an oauth2 tool of %s", local, p.Name)
 	}
 	var mu sync.Mutex
 	opened, finished := false, false

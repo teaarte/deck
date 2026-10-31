@@ -17,7 +17,7 @@ func Loose(kind, name string) bool { return kind == KindManifest || Editable(kin
 // it is or else, when loose, with runs of spaces and line breaks taken as one, and the parts may not overlap.
 func Edit(text string, old, new []string, loose bool) (string, error) {
 	if len(old) != len(new) {
-		return "", registry.Invalid("deck: %d old texts and %d new ones; give one new text for each old one", len(old), len(new))
+		return "", registry.Invalid("%d old texts and %d new ones; give one new text for each old one", len(old), len(new))
 	}
 	type part struct {
 		at, end, i int
@@ -27,20 +27,20 @@ func Edit(text string, old, new []string, loose bool) (string, error) {
 	var flat *spaced
 	for i, o := range old {
 		if o == "" {
-			return "", registry.Invalid("deck: old text %d is empty", i+1)
+			return "", registry.Invalid("old text %d is empty", i+1)
 		}
 		switch at := places(text, o, nil); {
 		case len(at) == 1:
 			parts = append(parts, part{at[0], at[0] + len(o), i, new[i]})
 			continue
 		case len(at) > 1:
-			return "", registry.Invalid("deck: old text %d occurs %d times; take more of its surroundings so it occurs once: %q", i+1, len(at), untrusted.Cut(o, 80))
+			return "", registry.Invalid("old text %d occurs %d times; take more of its surroundings so it occurs once: %q", i+1, len(at), untrusted.Cut(o, 80))
 		}
 		if flat == nil {
 			flat = spacedOf(text)
 		}
 		if !loose {
-			return "", registry.Invalid("deck: old text %d is not in the current text as it is, spaces and line breaks too, which mean something here: %q%s",
+			return "", registry.Invalid("old text %d is not in the current text as it is, spaces and line breaks too, which mean something here: %q%s",
 				i+1, untrusted.Cut(o, 80), flat.closest(text, spacedOf(strings.Trim(o, " \t\n\r")).text))
 		}
 		core := strings.Trim(o, " \t\n\r")
@@ -59,10 +59,10 @@ func Edit(text string, old, new []string, loose bool) (string, error) {
 			nw := strings.TrimSuffix(strings.TrimPrefix(new[i], lead), trail)
 			parts = append(parts, part{flat.at[k], flat.at[k+len(f)-1] + 1, i, nw})
 		case 0:
-			return "", registry.Invalid("deck: old text %d is not in the current text, not even with spaces and line breaks taken as one: %q%s",
+			return "", registry.Invalid("old text %d is not in the current text, not even with spaces and line breaks taken as one: %q%s",
 				i+1, untrusted.Cut(o, 80), flat.closest(text, f))
 		default:
-			return "", registry.Invalid("deck: old text %d occurs %d times with spaces and line breaks taken as one; take more of its surroundings so it occurs once: %q", i+1, len(at), untrusted.Cut(o, 80))
+			return "", registry.Invalid("old text %d occurs %d times with spaces and line breaks taken as one; take more of its surroundings so it occurs once: %q", i+1, len(at), untrusted.Cut(o, 80))
 		}
 	}
 	slices.SortFunc(parts, func(a, b part) int { return a.at - b.at })
@@ -71,7 +71,7 @@ func Edit(text string, old, new []string, loose bool) (string, error) {
 	for _, p := range parts {
 		if p.at < last {
 			a, b := min(p.i, prev), max(p.i, prev)
-			return "", registry.Invalid("deck: old text %d overlaps old text %d (%q); give the two as one old text", b+1, a+1, untrusted.Cut(old[a], 80))
+			return "", registry.Invalid("old text %d overlaps old text %d (%q); give the two as one old text", b+1, a+1, untrusted.Cut(old[a], 80))
 		}
 		prev = p.i
 		b.WriteString(text[last:p.at])

@@ -117,7 +117,7 @@ func (s *Service) dataFile(project int64, path string) (*os.File, error) {
 
 // OpenDataFile opens a file of the data folder of a project the actor sees, for a media block.
 func (s *Service) OpenDataFile(ctx context.Context, act registry.Actor, project, path string) (View, *os.File, error) {
-	missing := registry.NotFound("deck: no file %q in the data folder of %s", path, project)
+	missing := registry.NotFound("no file %q in the data folder of %s", path, project)
 	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: project})
 	if err != nil {
 		return View{}, nil, missing

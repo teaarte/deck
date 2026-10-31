@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/registry"
 )
 
@@ -23,7 +24,7 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 	got, err := r.src.Read(r.ctx, documentRead, in, r.scope)
 	d, _ := got.(map[string]any)
 	switch {
-	case id == 0 && registry.Status(err) == http.StatusNotFound:
+	case id == 0 && fault.Status(err) == http.StatusNotFound:
 		v := map[string]any{"id": 0, "project": p.Name, "name": name, "kind": docs.KindDoc, "text": "", "revision": 0,
 			"editable": docs.Editable(docs.KindDoc, name), "revisions": []map[string]any{}}
 		if record != 0 {

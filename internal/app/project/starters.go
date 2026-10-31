@@ -23,7 +23,7 @@ import (
 // starter is the files of a module deck offers on its first run, by the name of its folder.
 func starter(name string) ([]folderFile, error) {
 	if d, err := fs.Stat(starters.FS, name); !fs.ValidPath(name) || strings.Contains(name, "/") || err != nil || !d.IsDir() {
-		return nil, registry.NotFound("deck: no starter module %q; deck.starters_list names them", name)
+		return nil, registry.NotFound("no starter module %q; deck.starters_list names them", name)
 	}
 	sub, err := fs.Sub(starters.FS, name)
 	if err != nil {

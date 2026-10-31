@@ -38,13 +38,13 @@ type connectionSetIn struct {
 func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
 	switch {
 	case !access.ProjectName.MatchString(in.Name):
-		return nil, registry.Invalid("deck: connection name %q: lowercase letters, digits and '-'", in.Name)
+		return nil, registry.Invalid("connection name %q: lowercase letters, digits and '-'", in.Name)
 	case !strings.HasPrefix(in.URL, "http://") && !strings.HasPrefix(in.URL, "https://"):
-		return nil, registry.Invalid("deck: the url of a connection is http or https, got %q", in.URL)
+		return nil, registry.Invalid("the url of a connection is http or https, got %q", in.URL)
 	case strings.ContainsAny(in.URL, "@?#"):
-		return nil, registry.Invalid("deck: the url takes no user, query or key; give the key in key, deck keeps it in a secret")
+		return nil, registry.Invalid("the url takes no user, query or key; give the key in key, deck keeps it in a secret")
 	case in.KeySecret != "" && !access.ValidSecret(in.KeySecret):
-		return nil, registry.Invalid("deck: bad secret name %q", in.KeySecret)
+		return nil, registry.Invalid("bad secret name %q", in.KeySecret)
 	}
 	if in.Key != "" {
 		in.KeySecret = cmp.Or(in.KeySecret, in.Name)
@@ -53,7 +53,7 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 		}
 	}
 	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == APICLI {
-		return nil, registry.Invalid("deck: connection %s is the %s CLI on the owner's subscription, which deck keeps itself; name another one", in.Name, in.Name)
+		return nil, registry.Invalid("connection %s is the %s CLI on the owner's subscription, which deck keeps itself; name another one", in.Name, in.Name)
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if old, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.KeySecret == "" {
@@ -75,7 +75,7 @@ type connectionRemoveIn struct {
 
 func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in connectionRemoveIn) (any, error) {
 	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && c.Api == APICLI {
-		return nil, registry.Invalid("deck: connection %s is the %s CLI, which deck keeps itself; remove its models instead", in.Name, in.Name)
+		return nil, registry.Invalid("connection %s is the %s CLI, which deck keeps itself; remove its models instead", in.Name, in.Name)
 	}
 	var n int64
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -85,7 +85,7 @@ func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in c
 		}
 		for _, m := range models {
 			if m.Connection.Name == in.Name {
-				return registry.Invalid("deck: model %s is on connection %s; remove the models first", m.Model.Name, in.Name)
+				return registry.Invalid("model %s is on connection %s; remove the models first", m.Model.Name, in.Name)
 			}
 		}
 		n, err = q.DeleteConnection(ctx, db.DeleteConnectionParams{WorkspaceID: act.Workspace, Name: in.Name})
@@ -95,7 +95,7 @@ func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in c
 		return nil, err
 	}
 	if n == 0 {
-		return nil, registry.NotFound("deck: no connection %q", in.Name)
+		return nil, registry.NotFound("no connection %q", in.Name)
 	}
 	return map[string]any{"removed": in.Name}, nil
 }

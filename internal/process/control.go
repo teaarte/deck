@@ -45,9 +45,9 @@ func (r *Runner) end(ctx context.Context, processID int64, state string, f *faul
 	var closedCalls []db.Ask
 	if !r.own(processID) {
 		if p, err := r.st.Q.GetProcess(ctx, processID); err == nil && p.FinishedAt.Valid {
-			return registry.Invalid("deck: process %d has already finished", processID)
+			return registry.Invalid("process %d has already finished", processID)
 		}
-		return registry.Conflict("deck: process %d is closing", processID)
+		return registry.Conflict("process %d is closing", processID)
 	}
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
@@ -60,7 +60,7 @@ func (r *Runner) end(ctx context.Context, processID int64, state string, f *faul
 	})
 	if err != nil || n == 0 {
 		r.disown(processID)
-		return cmp.Or(err, registry.Invalid("deck: process %d has already finished", processID))
+		return cmp.Or(err, registry.Invalid("process %d has already finished", processID))
 	}
 	r.mu.Lock()
 	lt := r.live[processID]
@@ -97,7 +97,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 		select {
 		case <-lt.done:
 		case <-time.After(stopGrace):
-			return registry.Conflict("deck: process %d is still stopping; send it back once it has", processID)
+			return registry.Conflict("process %d is still stopping; send it back once it has", processID)
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -112,13 +112,13 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	}
 	cmd := m.Command(p.Command)
 	if cmd == nil {
-		return registry.Invalid("deck: command %q no longer exists", p.Command)
+		return registry.Invalid("command %q no longer exists", p.Command)
 	}
 	if strings.TrimSpace(remark) == "" && p.State == StateDone {
-		return registry.Invalid("deck: a rework of a process that is done needs a remark")
+		return registry.Invalid("a rework of a process that is done needs a remark")
 	}
 	if fs, err := r.st.Q.ListFollowers(ctx, store.ID(p.ID)); err == nil && len(fs) > 0 && strings.TrimSpace(remark) == "" {
-		return registry.Invalid("deck: process %d took over the work of process %d", fs[len(fs)-1].ID, p.ID)
+		return registry.Invalid("process %d took over the work of process %d", fs[len(fs)-1].ID, p.ID)
 	}
 	msg := "deck: the owner sent this task back for rework.\n" + untrusted.Value("Remark", strings.TrimSpace(remark), 500) +
 		"\nKeep what is right and change what the remark asks for. Save changed documents again under the same" +
@@ -132,13 +132,13 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if cmd.Runs == manifest.RunsOne {
 			if other, err := q.OtherRun(ctx, db.OtherRunParams{ProjectID: p.ProjectID, Command: p.Command, Trial: p.Trial, ID: p.ID}); err == nil {
-				return registry.Conflict("deck: run %d of %s is going, and it runs one at a time", other, p.Command)
+				return registry.Conflict("run %d of %s is going, and it runs one at a time", other, p.Command)
 			}
 		}
 		if p.RetryKey != "" {
 			other, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: p.ProjectID, Command: p.Command, RetryKey: p.RetryKey, Trial: p.Trial})
 			if err == nil && other.ID != p.ID {
-				return registry.Invalid("deck: process %d with the same retry key is still going", other.ID)
+				return registry.Invalid("process %d with the same retry key is still going", other.ID)
 			}
 		}
 		n, err = q.ReopenProcess(ctx, db.ReopenProcessParams{CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), StartNote: note,
@@ -149,7 +149,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 		return err
 	}
 	if n == 0 {
-		return registry.Invalid("deck: only a finished process with an agent session can go back for rework")
+		return registry.Invalid("only a finished process with an agent session can go back for rework")
 	}
 	if err := r.resume(ctx, processID, msg, told{}, false); err != nil {
 		r.finish(ctx, processID, StateError, "", false, fault.Wrap("rework", err))

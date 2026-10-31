@@ -30,7 +30,7 @@ func (ss *Service) widgetDraw(ctx context.Context, act registry.Actor, in widget
 		return nil, err
 	}
 	if _, _, ok := manifest.Size(in.Size); !ok {
-		return nil, registry.Invalid("deck: a size of cells such as 4x2, not %q", in.Size)
+		return nil, registry.Invalid("a size of cells such as 4x2, not %q", in.Size)
 	}
 	ws := words.In(ss.Language(ctx, act.Workspace))
 	b := []string{manifest.TrText(ws, fmt.Sprintf("Make a view of the card of module %s on the tiles for the size %s, columns by rows of cells: a widget of its manifest with min %s, of stat, list and chart blocks, that shows on this size what matters most of the module, by the skill widgets; save it with manifest_save.", p.Name, in.Size, in.Size))}

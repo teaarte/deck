@@ -42,7 +42,7 @@ func (dc *Service) Skills(ctx context.Context, projectID int64, names []string) 
 		from := p.ID
 		if !has[fmt.Sprint(p.ID, "/", n)] {
 			if from = 0; !has[fmt.Sprint(0, "/", n)] {
-				return nil, registry.Invalid("deck: skill %q is missing: no skills/%s/SKILL.md in the project or the workspace", n, n)
+				return nil, registry.Invalid("skill %q is missing: no skills/%s/SKILL.md in the project or the workspace", n, n)
 			}
 		}
 		for _, r := range rows {

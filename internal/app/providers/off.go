@@ -71,7 +71,7 @@ type providerOffIn struct {
 func (s *Service) providerOff(ctx context.Context, act registry.Actor, in providerOffIn) (any, error) {
 	pv := s.builtinNamed(in.Provider)
 	if _, ok := pv.(provider.SelfChecker); !ok {
-		return nil, registry.Invalid("deck: %q is no built-in provider; a model of an agent is removed in Settings → Models", in.Provider)
+		return nil, registry.Invalid("%q is no built-in provider; a model of an agent is removed in Settings → Models", in.Provider)
 	}
 	value := ""
 	if in.Off {

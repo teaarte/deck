@@ -28,11 +28,11 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 			return err
 		}
 		if n > 0 {
-			return registry.Refuse("deck: an identical call of %s has an unknown outcome; it is not repeated until the owner decides", tool)
+			return registry.Refuse("an identical call of %s has an unknown outcome; it is not repeated until the owner decides", tool)
 		}
 		if n, err = q.CountStartedCalls(ctx, db.CountStartedCallsParams{ProjectID: store.ID(project), Tool: tool, Params: p}); err != nil || n > 0 {
 			if err == nil {
-				err = registry.Refuse("deck: an identical call of %s is being made now; wait for its outcome instead of repeating it", tool)
+				err = registry.Refuse("an identical call of %s is being made now; wait for its outcome instead of repeating it", tool)
 			}
 			return err
 		}

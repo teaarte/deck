@@ -49,7 +49,7 @@ func AskModel(connection, method, path string, header http.Header, body []byte) 
 	ask := ModelAsk{Connection: connection, Method: cmp.Or(method, http.MethodPost), Path: strings.TrimPrefix(path, "/")}
 	for i, seg := range strings.Split(ask.Path, "/") {
 		if seg == "." || seg == ".." || seg == "" && i > 0 {
-			return ask, registry.Refuse("deck: the path %s of a call of a model has an empty, . or .. part", path)
+			return ask, registry.Refuse("the path %s of a call of a model has an empty, . or .. part", path)
 		}
 	}
 	var named []string
@@ -58,15 +58,15 @@ func AskModel(connection, method, path string, header http.Header, body []byte) 
 		for k := range m {
 			switch {
 			case strings.EqualFold(k, "model") && k != "model":
-				return ask, registry.Refuse("deck: a call of a model names its model in model, not %s", k)
+				return ask, registry.Refuse("a call of a model names its model in model, not %s", k)
 			case strings.EqualFold(k, "models") || strings.EqualFold(k, "route"):
-				return ask, registry.Refuse("deck: a call of a model names its one model in model; %s reaches models deck's settings do not hold", k)
+				return ask, registry.Refuse("a call of a model names its one model in model; %s reaches models deck's settings do not hold", k)
 			}
 		}
 		if raw, ok := m["model"]; ok {
 			var v string
 			if json.Unmarshal(raw, &v) != nil || v == "" {
-				return ask, registry.Refuse("deck: model of the body is the name of a model, a string")
+				return ask, registry.Refuse("model of the body is the name of a model, a string")
 			}
 			named, ask.InBody = append(named, v), true
 		}
@@ -80,7 +80,7 @@ func AskModel(connection, method, path string, header http.Header, body []byte) 
 				break
 			}
 			if err != nil {
-				return ask, registry.Refuse("deck: the form of a call of a model does not read: %v", err)
+				return ask, registry.Refuse("the form of a call of a model does not read: %v", err)
 			}
 			if p.FormName() == "model" {
 				b, _ := io.ReadAll(io.LimitReader(p, 1<<10))
@@ -88,7 +88,7 @@ func AskModel(connection, method, path string, header http.Header, body []byte) 
 			}
 		}
 		if len(form) > 1 {
-			return ask, registry.Refuse("deck: a form names its model once")
+			return ask, registry.Refuse("a form names its model once")
 		}
 		named, ask.InForm = append(named, form...), len(form) > 0
 	}
@@ -106,7 +106,7 @@ func AskModel(connection, method, path string, header http.Header, body []byte) 
 	}
 	for _, n := range named {
 		if n != named[0] {
-			return ask, registry.Refuse("deck: the request names two models, %s and %s", named[0], n)
+			return ask, registry.Refuse("the request names two models, %s and %s", named[0], n)
 		}
 	}
 	if len(named) > 0 {

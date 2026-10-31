@@ -56,11 +56,11 @@ func (s *Service) dataRead(ctx context.Context, act registry.Actor, in dataReadI
 		return dataRead{Entries: []dataEntry{}}, nil
 	}
 	if err != nil {
-		return dataRead{}, registry.NotFound("deck: %s has no data folder yet", p.Name)
+		return dataRead{}, registry.NotFound("%s has no data folder yet", p.Name)
 	}
 	defer root.Close()
 	path := strings.TrimPrefix(filepath.Clean("/"+in.Path), "/")
-	missing := registry.NotFound("deck: no %q in the data folder of %s", in.Path, p.Name)
+	missing := registry.NotFound("no %q in the data folder of %s", in.Path, p.Name)
 	f, err := root.OpenFile(cmp.Or(path, "."), os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return dataRead{}, missing

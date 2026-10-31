@@ -39,7 +39,7 @@ type call struct {
 func parseCall(input json.RawMessage) (call, error) {
 	var in call
 	if err := json.Unmarshal(input, &in); err != nil {
-		return in, registry.Invalid("deck: %v", err)
+		return in, registry.Invalid("%v", err)
 	}
 	return in, nil
 }
@@ -54,7 +54,7 @@ func (s *Service) modelRef(ctx context.Context, workspace int64, model, kind str
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: model})
 	if err != nil {
-		return gateway.ModelAsk{}, registry.NotFound("deck: no model %q; deck.models_list names the models", model)
+		return gateway.ModelAsk{}, registry.NotFound("no model %q; deck.models_list names the models", model)
 	}
 	return gateway.ModelAsk{Connection: row.Connection.Name, Model: row.Model.Model, Name: row.Model.Name}, nil
 }
@@ -65,7 +65,7 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		return nil, err
 	}
 	if role, ok := strings.CutPrefix(ask.Model, "@"); ok && role != in.Kind {
-		return nil, registry.Invalid("deck: a call of kind %s takes @%s, not %s", in.Kind, in.Kind, ask.Model)
+		return nil, registry.Invalid("a call of kind %s takes @%s, not %s", in.Kind, in.Kind, ask.Model)
 	}
 	hops, err := s.Route(ctx, act, ask)
 	if err != nil {
@@ -90,13 +90,13 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 	var options map[string]any
 	if strings.TrimSpace(in.Options) != "" {
 		if err := json.Unmarshal([]byte(in.Options), &options); err != nil {
-			return nil, registry.Invalid("deck: options are a JSON object: %v", err)
+			return nil, registry.Invalid("options are a JSON object: %v", err)
 		}
 	}
 	var att attached
 	if in.Kind == RoleSTT {
 		if in.File == "" {
-			return nil, registry.Invalid("deck: stt needs the recording in file")
+			return nil, registry.Invalid("stt needs the recording in file")
 		}
 		f, err := s.Resolve(ctx, act.ProjectID, act.ProcessID, in.File)
 		if err != nil {
@@ -111,7 +111,7 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 	}
 	if in.Kind == RoleVideo {
 		if strings.TrimSpace(in.Prompt) == "" {
-			return nil, registry.Invalid("deck: a video needs a prompt")
+			return nil, registry.Invalid("a video needs a prompt")
 		}
 		if att.frames, err = s.frames(ctx, act, in); err != nil {
 			return nil, err

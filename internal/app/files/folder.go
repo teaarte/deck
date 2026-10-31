@@ -134,7 +134,7 @@ func (s *Service) folder(ctx context.Context, act registry.Actor, in filesFolder
 		}
 	}
 	if i < 0 {
-		return out, registry.NotFound("deck: no module %q", name)
+		return out, registry.NotFound("no module %q", name)
 	}
 	out.Names[name] = projects[i].Title
 	words := map[string]string{partFiles: tr("Files"), partDocuments: tr("Documents"), partData: tr("Data folder")}
@@ -199,7 +199,7 @@ func (s *Service) folder(ctx context.Context, act registry.Actor, in filesFolder
 			out.Entries = append(out.Entries, f)
 		}
 	default:
-		return out, registry.NotFound("deck: no folder %q in %s", part, name)
+		return out, registry.NotFound("no folder %q in %s", part, name)
 	}
 	return out, nil
 }

@@ -31,11 +31,11 @@ type Service struct {
 // Read is the value of a secret of the owner, read when a call needs it; deck's own keys live elsewhere.
 func (s *Service) Read(workspace int64, name string) (string, error) {
 	if !access.ValidSecret(name) {
-		return "", registry.Invalid("deck: bad secret name %q", name)
+		return "", registry.Invalid("bad secret name %q", name)
 	}
 	b, err := os.ReadFile(filepath.Join(s.Dir(workspace), name))
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", registry.Invalid("deck: secret %q is not set; the owner sets it with deck.secret_set", name)
+		return "", registry.Invalid("secret %q is not set; the owner sets it with deck.secret_set", name)
 	}
 	return strings.TrimRight(string(b), "\r\n"), err
 }
@@ -54,7 +54,7 @@ type secretSetIn struct {
 // secretSet writes a secret file readable only by deck; the value never comes back out.
 func (s *Service) secretSet(ctx context.Context, act registry.Actor, in secretSetIn) (any, error) {
 	if !access.ValidSecret(in.Name) {
-		return nil, registry.Invalid("deck: a secret name is letters, digits, '.', '_' and '-'")
+		return nil, registry.Invalid("a secret name is letters, digits, '.', '_' and '-'")
 	}
 	if err := s.Write(act.Workspace, in.Name, in.Value); err != nil {
 		return nil, err
@@ -69,13 +69,13 @@ type secretDeleteIn struct {
 // secretDelete removes a stored secret; tools and providers that name it fail until it is set again.
 func (s *Service) secretDelete(ctx context.Context, act registry.Actor, in secretDeleteIn) (any, error) {
 	if !access.ValidSecret(in.Name) {
-		return nil, registry.Invalid("deck: no secret %q the owner can delete", in.Name)
+		return nil, registry.Invalid("no secret %q the owner can delete", in.Name)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	err := os.Remove(filepath.Join(s.Dir(act.Workspace), in.Name))
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, registry.NotFound("deck: no secret %q", in.Name)
+		return nil, registry.NotFound("no secret %q", in.Name)
 	}
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (s *Service) Swap(workspace int64, name, old, value string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !access.ValidSecret(name) {
-		return false, registry.Invalid("deck: bad secret name %q", name)
+		return false, registry.Invalid("bad secret name %q", name)
 	}
 	b, err := os.ReadFile(filepath.Join(s.Dir(workspace), name))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -111,7 +111,7 @@ func (s *Service) Write(workspace int64, name, value string) error {
 
 func (s *Service) write(workspace int64, name, value string) error {
 	if !access.ValidSecret(name) {
-		return registry.Invalid("deck: bad secret name %q", name)
+		return registry.Invalid("bad secret name %q", name)
 	}
 	err := provider.WriteFile(filepath.Join(s.Dir(workspace), name), []byte(value))
 	if err == nil {

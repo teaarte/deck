@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/fault"
 	"deck2/internal/nonce"
-	"deck2/internal/registry"
 )
 
 // Grant issues a token for a process that reaches the gateway over HTTP rather than MCP.
@@ -37,7 +37,7 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 		}
 		out, err := g.call(r.Context(), s.actor(), r.PathValue("name"), body)
 		if err != nil {
-			http.Error(w, err.Error(), registry.Status(err))
+			http.Error(w, err.Error(), fault.Status(err))
 			return
 		}
 		if _, ok := out.(Waiting); ok {

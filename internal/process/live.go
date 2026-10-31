@@ -64,7 +64,7 @@ func (r *Runner) Remark(ctx context.Context, processID int64, text string) error
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := ask.Remark(ctx, q, processID, text, r.stamp().String)
 		if errors.Is(err, sql.ErrNoRows) {
-			return registry.Invalid("deck: process %d has finished; send it back with a remark instead", processID)
+			return registry.Invalid("process %d has finished; send it back with a remark instead", processID)
 		}
 		return err
 	})

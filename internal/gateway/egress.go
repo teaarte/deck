@@ -2,7 +2,7 @@ package gateway
 
 import (
 	"context"
-	"deck2/internal/registry"
+	"deck2/internal/fault"
 	"errors"
 	"fmt"
 	"io"
@@ -144,10 +144,10 @@ func Pin(req *http.Request, domains []string) (*http.Request, error) {
 	}
 	pinned, err := destination(req.Context(), domains, net.JoinHostPort(req.URL.Hostname(), port))
 	if errors.Is(err, errUnresolved) {
-		return nil, &registry.Error{Status: http.StatusBadGateway, Text: err.Error() + "; the network or DNS of the machine may be down"}
+		return nil, fault.New(fault.Network, err.Error()+"; the network or DNS of the machine may be down")
 	}
 	if err != nil {
-		return nil, &registry.Error{Status: http.StatusForbidden, Text: err.Error()}
+		return nil, fault.New(fault.RightsDenied, err.Error())
 	}
 	return req.WithContext(context.WithValue(req.Context(), pinnedKey{}, pinned)), nil
 }

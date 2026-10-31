@@ -160,7 +160,7 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 		return nil, err
 	}
 	if runs && (in.Record != 0 || in.Topic != 0) {
-		return nil, registry.Invalid("deck: the runs of another project list by state, command and time, not by record or topic")
+		return nil, registry.Invalid("the runs of another project list by state, command and time, not by record or topic")
 	}
 	var ps []db.Process
 	switch {
@@ -310,7 +310,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		case <-time.After(250 * time.Millisecond):
 		}
 		if p, err = s.St.Q.GetProcess(ctx, in.Process); errors.Is(err, sql.ErrNoRows) {
-			return processView{}, registry.NotFound("deck: no process %d", in.Process)
+			return processView{}, registry.NotFound("no process %d", in.Process)
 		} else if err != nil {
 			return processView{}, err
 		}
@@ -374,7 +374,7 @@ func waitLimit(act registry.Actor) time.Duration {
 // ownProcess loads a process of the actor's workspace; agents reach only their own project.
 func (s *Service) ownProcess(ctx context.Context, act registry.Actor, id int64) (db.Process, error) {
 	p, err := s.St.Q.GetProcess(ctx, id)
-	p, _, err = access.Owned(ctx, s.St.Q, act, p, err, p.ProjectID, registry.NotFound("deck: no process %d", id))
+	p, _, err = access.Owned(ctx, s.St.Q, act, p, err, p.ProjectID, registry.NotFound("no process %d", id))
 	return p, err
 }
 

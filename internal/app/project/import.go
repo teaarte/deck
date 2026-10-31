@@ -53,7 +53,7 @@ type projectImportIn struct {
 // importable lets someone other than the owner import only from the data of the master and from the folders the
 // owner gave a project of the workspace, before anything in the folder is read.
 func (pj *Service) importable(ctx context.Context, act registry.Actor, dir string) error {
-	refused := registry.Refuse("deck: %s is not a folder %s imports from: a draft comes from the data of the master or "+
+	refused := registry.Refuse("%s is not a folder %s imports from: a draft comes from the data of the master or "+
 		"from a folder the owner gave a project in Settings", dir, act.As())
 	real, err := filepath.EvalSymlinks(dir)
 	if err != nil {
@@ -78,7 +78,7 @@ func (pj *Service) importable(ctx context.Context, act registry.Actor, dir strin
 // left out.
 func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in projectImportIn) (any, error) {
 	if n := btoi(in.Folder != "") + btoi(in.File != "") + btoi(in.Starter != ""); n != 1 {
-		return nil, registry.Invalid("deck: give folder, file or starter, one of them")
+		return nil, registry.Invalid("give folder, file or starter, one of them")
 	}
 	var (
 		files      []folderFile
@@ -109,12 +109,12 @@ func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in pro
 			}
 		}
 		if files, skipped, err = readFolder(dir); err != nil {
-			return nil, registry.Invalid("deck: cannot read %s: %v", dir, err)
+			return nil, registry.Invalid("cannot read %s: %v", dir, err)
 		}
 		from, name = dir, filepath.Base(dir)
 	}
 	if len(skipped) > 0 {
-		return nil, registry.Invalid("deck: %s has files deck cannot take: %s", from, strings.Join(skipped, "; "))
+		return nil, registry.Invalid("%s has files deck cannot take: %s", from, strings.Join(skipped, "; "))
 	}
 	return pj.importFiles(ctx, act, cmp.Or(in.Name, name), from, files)
 }
@@ -133,10 +133,10 @@ func (pj *Service) importFiles(ctx context.Context, act registry.Actor, name, fr
 		}
 	}
 	if total > maxFolder {
-		return nil, registry.Invalid("deck: %s holds more than 32 MB of text", from)
+		return nil, registry.Invalid("%s holds more than 32 MB of text", from)
 	}
 	if raw == "" {
-		return nil, registry.Invalid("deck: %s has no %s", from, docs.ManifestName)
+		return nil, registry.Invalid("%s has no %s", from, docs.ManifestName)
 	}
 	pm, err := parseManifest([]byte(raw), false)
 	if err != nil {
@@ -155,7 +155,7 @@ func (pj *Service) importFiles(ctx context.Context, act registry.Actor, name, fr
 			}
 			ref := docs.Ref{Scope: docs.ProjectScope(p), Name: f.path}
 			if _, _, _, err := docs.Save(ctx, q, ref, moduleKind(pm.m, f.path), f.text, act.Author(), reason); err != nil {
-				return registry.Invalid("deck: %s: %v", f.path, err)
+				return registry.Invalid("%s: %v", f.path, err)
 			}
 		}
 		return nil

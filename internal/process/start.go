@@ -144,7 +144,7 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 		if o.Provider != "" {
 			if pv, err = r.deps.Named(ctx, projectID, o.Provider); err == nil {
 				if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
-					err = registry.Invalid("deck: provider %s lacks %s for %s", o.Provider, strings.Join(missing, ", "), cmd.Name)
+					err = registry.Invalid("provider %s lacks %s for %s", o.Provider, strings.Join(missing, ", "), cmd.Name)
 				}
 			}
 		}
@@ -179,7 +179,7 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 		}
 		at.session = ""
 	default:
-		return at, registry.Invalid("deck: %s executors are not available yet", at.kind)
+		return at, registry.Invalid("%s executors are not available yet", at.kind)
 	}
 	return at, nil
 }
@@ -219,13 +219,13 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 			return err
 		}
 		if t.Paused == 1 || pr.Paused == 1 {
-			return registry.Invalid("deck: %s was not started: its trigger or project is paused", command)
+			return registry.Invalid("%s was not started: its trigger or project is paused", command)
 		}
 		if t.Kind == trigger.KindCron && t.NextRunAt.String > store.Time(r.now()) {
-			return registry.Invalid("deck: %s was not started: its trigger moved to %s since it was due", command, t.NextRunAt.String)
+			return registry.Invalid("%s was not started: its trigger moved to %s since it was due", command, t.NextRunAt.String)
 		}
 		if pr.Status == store.ProjectDraft && parent.Trial != 1 {
-			return registry.Invalid("deck: %s was not started: project %s is a draft; only a trial run starts its triggers", command, pr.Name)
+			return registry.Invalid("%s was not started: project %s is a draft; only a trial run starts its triggers", command, pr.Name)
 		}
 	}
 	// A finish heard again after a crash starts each of its after triggers once.
@@ -308,7 +308,7 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 			}
 			text := fmt.Sprintf("deck stopped a chain of %d steps: %s.%s was not started after %s (process %d).",
 				MaxDepth, proj.Name, command, chain, parent.ID)
-			a.refused = registry.Refuse("deck: %s was not started: a chain may be at most %d steps long: %s", command, MaxDepth, chain)
+			a.refused = registry.Refuse("%s was not started: a chain may be at most %d steps long: %s", command, MaxDepth, chain)
 			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(r.now()), ProjectID: proj.ID, Text: text})
 		}
 	}
@@ -399,7 +399,7 @@ func (r *Runner) scriptSource(ctx context.Context, projectID int64, m *manifest.
 		return "", err
 	}
 	if strings.TrimSpace(src) == "" {
-		return "", registry.Invalid("deck: script file %q of %s is missing, empty or not a script document", s.File, cmd.Name)
+		return "", registry.Invalid("script file %q of %s is missing, empty or not a script document", s.File, cmd.Name)
 	}
 	return src, nil
 }
@@ -413,7 +413,7 @@ func (r *Runner) commandBody(ctx context.Context, projectID int64, cmd *manifest
 		return "", err
 	}
 	if strings.TrimSpace(body) == "" {
-		return "", registry.Invalid("deck: prompt file %q of %s is missing or empty", cmd.Executor.PromptFile, cmd.Name)
+		return "", registry.Invalid("prompt file %q of %s is missing or empty", cmd.Executor.PromptFile, cmd.Name)
 	}
 	return body, nil
 }

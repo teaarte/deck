@@ -23,7 +23,7 @@ type fileIn struct {
 // own is a stored file of a project of the actor's workspace.
 func (s *Service) own(ctx context.Context, act registry.Actor, id int64) (db.File, db.Project, error) {
 	f, err := s.St.Q.GetFile(ctx, id)
-	return access.Owned(ctx, s.St.Q, act, f, err, f.ProjectID, registry.NotFound("deck: no file %d", id))
+	return access.Owned(ctx, s.St.Q, act, f, err, f.ProjectID, registry.NotFound("no file %d", id))
 }
 
 // rebind moves a file from one owner to another, refused when it no longer has the first.
@@ -31,7 +31,7 @@ func (s *Service) rebind(ctx context.Context, f db.File, fromKind string, fromID
 	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: kind, OwnerID: id, ID: f.ID, ProjectID: f.ProjectID, FromKind: fromKind, FromID: fromID})
 		if err == nil && n == 0 {
-			err = registry.Conflict("deck: file %d changed meanwhile", f.ID)
+			err = registry.Conflict("file %d changed meanwhile", f.ID)
 		}
 		return err
 	})
@@ -45,16 +45,16 @@ func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileIn)
 		return nil, err
 	}
 	if f.OwnerKind == trash {
-		return nil, registry.Conflict("deck: file %d is deleted already", f.ID)
+		return nil, registry.Conflict("file %d is deleted already", f.ID)
 	}
 	if act.Kind != registry.Owner && (act.ProcessID == 0 || f.ProcessID.Int64 != act.ProcessID) {
-		return nil, registry.Refuse("deck: a process deletes only the files its own run made; file %d is not one of them", f.ID)
+		return nil, registry.Refuse("a process deletes only the files its own run made; file %d is not one of them", f.ID)
 	}
 	out := map[string]any{"file": f.ID, "owner_kind": f.OwnerKind, "owner_id": f.OwnerID}
 	return out, s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: trash, OwnerID: s.Now().Unix(), ID: f.ID, ProjectID: f.ProjectID, FromKind: f.OwnerKind, FromID: f.OwnerID})
 		if err == nil && n == 0 {
-			err = registry.Conflict("deck: file %d changed meanwhile", f.ID)
+			err = registry.Conflict("file %d changed meanwhile", f.ID)
 		}
 		if err != nil || act.Kind == registry.Owner || p.Status == store.ProjectDraft {
 			return err
@@ -82,10 +82,10 @@ func (s *Service) fileRestore(ctx context.Context, act registry.Actor, in fileRe
 		return map[string]any{"file": f.ID}, nil
 	}
 	if f.OwnerKind != trash {
-		return nil, registry.Conflict("deck: file %d is not deleted", f.ID)
+		return nil, registry.Conflict("file %d is not deleted", f.ID)
 	}
 	if !slices.Contains([]string{"record", "process", "chat_message", "upload"}, in.OwnerKind) {
-		return nil, registry.Invalid("deck: a file belongs to no %q", in.OwnerKind)
+		return nil, registry.Invalid("a file belongs to no %q", in.OwnerKind)
 	}
 	return map[string]any{"file": f.ID}, s.rebind(ctx, f, trash, f.OwnerID, in.OwnerKind, in.OwnerID)
 }

@@ -34,7 +34,7 @@ type Row struct {
 // Abs is a path that must be absolute, cleaned.
 func Abs(path string) (string, error) {
 	if !filepath.IsAbs(path) {
-		return "", registry.Invalid("deck: %q is not an absolute path", path)
+		return "", registry.Invalid("%q is not an absolute path", path)
 	}
 	return filepath.Clean(path), nil
 }
@@ -47,14 +47,14 @@ func (s *Service) realFolder(path string) (string, error) {
 	}
 	real, err := filepath.EvalSymlinks(dir)
 	if err != nil {
-		return "", registry.Invalid("deck: folder %s does not exist", dir)
+		return "", registry.Invalid("folder %s does not exist", dir)
 	}
 	if st, err := os.Stat(real); err != nil || !st.IsDir() {
-		return "", registry.Invalid("deck: %s is not a folder", dir)
+		return "", registry.Invalid("%s is not a folder", dir)
 	}
 	for _, home := range paths.Names(string(s.Home)) {
 		if paths.Overlap(home, real) {
-			return "", registry.Invalid("deck: folder %s holds or is inside deck's own folder %s", dir, s.Home)
+			return "", registry.Invalid("folder %s holds or is inside deck's own folder %s", dir, s.Home)
 		}
 	}
 	return real, nil
@@ -91,7 +91,7 @@ func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAd
 		name = defaultFolderName(real)
 	}
 	if !folderName.MatchString(name) {
-		return nil, registry.Invalid("deck: folder name %q must be lowercase letters, digits, '-' and '_', starting with a letter", name)
+		return nil, registry.Invalid("folder name %q must be lowercase letters, digits, '-' and '_', starting with a letter", name)
 	}
 	var f db.ProjectFolder
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -101,10 +101,10 @@ func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAd
 		}
 		for _, h := range have {
 			if h.Name == name {
-				return registry.Invalid("deck: project %s already has a folder named %s (%s)", p.Name, name, h.Path)
+				return registry.Invalid("project %s already has a folder named %s (%s)", p.Name, name, h.Path)
 			}
 			if h.Path == real {
-				return registry.Invalid("deck: project %s already has folder %s as %s", p.Name, real, h.Name)
+				return registry.Invalid("project %s already has folder %s as %s", p.Name, real, h.Name)
 			}
 		}
 		f, err = q.AddProjectFolder(ctx, db.AddProjectFolderParams{ProjectID: p.ID, Name: name, Path: real})
@@ -133,7 +133,7 @@ func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folde
 		return nil, err
 	}
 	if n == 0 {
-		return nil, registry.NotFound("deck: project %s has no folder %s", p.Name, in.Name)
+		return nil, registry.NotFound("project %s has no folder %s", p.Name, in.Name)
 	}
 	return map[string]any{"project": p.Name, "removed": in.Name}, nil
 }
@@ -167,18 +167,18 @@ func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder
 			}
 		}
 		if path == "" {
-			return "", registry.Invalid("deck: project %s has no folder %s; the owner adds it in the settings of the module, Access", p.Name, f.Name)
+			return "", registry.Invalid("project %s has no folder %s; the owner adds it in the settings of the module, Access", p.Name, f.Name)
 		}
 	case len(fs) == 0:
-		return "", registry.Invalid("deck: project %s has no folder yet; the owner adds one in the settings of the module, Access", p.Name)
+		return "", registry.Invalid("project %s has no folder yet; the owner adds one in the settings of the module, Access", p.Name)
 	case len(fs) > 1:
-		return "", registry.Invalid("deck: project %s has %d folders; the command has to name one in folder", p.Name, len(fs))
+		return "", registry.Invalid("project %s has %d folders; the command has to name one in folder", p.Name, len(fs))
 	default:
 		path = fs[0].Path
 	}
 	real, err := s.realFolder(path)
 	if err != nil {
-		return "", registry.Invalid("deck: folder %s of project %s is gone or moved: %v", path, p.Name, err)
+		return "", registry.Invalid("folder %s of project %s is gone or moved: %v", path, p.Name, err)
 	}
 	return real, nil
 }

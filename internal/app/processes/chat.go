@@ -102,7 +102,7 @@ func (s *Service) processMessageDelete(ctx context.Context, act registry.Actor, 
 		return nil, err
 	}
 	if n == 0 {
-		return nil, registry.Conflict("deck: the agent has taken this message already, or it is gone")
+		return nil, registry.Conflict("the agent has taken this message already, or it is gone")
 	}
 	return map[string]any{"ok": true}, nil
 }

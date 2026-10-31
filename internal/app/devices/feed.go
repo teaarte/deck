@@ -322,16 +322,16 @@ type feedUndoIn struct {
 func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoIn) (any, error) {
 	r, err := dv.St.Q.GetFeed(ctx, in.Entry)
 	if err != nil || r.WorkspaceID != act.Workspace || r.Kind != FeedChange || r.LineID.Valid {
-		return nil, registry.NotFound("deck: no change %d", in.Entry)
+		return nil, registry.NotFound("no change %d", in.Entry)
 	}
 	_, undoable, err := store.Line(ctx, dv.St.Q, r)
 	switch {
 	case err != nil:
 		return nil, err
 	case r.UndoneAt.Valid:
-		return nil, registry.Conflict("deck: this change is already undone")
+		return nil, registry.Conflict("this change is already undone")
 	case !undoable:
-		return nil, registry.Invalid("deck: this change has no earlier version to return to")
+		return nil, registry.Invalid("this change has no earlier version to return to")
 	}
 	line, err := dv.St.Q.ListChangeLine(ctx, r.ID)
 	if err != nil {
@@ -374,7 +374,7 @@ func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndo
 			return nil, err
 		}
 		if d.Current != u.call.Revision || u.gap {
-			return nil, registry.Conflict("deck: the document changed after this; return to an earlier version from its history")
+			return nil, registry.Conflict("the document changed after this; return to an earlier version from its history")
 		}
 	}
 	var out any
@@ -412,7 +412,7 @@ type feedReadIn struct {
 // feedRead marks a note of the feed read, or every unread one.
 func (dv *Service) feedRead(ctx context.Context, act registry.Actor, in feedReadIn) (any, error) {
 	if in.All == (in.Entry != 0) {
-		return nil, registry.Invalid("deck: give the entry of one note, or all")
+		return nil, registry.Invalid("give the entry of one note, or all")
 	}
 	n, err := store.TxGet(dv.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		if in.All {
@@ -424,7 +424,7 @@ func (dv *Service) feedRead(ctx context.Context, act registry.Actor, in feedRead
 		return nil, err
 	}
 	if n == 0 && !in.All {
-		return nil, registry.NotFound("deck: no unread note %d", in.Entry)
+		return nil, registry.NotFound("no unread note %d", in.Entry)
 	}
 	return map[string]any{"ok": true, "read": n}, nil
 }

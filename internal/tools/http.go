@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/home"
 	"deck2/internal/untrusted"
 
@@ -72,10 +73,10 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool, domains []string) regi
 		}
 		in, err := manifest.DecodeObject(raw)
 		if err != nil {
-			return refuse(registry.Invalid("deck: input of %s: %v", name, err))
+			return refuse(registry.Invalid("input of %s: %v", name, err))
 		}
 		req, err := h.request(ctx, act, p, t, domains, in)
-		if registry.Status(err) == http.StatusBadGateway {
+		if fault.Status(err) == http.StatusBadGateway {
 			h.health(ctx, p, name, "error", err.Error())
 		}
 		if err != nil {

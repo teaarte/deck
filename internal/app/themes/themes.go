@@ -76,7 +76,7 @@ func (s *Service) look(ctx context.Context, ws int64, name, lang string) (theme.
 		return theme.Look{}, err
 	}
 	if raw == nil {
-		return theme.Look{}, registry.NotFound("deck: no theme %q; deck.themes_list names them", name)
+		return theme.Look{}, registry.NotFound("no theme %q; deck.themes_list names them", name)
 	}
 	t, err := theme.Parse(raw)
 	if err != nil {
@@ -221,14 +221,14 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in checkIn) (an
 	raw := []byte(in.Text)
 	if in.Text == "" {
 		if in.Name == "" {
-			return nil, registry.Invalid("deck: give a theme name or its text")
+			return nil, registry.Invalid("give a theme name or its text")
 		}
 		var err error
 		if raw, _, err = s.text(ctx, s.St.Q, act.Workspace, in.Name); err != nil {
 			return nil, err
 		}
 		if raw == nil {
-			return nil, registry.NotFound("deck: no theme %q", in.Name)
+			return nil, registry.NotFound("no theme %q", in.Name)
 		}
 	}
 	out := checkOut{Problems: check(in.Name, raw)}
@@ -254,10 +254,10 @@ type saveIn struct {
 
 func (s *Service) save(ctx context.Context, act registry.Actor, in saveIn) (any, error) {
 	if err := theme.CheckName(in.Name); err != nil {
-		return nil, registry.Invalid("deck: %v", err)
+		return nil, registry.Invalid("%v", err)
 	}
 	if ps := check(in.Name, []byte(in.Text)); len(ps) > 0 {
-		return nil, registry.Invalid("deck: the theme is not saved: %s", strings.Join(ps, "; "))
+		return nil, registry.Invalid("the theme is not saved: %s", strings.Join(ps, "; "))
 	}
 	var n int64
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -268,7 +268,7 @@ func (s *Service) save(ctx context.Context, act registry.Actor, in saveIn) (any,
 				return err
 			}
 			if d.Current != in.IfRevision {
-				return registry.Conflict("deck: the theme is at revision %d now, not %d; read it again", d.Current, in.IfRevision)
+				return registry.Conflict("the theme is at revision %d now, not %d; read it again", d.Current, in.IfRevision)
 			}
 		}
 		var err error
@@ -292,13 +292,13 @@ func (s *Service) remove(ctx context.Context, act registry.Actor, in nameIn) (an
 		builtin = theme.Builtin(in.Name) != nil
 		switch {
 		case errors.Is(err, sql.ErrNoRows) && builtin:
-			return registry.Invalid("deck: deck ships the theme %s; it is not deleted", in.Name)
+			return registry.Invalid("deck ships the theme %s; it is not deleted", in.Name)
 		case errors.Is(err, sql.ErrNoRows):
-			return registry.NotFound("deck: no theme %q", in.Name)
+			return registry.NotFound("no theme %q", in.Name)
 		case err != nil:
 			return err
 		case d.Kind != docs.KindTheme:
-			return registry.Invalid("deck: %s is no theme", d.Name)
+			return registry.Invalid("%s is no theme", d.Name)
 		}
 		if _, err = q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: d.ID}); err != nil {
 			return err
@@ -321,10 +321,10 @@ func (s *Service) use(ctx context.Context, act registry.Actor, in nameIn) (any, 
 		return nil, err
 	}
 	if raw == nil {
-		return nil, registry.NotFound("deck: no theme %q; deck.themes_list names them", in.Name)
+		return nil, registry.NotFound("no theme %q; deck.themes_list names them", in.Name)
 	}
 	if _, err := theme.Parse(raw); err != nil {
-		return nil, registry.Invalid("deck: %v", err)
+		return nil, registry.Invalid("%v", err)
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: key, Value: in.Name})

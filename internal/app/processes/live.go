@@ -56,11 +56,11 @@ func (s *Service) processTell(ctx context.Context, act registry.Actor, in proces
 	text := strings.TrimSpace(in.Text)
 	switch {
 	case text == "":
-		return nil, registry.Invalid("deck: the message is empty")
+		return nil, registry.Invalid("the message is empty")
 	case p.Kind != process.KindAgent:
-		return nil, registry.Invalid("deck: process %d is a %s; only an agent takes a message", p.ID, p.Kind)
+		return nil, registry.Invalid("process %d is a %s; only an agent takes a message", p.ID, p.Kind)
 	case p.FinishedAt.Valid:
-		return nil, registry.Invalid("deck: process %d has finished; send it back with a remark instead", p.ID)
+		return nil, registry.Invalid("process %d has finished; send it back with a remark instead", p.ID)
 	}
 	delivered := ""
 	switch s.Runner.Say(ctx, p.ID, "deck: the owner wrote while you work:\n"+text) {

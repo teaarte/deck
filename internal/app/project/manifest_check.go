@@ -61,7 +61,7 @@ func (pj *Service) check(ctx context.Context, act registry.Actor, in manifestChe
 			in.Manifest = save.Manifest
 		}
 	} else if strings.TrimSpace(in.Manifest) == "" {
-		return out, registry.Invalid("deck: give the manifest JSON, or a project and old and new parts of its manifest")
+		return out, registry.Invalid("give the manifest JSON, or a project and old and new parts of its manifest")
 	}
 	pm, err := parseManifest([]byte(in.Manifest), p.Builtin == 1)
 	if err != nil {

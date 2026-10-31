@@ -49,7 +49,7 @@ type agentLoginIn struct {
 func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLoginIn) (any, error) {
 	si, ok := s.builtinNamed(in.Provider).(provider.SignIn)
 	if !ok {
-		return nil, registry.Invalid("deck: %s is not a CLI agent deck signs in to", in.Provider)
+		return nil, registry.Invalid("%s is not a CLI agent deck signs in to", in.Provider)
 	}
 	l := &signIn{Provider: in.Provider}
 	s.mu.Lock()
@@ -57,7 +57,7 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 		v := *was
 		s.mu.Unlock()
 		if v.URL == "" {
-			return nil, registry.Conflict("deck: the sign-in of %s is starting", in.Provider)
+			return nil, registry.Conflict("the sign-in of %s is starting", in.Provider)
 		}
 		return v, nil
 	}
@@ -201,11 +201,11 @@ func (s *Service) agentLoginCode(_ context.Context, _ registry.Actor, in agentLo
 	}
 	s.mu.Unlock()
 	if stdin == nil {
-		return nil, registry.Invalid("deck: no sign-in of %s waits for a code; start it again", in.Provider)
+		return nil, registry.Invalid("no sign-in of %s waits for a code; start it again", in.Provider)
 	}
 	code := strings.TrimSpace(in.Code)
 	if code == "" || strings.ContainsAny(code, "\r\n") {
-		return nil, registry.Invalid("deck: the code is one line")
+		return nil, registry.Invalid("the code is one line")
 	}
 	if _, err := io.WriteString(stdin, code+"\n"); err != nil {
 		return nil, err

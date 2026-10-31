@@ -44,7 +44,7 @@ func UpsertJSONL(ctx context.Context, q *db.Queries, now time.Time, projectID, p
 		recs = append(recs, r)
 	}
 	if err := sc.Err(); err != nil {
-		return out, registry.Invalid("deck: records: %v", err)
+		return out, registry.Invalid("records: %v", err)
 	}
 	res, err := upsert(ctx, q, now, projectID, process, m, collection, recs)
 	res.Errors = append(out.Errors, res.Errors...)
@@ -56,7 +56,7 @@ func UpsertJSONL(ctx context.Context, q *db.Queries, now time.Time, projectID, p
 func upsert(ctx context.Context, q *db.Queries, now time.Time, projectID, process int64, m *manifest.Manifest, collection string, recs []map[string]any) (UpsertResult, error) {
 	c := m.Collection(collection)
 	if c == nil {
-		return UpsertResult{}, registry.Invalid("deck: unknown collection %q", collection)
+		return UpsertResult{}, registry.Invalid("unknown collection %q", collection)
 	}
 	var out UpsertResult
 	err := func() error {
@@ -100,18 +100,18 @@ func upsert(ctx context.Context, q *db.Queries, now time.Time, projectID, proces
 func Update(ctx context.Context, q *db.Queries, now time.Time, rec db.Record, m *manifest.Manifest, data map[string]any) error {
 	c := m.Collection(rec.Collection)
 	if c == nil {
-		return registry.Invalid("deck: collection %q no longer exists", rec.Collection)
+		return registry.Invalid("collection %q no longer exists", rec.Collection)
 	}
 	key, err := c.RecordKey(data)
 	if err != nil {
-		return registry.Invalid("deck: %v", err)
+		return registry.Invalid("%v", err)
 	}
 	if key != rec.Key {
-		return registry.Invalid("deck: the change would move the record key from %q to %q; key fields cannot change", rec.Key, key)
+		return registry.Invalid("the change would move the record key from %q to %q; key fields cannot change", rec.Key, key)
 	}
 	if old, err := manifest.DecodeObject([]byte(rec.Data)); err == nil {
 		if err := c.CheckImmutable(old, data); err != nil {
-			return registry.Invalid("deck: %v", err)
+			return registry.Invalid("%v", err)
 		}
 	}
 	b := manifest.JSON(data, "")
@@ -120,7 +120,7 @@ func Update(ctx context.Context, q *db.Queries, now time.Time, rec db.Record, m 
 		return err
 	}
 	if n == 0 {
-		return registry.NotFound("deck: record %d no longer exists", rec.ID)
+		return registry.NotFound("record %d no longer exists", rec.ID)
 	}
 	return nil
 }
@@ -164,17 +164,17 @@ type recordUpdateIn struct {
 func (s *Service) recordUpdate(ctx context.Context, act registry.Actor, in recordUpdateIn) (any, error) {
 	data, err := manifest.DecodeObject([]byte(in.Data))
 	if err != nil {
-		return nil, registry.Invalid("deck: data is not a JSON object: %v", err)
+		return nil, registry.Invalid("data is not a JSON object: %v", err)
 	}
 	rec, err := s.St.Q.GetRecord(ctx, in.Record)
-	rec, p, err := access.Owned(ctx, s.St.Q, act, rec, err, rec.ProjectID, registry.NotFound("deck: no record %d", in.Record))
+	rec, p, err := access.Owned(ctx, s.St.Q, act, rec, err, rec.ProjectID, registry.NotFound("no record %d", in.Record))
 	if err != nil {
 		return nil, err
 	}
 	err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
 		cur, err := q.GetRecord(ctx, rec.ID)
 		if errors.Is(err, sql.ErrNoRows) || err == nil && cur.ProjectID != p.ID {
-			return registry.NotFound("deck: record %d no longer exists", rec.ID)
+			return registry.NotFound("record %d no longer exists", rec.ID)
 		}
 		if err != nil {
 			return err

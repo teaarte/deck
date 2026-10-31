@@ -29,15 +29,15 @@ func (pj *Service) projectEnable(ctx context.Context, act registry.Actor, in pro
 	var m *manifest.Manifest
 	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if m, err = docs.Manifest(ctx, q, p); err != nil {
-			return registry.Invalid("deck: the manifest of %s does not load: %v", p.Name, err)
+			return registry.Invalid("the manifest of %s does not load: %v", p.Name, err)
 		}
 		if m.Revision != in.Revision {
-			return registry.Conflict("deck: the manifest of %s is at revision %d now, not %d; look at its rights again", p.Name, m.Revision, in.Revision)
+			return registry.Conflict("the manifest of %s is at revision %d now, not %d; look at its rights again", p.Name, m.Revision, in.Revision)
 		}
 		n, err := q.SetProjectStatus(ctx, db.SetProjectStatusParams{Status: store.ProjectEnabled, ID: p.ID})
 		if err != nil || n == 0 {
 			if err == nil {
-				err = registry.Conflict("deck: project %s is already enabled", p.Name)
+				err = registry.Conflict("project %s is already enabled", p.Name)
 			}
 			return err
 		}
@@ -89,9 +89,9 @@ func (pj *Service) commandTry(ctx context.Context, act registry.Actor, in comman
 	case err != nil:
 		return nil, err
 	case c.ProjectID == 0:
-		return nil, registry.Invalid("deck: only project commands have trial runs")
+		return nil, registry.Invalid("only project commands have trial runs")
 	case c.Fingerprint != nil:
-		return nil, registry.Invalid("deck: %s is a tool, the call itself; only commands have trial runs", c.Name)
+		return nil, registry.Invalid("%s is a tool, the call itself; only commands have trial runs", c.Name)
 	}
 	if err := pj.liveTrial(ctx, c, in.Live); err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func (pj *Service) liveTrial(ctx context.Context, c *registry.Command, live bool
 		return err
 	}
 	if !live {
-		return registry.Invalid("deck: %s is enabled: a trial writes into its real records and may run beside its own runs; "+
+		return registry.Invalid("%s is enabled: a trial writes into its real records and may run beside its own runs; "+
 			"try the change in a draft copy (project_import of its folder under another name), or pass live to try it here", p.Name)
 	}
 	open, err := pj.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
@@ -116,7 +116,7 @@ func (pj *Service) liveTrial(ctx context.Context, c *registry.Command, live bool
 	}
 	for _, o := range open {
 		if o.Command == strings.TrimPrefix(c.Name, p.Name+".") && o.Trial == 0 {
-			return registry.Conflict("deck: %s is running now (process %d); try it once that run is over", c.Name, o.ID)
+			return registry.Conflict("%s is running now (process %d); try it once that run is over", c.Name, o.ID)
 		}
 	}
 	return nil

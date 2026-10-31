@@ -69,7 +69,7 @@ func (s *Service) picture(ctx context.Context, act registry.Actor, file, what st
 	}
 	defer r.Close()
 	if n > 32<<20 {
-		return nil, registry.Invalid("deck: %s is %d MB; a picture is at most 32 MB", what, n>>20)
+		return nil, registry.Invalid("%s is %d MB; a picture is at most 32 MB", what, n>>20)
 	}
 	return io.ReadAll(io.LimitReader(r, n))
 }
@@ -77,7 +77,7 @@ func (s *Service) picture(ctx context.Context, act registry.Actor, file, what st
 // build is the request of a call in the OpenAI-compatible protocol, the one deck asks models in.
 func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attached) (gateway.ModelCall, error) {
 	if api := h.Target.API; api == "google" || api == "anthropic" {
-		return gateway.ModelCall{}, registry.Invalid("deck: connection %s speaks the %s API; deck asks models in the OpenAI-compatible protocol, so give the connection the OpenAI-compatible address of %s, or call its own API from a script through $DECK_MODELS", h.Connection, api, api)
+		return gateway.ModelCall{}, registry.Invalid("connection %s speaks the %s API; deck asks models in the OpenAI-compatible protocol, so give the connection the OpenAI-compatible address of %s, or call its own API from a script through $DECK_MODELS", h.Connection, api, api)
 	}
 	switch in.Kind {
 	case RoleText:
@@ -85,7 +85,7 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 		if strings.TrimSpace(in.Schema) != "" {
 			var schema any
 			if err := json.Unmarshal([]byte(in.Schema), &schema); err != nil {
-				return gateway.ModelCall{}, registry.Invalid("deck: schema is JSON: %v", err)
+				return gateway.ModelCall{}, registry.Invalid("schema is JSON: %v", err)
 			}
 			body["response_format"] = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "result", "schema": schema}}
 		}
@@ -112,7 +112,7 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 		return r, nil
 	case RoleTTS:
 		if strings.TrimSpace(in.Text) == "" {
-			return gateway.ModelCall{}, registry.Invalid("deck: tts needs the words in text")
+			return gateway.ModelCall{}, registry.Invalid("tts needs the words in text")
 		}
 		body := map[string]any{"model": h.Model, "input": in.Text, "response_format": "mp3"}
 		if p := strings.TrimSpace(in.Prompt); p != "" {
@@ -128,7 +128,7 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 		}
 		return jsonReq("videos", merged(body, options)), nil
 	}
-	return gateway.ModelCall{}, registry.Invalid("deck: no kind %q", in.Kind)
+	return gateway.ModelCall{}, registry.Invalid("no kind %q", in.Kind)
 }
 
 // edit is a picture with what to change in it, posted as a form the way OpenAI's images/edits takes it.

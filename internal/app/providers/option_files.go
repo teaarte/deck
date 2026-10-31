@@ -46,7 +46,7 @@ func (s *Service) checkFiles(ctx context.Context, workspace int64, model string,
 		m, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: model})
 		f, ferr := s.St.Q.GetFile(ctx, id)
 		if err != nil || ferr != nil || f.OwnerKind != "model" || f.OwnerID != m.Model.ID {
-			return registry.Invalid("deck: option %s names file %d, which is no file of model %s", k, id, model)
+			return registry.Invalid("option %s names file %d, which is no file of model %s", k, id, model)
 		}
 	}
 	return nil
@@ -100,7 +100,7 @@ func (s *Service) keepBig(ctx context.Context, workspace int64, m db.Model) (str
 			if id := fileOf(v); id != 0 {
 				f, err := q.GetFile(ctx, id)
 				if err != nil || f.OwnerKind != "model" || f.OwnerID != m.ID {
-					return registry.Invalid("deck: option %s names file %d, which is no file of model %s", k, id, m.Name)
+					return registry.Invalid("option %s names file %d, which is no file of model %s", k, id, m.Name)
 				}
 				changed = changed || len(v.(map[string]any)) > 1
 				o[k] = map[string]any{fileKey: id}

@@ -215,7 +215,7 @@ func rebind(ctx context.Context, q *db.Queries, projectID, processID int64, give
 			return err
 		}
 		if n == 0 {
-			return registry.Invalid("deck: result file %d is not a file of this process", f.File)
+			return registry.Invalid("result file %d is not a file of this process", f.File)
 		}
 	}
 	return nil
@@ -239,7 +239,7 @@ func fileOwner(ctx context.Context, q *db.Queries, projectID, processID int64, f
 	}
 	rec, err := q.GetRecord(ctx, f.Record)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && rec.ProjectID != projectID {
-		return "", 0, registry.Invalid("deck: result file %q: no record %d in this project", f.Path, f.Record)
+		return "", 0, registry.Invalid("result file %q: no record %d in this project", f.Path, f.Record)
 	}
 	return "record", f.Record, err
 }

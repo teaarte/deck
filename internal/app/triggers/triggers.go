@@ -37,7 +37,7 @@ type Service struct {
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
 func (s *Service) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.Trigger, db.Project, error) {
 	t, err := s.St.Q.GetTrigger(ctx, id)
-	return access.Owned(ctx, s.St.Q, act, t, err, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
+	return access.Owned(ctx, s.St.Q, act, t, err, t.ProjectID, registry.NotFound("no trigger %d", id))
 }
 
 type triggersListIn struct {
@@ -181,14 +181,14 @@ func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in trigger
 		return nil, err
 	}
 	if t.Kind != trigger.KindCron {
-		return nil, registry.Invalid("deck: trigger %d starts on a %s; only schedule triggers run now", t.ID, t.Kind)
+		return nil, registry.Invalid("trigger %d starts on a %s; only schedule triggers run now", t.ID, t.Kind)
 	}
 	name := p.Name + "." + t.Command
 	if (act.Kind == registry.Token || act.Commands != nil) && !registry.Permits(act.Commands, name) {
-		return nil, registry.Refuse("deck: this caller may not call %s, so it does not run it now", name)
+		return nil, registry.Refuse("this caller may not call %s, so it does not run it now", name)
 	}
 	if act.Kind != registry.Owner && (t.Paused == 1 || p.Paused == 1) {
-		return nil, registry.Invalid("deck: %s was not started: its trigger or project is paused; only the owner runs it now", name)
+		return nil, registry.Invalid("%s was not started: its trigger or project is paused; only the owner runs it now", name)
 	}
 	params, err := manifest.DecodeObject([]byte(t.Params))
 	if err != nil {

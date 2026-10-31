@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 )
@@ -261,7 +262,7 @@ func (r *renderer) enum(p any) []map[string]any {
 // it may press and the project whose files it reads; the client passes them through the MCP Apps bridge and nothing else.
 func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 	got, err := r.src.Read(r.ctx, documentRead, map[string]any{"project": r.req.Project.Name, "name": b.Document}, r.scope)
-	if err != nil && registry.Status(err) != http.StatusNotFound {
+	if err != nil && fault.Status(err) != http.StatusNotFound {
 		return nil, err
 	}
 	d, _ := got.(map[string]any)

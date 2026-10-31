@@ -170,7 +170,7 @@ func (o *OAuth) Start(ctx context.Context, workspace int64, a Auth, done func(er
 	})
 	go func() { _ = srv.Serve(ln) }()
 	const ttl = 10 * time.Minute
-	time.AfterFunc(ttl, func() { finish(registry.Invalid("deck: the sign-in was not finished within %s", ttl)) })
+	time.AfterFunc(ttl, func() { finish(registry.Invalid("the sign-in was not finished within %s", ttl)) })
 	return conf.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), nil
 }
 

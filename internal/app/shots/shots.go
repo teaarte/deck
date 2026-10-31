@@ -76,13 +76,13 @@ var address = regexp.MustCompile(`^#/[^\s]*$`)
 // shot opens the address under the caller's rights, waits for the screen to be drawn and keeps its picture.
 func (s *Service) shot(ctx context.Context, act registry.Actor, in shotIn) (any, error) {
 	if !address.MatchString(in.Address) {
-		return nil, registry.Invalid("deck: the address of a screen begins with #/, such as #/deck/settings")
+		return nil, registry.Invalid("the address of a screen begins with #/, such as #/deck/settings")
 	}
 	if in.Theme != "" && s.Themed != nil && !s.Themed(ctx, act.Workspace, in.Theme) {
-		return nil, registry.NotFound("deck: no theme %q", in.Theme)
+		return nil, registry.NotFound("no theme %q", in.Theme)
 	}
 	if len(s.Argv) == 0 {
-		return nil, registry.Refuse("deck: deck runs without a browser; set browser in its config")
+		return nil, registry.Refuse("deck runs without a browser; set browser in its config")
 	}
 	device := in.Device
 	if device == "" {

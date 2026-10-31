@@ -46,7 +46,7 @@ func (s *Service) webDomains(ctx context.Context, act registry.Actor) ([]string,
 	}
 	if m.NoNetwork {
 		p, _ := s.St.Q.GetProject(ctx, act.ProjectID)
-		return nil, registry.Refuse("deck: project %s has no_network, so its agents have no web", p.Name)
+		return nil, registry.Refuse("project %s has no_network, so its agents have no web", p.Name)
 	}
 	return m.Domains.Read, nil
 }
@@ -65,7 +65,7 @@ type searchResult struct {
 // webSearch asks the search services assigned to search, the fallbacks after the first.
 func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearchIn) (any, error) {
 	if strings.TrimSpace(in.Query) == "" {
-		return nil, registry.Invalid("deck: a search needs a query")
+		return nil, registry.Invalid("a search needs a query")
 	}
 	if _, err := s.webDomains(ctx, act); err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	if act.Trial {
 		hops = slices.DeleteFunc(hops, func(h gateway.ModelHop) bool { return !h.Local && !h.Free })
 		if len(hops) == 0 {
-			return nil, registry.Refuse("deck: trial run: no search of deck's settings is local or free, so a trial does not search")
+			return nil, registry.Refuse("trial run: no search of deck's settings is local or free, so a trial does not search")
 		}
 	}
 	for i := range hops {
@@ -133,7 +133,7 @@ func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchI
 	}
 	resp, err := gateway.Fetch(ctx, domains, in.URL)
 	if err != nil {
-		return nil, registry.Refuse("deck: %v; an agent reads the pages of its project's domains.read", err)
+		return nil, registry.Refuse("%v; an agent reads the pages of its project's domains.read", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
@@ -150,7 +150,7 @@ func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchI
 		title, text = pageText(strings.NewReader(text))
 	case strings.HasPrefix(ct, "text/") || strings.HasSuffix(ct, "json") || strings.HasSuffix(ct, "xml") || ct == "" && utf8.Valid(body):
 	default:
-		return nil, registry.Invalid("deck: %s is %s, not a page of text", in.URL, ct)
+		return nil, registry.Invalid("%s is %s, not a page of text", in.URL, ct)
 	}
 	return map[string]any{"url": resp.Request.URL.String(), "title": untrusted.Cut(title, 300), "text": untrusted.Cut(text, maxPageText),
 		"truncated": len(text) > maxPageText}, nil

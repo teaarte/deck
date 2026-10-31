@@ -23,7 +23,7 @@ import (
 var field = regexp.MustCompile(`\{([A-Za-z0-9_]+)\}`)
 
 // headerRef finds secrets and input fields of a header in one pass, so a field value is never read as a secret.
-var headerRef = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+|\{[A-Za-z0-9_]+\}`)
+var headerRef = regexp.MustCompile(manifest.SecretRef.String() + `|\{[A-Za-z0-9_]+\}`)
 
 // outgoing is a call before it is sent: the request without its body, the body, and oauth2 when the tool
 // signs in that way.
@@ -70,7 +70,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	var serr error
 	header := func(s string) string {
 		return headerRef.ReplaceAllStringFunc(s, func(m string) string {
-			if name, ok := strings.CutPrefix(m, "$secret."); ok {
+			if name, ok := strings.CutPrefix(m, manifest.SecretPrefix); ok {
 				v, err := h.Secrets(p.WorkspaceID, name)
 				if err != nil && serr == nil {
 					serr = err

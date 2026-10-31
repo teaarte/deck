@@ -1,12 +1,17 @@
 package manifest
 
 import (
+	"deck2/schemas"
 	"encoding/json"
 	"regexp"
 	"slices"
 )
 
-var secretRef = regexp.MustCompile(`\$secret\.([A-Za-z0-9_.-]+)`)
+// SecretPrefix begins a reference to a secret, $secret.<name>.
+const SecretPrefix = "$secret."
+
+// SecretRef finds a reference to a secret; its group is the name.
+var SecretRef = regexp.MustCompile(regexp.QuoteMeta(SecretPrefix) + `(` + schemas.SecretChar + `+)`)
 
 // Secrets are the secrets the tools and MCP servers of a manifest use, sorted.
 func (m *Manifest) Secrets() []string {
@@ -34,7 +39,7 @@ func (m *Manifest) Keys() []string {
 func serverSecrets(m *Manifest) []string {
 	b, _ := json.Marshal(m.Tools.MCP)
 	var out []string
-	for _, s := range secretRef.FindAllSubmatch(b, -1) {
+	for _, s := range SecretRef.FindAllSubmatch(b, -1) {
 		out = append(out, string(s[1]))
 	}
 	return out
@@ -44,7 +49,7 @@ func serverSecrets(m *Manifest) []string {
 func toolSecrets(t HTTPTool) []string {
 	b, _ := json.Marshal([]any{t.URL, t.Headers, t.Body})
 	var out []string
-	for _, s := range secretRef.FindAllSubmatch(b, -1) {
+	for _, s := range SecretRef.FindAllSubmatch(b, -1) {
 		out = append(out, string(s[1]))
 	}
 	var a struct {

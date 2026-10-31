@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -85,13 +84,11 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Confine: true, Domains: domains, Secrets: secrets}, nil
 }
 
-var envSecret = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+`)
-
 func (x *MCP) expand(workspace int64, v string) (string, []string, error) {
 	var serr error
 	var used []string
-	out := envSecret.ReplaceAllStringFunc(v, func(m string) string {
-		s, err := x.Secrets(workspace, strings.TrimPrefix(m, "$secret."))
+	out := manifest.SecretRef.ReplaceAllStringFunc(v, func(m string) string {
+		s, err := x.Secrets(workspace, strings.TrimPrefix(m, manifest.SecretPrefix))
 		if err != nil && serr == nil {
 			serr = err
 		}

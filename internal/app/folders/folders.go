@@ -15,6 +15,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/schemas"
 )
 
 // Service keeps the folders; Home is deck's own folder, which no project folder holds or is in.
@@ -22,8 +23,6 @@ type Service struct {
 	St   *store.Store
 	Home home.Layout
 }
-
-var folderName = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,39}$`)
 
 // Row is a folder of a project by its name.
 type Row struct {
@@ -90,7 +89,7 @@ func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAd
 	if name == "" {
 		name = defaultFolderName(real)
 	}
-	if !folderName.MatchString(name) {
+	if !schemas.Name.MatchString(name) {
 		return nil, registry.Invalid("folder name %q must be lowercase letters, digits, '-' and '_', starting with a letter", name)
 	}
 	var f db.ProjectFolder

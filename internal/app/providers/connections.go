@@ -5,10 +5,10 @@ import (
 	"context"
 	"strings"
 
-	"deck2/internal/app/access"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/schemas"
 )
 
 // APICLI is the API of a connection deck keeps itself for an agent CLI on the owner's subscription: no address, no
@@ -37,13 +37,13 @@ type connectionSetIn struct {
 
 func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
 	switch {
-	case !access.ProjectName.MatchString(in.Name):
+	case !schemas.ProjectName.MatchString(in.Name):
 		return nil, registry.Invalid("connection name %q: lowercase letters, digits and '-'", in.Name)
 	case !strings.HasPrefix(in.URL, "http://") && !strings.HasPrefix(in.URL, "https://"):
 		return nil, registry.Invalid("the url of a connection is http or https, got %q", in.URL)
 	case strings.ContainsAny(in.URL, "@?#"):
 		return nil, registry.Invalid("the url takes no user, query or key; give the key in key, deck keeps it in a secret")
-	case in.KeySecret != "" && !access.ValidSecret(in.KeySecret):
+	case in.KeySecret != "" && !schemas.ValidSecret(in.KeySecret):
 		return nil, registry.Invalid("bad secret name %q", in.KeySecret)
 	}
 	if in.Key != "" {

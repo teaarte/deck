@@ -15,7 +15,7 @@ import (
 var placeholder = regexp.MustCompile(`\{([A-Za-z0-9_]+)\}`)
 
 // secretURL is a URL taken whole from a secret, with a query of input fields after it.
-var secretURL = regexp.MustCompile(`^\$secret\.([A-Za-z0-9_.-]+)(?:\?(.*))?$`)
+var secretURL = regexp.MustCompile(`^` + SecretRef.String() + `(?:\?(.*))?$`)
 
 // hostName is a host name of hosts: lower case, no scheme, port or wildcard.
 var hostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
@@ -65,7 +65,7 @@ func checkTemplate(t HTTPTool) []error {
 	case strings.ContainsAny(host, "{}@"):
 		fail("url: input fields cannot fill the host")
 	}
-	if secretRef.MatchString(t.URL) || secretRef.Match(t.Body) {
+	if SecretRef.MatchString(t.URL) || SecretRef.Match(t.Body) {
 		fail("$secret is allowed only in headers")
 	}
 	fields := ObjectOf(t.Input).Fields()

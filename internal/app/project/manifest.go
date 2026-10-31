@@ -15,6 +15,7 @@ import (
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 	"deck2/master"
+	"deck2/schemas"
 )
 
 type manifestGetIn struct {
@@ -153,7 +154,7 @@ func (pj *Service) CreateProject(ctx context.Context, act registry.Actor, name s
 // createProject stores a new project; more stores further documents in the same transaction before the checks.
 func (pj *Service) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
 	more func(ctx context.Context, q *db.Queries, p db.Project) error) (db.Project, error) {
-	if !access.ProjectName.MatchString(name) || name == registry.Builtin {
+	if !schemas.ProjectName.MatchString(name) || name == registry.Builtin {
 		return db.Project{}, registry.Invalid("project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
 	}
 	pm, err := parseManifest(raw, false)

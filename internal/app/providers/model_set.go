@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/internal/app/access"
 	"deck2/internal/health"
 	"deck2/internal/process"
 	"deck2/internal/provider"
@@ -18,6 +17,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/schemas"
 )
 
 type modelSetIn struct {
@@ -203,7 +203,7 @@ func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connecti
 		return registry.Invalid("a model of %s is on its own connection %s, not %s", in.Agent, in.Agent, c.Name)
 	case cli == nil && acp.Agents[in.Agent].Start == nil:
 		return registry.Invalid("no agent %q; deck knows %s", in.Agent, strings.Join(s.agentNames(), ", "))
-	case !access.ProjectName.MatchString(in.Name) || s.builtinNamed(in.Name) != nil:
+	case !schemas.ProjectName.MatchString(in.Name) || s.builtinNamed(in.Name) != nil:
 		return registry.Invalid("a model in an agent is a provider; name it with lowercase letters, digits and '-', not %q or a built-in provider", in.Name)
 	case cli == nil && c.Api != "openai":
 		return registry.Invalid("an agent runs a model of an OpenAI-compatible connection, not %s", c.Api)

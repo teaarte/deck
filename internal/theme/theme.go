@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"maps"
 	"path"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -110,11 +109,9 @@ var schema = func() *jsonschema.Schema {
 // Default is the theme a deck wears until the owner picks another.
 const Default = "juce"
 
-var nameRule = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
-
 // CheckName refuses a name a theme cannot have.
 func CheckName(name string) error {
-	if !nameRule.MatchString(name) {
+	if !schemas.ThemeName.MatchString(name) {
 		return fmt.Errorf("a theme name is lowercase letters, digits and -, up to 40: %q", name)
 	}
 	return nil
@@ -126,7 +123,7 @@ func DocName(name string) string { return "themes/" + name + ".json" }
 // NameOf is the theme a document name holds, empty for another document.
 func NameOf(doc string) string {
 	if n, ok := strings.CutPrefix(doc, "themes/"); ok {
-		if n, ok := strings.CutSuffix(n, ".json"); ok && nameRule.MatchString(n) {
+		if n, ok := strings.CutSuffix(n, ".json"); ok && schemas.ThemeName.MatchString(n) {
 			return n
 		}
 	}
@@ -141,7 +138,7 @@ var Slots = []string{"cockpit", "backdrop", "pattern"}
 
 // Shipped is a picture deck ships with a theme, <slot>-<scheme>.webp, nil for none.
 func Shipped(name, file string) []byte {
-	if nameRule.MatchString(name) && path.Base(file) == file && strings.HasSuffix(file, ".webp") {
+	if schemas.ThemeName.MatchString(name) && path.Base(file) == file && strings.HasSuffix(file, ".webp") {
 		if b, err := shipped.ReadFile("shipped/" + name + "/" + file); err == nil {
 			return b
 		}

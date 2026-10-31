@@ -18,6 +18,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
+	"deck2/schemas"
 )
 
 // Service keeps the secrets; Dir is the folder of the secrets of a workspace.
@@ -30,7 +31,7 @@ type Service struct {
 
 // Read is the value of a secret of the owner, read when a call needs it; deck's own keys live elsewhere.
 func (s *Service) Read(workspace int64, name string) (string, error) {
-	if !access.ValidSecret(name) {
+	if !schemas.ValidSecret(name) {
 		return "", registry.Invalid("bad secret name %q", name)
 	}
 	b, err := os.ReadFile(filepath.Join(s.Dir(workspace), name))
@@ -53,7 +54,7 @@ type secretSetIn struct {
 
 // secretSet writes a secret file readable only by deck; the value never comes back out.
 func (s *Service) secretSet(ctx context.Context, act registry.Actor, in secretSetIn) (any, error) {
-	if !access.ValidSecret(in.Name) {
+	if !schemas.ValidSecret(in.Name) {
 		return nil, registry.Invalid("a secret name is letters, digits, '.', '_' and '-'")
 	}
 	if err := s.Write(act.Workspace, in.Name, in.Value); err != nil {
@@ -68,7 +69,7 @@ type secretDeleteIn struct {
 
 // secretDelete removes a stored secret; tools and providers that name it fail until it is set again.
 func (s *Service) secretDelete(ctx context.Context, act registry.Actor, in secretDeleteIn) (any, error) {
-	if !access.ValidSecret(in.Name) {
+	if !schemas.ValidSecret(in.Name) {
 		return nil, registry.Invalid("no secret %q the owner can delete", in.Name)
 	}
 	s.mu.Lock()
@@ -89,7 +90,7 @@ func (s *Service) secretDelete(ctx context.Context, act registry.Actor, in secre
 func (s *Service) Swap(workspace int64, name, old, value string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !access.ValidSecret(name) {
+	if !schemas.ValidSecret(name) {
 		return false, registry.Invalid("bad secret name %q", name)
 	}
 	b, err := os.ReadFile(filepath.Join(s.Dir(workspace), name))
@@ -110,7 +111,7 @@ func (s *Service) Write(workspace int64, name, value string) error {
 }
 
 func (s *Service) write(workspace int64, name, value string) error {
-	if !access.ValidSecret(name) {
+	if !schemas.ValidSecret(name) {
 		return registry.Invalid("bad secret name %q", name)
 	}
 	err := provider.WriteFile(filepath.Join(s.Dir(workspace), name), []byte(value))

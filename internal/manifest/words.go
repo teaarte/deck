@@ -131,8 +131,8 @@ func (m *Manifest) shown(also []string) map[string]bool {
 		schemas = append(schemas, c.Input)
 	}
 	for _, s := range schemas {
-		for _, f := range schemaFields(s) {
-			for _, v := range Enum(s, f) {
+		for _, f := range ObjectOf(s).Fields() {
+			for _, v := range ObjectOf(s).Enum(f) {
 				texts[v] = true
 			}
 		}

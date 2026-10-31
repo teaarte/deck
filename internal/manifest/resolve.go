@@ -1,8 +1,6 @@
 package manifest
 
 import (
-	"cmp"
-	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -53,13 +51,4 @@ func Holds(v any) (bool, error) {
 		return v, nil
 	}
 	return false, fmt.Errorf("gives %v, not true or false", v)
-}
-
-// FieldTypes are the JSON types of the fields of an object schema, "any" for a field without one.
-func FieldTypes(schema json.RawMessage) map[string]string {
-	out := map[string]string{}
-	for k, p := range Props(schema).Properties {
-		out[k] = cmp.Or(p.Kind(), "any")
-	}
-	return out
 }

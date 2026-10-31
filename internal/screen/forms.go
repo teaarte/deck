@@ -132,7 +132,7 @@ func (r *renderer) formValues(v map[string]any, values map[string]string, cmd ma
 		got = map[string]any{}
 	}
 	in, _ := json.Marshal(cmd["input"])
-	types := manifest.FieldTypes(in)
+	types := manifest.ObjectOf(in).Types()
 	env := r.withParam(r.record)
 	for field, raw := range values {
 		val, err := manifest.Resolve(raw, types[field], env)

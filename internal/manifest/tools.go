@@ -68,7 +68,7 @@ func checkTemplate(t HTTPTool) []error {
 	if secretRef.MatchString(t.URL) || secretRef.Match(t.Body) {
 		fail("$secret is allowed only in headers")
 	}
-	fields := schemaFields(t.Input)
+	fields := ObjectOf(t.Input).Fields()
 	if fields == nil {
 		fields = []string{}
 	}
@@ -117,7 +117,7 @@ func loopback(host string) bool {
 // FitsTool checks that a tool command's input goes to its tool as it is: every command field is a tool
 // field, and every field the tool requires the command requires too.
 func FitsTool(c Command, name string, input json.RawMessage) error {
-	cmd, tool := Props(c.InputSchema()), Props(input)
+	cmd, tool := ObjectOf(c.InputSchema()), ObjectOf(input)
 	var errs []error
 	for _, f := range slices.Sorted(maps.Keys(cmd.Properties)) {
 		if _, ok := tool.Properties[f]; !ok {
@@ -134,8 +134,9 @@ func FitsTool(c Command, name string, input json.RawMessage) error {
 
 // FileFields are the input fields of a schema whose values point to files, one or a list, sorted.
 func FileFields(input json.RawMessage) []string {
-	out := FieldsOf(input, "file")
-	for name, p := range Props(input).Properties {
+	o := ObjectOf(input)
+	out := o.Format("file")
+	for name, p := range o.Properties {
 		if p.Items != nil && p.Items.Format == "file" && !slices.Contains(out, name) {
 			out = append(out, name)
 		}
@@ -145,13 +146,4 @@ func FileFields(input json.RawMessage) []string {
 }
 
 // FieldsOf are the input fields of a format, such as json: text with JSON a tool sends on as the value itself.
-func FieldsOf(input json.RawMessage, format string) []string {
-	props := Props(input).Properties
-	var out []string
-	for _, name := range slices.Sorted(maps.Keys(props)) {
-		if props[name].Format == format {
-			out = append(out, name)
-		}
-	}
-	return out
-}
+func FieldsOf(input json.RawMessage, format string) []string { return ObjectOf(input).Format(format) }

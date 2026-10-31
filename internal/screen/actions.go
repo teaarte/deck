@@ -258,10 +258,10 @@ func (r *renderer) inputEnum(name, field string) []string {
 	if r.deck() || registry.IsBuiltin(name) {
 		c, _ := r.src.Command(r.ctx, r.scope.Workspace, name)
 		in, _ := json.Marshal(c["input"])
-		return manifest.Enum(in, field)
+		return manifest.ObjectOf(in).Enum(field)
 	}
 	if c := r.req.Manifest.Command(strings.TrimPrefix(name, r.req.Project.Name+".")); c != nil {
-		return manifest.Enum(c.InputSchema(), field)
+		return manifest.ObjectOf(c.InputSchema()).Enum(field)
 	}
 	return nil
 }
@@ -274,9 +274,9 @@ func (r *renderer) inputTypes(name string) map[string]string {
 	if r.deck() || registry.IsBuiltin(name) {
 		c, _ := r.src.Command(r.ctx, r.scope.Workspace, name)
 		in, _ := json.Marshal(c["input"])
-		out = manifest.FieldTypes(in)
+		out = manifest.ObjectOf(in).Types()
 	} else if c := r.req.Manifest.Command(strings.TrimPrefix(name, r.req.Project.Name+".")); c != nil {
-		out = manifest.FieldTypes(c.InputSchema())
+		out = manifest.ObjectOf(c.InputSchema()).Types()
 	}
 	if r.types == nil {
 		r.types = map[string]map[string]string{}

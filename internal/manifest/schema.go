@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,6 +41,8 @@ type Prop struct {
 	Format string `json:"format"`
 	Enum   []any  `json:"enum"`
 	Items  *Prop  `json:"items"`
+	// Properties are those of an object property.
+	Properties map[string]Prop `json:"properties"`
 }
 
 // Kind is the one type a property names, empty for none or a list.
@@ -48,34 +51,51 @@ func (p Prop) Kind() string {
 	return s
 }
 
-// Props reads an object schema; a schema that does not read has no properties.
-func Props(raw json.RawMessage) Object {
+// Values are the values of the enum of the property in order, none when it is no enum.
+func (p Prop) Values() []string { return texts(p.Enum) }
+
+// ObjectOf reads an object schema; a schema that does not read has no properties.
+func ObjectOf(raw json.RawMessage) Object {
 	var o Object
 	_ = json.Unmarshal(raw, &o)
 	return o
 }
 
-// schemaFields lists top-level properties of an object schema; nil when it declares none.
-func schemaFields(raw json.RawMessage) []string {
-	props := Props(raw).Properties
-	if len(props) == 0 {
+// Fields are the properties of the object, none when it declares none.
+func (o Object) Fields() []string {
+	if len(o.Properties) == 0 {
 		return nil
 	}
-	return slices.Collect(maps.Keys(props))
+	return slices.Collect(maps.Keys(o.Properties))
 }
 
-// Lanes are the values of an enum field of a schema in order, none when the field is not an enum.
-func Lanes(raw json.RawMessage, field string) []string {
-	return texts(Props(raw).Properties[field].Enum)
-}
-
-// Enum are the values of an enum field of a schema, or of the items of a list field, in order.
-func Enum(raw json.RawMessage, field string) []string {
-	p := Props(raw).Properties[field]
-	if len(p.Enum) == 0 && p.Items != nil {
-		return texts(p.Items.Enum)
+// Types are the JSON types of the properties, "any" for one without.
+func (o Object) Types() map[string]string {
+	out := map[string]string{}
+	for k, p := range o.Properties {
+		out[k] = cmp.Or(p.Kind(), "any")
 	}
-	return texts(p.Enum)
+	return out
+}
+
+// Enum are the values of an enum property, or of the items of a list property, in order.
+func (o Object) Enum(field string) []string {
+	p := o.Properties[field]
+	if len(p.Enum) == 0 && p.Items != nil {
+		return p.Items.Values()
+	}
+	return p.Values()
+}
+
+// Format are the properties of a format, such as json or file, sorted.
+func (o Object) Format(format string) []string {
+	var out []string
+	for _, name := range slices.Sorted(maps.Keys(o.Properties)) {
+		if o.Properties[name].Format == format {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 func texts(vs []any) []string {

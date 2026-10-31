@@ -25,7 +25,7 @@ func (m *Manifest) checkTriggers(fail func(string, ...any)) {
 			}
 			in := TriggerInput(t, 1)
 			for _, f := range []string{"process", "topic"} {
-				if _, ok := in[f]; ok && !slices.Contains(schemaFields(c.Input), f) {
+				if _, ok := in[f]; ok && !slices.Contains(ObjectOf(c.Input).Fields(), f) {
 					fail("%s: command %q must declare input field %q to be triggered this way", where, t.Command, f)
 				}
 			}

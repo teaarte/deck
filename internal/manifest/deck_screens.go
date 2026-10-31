@@ -45,23 +45,18 @@ func Reads(command string) (ReadCommand, bool) {
 
 // Fields are the fields of the items a read gives: those of its list, or of the list rows names in its object.
 func (r ReadCommand) Fields(rows string) ([]string, bool) {
-	type schema struct {
-		Type       string                     `json:"type"`
-		Items      *schema                    `json:"items"`
-		Properties map[string]json.RawMessage `json:"properties"`
-	}
-	var s schema
+	var s Prop
 	if json.Unmarshal(r.Result, &s) != nil {
 		return nil, false
 	}
 	if rows != "" {
-		var list schema
-		if s.Type != "object" || json.Unmarshal(s.Properties[rows], &list) != nil {
+		list, ok := s.Properties[rows]
+		if s.Kind() != "object" || !ok {
 			return nil, false
 		}
 		s = list
 	}
-	if s.Type != "array" || s.Items == nil || s.Items.Type != "object" {
+	if s.Kind() != "array" || s.Items == nil || s.Items.Kind() != "object" {
 		return nil, false
 	}
 	return slices.Sorted(maps.Keys(s.Items.Properties)), true

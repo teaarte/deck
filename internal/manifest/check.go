@@ -86,7 +86,7 @@ func (m *Manifest) compileCollections(fail func(string, ...any)) {
 		if c.schema, err = compileSchema("collection-"+c.Name, c.Schema); err != nil {
 			fail("collection %q schema: %v", c.Name, err)
 		}
-		c.fields = schemaFields(c.Schema)
+		c.fields = ObjectOf(c.Schema).Fields()
 		if c.keyProg, err = compileExpr(c.Key, c.fields); err != nil {
 			fail("collection %q key: %v", c.Name, err)
 		}
@@ -138,10 +138,10 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 		}
 		var err error
 		if len(c.Input) > 0 {
-			if slices.Contains(schemaFields(c.Input), RetryKey) {
+			if slices.Contains(ObjectOf(c.Input).Fields(), RetryKey) {
 				fail("command %q input: %q is reserved: deck adds it to every command", c.Name, RetryKey)
 			}
-			if slices.Contains(schemaFields(c.Input), AllowsKey) {
+			if slices.Contains(ObjectOf(c.Input).Fields(), AllowsKey) {
 				m.warnings = append(m.warnings, fmt.Sprintf("command %q input: %q is reserved: deck takes it for the calls a button allows", c.Name, AllowsKey))
 			}
 			if err := schemas.CheckInput(c.Input); err != nil {
@@ -241,7 +241,7 @@ func (m *Manifest) checkAction(a Action) error {
 	if !slices.Contains(c.Callable(), "owner") {
 		return fmt.Errorf("command %q cannot be called by the owner", a.Command)
 	}
-	in := Props(c.InputSchema())
+	in := ObjectOf(c.InputSchema())
 	for _, r := range in.Required {
 		if _, ok := a.Params[r]; !ok && r != a.Input && !slices.Contains(a.FromBlock, r) {
 			return fmt.Errorf("command %q needs param %q", a.Command, r)
@@ -274,7 +274,7 @@ func (m *Manifest) CheckButton(a Action) error { return m.checkAction(a) }
 // saved module keeps loading.
 func checkModel(c *Command, fail, warn func(string, ...any)) {
 	e := c.Executor
-	in := Props(c.Input)
+	in := ObjectOf(c.Input)
 	if role, ok := strings.CutPrefix(e.Model, "@"); ok && role != e.Kind {
 		fail("command %q: a model of kind %s is @%s or a model by name, not %s", c.Name, e.Kind, e.Kind, e.Model)
 	}

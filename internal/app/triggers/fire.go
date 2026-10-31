@@ -76,7 +76,7 @@ func (s *Service) after(ctx context.Context, done db.Process) {
 			continue
 		}
 		input := manifest.TriggerInput(t, done.ID)
-		if c := m.Command(t.Command); c != nil && manifest.FieldTypes(c.Input)["record"] == "integer" && input["record"] == nil {
+		if c := m.Command(t.Command); c != nil && manifest.ObjectOf(c.Input).Types()["record"] == "integer" && input["record"] == nil {
 			if record := s.recordOf(ctx, done); record != 0 {
 				input["record"] = record
 			}

@@ -169,7 +169,7 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 	if !c.Readable {
 		return nil, fmt.Errorf("%s is not a command that only reads", command)
 	}
-	types := manifest.FieldTypes(c.Input)
+	types := manifest.ObjectOf(c.Input).Types()
 	in := map[string]any{}
 	for k, v := range input {
 		if t, ok := v.(string); ok {

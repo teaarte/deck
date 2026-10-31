@@ -343,7 +343,7 @@ func (r *renderer) lanes(b manifest.Block) []string {
 		}
 	}
 	if col := r.req.Manifest.Collection(b.Source.Collection); col != nil {
-		return manifest.Lanes(col.Schema, b.Board)
+		return manifest.ObjectOf(col.Schema).Properties[b.Board].Values()
 	}
 	return nil
 }
@@ -361,7 +361,7 @@ func (r *renderer) fieldEnum(collection, expr string) []string {
 		return nil
 	}
 	if col := r.req.Manifest.Collection(collection); col != nil {
-		return manifest.Enum(col.Schema, field)
+		return manifest.ObjectOf(col.Schema).Enum(field)
 	}
 	return nil
 }
@@ -456,7 +456,7 @@ func (r *renderer) resultEnum(src manifest.Source, expr string) []string {
 	if src.Rows != "" {
 		rows = schema.Properties[src.Rows].Items
 	}
-	return manifest.Enum(rows, field)
+	return manifest.ObjectOf(rows).Enum(field)
 }
 
 func among(values []string) func(string) bool {

@@ -344,10 +344,8 @@ func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
 	e.Must("deck.push_key_get", nil, &before)
 	d, srv := newPushDevice(t)
 	d.subscribe(e, srv, "iPhone")
-	var names []struct{ Name string }
-	e.Must("deck.secrets_list", nil, &names)
-	if len(names) != 0 {
-		t.Fatalf("the key of pushes is not a secret of the owner: %+v", names)
+	if _, err := os.Stat(deckhome.Layout(e.App.Cfg.Home).Secrets(1)); err == nil {
+		t.Fatal("the key of pushes is not a secret of the owner")
 	}
 	e.Must("deck.push_key_reset", nil, nil)
 	var after struct{ Key string }
@@ -480,7 +478,8 @@ func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 		t.Fatalf("the key of pushes lives in state/push: %v", keys)
 	}
 	var again struct{ Key string }
-	e.Secret("", "push.vapid", "the owner's")
+	e.Project("mail", harness.PostManifest("https://api.example", ""))
+	e.Secret("mail", "push.vapid", "the owner's")
 	e.Must("deck.push_key_get", nil, &again)
 	if again.Key != first.Key {
 		t.Fatal("a secret of the owner named like it does not change the key of pushes")

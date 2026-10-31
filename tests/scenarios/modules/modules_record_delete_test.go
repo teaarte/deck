@@ -555,11 +555,11 @@ func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
 
 		harness.WithTTL))
 
-	e.Secret("films", "svc", "k")
 	module := strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1)
 	post := harness.PostManifest(svc.URL, "")
 	module = strings.Replace(module, `"scripts": [`, post[strings.Index(post, `"tools"`):len(post)-1]+`, "scripts": [`, 1)
 	pid := e.Project("films", module)
+	e.Secret("films", "svc", "k")
 	id := videos(e, map[string]any{"slug": "old", "dir": "old"})["old"]
 	watch := e.Start("films", "watch", map[string]any{"record": id})
 	a := e.WaitAsk()

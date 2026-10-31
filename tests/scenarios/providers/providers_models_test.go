@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"deck2/internal/health"
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/tests/harness"
@@ -140,8 +143,7 @@ func TestAScriptCallsAModelThroughDeckWithoutItsKey(t *testing.T) {
 		},
 	})
 	e := harness.New(t)
-	e.Secret("films", "openrouter", "sk-or-real")
-	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or-real"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
 	e.Project("films", harness.ScriptManifest("media", "", `, "models": ["openrouter"]`))
 	e.SaveScript("films", "scripts/main.py", modelScript)
@@ -285,12 +287,10 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 		t.Fatalf("a model whose id ends in :free is free though the catalog lists no price: %+v", m)
 	}
 	if c := api.Calls(); len(c) != 5 || c[0].Auth != "Bearer sk-or-new" {
-		t.Fatalf("the key given with the connection is kept in a secret and used: %+v", c)
+		t.Fatalf("the key given with the connection is kept and used: %+v", c)
 	}
-	var secrets []struct{ Name string }
-	e.Must("deck.secrets_list", nil, &secrets)
-	if len(secrets) != 1 || secrets[0].Name != "openrouter" {
-		t.Fatalf("the key is a secret named after the connection: %+v", secrets)
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Keys(1), "openrouter")); err != nil {
+		t.Fatalf("the key of a connection is kept apart from the secrets of modules: %v", err)
 	}
 	m.InputUSD = 0
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "kind": "text"}, &m)
@@ -485,22 +485,32 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	}
 }
 
-// TestAModuleDoesNotHoldTheKeyOfAConnection: a tool of a manifest that sends the key of a connection reaches models
-// past deck; a manifest that has one is read with a warning and saved only without it.
+// TestAModuleDoesNotHoldTheKeyOfAConnection: a module that names $secret.openrouter gets no key of the connection
+// openrouter, by a header or by auth: the name is of its own secrets, not set until the owner sets it for the module.
 func TestAModuleDoesNotHoldTheKeyOfAConnection(t *testing.T) {
 	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
 	e := harness.New(t)
-	tool := `, "tools": {"http": [{"name": "image", "description": "A picture.", "class": "internal", "method": "POST",
-	  "url": "https://openrouter.ai/api/v1/chat/completions", "auth": {"type": "secret", "secret": "openrouter"}, "input": {"type": "object"}}]}`
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": svc.URL + "/api/v1", "key": "sk-or"}, nil)
+	tool := fmt.Sprintf(`, "tools": {"http": [{"name": "image", "description": "A picture.", "class": "internal", "method": "POST",
+	  "url": "%[1]s/api/v1/chat/completions", "auth": {"type": "secret", "secret": "openrouter"}, "input": {"type": "object"}},
+	  {"name": "header", "description": "A picture.", "class": "internal", "method": "POST",
+	  "url": "%[1]s/api/v1/chat/completions", "headers": {"Authorization": "Bearer $secret.openrouter"}, "input": {"type": "object"}}]}`, svc.URL)
 	e.Project("films", harness.ScriptManifest("media", "", tool))
-	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "sk-or"}, nil)
 	var m struct{ Warnings []string }
 	e.Must("deck.manifest_get", map[string]any{"project": "films"}, &m)
-	if len(m.Warnings) != 1 || !strings.Contains(m.Warnings[0], "key of connection openrouter") {
-		t.Fatalf("a manifest that hands the key of a connection to a tool is read with a warning: %+v", m)
+	if len(m.Warnings) != 0 {
+		t.Fatalf("a module may name any secret of its own: %+v", m)
 	}
-	e.Refused("deck.manifest_save", map[string]any{"project": "films", "manifest": harness.ScriptManifest("media", "", tool)}, 422, "key of connection openrouter")
-	e.Must("deck.manifest_save", map[string]any{"project": "films", "manifest": harness.ScriptManifest("media", "", "")}, nil)
+	for _, name := range []string{"films.image", "films.header"} {
+		if code, out := e.Call(name, map[string]any{}); code == 200 || !strings.Contains(string(out), `secret "openrouter" of films is not set`) {
+			t.Fatalf("%s gets no key of the connection: %d %s", name, code, out)
+		}
+	}
+	if n := len(svc.Requests()); n != 0 {
+		t.Fatalf("nothing left deck: %d requests", n)
+	}
+	e.WaitHealth("secret:films.openrouter", "error")
 }
 
 // TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton: an agent of a module that needs a model deck lacks calls
@@ -628,7 +638,7 @@ print(json.dumps({"status": status, "out": out}))
 		t.Fatalf("the models of deck are listed: %v", models)
 	}
 	i := slices.IndexFunc(res.Out.Connections, func(c harness.ModelsOutConnection) bool { return c.Name == "openrouter" })
-	if i < 0 || res.Out.Connections[i].Key != "secret" || strings.Contains(string(got.Result), "key_secret") ||
+	if i < 0 || res.Out.Connections[i].Key != "set" ||
 		strings.Contains(string(got.Result), "sk-or-hidden") {
 		t.Fatalf("a module learns that a connection has a key, not where deck keeps it: %s", got.Result)
 	}

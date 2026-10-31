@@ -11,10 +11,9 @@ import (
 )
 
 const addConnection = `-- name: AddConnection :one
-INSERT INTO connection (workspace_id, name, api, url, key_secret, local)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-ON CONFLICT (workspace_id, name) DO UPDATE SET api = excluded.api, url = excluded.url, key_secret = excluded.key_secret,
-    local = excluded.local
+INSERT INTO connection (workspace_id, name, api, url, local)
+VALUES (?1, ?2, ?3, ?4, ?5)
+ON CONFLICT (workspace_id, name) DO UPDATE SET api = excluded.api, url = excluded.url, local = excluded.local
 RETURNING id, workspace_id, name, api, url, key_secret, local, created_at
 `
 
@@ -23,7 +22,6 @@ type AddConnectionParams struct {
 	Name        string
 	Api         string
 	Url         string
-	KeySecret   string
 	Local       int64
 }
 
@@ -33,7 +31,6 @@ func (q *Queries) AddConnection(ctx context.Context, arg AddConnectionParams) (C
 		arg.Name,
 		arg.Api,
 		arg.Url,
-		arg.KeySecret,
 		arg.Local,
 	)
 	var i Connection

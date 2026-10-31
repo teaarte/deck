@@ -90,8 +90,8 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 	home := t.TempDir()
 	clock := &harness.Clock{At: time.Date(2026, 9, 25, 8, 1, 0, 0, time.Local)}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
-	e.Secret("clips", "svc", "tok-123")
 	e.Project("clips", jobManifest(svc.URL))
+	e.Secret("clips", "svc", "tok-123")
 	e.SaveScript("clips", "scripts/start.py", startScript)
 	e.SaveScript("clips", "scripts/check.py", checkScript)
 

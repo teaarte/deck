@@ -32,7 +32,7 @@ type MCP struct {
 	GW      *gateway.Gateway
 	Host    *mcphost.Host
 	Store   *store.Store
-	Secrets func(workspace int64, name string) (string, error)
+	Secrets func(workspace int64, project, name string) (string, error)
 	Home    home.Layout
 }
 
@@ -66,7 +66,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	env := sandbox.Env(dir, dir)
 	var secrets []string
 	for _, k := range slices.Sorted(maps.Keys(s.Env)) {
-		v, used, err := x.expand(p.WorkspaceID, s.Env[k])
+		v, used, err := x.expand(p, s.Env[k])
 		if err != nil {
 			return mcphost.Spec{}, err
 		}
@@ -83,11 +83,11 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Confine: true, Domains: domains, Secrets: secrets}, nil
 }
 
-func (x *MCP) expand(workspace int64, v string) (string, []string, error) {
+func (x *MCP) expand(p db.Project, v string) (string, []string, error) {
 	var serr error
 	var used []string
 	out := manifest.SecretRef.ReplaceAllStringFunc(v, func(m string) string {
-		s, err := x.Secrets(workspace, strings.TrimPrefix(m, manifest.SecretPrefix))
+		s, err := x.Secrets(p.WorkspaceID, p.Name, strings.TrimPrefix(m, manifest.SecretPrefix))
 		if err != nil && serr == nil {
 			serr = err
 		}
@@ -111,6 +111,9 @@ func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
 		s := m.Tools.MCP.Servers[name]
 		spec, err := x.spec(ctx, p, name, s, reached(m))
 		if err != nil {
+			if x.Host.Status != nil {
+				x.Host.Status(ServerKey(p.ID, name), nil, fmt.Errorf("MCP server %s did not start: %w", name, err))
+			}
 			continue
 		}
 		if slices.ContainsFunc(rows, func(r db.McpTool) bool { return r.Server == name && r.Spec == SpecID(s) }) {

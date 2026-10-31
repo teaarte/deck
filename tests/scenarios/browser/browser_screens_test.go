@@ -206,22 +206,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.until("the whole error on demand", agent+`.nextElementSibling?.matches('[data-row-more]') && `+agent+`.nextElementSibling.innerText.includes('exit status 1')`)
 	b.shot("settings-advanced")
 
-	b.until("the add secret button", `document.querySelector('[data-dialog-open="secret"]')`)
-	b.eval(`(document.querySelector('[data-dialog-open="secret"]').click(), '')`)
-	secret := `document.querySelector('[data-form="deck.secret_set"] input[data-field="value"]')`
-	b.until("the secret form", secret)
-	if got := b.eval(secret + `.type`); got != "password" {
-		t.Fatalf("the value of a secret is typed into a hidden field: %s", got)
-	}
-	b.type_(`document.querySelector('[data-form="deck.secret_set"] input[data-field="name"]')`, "mail-key")
-	b.type_(secret, "s3cret-value")
-	b.eval(`(document.querySelector('[data-form="deck.secret_set"] [data-submit]').click(), '')`)
-	b.until("the secret in the list and the dialog closed", `[...document.querySelectorAll('tr')].some((x) => x.innerText.includes('mail-key')) && !`+secret)
-	if got := b.eval(`String(document.body.innerText.includes('s3cret-value'))`); got != "false" {
-		t.Fatal("the value of a secret is not on the page after it is set")
-	}
-
-	b.until("the create token button beside the secrets", `document.querySelector('[data-dialog-open="token"]')`)
+	b.until("the create token button", `document.querySelector('[data-dialog-open="token"]')`)
 	b.eval(`(document.querySelector('[data-dialog-open="token"]').click(), '')`)
 	b.until("the token form", `document.querySelector('[data-form="deck.token_create"]')`)
 	b.type_(`document.querySelector('[data-form="deck.token_create"] input[data-field="name"]')`, "shortcuts")

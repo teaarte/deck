@@ -153,7 +153,7 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 			t.Fatalf("a connection URL with a key in it is refused and points to the key field: %s → %d %s", u, code, out)
 		}
 	}
-	e.MustAgentModel(map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k", "agent": "goose"})
+	e.MustAgentModel(map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key": "k", "agent": "goose"})
 	// A connection an older deck stored with the key in its URL, which a save now refuses.
 	e.SQL(`INSERT INTO connection (workspace_id, name, url) VALUES (1, 'old', 'https://api.example/v1?key=sk-stored');
 		INSERT INTO model (workspace_id, connection_id, name, model, agent) SELECT 1, id, 'old', 'm', 'goose' FROM connection WHERE name = 'old'`)

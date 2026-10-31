@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -62,6 +63,9 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 	})
 	if err != nil {
 		return nil, err
+	}
+	if err := pj.DropSecrets(p.WorkspaceID, p.Name); err != nil {
+		slog.Error("delete the secrets of a project", "project", p.Name, "err", err)
 	}
 	// The outbox takes deck's folder of the project; the folders of its runs go here, else in the daily cleanup.
 	for _, id := range runs {

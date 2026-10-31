@@ -16,6 +16,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
+	"deck2/internal/store/db"
 )
 
 // ErrSignIn is an access that ran out or was revoked: only the owner's sign-in brings it back.
@@ -25,23 +26,23 @@ func (e *ErrSignIn) Error() string {
 	return "deck: the service needs the owner to sign in again (deck.oauth_start): " + e.Why
 }
 
-// OAuth keeps oauth2 tokens as workspace secrets: the first sign-in by PKCE with a callback on localhost,
-// refreshes by deck; a refreshed token is written only while the secret is what deck read.
+// OAuth keeps oauth2 tokens as secrets of the module of the tool: a sign-in by PKCE with a callback on localhost,
+// then refreshes at the token URL by the module's domains, written only while the secret is what deck read.
 type OAuth struct {
-	Secrets func(workspace int64, name string) (string, error)
+	Secrets func(workspace int64, project, name string) (string, error)
 	// Swap writes a secret only while it still holds old; false when it changed meanwhile.
-	Swap func(workspace int64, name, old, value string) (bool, error)
+	Swap func(workspace int64, project, name, old, value string) (bool, error)
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
 }
 
-func (o *OAuth) config(workspace int64, a manifest.Auth, redirect string) (*oauth2.Config, error) {
-	id, err := o.Secrets(workspace, a.ClientID)
+func (o *OAuth) config(p db.Project, a manifest.Auth, redirect string) (*oauth2.Config, error) {
+	id, err := o.Secrets(p.WorkspaceID, p.Name, a.ClientID)
 	if err != nil {
 		return nil, err
 	}
-	secret, err := o.Secrets(workspace, a.ClientSecret)
+	secret, err := o.Secrets(p.WorkspaceID, p.Name, a.ClientSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -49,13 +50,13 @@ func (o *OAuth) config(workspace int64, a manifest.Auth, redirect string) (*oaut
 		Endpoint: oauth2.Endpoint{AuthURL: a.AuthURL, TokenURL: a.TokenURL}}, nil
 }
 
-func (o *OAuth) lock(workspace int64, name string) *sync.Mutex {
+func (o *OAuth) lock(p db.Project, name string) *sync.Mutex {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.locks == nil {
 		o.locks = map[string]*sync.Mutex{}
 	}
-	k := fmt.Sprint(workspace, "/", name)
+	k := fmt.Sprint(p.WorkspaceID, "/", p.Name, "/", name)
 	if o.locks[k] == nil {
 		o.locks[k] = &sync.Mutex{}
 	}
@@ -63,11 +64,11 @@ func (o *OAuth) lock(workspace int64, name string) *sync.Mutex {
 }
 
 // Access is a valid access token, refreshed first when it ran out or when force says the service refused it.
-func (o *OAuth) Access(ctx context.Context, workspace int64, a manifest.Auth, force bool) (string, error) {
-	l := o.lock(workspace, a.Token)
+func (o *OAuth) Access(ctx context.Context, p db.Project, domains []string, a manifest.Auth, force bool) (string, error) {
+	l := o.lock(p, a.Token)
 	l.Lock()
 	defer l.Unlock()
-	raw, err := o.Secrets(workspace, a.Token)
+	raw, err := o.Secrets(p.WorkspaceID, p.Name, a.Token)
 	if err != nil {
 		return "", &ErrSignIn{Why: "no token yet"}
 	}
@@ -81,13 +82,13 @@ func (o *OAuth) Access(ctx context.Context, workspace int64, a manifest.Auth, fo
 	if tok.RefreshToken == "" {
 		return "", &ErrSignIn{Why: "the token ran out and has no refresh token"}
 	}
-	conf, err := o.config(workspace, a, "")
+	conf, err := o.config(p, a, "")
 	if err != nil {
 		return "", err
 	}
 	old := tok
 	old.Expiry = time.Now().Add(-time.Hour)
-	next, err := conf.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, tokenClient(conf)), &old).Token()
+	next, err := conf.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, tokenClient(conf, domains)), &old).Token()
 	if err != nil {
 		var re *oauth2.RetrieveError
 		if errors.As(err, &re) && re.Response != nil && re.Response.StatusCode < 500 {
@@ -96,12 +97,12 @@ func (o *OAuth) Access(ctx context.Context, workspace int64, a manifest.Auth, fo
 		return "", fmt.Errorf("deck: refreshing the token: %v", err)
 	}
 	b, _ := json.Marshal(next)
-	ok, err := o.Swap(workspace, a.Token, raw, string(b))
+	ok, err := o.Swap(p.WorkspaceID, p.Name, a.Token, raw, string(b))
 	if err != nil {
 		return "", err
 	}
 	if !ok {
-		now, err := o.Secrets(workspace, a.Token)
+		now, err := o.Secrets(p.WorkspaceID, p.Name, a.Token)
 		if err == nil && json.Unmarshal([]byte(now), &tok) == nil && tok.AccessToken != "" {
 			return tok.AccessToken, nil
 		}
@@ -111,13 +112,13 @@ func (o *OAuth) Access(ctx context.Context, workspace int64, a manifest.Auth, fo
 
 // Start begins a sign-in: a one-time state, a PKCE verifier and a callback listener on localhost that
 // live for FlowTTL. done runs with the outcome once the service called back or the flow ran out.
-func (o *OAuth) Start(ctx context.Context, workspace int64, a manifest.Auth, done func(error)) (string, error) {
+func (o *OAuth) Start(ctx context.Context, p db.Project, domains []string, a manifest.Auth, done func(error)) (string, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", err
 	}
 	redirect := "http://" + ln.Addr().String() + "/callback"
-	conf, err := o.config(workspace, a, redirect)
+	conf, err := o.config(p, a, redirect)
 	if err != nil {
 		_ = ln.Close()
 		return "", err
@@ -147,7 +148,7 @@ func (o *OAuth) Start(ctx context.Context, workspace int64, a manifest.Auth, don
 			http.Error(w, "deck: this sign-in link was already used or is not deck's", http.StatusBadRequest)
 			return
 		}
-		err := o.exchange(r.Context(), workspace, a, conf, q.Get("code"), q.Get("error"), verifier)
+		err := o.exchange(r.Context(), p, domains, a, conf, q.Get("code"), q.Get("error"), verifier)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 		} else {
@@ -161,24 +162,24 @@ func (o *OAuth) Start(ctx context.Context, workspace int64, a manifest.Auth, don
 	return conf.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), nil
 }
 
-func (o *OAuth) exchange(ctx context.Context, workspace int64, a manifest.Auth, conf *oauth2.Config, code, refused, verifier string) error {
+func (o *OAuth) exchange(ctx context.Context, p db.Project, domains []string, a manifest.Auth, conf *oauth2.Config, code, refused, verifier string) error {
 	if refused != "" || code == "" {
 		return fmt.Errorf("deck: the service did not grant access: %s", refused)
 	}
-	tok, err := conf.Exchange(context.WithValue(ctx, oauth2.HTTPClient, tokenClient(conf)), code, oauth2.VerifierOption(verifier))
+	tok, err := conf.Exchange(context.WithValue(ctx, oauth2.HTTPClient, tokenClient(conf, domains)), code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return fmt.Errorf("deck: getting the token: %v", err)
 	}
 	b, _ := json.Marshal(tok)
-	l := o.lock(workspace, a.Token)
+	l := o.lock(p, a.Token)
 	l.Lock()
 	defer l.Unlock()
-	old, _ := o.Secrets(workspace, a.Token)
-	_, err = o.Swap(workspace, a.Token, old, string(b))
+	old, _ := o.Secrets(p.WorkspaceID, p.Name, a.Token)
+	_, err = o.Swap(p.WorkspaceID, p.Name, a.Token, old, string(b))
 	return err
 }
 
-// tokenClient is the client of the token URL of conf, at a public address.
-func tokenClient(conf *oauth2.Config) *http.Client {
-	return egress.Client(egress.With(nil, conf.Endpoint.TokenURL), time.Minute)
+// tokenClient is the client of the token URL of conf: its host when public, and the domains of the module.
+func tokenClient(conf *oauth2.Config, domains []string) *http.Client {
+	return egress.Client(egress.With(domains, conf.Endpoint.TokenURL), time.Minute)
 }

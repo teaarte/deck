@@ -217,8 +217,8 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
 
-	e.Secret("notes", "svc", "s3cret")
 	e.Project("notes", harness.PostManifest(svc.URL, ""))
+	e.Secret("notes", "svc", "s3cret")
 	_, tok := e.Token("terminal", "deck.command_try")
 	for _, call := range []func() (int, []byte){
 		func() (int, []byte) {
@@ -279,11 +279,11 @@ func TestATrialOfAToolCommandWaitsForTheOwner(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	e := harness.New(t)
-	e.Secret("notes", "svc", "s3cret")
 	send := strings.Replace(harness.PostManifest(svc.URL, ""), `"commands": [`, `"commands": [{"name": "send", "title": "Send",
     "description": "Sends the note.", "class": "external", "executor": {"type": "tool", "tool": "post"},
     "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}},`, 1)
 	e.Project("notes", send)
+	e.Secret("notes", "svc", "s3cret")
 	_, tok := e.Token("terminal", "deck.project_create", "deck.command_try")
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "drafted", "manifest": send}); code != 200 {
 		t.Fatalf("create: %d %s", code, out)

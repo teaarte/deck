@@ -197,8 +197,7 @@ func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 		},
 	})
 	e := harness.New(t)
-	e.Secret("calls", "cloud", "sk-cloud")
-	e.Must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": api.URL + "/v1", "key_secret": "cloud"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": api.URL + "/v1", "key": "sk-cloud"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "cloud", "model": "m1", "kind": "text", "name": "m1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "cloud", "model": "m2", "kind": "text", "name": "m2"}, nil)
 	e.Project("calls", harness.ScriptManifest("call", "", `, "models": ["cloud"]`))

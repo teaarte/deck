@@ -150,7 +150,7 @@ func (pj *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest
 		return out
 	}
 	for _, s := range m.Secrets() {
-		out = append(out, needRow{Kind: "secret", What: s, Done: pj.Secret(p.WorkspaceID, s)})
+		out = append(out, needRow{Kind: "secret", What: s, Done: pj.Secret(p.WorkspaceID, p.Name, s)})
 	}
 	missing := script.Check(m)
 	for _, name := range slices.Sorted(maps.Keys(missing)) {

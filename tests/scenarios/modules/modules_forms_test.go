@@ -67,14 +67,13 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 	if strings.Join(cmds, " ") != "web.hand web.ingest web.mark web.publish web.score web.tag web.tell web.touch" {
 		t.Fatalf("every agent command of the project has its model picker: %v", cmds)
 	}
-	e.Secret("tools", "or-key", "x")
-	add := harness.BlockData[struct{ Choices map[string][]choiceV }](t, e.ScreenForm("", "settings", "deck.connection_set")["value"])
-	if k := add.Choices["key_secret"]; len(k) != 1 || k[0].Value != "or-key" {
-		t.Fatalf("the key of a connection is picked from the secrets: %+v", add.Choices)
+	add := harness.BlockData[harness.FormV](t, e.ScreenForm("", "settings", "deck.connection_set")["value"])
+	if add.Commands[0].Input.Properties["key"]["writeOnly"] != true || add.Commands[0].Input.Properties["key_secret"] != nil {
+		t.Fatalf("the key of a connection is typed in a hidden field, not picked from secrets: %+v", add.Commands[0].Input.Properties)
 	}
-	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1", "key_secret": "or-key"}, nil)
-	if a := e.Button("", "settings", map[string]any{"dialog": "connections"}, "", map[string]any{"dialog": "connections", "name": "router"}); a["params"].(map[string]any)["key_secret"] != "or-key" {
-		t.Fatalf("the edit of a connection starts from the secret of its key: %+v", a)
+	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "x"}, nil)
+	if a := e.Button("", "settings", map[string]any{"dialog": "connections"}, "", map[string]any{"dialog": "connections", "name": "router"}); a["params"].(map[string]any)["key"] != nil {
+		t.Fatalf("the edit of a connection never carries its key: %+v", a)
 	}
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "settings", "Models", nil)["rows"])
 	if opts, _ := json.Marshal(harness.Verb(t, rows[0].Actions, "model")["options"]); !strings.Contains(string(opts), "fake") || strings.Contains(string(opts), "whisper") {

@@ -39,7 +39,6 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 	egress.AsPublic(svc.Listener.Addr().String())
 	e := harness.New(t)
 	link := svc.URL + "/owa/calendar/me@x.com/tok-0123456789/calendar.ics"
-	e.Secret("cal", "outlook", link)
 	tool := func(extra string) string {
 		return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [{"name": "ics", "description": "d", "method": "GET", "class": "internal",
       "url": "$secret.outlook?from={from}"%s, "input": {"type": "object", "properties": {"from": {"type": "string"}}, "required": ["from"]}}]}}`, extra))
@@ -52,6 +51,7 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 		t.Fatalf("hosts beside a written url are refused: %d %s", code, out)
 	}
 	e.Project("cal", tool(`, "hosts": ["127.0.0.1"]`))
+	e.Secret("cal", "outlook", link)
 	var got struct {
 		Status int
 		Text   string

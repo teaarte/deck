@@ -158,7 +158,7 @@ func (c *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 	}
 	payload, _ := json.Marshal(map[string]string{"tool": tool})
 	text := fmt.Sprintf("%s needs you to sign in to its service again (deck.oauth_start): %s", tool, untrusted.Cut(why, 300))
-	if a, err := c.auth(ctx, p, strings.TrimPrefix(tool, p.Name+".")); err == nil && a.Type == "oauth2" {
+	if a, _, err := c.auth(ctx, p, strings.TrimPrefix(tool, p.Name+".")); err == nil && a.Type == "oauth2" {
 		text += fmt.Sprintf("; the sign-in is at %s, its token from %s", host(a.AuthURL), host(a.TokenURL))
 	}
 	err = c.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -173,18 +173,18 @@ func (c *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 }
 
 // auth is the sign-in of a tool of the project's manifest in force.
-func (c *Service) auth(ctx context.Context, p db.Project, tool string) (manifest.Auth, error) {
+func (c *Service) auth(ctx context.Context, p db.Project, tool string) (manifest.Auth, []string, error) {
 	var auth manifest.Auth
 	m, err := docs.For(ctx, c.St.Q, registry.Actor{}, p.ID)
 	if err != nil {
-		return auth, err
+		return auth, nil, err
 	}
 	for _, t := range m.Tools.HTTP {
 		if t.Name == tool {
 			auth = t.AuthOf()
 		}
 	}
-	return auth, nil
+	return auth, m.Domains.All(), nil
 }
 
 // host is the host of an address, or the address when it has none.
@@ -210,7 +210,7 @@ func (c *Service) oauthStart(ctx context.Context, act registry.Actor, in oauthSt
 	if err != nil {
 		return nil, err
 	}
-	auth, err := c.auth(ctx, p, local)
+	auth, domains, err := c.auth(ctx, p, local)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ func (c *Service) oauthStart(ctx context.Context, act registry.Actor, in oauthSt
 	}
 	var mu sync.Mutex
 	opened, finished := false, false
-	link, err := c.OAuth.Start(ctx, p.WorkspaceID, auth, func(err error) {
+	link, err := c.OAuth.Start(ctx, p, domains, auth, func(err error) {
 		mu.Lock()
 		finished = true
 		close := opened

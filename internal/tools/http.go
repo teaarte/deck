@@ -33,7 +33,7 @@ const (
 // the journal keeps the call's input, the caller gets the response.
 type HTTP struct {
 	GW      *gateway.Gateway
-	Secrets func(workspace int64, name string) (string, error)
+	Secrets func(workspace int64, project, name string) (string, error)
 	Home    home.Layout
 	Client  *http.Client
 	OAuth   *OAuth
@@ -44,7 +44,7 @@ type HTTP struct {
 	SignIn func(ctx context.Context, p db.Project, tool, why string)
 }
 
-func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), h home.Layout) *HTTP {
+func NewHTTP(gw *gateway.Gateway, secrets func(int64, string, string) (string, error), h home.Layout) *HTTP {
 	return &HTTP{GW: gw, Secrets: secrets, Home: h, Client: egress.Pinned}
 }
 
@@ -88,7 +88,7 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool, domains []string) regi
 				return refuse(err)
 			}
 		}
-		resp, reached, err := h.send(ctx, p, req)
+		resp, reached, err := h.send(ctx, p, domains, req)
 		if err != nil {
 			var signIn *ErrSignIn
 			isSignIn := errors.As(err, &signIn)

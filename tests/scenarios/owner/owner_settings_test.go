@@ -182,28 +182,30 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	}
 }
 
-// TestSettingsSecretsAndTokensShowOnlyNames: a secret's value is a hidden field and never comes back; a new
-// token is shown once, by its form, and the list has only its name and commands.
+// TestSettingsSecretsAndTokensShowOnlyNames: a secret is set in the settings of its module, its value hidden and never
+// shown; deck's settings list none. A new token is shown once, by its form, and the list has its name and commands.
 func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	stream := e.Events(t.Context())
-	form := harness.BlockData[harness.FormV](t, e.ScreenForm("", "settings", "deck.secret_set")["value"])
+	e.Project("mail", harness.PostManifest("https://api.example", ""))
+	form := harness.BlockData[harness.FormV](t, e.ScreenForm("mail", "settings", "deck.secret_set")["value"])
 	if form.Commands[0].Input.Properties["value"]["writeOnly"] != true {
 		t.Fatalf("the value of a secret is a field that hides what is typed: %+v", form.Commands[0].Input.Properties)
 	}
-	e.Secret("", "mail-key", "s3cret-value")
-	harness.WaitEvent(t, stream, events.Event{Topic: "secrets"})
-	secrets := e.SettingsBlock("Secrets", map[string]any{"topic": "secrets"})
+	secrets := e.ScreenBlock("mail", "settings", "Secrets", nil)
 	got := harness.BlockData[[]harness.ScreenRow](t, secrets["rows"])
-	if len(got) != 1 || got[0].Cells[0] != "mail-key" || !harness.HasVerb(got[0].Actions, "replace") || harness.Verb(t, got[0].Actions, "delete")["confirm"] != true {
-		t.Fatalf("the secrets tab lists names with replace and delete, and follows the secrets topic: %s", secrets["rows"])
+	if len(got) != 1 || got[0].Cells[0] != "svc" || !harness.HasVerb(got[0].Actions, "set") {
+		t.Fatalf("the settings of a module list the secrets it names, one to set: %s", secrets["rows"])
 	}
-	del := harness.Verb(t, got[0].Actions, "delete")
-	e.Must(del["command"].(string), del["params"], nil)
+	e.Secret("mail", "svc", "s3cret-value")
 	harness.WaitEvent(t, stream, events.Event{Topic: "secrets"})
-	if left := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Secrets", nil)["rows"]); len(left) != 0 {
-		t.Fatalf("a deleted secret is gone: %+v", left)
+	got = harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("mail", "settings", "Secrets", map[string]any{"topic": "secrets"})["rows"])
+	if len(got) != 1 || got[0].Cells[1] != "set" || !harness.HasVerb(got[0].Actions, "replace") {
+		t.Fatalf("a secret set is replaced, and the table follows the secrets topic: %+v", got)
+	}
+	if id, _ := e.FindBlock("", "settings", "Secrets"); id != "" {
+		t.Fatal("deck's settings list no secrets: each module's are in its own settings")
 	}
 
 	var made struct {
@@ -212,7 +214,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	}
 	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.owner_notify", "web.*"}}, &made)
 	harness.WaitEvent(t, stream, events.Event{Topic: "tokens"})
-	all, _ := json.Marshal(e.Screen("", "settings", nil))
+	all, _ := json.Marshal([]any{e.Screen("", "settings", nil), e.Screen("mail", "settings", nil)})
 	if strings.Contains(string(all), "s3cret-value") || strings.Contains(string(all), made.Token) || !strings.Contains(made.ClaudeCode, made.Token) {
 		t.Fatalf("no secret value or token is on the screen after it was made: %s", all)
 	}
@@ -442,14 +444,15 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 	}
 }
 
-// TestTheMasterSeesTheNamesOfSecrets: the master lists the names of the secrets, never their values.
+// TestTheMasterSeesTheNamesOfSecrets: the master lists the names of the secrets of a module, never their values.
 func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Secret("", "mail-key", "s3cret-value")
-	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.secrets_list", []byte(`{}`))
+	e.Project("mail", harness.PostManifest("https://api.example", ""))
+	e.Secret("mail", "svc", "s3cret-value")
+	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.secrets_list", []byte(`{"project": "mail"}`))
 	raw, _ := json.Marshal(out)
-	if err != nil || string(raw) != `[{"name":"mail-key","set":true}]` {
+	if err != nil || string(raw) != `[{"name":"svc","set":true}]` {
 		t.Fatalf("the master gets the names of the secrets and no value: %s %v", raw, err)
 	}
 }
@@ -572,19 +575,20 @@ func TestTheNamesOfSettingsFollowTheLanguageOfTheScreen(t *testing.T) {
 	}
 }
 
-// TestASecretDeleteStaysInTheFolderOfSecrets: a name that would leave the folder of the secrets of the workspace is
+// TestASecretDeleteStaysInTheFolderOfSecrets: a name that would leave the folder of the secrets of the module is
 // refused, and the files there and above stay.
 func TestASecretDeleteStaysInTheFolderOfSecrets(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Secret("", "svc", "k")
-	dir := deckhome.Layout(e.App.Cfg.Home).Secrets(1)
+	e.Project("mail", harness.PostManifest("https://api.example", ""))
+	e.Secret("mail", "svc", "k")
+	dir := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Secrets(1), "mail")
 	above := filepath.Join(filepath.Dir(dir), "x")
 	if err := os.WriteFile(above, []byte("keep"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"..", "...", "../x", "../1/svc", "a/b", ""} {
-		e.Refused("deck.secret_delete", map[string]any{"name": name}, 422, "")
+	for _, name := range []string{"..", "...", "../x", "../mail/svc", "a/b", ""} {
+		e.Refused("deck.secret_delete", map[string]any{"project": "mail", "name": name}, 422, "")
 	}
 	for _, f := range []string{above, filepath.Join(dir, "svc")} {
 		if _, err := os.Stat(f); err != nil {

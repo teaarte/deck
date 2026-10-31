@@ -141,7 +141,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: &a.Failures}, triggers.After{S: &a.Triggers}, asks.Unheard{S: &a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
-	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
+	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Home: h}
 	a.Folders = folders.Service{St: st, Home: h}
 	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go,
 		Themed: a.Themes.Exists, Current: a.Themes.Current, Invoke: a.Registry.Invoke}
@@ -158,7 +158,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Expire: a.Records.Expire}
 	a.Providers = providers.Service{St: st, Changed: func(topic string) { a.Bus.Emit(events.Event{Topic: topic}) }, Now: cfg.Now, Home: h, FilesMu: &a.Files.Mu, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
-		VideoCeiling: cfg.VideoCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
+		VideoCeiling: cfg.VideoCeiling, Key: a.Secrets.Key, WriteKey: a.Secrets.WriteKey,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
@@ -191,12 +191,15 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.Screens.CheckScreens,
-		Unassigned: a.Providers.Unassigned, Secret: a.Secrets.Has,
+		Unassigned: a.Providers.Unassigned, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
 		Theme: func(ctx context.Context, ws int64) string { return a.Themes.Current(ctx, ws) }}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)
+	if err := a.Secrets.Move(a.ctx); err != nil {
+		return nil, err
+	}
 	if err := a.Documents.SeedSkills(a.ctx); err != nil {
 		return nil, err
 	}

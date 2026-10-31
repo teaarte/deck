@@ -1,7 +1,6 @@
 package providers
 
 import (
-	"cmp"
 	"context"
 	"strings"
 
@@ -19,20 +18,18 @@ type connectionView struct {
 	Name string `json:"name"`
 	API  string `json:"api" enum:"openai|google|anthropic|raw|cli"`
 	URL  string `json:"url"`
-	// Key says where the API key is kept: in a secret, or none; KeySecret is the name of that secret.
-	Key       string `json:"key" enum:"secret|none"`
-	KeySecret string `json:"key_secret,omitempty"`
-	Local     bool   `json:"local"`
-	Models    int64  `json:"models"`
+	// Key says whether deck keeps an API key of the connection, apart from the secrets of modules.
+	Key    string `json:"key" enum:"set|none"`
+	Local  bool   `json:"local"`
+	Models int64  `json:"models"`
 }
 
 type connectionSetIn struct {
-	Name      string `desc:"Connection name: lowercase letters, digits and '-'"`
-	API       string `json:"api" enum:"openai|google|anthropic|raw" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token"`
-	URL       string `desc:"Base URL of the API, such as https://openrouter.ai/api/v1"`
-	KeySecret string `json:"key_secret" opt:"" desc:"Name of the secret with the API key; a connection changed without it keeps its own"`
-	Key       string `type:"secret" opt:"" desc:"The API key; deck keeps it in the secret key_secret names, or one named after the connection"`
-	Local     bool   `opt:"" desc:"The models run on the owner's own hardware"`
+	Name  string `desc:"Connection name: lowercase letters, digits and '-'"`
+	API   string `json:"api" enum:"openai|google|anthropic|raw" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token"`
+	URL   string `desc:"Base URL of the API, such as https://openrouter.ai/api/v1"`
+	Key   string `type:"secret" opt:"" desc:"The API key; deck keeps it apart from the secrets of modules, and a connection changed without it keeps its own"`
+	Local bool   `opt:"" desc:"The models run on the owner's own hardware"`
 }
 
 func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
@@ -42,31 +39,25 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 	case !strings.HasPrefix(in.URL, "http://") && !strings.HasPrefix(in.URL, "https://"):
 		return nil, registry.Invalid("the url of a connection is http or https, got %q", in.URL)
 	case strings.ContainsAny(in.URL, "@?#"):
-		return nil, registry.Invalid("the url takes no user, query or key; give the key in key, deck keeps it in a secret")
-	case in.KeySecret != "" && !schemas.ValidSecret(in.KeySecret):
-		return nil, registry.Invalid("bad secret name %q", in.KeySecret)
-	}
-	if in.Key != "" {
-		in.KeySecret = cmp.Or(in.KeySecret, in.Name)
-		if err := s.WriteSecret(act.Workspace, in.KeySecret, strings.TrimSpace(in.Key)); err != nil {
-			return nil, err
-		}
+		return nil, registry.Invalid("the url takes no user, query or key; give the key in key, deck keeps it apart")
 	}
 	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == APICLI {
 		return nil, registry.Invalid("connection %s is the %s CLI on the owner's subscription, which deck keeps itself; name another one", in.Name, in.Name)
 	}
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if old, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.KeySecret == "" {
-			in.KeySecret = old.KeySecret
+	if key := strings.TrimSpace(in.Key); key != "" {
+		if err := s.WriteKey(act.Workspace, in.Name, key); err != nil {
+			return nil, err
 		}
+	}
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: in.API, Url: in.URL,
-			KeySecret: in.KeySecret, Local: store.Bool(in.Local)})
+			Local: store.Bool(in.Local)})
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"connection": in.Name, "key_secret": in.KeySecret}, nil
+	return map[string]any{"connection": in.Name, "key": in.Key != ""}, nil
 }
 
 type connectionRemoveIn struct {
@@ -96,6 +87,9 @@ func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in c
 	}
 	if n == 0 {
 		return nil, registry.NotFound("no connection %q", in.Name)
+	}
+	if err := s.WriteKey(act.Workspace, in.Name, ""); err != nil {
+		return nil, err
 	}
 	return map[string]any{"removed": in.Name}, nil
 }

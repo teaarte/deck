@@ -154,8 +154,7 @@ func (e *Env) greenACP(f *fakeACP, llm *FakeLLM) {
 // ended with.
 func (e *Env) AddACP(f *fakeACP, llm *FakeLLM) db.Health {
 	e.T.Helper()
-	e.Secret("", "model_key", "sk-real-model-key")
-	e.MustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": "goose"})
+	e.MustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key": "sk-real-model-key", "agent": "goose"})
 	var h db.Health
 	e.Until("the self-check of the ACP provider", func() bool {
 		var err error
@@ -207,9 +206,8 @@ func (e *Env) SetACP(f *fakeACP, from int, name, agent string, llm *FakeLLM, noC
 	for i := 1; i <= 3; i++ {
 		f.Stream(from+i-1, "selfcheck_"+strconv.Itoa(i)+".jsonl")
 	}
-	e.Secret("", name+"-key", "sk-"+name)
 	e.MustAgentModel(map[string]any{"name": name, "url": llm.URL, "model": name, "agent": agent,
-		"key_secret": name + "-key", "no_cloud": noCloud})
+		"key": "sk-" + name, "no_cloud": noCloud})
 	e.Until("the self-check of "+name, func() bool {
 		h, err := health.Get(e.T.Context(), e.App.Store.Q, health.Of{}, "provider:"+name)
 		return err == nil && h.Status == "ok"

@@ -135,7 +135,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		mu.Unlock()
 		switch {
 		case ctx.Err() != nil && res.Outcome == Login:
-			c.Err = fmt.Errorf("%s: the model API refused the key (401 or 403); check the key secret and the url", what)
+			c.Err = fmt.Errorf("%s: the model API refused the key (401 or 403); check the key of the connection and the url", what)
 		case ctx.Err() != nil && res.Outcome == Limited:
 			c.Err = fmt.Errorf("%s: the model API answered with a usage limit (429) until the ceiling", what)
 		case ctx.Err() != nil && counted == 0:

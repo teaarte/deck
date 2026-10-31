@@ -38,9 +38,10 @@ type Service struct {
 	SelfCheckCeiling time.Duration
 	// VideoPoll is how often a job of a video model is asked after, VideoCeiling how long deck waits for it.
 	VideoPoll, VideoCeiling time.Duration
-	Secret                  func(workspace int64, name string) (string, error)
-	WriteSecret             func(workspace int64, name, value string) error
-	Wake                    func(ctx context.Context)
+	// Key is the API key of a connection, "" for none; WriteKey keeps one, an empty one removes it.
+	Key      func(workspace int64, connection string) string
+	WriteKey func(workspace int64, connection, key string) error
+	Wake     func(ctx context.Context)
 	// Builtin are the providers deck was started with, the main one first; the owner adds ACP ones per workspace.
 	Builtin []provider.Provider
 	Ctx     context.Context

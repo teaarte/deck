@@ -7,10 +7,9 @@ SELECT * FROM connection WHERE workspace_id = ? AND name = ?;
 
 
 -- name: AddConnection :one
-INSERT INTO connection (workspace_id, name, api, url, key_secret, local)
-VALUES (sqlc.arg(workspace_id), sqlc.arg(name), sqlc.arg(api), sqlc.arg(url), sqlc.arg(key_secret), sqlc.arg(local))
-ON CONFLICT (workspace_id, name) DO UPDATE SET api = excluded.api, url = excluded.url, key_secret = excluded.key_secret,
-    local = excluded.local
+INSERT INTO connection (workspace_id, name, api, url, local)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(name), sqlc.arg(api), sqlc.arg(url), sqlc.arg(local))
+ON CONFLICT (workspace_id, name) DO UPDATE SET api = excluded.api, url = excluded.url, local = excluded.local
 RETURNING *;
 
 

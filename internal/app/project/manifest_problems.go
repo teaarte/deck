@@ -27,7 +27,6 @@ func (pj *Service) problems(ctx context.Context, p db.Project) []string {
 	}
 	var out []string
 	for _, err := range []error{
-		checkKeys(ctx, pj.St.Q, p.WorkspaceID, pm.m),
 		checkReads(ctx, pj.St.Q, p.WorkspaceID, p.Name, pm.m),
 		pj.checkToolFit(ctx, pj.St.Q, p.WorkspaceID, p.ID, pm.m),
 	} {

@@ -129,7 +129,7 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 	if me.Token != "a2" || !slices.Equal(f.grants, []string{"authorization_code", "refresh_token"}) {
 		t.Fatalf("a token that runs out is refreshed by deck before the call: %+v %v", me, f.grants)
 	}
-	stored, _ := os.ReadFile(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "secrets", "1", "svc_token"))
+	stored, _ := os.ReadFile(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "secrets", "1", "svc", "svc_token"))
 	if !strings.Contains(string(stored), `"a2"`) {
 		t.Fatalf("the refreshed token is kept: %s", stored)
 	}
@@ -141,7 +141,7 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 	}
 	f.mu.Unlock()
 	_, _ = e.Call("svc.me", map[string]any{})
-	stored, _ = os.ReadFile(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "secrets", "1", "svc_token"))
+	stored, _ = os.ReadFile(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "secrets", "1", "svc", "svc_token"))
 	if string(stored) != `{"access_token":"owner"}` {
 		t.Fatalf("a refreshed token is not written over a secret that changed meanwhile: %s", stored)
 	}

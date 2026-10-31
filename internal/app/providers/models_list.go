@@ -123,11 +123,8 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		if strings.ContainsAny(c.Url, "@?#") {
 			v.URL = "(an address with a key in it; set it again without)"
 		}
-		switch {
-		case c.KeySecret != "" && act.OwnerSide():
-			v.Key, v.KeySecret = "secret", c.KeySecret
-		case c.KeySecret != "":
-			v.Key = "secret"
+		if s.Key(act.Workspace, c.Name) != "" {
+			v.Key = "set"
 		}
 		for _, m := range models {
 			if m.Model.ConnectionID == c.ID {

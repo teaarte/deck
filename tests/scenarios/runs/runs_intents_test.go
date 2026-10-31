@@ -145,8 +145,8 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first))
-	e.Secret("notes", "svc", "k")
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
+	e.Secret("notes", "svc", "k")
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()
@@ -220,8 +220,9 @@ func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 	}}
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
+	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	e.Secret("notes", "svc", "k")
-	id := e.Run(e.Project("notes", harness.PostManifest(svc.URL, "")), "work")
+	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()
 	go func() {

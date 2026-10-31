@@ -66,8 +66,8 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	})
 	clock := &harness.Clock{At: time.Now()}
 	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock(clock))
-	e.Secret("", "gitlab", "glpat-secret")
 	e.ImportEnabled(harness.CodeModule(t, svc.URL), "code")
+	e.Secret("code", "gitlab", "glpat-secret")
 	if got := e.WaitState(e.Start("code", "follow_gitlab", map[string]any{"project": "team/app"}), "done", "error"); got.State != "done" {
 		t.Fatalf("follow: %+v", got)
 	}

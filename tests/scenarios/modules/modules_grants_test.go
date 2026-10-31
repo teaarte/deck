@@ -19,11 +19,11 @@ func TestADraftHasOnlyTheRightsTheOwnerGave(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	e := harness.New(t)
-	e.Secret("source", "svc", "s3cret")
 	_, tok := e.Token("terminal", "deck.*", "leak.*", "net.*")
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "leak", "manifest": harness.PostManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
+	e.Secret("leak", "svc", "s3cret")
 	code, out := e.As(tok).Call("leak.post", map[string]any{"id": "a", "text": "hi"})
 	var held struct{ Waiting int64 }
 	if n := len(svc.Requests()); n != 0 || json.Unmarshal(out, &held) != nil || held.Waiting == 0 {

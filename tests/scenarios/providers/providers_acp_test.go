@@ -277,8 +277,9 @@ func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 	f.StreamText(5, harness.AcpStream(harness.AcpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"posted": true}}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	e.Secret("", "svc", "k")
-	id := e.Run(e.AcpProject("notes", harness.PostManifest(svc.URL, "")), "work")
+	p := e.AcpProject("notes", harness.PostManifest(svc.URL, ""))
+	e.Secret("notes", "svc", "k")
+	id := e.Run(p, "work")
 	a := e.WaitAsk()
 	if a.Kind != "call" || len(svc.Requests()) != 0 {
 		t.Fatalf("the external call waits for the owner and is not made: %+v %d", a, len(svc.Requests()))
@@ -371,8 +372,8 @@ func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
 			}
 			var pl struct{ Connections []struct{ Name, Key string } }
 			e.Must("deck.models_list", nil, &pl)
-			if i := slices.IndexFunc(pl.Connections, func(p struct{ Name, Key string }) bool { return p.Name == "acp" }); i < 0 || pl.Connections[i].Key != "secret" {
-				t.Fatalf("the models list tells how the key of a connection is passed: %+v", pl.Connections)
+			if i := slices.IndexFunc(pl.Connections, func(p struct{ Name, Key string }) bool { return p.Name == "acp" }); i < 0 || pl.Connections[i].Key != "set" {
+				t.Fatalf("the models list tells that deck keeps a key of the connection: %+v", pl.Connections)
 			}
 		})
 	}

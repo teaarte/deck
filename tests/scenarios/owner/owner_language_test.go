@@ -401,8 +401,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	p := e.Project("notes", harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
-	e.Secret("notes", "gate-key", "k")
-	e.Must("deck.connection_set", map[string]any{"name": "gate", "api": "openai", "url": "http://127.0.0.1:9/v1", "key_secret": "gate-key"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "gate", "api": "openai", "url": "http://127.0.0.1:9/v1", "key": "k"}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "plain", "api": "raw", "url": "http://127.0.0.1:9/raw"}, nil)
 	for i, kind := range []string{"text", "image", "tts", "stt", "music", "video", "search"} {
 		in := map[string]any{"connection": "gate", "model": "m-" + kind, "name": "m-" + kind, "kind": kind, "input_usd": 1}
@@ -503,7 +502,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 			}
 		}
 	}
-	for _, want := range []string{"модель отвечала со скоростью 142 токенов/с", "модель не закончила самопроверку goose 1.53.0", "gate-key",
+	for _, want := range []string{"модель отвечала со скоростью 142 токенов/с", "модель не закончила самопроверку goose 1.53.0",
 		"файлы: ", "deck перезапустился, пока шёл скрипт", "deck перезапустился до начала сессии", "Работы ей ещё не давали", "озвучка", "$1 за 1M символов", "сделано без вас"} {
 		if !strings.Contains(all.String(), want) {
 			t.Errorf("no %q in the screens read in Russian", want)

@@ -362,11 +362,11 @@ func TestSecretAServerPrintsStaysOutOfHealth(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
 
-	e.Secret("srv", "noisy_key", key)
 	e.Project("srv", harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
   "tools": {"mcp": {"servers": {"noisy": {"command": "/bin/sh", "args": ["-c", "echo key=$NOISY_KEY >&2; exit 1"],
     "env": {"NOISY_KEY": "$secret.noisy_key"}}}}}}`))
+	e.Secret("srv", "noisy_key", key)
 	e.Start("srv", "work", nil)
 	var h string
 	e.Until("the server's health", func() bool {

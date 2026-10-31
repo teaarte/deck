@@ -166,9 +166,6 @@ func (pj *Service) createProject(ctx context.Context, act registry.Actor, name s
 		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
 			return registry.Invalid("project %q already exists", name)
 		}
-		if err := checkKeys(ctx, q, act.Workspace, pm.m); err != nil {
-			return err
-		}
 		if err := checkReads(ctx, q, act.Workspace, name, pm.m); err != nil {
 			return err
 		}
@@ -244,9 +241,6 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 	changed := false
 	var outdated []db.Ask
 	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := checkKeys(ctx, q, p.WorkspaceID, pm.m); err != nil {
-			return err
-		}
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
 			return err
 		}

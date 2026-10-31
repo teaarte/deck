@@ -64,8 +64,11 @@ func (l Layout) PushKey(workspace int64) string {
 	return l.state("push", fmt.Sprintf("%d.vapid", workspace))
 }
 
-// Secrets holds the secrets of a workspace, a file each.
+// Secrets holds the secrets of a workspace, a folder a project with a file a secret.
 func (l Layout) Secrets(workspace int64) string { return l.state("secrets", fmt.Sprint(workspace)) }
+
+// Keys holds the API keys of the connections of a workspace, a file each, apart from the secrets of modules.
+func (l Layout) Keys(workspace int64) string { return l.state("keys", fmt.Sprint(workspace)) }
 
 // Open makes deck's folder ready: its own and only deck's, of the current layout, with state/ and the folder of runs.
 func Open(dir string) (Layout, error) {

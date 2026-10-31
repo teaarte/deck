@@ -75,8 +75,7 @@ func TestRealACPAgents(t *testing.T) {
 			start := time.Now()
 			add := map[string]any{"name": "acp", "url": url, "model": model, "no_cloud": true, "agent": agent}
 			if key := os.Getenv("DECK_ACP_KEY"); key != "" {
-				e.Secret("", "model_key", key)
-				add["key_secret"], add["no_cloud"] = "model_key", false
+				add["key"], add["no_cloud"] = key, false
 			}
 			e.MustAgentModel(add)
 			var h db.Health

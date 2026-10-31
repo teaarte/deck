@@ -74,12 +74,12 @@ func (e *Env) UseModels(command string, models ...string) {
 }
 
 // AgentModel adds a model an ACP agent runs on a connection of the same name, as the owner does in Settings, from
-// name, url, model, agent, key_secret, no_cloud and check_minutes; it gives the outcome of the first call that failed.
+// name, url, model, agent, key, no_cloud and check_minutes; it gives the outcome of the first call that failed.
 func (e *Env) AgentModel(in map[string]any) (int, []byte) {
 	e.T.Helper()
 	conn := map[string]any{"name": in["name"], "api": "openai", "url": in["url"]}
-	if v, ok := in["key_secret"]; ok {
-		conn["key_secret"] = v
+	if v, ok := in["key"]; ok {
+		conn["key"] = v
 	}
 	if v, ok := in["no_cloud"]; ok {
 		conn["local"] = v

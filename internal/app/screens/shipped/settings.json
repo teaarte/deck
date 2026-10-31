@@ -2,7 +2,7 @@
   "name": "settings",
   "icon": "settings",
   "title": "Settings",
-  "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string", "tpm": "number", "context": "number"},
+  "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string", "tpm": "number", "context": "number"},
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Models", "icon": "cpu", "blocks": [
@@ -22,15 +22,14 @@
               {"label": "API", "bind": "api", "format": "tag"},
               {"label": "Models", "bind": "models"},
               {"label": "Address", "bind": "url", "format": "copy"},
-              {"label": "Key", "bind": "key_secret ?? key"}
+              {"label": "Key", "bind": "key", "format": "tag", "tone": "key == 'set' ? 'ok' : 'muted'"}
             ],
             "actions": [
-              {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}, "when": "api != 'cli'"},
+              {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=name", "api": "=api", "url": "=url", "local": "=local"}, "when": "api != 'cli'"},
               {"verb": "remove", "confirm": true, "command": "deck.connection_delete", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
             ]},
-          {"type": "form", "title": "Add or change a connection", "command": "deck.connection_set", "description": "Where models are reached: the API, its address and key; deck keeps the key in a secret.",
-            "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "key_secret": "=param.key_secret", "local": "=param.local"},
-            "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}]},
+          {"type": "form", "title": "Add or change a connection", "command": "deck.connection_set", "description": "Where models are reached: the API, its address and key; deck keeps the key apart, and no module reads it.",
+            "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "local": "=param.local"}}]},
         {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
           {"type": "form", "command": "deck.assignment_set", "description": "The first model does the work; the next ones take it while the first is down or refuses.",
             "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
@@ -121,7 +120,7 @@
               "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
             {"verb": "open", "screen": "process", "record": "=process", "when": "(process ?? 0) != 0"},
             {"label": "Got it", "icon": "check", "command": "deck.process_dismiss", "params": {"process": "=process"}, "when": "(process ?? 0) != 0"},
-            {"verb": "open", "screen": "settings", "params": {"tab": "Advanced"}, "when": "check == 'push'"}, {"verb": "set", "primary": true, "screen": "settings", "params": {"tab": "Advanced", "dialog": "secret", "name": "=trimPrefix(check, 'secret:' + project + '.')"}, "when": "hasPrefix(check ?? '', 'secret:')"},
+            {"verb": "open", "screen": "settings", "params": {"tab": "Advanced"}, "when": "check == 'push'"}, {"verb": "set", "primary": true, "screen": "settings", "project": "=project", "params": {"tab": "Access", "dialog": "secret", "name": "=trimPrefix(check, 'secret:' + project + '.')"}, "when": "hasPrefix(check ?? '', 'secret:')"},
             {"label": "Got it", "icon": "check", "command": "deck.health_mark_seen", "params": {"subject": "=check", "project": "=project != '' ? project : nil"}, "when": "(check ?? '') != ''"}
           ]},
         {"type": "stat", "title": "Checks that pass", "icon": "circle-check", "span": 2, "tone": "'ok'",
@@ -152,8 +151,6 @@
             {"label": "Update", "icon": "download", "command": "deck.update_install", "when": "status == 'warning'"},
             {"label": "Look for an update", "icon": "refresh", "command": "deck.update_check", "when": "version startsWith 'v'"}
           ]},
-        {"type": "dialog", "name": "secret", "title": "Add a secret", "icon": "key", "blocks": [
-          {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
         {"type": "dialog", "name": "token", "title": "Create a token", "icon": "ticket", "blocks": [
           {"type": "form", "command": "deck.token_create", "keep_open": true,
             "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}]},
@@ -177,14 +174,6 @@
           "actions": [
             {"verb": "turn_off", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "true"}, "when": "builtin && status != 'missing' && status != 'off'"},
             {"verb": "turn_on", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"}
-          ]},
-        {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
-          "description": "Keys and passwords of connections and tools.",
-          "empty": "No secrets yet: a module names the ones it needs",
-          "columns": [{"label": "Name", "bind": "name", "format": "copy"}],
-          "actions": [
-            {"verb": "replace", "screen": "settings", "params": {"tab": "Advanced", "dialog": "secret", "name": "=name"}},
-            {"verb": "delete", "confirm": true, "command": "deck.secret_delete", "params": {"name": "=name"}}
           ]},
         {"type": "table", "title": "Automation tokens", "source": {"from": "deck.tokens_list", "sort": "-id"},
           "description": "A way in for Shortcuts or your scripts, to the commands it lists.",

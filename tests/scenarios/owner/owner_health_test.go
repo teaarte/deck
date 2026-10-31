@@ -35,7 +35,7 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 	if seen, failing := e.HealthSeen("stock", "secret:stock.pexels"); seen || !failing {
 		t.Fatal("the same check of another project stays unread")
 	}
-	if drawn, _ := json.Marshal(e.ScreenMessages("", "settings", map[string]any{"tab": "Health"})); !strings.Contains(string(drawn), `"dialog":"secret","name":"pexels","tab":"Advanced"`) {
+	if drawn, _ := json.Marshal(e.ScreenMessages("", "settings", map[string]any{"tab": "Health"})); !strings.Contains(string(drawn), `"dialog":"secret","name":"pexels","tab":"Access"`) {
 		t.Fatal("the row of an unset secret opens the form that sets it")
 	}
 }

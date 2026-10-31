@@ -68,9 +68,7 @@ func (pj *Service) check(ctx context.Context, act registry.Actor, in manifestChe
 		out.Refused = refusals(err)
 		return out, nil
 	}
-	for _, err := range []error{checkKeys(ctx, pj.St.Q, act.Workspace, pm.m), checkReads(ctx, pj.St.Q, act.Workspace, p.Name, pm.m)} {
-		out.Refused = append(out.Refused, refusals(err)...)
-	}
+	out.Refused = append(out.Refused, refusals(checkReads(ctx, pj.St.Q, act.Workspace, p.Name, pm.m))...)
 	prev := &manifest.Manifest{}
 	if p.ID != 0 {
 		out.Refused = append(out.Refused, refusals(pj.checkToolFit(ctx, pj.St.Q, act.Workspace, p.ID, pm.m))...)

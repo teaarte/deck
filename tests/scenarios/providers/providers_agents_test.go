@@ -58,7 +58,7 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 }
 
 // TestTheModelsAndConnectionsTabsShowWhatRunsTheModels: Models lists who does what, the models with an error in a
-// line and in full on demand, and its dialog the connections; Advanced the agents and the other secrets.
+// line and in full on demand, and its dialog the connections with whether each keeps a key; Advanced the agents.
 func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
@@ -73,7 +73,6 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 
 	e.App.Providers.Checks(t.Context(), time.Now())
 	e.WaitHealth("agent:goose", "error")
-	e.Secret("", "wiki", "w")
 	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic", "kind": "image", "call_usd": 0.04}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "acp", "agent": "goose"}, nil)
@@ -121,9 +120,8 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	if conns[0].Cells[0] != "claude-code" || conns[1].Cells[0] != "codex" || len(conns[0].Actions)+len(conns[1].Actions) != 0 {
 		t.Fatalf("the connections of the CLIs are deck's own, with no edit or remove: %+v", conns[:2])
 	}
-	secrets := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Secrets", nil)["rows"])
-	if !strings.Contains(fmt.Sprint(secrets), "wiki") {
-		t.Fatalf("the connections tab lists the secrets of tools too: %+v", secrets)
+	if conns[2].Cells[4] != "set" || conns[3].Cells[4] != "none" {
+		t.Fatalf("a connection shows whether deck keeps a key of it, never the key: %+v", conns)
 	}
 }
 

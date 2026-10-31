@@ -20,10 +20,7 @@ import (
 // of text or one named free, since a song or a picture may cost what no field of the catalog says.
 func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection, model string) (db.AddModelParams, bool) {
 	var out db.AddModelParams
-	key := ""
-	if c.KeySecret != "" {
-		key, _ = s.Secret(workspace, c.KeySecret)
-	}
+	key := s.Key(workspace, c.Name)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	resp, err := models.Send(ctx, target(c, strings.TrimSpace(key)), models.Call{Method: http.MethodGet, Path: "models"})

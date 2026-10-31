@@ -131,15 +131,7 @@ func target(c db.Connection, key string) models.Target {
 
 // hop is where a call of model m goes, with deck's key.
 func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (models.Hop, error) {
-	key := ""
-	if c.KeySecret != "" {
-		k, err := s.Secret(workspace, c.KeySecret)
-		if err != nil {
-			return models.Hop{}, err
-		}
-		key = strings.TrimSpace(k)
-	}
-	h := models.Hop{Target: target(c, key), Connection: c.Name, Name: m.Name, Model: m.Model,
+	h := models.Hop{Target: target(c, s.Key(workspace, c.Name)), Connection: c.Name, Name: m.Name, Model: m.Model,
 		Local: c.Local != 0, Free: m.Free != 0, Queue: c.Local != 0 && slices.Contains(queuedKinds, m.Kind)}
 	if m.Kind == RoleText {
 		h.TPM, h.Context = m.Tpm, m.Context

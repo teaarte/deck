@@ -71,7 +71,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	header := func(s string) string {
 		return headerRef.ReplaceAllStringFunc(s, func(m string) string {
 			if name, ok := strings.CutPrefix(m, manifest.SecretPrefix); ok {
-				v, err := h.Secrets(p.WorkspaceID, name)
+				v, err := h.Secrets(p.WorkspaceID, p.Name, name)
 				if err != nil && serr == nil {
 					serr = err
 				}
@@ -94,7 +94,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 		case "oauth2":
 			out.oauth = &a
 		default:
-			v, err := h.Secrets(p.WorkspaceID, a.Secret)
+			v, err := h.Secrets(p.WorkspaceID, p.Name, a.Secret)
 			if err != nil && serr == nil {
 				serr = err
 			}
@@ -119,7 +119,7 @@ func (h *HTTP) url(p db.Project, t manifest.HTTPTool, in map[string]any, out *ou
 	if !ok {
 		return fillURL(t.URL, in, missing), nil
 	}
-	v, err := h.Secrets(p.WorkspaceID, name)
+	v, err := h.Secrets(p.WorkspaceID, p.Name, name)
 	if err != nil {
 		return "", err
 	}
@@ -161,12 +161,12 @@ func linkParts(v string, u *url.URL) []string {
 
 // send makes a call; an oauth2 tool refused with 401 gets its token refreshed and the call once more.
 // reached says a request may have done something: a 401 refusal did not.
-func (h *HTTP) send(ctx context.Context, p db.Project, o *outgoing) (*http.Response, bool, error) {
+func (h *HTTP) send(ctx context.Context, p db.Project, domains []string, o *outgoing) (*http.Response, bool, error) {
 	for attempt := 0; ; attempt++ {
 		token := ""
 		var err error
 		if o.oauth != nil {
-			if token, err = h.OAuth.Access(ctx, p.WorkspaceID, *o.oauth, attempt > 0); err != nil {
+			if token, err = h.OAuth.Access(ctx, p, domains, *o.oauth, attempt > 0); err != nil {
 				return nil, false, err
 			}
 		}

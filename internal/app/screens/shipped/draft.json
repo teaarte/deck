@@ -13,7 +13,7 @@
         {"label": "State", "bind": "done ? 'ready' : (optional ?? false) ? 'optional' : 'needed'", "format": "tag", "tone": "done ? 'ok' : (optional ?? false) ? 'muted' : 'warn'"}
       ],
       "actions": [
-        {"label": "Set a secret", "icon": "key", "screen": "settings", "params": {"tab": "Advanced", "dialog": "secret", "name": "=what"}, "when": "kind == 'secret' && !done"},
+        {"label": "Set a secret", "icon": "key", "screen": "settings", "project": "=param.project", "params": {"tab": "Access", "dialog": "secret", "name": "=what"}, "when": "kind == 'secret' && !done"},
         {"label": "Models", "icon": "cpu", "screen": "settings", "params": {"tab": "Models"}, "when": "kind == 'model'"}
       ]},
     {"type": "table", "title": "What it may do once enabled", "span": "full", "source": {"from": "deck.project_rights_list", "input": {"project": "=param.project"}},

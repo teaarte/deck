@@ -168,8 +168,8 @@ type Service struct {
 	St *store.Store
 	// Providers are the providers of a workspace.
 	Providers func(ctx context.Context, workspace int64) ([]provider.Provider, error)
-	// Secret reports whether a secret of a workspace is set.
-	Secret func(workspace int64, name string) bool
+	// Secret reports whether a secret of a project is set.
+	Secret func(workspace int64, project, name string) bool
 	// Unassigned are the commands of a manifest no model takes, with what the owner does.
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
 	// NoSearch is what the owner does while no search is assigned, or "".

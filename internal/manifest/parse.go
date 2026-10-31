@@ -2,6 +2,8 @@ package manifest
 
 import (
 	"bytes"
+	"cmp"
+	"deck2/internal/registry"
 	"deck2/schemas"
 	"encoding/json"
 	"errors"
@@ -54,6 +56,7 @@ func Parse(raw []byte) (*Manifest, error) {
 	if err := dec.Decode(&m); err != nil {
 		return nil, fmt.Errorf("manifest: %w", err)
 	}
+	m.defaults()
 	if err := m.compile(); err != nil {
 		return nil, err
 	}
@@ -64,6 +67,21 @@ func Parse(raw []byte) (*Manifest, error) {
 	}
 	m.text = raw
 	return &m, nil
+}
+
+// defaults fills what a manifest leaves out and writes its domains one way, before any check reads it: an HTTP tool
+// is external, a domain lower case with "*.x" as x, which already takes the subdomains of x.
+func (m *Manifest) defaults() {
+	for i := range m.Tools.HTTP {
+		m.Tools.HTTP[i].Class = cmp.Or(m.Tools.HTTP[i].Class, registry.External)
+	}
+	for _, ds := range []*[]string{&m.Domains.Read, &m.Domains.Act} {
+		out := make([]string, 0, len(*ds))
+		for _, d := range *ds {
+			out = append(out, strings.TrimPrefix(strings.ToLower(strings.TrimSpace(d)), "*."))
+		}
+		*ds = out
+	}
 }
 
 // Warnings are the problems a stored manifest is read with; a save refuses them.

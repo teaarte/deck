@@ -29,7 +29,7 @@ func (c *screenCheck) form(where string, b Block) {
 		switch {
 		case cmd == nil:
 			c.fail("%s: unknown command %q", where, b.Command)
-		case !slices.Contains(cmd.Callable(), "owner"):
+		case !slices.Contains(cmd.Callable(), registry.Owner):
 			c.fail("%s: command %q cannot be called by the owner", where, b.Command)
 		}
 	}

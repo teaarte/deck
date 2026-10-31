@@ -43,25 +43,17 @@ func (m *Manifest) compile() error {
 			fail("reads[%d]: project is required", i)
 		}
 	}
-	m.Domains.Read, m.Domains.Act = m.checkDomains("read", m.Domains.Read), m.checkDomains("act", m.Domains.Act)
+	m.checkDomains("read", m.Domains.Read)
+	m.checkDomains("act", m.Domains.Act)
 	return errors.Join(errs...)
 }
 
-// checkDomains gives the domains with "*.x" as x, which already takes the subdomains of x; a URL or a public
-// suffix is a warning, so a stored manifest still loads and a save refuses it.
-func (m *Manifest) checkDomains(kind string, domains []string) []string {
-	out := make([]string, 0, len(domains))
+// checkDomains warns of a URL or a public suffix among domains, so a stored manifest still loads and a save refuses it.
+func (m *Manifest) checkDomains(kind string, domains []string) {
 	for _, d := range domains {
-		d = strings.ToLower(strings.TrimSpace(d))
-		d = strings.TrimPrefix(d, "*.")
-		host := d
-		if h, _, err := net.SplitHostPort(d); err == nil {
-			host = strings.Trim(h, "[]")
-		}
-		_, prefixErr := netip.ParsePrefix(d)
-		_, ipErr := netip.ParseAddr(strings.Trim(host, "[]"))
+		host, literal := address(d)
 		switch {
-		case d == "*" || prefixErr == nil || ipErr == nil:
+		case d == "*" || literal:
 		case strings.ContainsAny(d, "/?#@ ") || host == "":
 			m.warnings = append(m.warnings, fmt.Sprintf("domains.%s: %q: a domain is a host such as example.com or host:port, not a URL", kind, d))
 		default:
@@ -69,9 +61,18 @@ func (m *Manifest) checkDomains(kind string, domains []string) []string {
 				m.warnings = append(m.warnings, fmt.Sprintf("domains.%s: %q is a public suffix, which would open every site under it; name the site", kind, d))
 			}
 		}
-		out = append(out, d)
 	}
-	return out
+}
+
+// address is the host of a domain without its port, and whether the domain is an IP address or a network.
+func address(d string) (host string, literal bool) {
+	host = d
+	if h, _, err := net.SplitHostPort(d); err == nil {
+		host = strings.Trim(h, "[]")
+	}
+	_, prefixErr := netip.ParsePrefix(d)
+	_, ipErr := netip.ParseAddr(strings.Trim(host, "[]"))
+	return host, prefixErr == nil || ipErr == nil
 }
 
 func (m *Manifest) compileCollections(fail func(string, ...any)) {
@@ -186,9 +187,6 @@ func (m *Manifest) checkTools(fail func(string, ...any)) {
 	seen := map[string]bool{}
 	for i := range m.Tools.HTTP {
 		t := &m.Tools.HTTP[i]
-		if t.Class == "" {
-			t.Class = "external"
-		}
 		if seen[t.Name] {
 			fail("http tool %q: duplicate", t.Name)
 		}
@@ -238,7 +236,7 @@ func (m *Manifest) checkAction(a Action) error {
 	if c == nil {
 		return fmt.Errorf("unknown command %q", a.Command)
 	}
-	if !slices.Contains(c.Callable(), "owner") {
+	if !slices.Contains(c.Callable(), registry.Owner) {
 		return fmt.Errorf("command %q cannot be called by the owner", a.Command)
 	}
 	in := ObjectOf(c.InputSchema())

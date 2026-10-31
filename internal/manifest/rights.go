@@ -3,10 +3,9 @@ package manifest
 import (
 	"bytes"
 	"cmp"
+	"deck2/internal/registry"
 	"encoding/json"
 	"maps"
-	"net"
-	"net/netip"
 	"reflect"
 	"slices"
 	"strings"
@@ -65,13 +64,8 @@ func covers(granted []string, d string) bool {
 	if slices.Contains(granted, d) {
 		return true
 	}
-	host := d
-	if h, _, err := net.SplitHostPort(d); err == nil {
-		host = strings.Trim(h, "[]")
-	}
-	_, prefixErr := netip.ParsePrefix(d)
-	_, ipErr := netip.ParseAddr(strings.Trim(host, "[]"))
-	return prefixErr != nil && ipErr != nil && slices.Contains(granted, "*")
+	_, literal := address(d)
+	return !literal && slices.Contains(granted, "*")
 }
 
 // readGrant are the read domains m reaches without a grant of their own: the registries and its read domains.
@@ -132,7 +126,7 @@ func compact(raw json.RawMessage) []byte {
 func (m *Manifest) AskEachTime() []string {
 	var out []string
 	external := func(name, class string) {
-		if cmp.Or(class, "external") == "external" && !slices.Contains(m.AllowedExternal, name) {
+		if cmp.Or(class, registry.External) == registry.External && !slices.Contains(m.AllowedExternal, name) {
 			out = append(out, name)
 		}
 	}

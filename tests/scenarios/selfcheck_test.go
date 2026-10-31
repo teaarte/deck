@@ -2,62 +2,40 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
-	"sync/atomic"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
 	"net"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
-// approving makes the fake CLI act as the real one does in auto mode on the self-check: the write in its folder
-// runs without asking, only the question reaches deck's permission tool, and curl fails without network.
-func (c *fakeCLI) approving() {
-	self := fakes
-	offline := Testdata("claude/selfcheck_offline.jsonl")
-	c.before(`if grep -q -- --tools "$c/args" && grep -q 'self-check of deck' "$c/stdin"; then
-  sed "s/{{session}}/$session/g" '` + offline + `'
-  exit 0
-fi
-if [ -n "$(grep -o 'deck-check-' "$c/stdin")" ] && ! grep -q -- --resume "$c/args"; then
-  echo "$word" > word.txt
-  url=$(sed -n 's/.*"url":"\([^"]*\)".*/\1/p' "$c/mcpconfig")
-  DECK_FAKE_MCP=approve '` + self + `' "$url" AskUserQuestion '{"questions":[{"question":"Which answer should the result carry?"}]}'
-fi`)
-}
-
-func (c *fakeCLI) before(script string) {
-	if err := os.WriteFile(filepath.Join(c.dir, "before"), []byte(script), 0o644); err != nil {
-		c.t.Fatal(err)
+func version(c *harness.FakeCLI, v string) {
+	if err := os.WriteFile(filepath.Join(c.Dir, "version"), []byte(v), 0o644); err != nil {
+		c.T.Fatal(err)
 	}
 }
 
-func (c *fakeCLI) version(v string) {
-	if err := os.WriteFile(filepath.Join(c.dir, "version"), []byte(v), 0o644); err != nil {
-		c.t.Fatal(err)
-	}
-}
-
-func clockCLIEnv(t *testing.T, c *fakeCLI) *Env {
+func clockCLIEnv(t *testing.T, c *harness.FakeCLI) *harness.Env {
 	home := t.TempDir()
-	clock := &Clock{now: t0}
-	e := New(t, WithHome(home), WithProvider(c.adapter(home)), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)), harness.WithClock(clock))
 	return e
 }
 
 func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
 	e := clockCLIEnv(t, c)
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
@@ -65,46 +43,46 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	if h.Version != "2.1.281" || !strings.Contains(h.Error, "self-check of 2.1.281 failed") || !strings.Contains(h.Error, "output by schema") {
 		t.Fatalf("a failed self-check is red with the version and the reason: %+v", h)
 	}
-	p := e.Project("plain", plainManifest)
+	p := e.Project("plain", harness.PlainManifest)
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_provider")
-	if n := c.calls(); n != 1 {
+	if n := c.Calls(); n != 1 {
 		t.Fatalf("processes on Claude Code wait while the self-check is red: %d CLI calls", n)
 	}
-	c.stream(2, "selfcheck.jsonl")
-	c.stream(3, "selfcheck_resume.jsonl")
-	c.approving()
+	c.Stream(2, "selfcheck.jsonl")
+	c.Stream(3, "selfcheck_resume.jsonl")
+	c.Approving()
 	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
 	e.Settle()
-	if n := c.calls(); n != 1 {
+	if n := c.Calls(); n != 1 {
 		t.Fatalf("a red self-check is retried by its timer, not sooner: %d CLI calls", n)
 	}
 	e.App.Providers.Checks(ctx, e.Clock.Add(21*time.Minute))
 	if h := e.WaitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
 		t.Fatalf("the retried self-check is green: %+v", h)
 	}
-	if got := e.WaitState(id, "done", "error"); got.State != "done" || c.calls() != 5 {
-		t.Fatalf("the waiting process runs once the self-check is green: %+v, %d calls", got, c.calls())
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || c.Calls() != 5 {
+		t.Fatalf("the waiting process runs once the self-check is green: %+v, %d calls", got, c.Calls())
 	}
-	if !strings.Contains(c.call(2).stdin, "deck-check-") || !slices.Contains(c.call(3).args, "--resume") {
-		t.Fatalf("the self-check is a turn and a resume of its session: %v", c.call(3).args)
+	if !strings.Contains(c.Call(2).Stdin, "deck-check-") || !slices.Contains(c.Call(3).Args, "--resume") {
+		t.Fatalf("the self-check is a turn and a resume of its session: %v", c.Call(3).Args)
 	}
-	c.version("2.1.282")
+	version(c, "2.1.282")
 	e.App.Providers.Checks(ctx, e.Clock.Add(30*time.Minute))
 	e.Settle()
-	if n := c.calls(); n != 5 {
+	if n := c.Calls(); n != 5 {
 		t.Fatalf("a new version of the CLI alone runs no self-check: %d CLI calls", n)
 	}
-	c.stream(6, "foreign_session.jsonl")
-	c.stream(7, "ok.jsonl")
+	c.Stream(6, "foreign_session.jsonl")
+	c.Stream(7, "ok.jsonl")
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "error" {
 		t.Fatalf("the broken turn fails: %+v", got)
 	}
 	if h := e.WaitHealth("provider:claude-code", "error"); h.Version != "2.1.282" {
 		t.Fatalf("a turn that breaks checks the CLI again: %+v", h)
 	}
-	c.stream(8, "selfcheck.jsonl")
-	c.stream(9, "selfcheck_resume.jsonl")
+	c.Stream(8, "selfcheck.jsonl")
+	c.Stream(9, "selfcheck_resume.jsonl")
 	e.Must("deck.provider_check", map[string]any{"provider": "claude-code"}, nil)
 	e.WaitHealth("provider:claude-code", "ok")
 	if code, _ := e.Call("deck.provider_check", map[string]any{"provider": "fake"}); code == 200 {
@@ -117,13 +95,13 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 	for _, c := range []struct{ fixture, status string }{{"ratelimit_rejected.jsonl", "paused"}, {"nologin.jsonl", "needs_login"}} {
 		t.Run(c.status, func(t *testing.T) {
 			t.Parallel()
-			cli := newCLI(t)
-			cli.stream(1, c.fixture)
-			cli.stream(0, "ok.jsonl")
+			cli := harness.NewCLI(t)
+			cli.Stream(1, c.fixture)
+			cli.Stream(0, "ok.jsonl")
 			e := clockCLIEnv(t, cli)
 			e.App.Providers.Checks(context.Background(), e.Clock.Now())
 			e.WaitHealth("provider:claude-code", c.status)
-			p := e.Project("plain", plainManifest)
+			p := e.Project("plain", harness.PlainManifest)
 			want := map[string]string{"paused": "waiting_provider", "needs_login": "done"}[c.status]
 			if got := e.WaitState(e.Run(p, "work"), "done", "error", "waiting_provider"); got.State != want {
 				t.Fatalf("a limit holds turns until it resets, a lost login holds none, the turn asks: %+v", got)
@@ -134,7 +112,7 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 
 // checkedFake is the fake provider with a self-check the test turns red or green.
 type checkedFake struct {
-	*Fake
+	*harness.Fake
 	mu     sync.Mutex
 	err    error
 	checks int
@@ -155,16 +133,16 @@ func (c *checkedFake) set(err error) {
 
 func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
 	t.Parallel()
-	fake := &Fake{}
+	fake := &harness.Fake{}
 	cf := &checkedFake{Fake: fake}
-	fake.script = func(ctx context.Context, c *Call) provider.Result {
+	fake.Script = func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 1 {
 			c.Tool(ctx, "notes__post", map[string]any{"text": "hi"})
 		}
 		return provider.Result{Structured: json.RawMessage(`{"written": 1}`)}
 	}
-	clock := &Clock{now: t0}
-	e := New(t, WithProvider(cf), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithProvider(cf), harness.WithClock(clock))
 	p := e.Project("notes", strings.Replace(notesManifest, `"requires": ["no_cloud"],`, "", 1))
 	id := e.Run(p, "collect")
 	e.WaitState(id, "waiting_answer")
@@ -184,11 +162,11 @@ func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
 
 func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(1, "ratelimit_rejected.jsonl")
-	c.stream(2, "selfcheck.jsonl")
-	c.stream(3, "selfcheck_resume.jsonl")
-	c.approving()
+	c := harness.NewCLI(t)
+	c.Stream(1, "ratelimit_rejected.jsonl")
+	c.Stream(2, "selfcheck.jsonl")
+	c.Stream(3, "selfcheck_resume.jsonl")
+	c.Approving()
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "paused"); h.Version != "" {
@@ -202,12 +180,12 @@ func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
 
 func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(1, "selfcheck.jsonl")
-	c.stream(2, "selfcheck_resume.jsonl")
-	self := fakes
-	c.approving()
-	c.before(readFile(t, filepath.Join(c.dir, "before")) + fmt.Sprintf(`
+	c := harness.NewCLI(t)
+	c.Stream(1, "selfcheck.jsonl")
+	c.Stream(2, "selfcheck_resume.jsonl")
+	self := harness.Fakes
+	c.Approving()
+	c.Before(readFile(t, filepath.Join(c.Dir, "before")) + fmt.Sprintf(`
 [ -n "$url" ] && DECK_FAKE_MCP=approve '%s' "$url" Bash '{"command":"cat ~/.ssh/id_rsa"}'
 `, self))
 	e := clockCLIEnv(t, c)
@@ -219,9 +197,9 @@ func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 
 func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(1, "selfcheck_nousage.jsonl")
-	c.approving()
+	c := harness.NewCLI(t)
+	c.Stream(1, "selfcheck_nousage.jsonl")
+	c.Approving()
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "token counts") {
@@ -231,10 +209,10 @@ func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
 
 func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(1, "selfcheck.jsonl")
-	c.stream(2, "selfcheck_resume_nousage.jsonl")
-	c.approving()
+	c := harness.NewCLI(t)
+	c.Stream(1, "selfcheck.jsonl")
+	c.Stream(2, "selfcheck_resume_nousage.jsonl")
+	c.Approving()
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "resume: token counts") {
@@ -252,7 +230,7 @@ func readFile(t *testing.T, path string) string {
 
 // hungCheck is the fake provider whose self-check hangs until released.
 type hungCheck struct {
-	*Fake
+	*harness.Fake
 	release chan struct{}
 }
 
@@ -268,21 +246,21 @@ func (h *hungCheck) SelfCheck(ctx context.Context) provider.Check {
 // hangs does not hold the schedule.
 func TestAHungSelfCheckDoesNotStopTheSchedule(t *testing.T) {
 	t.Parallel()
-	hv := &hungCheck{Fake: &Fake{}, release: make(chan struct{})}
-	clock := &Clock{now: t0}
-	e := New(t, WithProvider(hv), WithClock(clock))
+	hv := &hungCheck{Fake: &harness.Fake{}, release: make(chan struct{})}
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithProvider(hv), harness.WithClock(clock))
 	t.Cleanup(func() { close(hv.release) })
-	e.Project("plain", strings.Replace(plainManifest, `"triggers": []`, `"triggers": [{"command": "work", "cron": "30 * * * *"}]`, 1))
+	e.Project("plain", strings.Replace(harness.PlainManifest, `"triggers": []`, `"triggers": [{"command": "work", "cron": "30 * * * *"}]`, 1))
 	e.App.Run(t.Context(), 20*time.Millisecond)
 	// The loop starts the self-check that hangs; its health need not show it.
 	time.Sleep(200 * time.Millisecond)
 	clock.Add(time.Hour)
-	e.Until("the run that came due", func() bool { return len(e.runsOf("plain", "work")) == 1 })
+	e.Until("the run that came due", func() bool { return len(runsOf(e, "plain", "work")) == 1 })
 }
 
 // slowCheck is the fake provider whose self-check finds a model too slow for its ceiling; it counts its checks.
 type slowCheck struct {
-	*Fake
+	*harness.Fake
 	checks atomic.Int32
 }
 
@@ -295,9 +273,9 @@ func (s *slowCheck) SelfCheck(context.Context) provider.Check {
 // provider, and its commands run on.
 func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 	t.Parallel()
-	clock := &Clock{now: t0}
-	slow := &slowCheck{Fake: &Fake{}}
-	e := New(t, WithProvider(slow), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	slow := &slowCheck{Fake: &harness.Fake{}}
+	e := harness.New(t, harness.WithProvider(slow), harness.WithClock(clock))
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:fake", "warning"); !strings.Contains(h.Error, "did not finish") {
 		t.Fatalf("a slow model is a warning with the reason: %+v", h)
@@ -307,7 +285,7 @@ func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 	if n := slow.checks.Load(); n != 1 {
 		t.Fatalf("a warning is not checked again by the timer, which repeats only what holds turns: %d checks", n)
 	}
-	p := e.Project("plain", plainManifest)
+	p := e.Project("plain", harness.PlainManifest)
 	if got := e.WaitState(e.Run(p, "work"), "done", "error", "waiting_provider"); got.State != "done" {
 		t.Fatalf("a slow model holds no turn: %+v", got)
 	}
@@ -316,17 +294,17 @@ func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 // TestATurnTheProviderReportsAsAnErrorChecksIt: a turn the CLI ends with an error result starts a self-check too.
 func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(1, "selfcheck.jsonl")
-	c.stream(2, "selfcheck_resume.jsonl")
-	c.approving()
+	c := harness.NewCLI(t)
+	c.Stream(1, "selfcheck.jsonl")
+	c.Stream(2, "selfcheck_resume.jsonl")
+	c.Approving()
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	e.WaitHealth("provider:claude-code", "ok")
-	c.stream(4, "error.jsonl")
-	c.stream(5, "ok.jsonl")
+	c.Stream(4, "error.jsonl")
+	c.Stream(5, "ok.jsonl")
 	e.Clock.Add(31 * time.Minute)
-	if got := e.WaitState(e.Run(e.Project("plain", plainManifest), "work"), "done", "error"); got.State != "error" {
+	if got := e.WaitState(e.Run(e.Project("plain", harness.PlainManifest), "work"), "done", "error"); got.State != "error" {
 		t.Fatalf("the turn fails: %+v", got)
 	}
 	e.WaitHealth("provider:claude-code", "error")
@@ -334,8 +312,8 @@ func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
 
 func TestACommandDuringTheStopStartsNoBackgroundWork(t *testing.T) {
 	t.Parallel()
-	cf := &checkedFake{Fake: &Fake{}}
-	e := New(t, WithProvider(cf))
+	cf := &checkedFake{Fake: &harness.Fake{}}
+	e := harness.New(t, harness.WithProvider(cf))
 	e.App.Stop()
 	code, out := e.Call("deck.provider_check", map[string]any{"provider": "fake"})
 	// No check starts.
@@ -352,12 +330,12 @@ func TestACommandDuringTheStopStartsNoBackgroundWork(t *testing.T) {
 // the process: the provider is red, the process waits for it, and its self-check later runs the process again.
 func TestAnAgentStartedBeforeDecksMCPWaitsAndRunsOnceItIsUp(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
-	c.stream(1, "selfcheck.jsonl")
-	c.stream(2, "selfcheck_resume.jsonl")
-	c.approving()
-	c.before(readFile(t, filepath.Join(c.dir, "before")) + `
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	c.Stream(1, "selfcheck.jsonl")
+	c.Stream(2, "selfcheck_resume.jsonl")
+	c.Approving()
+	c.Before(readFile(t, filepath.Join(c.Dir, "before")) + `
 if [ -f "$d/nomcp" ]; then
   echo "Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none" >&2
   exit 1
@@ -366,32 +344,32 @@ fi`)
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
 	e.WaitHealth("provider:claude-code", "ok")
-	nomcp := filepath.Join(c.dir, "nomcp")
+	nomcp := filepath.Join(c.Dir, "nomcp")
 	if err := os.WriteFile(nomcp, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	id := e.Run(e.Project("plain", plainManifest), "work")
+	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
 	e.WaitState(id, "waiting_provider")
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "without deck's tools") || !strings.Contains(h.Error, "mcp__deck__approve") {
 		t.Fatalf("the provider is red with why: %+v", h)
 	}
-	if runs := e.runsOf("master", "on_error"); len(runs) != 0 {
+	if runs := runsOf(e, "master", "on_error"); len(runs) != 0 {
 		t.Fatalf("a turn deck holds to run again is no failure for the master: %+v", runs)
 	}
 	if err := os.Remove(nomcp); err != nil {
 		t.Fatal(err)
 	}
-	c.stream(5, "selfcheck.jsonl")
-	c.stream(6, "selfcheck_resume.jsonl")
+	c.Stream(5, "selfcheck.jsonl")
+	c.Stream(6, "selfcheck_resume.jsonl")
 	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
 	e.Settle()
-	if n := c.calls(); n != 4 {
+	if n := c.Calls(); n != 4 {
 		t.Fatalf("the provider checked a moment ago is checked again after its time: %d CLI calls", n)
 	}
 	e.App.Providers.Checks(ctx, e.Clock.Add(21*time.Minute))
 	e.WaitHealth("provider:claude-code", "ok")
-	if got := e.WaitState(id, "done", "error"); got.State != "done" || c.calls() != 8 {
-		t.Fatalf("the held process runs again once the self-check is green: %+v, %d calls", got, c.calls())
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || c.Calls() != 8 {
+		t.Fatalf("the held process runs again once the self-check is green: %+v, %d calls", got, c.Calls())
 	}
 }
 
@@ -405,13 +383,13 @@ func TestASelfCheckIsRedWhenAgentsDoNotReachDecksMCP(t *testing.T) {
 	}
 	closed := "http://" + ln.Addr().String()
 	ln.Close()
-	cf := &checkedFake{Fake: &Fake{}}
-	e := New(t, WithProvider(cf), WithConfig(func(c *app.Config) { c.MCPBase = closed }))
+	cf := &checkedFake{Fake: &harness.Fake{}}
+	e := harness.New(t, harness.WithProvider(cf), harness.WithConfig(func(c *app.Config) { c.MCPBase = closed }))
 	e.App.Providers.Checks(context.Background(), time.Now())
 	if h := e.WaitHealth("provider:fake", "error"); !strings.Contains(h.Error, "do not reach deck's MCP server") {
 		t.Fatalf("an unreachable gateway turns the provider red: %+v", h)
 	}
-	if got := e.WaitState(e.Run(e.Project("plain", plainManifest), "work"), "done", "error", "waiting_provider"); got.State != "waiting_provider" {
+	if got := e.WaitState(e.Run(e.Project("plain", harness.PlainManifest), "work"), "done", "error", "waiting_provider"); got.State != "waiting_provider" {
 		t.Fatalf("turns wait while agents would get no tools: %+v", got)
 	}
 }
@@ -420,44 +398,44 @@ func TestASelfCheckIsRedWhenAgentsDoNotReachDecksMCP(t *testing.T) {
 // self-check passes, fails after a few tries as deck's failure, which the master does not get.
 func TestAnAgentThatNeverGetsDecksToolsFails(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
+	c := harness.NewCLI(t)
 	for _, n := range []int{1, 5, 9} {
-		c.stream(n, "selfcheck.jsonl")
-		c.stream(n+1, "selfcheck_resume.jsonl")
+		c.Stream(n, "selfcheck.jsonl")
+		c.Stream(n+1, "selfcheck_resume.jsonl")
 	}
-	c.approving()
-	c.before(readFile(t, filepath.Join(c.dir, "before")) + `
+	c.Approving()
+	c.Before(readFile(t, filepath.Join(c.Dir, "before")) + `
 if [ -f "$d/nomcp" ] && ! grep -q 'deck-check-' "$c/stdin" && ! grep -q -- --resume "$c/args" && ! grep -q -- --tools "$c/args"; then
   echo "Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none" >&2
   exit 1
 fi`)
 	e := clockCLIEnv(t, c)
-	e.masterAwake()
+	masterAwake(e)
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
 	e.WaitHealth("provider:claude-code", "ok")
-	if err := os.WriteFile(filepath.Join(c.dir, "nomcp"), nil, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(c.Dir, "nomcp"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	id := e.Run(e.Project("plain", plainManifest), "work")
+	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
 	for i := range 2 {
 		e.WaitState(id, "waiting_provider")
 		e.App.Providers.Checks(ctx, e.Clock.Add(31*time.Minute))
 		if i == 0 {
-			e.Until("the second try", func() bool { return c.calls() >= 8 })
+			e.Until("the second try", func() bool { return c.Calls() >= 8 })
 		}
 	}
 	if got := e.WaitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "without deck's tools 3 times") {
 		t.Fatalf("the process fails after its tries: %+v", got)
 	}
-	if got := e.fault(id); got.ErrorType != "deck.tools" || got.Whose != "deck" || !strings.Contains(got.ErrorDetails, "mcp__deck__approve") {
+	if got := e.Fault(id); got.ErrorType != "deck.tools" || got.Whose != "deck" || !strings.Contains(got.ErrorDetails, "mcp__deck__approve") {
 		t.Fatalf("a turn without deck's tools is deck's failure: %+v", got)
 	}
 	e.App.Runner.Wait()
-	if runs := e.runsOf("master", "on_error"); len(runs) != 0 {
+	if runs := runsOf(e, "master", "on_error"); len(runs) != 0 {
 		t.Fatalf("deck's failure is in health, not a run of the master that would fail the same way: %+v", runs)
 	}
-	if rows := e.failedRuns(); len(rows) != 0 {
+	if rows := failedRuns(e); len(rows) != 0 {
 		t.Fatalf("a failure without deck's tools is one row of health, not rows of the cockpit: %+v", rows)
 	}
 }
@@ -480,13 +458,13 @@ func (l *lossyFake) Run(ctx context.Context, req provider.Request) (provider.Res
 // process; a turn that got its tools, or a process that closed, starts the count over.
 func TestToolsLostInEarlierTurnsDoNotCountAgainstALaterOne(t *testing.T) {
 	t.Parallel()
-	lf := &lossyFake{checkedFake: &checkedFake{Fake: &Fake{}}}
-	clock := &Clock{now: t0}
-	e := New(t, WithProvider(lf), WithClock(clock))
+	lf := &lossyFake{checkedFake: &checkedFake{Fake: &harness.Fake{}}}
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithProvider(lf), harness.WithClock(clock))
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, clock.Now())
 	e.WaitHealth("provider:fake", "ok")
-	id := e.Run(e.Project("plain", plainManifest), "work")
+	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
 	for i := range 3 {
 		if i > 0 {
 			e.WaitState(id, "done")
@@ -525,20 +503,20 @@ func (g *gatedFake) SelfCheck(ctx context.Context) provider.Check {
 // stale; it neither turns the provider green nor wakes the held turn, and a fresh check decides.
 func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
 	t.Parallel()
-	g := &gatedFake{lossyFake: &lossyFake{checkedFake: &checkedFake{Fake: &Fake{}}}, entered: make(chan struct{}), gate: make(chan struct{})}
-	g.script = func(ctx context.Context, c *Call) provider.Result {
+	g := &gatedFake{lossyFake: &lossyFake{checkedFake: &checkedFake{Fake: &harness.Fake{}}}, entered: make(chan struct{}), gate: make(chan struct{})}
+	g.Script = func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 1 {
 			return provider.Result{Outcome: provider.Failed, Text: "boom"}
 		}
 		return provider.Result{Text: "ok"}
 	}
-	clock := &Clock{now: t0}
-	e := New(t, WithProvider(g), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithProvider(g), harness.WithClock(clock))
 	e.App.Providers.Checks(context.Background(), clock.Now())
 	e.WaitHealth("provider:fake", "ok")
 	g.hold.Store(true)
 	clock.Add(31 * time.Minute)
-	p := e.Project("plain", plainManifest)
+	p := e.Project("plain", harness.PlainManifest)
 	e.WaitState(e.Run(p, "work"), "error")
 	<-g.entered
 	g.lose.Store(1)
@@ -546,11 +524,11 @@ func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
 	e.WaitState(id, "waiting_provider")
 	e.WaitHealth("provider:fake", "error")
 	g.gate <- struct{}{}
-	Receive(t, "the stale self-check to run again", g.entered)
+	harness.Receive(t, "the stale self-check to run again", g.entered)
 	if got := e.WaitState(id, "waiting_provider", "done", "error"); got.State != "waiting_provider" {
 		t.Fatalf("a stale self-check wakes no held turn: %+v", got)
 	}
-	if h := e.health("provider:fake"); h["status"] == "ok" {
+	if h := e.HealthRowOf("provider:fake"); h["status"] == "ok" {
 		t.Fatalf("a stale self-check does not turn the provider green: %v", h)
 	}
 	g.hold.Store(false)
@@ -569,19 +547,19 @@ func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T)
 		res    provider.Result
 		after  time.Duration
 	}{
-		{"paused", provider.Result{Outcome: provider.Limited, ResetsAt: t0.Add(2 * time.Hour).Unix(), Text: "limit"}, 2*time.Hour + time.Minute},
+		{"paused", provider.Result{Outcome: provider.Limited, ResetsAt: harness.T0.Add(2 * time.Hour).Unix(), Text: "limit"}, 2*time.Hour + time.Minute},
 		{"needs_login", provider.Result{Outcome: provider.Login, Text: "Not logged in"}, 0},
 	} {
 		t.Run(c.status, func(t *testing.T) {
-			cf := &checkedFake{Fake: &Fake{}}
-			cf.script = func(context.Context, *Call) provider.Result { return c.res }
-			clock := &Clock{now: t0}
-			e := New(t, WithProvider(cf), WithClock(clock))
+			cf := &checkedFake{Fake: &harness.Fake{}}
+			cf.Script = func(context.Context, *harness.Call) provider.Result { return c.res }
+			clock := &harness.Clock{At: harness.T0}
+			e := harness.New(t, harness.WithProvider(cf), harness.WithClock(clock))
 			ctx := context.Background()
 			e.App.Providers.Checks(ctx, clock.Now())
 			e.WaitHealth("provider:fake", "ok")
 			clock.Add(31 * time.Minute)
-			id := e.Run(e.Project("plain", plainManifest), "work")
+			id := e.Run(e.Project("plain", harness.PlainManifest), "work")
 			e.WaitState(id, "rate_limited", "needs_login")
 			e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 			e.App.Providers.Checks(ctx, clock.Add(c.after))
@@ -597,27 +575,27 @@ func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T)
 func TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext(t *testing.T) {
 	t.Parallel()
 	var limited atomic.Bool
-	main := &checkedFake{Fake: &Fake{script: func(context.Context, *Call) provider.Result {
+	main := &checkedFake{Fake: &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result {
 		if limited.Load() {
-			return provider.Result{Outcome: provider.Limited, ResetsAt: t0.Add(2 * time.Hour).Unix(), Text: "limit"}
+			return provider.Result{Outcome: provider.Limited, ResetsAt: harness.T0.Add(2 * time.Hour).Unix(), Text: "limit"}
 		}
 		return provider.Result{Text: "ok"}
 	}}}
-	other := &checkedFake{Fake: &Fake{name: "other"}}
-	clock := &Clock{now: t0}
-	e := New(t, WithProvider(main, other), WithClock(clock))
+	other := &checkedFake{Fake: &harness.Fake{ProviderName: "other"}}
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithProvider(main, other), harness.WithClock(clock))
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, clock.Now())
 	e.WaitHealth("provider:fake", "ok")
 	e.WaitHealth("provider:other", "ok")
-	p := e.Project("plain", plainManifest)
+	p := e.Project("plain", harness.PlainManifest)
 	e.UseModels("plain.work", "fake", "other")
 	done := e.Run(p, "work")
 	e.WaitState(done, "done")
 	limited.Store(true)
 	refused := e.Run(p, "work")
 	e.WaitState(refused, "error")
-	e.WaitState(e.following(refused), "done")
+	e.WaitState(following(e, refused), "done")
 	e.WaitHealth("provider:fake", "paused")
 	var v struct{ Provider string }
 	fresh := e.Run(p, "work")

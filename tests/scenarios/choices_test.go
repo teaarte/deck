@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -23,34 +24,34 @@ var choicesManifest = strings.NewReplacer(
 	`{"name": "hand", "title": "Hand over", "description": "Hands a note to a project.", "class": "internal", "result": {"type": "object"},
       "input": {"type": "object", "properties": {"to": {"type": "string", "format": "project"}}}, "executor": {"type": "agent", "prompt": "Hand."}},
     {"name": "tell", "title": "Tell"`,
-).Replace(webNotes)
+).Replace(harness.WebNotes)
 
 // TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects: a field offers the values of the source its
 // block names, a project field the projects; deck's forms pick providers and agent commands.
 func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	check := newCatalogCheck(t)
+	e := harness.New(t)
+	check := harness.NewCatalogCheck(t)
 	e.Project("web", choicesManifest)
-	e.Project("tools", scriptManifest("take", "", ""))
+	e.Project("tools", harness.ScriptManifest("take", "", ""))
 	var recs struct{ IDs []int64 }
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "beta"}, map[string]any{"title": "alpha"})}, &recs)
+		"records": harness.Jsonl(map[string]any{"title": "beta"}, map[string]any{"title": "alpha"})}, &recs)
 
-	check.messages(t, e.screenMessages("web", "main", nil))
-	main := e.screenData("web", "main", nil)
-	touch := blockData[struct{ Choices map[string][]choiceV }](t, main["b2"]["value"])
+	check.Messages(t, e.ScreenMessages("web", "main", nil))
+	main := e.ScreenData("web", "main", nil)
+	touch := harness.BlockData[struct{ Choices map[string][]choiceV }](t, main["b2"]["value"])
 	notes := touch.Choices["note"]
 	if len(notes) != 2 || notes[0].Label != "alpha" || notes[0].Value != float64(recs.IDs[1]) || notes[1].Label != "beta" {
 		t.Fatalf("a field offers the items of its source by the value and label expressions: %+v", touch.Choices)
 	}
-	hand := blockData[struct{ Choices map[string][]choiceV }](t, main["b3"]["value"])
+	hand := harness.BlockData[struct{ Choices map[string][]choiceV }](t, main["b3"]["value"])
 	if to := hand.Choices["to"]; len(to) != 3 || to[0].Value != "master" || to[1].Value != "tools" || to[2].Value != "web" {
 		t.Fatalf("a field that names a project offers the projects: %+v", hand.Choices)
 	}
 
 	var cmds []string
-	for _, r := range blockData[[]screenRow](t, e.screenBlock("web", "settings", "Models", nil)["rows"]) {
+	for _, r := range harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "settings", "Models", nil)["rows"]) {
 		if !hasVerb(r.Actions, "model") {
 			continue
 		}
@@ -66,15 +67,15 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		t.Fatalf("every agent command of the project has its model picker: %v", cmds)
 	}
 	e.Must("deck.secret_set", map[string]any{"name": "or-key", "value": "x"}, nil)
-	add := blockData[struct{ Choices map[string][]choiceV }](t, e.screenForm("", "settings", "deck.connection_set")["value"])
+	add := harness.BlockData[struct{ Choices map[string][]choiceV }](t, screenForm(e, "", "settings", "deck.connection_set")["value"])
 	if k := add.Choices["key_secret"]; len(k) != 1 || k[0].Value != "or-key" {
 		t.Fatalf("the key of a connection is picked from the secrets: %+v", add.Choices)
 	}
 	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1", "key_secret": "or-key"}, nil)
-	if a := e.button("", "settings", map[string]any{"dialog": "connections"}, "", map[string]any{"dialog": "connections", "name": "router"}); a["params"].(map[string]any)["key_secret"] != "or-key" {
+	if a := e.Button("", "settings", map[string]any{"dialog": "connections"}, "", map[string]any{"dialog": "connections", "name": "router"}); a["params"].(map[string]any)["key_secret"] != "or-key" {
 		t.Fatalf("the edit of a connection starts from the secret of its key: %+v", a)
 	}
-	rows := blockData[[]screenRow](t, e.screenBlock("web", "settings", "Models", nil)["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "settings", "Models", nil)["rows"])
 	if opts, _ := json.Marshal(verb(t, rows[0].Actions, "model")["options"]); !strings.Contains(string(opts), "fake") || strings.Contains(string(opts), "whisper") {
 		t.Fatalf("the model of an agent command is picked from the models that run agents, not those of another kind: %s", opts)
 	}
@@ -99,13 +100,13 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 // command; the result can be kept as records; on a record page the form edits the record with its schema.
 func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	check := newCatalogCheck(t)
-	e.Project("web", webNotes)
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	check := harness.NewCatalogCheck(t)
+	e.Project("web", harness.WebNotes)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
-	check.messages(t, e.screenMessages("web", "main", nil))
+	check.Messages(t, e.ScreenMessages("web", "main", nil))
 
-	f := blockData[formV](t, e.screenData("web", "main", nil)["b1"]["value"])
+	f := harness.BlockData[harness.FormV](t, e.ScreenData("web", "main", nil)["b1"]["value"])
 	if len(f.Commands) != 1 || f.Commands[0].Name != "web.score" || f.Project != "web" {
 		t.Fatalf("a form names its command and where its result can be kept: %+v", f)
 	}
@@ -129,22 +130,22 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": `{"title": "alpha", "score": 3, "source": "form"}` + "\n" + `{"title": "beta", "score": 5, "source": "import"}`}, nil)
 
-	table := e.screenData("web", "main", nil)["b3"]
-	filters := blockData[[]struct {
+	table := e.ScreenData("web", "main", nil)["b3"]
+	filters := harness.BlockData[[]struct {
 		Field   string   `json:"field"`
 		Options []string `json:"options"`
 	}](t, table["filters"])
 	if len(filters) != 1 || filters[0].Field != "source" || !slices.Equal(filters[0].Options, []string{"form", "import"}) {
 		t.Fatalf("a filter offers the values its field has: %s", table["filters"])
 	}
-	narrowed := blockData[[]screenRow](t, e.screenData("web", "main", map[string]any{"filter": `{"b3": {"source": "import"}}`})["b3"]["rows"])
+	narrowed := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("web", "main", map[string]any{"filter": `{"b3": {"source": "import"}}`})["b3"]["rows"])
 	if len(narrowed) != 1 || narrowed[0].Cells[0] != "beta" {
 		t.Fatalf("the picked value narrows the block: %+v", narrowed)
 	}
-	all := blockData[[]screenRow](t, table["rows"])
+	all := harness.BlockData[[]harness.ScreenRow](t, table["rows"])
 	rec := int64(all[0].ID.(float64))
 
-	edit := blockData[formV](t, e.screenData("web", "note", map[string]any{"record": rec})["b0"]["value"])
+	edit := harness.BlockData[harness.FormV](t, e.ScreenData("web", "note", map[string]any{"record": rec})["b0"]["value"])
 	if len(edit.Commands) != 1 || edit.Commands[0].Name != "deck.record_update" || edit.Record != rec ||
 		edit.Values["title"] != "alpha" || edit.Values["_updated"] != nil || !slices.Equal(edit.Readonly, []string{"source", "title"}) ||
 		edit.Commands[0].Input.Properties["score"]["type"] != "integer" {
@@ -153,12 +154,12 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	if edit.Send["input"] != "data" {
 		t.Fatalf("the edit form sends its fields as the JSON of one field of the button the server gives: %+v", edit.Send)
 	}
-	if code, out := e.press(merge(edit.Send, map[string]any{"params": merge(edit.Send["params"].(map[string]any), map[string]any{"data": `{"title": "alpha", "score": 9, "source": "form"}`})})); code != 200 {
+	if code, out := e.Press(harness.Merge(edit.Send, map[string]any{"params": harness.Merge(edit.Send["params"].(map[string]any), map[string]any{"data": `{"title": "alpha", "score": 9, "source": "form"}`})})); code != 200 {
 		t.Fatalf("the edit goes by the button of the form: %d %s", code, out)
 	}
 	e.Refused("deck.record_update", map[string]any{"record": rec, "data": `{"title": "alpha", "score": 9, "source": "other"}`}, 422, "source")
 
-	share := blockData[formV](t, e.screenData("", "share", nil)["b0"]["value"])
+	share := harness.BlockData[harness.FormV](t, e.ScreenData("", "share", nil)["b0"]["value"])
 	names := []string{}
 	for _, c := range share.Commands {
 		names = append(names, c.Name)

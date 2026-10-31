@@ -3,6 +3,8 @@ package scenarios
 import (
 	"cmp"
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,37 +12,35 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
 // TestCockpitShowsWhatWaitsWithItsVerbs: each item says what and where, holds who and the whole frozen call in its
 // details and offers the buttons of its kind; an expired confirmation keeps only deny, which clears it.
 func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-	clock := &Clock{now: time.Now()}
-	e := New(t, WithAgent(webAgent()), WithClock(clock), WithConfig(withTTL))
-	check := newCatalogCheck(t)
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
+	clock := &harness.Clock{At: time.Now()}
+	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(withTTL))
+	check := harness.NewCatalogCheck(t)
 	p := e.Project("notes", webManifest(svc.URL))
 
 	first := e.Run(p, "work")
 	e.WaitState(first, "waiting_answer", "done")
 	e.App.Sweep(context.Background(), clock.Add(24*time.Hour+time.Minute))
 	second := e.Run(p, "work")
-	e.Until("the second confirmation", func() bool { return len(e.cockpitItems()) == 2 })
+	e.Until("the second confirmation", func() bool { return len(e.CockpitItems()) == 2 })
 	e.Run(p, "ask")
-	e.Until("the question", func() bool { return len(e.cockpitItems()) == 3 })
+	e.Until("the question", func() bool { return len(e.CockpitItems()) == 3 })
 
-	check.messages(t, e.screenMessages("", "cockpit", nil))
+	check.Messages(t, e.ScreenMessages("", "cockpit", nil))
 	var feed []struct{ Kind string }
 	e.Must("deck.feed_list", map[string]any{"failures": true}, &feed)
 	if slices.ContainsFunc(feed, func(f struct{ Kind string }) bool { return f.Kind == "failure" }) {
 		t.Fatalf("no failing check, no failure in the feed: %+v", feed)
 	}
-	items := e.cockpitItems()
+	items := e.CockpitItems()
 	old, fresh, q := items[0], items[1], items[2]
-	verbs := func(it listItem) []string {
+	verbs := func(it harness.ListItem) []string {
 		var out []string
 		for _, a := range it.Actions {
 			out = append(out, fmt.Sprint(cmp.Or(a["label"], a["verb"])))
@@ -67,23 +67,23 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		t.Fatalf("a question carries its options and the answer button: %+v", q)
 	}
 
-	params := func(it listItem, i int) map[string]any { return it.Actions[i]["params"].(map[string]any) }
-	if code, out := e.Call("deck.ask_answer", merge(params(old, 0), map[string]any{"answer": "allow"})); code != 409 || !strings.Contains(string(out), "expired") {
+	params := func(it harness.ListItem, i int) map[string]any { return it.Actions[i]["params"].(map[string]any) }
+	if code, out := e.Call("deck.ask_answer", harness.Merge(params(old, 0), map[string]any{"answer": "allow"})); code != 409 || !strings.Contains(string(out), "expired") {
 		t.Fatalf("an expired confirmation cannot be allowed: %d %s", code, out)
 	}
 	e.Must("deck.ask_answer", params(old, 0), nil)
-	e.Must("deck.ask_answer", merge(params(q, 0), map[string]any{"answer": `{"Which topic?": "go"}`}), nil)
-	e.Must("deck.ask_answer", merge(params(fresh, 3), map[string]any{"reason": "not today"}), nil)
+	e.Must("deck.ask_answer", harness.Merge(params(q, 0), map[string]any{"answer": `{"Which topic?": "go"}`}), nil)
+	e.Must("deck.ask_answer", harness.Merge(params(fresh, 3), map[string]any{"reason": "not today"}), nil)
 	if a, _ := e.App.Store.Q.GetAsk(context.Background(), int64(fresh.ID.(float64))); a.Answer != "deny:not today" {
 		t.Fatalf("deny because sends the reason with the no: %q", a.Answer)
 	}
-	if left := e.cockpitItems(); len(left) != 0 {
+	if left := e.CockpitItems(); len(left) != 0 {
 		t.Fatalf("answered and cleared items leave the cockpit: %+v", left)
 	}
-	if len(svc.requests()) != 0 {
-		t.Fatalf("no call was made: %d", len(svc.requests()))
+	if len(svc.Requests()) != 0 {
+		t.Fatalf("no call was made: %d", len(svc.Requests()))
 	}
-	if got := e.calls(second); !strings.Contains(got, "rejected") {
+	if got := e.Calls(second); !strings.Contains(got, "rejected") {
 		t.Fatalf("deny because reaches the journal as a refusal: %s", got)
 	}
 }
@@ -92,9 +92,9 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 // sweep marks it expired.
 func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-	clock := &Clock{now: time.Now()}
-	e := New(t, WithAgent(webAgent()), WithClock(clock), WithConfig(withTTL))
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
+	clock := &harness.Clock{At: time.Now()}
+	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(withTTL))
 	p := e.Project("notes", webManifest(svc.URL))
 	e.Run(p, "work")
 	a := e.WaitAsk()
@@ -102,10 +102,10 @@ func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "expired") {
 		t.Fatalf("allow after the term is refused: %d %s", code, out)
 	}
-	if made := svc.to("/items/"); len(made) != 0 {
+	if made := svc.To("/items/"); len(made) != 0 {
 		t.Fatalf("no call was made: %+v", made)
 	}
-	if items := e.cockpitItems(); len(items) != 1 || len(items[0].Actions) != 1 || items[0].Actions[0]["verb"] != "deny" {
+	if items := e.CockpitItems(); len(items) != 1 || len(items[0].Actions) != 1 || items[0].Actions[0]["verb"] != "deny" {
 		t.Fatalf("the confirmation shows as expired with deny only: %+v", items)
 	}
 }
@@ -114,21 +114,21 @@ func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 // for the owner any more: deck closes it unmade, and the agent hears it is out of date.
 func TestAConfirmationOfAChangedToolIsClosedAsOutOfDate(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-	e := New(t, WithAgent(webAgent()), WithConfig(withTTL))
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
+	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithConfig(withTTL))
 	p := e.Project("notes", webManifest(svc.URL))
 	id := e.Run(p, "work")
 	e.WaitAsk()
 	moved := strings.Replace(webManifest(svc.URL), svc.URL+"/items/{id}", svc.URL+"/archive/{id}", 1)
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": moved}, nil)
 	e.Until("deck to close the out-of-date call", func() bool {
-		return !slices.ContainsFunc(e.cockpitItems(), func(it listItem) bool { return strings.Contains(it.Details, "notes.post") })
+		return !slices.ContainsFunc(e.CockpitItems(), func(it harness.ListItem) bool { return strings.Contains(it.Details, "notes.post") })
 	})
 	var journal []struct{ Tool, Outcome, Error string }
 	e.Must("deck.calls_list", map[string]any{"project": "notes"}, &journal)
 	if !slices.ContainsFunc(journal, func(j struct{ Tool, Outcome, Error string }) bool {
 		return j.Tool == "notes.post" && j.Outcome == "rejected" && strings.Contains(j.Error, "out of date")
-	}) || len(svc.requests()) != 0 {
+	}) || len(svc.Requests()) != 0 {
 		t.Fatalf("the call is closed unmade as out of date: %+v", journal)
 	}
 	e.WaitState(id, "done", "error", "running", "waiting_answer")
@@ -138,19 +138,19 @@ func TestAConfirmationOfAChangedToolIsClosedAsOutOfDate(t *testing.T) {
 // after it started.
 func TestRunningNowKeepsALongProcessBehindManyShortOnes(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "long" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "long" {
 			<-ctx.Done()
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
 
-	p := e.Project("jobs", testManifest([]string{agentCommand("long", ""), agentCommand("short", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("long", ""), harness.AgentCommand("short", "")}, nil))
 	long := e.Run(p, "long")
 	for i := 0; i < 55; i++ {
 		e.WaitState(e.Run(p, "short"), "done")
 	}
-	running := e.cockpitRunning()
+	running := e.CockpitRunning()
 	if len(running) != 1 || running[0].ID != float64(long) {
 		t.Fatalf("the long process is still running now: %+v", running)
 	}
@@ -161,15 +161,15 @@ func TestRunningNowKeepsALongProcessBehindManyShortOnes(t *testing.T) {
 // TestProviderConfirmationSaysWhatAndWhere: a provider tool waiting for the owner names the tool and where it goes.
 func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Approve(ctx, "WebFetch", map[string]any{"url": "https://example.com/page", "prompt": "read it"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
 
-	p := e.Project("jobs", testManifest([]string{agentCommand("fetch", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("fetch", "")}, nil))
 	e.Run(p, "fetch")
-	e.Until("the confirmation", func() bool { return len(e.cockpitItems()) == 1 })
-	it := e.cockpitItems()[0]
+	e.Until("the confirmation", func() bool { return len(e.CockpitItems()) == 1 })
+	it := e.CockpitItems()[0]
 	if it.Title != "WebFetch" || it.Text != "https://example.com/page" || !strings.Contains(it.Details, "read it") {
 		t.Fatalf("the confirmation says the tool and where it goes, with its whole input: %+v", it)
 	}
@@ -179,8 +179,8 @@ func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
 // has the buttons it gave; a screen or a command the project lacks is refused.
 func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	p := e.Project("web", webNotes)
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	p := e.Project("web", harness.WebNotes)
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
 	var rec []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "web", "collection": "notes"}, &rec)
@@ -224,8 +224,8 @@ func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 // the bell give it a button that opens it.
 func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	e.Must("deck.notify", map[string]any{"project": "web", "text": "the runs of today", "screen": "deck/schedule"}, nil)
 	e.Must("deck.notify", map[string]any{"project": "web", "text": "a new note", "screen": "main"}, nil)
 	var feed []struct {
@@ -242,7 +242,7 @@ func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 		feed[0].MarkRead["command"] != "deck.feed_read" {
 		t.Fatalf("a note gives the buttons the bell draws, opening its screen and marking it read: %+v", feed)
 	}
-	data, _ := json.Marshal(e.screenData("", "cockpit", nil))
+	data, _ := json.Marshal(e.ScreenData("", "cockpit", nil))
 	for _, want := range []string{`{"project":"","record":0,"screen":"schedule","verb":"open"}`, `{"project":"web","record":0,"screen":"main","verb":"open"}`} {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("the cockpit opens the screen of a note %s: %s", want, data)
@@ -254,11 +254,11 @@ func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 // lists it shows, so the client draws its button in the top.
 func TestTheHistoryOfTheCockpitIsADialogOfItsTop(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", webNotes)
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", harness.WebNotes)
 	root := func() (children, dialogs []string, history map[string]any) {
 		comps := map[string]map[string]any{}
-		for _, m := range e.screenMessages("", "cockpit", nil) {
+		for _, m := range e.ScreenMessages("", "cockpit", nil) {
 			var u struct {
 				Components []map[string]any `json:"components"`
 			}

@@ -2,6 +2,12 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/gateway"
+	"deck2/internal/process"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -9,12 +15,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"deck2/internal/gateway"
-	"deck2/internal/process"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/internal/store"
 )
 
 const draftManifest = `{
@@ -33,16 +33,16 @@ const draftManifest = `{
 
 // trialAgent tries an external built-in tool and an external command, and starts a child command, until
 // quiet is set.
-func trialAgent(quiet *atomic.Bool) Script {
-	return func(ctx context.Context, c *Call) provider.Result {
-		if c.command() != "work" || quiet.Load() {
+func trialAgent(quiet *atomic.Bool) harness.Script {
+	return func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() != "work" || quiet.Load() {
 			return provider.Result{Structured: json.RawMessage(`{}`)}
 		}
 		return tryExternal(ctx, c)
 	}
 }
 
-func tryExternal(ctx context.Context, c *Call) provider.Result {
+func tryExternal(ctx context.Context, c *harness.Call) provider.Result {
 	d := c.Approve(ctx, "Bash", map[string]any{"command": "curl https://example.com"})
 	send, _ := c.Tool(ctx, "notes__send", map[string]any{})
 	child, _ := c.Tool(ctx, "notes__child", map[string]any{})
@@ -50,17 +50,9 @@ func tryExternal(ctx context.Context, c *Call) provider.Result {
 	return provider.Result{Structured: out}
 }
 
-type projectV struct {
-	Name     string
-	Status   string
-	Rights   []string
-	Asks     []string
-	Revision int64
-}
-
-func (e *Env) project(name string) projectV {
+func project(e *harness.Env, name string) harness.ProjectV {
 	e.T.Helper()
-	var ps []projectV
+	var ps []harness.ProjectV
 	e.Must("deck.projects_list", nil, &ps)
 	for _, p := range ps {
 		if p.Name == name {
@@ -68,24 +60,24 @@ func (e *Env) project(name string) projectV {
 		}
 	}
 	e.T.Fatalf("no project %s in %+v", name, ps)
-	return projectV{}
+	return harness.ProjectV{}
 }
 
 func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	t.Parallel()
 	var quiet atomic.Bool
-	e := New(t, WithAgent(trialAgent(&quiet)), WithClock())
-	_, tok := e.token("terminal", "deck.*", "notes.*")
+	e := harness.New(t, harness.WithAgent(trialAgent(&quiet)), harness.WithClock())
+	_, tok := e.Token("terminal", "deck.*", "notes.*")
 	code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest})
 	if code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	if p := e.project("notes"); p.Status != store.ProjectDraft || !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
+	if p := project(e, "notes"); p.Status != store.ProjectDraft || !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
 		t.Fatalf("a project the master creates is a draft that shows the rights it asks for: %+v", p)
 	}
 
 	e.Clock.Add(2 * time.Hour)
-	e.tick()
+	e.Tick()
 	e.Settle()
 	if n := len(e.Procs()); n != 0 {
 		t.Fatalf("a draft runs on none of its triggers, got %d processes", n)
@@ -99,7 +91,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	if res.Bash != gateway.TrialRefusal || !strings.Contains(res.Send, `unknown tool "notes__send"`) {
 		t.Fatalf("a run in a draft declines everything external without asking: %+v", res)
 	}
-	var asks []Ask
+	var asks []harness.Ask
 	e.Must("deck.asks_list", nil, &asks)
 	if len(asks) != 0 {
 		t.Fatalf("a trial asks the owner nothing: %+v", asks)
@@ -107,14 +99,14 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	var child struct{ Process int64 }
 	_ = json.Unmarshal([]byte(res.Child), &child)
 	for _, id := range []int64{run.Process, child.Process} {
-		if p := e.trial(id); !p {
+		if p := trial(e, id); !p {
 			t.Fatalf("process %d of a draft and its children are trial runs", id)
 		}
 	}
 	e.Until("the after trigger of a trial run in the draft", func() bool {
 		for _, p := range e.Procs() {
 			if p.Parent == run.Process && p.Trigger != 0 {
-				return e.trial(p.ID)
+				return trial(e, p.ID)
 			}
 		}
 		return false
@@ -122,7 +114,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	e.Settle()
 
 	e.Clock.Add(24 * time.Hour)
-	shown := e.project("notes")
+	shown := project(e, "notes")
 	if code, out := e.As(tok).Call("deck.project_enable", map[string]any{"project": "notes", "revision": shown.Revision}); code != 403 {
 		t.Fatalf("only the owner enables a draft: %d %s", code, out)
 	}
@@ -137,26 +129,26 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 		Status string
 		Rights []string
 	}
-	e.Must("deck.project_enable", map[string]any{"project": "notes", "revision": e.project("notes").Revision}, &en)
+	e.Must("deck.project_enable", map[string]any{"project": "notes", "revision": project(e, "notes").Revision}, &en)
 	if en.Status != store.ProjectEnabled || len(en.Rights) != 2 {
 		t.Fatalf("enable: %+v", en)
 	}
-	if code, _ := e.Call("deck.project_enable", map[string]any{"project": "notes", "revision": e.project("notes").Revision}); code != 409 {
+	if code, _ := e.Call("deck.project_enable", map[string]any{"project": "notes", "revision": project(e, "notes").Revision}); code != 409 {
 		t.Fatalf("enabling twice is refused: %d", code)
 	}
 	quiet.Store(true)
 	before := len(e.Procs())
-	e.tick()
+	e.Tick()
 	e.Settle()
 	if n := len(e.Procs()); n != before {
 		t.Fatalf("the schedule missed while a draft does not catch up: %d -> %d", before, n)
 	}
 	e.Clock.Add(24 * time.Hour)
-	e.tick()
+	e.Tick()
 	e.Until("the scheduled run and its after trigger", func() bool { return len(e.Procs()) == before+2 })
 	e.Settle()
 	for _, p := range e.Procs()[:2] {
-		if e.trial(p.ID) || p.State != "done" {
+		if trial(e, p.ID) || p.State != "done" {
 			t.Fatalf("runs of an enabled project are real: %+v", p)
 		}
 	}
@@ -166,13 +158,13 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	e.Must("deck.command_try", map[string]any{"live": true, "command": "notes.work"}, &tried)
 	_ = json.Unmarshal(e.WaitState(tried.Process, "done").Result, &res)
 	_ = json.Unmarshal([]byte(res.Child), &child)
-	if res.Bash != gateway.TrialRefusal || child.Process == 0 || !e.trial(child.Process) {
+	if res.Bash != gateway.TrialRefusal || child.Process == 0 || !trial(e, child.Process) {
 		t.Fatalf("a trial in an enabled project declines external calls and its children are trials too: %+v", res)
 	}
 	e.Until("the after trigger of the trial", func() bool {
 		for _, p := range e.Procs() {
 			if p.Parent == tried.Process && p.Trigger != 0 {
-				return e.trial(p.ID)
+				return trial(e, p.ID)
 			}
 		}
 		return false
@@ -182,7 +174,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 		t.Fatalf("a trial of an external command is allowed, because nothing leaves deck: %d %s", code, out)
 	}
 	e.WaitState(try.Process, "done")
-	if !e.trial(try.Process) {
+	if !trial(e, try.Process) {
 		t.Fatal("command_try starts a trial run in an enabled project")
 	}
 	var held struct{ Waiting int64 }
@@ -196,7 +188,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	}
 }
 
-func (e *Env) trial(id int64) bool {
+func trial(e *harness.Env, id int64) bool {
 	var p struct{ Trial bool }
 	e.Must("deck.process_get", map[string]any{"process": id}, &p)
 	return p.Trial
@@ -204,12 +196,12 @@ func (e *Env) trial(id int64) bool {
 
 func TestChangesToADraftApplyAtOnce(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	_, tok := e.token("terminal", "deck.*")
-	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": plainManifest}); code != 200 {
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	_, tok := e.Token("terminal", "deck.*")
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": harness.PlainManifest}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	wider := strings.Replace(plainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["example.com"]}`, 1)
+	wider := strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["example.com"]}`, 1)
 	code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": wider})
 	if code != 200 || !strings.Contains(string(out), `"revision":2`) {
 		t.Fatalf("in a draft rights are part of what the owner enables, so the change applies: %d %s", code, out)
@@ -219,19 +211,19 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 	if len(feed) != 0 {
 		t.Fatalf("changes to a draft are not done without the owner: %v", feed)
 	}
-	if p := e.project("notes"); !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
+	if p := project(e, "notes"); !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
 		t.Fatalf("the draft shows the rights enabling it grants: %+v", p)
 	}
 }
 
-func (e *Env) manifestRevision(project string) int64 {
+func manifestRevision(e *harness.Env, project string) int64 {
 	e.T.Helper()
 	var cur struct{ Revision int64 }
 	e.Must("deck.manifest_get", map[string]any{"project": project}, &cur)
 	return cur.Revision
 }
 
-func (e *Env) manifestDocument(project string) int64 {
+func manifestDocument(e *harness.Env, project string) int64 {
 	e.T.Helper()
 	var cur struct{ Document int64 }
 	e.Must("deck.manifest_get", map[string]any{"project": project}, &cur)
@@ -240,9 +232,9 @@ func (e *Env) manifestDocument(project string) int64 {
 
 func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok), WithClock())
-	_, tok := e.token("terminal", "deck.*")
-	m := testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`})
+	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock())
+	_, tok := e.Token("terminal", "deck.*")
+	m := harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`})
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "late", "manifest": m}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
@@ -251,7 +243,7 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 	if err != nil || len(due) != 1 {
 		t.Fatalf("the missed run is due: %v %v", due, err)
 	}
-	e.Must("deck.project_enable", map[string]any{"project": "late", "revision": e.project("late").Revision}, nil)
+	e.Must("deck.project_enable", map[string]any{"project": "late", "revision": project(e, "late").Revision}, nil)
 	if _, err := e.App.Triggers.Fire(context.Background(), due[0], map[string]any{}); err == nil || !strings.Contains(err.Error(), "moved") {
 		t.Fatalf("a firing picked before enable does not run after it: %v", err)
 	}
@@ -262,7 +254,7 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 
 func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Project("nums", calcManifest)
 	cmd, err := e.App.Registry.Lookup(context.Background(), 1, "nums.calc")
 	if err != nil {
@@ -284,13 +276,13 @@ func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
 // registries its domains name and nothing else there.
 func TestAScriptOfADraftInstallsItsPackages(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	_, tok := e.token("terminal", "deck.*", "pkgs.*")
+	e := harness.New(t)
+	_, tok := e.Token("terminal", "deck.*", "pkgs.*")
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "pkgs",
-		"manifest": scriptManifest("run", "", `, "domains": {"read": ["pypi.org", "example.com"]}`)}); code != 200 {
+		"manifest": harness.ScriptManifest("run", "", `, "domains": {"read": ["pypi.org", "example.com"]}`)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	e.saveScript("pkgs", "scripts/main.py", pythonLib+`
+	e.SaveScript("pkgs", "scripts/main.py", harness.PythonLib+`
 def why(url):
     proxy = os.environ["HTTP_PROXY"]
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
@@ -317,18 +309,18 @@ print(json.dumps({"registry": why("http://pypi.org/simple/"), "site": why("http:
 // that will still wait for the owner on every call.
 func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	_, tok := e.token("terminal", "deck.*")
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	_, tok := e.Token("terminal", "deck.*")
 	m := strings.Replace(postManifest("http://127.0.0.1:1", ""), `"class": "internal"`, `"class": "reversible"`, 1)
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": m}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	if p := e.project("notes"); !slices.Equal(p.Asks, []string{"post"}) {
+	if p := project(e, "notes"); !slices.Equal(p.Asks, []string{"post"}) {
 		t.Fatalf("the draft names the external tool, which asks every time, and not its reversible command: %+v", p)
 	}
-	var items []listItem
-	_ = json.Unmarshal(e.settingsBlock("Modules", nil)["items"], &items)
-	if !slices.ContainsFunc(items, func(it listItem) bool { return strings.Contains(it.Meta, "asks you each time: post") }) {
+	var items []harness.ListItem
+	_ = json.Unmarshal(e.SettingsBlock("Modules", nil)["items"], &items)
+	if !slices.ContainsFunc(items, func(it harness.ListItem) bool { return strings.Contains(it.Meta, "asks you each time: post") }) {
 		t.Fatalf("the Projects tab says it before enabling: %+v", items)
 	}
 }
@@ -337,9 +329,9 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 // the project says its agents reach the whole network, unless it has no_network or no agent.
 func TestTheProjectShowsAgentsReachTheWholeNetwork(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("open", `{"version": 13, "domains": {"read": ["example.com"]}, "commands": [`+agentCommand("work", "")+`]}`)
-	e.Project("closed", `{"version": 13, "no_network": true, "commands": [`+agentCommand("work", "")+`]}`)
+	e := harness.New(t)
+	e.Project("open", `{"version": 13, "domains": {"read": ["example.com"]}, "commands": [`+harness.AgentCommand("work", "")+`]}`)
+	e.Project("closed", `{"version": 13, "no_network": true, "commands": [`+harness.AgentCommand("work", "")+`]}`)
 	e.Project("empty", `{"version": 13}`)
 	var ps []struct{ Name, Network string }
 	e.Must("deck.projects_list", map[string]any{}, &ps)
@@ -348,7 +340,7 @@ func TestTheProjectShowsAgentsReachTheWholeNetwork(t *testing.T) {
 			t.Fatalf("%s: its agents reach the whole network only with network: %q", p.Name, p.Network)
 		}
 	}
-	if meta := e.screenData("open", "settings", nil); !strings.Contains(fmt.Sprint(meta), "whole network") {
+	if meta := e.ScreenData("open", "settings", nil); !strings.Contains(fmt.Sprint(meta), "whole network") {
 		t.Fatalf("the settings of the project show it: %v", meta)
 	}
 }
@@ -357,10 +349,10 @@ func TestTheProjectShowsAgentsReachTheWholeNetwork(t *testing.T) {
 // run starts on, so the schedule does not show it either.
 func TestTheScheduleShowsTheModelARunStartsOn(t *testing.T) {
 	t.Parallel()
-	main, other := &Fake{script: ok}, &Fake{script: ok, name: "other"}
-	e := New(t, WithProvider(main, other))
-	m := testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`})
-	_, tok := e.token("terminal", "deck.*")
+	main, other := &harness.Fake{Script: harness.Ok}, &harness.Fake{Script: harness.Ok, ProviderName: "other"}
+	e := harness.New(t, harness.WithProvider(main, other))
+	m := harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`})
+	_, tok := e.Token("terminal", "deck.*")
 	if code, raw := e.As(tok).Call("deck.project_create", map[string]any{"name": "sketch", "manifest": m}); code != 200 {
 		t.Fatalf("create: %d %s", code, raw)
 	}

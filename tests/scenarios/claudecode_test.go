@@ -3,6 +3,8 @@ package scenarios
 import (
 	"context"
 	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,8 +16,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
 func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
@@ -23,43 +23,43 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 		"CLAUDE_CODE_USE_BEDROCK": "leak", "DECK_HOME": "/leak", "AWS_SECRET_ACCESS_KEY": "leak", "LC_ALL": "C", "NODE_OPTIONS": "--no-warnings"} {
 		t.Setenv(k, v)
 	}
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
-	e := New(t, WithCLI(c))
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
 	home := e.Home
-	p := e.Project("plain", plainManifest)
+	p := e.Project("plain", harness.PlainManifest)
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
-	call := c.call(1)
-	for k, v := range call.env {
+	call := c.Call(1)
+	for k, v := range call.Env {
 		if strings.Contains(v, "leak") {
 			t.Errorf("%s reached the CLI", k)
 		}
 	}
 	for _, k := range []string{"PATH", "HOME", "LC_ALL", "NODE_OPTIONS", "MCP_TOOL_TIMEOUT"} {
-		if _, ok := call.env[k]; !ok {
+		if _, ok := call.Env[k]; !ok {
 			t.Errorf("%s must reach the CLI", k)
 		}
 	}
-	if sid, ok := flag(call.args, "--session-id"); !ok || sid != e.session(id) {
-		t.Fatalf("the CLI must run the session deck assigned: %q vs %q", sid, e.session(id))
+	if sid, ok := harness.Flag(call.Args, "--session-id"); !ok || sid != e.Session(id) {
+		t.Fatalf("the CLI must run the session deck assigned: %q vs %q", sid, e.Session(id))
 	}
-	if _, ok := flag(call.args, "--resume"); ok {
+	if _, ok := harness.Flag(call.Args, "--resume"); ok {
 		t.Fatal("a new process must not resume")
 	}
-	if src, ok := flag(call.args, "--setting-sources"); !ok || src != "" {
+	if src, ok := harness.Flag(call.Args, "--setting-sources"); !ok || src != "" {
 		t.Fatalf("a command agent must load no settings, got %q", src)
 	}
-	cfg, _ := flag(call.args, "--mcp-config")
-	cwd, _ := filepath.EvalSymlinks(call.cwd)
+	cfg, _ := harness.Flag(call.Args, "--mcp-config")
+	cwd, _ := filepath.EvalSymlinks(call.Cwd)
 	realCfg, _ := filepath.EvalSymlinks(filepath.Dir(cfg))
 	if strings.HasPrefix(realCfg, cwd) || strings.HasPrefix(cfg, filepath.Join(deckhome.Layout(home).Work(), "runs")) {
 		t.Fatalf("the MCP config %s must be outside the agent folder %s", cfg, cwd)
 	}
-	if call.mcpMode != "-rw-------" || !strings.Contains(call.mcp, "/mcp/") {
-		t.Fatalf("the MCP config must be 600 and point at the gateway: %s %s", call.mcpMode, call.mcp)
+	if call.McpMode != "-rw-------" || !strings.Contains(call.Mcp, "/mcp/") {
+		t.Fatalf("the MCP config must be 600 and point at the gateway: %s %s", call.McpMode, call.Mcp)
 	}
 	if _, err := os.Stat(cfg); !os.IsNotExist(err) {
 		t.Fatalf("the MCP config must be removed after the turn: %v", err)
@@ -68,43 +68,43 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 		Env          map[string]string
 		APIKeyHelper *string `json:"apiKeyHelper"`
 	}
-	if err := json.Unmarshal([]byte(call.settings), &set); err != nil {
+	if err := json.Unmarshal([]byte(call.Settings), &set); err != nil {
 		t.Fatal(err)
 	}
-	if call.settingsMode != "-rw-------" || set.APIKeyHelper == nil || *set.APIKeyHelper != "" || set.Env["ANTHROPIC_API_KEY"] != "" ||
+	if call.SettingsMode != "-rw-------" || set.APIKeyHelper == nil || *set.APIKeyHelper != "" || set.Env["ANTHROPIC_API_KEY"] != "" ||
 		set.Env["CLAUDE_CODE_USE_BEDROCK"] != "" {
-		t.Fatalf("deck settings must blank out the key helper and API variables: %s %s", call.settingsMode, call.settings)
+		t.Fatalf("deck settings must blank out the key helper and API variables: %s %s", call.SettingsMode, call.Settings)
 	}
-	if f, _ := flag(call.args, "--settings"); f == "" || !strings.HasPrefix(f, filepath.Join(deckhome.Layout(home).State(), "mcp")) {
+	if f, _ := harness.Flag(call.Args, "--settings"); f == "" || !strings.HasPrefix(f, filepath.Join(deckhome.Layout(home).State(), "mcp")) {
 		t.Fatalf("settings must be a file of deck: %q", f)
 	}
 }
 
 func TestLargeValuesAreNotArguments(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
-	e := New(t, WithCLI(c))
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
 	desc := strings.Repeat("d", 200*1024)
 	m := strings.Replace(ideasManifest, `"properties": {"written": {"type": "integer"}}`,
 		`"properties": {"written": {"type": "integer", "description": "`+desc+`"}}`, 1)
 	p := e.Project("ideas", m)
 	e.WaitState(e.Run(p, "collect"), "done", "error")
-	call := c.call(1)
-	for _, a := range call.args {
+	call := c.Call(1)
+	for _, a := range call.Args {
 		if len(a) > 8*1024 {
 			t.Fatalf("an argument of %d bytes: %.80s", len(a), a)
 		}
 	}
-	if !strings.Contains(call.stdin, `"subtype":"initialize"`) || !strings.Contains(call.stdin, desc) || !strings.Contains(call.stdin, "Write three ideas") {
-		t.Fatalf("the schema and the prompt must come by stdin: %.300s", call.stdin)
+	if !strings.Contains(call.Stdin, `"subtype":"initialize"`) || !strings.Contains(call.Stdin, desc) || !strings.Contains(call.Stdin, "Write three ideas") {
+		t.Fatalf("the schema and the prompt must come by stdin: %.300s", call.Stdin)
 	}
 }
 
 func TestFakeCLIRejectsUnknownFlags(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	out, err := exec.Command(filepath.Join(c.dir, "claude"), "-p", "--json-schema", "{}").CombinedOutput()
+	c := harness.NewCLI(t)
+	out, err := exec.Command(filepath.Join(c.Dir, "claude"), "-p", "--json-schema", "{}").CombinedOutput()
 	if err == nil || !strings.Contains(string(out), "unknown option '--json-schema'") {
 		t.Fatalf("the fake must reject flags the adapter is not known to pass: %v %s", err, out)
 	}
@@ -117,11 +117,11 @@ func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 		"leaves child": `sleep 300 >/dev/null 2>&1 & echo $! > "$c/child"`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			c := newCLI(t)
-			c.stream(0, "ok.jsonl")
-			c.after(after)
-			e := New(t, WithCLI(c))
-			p := e.Project("plain", plainManifest)
+			c := harness.NewCLI(t)
+			c.Stream(0, "ok.jsonl")
+			c.After(after)
+			e := harness.New(t, harness.WithCLI(c))
+			p := e.Project("plain", harness.PlainManifest)
 			start := time.Now()
 			got := e.WaitState(e.Run(p, "work"), "done", "error")
 			if got.State != "done" || !strings.Contains(string(got.Result), "ok") {
@@ -130,7 +130,7 @@ func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 			if d := time.Since(start); d > 4*time.Second {
 				t.Fatalf("took %s", d)
 			}
-			b, _ := os.ReadFile(filepath.Join(c.dir, "calls", "1", "child"))
+			b, _ := os.ReadFile(filepath.Join(c.Dir, "calls", "1", "child"))
 			pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
 			if err != nil {
 				t.Fatal(err)
@@ -156,21 +156,21 @@ func TestTurnSucceedsOnlyStrictly(t *testing.T) {
 		{name: "prompt not read", fixture: "ok.jsonl", skipStdin: true, prompt: big, want: "did not reach"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			c := newCLI(t)
+			c := harness.NewCLI(t)
 			if tc.fixture != "" {
-				c.stream(0, tc.fixture)
+				c.Stream(0, tc.fixture)
 			}
 			if tc.after != "" {
-				c.after(tc.after)
+				c.After(tc.after)
 			}
 			if tc.skipStdin {
-				c.skipStdin()
+				c.SkipStdin()
 			}
-			m := plainManifest
+			m := harness.PlainManifest
 			if tc.prompt != "" {
 				m = strings.Replace(m, "Do the work.", tc.prompt, 1)
 			}
-			e := New(t, WithCLI(c))
+			e := harness.New(t, harness.WithCLI(c))
 			p := e.Project("plain", m)
 			got := e.WaitState(e.Run(p, "work"), "done", "error")
 			if got.State != "error" || !strings.Contains(got.Error, tc.want) {
@@ -180,24 +180,13 @@ func TestTurnSucceedsOnlyStrictly(t *testing.T) {
 	}
 }
 
-func (e *Env) health(subject string) map[string]any {
-	var hs []map[string]any
-	e.Must("deck.health_list", nil, &hs)
-	for _, h := range hs {
-		if h["subject"] == subject {
-			return h
-		}
-	}
-	return nil
-}
-
 func TestPromptMentionsOnlyConnectedTools(t *testing.T) {
 	t.Parallel()
 	for _, noQuestions := range []bool{false, true} {
-		fake := &Fake{noQuestions: noQuestions, script: func(context.Context, *Call) provider.Result {
+		fake := &harness.Fake{NoQuestions: noQuestions, Script: func(context.Context, *harness.Call) provider.Result {
 			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 		}}
-		e := New(t, WithProvider(fake))
+		e := harness.New(t, harness.WithProvider(fake))
 		p := e.Project("ideas", ideasManifest)
 		e.WaitState(e.Run(p, "collect"), "done")
 		prompt := fake.Calls()[0].Prompt
@@ -209,23 +198,23 @@ func TestPromptMentionsOnlyConnectedTools(t *testing.T) {
 
 func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
-	e := New(t, WithCLI(c))
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
 	home := e.Home
-	skilled := strings.Replace(plainManifest, `"prompt": "Do the work."}`, `"prompt": "Do the work.", "skills": ["reader"]}`, 1)
+	skilled := strings.Replace(harness.PlainManifest, `"prompt": "Do the work."}`, `"prompt": "Do the work.", "skills": ["reader"]}`, 1)
 	p := e.Project("plain", skilled)
 	skill := "---\nname: reader\ndescription: Reads.\n---\nRead.\n"
 	e.Must("deck.document_save", map[string]any{"project": "plain", "name": "skills/reader/SKILL.md", "kind": "skill", "text": skill}, nil)
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
-	call := c.call(1)
-	dir, ok := flag(call.args, "--plugin-dir")
+	call := c.Call(1)
+	dir, ok := harness.Flag(call.Args, "--plugin-dir")
 	if !ok || strings.HasPrefix(dir, filepath.Join(deckhome.Layout(home).Work(), "runs")) {
 		t.Fatalf("skills go to a plugin folder outside the agent's folders: %q", dir)
 	}
-	copied := filepath.Join(c.dir, "calls", "1", "plugin")
+	copied := filepath.Join(c.Dir, "calls", "1", "plugin")
 	if b, _ := os.ReadFile(filepath.Join(copied, "skills", "reader", "SKILL.md")); string(b) != skill {
 		t.Fatalf("the plugin holds the skill: %q", b)
 	}
@@ -236,23 +225,23 @@ func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 		t.Fatalf("the plugin folder is removed after the turn: %v", err)
 	}
 
-	e.Project("bare", plainManifest)
+	e.Project("bare", harness.PlainManifest)
 	e.WaitState(e.Start("bare", "work", nil), "done")
-	if _, ok := flag(c.call(2).args, "--plugin-dir"); ok {
+	if _, ok := harness.Flag(c.Call(2).Args, "--plugin-dir"); ok {
 		t.Fatal("a command without skills gets no plugin")
 	}
 }
 
 func TestModelCallsCountTokensFromTheTurnResult(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
-	e := New(t, WithCLI(c))
-	p := e.Project("plain", plainManifest)
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
+	p := e.Project("plain", harness.PlainManifest)
 	id := e.Run(p, "work")
 	e.WaitState(id, "done")
 	var calls []map[string]any
-	e.modelCalls("", id, &calls)
+	e.ModelCalls("", id, &calls)
 	if len(calls) != 1 {
 		t.Fatalf("one turn of one model is one call: %v", calls)
 	}
@@ -268,12 +257,12 @@ func TestModelCallsCountTokensFromTheTurnResult(t *testing.T) {
 
 func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(1, "ratelimit_rejected.jsonl")
-	c.stream(0, "ok.jsonl")
+	c := harness.NewCLI(t)
+	c.Stream(1, "ratelimit_rejected.jsonl")
+	c.Stream(0, "ok.jsonl")
 	e := clockCLIEnv(t, c)
 	e.Clock.Add(time.Unix(1790379000, 0).Add(-2 * time.Hour).Sub(e.Clock.Now()))
-	p := e.Project("plain", plainManifest)
+	p := e.Project("plain", harness.PlainManifest)
 	id := e.Run(p, "work")
 	e.WaitState(id, "rate_limited")
 	pp, _ := e.App.Store.Q.GetProcess(context.Background(), id)
@@ -281,9 +270,9 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 		t.Fatalf("the next try is the reset time of the refusal: %d", pp.PauseUntilMs.Int64)
 	}
 	e.Clock.Add(time.Unix(1790379000, 1).Sub(e.Clock.Now()))
-	e.sweep()
-	if got := e.WaitState(id, "done", "error"); got.State != "done" || !slices.Contains(c.call(2).args, "--resume") {
-		t.Fatalf("after the reset the session is resumed: %+v %v", got, c.call(2).args)
+	e.Sweep()
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || !slices.Contains(c.Call(2).Args, "--resume") {
+		t.Fatalf("after the reset the session is resumed: %+v %v", got, c.Call(2).Args)
 	}
 }
 
@@ -291,9 +280,9 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 // without network; elsewhere the shell renders, binds its ports, uses the GPU and writes its caches.
 func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
-	e := New(t, WithCLI(c))
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
 	for i, tc := range []struct {
 		domains string
 		sandbox bool
@@ -313,13 +302,13 @@ func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
 				} `json:"network"`
 			} `json:"sandbox"`
 		}
-		call := c.call(c.calls())
-		if err := json.Unmarshal([]byte(call.settings), &set); err != nil {
+		call := c.Call(c.Calls())
+		if err := json.Unmarshal([]byte(call.Settings), &set); err != nil {
 			t.Fatal(err)
 		}
 		closed := set.Sandbox != nil && set.Sandbox.Enabled && !set.Sandbox.AllowUnsandboxedCommands && len(set.Sandbox.Network.AllowedDomains) == 0
 		if closed != tc.sandbox || !tc.sandbox && set.Sandbox != nil {
-			t.Fatalf("%s: the shell runs in the sandbox of the CLI: %v, want %v: %s", tc.domains, closed, tc.sandbox, call.settings)
+			t.Fatalf("%s: the shell runs in the sandbox of the CLI: %v, want %v: %s", tc.domains, closed, tc.sandbox, call.Settings)
 		}
 	}
 }
@@ -328,38 +317,38 @@ func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
 // them only, keeping its own rules; a call the CLI refused is a line of the process log with why.
 func TestClaudeCodeReadsInItsFoldersAndShowsWhatItRefused(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "denied.jsonl")
-	e := New(t, WithCLI(c))
+	c := harness.NewCLI(t)
+	c.Stream(0, "denied.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
 	id := e.Run(e.Project("ideas", ideasManifest), "collect")
 	e.WaitState(id, "done", "error")
-	call := c.call(c.calls())
+	call := c.Call(c.Calls())
 	var set struct {
 		AutoMode struct{ Environment, Allow []string } `json:"autoMode"`
 	}
-	if err := json.Unmarshal([]byte(call.settings), &set); err != nil {
+	if err := json.Unmarshal([]byte(call.Settings), &set); err != nil {
 		t.Fatal(err)
 	}
-	folders := []string{call.cwd}
-	for i, a := range call.args {
+	folders := []string{call.Cwd}
+	for i, a := range call.Args {
 		if a == "--add-dir" {
-			folders = append(folders, call.args[i+1])
+			folders = append(folders, call.Args[i+1])
 		}
 	}
 	env, allow := strings.Join(set.AutoMode.Environment, "\n"), strings.Join(set.AutoMode.Allow, "\n")
 	if len(folders) < 2 || !slices.Contains(set.AutoMode.Environment, "$defaults") || !slices.Contains(set.AutoMode.Allow, "$defaults") ||
 		!strings.Contains(allow, "inside the agent folders") {
-		t.Fatalf("auto mode keeps its rules and allows reads in the folders of the agent: %d folders, %s", len(folders), call.settings)
+		t.Fatalf("auto mode keeps its rules and allows reads in the folders of the agent: %d folders, %s", len(folders), call.Settings)
 	}
 	for _, f := range folders {
 		if !strings.Contains(env, f) {
 			t.Fatalf("auto mode is told the folder %s: %s", f, env)
 		}
 	}
-	for _, l := range e.log(id) {
+	for _, l := range log(e, id) {
 		if l["kind"] == "denied" && l["title"] == "Bash" && strings.Contains(fmt.Sprint(l["text"]), "has been denied") {
 			return
 		}
 	}
-	t.Fatalf("the refused call is a line of the log: %+v", e.log(id))
+	t.Fatalf("the refused call is a line of the log: %+v", log(e, id))
 }

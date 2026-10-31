@@ -1,20 +1,19 @@
 package scenarios
 
 import (
+	"context"
+	"deck2/internal/provider"
+	"deck2/internal/provider/codex"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/google/uuid"
-
-	"context"
-	"deck2/internal/sandbox"
-	"os/exec"
 	"testing"
 	"time"
 
-	"deck2/internal/provider"
-	"deck2/internal/provider/codex"
+	"github.com/google/uuid"
 )
 
 // TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest runs the self-check on the installed Codex in its own
@@ -23,15 +22,15 @@ func TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest(t *testing.T) {
 	if _, err := exec.LookPath("codex"); err != nil {
 		t.Skip("codex is not installed")
 	}
-	m := newResponses(t)
-	codexHome := m.codexHome(t)
+	m := harness.NewResponses(t)
+	codexHome := m.CodexHome(t)
 	t.Setenv("CODEX_HOME", codexHome)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	a := codex.New(homeTemp(t))
+	a := codex.New(harness.HomeTemp(t))
 	c := a.SelfCheck(ctx)
 	if c.Err != nil || c.Outcome != provider.Done {
-		t.Fatalf("codex %s self-check: %+v\nthe model did:\n%s", c.Version, c, m.log())
+		t.Fatalf("codex %s self-check: %+v\nthe model did:\n%s", c.Version, c, m.Log())
 	}
 	if sandbox.Contained() {
 		return
@@ -57,6 +56,6 @@ func TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got, err := os.ReadFile(out); err != nil || strings.Contains(string(got), "codex-login-secret") {
-		t.Fatalf("the shell of Codex read its login: %q %v\nthe model did:\n%s", got, err, m.log())
+		t.Fatalf("the shell of Codex read its login: %q %v\nthe model did:\n%s", got, err, m.Log())
 	}
 }

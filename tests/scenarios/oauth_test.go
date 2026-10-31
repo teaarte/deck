@@ -3,6 +3,7 @@ package scenarios
 import (
 	"crypto/sha256"
 	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -50,7 +51,7 @@ func (f *fakeOAuth) handler(w http.ResponseWriter, r *http.Request, _ int) {
 				return
 			}
 			f.access, f.refresh = "a1", "r1"
-			jsonReply(w, `{"access_token":"a1","token_type":"Bearer","refresh_token":"r1","expires_in":30}`)
+			harness.JsonReply(w, `{"access_token":"a1","token_type":"Bearer","refresh_token":"r1","expires_in":30}`)
 		case "refresh_token":
 			if f.broken {
 				http.Error(w, "down", http.StatusBadGateway)
@@ -69,14 +70,14 @@ func (f *fakeOAuth) handler(w http.ResponseWriter, r *http.Request, _ int) {
 			}
 			n := len(f.grants)
 			f.access, f.refresh = fmt.Sprintf("a%d", n), fmt.Sprintf("r%d", n)
-			jsonReply(w, fmt.Sprintf(`{"access_token":%q,"token_type":"Bearer","refresh_token":%q,"expires_in":3600}`, f.access, f.refresh))
+			harness.JsonReply(w, fmt.Sprintf(`{"access_token":%q,"token_type":"Bearer","refresh_token":%q,"expires_in":3600}`, f.access, f.refresh))
 		}
 	case "/me":
 		if r.Header.Get("Authorization") != "Bearer "+f.access || f.revoked || f.deny {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		jsonReply(w, `{"me":"owner","token":"`+f.access+`"}`)
+		harness.JsonReply(w, `{"me":"owner","token":"`+f.access+`"}`)
 	}
 }
 
@@ -90,8 +91,8 @@ func oauthManifest(url string) string {
 func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 	t.Parallel()
 	f := &fakeOAuth{}
-	svc := newService(t, f.handler)
-	e := New(t)
+	svc := harness.NewService(t, f.handler)
+	e := harness.New(t)
 	e.Project("svc", oauthManifest(svc.URL))
 	e.Must("deck.secret_set", map[string]any{"name": "svc_id", "value": "client"}, nil)
 	e.Must("deck.secret_set", map[string]any{"name": "svc_secret", "value": "shh"}, nil)
@@ -104,8 +105,8 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 		Window bool
 	}
 	e.Must("deck.oauth_start", map[string]any{"tool": "svc.me"}, &start)
-	if !start.Window || !slices.Contains(fakeLog(e.Browser), "navigate:"+start.URL) || !strings.Contains(start.URL, "code_challenge_method=S256") {
-		t.Fatalf("the sign-in opens in deck's browser with PKCE: %+v %v", start, fakeLog(e.Browser))
+	if !start.Window || !slices.Contains(harness.FakeLog(e.Browser), "navigate:"+start.URL) || !strings.Contains(start.URL, "code_challenge_method=S256") {
+		t.Fatalf("the sign-in opens in deck's browser with PKCE: %+v %v", start, harness.FakeLog(e.Browser))
 	}
 	u, _ := url.Parse(start.URL)
 	redirect := u.Query().Get("redirect_uri")
@@ -163,7 +164,7 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 
 func TestOAuth2AddressesMustBeHTTPS(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	code, out := e.Call("deck.project_create", map[string]any{"name": "svc", "manifest": oauthManifest("http://auth.example")})
 	if code == 200 || !strings.Contains(string(out), "must be https") {
 		t.Fatalf("oauth2 addresses must be https: %d %s", code, out)
@@ -173,8 +174,8 @@ func TestOAuth2AddressesMustBeHTTPS(t *testing.T) {
 func TestAFailedRefreshAfterARefusalIsNotAnUnknownOutcome(t *testing.T) {
 	t.Parallel()
 	f := &fakeOAuth{access: "valid", refresh: "r0", broken: true}
-	svc := newService(t, f.handler)
-	e := New(t)
+	svc := harness.NewService(t, f.handler)
+	e := harness.New(t)
 	m := strings.Replace(oauthManifest(svc.URL), `"class": "internal",`, `"class": "external",`, 1)
 	e.Project("svc", strings.TrimSuffix(m, "}")+`, "allowed_external": ["me"]}`)
 	for k, v := range map[string]string{"svc_id": "c", "svc_secret": "s", "svc_token": `{"access_token":"stale","refresh_token":"r0","expiry":"2099-01-01T00:00:00Z"}`} {
@@ -183,7 +184,7 @@ func TestAFailedRefreshAfterARefusalIsNotAnUnknownOutcome(t *testing.T) {
 	if code, _ := e.Call("svc.me", map[string]any{}); code == 200 {
 		t.Fatal("the call fails when the service refuses the token and the refresh fails")
 	}
-	rows := e.journal()
+	rows := e.Journal()
 	if last := rows[len(rows)-1]; last.Outcome != "rejected" {
 		t.Fatalf("a call the service refused is rejected, not of unknown outcome: %+v", rows)
 	}
@@ -193,7 +194,7 @@ func TestAFailedRefreshAfterARefusalIsNotAnUnknownOutcome(t *testing.T) {
 	if code, out := e.Call("svc.me", map[string]any{}); code == 200 || !strings.Contains(string(out), "sign in again") {
 		t.Fatalf("a service that refuses a fresh token needs a sign-in: %d %s", code, out)
 	}
-	rows = e.journal()
+	rows = e.Journal()
 	if last := rows[len(rows)-1]; last.Outcome != "rejected" {
 		t.Fatalf("a call refused twice by the service is rejected: %+v", rows)
 	}

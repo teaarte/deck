@@ -2,13 +2,13 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
 // english are the words in Latin letters of a part of the page, but for the names of modules, models and commands.
@@ -22,9 +22,9 @@ func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	var from atomic.Int64
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
-		case c.command() == "work":
+		case c.Command() == "work":
 			return provider.Result{Text: "Посчитал: **3 записи**."}
 		case strings.Contains(c.Req.Prompt, "подумай"):
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "records_list", Text: "{}"})
@@ -40,10 +40,10 @@ func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 
 	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	e.Project("shelf", widgetsManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": jsonl(map[string]any{"name": "a", "n": 1})}, nil)
-	topic := e.say(0, "посчитай записи")
-	e.told(topic, "done", "ru")
-	e.say(topic, "подумай ещё")
+	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
+	topic := e.Say(0, "посчитай записи")
+	told(e, topic, "done", "ru")
+	e.Say(topic, "подумай ещё")
 	names := `['deck', 'shelf', 'master', 'work', 'records_list', 'fake', 'USD']`
 
 	b := newPlaywright(t)

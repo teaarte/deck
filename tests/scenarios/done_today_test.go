@@ -1,13 +1,13 @@
 package scenarios
 
 import (
+	"deck2/internal/store"
+	"deck2/tests/harness"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/store"
 )
 
 // twoRunsManifest has two commands of the schedule: look only reads, keep writes a record.
@@ -23,7 +23,7 @@ const twoRunsManifest = `{"version": 13,
   "triggers": [{"command": "look", "cron": "0 9 * * *"}, {"command": "keep", "cron": "0 9 * * *"}]}`
 
 // doneToday is the number the line of the day of Today says.
-func (e *Env) doneToday() string {
+func doneToday(e *harness.Env) string {
 	e.T.Helper()
 	var lines []struct{ ID, Title string }
 	e.Must("deck.today", nil, &lines)
@@ -38,18 +38,18 @@ func (e *Env) doneToday() string {
 // midnight, more than a page of them, but not the runs of the schedule that only read; it does not go down.
 func TestDoneTodayCountsTheOwnersDayWithoutEmptyRuns(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
+	e := harness.New(t, harness.WithClock())
 	p := e.Project("jobs", twoRunsManifest)
-	e.saveScript("jobs", "scripts/look.py", pythonLib+`
+	e.SaveScript("jobs", "scripts/look.py", harness.PythonLib+`
 st, out = deck("deck.records_list", {"collection": "items"})
 print(json.dumps({"updated": []}))
 `)
-	e.saveScript("jobs", "scripts/keep.py", pythonLib+`
+	e.SaveScript("jobs", "scripts/keep.py", harness.PythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 print(json.dumps({"updated": ["a"]}))
 `)
-	today := store.Time(t0.Add(-time.Hour))
-	yesterday := store.Time(t0.Add(-9 * time.Hour))
+	today := store.Time(harness.T0.Add(-time.Hour))
+	yesterday := store.Time(harness.T0.Add(-9 * time.Hour))
 	insert := func(n int, finished, key string, wrote int) {
 		for range n {
 			if _, err := e.App.Store.DB.Exec(`INSERT INTO process (project_id, command, kind, state, retry_key, wrote, started_at, finished_at)
@@ -62,18 +62,18 @@ print(json.dumps({"updated": ["a"]}))
 	insert(300, today, "trigger:1", 0)
 	insert(5, today, "trigger:1", 1)
 	insert(40, yesterday, "", 0)
-	if got := e.doneToday(); got != "Done today: 605" {
+	if got := doneToday(e); got != "Done today: 605" {
 		t.Fatalf("the day counts every run done since midnight, past a page, but the empty runs of the schedule: %s", got)
 	}
 
 	e.Clock.Add(time.Hour + time.Minute)
-	e.tick()
+	e.Tick()
 	e.Until("both runs of the schedule to end", func() bool {
 		var n int
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM process WHERE project_id = ? AND trigger_id IS NOT NULL AND finished_at IS NOT NULL`, p).Scan(&n)
 		return n == 2
 	})
-	if got := e.doneToday(); got != "Done today: 606" {
+	if got := doneToday(e); got != "Done today: 606" {
 		t.Fatalf("a run of the schedule that wrote counts, one that only read does not: %s", got)
 	}
 	var ru []struct{ ID, Title string }

@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -46,25 +47,25 @@ func TestRealBrowserWebClientII(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	evil := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("<p>out</p>")) })
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", webNotesMark)
+	evil := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("<p>out</p>")) })
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
 		"text": fmt.Sprintf(customProbe, e.URL, e.OwnerToken(), evil.URL, evil.URL)}, nil)
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me"})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me"})}, nil)
 
 	b := newPlaywright(t)
 	b.Open(e, "#/p/web/main")
 	b.until("the screen", `document.querySelector('[data-form="web.score"]')`)
 
-	marks := func() []Proc {
+	marks := func() []harness.Proc {
 		var ps []struct {
 			ID      int64
 			Command string
 		}
 		e.Must("deck.processes_list", map[string]any{"project": "web"}, &ps)
-		var out []Proc
+		var out []harness.Proc
 		for _, x := range ps {
 			if x.Command == "mark" {
 				out = append(out, e.Proc(x.ID))
@@ -90,10 +91,10 @@ func TestRealBrowserWebClientII(t *testing.T) {
 		len(report.Items) != 1 || report.Items[0] != "gamma" || !report.OtherRefused || !report.ExtraRefused {
 		t.Fatalf("a custom block gets its data and calls its command only through the bridge: %d marks, %+v", len(ms), report)
 	}
-	if e.countOf("score") != 0 {
+	if e.CountOf("score") != 0 {
 		t.Fatal("a command outside the buttons of the block does not run")
 	}
-	e.Until("the tags the block picked by their params", func() bool { return e.countOf("tag") == 2 })
+	e.Until("the tags the block picked by their params", func() bool { return e.CountOf("tag") == 2 })
 	var seen []string
 	for _, x := range e.Procs() {
 		if x.Command == "tag" {
@@ -105,14 +106,14 @@ func TestRealBrowserWebClientII(t *testing.T) {
 		t.Fatalf("a call picks the button whose fixed params it names, and a second call while one waits for the owner is refused: %v", seen)
 	}
 	b.until("the owner asked before an external command of the block", `document.querySelector('[data-custom-ask]')?.innerText.includes('web.publish')`)
-	if e.countOf("publish") != 0 {
+	if e.CountOf("publish") != 0 {
 		t.Fatal("an external command of a custom block waits for the owner")
 	}
 	b.until("Allow ready a moment after the window opened", `!document.querySelector('[data-custom-allow]').disabled`)
 	b.eval(`(document.querySelector('[data-custom-allow]').click(), '')`)
-	e.Until("the published run", func() bool { return e.countOf("publish") == 1 })
+	e.Until("the published run", func() bool { return e.CountOf("publish") == 1 })
 	time.Sleep(2 * time.Second)
-	if n := len(evil.requests()); n != 0 {
+	if n := len(evil.Requests()); n != 0 {
 		t.Fatalf("a custom block cannot move its frames to a page on the network: %d requests", n)
 	}
 	b.shot("web2-main")
@@ -135,7 +136,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 		t.Fatalf("the file of the form reaches the command: %+v", files)
 	}
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "alpha", "source": "form"}, map[string]any{"title": "beta", "source": "form"})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "alpha", "source": "form"}, map[string]any{"title": "beta", "source": "form"})}, nil)
 	var notes []struct{ Title string }
 	e.Must("deck.records_list", map[string]any{"project": "web", "collection": "notes"}, &notes)
 	if len(notes) != 3 {
@@ -151,7 +152,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 		t.Fatalf("fields that do not change, the key too, are read only: %s", got)
 	}
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me", "note": "fresh"})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me", "note": "fresh"})}, nil)
 	b.until("the fresh value in the open form", `document.querySelector('[data-form="deck.record_update"] input[data-field="note"]')?.value === 'fresh'`)
 	b.type_(`document.querySelector('[data-form="deck.record_update"] input[data-field="score"]')`, "42")
 	b.eval(`(document.querySelector('[data-form="deck.record_update"] [data-submit]').click(), '')`)
@@ -168,10 +169,10 @@ func TestRealBrowserWebClientII(t *testing.T) {
 		t.Fatalf("the form saves the record, keeps the fields it does not show and the fresh values of those the owner left: %+v", rec)
 	}
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "gamma", "score": 7, "source": "seed", "extra": "keep me", "note": "fresh"})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 7, "source": "seed", "extra": "keep me", "note": "fresh"})}, nil)
 	b.until("the saved field following the record again", `document.querySelector('[data-form="deck.record_update"] input[data-field="score"]')?.value === '7'`)
 
-	e.Project("inbox", testManifest([]string{agentCommand("keep", `{"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}`)}, nil))
+	e.Project("inbox", harness.TestManifest([]string{harness.AgentCommand("keep", `{"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}`)}, nil))
 	b.open(e.URL + "/#/deck/cockpit")
 	b.until("the service worker", `navigator.serviceWorker.controller`)
 	b.eval(`(() => { const f = document.createElement('form'); f.method = 'post'; f.action = '/share'; f.enctype = 'multipart/form-data';
@@ -195,11 +196,11 @@ func TestRealBrowserWebClientII(t *testing.T) {
 		t.Fatalf("a shared file reaches the command the owner picked: %+v", files)
 	}
 
-	e.Project("timed", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
+	e.Project("timed", harness.TestManifest([]string{harness.AgentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
 	b.open(e.URL + "/#/deck/schedule")
 	b.until("the schedule in words", `[...document.querySelectorAll('tr')].some((r) => r.innerText.toLowerCase().includes('timed') && r.innerText.includes('job') && r.innerText.includes('09:00') && !r.innerText.includes('0 9 * * *'))`)
 	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.toLowerCase().includes('timed') && r.innerText.includes('job')).querySelector('[data-verb=run_now]').click(), '')`)
-	e.Until("the run of the trigger", func() bool { return e.countOf("job") == 1 })
+	e.Until("the run of the trigger", func() bool { return e.CountOf("job") == 1 })
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.shot("web2-schedule-phone")
 	b.open(e.URL + "/#/p/web/main")

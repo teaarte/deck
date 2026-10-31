@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -14,7 +15,7 @@ const leftManifest = `{"version": 13,
   "writes": ["notes.md"],
   "scripts": [{"name": "collect", "file": "scripts/collect.py", "runtime": "python"}]}`
 
-const leftScript = pythonLib + `
+const leftScript = harness.PythonLib + `
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 assert st == 200, out
 st, out = deck("deck.document_save", {"name": "notes.md", "kind": "doc", "text": "the trial wrote this"})
@@ -35,34 +36,30 @@ type leftRow struct {
 
 // leftBlock is the table of what a process left on its page, its rows and the buttons of each; false when the page
 // leaves it out.
-func (e *Env) leftBlock(id int64) (screenTable, bool) {
+func leftBlock(e *harness.Env, id int64) (harness.ScreenTable, bool) {
 	e.T.Helper()
 	in := map[string]any{"record": id}
-	for _, m := range e.screenMessages("", "process", in) {
+	for _, m := range e.ScreenMessages("", "process", in) {
 		var uc struct{ Components []map[string]any }
 		if json.Unmarshal(m["updateComponents"], &uc) != nil {
 			continue
 		}
 		for _, c := range uc.Components {
 			if c["title"] == "What it left" {
-				return blockData[screenTable](e.T, mustJSON(e.screenData("", "process", in)[c["id"].(string)])), true
+				return harness.BlockData[harness.ScreenTable](e.T, harness.MustJSON(e.ScreenData("", "process", in)[c["id"].(string)])), true
 			}
 		}
 	}
-	return screenTable{}, false
-}
-
-type screenTable struct {
-	Rows []screenRow `json:"rows"`
+	return harness.ScreenTable{}, false
 }
 
 // TestATrialListsWhatItLeftWithItsUndo: a trial in an enabled project tells the master what it left — the record,
 // the file of deck and the change of a document —, says what is not listed, and its page undoes each.
 func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("finds", leftManifest)
-	e.saveScript("finds", "scripts/collect.py", leftScript)
+	e.SaveScript("finds", "scripts/collect.py", leftScript)
 	e.Must("deck.document_save", map[string]any{"project": "finds", "name": "notes.md", "kind": "doc", "text": "the owner wrote this"}, nil)
 	var tried struct{ Process int64 }
 	e.Must("deck.command_try", map[string]any{"live": true, "command": "finds.collect"}, &tried)
@@ -86,7 +83,7 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 		t.Fatalf("it says what it does not list: %q", got.LeftNote)
 	}
 
-	left, ok := e.leftBlock(tried.Process)
+	left, ok := leftBlock(e, tried.Process)
 	rows := left.Rows
 	if !ok || len(rows) != 3 {
 		t.Fatalf("the page of the trial lists what it left: %+v", rows)
@@ -102,7 +99,7 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 		default:
 			t.Fatalf("each thing it left has its button: %+v", r)
 		}
-		if code, out := e.press(a); code != 200 {
+		if code, out := e.Press(a); code != 200 {
 			t.Fatalf("%v: %d %s", a, code, out)
 		}
 	}
@@ -113,7 +110,7 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 	if doc.Text != "the owner wrote this" || len(recs) != 0 {
 		t.Fatalf("the buttons undo the change and delete the record: %q %v", doc.Text, recs)
 	}
-	if left, ok := e.leftBlock(tried.Process); ok {
+	if left, ok := leftBlock(e, tried.Process); ok {
 		t.Fatalf("a trial that left nothing has no table of it: %+v", left.Rows)
 	}
 	var plain struct{ Left []leftRow }
@@ -122,7 +119,7 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 	if plain.Left != nil {
 		t.Fatalf("only a trial lists in process_get what it left: %+v", plain.Left)
 	}
-	if left, ok := e.leftBlock(run); ok {
+	if left, ok := leftBlock(e, run); ok {
 		t.Fatalf("only the page of a trial has the table of what it left: %+v", left.Rows)
 	}
 }

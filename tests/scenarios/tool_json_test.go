@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"fmt"
 	"net"
 	"strings"
@@ -31,9 +32,9 @@ func TestAJSONFieldGoesIntoTheBodyOfAToolAsItsValue(t *testing.T) {
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
 		"/v1/plain":            func(int, map[string]any) (int, string, string) { return 200, "application/json", `{"ok": true}` },
 	})
-	e := New(t)
+	e := harness.New(t)
 	e.Project("web", jsonToolManifest(api.URL))
-	e.saveScript("web", "scripts/main.py", `import json, os, sys, urllib.request
+	e.SaveScript("web", "scripts/main.py", `import json, os, sys, urllib.request
 inp = json.load(sys.stdin)
 req = urllib.request.Request(os.environ["DECK_URL"] + "/commands/web.chat", data=json.dumps({"model": "m", "messages": inp["messages"]}).encode(),
     headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
@@ -44,7 +45,7 @@ with urllib.request.urlopen(req, timeout=60) as r:
 	if got := e.WaitState(e.Start("web", "ask", map[string]any{"messages": messages}), "done", "error"); got.State != "done" {
 		t.Fatalf("the script calls the tool with the JSON text, as scripts send it: %+v", got)
 	}
-	_, tok := e.token("agent", "web.*")
+	_, tok := e.Token("agent", "web.*")
 	if code, out := e.As(tok).Call("web.chat", map[string]any{"model": "m", "messages": []any{map[string]any{"role": "user", "content": "A painter at a desk"}}}); code != 200 {
 		t.Fatalf("a caller may send the value itself: %d %s", code, out)
 	}
@@ -70,7 +71,7 @@ func TestAToolGoesOnlyToTheHostItsManifestWrites(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/plain": func(int, map[string]any) (int, string, string) { return 200, "application/json", `{"ok": true}` },
 	})
-	e := New(t)
+	e := harness.New(t)
 	code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": jsonToolManifest("http://{host}")})
 	if code != 422 || !strings.Contains(string(out), "cannot fill the host") {
 		t.Fatalf("a field in the host is refused on save: %d %s", code, out)

@@ -2,20 +2,20 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/app"
 	"deck2/internal/events"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
 )
 
 // held is an agent whose turns wait until the test lets one go.
-func held(release chan struct{}) Script {
-	return func(ctx context.Context, c *Call) provider.Result {
+func held(release chan struct{}) harness.Script {
+	return func(ctx context.Context, c *harness.Call) provider.Result {
 		select {
 		case <-release:
 		case <-ctx.Done():
@@ -24,7 +24,7 @@ func held(release chan struct{}) Script {
 	}
 }
 
-func (e *Env) states(ids []int64) string {
+func states(e *harness.Env, ids []int64) string {
 	e.T.Helper()
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
@@ -38,8 +38,8 @@ func (e *Env) states(ids []int64) string {
 func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{}, 10)
-	e := New(t, WithAgent(held(release)))
-	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	e := harness.New(t, harness.WithAgent(held(release)))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	var ids []int64
 	for range 3 {
 		ids = append(ids, e.Run(p, "job"))
@@ -47,34 +47,34 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 	e.Until("three agents at their provider", func() bool { return len(e.Fake.Calls()) == 3 })
 	for _, want := range []string{"running running running waiting_slot", "running running running waiting_slot waiting_slot"} {
 		ids = append(ids, e.Run(p, "job"))
-		e.Until(want, func() bool { return e.states(ids) == want })
+		e.Until(want, func() bool { return states(e, ids) == want })
 	}
 	var waits []string
-	for _, it := range e.cockpitRunning() {
+	for _, it := range e.CockpitRunning() {
 		if it.Text == "waits for a slot" {
 			waits = append(waits, it.Meta)
 		}
 	}
 	if len(waits) != 2 {
-		t.Fatalf("running now says which wait for a slot: %v", e.cockpitRunning())
+		t.Fatalf("running now says which wait for a slot: %v", e.CockpitRunning())
 	}
 
-	e.Project("tools", scriptManifest("take", "", ""))
-	e.saveScript("tools", "scripts/main.py", "import json\nprint(json.dumps({}))\n")
+	e.Project("tools", harness.ScriptManifest("take", "", ""))
+	e.SaveScript("tools", "scripts/main.py", "import json\nprint(json.dumps({}))\n")
 	if s := e.WaitState(e.Start("tools", "take", nil), "done", "error"); s.State != "done" {
 		t.Fatalf("a script runs while every agent slot is taken: %+v", s)
 	}
 
 	release <- struct{}{}
 	e.Until("the oldest waiting process to take the free slot", func() bool {
-		st := strings.Fields(e.states(ids))
-		return st[3] == "running" && st[4] == "waiting_slot" && strings.Count(e.states(ids[:3]), "done") == 1
+		st := strings.Fields(states(e, ids))
+		return st[3] == "running" && st[4] == "waiting_slot" && strings.Count(states(e, ids[:3]), "done") == 1
 	})
 	stream := e.Events(t.Context())
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "5"}, nil)
-	WaitEvent(t, stream, events.Event{Topic: "settings"})
+	harness.WaitEvent(t, stream, events.Event{Topic: "settings"})
 	e.Until("a raised limit to run the last one", func() bool { return e.Proc(ids[4]).State == "running" })
-	rows := blockData[[]screenRow](t, e.settingsBlock("Limits", nil)["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Limits", nil)["rows"])
 	if len(rows) != 2 || rows[1].Cells[1] != "5" || rows[1].Cells[2] != float64(3) {
 		t.Fatalf("the limits show the limit and its default: %+v", rows)
 	}
@@ -103,14 +103,14 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	hang := make(chan struct{})
-	first := &Fake{script: held(hang)}
-	clock := &Clock{now: t0}
-	e := New(t, WithHome(home), WithProvider(first), WithClock(clock))
+	first := &harness.Fake{Script: held(hang)}
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	e.Until("one running, one waiting", func() bool {
-		s := e.states([]int64{a, b})
+		s := states(e, []int64{a, b})
 		return s == "running waiting_slot" || s == "waiting_slot running"
 	})
 	if e.Proc(a).State != "running" {
@@ -118,11 +118,11 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	}
 
 	release := make(chan struct{}, 4)
-	second := &Fake{script: held(release)}
-	e2 := e.Restart(WithProvider(second))
+	second := &harness.Fake{Script: held(release)}
+	e2 := e.Restart(harness.WithProvider(second))
 	e2.Resume()
 	e2.Until("the running one resumed", func() bool { return len(second.Calls()) == 1 })
-	if got := e2.states([]int64{a, b}); got != "running waiting_slot" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
+	if got := states(e2, []int64{a, b}); got != "running waiting_slot" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
 		t.Fatalf("after a restart the limit holds and the running one goes on: %s, %d calls", got, len(second.Calls()))
 	}
 	release <- struct{}{}
@@ -138,15 +138,15 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 // TestConfirmationTermIsASettingOfTheWorkspace: a confirmation made after the change expires by the new term.
 func TestConfirmationTermIsASettingOfTheWorkspace(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Approve(ctx, "WebFetch", map[string]any{"url": "https://example.com/page", "prompt": "read it"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	}), WithClock(), WithConfig(
+	}), harness.WithClock(), harness.WithConfig(
 
 		func(c *app.Config) { c.ConfirmTTL = 24 * time.Hour }))
 
 	e.Must("deck.settings_set", map[string]any{"name": "confirm_hours", "value": "2"}, nil)
-	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	e.Run(p, "job")
 	var asks []struct {
 		ID        int64
@@ -157,10 +157,10 @@ func TestConfirmationTermIsASettingOfTheWorkspace(t *testing.T) {
 		return len(asks) == 1
 	})
 	t.Cleanup(func() { e.Call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "deny"}) })
-	if want := t0.Add(2 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z"); asks[0].ExpiresAt != want {
+	if want := harness.T0.Add(2 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z"); asks[0].ExpiresAt != want {
 		t.Fatalf("the confirmation expires by the term the owner set: %+v, want %s", asks, want)
 	}
-	rows := blockData[[]screenRow](t, e.settingsBlock("Limits", nil)["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Limits", nil)["rows"])
 	if rows[0].Cells[1] != "2" || rows[0].Cells[2] != float64(24) {
 		t.Fatalf("the limits show the term and its default: %+v", rows)
 	}
@@ -171,19 +171,19 @@ func TestConfirmationTermIsASettingOfTheWorkspace(t *testing.T) {
 func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	clock := &Clock{now: t0}
-	first := &Fake{script: held(make(chan struct{}))}
-	e := New(t, WithHome(home), WithProvider(first), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	first := &harness.Fake{Script: held(make(chan struct{}))}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
-	e.Until("one running, one waiting", func() bool { return e.states([]int64{a, b}) == "running waiting_slot" })
+	e.Until("one running, one waiting", func() bool { return states(e, []int64{a, b}) == "running waiting_slot" })
 	if _, err := e.App.Store.DB.Exec(`UPDATE process SET state = 'done', result = '{"n": 1}' WHERE id = ?`, a); err != nil {
 		t.Fatal(err)
 	}
 	release := make(chan struct{}, 1)
-	second := &Fake{script: held(release)}
-	e2 := e.Restart(WithProvider(second))
+	second := &harness.Fake{Script: held(release)}
+	e2 := e.Restart(harness.WithProvider(second))
 	e2.Resume()
 	e2.Until("the waiting process to start on the free slot", func() bool { return e2.Proc(b).State == "running" })
 	release <- struct{}{}
@@ -194,14 +194,14 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 // no turn, so the process stays waiting for a slot instead of passing for one that runs.
 func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(held(make(chan struct{}))))
+	e := harness.New(t, harness.WithAgent(held(make(chan struct{}))))
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	either := func(got string) bool { return got == "running waiting_slot" || got == "waiting_slot running" }
-	e.Until("one running, one waiting", func() bool { return either(e.states([]int64{a, b})) })
+	e.Until("one running, one waiting", func() bool { return either(states(e, []int64{a, b})) })
 	e.App.Runner.Shutdown()
-	if got := e.states([]int64{a, b}); !either(got) {
+	if got := states(e, []int64{a, b}); !either(got) {
 		t.Fatalf("the running one stays to resume and the waiting one still waits: %s", got)
 	}
 }
@@ -212,8 +212,8 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 	t.Parallel()
 	var job atomic.Int64
 	start, got := make(chan struct{}), make(chan string, 1)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "boss" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "boss" {
 			select {
 			case <-start:
 			case <-ctx.Done():
@@ -226,12 +226,12 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 	}))
 
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.Project("jobs", testManifest([]string{agentCommand("boss", ""), agentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("boss", ""), harness.AgentCommand("job", "")}, nil))
 	boss := e.Run(p, "boss")
 	e.Until("the boss to hold the slot", func() bool { return len(e.Fake.Calls()) == 1 })
 	ids := []int64{e.Run(p, "job"), e.Run(p, "job")}
 	job.Store(ids[0])
-	e.Until("both jobs to wait for the slot", func() bool { return e.states(ids) == "waiting_slot waiting_slot" })
+	e.Until("both jobs to wait for the slot", func() bool { return states(e, ids) == "waiting_slot waiting_slot" })
 	var v struct {
 		State     string
 		SlotAhead *int64 `json:"slot_ahead"`
@@ -240,7 +240,7 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 		t.Fatalf("a process waiting for a slot names how many wait before it: %+v", v)
 	}
 	close(start)
-	if out := Receive(t, "the job waited for to take the slot the waiting agent holds", got); !strings.Contains(out, `"state":"done"`) {
+	if out := harness.Receive(t, "the job waited for to take the slot the waiting agent holds", got); !strings.Contains(out, `"state":"done"`) {
 		t.Fatalf("the wait ends with the process it waited for: %s", out)
 	}
 	for _, id := range append(ids, boss) {

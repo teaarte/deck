@@ -2,13 +2,13 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/manifest"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
-
-	"deck2/internal/manifest"
-	"deck2/internal/provider"
 )
 
 const fullManifest = `{
@@ -59,7 +59,7 @@ const fullManifest = `{
 
 func TestFullManifestIsAccepted(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("links", fullManifest)
 	var schema map[string]any
 	e.Must("deck.manifest_format", nil, &schema)
@@ -71,7 +71,7 @@ func TestFullManifestIsAccepted(t *testing.T) {
 		t.Fatalf("the model reads the form of each block of the catalog and its rules in words: %s", b)
 	}
 	found := false
-	for _, c := range e.commands() {
+	for _, c := range commands(e) {
 		if c.Name == "links.parse" {
 			found = strings.Contains(string(c.Input), `"record"`)
 		}
@@ -85,11 +85,11 @@ func TestFullManifestIsAccepted(t *testing.T) {
 // reaches the command as the integer its input field is, so the owner's press is not refused.
 func TestAFixedParamOfAButtonTakesTheTypeOfItsField(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("links", strings.Replace(fullManifest, `{"label": "Share", "command": "share", "params": {"url": "=url"}}`,
 		`{"label": "Share", "command": "share", "params": {"url": "=url"}}, {"label": "Parse", "command": "parse", "params": {"source": "7"}}`, 1))
 	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "u", "title": "t", "score": 8}`}, nil)
-	rows := blockData[[]screenRow](t, e.screenData("links", "main", nil)["b0"]["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("links", "main", nil)["b0"]["rows"])
 	if len(rows) != 1 || len(rows[0].Actions) != 2 {
 		t.Fatalf("the row has both buttons: %+v", rows)
 	}
@@ -104,7 +104,7 @@ func TestAFixedParamOfAButtonTakesTheTypeOfItsField(t *testing.T) {
 
 func TestManifestReferencesAreChecked(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("other", ideasManifest)
 	cases := []struct{ name, old, new, want string }{
 		{"unknown field", `"menu": ["main"]`, `"menu": ["main"], "colour": "red"`, "colour"},
@@ -151,7 +151,7 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 
 func TestScriptCommandNeedsItsFileAndInput(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("links", fullManifest)
 	if code, out := e.Call("links.parse", map[string]any{"source": 1}); code != 422 || !strings.Contains(string(out), "scripts/parse.py") {
 		t.Fatalf("a script command without its script file is refused: %d %s", code, out)
@@ -163,7 +163,7 @@ func TestScriptCommandNeedsItsFileAndInput(t *testing.T) {
 
 func TestPromptFileAndSkillsFeedTheAgent(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	}))
 
@@ -190,13 +190,13 @@ func TestPromptFileAndSkillsFeedTheAgent(t *testing.T) {
 
 func TestSchemaChangesAreCheckedAgainstRecords(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("links", fullManifest)
 	var lines []map[string]any
 	for i := range 25 {
 		lines = append(lines, map[string]any{"url": fmt.Sprintf("https://x.example/%d", i), "title": fmt.Sprintf("t%d", i), "found_at": "2026-09-25"})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": jsonl(lines...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": harness.Jsonl(lines...)}, nil)
 
 	compatible := strings.Replace(fullManifest, `"found_at": {"type": "string"}}`, `"found_at": {"type": "string"}, "note": {"type": "string"}}`, 1)
 	e.Must("deck.manifest_save", map[string]any{"project": "links", "manifest": compatible}, nil)
@@ -232,7 +232,7 @@ func TestSchemaChangesAreCheckedAgainstRecords(t *testing.T) {
 	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "links", "manifest": removed}); code != 422 || !strings.Contains(string(out), "has 25 records") {
 		t.Fatalf("removing a collection with records must be refused, got %d %s", code, out)
 	}
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	if code, out := e.As(tok).Call("deck.collection_delete", map[string]any{"project": "links", "collection": "links"}); code != 200 ||
 		!strings.Contains(string(out), `"waiting"`) {
 		t.Fatalf("the master side the refusal tells to delete the records asks the owner to: %d %s", code, out)
@@ -248,17 +248,17 @@ func TestSchemaChangesAreCheckedAgainstRecords(t *testing.T) {
 
 func TestImmutableFieldsCannotChange(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("links", fullManifest)
 	rec := map[string]any{"url": "https://x.example/1", "title": "one", "found_at": "2026-09-25"}
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": jsonl(rec)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": harness.Jsonl(rec)}, nil)
 
 	rec["found_at"] = "2026-09-26"
 	var up struct {
 		Written int
 		Errors  []string
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": jsonl(rec)}, &up)
+	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": harness.Jsonl(rec)}, &up)
 	if up.Written != 0 || len(up.Errors) != 1 || !strings.Contains(up.Errors[0], "found_at") {
 		t.Fatalf("upsert must not change an immutable field: %+v", up)
 	}
@@ -275,7 +275,7 @@ func TestImmutableFieldsCannotChange(t *testing.T) {
 
 func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	contacts := `{"version": 13,
 	  "collections": [{"name": "contacts", "description": "People", "key": "lower(email)",
 	    "schema": {"type": "object", "properties": {"email": {"type": "string"}, "big": {"type": "integer"}}, "required": ["email"]}}],
@@ -305,7 +305,7 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 // TestAManifestOfAnyFormatButThirteenIsRefused: deck reads only the current format and says which version it got.
 func TestAManifestOfAnyFormatButThirteenIsRefused(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	for _, v := range []string{"12", "4", "3"} {
 		m := strings.Replace(ideasManifest, `"version": 13,`, `"version": `+v+`,`, 1)
 		e.Refused("deck.project_create", map[string]any{"name": "old" + v, "manifest": m}, 422, "manifest: version must be the number 13, got "+v)
@@ -316,8 +316,8 @@ func TestAManifestOfAnyFormatButThirteenIsRefused(t *testing.T) {
 // TestOnlyTheBuiltInProjectAnswersEventsOfDeck: a trigger on a message or a failure belongs to project master.
 func TestOnlyTheBuiltInProjectAnswersEventsOfDeck(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	m := strings.Replace(plainManifest, `"triggers": [],`, `"triggers": [{"command": "work", "on": "failure"}],`, 1)
+	e := harness.New(t)
+	m := strings.Replace(harness.PlainManifest, `"triggers": [],`, `"triggers": [{"command": "work", "on": "failure"}],`, 1)
 	m = strings.Replace(m, `"executor": {"type": "agent", "prompt": "Do the work."}`,
 		`"callers": ["trigger"], "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}}, "executor": {"type": "agent", "prompt": "Do the work."}`, 1)
 	e.Refused("deck.project_create", map[string]any{"name": "spy", "manifest": m}, 422, "belongs to the built-in project master")
@@ -326,9 +326,9 @@ func TestOnlyTheBuiltInProjectAnswersEventsOfDeck(t *testing.T) {
 // TestAManifestWithMasterEventsIsRefused: deck has no master_events; a manifest naming it does not match the format.
 func TestAManifestWithMasterEventsIsRefused(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	m := strings.Replace(plainManifest, `"version": 13,`, `"version": 13, "master_events": true,`, 1)
-	if m == plainManifest {
+	e := harness.New(t)
+	m := strings.Replace(harness.PlainManifest, `"version": 13,`, `"version": 13, "master_events": true,`, 1)
+	if m == harness.PlainManifest {
 		t.Fatal("fixture replacement did not apply")
 	}
 	e.Refused("deck.project_create", map[string]any{"name": "old", "manifest": m}, 422, "master_events")
@@ -336,13 +336,13 @@ func TestAManifestWithMasterEventsIsRefused(t *testing.T) {
 
 func TestProjectPromptReachesTheAgent(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 
 	var p struct{ ID int64 }
 	e.Must("deck.project_create", map[string]any{"name": "ideas", "manifest": ideasManifest, "prompt": "Ideas for a solo developer.\nPrefer Go."}, &p)
-	e.names[p.ID] = "ideas"
+	e.Names[p.ID] = "ideas"
 	e.WaitState(e.Run(p.ID, "collect"), "done")
 	if calls := e.Fake.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "Prefer Go.") {
 		t.Fatalf("project prompt must be part of the agent prompt, got %+v", calls)
@@ -351,7 +351,7 @@ func TestProjectPromptReachesTheAgent(t *testing.T) {
 
 func TestExpressionVariablesCannotHideFields(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	key := strings.Replace(calcManifest, `"key": "n"`, `"key": "string(n) + (let n = 1; string(n))"`, 1)
 	e.Refused("deck.project_create", map[string]any{"name": "a", "manifest": key}, 422, "not allowed in a key")
 	display := strings.Replace(calcManifest, `"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`, 1)
@@ -360,7 +360,7 @@ func TestExpressionVariablesCannotHideFields(t *testing.T) {
 
 func TestVariablesNeedKnownFields(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	m := strings.NewReplacer(`"schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}`, `"schema": {"type": "object"}`,
 		`"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`).Replace(calcManifest)
 	e.Refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, "need a schema that lists its properties")
@@ -370,18 +370,18 @@ func TestVariablesNeedKnownFields(t *testing.T) {
 // a group of buttons with a menu is refused.
 func TestADeclaredParamFillsAFormAndActionsHaveNoMenu(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	form := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"title": "string"}, "blocks": [
+	e := harness.New(t)
+	form := strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"title": "string"}, "blocks": [
       {"type": "form", "title": "Again", "command": "score", "values": {"title": "=param.title"}},`, 1)
-	if form == webNotes {
+	if form == harness.WebNotes {
 		t.Fatal("fixture replacement did not apply")
 	}
 	e.Project("web", form)
-	data := e.screenData("web", "main", map[string]any{"params": `{"title": "alpha"}`})
+	data := e.ScreenData("web", "main", map[string]any{"params": `{"title": "alpha"}`})
 	if !strings.Contains(string(data["b0"]["value"]), `"values":{"title":"alpha"}`) {
 		t.Fatalf("the declared param fills the form: %s", data["b0"]["value"])
 	}
-	menu := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	menu := strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "actions", "title": "More", "menu": true, "actions": [{"label": "Tell", "command": "tell"}]},`, 1)
 	e.Refused("deck.manifest_save", map[string]any{"project": "web", "manifest": menu}, 422, "menu")
 }
@@ -389,9 +389,9 @@ func TestADeclaredParamFillsAFormAndActionsHaveNoMenu(t *testing.T) {
 // TestAVersionThatIsNoNumberSaysSo: a version written as text or a fraction is refused with what it is.
 func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	for i, c := range []struct{ version, want string }{{`"6"`, `the text "6"`}, {`6.0`, `6.0`}} {
-		m := strings.Replace(webNotes, `"version": 13`, `"version": `+c.version, 1)
+		m := strings.Replace(harness.WebNotes, `"version": 13`, `"version": `+c.version, 1)
 		code, out := e.Call("deck.project_create", map[string]any{"name": fmt.Sprintf("v%d", i), "manifest": m})
 		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 13") {
 			t.Errorf("%s: want 422 naming %s, got %d %s", c.version, c.want, code, out)
@@ -403,28 +403,28 @@ func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 // on its block, not a read without that filter; a button whose when fails says so too.
 func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("ideas", ideasManifest)
 	e.WaitState(e.Start("ideas", "collect", nil), "done", "error")
-	runs := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"project": "string"}, "blocks": [
+	runs := strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"project": "string"}, "blocks": [
       {"type": "table", "title": "Runs", "source": {"from": "deck.processes_list", "input": {"project": "=param.project"}}, "columns": [{"label": "Command", "bind": "command"}]},
       {"type": "table", "title": "Bad", "source": {"from": "deck.processes_list", "input": {"project": "=upper(param.project) + 1"}}, "columns": [{"label": "Command", "bind": "command"}]},
       {"type": "actions", "title": "Do", "actions": [{"label": "Tell", "command": "tell", "when": "param.project + 1 > 0"}]},
       {"type": "table", "title": "Each", "source": {"from": "deck.processes_list", "input": {"project": "web"}}, "columns": [{"label": "Command", "bind": "command"}],
         "actions": [{"label": "Again", "command": "tell", "when": "ask > 5"}]},`, 1)
-	if runs == webNotes {
+	if runs == harness.WebNotes {
 		t.Fatal("fixture replacement did not apply")
 	}
 	e.Project("web", runs)
-	data := e.screenData("web", "main", map[string]any{"params": `{"project": "web"}`})
+	data := e.ScreenData("web", "main", map[string]any{"params": `{"project": "web"}`})
 	if string(data["b0"]["state"]) != `"empty"` && string(data["b0"]["state"]) != `"ready"` || strings.Contains(string(data["b0"]["value"]), "collect") {
 		t.Fatalf("with its param the block reads the runs of that project only: %s", data["b0"])
 	}
-	data = e.screenData("web", "main", nil)
+	data = e.ScreenData("web", "main", nil)
 	if string(data["b0"]["state"]) != `"error"` || !strings.Contains(string(data["b0"]["error"]), "project") {
 		t.Fatalf("without its param the block is an error, not a read without the filter: %s", data["b0"])
 	}
-	data = e.screenData("web", "main", map[string]any{"params": `{"project": "web"}`})
+	data = e.ScreenData("web", "main", map[string]any{"params": `{"project": "web"}`})
 	if string(data["b1"]["state"]) != `"error"` {
 		t.Fatalf("an input whose expression fails is an error of its block: %s", data["b1"])
 	}
@@ -432,7 +432,7 @@ func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 		t.Fatalf("a button whose when fails is an error of its block, not a button that is quietly gone: %s", data["b2"])
 	}
 	e.WaitState(e.Start("web", "tell", nil), "done", "error")
-	data = e.screenData("web", "main", map[string]any{"params": `{"project": "web"}`})
+	data = e.ScreenData("web", "main", map[string]any{"params": `{"project": "web"}`})
 	if string(data["b3"]["state"]) != `"ready"` || strings.Contains(string(data["b3"]["rows"]), "Again") {
 		t.Fatalf("a row without the field a button reads hides that button, not the whole table: %s", data["b3"])
 	}
@@ -441,9 +441,9 @@ func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 // TestAFormHasNoSave: a form does not keep its result in a collection, a command does; a form with save is refused.
 func TestAFormHasNoSave(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	m := strings.Replace(webNotes, `"command": "score"}`, `"command": "score", "save": "notes"}`, 1)
-	if m == webNotes {
+	e := harness.New(t)
+	m := strings.Replace(harness.WebNotes, `"command": "score"}`, `"command": "score", "save": "notes"}`, 1)
+	if m == harness.WebNotes {
 		t.Fatal("fixture replacement did not apply")
 	}
 	e.Refused("deck.project_create", map[string]any{"name": "web", "manifest": m}, 422, "save")
@@ -453,9 +453,9 @@ func TestAFormHasNoSave(t *testing.T) {
 // Cyrillic or with an emoji is not cut inside a letter.
 func TestASliceOfTextCutsCharacters(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
-	e.Project("ru", strings.Replace(webNotes, `"display": "title"`, `"display": "title[:3] + '|' + title[-2:] + '|' + string(len(title))"`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "ru", "collection": "notes", "records": jsonl(map[string]any{"title": "Привет мир 😀"})}, nil)
+	e := harness.New(t, harness.WithAgent(harness.Idle))
+	e.Project("ru", strings.Replace(harness.WebNotes, `"display": "title"`, `"display": "title[:3] + '|' + title[-2:] + '|' + string(len(title))"`, 1))
+	e.Must("deck.records_upsert", map[string]any{"project": "ru", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "Привет мир 😀"})}, nil)
 	var recs []struct{ Title string }
 	e.Must("deck.records_list", map[string]any{"project": "ru", "collection": "notes"}, &recs)
 	if len(recs) != 1 || recs[0].Title != "При| 😀|12" {

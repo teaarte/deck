@@ -3,6 +3,8 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"fmt"
 	"image"
 	"image/color"
@@ -10,8 +12,6 @@ import (
 	"image/png"
 	"strings"
 	"testing"
-
-	"deck2/internal/store/db"
 )
 
 func solid(c color.RGBA) string {
@@ -26,10 +26,10 @@ func solid(c color.RGBA) string {
 // with the theme; the words of Today are checked over the scene, and a deleted theme takes its pictures along.
 func TestAThemeHasItsPictures(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Must("deck.theme_save", map[string]any{"name": "paper", "text": `{"version": 1, "title": {"en": "Paper"}, "mood": "m", "tokens": {"tile-shade": "none", "cockpit": "#1b1b21"}}`}, nil)
 	put := func(slot, scheme string, c color.RGBA) {
-		id := e.upload("master", slot+".png", "image/png", solid(c))
+		id := upload(e, "master", slot+".png", "image/png", solid(c))
 		e.Must("deck.theme_image", map[string]any{"theme": "paper", "slot": slot, "scheme": scheme, "file": fmt.Sprint(id)}, nil)
 	}
 	put("cockpit", "light", color.RGBA{250, 250, 245, 255})
@@ -69,11 +69,11 @@ func TestAThemeHasItsPictures(t *testing.T) {
 // The owner asks Deki to draw the pictures of the theme in use; the master is told what and how, in the owner's words.
 func TestTheMasterIsAskedForThePicturesOfTheTheme(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	var out struct{ Topic int64 }
 	e.Must("deck.theme_draw", map[string]any{"wish": "облака потеплее"}, &out)
-	msgs := e.chatMessages(out.Topic)
+	msgs := e.ChatMessages(out.Topic)
 	if len(msgs) == 0 || !strings.Contains(msgs[0].Text, "Нарисуй картинки темы Juce") || !strings.Contains(msgs[0].Text, "deck.theme_image") ||
 		!strings.Contains(msgs[0].Text, "облака потеплее") {
 		t.Fatalf("the master is told to draw the pictures and set them: %+v", msgs)
@@ -83,7 +83,7 @@ func TestTheMasterIsAskedForThePicturesOfTheTheme(t *testing.T) {
 // A workspace whose theme deck no longer ships wears juce and is told so once.
 func TestAGoneThemeGivesWayToJuceAndSaysSo(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: 1, Key: "theme", Value: "glass"})
 	})

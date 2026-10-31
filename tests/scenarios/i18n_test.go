@@ -4,6 +4,7 @@ import (
 	"context"
 	"deck2/internal/app/providers"
 	"deck2/internal/manifest"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -21,28 +22,28 @@ import (
 // language asked for, by the i18n of each; a text without a translation stays as written.
 func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	manifest := strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`, 1)
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	manifest := strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`, 1)
 	e.Project("web", manifest)
 
-	var menu []menuView
-	e.menuList(map[string]any{"lang": "ru"}, true, &menu)
+	var menu []harness.MenuView
+	e.MenuList(map[string]any{"lang": "ru"}, true, &menu)
 	if menu[0].Screens[0].Title != "Расписание" {
 		t.Fatalf("deck's screens are in the language asked for: %+v", menu[0].Screens)
 	}
 	var all []map[string]any
-	e.menuList(map[string]any{"lang": "ru"}, false, &all)
+	e.MenuList(map[string]any{"lang": "ru"}, false, &all)
 	raw, _ := json.Marshal(all[len(all)-1])
 	if !strings.Contains(string(raw), `"title":"Веб-заметки"`) || !strings.Contains(string(raw), `"title":"Веб"`) || !strings.Contains(string(raw), `"title":"Файлы"`) {
 		t.Fatalf("a project's screens take its translations, deck's screens of a project deck's: %s", raw)
 	}
-	drawn, _ := json.Marshal(e.screenMessages("web", "main", map[string]any{"lang": "ru"}))
+	drawn, _ := json.Marshal(e.ScreenMessages("web", "main", map[string]any{"lang": "ru"}))
 	for _, want := range []string{`"title":"Веб"`, `"title":"Заметки"`, `"label":"Заголовок"`, `"title":"Работа"`} {
 		if !strings.Contains(string(drawn), want) {
 			t.Fatalf("the screen is translated where the manifest says, else by deck's words: no %s in %s", want, drawn)
 		}
 	}
-	plain, _ := json.Marshal(e.screenMessages("web", "main", nil))
+	plain, _ := json.Marshal(e.ScreenMessages("web", "main", nil))
 	if strings.Contains(string(plain), "Заметки") {
 		t.Fatal("without a language the screen is as written")
 	}
@@ -64,12 +65,12 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 // opens the same tab whatever language the screen is drawn in; the tabs of a screen have their own titles.
 func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	drawn, _ := json.Marshal(e.screenMessages("", "spend", map[string]any{"lang": "ru"}))
+	e := harness.New(t)
+	drawn, _ := json.Marshal(e.ScreenMessages("", "spend", map[string]any{"lang": "ru"}))
 	if !strings.Contains(string(drawn), `"Сегодня"`) || !strings.Contains(string(drawn), `"key":"Today"`) || !strings.Contains(string(drawn), `"key":"30 days"`) {
 		t.Fatalf("a tab shows its title translated and keeps its key: %s", drawn)
 	}
-	twice := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	twice := strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "appearance"}]}]},
       {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "appearance"}]}]},`, 1)
 	e.Refused("deck.project_create", map[string]any{"name": "twice", "manifest": twice}, 422, `tab "One": duplicate`)
@@ -79,7 +80,7 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 // is of a text there is, of the title of a command of deck a form shows, of a text of deck's code or a value of a screen.
 func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	var cmds []struct{ Name, Title string }
 	e.Must("deck.commands_list", nil, &cmds)
 	titles := map[string]bool{}
@@ -88,7 +89,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 			titles[c.Title] = true
 		}
 	}
-	files, err := filepath.Glob(filepath.Join(Root, "internal/app/screens/shipped/*.json"))
+	files, err := filepath.Glob(filepath.Join(harness.Root, "internal/app/screens/shipped/*.json"))
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no screens of deck: %v", err)
 	}
@@ -116,7 +117,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 		}
 	}
 	var code strings.Builder
-	_ = filepath.WalkDir(filepath.Join(Root, "internal"), func(p string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(filepath.Join(harness.Root, "internal"), func(p string, d os.DirEntry, err error) error {
 		if err == nil && strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, "_test.go") {
 			b, _ := os.ReadFile(p)
 			code.Write(b)
@@ -140,12 +141,12 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 // saved, so a renamed text does not lose its translation unseen.
 func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	var saved struct {
 		Unused []string `json:"unused_i18n"`
 	}
-	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(webNotes, `{"version": 13,`,
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(harness.WebNotes, `{"version": 13,`,
 		`{"version": 13, "i18n": {"ru": {"Notes": "Заметки", "Old title": "Старое"}},`, 1)}, &saved)
 	if !slices.Equal(saved.Unused, []string{"ru: Old title"}) {
 		t.Fatalf("the translation of no text is named: %v", saved.Unused)
@@ -156,10 +157,10 @@ func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 // and the fields of filters are translated too.
 func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "i18n": {"ru": {"Score": "Оценить",
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "i18n": {"ru": {"Score": "Оценить",
       "Scores a title.": "Оценивает заголовок.", "title": "Заголовок", "source": "Источник"}},`, 1))
-	drawn, _ := json.Marshal(e.screenMessages("web", "main", map[string]any{"lang": "ru"}))
+	drawn, _ := json.Marshal(e.ScreenMessages("web", "main", map[string]any{"lang": "ru"}))
 	for _, want := range []string{`"title":"Оценить"`, `"description":"Оценивает заголовок."`, `"title":"Заголовок"`, `"label":"Источник"`} {
 		if !strings.Contains(string(drawn), want) {
 			t.Errorf("no %s in %s", want, drawn)
@@ -171,7 +172,7 @@ func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 // passes it hands the screen nothing.
 func TestEveryParamADeckScreenReadsIsDeclared(t *testing.T) {
 	t.Parallel()
-	files, _ := filepath.Glob(filepath.Join(Root, "internal/app/screens/shipped/*.json"))
+	files, _ := filepath.Glob(filepath.Join(harness.Root, "internal/app/screens/shipped/*.json"))
 	used := regexp.MustCompile(`param\.([a-z_]+)`)
 	for _, f := range files {
 		raw, err := os.ReadFile(f)
@@ -196,19 +197,19 @@ func TestEveryParamADeckScreenReadsIsDeclared(t *testing.T) {
 // command or of the record of the page, offers its values with their translations.
 func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", strings.NewReplacer(`{"version": 13,`, `{"version": 13, "i18n": {"ru": {"open": "открыта", "closed": "закрыта"}},`,
 		`"n": {"type": "integer"}`, `"n": {"type": "integer"}, "state": {"type": "string", "enum": ["open", "closed"]},
       "tags": {"type": "array", "items": {"type": "string", "enum": ["open", "closed"]}}`,
-		`"note": {"type": "string"}}`, `"note": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed"]}}`).Replace(webNotes))
+		`"note": {"type": "string"}}`, `"note": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed"]}}`).Replace(harness.WebNotes))
 	var recs struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, &recs)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, &recs)
 	want := `"state":[{"label":"открыта","value":"open"},{"label":"закрыта","value":"closed"}]`
 	for _, s := range []struct {
 		screen string
 		extra  map[string]any
 	}{{"main", nil}, {"note", map[string]any{"record": recs.IDs[0]}}} {
-		drawn, _ := json.Marshal(e.screenData("web", s.screen, merge(map[string]any{"lang": "ru"}, s.extra)))
+		drawn, _ := json.Marshal(e.ScreenData("web", s.screen, harness.Merge(map[string]any{"lang": "ru"}, s.extra)))
 		if !strings.Contains(string(drawn), want) {
 			t.Errorf("the form of %s offers the values of the enum translated: %s", s.screen, drawn)
 		}
@@ -222,12 +223,12 @@ func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
 // language by the module's words, a filter is named like its column, and deck's values and tags are translated.
 func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	m := strings.Replace(testManifest([]string{agentCommand("work", ""), agentCommand("send", `{"type": "object", "properties": {"process": {"type": "integer"}}}`)},
+	e := harness.New(t)
+	m := strings.Replace(harness.TestManifest([]string{harness.AgentCommand("work", ""), harness.AgentCommand("send", `{"type": "object", "properties": {"process": {"type": "integer"}}}`)},
 		[]string{`{"command": "send", "after": "work"}`}),
 		`"version": 13,`, `"version": 13, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "work": "Работа"}},`, 1)
 	p := e.Project("web", m)
-	e.Project("video", testManifest([]string{agentCommand("search", "")}, []string{`{"command": "search", "cron": "0 9 * * *"}`}))
+	e.Project("video", harness.TestManifest([]string{harness.AgentCommand("search", "")}, []string{`{"command": "search", "cron": "0 9 * * *"}`}))
 	var ps []struct{ Name, Title, Meta string }
 	e.Must("deck.projects_list", map[string]any{"lang": "ru"}, &ps)
 	if i := slices.IndexFunc(ps, func(v struct{ Name, Title, Meta string }) bool { return v.Name == "web" }); i < 0 || ps[i].Title != "Веб-заметки" || !strings.HasPrefix(ps[i].Meta, "включён") {
@@ -242,7 +243,7 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 		t.Fatalf("a command's title comes in the owner's language: %+v", cmds)
 	}
 	e.WaitState(e.Run(p, "work"), "done")
-	schedule := e.screenData("", "schedule", map[string]any{"lang": "ru"})
+	schedule := e.ScreenData("", "schedule", map[string]any{"lang": "ru"})
 	var filters []struct {
 		Field, Label string
 		Labels       []string
@@ -263,23 +264,23 @@ func TestDecksListsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 // texts of each form of deck's screens and of the master's commands, are translated.
 func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	var ru map[string]string
-	raw, err := os.ReadFile(filepath.Join(Root, "internal/app/screens/shipped/ru.json"))
+	raw, err := os.ReadFile(filepath.Join(harness.Root, "internal/app/screens/shipped/ru.json"))
 	if err != nil || json.Unmarshal(raw, &ru) != nil {
 		t.Fatalf("no ru of deck: %v", err)
 	}
 	var master struct {
 		I18n map[string]map[string]string `json:"i18n"`
 	}
-	mraw, err := os.ReadFile(filepath.Join(Root, "master/manifest.json"))
+	mraw, err := os.ReadFile(filepath.Join(harness.Root, "master/manifest.json"))
 	if err != nil || json.Unmarshal(mraw, &master) != nil {
 		t.Fatalf("no manifest of the master: %v", err)
 	}
 	var cmds []struct{ Name, Title string }
 	e.Must("deck.commands_list", nil, &cmds)
 	forms := map[string]bool{}
-	files, _ := filepath.Glob(filepath.Join(Root, "internal/app/screens/shipped/*.json"))
+	files, _ := filepath.Glob(filepath.Join(harness.Root, "internal/app/screens/shipped/*.json"))
 	for _, f := range files {
 		b, _ := os.ReadFile(f)
 		for _, m := range regexp.MustCompile(`"type": *"form", "command": *"(deck\.[a-z_]+)"`).FindAllSubmatch(b, -1) {
@@ -338,15 +339,15 @@ func TestEveryCommandTheOwnerSeesHasItsTranslation(t *testing.T) {
 // module's words, no empty choice; a save names the texts a language lacks, not the data.
 func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	m := strings.NewReplacer(`{"version": 13,`, `{"version": 13, "i18n": {"ru": {"source": "Источник", "web": "веб", "mail": "почта", "Source": "Источник", "a": "один"}},`,
 		`"note": {"type": "string"}}, "required": ["title"]}`, `"note": {"type": "string"}, "kind": {"type": "string", "enum": ["a", "b", ""]}}, "required": ["title"]}`,
-		`"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Source", "bind": "source"}]`).Replace(webNotes)
+		`"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Source", "bind": "source"}]`).Replace(harness.WebNotes)
 	e.Project("web", m)
 	var recs struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(
 		map[string]any{"title": "alpha", "source": "web"}, map[string]any{"title": "beta", "source": "mail"}, map[string]any{"title": "gamma", "source": "paper"})}, &recs)
-	main := e.screenData("web", "main", map[string]any{"lang": "ru"})
+	main := e.ScreenData("web", "main", map[string]any{"lang": "ru"})
 	var filters []struct {
 		Field, Label    string
 		Options, Labels []string
@@ -367,7 +368,7 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 		}
 		Choices map[string][]struct{ Label, Value string }
 	}
-	_ = json.Unmarshal(e.screenData("web", "note", map[string]any{"lang": "ru", "record": recs.IDs[0]})["b0"]["value"], &form)
+	_ = json.Unmarshal(e.ScreenData("web", "note", map[string]any{"lang": "ru", "record": recs.IDs[0]})["b0"]["value"], &form)
 	if len(form.Commands) != 1 || form.Commands[0].Description != "Заменяет данные записи; ключевые поля не меняются." ||
 		form.Commands[0].Input.Properties["source"].Title != "Источник" {
 		t.Fatalf("the edit of a record says what it does and names a field in the owner's language: %+v", form.Commands)
@@ -390,8 +391,8 @@ func TestTheModulesWordsNameItsFieldsAndFilteredValues(t *testing.T) {
 // keys and sizes in Russian; names stay as they are.
 func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	p := e.Project("notes", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	e := harness.New(t)
+	p := e.Project("notes", harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
 	e.Must("deck.secret_set", map[string]any{"name": "gate-key", "value": "k"}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "gate", "api": "openai", "url": "http://127.0.0.1:9/v1", "key_secret": "gate-key"}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "plain", "api": "raw", "url": "http://127.0.0.1:9/raw"}, nil)
@@ -481,8 +482,8 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		if s.path != "" {
 			in["params"] = `{"path": "` + s.path + `"}`
 		}
-		for _, d := range append([]map[string]any{nil}, e.dialogsOf(s.project, s.screen)...) {
-			for _, msgs := range e.everyTab(s.project, s.screen, merge(in, d)) {
+		for _, d := range append([]map[string]any{nil}, e.DialogsOf(s.project, s.screen)...) {
+			for _, msgs := range e.EveryTab(s.project, s.screen, harness.Merge(in, d)) {
 				raw, _ := json.Marshal(msgs)
 				var v any
 				_ = json.Unmarshal(raw, &v)

@@ -2,13 +2,13 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
 func limited(resetsAt time.Time) provider.Result {
@@ -23,27 +23,27 @@ func TestProviderLimitPausesAndContinuesTheSameSession(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	var prompts []string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		mu.Lock()
 		prompts = append(prompts, c.Req.Prompt)
 		mu.Unlock()
 		if c.N == 1 {
-			return limited(t0.Add(2 * time.Hour))
+			return limited(harness.T0.Add(2 * time.Hour))
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	}), WithClock())
+	}), harness.WithClock())
 
-	p := e.Project("plain", testManifest([]string{agentCommand("work", "")}, nil))
+	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	id := e.Run(p, "work")
 	e.WaitState(id, "rate_limited")
 	e.Clock.Add(time.Hour)
-	e.sweep()
+	e.Sweep()
 	e.Settle()
 	if got := e.Proc(id); got.State != "rate_limited" || got.Deadline != "" || got.SilentSince != "" || len(e.Fake.Calls()) != 1 {
 		t.Fatalf("before the reset the process waits, its ceiling and silence stand still: %+v, %d calls", got, len(e.Fake.Calls()))
 	}
 	e.Clock.Add(time.Hour)
-	e.sweep()
+	e.Sweep()
 	got := e.WaitState(id, "done", "error")
 	calls := e.Fake.Calls()
 	if got.State != "done" || len(calls) != 2 || !calls[1].Resume || calls[1].SessionID != calls[0].SessionID ||
@@ -65,7 +65,7 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	ok := false
-	cf := &checkedFake{Fake: &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	cf := &checkedFake{Fake: &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		mu.Lock()
 		defer mu.Unlock()
 		if !ok {
@@ -73,25 +73,25 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 2}`)}
 	}}}
-	clock := &Clock{now: t0}
-	e := New(t, WithProvider(cf), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithProvider(cf), harness.WithClock(clock))
 	e.Fake = cf.Fake
-	p := e.Project("plain", testManifest([]string{agentCommand("work", "")}, nil))
+	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	id := e.Run(p, "work")
 	e.WaitState(id, "rate_limited")
 	for h := 1; h <= 9; h++ {
 		e.Clock.Add(30 * time.Minute)
-		e.sweep()
+		e.Sweep()
 		e.Settle()
 		if n := len(e.Fake.Calls()); n != h {
 			t.Fatalf("no probe before the hour is up: %d calls after %dh30", n, h-1)
 		}
 		e.Clock.Add(30 * time.Minute)
-		e.sweep()
+		e.Sweep()
 		e.Until("the hourly probe", func() bool { return len(e.Fake.Calls()) == h+1 })
 		e.WaitState(id, "rate_limited")
 	}
-	var as []Ask
+	var as []harness.Ask
 	e.Must("deck.asks_list", nil, &as)
 	if len(as) != 0 {
 		t.Fatalf("a pause asks the owner nothing: %+v", as)
@@ -99,7 +99,7 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 	e.WaitState(id, "stopped")
 	e.Clock.Add(2 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	e.Settle()
 	if n := len(e.Fake.Calls()); n != 10 {
 		t.Fatalf("a stopped pause probes no more: %d calls", n)
@@ -122,7 +122,7 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	var prompts []string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		mu.Lock()
 		prompts = append(prompts, c.Req.Prompt)
 		mu.Unlock()
@@ -131,7 +131,7 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 			return limited(time.Time{})
 		}
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	}), WithClock())
+	}), harness.WithClock())
 
 	p := e.Project("notes", strings.Replace(notesManifest, `"requires": ["no_cloud"],`, "", 1))
 	id := e.Run(p, "collect")
@@ -142,7 +142,7 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 		t.Fatalf("the answer waits for the next try: %d calls", n)
 	}
 	e.Clock.Add(time.Hour)
-	e.sweep()
+	e.Sweep()
 	e.WaitState(id, "done", "error")
 	mu.Lock()
 	defer mu.Unlock()

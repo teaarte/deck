@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -12,28 +13,28 @@ import (
 // in its history, as Groq does, gets the call again without it, and the later calls of the model without asking.
 func TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout(t *testing.T) {
 	t.Parallel()
-	f := newACP(t)
+	f := harness.NewACP(t)
 	refused := 0
-	llm := newLLM(t, func(n int, req chatRequest) chatReply {
+	llm := harness.NewLLM(t, func(n int, req harness.ChatRequest) harness.ChatReply {
 		for _, m := range req.Messages {
 			if _, ok := m["reasoning_content"]; ok {
 				refused++
-				return chatReply{status: 400, body: `{"error": {"message": "'messages.1' : for 'role:assistant' the following must be satisfied[('messages.1' : property 'reasoning_content' is unsupported)]", "type": "invalid_request_error"}}`}
+				return harness.ChatReply{Status: 400, Body: `{"error": {"message": "'messages.1' : for 'role:assistant' the following must be satisfied[('messages.1' : property 'reasoning_content' is unsupported)]", "type": "invalid_request_error"}}`}
 			}
 		}
-		return textReply("ok")
+		return harness.TextReply("ok")
 	})
 	echoed := `{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}, {"role": "assistant", "content": null, "reasoning_content": "I run it", "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "shell", "arguments": "{}"}}]}, {"role": "tool", "tool_call_id": "c1", "content": "done"}], "tools": [{"type": "function", "function": {"name": "shell"}}]}}`
-	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, echoed, echoed,
+	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, echoed, echoed,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, echoed,
+	f.StreamText(5, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, echoed,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := New(t, WithACP(f, llm))
-	p := e.acpProject("paint", colorManifest)
+	e := harness.New(t, harness.WithACP(f, llm))
+	p := e.AcpProject("paint", colorManifest)
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the turn goes on: %+v", got)
 	}
-	for _, m := range f.call(4).model {
+	for _, m := range f.Call(4).Model {
 		if m["status"] != float64(200) {
 			t.Fatalf("the agent gets the answer of the call without its reasoning: %+v", m)
 		}
@@ -41,7 +42,7 @@ func TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout(t *testing.T) 
 	if refused != 1 {
 		t.Fatalf("once refused, the calls of the turn go without reasoning: refused %d", refused)
 	}
-	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" || refused != 1 || f.call(5).model[0]["status"] != float64(200) {
+	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" || refused != 1 || f.Call(5).Model[0]["status"] != float64(200) {
 		t.Fatalf("the next turn on the model goes without reasoning from its first call: %+v refused %d", got, refused)
 	}
 }
@@ -51,7 +52,7 @@ func TestACPModelAPIThatRefusesEchoedReasoningTakesTheCallWithout(t *testing.T) 
 func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 	t.Parallel()
 	read := func(name string) string {
-		b, err := os.ReadFile(filepath.Join(Testdata("acp"), name))
+		b, err := os.ReadFile(filepath.Join(harness.Testdata("acp"), name))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +61,7 @@ func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 	first, second, third := read("selfcheck_1.jsonl"), read("selfcheck_2.jsonl"), read("selfcheck_3.jsonl")
 	submit := `{"mcp": {"tool": "result_submit", "arguments": {"result": {"word": "{{word}}", "answer": "{{word}}-answered"}}}}` + "\n"
 	forgot := strings.Replace(first, submit, "", 1)
-	words := acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
+	words := harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "The word is written."}}}`, `{"end": "end_turn"}`)
 	for _, tc := range []struct {
 		name    string
@@ -85,22 +86,22 @@ func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			f := newACP(t)
+			f := harness.NewACP(t)
 			for i, s := range tc.streams {
-				f.streamText(i+1, s)
+				f.StreamText(i+1, s)
 			}
-			llm := newLLM(t, func(int, chatRequest) chatReply {
+			llm := harness.NewLLM(t, func(int, harness.ChatRequest) harness.ChatReply {
 				if tc.refuse != "" {
 					status, words := 400, tc.refuse
 					if w, ok := strings.CutPrefix(words, "404:"); ok {
 						status, words = 404, w
 					}
 					b, _ := json.Marshal(map[string]any{"error": map[string]any{"message": words, "type": "invalid_request_error"}})
-					return chatReply{status: status, body: string(b)}
+					return harness.ChatReply{Status: status, Body: string(b)}
 				}
-				return textReply("ok")
+				return harness.TextReply("ok")
 			})
-			h := New(t, WithACP(f, nil)).AddACP(f, llm)
+			h := harness.New(t, harness.WithACP(f, nil)).AddACP(f, llm)
 			if h.Status != tc.status {
 				t.Fatalf("want %s: %+v", tc.status, h)
 			}
@@ -113,7 +114,7 @@ func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 				t.Fatalf("a refusal of the API is no weak model: %s", h.Error)
 			}
 			if tc.name == "reminded" {
-				rpc, _ := json.Marshal(f.call(2).rpc)
+				rpc, _ := json.Marshal(f.Call(2).Rpc)
 				if !strings.Contains(string(rpc), "without handing in the result") {
 					t.Fatalf("the second turn reminds of result_submit: %s", rpc)
 				}
@@ -133,22 +134,22 @@ func TestACPRefusalOfTheModelAPIIsTheEndOfATurnWithoutItsResult(t *testing.T) {
 		state string
 		want  string
 	}{
-		{"no result", []string{acpModel}, "error", "refused a call of the turn: 413"},
-		{"result first", []string{submit, acpModel}, "done", ""},
+		{"no result", []string{harness.AcpModel}, "error", "refused a call of the turn: 413"},
+		{"result first", []string{submit, harness.AcpModel}, "done", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			f := newACP(t)
-			llm := newLLM(t, func(n int, _ chatRequest) chatReply {
+			f := harness.NewACP(t)
+			llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
 				if n <= 3 {
-					return textReply("ok")
+					return harness.TextReply("ok")
 				}
-				return chatReply{status: 413, body: `{"error": {"message": "the request is too large for this model"}}`}
+				return harness.ChatReply{Status: 413, Body: `{"error": {"message": "the request is too large for this model"}}`}
 			})
-			steps := append([]string{acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`}, tc.steps...)
-			f.streamText(4, acpStream(append(steps, `{"end": "end_turn"}`)...))
-			e := New(t, WithACP(f, llm))
-			got := e.WaitState(e.Run(e.acpProject("paint", colorManifest), "work"), "done", "error")
+			steps := append([]string{harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`}, tc.steps...)
+			f.StreamText(4, harness.AcpStream(append(steps, `{"end": "end_turn"}`)...))
+			e := harness.New(t, harness.WithACP(f, llm))
+			got := e.WaitState(e.Run(e.AcpProject("paint", colorManifest), "work"), "done", "error")
 			if got.State != tc.state || !strings.Contains(got.Error, tc.want) {
 				t.Fatalf("want %s with %q: %+v", tc.state, tc.want, got)
 			}

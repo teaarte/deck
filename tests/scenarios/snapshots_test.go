@@ -1,19 +1,19 @@
 package scenarios
 
 import (
-	"crypto/rand"
-	"slices"
-
 	"archive/tar"
 	"compress/gzip"
+	"crypto/rand"
 	"database/sql"
 	"deck2/internal/app"
 	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -21,23 +21,23 @@ import (
 
 func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
+	e := harness.New(t, harness.WithClock())
 	backups := func() int {
 		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", "deck-*.tar.gz"))
 		return len(m)
 	}
-	e.sweep()
+	e.Sweep()
 	if n := backups(); n != 1 {
 		t.Fatalf("the first sweep takes a snapshot: %d", n)
 	}
 	e.Clock.Add(23 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	if n := backups(); n != 1 {
 		t.Fatalf("one snapshot a day: %d", n)
 	}
 	for range 9 {
 		e.Clock.Add(24 * time.Hour)
-		e.sweep()
+		e.Sweep()
 	}
 	if n := backups(); n != 7 {
 		t.Fatalf("the newest seven stay: %d", n)
@@ -49,9 +49,9 @@ func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {
 
 func TestFilesOfDeletedRecordsGoInTheDailyCleanup(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
-	e.Project("files", scriptManifest("make", "", ""))
-	e.saveScript("files", "scripts/main.py", pythonLib+`
+	e := harness.New(t, harness.WithClock())
+	e.Project("files", harness.ScriptManifest("make", "", ""))
+	e.SaveScript("files", "scripts/main.py", harness.PythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 open(os.path.join(os.environ["DECK_RESULTS"], "f.txt"), "w").write("f")
 print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
@@ -64,7 +64,7 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 		t.Fatal(err)
 	}
 	e.Must("deck.collection_delete", map[string]any{"project": "files", "collection": "items"}, nil)
-	e.sweep()
+	e.Sweep()
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("the file of a deleted record is removed: %v", err)
 	}
@@ -72,14 +72,14 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 
 func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
+	e := harness.New(t, harness.WithClock())
 	e.Project("docs", filesManifest())
-	e.sweep()
-	e.upload("docs", "left.txt", "text/plain", "left")
+	e.Sweep()
+	upload(e, "docs", "left.txt", "text/plain", "left")
 	e.Clock.Add(24*time.Hour + 30*time.Minute)
 	e.Must("deck.snapshot_create", nil, nil)
 	e.Clock.Add(time.Hour)
-	e.sweep()
+	e.Sweep()
 	var uploads int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'upload'`).Scan(&uploads)
 	if uploads != 0 {
@@ -87,7 +87,7 @@ func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
 	}
 }
 
-const manyFilesScript = pythonLib + `
+const manyFilesScript = harness.PythonLib + `
 files = []
 for i in range(40):
     st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "r%d" % i})})
@@ -99,9 +99,9 @@ print(json.dumps({"files": files}))
 
 func TestASnapshotHoldsEveryFileItsBaseNames(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("many", scriptManifest("make", "", ""))
-	e.saveScript("many", "scripts/main.py", manyFilesScript)
+	e := harness.New(t)
+	e.Project("many", harness.ScriptManifest("make", "", ""))
+	e.SaveScript("many", "scripts/main.py", manyFilesScript)
 	if p := e.WaitState(e.Start("many", "make", nil), "done", "error"); p.State != "done" {
 		t.Fatalf("seed: %+v", p)
 	}
@@ -183,16 +183,16 @@ func snapshotFiles(t *testing.T, path string) ([]string, map[string]bool) {
 // and never push out the daily ones.
 func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
+	e := harness.New(t, harness.WithClock())
 	backups := func(pattern string) int {
 		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", pattern))
 		return len(m)
 	}
-	e.sweep()
+	e.Sweep()
 	for i := range 9 {
 		e.Clock.Add(time.Minute)
 		name := fmt.Sprintf("p%d", i)
-		e.Project(name, plainManifest)
+		e.Project(name, harness.PlainManifest)
 		e.Must("deck.project_delete", map[string]any{"project": name}, nil)
 	}
 	if n := backups("deck-*.tar.gz"); n != 1 {
@@ -215,11 +215,11 @@ func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 // the data folder of the deleted project, and nothing of the other projects.
 func TestASnapshotBeforeADeleteHoldsOnlyThatProject(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	h := deckhome.Layout(e.App.Cfg.Home)
 	stored := map[string]string{}
 	for _, name := range []string{"keep", "gone"} {
-		e.Project(name, plainManifest)
+		e.Project(name, harness.PlainManifest)
 		var id int64
 		if err := e.App.Store.DB.QueryRow(`SELECT id FROM project WHERE name = ?`, name).Scan(&id); err != nil {
 			t.Fatal(err)
@@ -260,7 +260,7 @@ func TestASnapshotBeforeADeleteHoldsOnlyThatProject(t *testing.T) {
 // with a warning in health, the rest is kept; a snapshot that fails is an error in health, not only in the log.
 func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
+	e := harness.New(t, harness.WithClock())
 	e.Project("notes", ideasManifest)
 	h := deckhome.Layout(e.App.Cfg.Home)
 	data, _ := filepath.Glob(filepath.Join(h.Projects(), "*", "data"))
@@ -280,7 +280,7 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(data[0], "kept.txt"), []byte("kept"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	e.sweep()
+	e.Sweep()
 	snaps, _ := filepath.Glob(filepath.Join(h.Backups(), "deck-*.tar.gz"))
 	if len(snaps) != 1 {
 		t.Fatalf("one unreadable file does not stop the daily snapshot: %v", snaps)
@@ -305,7 +305,7 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Clock.Add(25 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	if row := e.WaitHealth("snapshot", "error"); row.Error == "" {
 		t.Fatalf("a snapshot that fails says why in health: %+v", row)
 	}
@@ -316,7 +316,7 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	}
 	_ = os.WriteFile(filepath.Join(left, "7"), []byte("a file the owner deleted"), 0o600)
 	e.Clock.Add(time.Hour)
-	e.sweep()
+	e.Sweep()
 	e.WaitHealth("snapshot", "ok")
 	if _, err := os.Stat(left); err == nil {
 		t.Fatal("the links a snapshot cut short by a crash left go with the next snapshot")
@@ -327,9 +327,9 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 // half the budget, saying how much in health, and the oldest snapshots go until all of them fit the budget.
 func TestSnapshotsKeepToTheirBudget(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithConfig(func(c *app.Config) { c.SnapshotBudget = 4 << 20 }))
+	e := harness.New(t, harness.WithConfig(func(c *app.Config) { c.SnapshotBudget = 4 << 20 }))
 	h := deckhome.Layout(e.App.Cfg.Home)
-	e.Project("notes", plainManifest)
+	e.Project("notes", harness.PlainManifest)
 	var id int64
 	if err := e.App.Store.DB.QueryRow(`SELECT id FROM project WHERE name = 'notes'`).Scan(&id); err != nil {
 		t.Fatal(err)

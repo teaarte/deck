@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"os"
 	"testing"
 )
@@ -12,7 +13,7 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", notesManifest)
 
 	b := newPlaywright(t)
@@ -34,12 +35,12 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 			Name   string
 			Paused bool
 		}
-		e.projectsOf(&ps)
+		e.ProjectsOf(&ps)
 		return len(ps) == 1 && ps[0].Paused
 	})
 	b.until("the paused project on its settings", itemOf("notes", "enabled, paused"))
 
-	e.Project("plain", plainManifest)
+	e.Project("plain", harness.PlainManifest)
 	b.open(e.URL + "/#/p/plain/settings")
 	b.until("the model of a command in a picker", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Work') && r.querySelector('input[data-pick="model"]')?.value === 'fake')`)
 	b.eval(`(document.querySelector('tr input[data-pick="model"]').click(), '')`)

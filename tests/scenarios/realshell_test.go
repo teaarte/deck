@@ -2,12 +2,12 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserShell drives the frame of deck in a real browser, tiles, tabs, chat and columns:
@@ -19,29 +19,29 @@ func TestRealBrowserShell(t *testing.T) {
 	checkBuiltClient(t)
 	hold := make(chan struct{})
 	t.Cleanup(func() { close(hold) })
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "score" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "score" {
 			select {
 			case <-hold:
 			case <-ctx.Done():
 			}
 		}
-		return webNotesAgent()(ctx, c)
+		return harness.WebNotesAgent()(ctx, c)
 	}))
 
-	manifest := strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "icon": "rocket",`, 1)
+	manifest := strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "source"}, {"label": "Note", "bind": "note"}]`, 1)
 	manifest = strings.Replace(manifest, `{"name": "note", "title": "Note", "record": "notes",`, `{"name": "more", "title": "More", "blocks": [{"type": "list", "title": "Same", "source": {"collection": "notes"}, "item": {"title": "title"}}]},
     {"name": "note", "title": "Note", "record": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"menu": ["main"]`, `"menu": ["main", "more"]`, 1)
 	e.Project("web", strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1))
-	e.Project("solo", webNotes)
+	e.Project("solo", harness.WebNotes)
 	for _, n := range []string{"glass", "pixel", "neon", "paper", "default"} {
-		e.example(n)
+		e.Example(n)
 	}
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "alpha", "source": "mail", "note": strings.Repeat("the model did not finish the self-check within the ceiling ", 6)}, map[string]any{"title": "a-very-long-title-without-any-spaces-that-would-push-the-table-out-of-its-block-" + strings.Repeat("x", 120), "source": "web"})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "alpha", "source": "mail", "note": strings.Repeat("the model did not finish the self-check within the ceiling ", 6)}, map[string]any{"title": "a-very-long-title-without-any-spaces-that-would-push-the-table-out-of-its-block-" + strings.Repeat("x", 120), "source": "web"})}, nil)
 	e.WaitState(e.Start("web", "tell", nil), "done")
 	e.WaitState(e.Start("web", "score", map[string]any{"title": "x"}), "running")
 

@@ -2,20 +2,20 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestTheChangesOfARunAreOneLine: what a run of a module deleted is one line of done without you with how many, in
 // the owner's words, and its undo writes every record back at once; another run is another line.
 func TestTheChangesOfARunAreOneLine(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		list, _ := c.Tool(ctx, "records_list", map[string]any{"project": "notes", "collection": "ideas"})
 		var recs []struct{ ID int64 }
 		_ = json.Unmarshal([]byte(list), &recs)
@@ -27,7 +27,7 @@ func TestTheChangesOfARunAreOneLine(t *testing.T) {
 
 	e.Project("notes", ideasManifest)
 	for i := range 4 {
-		e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": jsonl(map[string]any{"title": fmt.Sprint("idea ", i), "score": i})}, nil)
+		e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": fmt.Sprint("idea ", i), "score": i})}, nil)
 	}
 	e.WaitState(e.Start("notes", "collect", nil), "done")
 	e.WaitState(e.Start("notes", "collect", nil), "done")
@@ -57,7 +57,7 @@ func TestTheChangesOfARunAreOneLine(t *testing.T) {
 // in force; data, tickers, numbers and signs want no translation, and words its filters and expressions show are used.
 func TestAManifestCheckOfAProjectAloneChecksItsCurrentManifest(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	m := strings.Replace(ideasManifest, `"screens": [{
     "name": "main", "title": "Ideas",`, `"i18n": {"ru": {"Ideas": "Идеи", "Best ideas": "Лучшие идеи", "Idea": "Идея", "Score": "Оценка", "Again": "Ещё раз",
       "Collect ideas": "Собрать идеи", "Writes ideas": "Пишет идеи", "Short ideas": "Короткие идеи", "title": "название", "score": "оценка",
@@ -68,7 +68,7 @@ func TestAManifestCheckOfAProjectAloneChecksItsCurrentManifest(t *testing.T) {
       {"type": "filter", "param": "topic", "source": {"collection": "ideas"}, "field": "topic"}],`, 1)
 	m = strings.Replace(m, `{"label": "Score", "bind": "score"}`, `{"label": "Score", "bind": "score > 8 ? 'fresh' : '$0'", "format": "tag"}, {"label": "R:R", "bind": "score"}`, 1)
 	e.Project("notes", m)
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": jsonl(map[string]any{"title": "a", "score": 9, "topic": "Биткоин"}, map[string]any{"title": "b", "score": 1, "topic": "ETH"}, map[string]any{"title": "c", "score": 2, "topic": "rare"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "a", "score": 9, "topic": "Биткоин"}, map[string]any{"title": "b", "score": 1, "topic": "ETH"}, map[string]any{"title": "c", "score": 2, "topic": "rare"})}, nil)
 	var c struct {
 		Ok           bool
 		Refused      []string
@@ -85,14 +85,14 @@ func TestAManifestCheckOfAProjectAloneChecksItsCurrentManifest(t *testing.T) {
 // schema of a command, and only the owner's call gives it.
 func TestNoSchemaAnAgentSeesHasAllows(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("notes", ideasManifest)
 	var d struct{ Input json.RawMessage }
 	e.Must("deck.command_describe", map[string]any{"command": "notes.collect"}, &d)
 	if strings.Contains(string(d.Input), "allows") || !strings.Contains(string(d.Input), "retry_key") {
 		t.Fatalf("the schema of a command does not name allows: %s", d.Input)
 	}
-	_, tok := e.token("terminal", "notes.*")
+	_, tok := e.Token("terminal", "notes.*")
 	if code, out := e.As(tok).Call("notes.collect", map[string]any{"allows": "[]"}); code != 422 || !strings.Contains(string(out), "allows") {
 		t.Fatalf("allows from another than the owner is refused: %d %s", code, out)
 	}
@@ -106,7 +106,7 @@ func TestNoSchemaAnAgentSeesHasAllows(t *testing.T) {
 func TestAManifestTheMasterChangedTwiceInARunGoesBackOnce(t *testing.T) {
 	t.Parallel()
 	plans, mid, on := make(chan bool, 1), make(chan bool), make(chan bool)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		var owner bool
 		select {
 		case owner = <-plans:
@@ -123,7 +123,7 @@ func TestAManifestTheMasterChangedTwiceInARunGoesBackOnce(t *testing.T) {
 		return provider.Result{Text: "Saved."}
 	}))
 
-	e.Project("notes", plainManifest)
+	e.Project("notes", harness.PlainManifest)
 	var feed []struct {
 		ID   int64
 		Text string
@@ -137,7 +137,7 @@ func TestAManifestTheMasterChangedTwiceInARunGoesBackOnce(t *testing.T) {
 	}
 
 	plans <- false
-	e.masterSaid(e.say(0, "retitle the work"), 1)
+	e.MasterSaid(e.Say(0, "retitle the work"), 1)
 	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 1 || feed[0].Text != "changed the manifest of notes ×2" {
 		t.Fatalf("two saves of a run are one line: %+v", feed)
@@ -148,11 +148,11 @@ func TestAManifestTheMasterChangedTwiceInARunGoesBackOnce(t *testing.T) {
 	}
 
 	plans <- true
-	topic := e.say(0, "retitle the work again")
+	topic := e.Say(0, "retitle the work again")
 	<-mid
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"description": "Does work"`}, "new": []string{`"description": "Does the owner's work"`}}, nil)
 	on <- true
-	e.masterSaid(topic, 1)
+	e.MasterSaid(topic, 1)
 	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	e.Refused("deck.feed_undo", map[string]any{"entry": feed[0].ID}, 409, "changed after")
 }

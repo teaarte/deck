@@ -3,7 +3,9 @@ package scenarios
 import (
 	"context"
 	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
 	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -13,15 +15,13 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
 // seeded makes the docs project with one record that has a photo and a document.
-func seeded(e *Env) (record, photo int64) {
+func seeded(e *harness.Env) (record, photo int64) {
 	e.T.Helper()
-	e.saveScript("docs", "scripts/seed.py", seedScript)
-	e.saveScript("docs", "scripts/read.py", readScript)
+	e.SaveScript("docs", "scripts/seed.py", seedScript)
+	e.SaveScript("docs", "scripts/read.py", readScript)
 	seed := e.WaitState(e.Start("docs", "seed", nil), "done", "error")
 	var s struct{ Record int64 }
 	if json.Unmarshal(seed.Result, &s) != nil || s.Record == 0 {
@@ -35,7 +35,7 @@ func seeded(e *Env) (record, photo int64) {
 
 func TestRecordIsReadByIDAndDeletedWithItsDocumentsAndFiles(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("docs", filesManifest())
 	rec, photo := seeded(e)
 	var got struct {
@@ -46,7 +46,7 @@ func TestRecordIsReadByIDAndDeletedWithItsDocumentsAndFiles(t *testing.T) {
 	if got.ID != rec || got.Data["name"] != "a" {
 		t.Fatalf("record_get gives the record by its id: %+v", got)
 	}
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	if code, out := e.As(tok).Call("deck.record_delete", map[string]any{"record": rec}); code != 403 || !strings.Contains(string(out), "only the owner") {
 		t.Fatalf("the master does not delete records of an enabled project: %d %s", code, out)
 	}
@@ -68,8 +68,8 @@ func TestRecordIsReadByIDAndDeletedWithItsDocumentsAndFiles(t *testing.T) {
 
 func TestBuilderCleansTrialRecordsOfADraftAndUploadsAFile(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	_, tok := e.token("terminal", "deck.*")
+	e := harness.New(t)
+	_, tok := e.Token("terminal", "deck.*")
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "docs", "manifest": filesManifest()}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
@@ -97,7 +97,7 @@ func TestAgentReadsARecordByIDOnlyInItsProjectOrItsReads(t *testing.T) {
 	t.Parallel()
 	var rec int64
 	var got []string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		out, _ := c.Tool(ctx, "record_get", map[string]any{"record": rec})
 		got = append(got, out)
 		return provider.Result{Structured: json.RawMessage(`null`)}
@@ -105,7 +105,7 @@ func TestAgentReadsARecordByIDOnlyInItsProjectOrItsReads(t *testing.T) {
 
 	e.Project("docs", filesManifest())
 	rec, _ = seeded(e)
-	for i, m := range []string{plainManifest, strings.Replace(plainManifest, `"screens": []`, `"screens": [], "reads": [{"project": "docs", "collections": ["items"]}]`, 1)} {
+	for i, m := range []string{harness.PlainManifest, strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "reads": [{"project": "docs", "collections": ["items"]}]`, 1)} {
 		p := e.Project(fmt.Sprintf("p%d", i), m)
 		e.WaitState(e.Run(p, "work"), "done", "error")
 	}
@@ -116,10 +116,10 @@ func TestAgentReadsARecordByIDOnlyInItsProjectOrItsReads(t *testing.T) {
 
 func TestRecordsGoAfterTheirRetention(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
-	e.Project("files", strings.Replace(scriptManifest("make", "", ""), `"key": "name",`,
+	e := harness.New(t, harness.WithClock())
+	e.Project("files", strings.Replace(harness.ScriptManifest("make", "", ""), `"key": "name",`,
 		`"key": "name", "retention_days": 30,`, 1))
-	e.saveScript("files", "scripts/main.py", pythonLib+`
+	e.SaveScript("files", "scripts/main.py", harness.PythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 deck("deck.document_save", {"name": "notes/a.md", "kind": "doc", "text": "a", "record": out["ids"][0]})
 open(os.path.join(os.environ["DECK_RESULTS"], "f.txt"), "w").write("f")
@@ -130,19 +130,19 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 	}
 	var created string
 	_ = e.App.Store.DB.QueryRow(`SELECT created_at FROM record`).Scan(&created)
-	if !strings.HasPrefix(created, t0.UTC().Format("2006-01-02T15:04")) {
+	if !strings.HasPrefix(created, harness.T0.UTC().Format("2006-01-02T15:04")) {
 		t.Fatalf("a record is dated by the deck clock: %s", created)
 	}
 	file := filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", "1")
 	e.Clock.Add(29 * 24 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	var recs []map[string]any
 	e.Must("deck.records_list", map[string]any{"project": "files", "collection": "items"}, &recs)
 	if _, err := os.Stat(file); err != nil || len(recs) != 1 {
 		t.Fatalf("a record and its file stay before retention_days: %v, %d records", err, len(recs))
 	}
 	e.Clock.Add(2 * 24 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	e.Must("deck.records_list", map[string]any{"project": "files", "collection": "items"}, &recs)
 	var docs []map[string]any
 	e.Must("deck.documents_list", map[string]any{"project": "files"}, &docs)
@@ -153,7 +153,7 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 
 func TestLargeIntegerKeysStayDistinct(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	p := e.Project("items", numbersManifest)
 	var up struct{ Written int }
 	e.Must("deck.records_upsert", map[string]any{"project": "items", "collection": "items",
@@ -166,7 +166,7 @@ func TestLargeIntegerKeysStayDistinct(t *testing.T) {
 
 func TestRecordIDsAreNotReusedAndArtifactsGoWithRecords(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("links", fullManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "https://a.example", "title": "a"}`}, nil)
 	var recs []struct{ ID int64 }
@@ -188,7 +188,7 @@ func TestRecordIDsAreNotReusedAndArtifactsGoWithRecords(t *testing.T) {
 
 func TestConcurrentCreatesKeepTheFirstImmutableValue(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("links", fullManifest)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -211,7 +211,7 @@ func TestConcurrentCreatesKeepTheFirstImmutableValue(t *testing.T) {
 
 func TestKeyFieldsStayImmutableWithReferencedSchemas(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	m := `{"version": 13, "collections": [{"name": "people", "description": "A person", "key": "lower(email)",
 	  "schema": {"$ref": "#/$defs/p", "$defs": {"p": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}}]}`
 	e.Project("people", m)
@@ -242,7 +242,7 @@ func TestTheMasterDeletesWhatItsOwnProcessesWrote(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	said := map[string]string{}
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		out, _ := c.Tool(ctx, "records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "trial", "score": 1}`})
 		var w struct{ IDs []int64 }
 		_ = json.Unmarshal([]byte(out), &w)
@@ -259,7 +259,7 @@ func TestTheMasterDeletesWhatItsOwnProcessesWrote(t *testing.T) {
 
 	e.Project("notes", ideasManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "the owner's", "score": 2}`}, nil)
-	e.masterSaid(e.say(0, "Clean up after the trial"), 1)
+	e.MasterSaid(e.Say(0, "Clean up after the trial"), 1)
 	mu.Lock()
 	defer mu.Unlock()
 	if !strings.Contains(said["mine"], `"ok":true`) || !strings.Contains(said["theirs"], "only those its own processes wrote") {

@@ -3,6 +3,11 @@ package scenarios
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,11 +17,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 )
 
 // TestAFileGoesOnlyWithItsRowEvenAcrossACrash: a delete that rolls back keeps the file on disk; one deck committed
@@ -24,9 +24,9 @@ import (
 func TestAFileGoesOnlyWithItsRowEvenAcrossACrash(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	e := New(t, WithHome(dir), WithProvider(&Fake{}))
-	e.Project("notes", plainManifest)
-	kept, gone := e.upload("notes", "kept.txt", "text/plain", "stays"), e.upload("notes", "gone.txt", "text/plain", "goes")
+	e := harness.New(t, harness.WithHome(dir), harness.WithProvider(&harness.Fake{}))
+	e.Project("notes", harness.PlainManifest)
+	kept, gone := upload(e, "notes", "kept.txt", "text/plain", "stays"), upload(e, "notes", "gone.txt", "text/plain", "goes")
 	path := func(id int64) string { return filepath.Join(home.Layout(dir).Files(), fmt.Sprint(id)) }
 	failed := errors.New("rolled back")
 	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
@@ -41,7 +41,7 @@ func TestAFileGoesOnlyWithItsRowEvenAcrossACrash(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = New(t, WithHome(dir), WithProvider(&Fake{}))
+	e = harness.New(t, harness.WithHome(dir), harness.WithProvider(&harness.Fake{}))
 	e.App.Sweep(context.Background(), time.Now())
 	if _, err := os.Stat(path(gone)); !os.IsNotExist(err) {
 		t.Fatalf("a file whose row deck deleted before it died goes once deck is back: %v", err)
@@ -57,8 +57,8 @@ func TestAProcessThatClosedBeforeACrashIsHeardAfterIt(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	release := make(chan struct{})
-	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "job" {
+	fake := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "job" {
 			select {
 			case <-release:
 			case <-ctx.Done():
@@ -66,8 +66,8 @@ func TestAProcessThatClosedBeforeACrashIsHeardAfterIt(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}}
-	e := New(t, WithHome(dir), WithProvider(fake))
-	p := e.Project("chain", testManifest([]string{agentCommand("job", ""), agentCommand("next", processField)},
+	e := harness.New(t, harness.WithHome(dir), harness.WithProvider(fake))
+	p := e.Project("chain", harness.TestManifest([]string{harness.AgentCommand("job", ""), harness.AgentCommand("next", harness.ProcessField)},
 		[]string{`{"command": "next", "after": "job"}`}))
 	id := e.Run(p, "job")
 	e.WaitState(id, "running")
@@ -81,11 +81,11 @@ func TestAProcessThatClosedBeforeACrashIsHeardAfterIt(t *testing.T) {
 	close(release)
 	_ = e.App.Close()
 	for range 2 {
-		e = New(t, WithHome(dir), WithProvider(fake))
+		e = harness.New(t, harness.WithHome(dir), harness.WithProvider(fake))
 		e.Resume()
-		e.Until("the after trigger of the closed process", func() bool { return e.countOf("next") >= 1 })
+		e.Until("the after trigger of the closed process", func() bool { return e.CountOf("next") >= 1 })
 		e.Settle()
-		if n := e.countOf("next"); n != 1 {
+		if n := e.CountOf("next"); n != 1 {
 			t.Fatalf("the after trigger starts once: %d", n)
 		}
 		_ = e.App.Close()
@@ -96,8 +96,8 @@ func TestAProcessThatClosedBeforeACrashIsHeardAfterIt(t *testing.T) {
 // commit together, so a crash between them cannot start the slot twice.
 func TestACronLaunchMovesItsSlotWithIt(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok), WithClock())
-	p := e.Project("daily", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
+	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock())
+	p := e.Project("daily", harness.TestManifest([]string{harness.AgentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
 	e.Clock.Add(time.Hour)
 	ts, err := e.App.Store.Q.ListProjectTriggers(context.Background(), p)
 	if err != nil || len(ts) != 1 {
@@ -106,7 +106,7 @@ func TestACronLaunchMovesItsSlotWithIt(t *testing.T) {
 	if _, err := e.App.Triggers.Fire(context.Background(), ts[0], map[string]any{}); err != nil {
 		t.Fatal(err)
 	}
-	if got := e.triggers()[0].NextRunAt; got <= ts[0].NextRunAt.String {
+	if got := e.Triggers()[0].NextRunAt; got <= ts[0].NextRunAt.String {
 		t.Fatalf("the slot moves with the launch: %s, was %s", got, ts[0].NextRunAt.String)
 	}
 }
@@ -122,7 +122,7 @@ func TestACronAcrossTheClockShifts(t *testing.T) {
 	if os.Getenv("TZ") != "Europe/Oslo" {
 		self, _ := os.Executable()
 		run := exec.Command(self, "-test.run=^TestACronAcrossTheClockShifts$", "-test.count=1")
-		run.Env = append(os.Environ(), "TZ=Europe/Oslo", "DECK_FAKES="+fakes)
+		run.Env = append(os.Environ(), "TZ=Europe/Oslo", "DECK_FAKES="+harness.Fakes)
 		if out, err := run.CombinedOutput(); err != nil {
 			t.Fatalf("in Oslo: %v\n%s", err, out)
 		}
@@ -140,20 +140,20 @@ func TestACronAcrossTheClockShifts(t *testing.T) {
 		{"*/15 * * * *", time.Date(2026, 10, 25, 1, 35, 0, 0, time.UTC), []string{"10-25 02:45 CET", "10-25 03:00 CET", "10-25 03:15 CET"}},
 		{"*/15 * * * *", time.Date(2026, 3, 29, 0, 35, 0, 0, time.UTC), []string{"03-29 01:45 CET", "03-29 03:00 CEST", "03-29 03:15 CEST"}},
 	} {
-		clock := &Clock{now: c.from}
-		e := New(t, WithAgent(ok), WithClock(clock))
-		e.Project("night", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "` + c.cron + `"}`}))
+		clock := &harness.Clock{At: c.from}
+		e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock(clock))
+		e.Project("night", harness.TestManifest([]string{harness.AgentCommand("job", "")}, []string{`{"command": "job", "cron": "` + c.cron + `"}`}))
 		var got []string
 		for i := range 3 {
-			next, err := time.Parse(time.RFC3339Nano, e.triggers()[0].NextRunAt)
+			next, err := time.Parse(time.RFC3339Nano, e.Triggers()[0].NextRunAt)
 			if err != nil {
 				t.Fatal(err)
 			}
 			got = append(got, next.In(oslo).Format("01-02 15:04 MST"))
 			clock.Add(next.Sub(clock.Now()))
-			e.tick()
+			e.Tick()
 			e.Settle()
-			if n := e.countOf("job"); n != i+1 {
+			if n := e.CountOf("job"); n != i+1 {
 				t.Fatalf("%s from %s: the slot %s starts one run, %d in all", c.cron, c.from, got[i], n)
 			}
 		}
@@ -167,14 +167,14 @@ func TestACronAcrossTheClockShifts(t *testing.T) {
 // triggers on the new result, as a finish heard twice after a crash does not.
 func TestAReworkedProcessStartsItsAfterTriggersAgain(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	p := e.Project("chain", testManifest([]string{agentCommand("job", ""), agentCommand("next", processField)},
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	p := e.Project("chain", harness.TestManifest([]string{harness.AgentCommand("job", ""), harness.AgentCommand("next", harness.ProcessField)},
 		[]string{`{"command": "next", "after": "job"}`}))
 	id := e.Run(p, "job")
 	e.WaitState(id, "done")
-	e.Until("the first after run", func() bool { return e.countOf("next") == 1 })
+	e.Until("the first after run", func() bool { return e.CountOf("next") == 1 })
 	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
-	e.Until("the reworked job done", func() bool { return e.countOf("next") == 2 })
+	e.Until("the reworked job done", func() bool { return e.CountOf("next") == 2 })
 }
 
 // TestAFileThatWillNotGoIsInHealthUntilItGoes: a stored file deck cannot remove is red in health from its third try,
@@ -182,9 +182,9 @@ func TestAReworkedProcessStartsItsAfterTriggersAgain(t *testing.T) {
 func TestAFileThatWillNotGoIsInHealthUntilItGoes(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	e := New(t, WithHome(dir), WithProvider(&Fake{}))
-	e.Project("notes", plainManifest)
-	id := e.upload("notes", "stuck.txt", "text/plain", "stays")
+	e := harness.New(t, harness.WithHome(dir), harness.WithProvider(&harness.Fake{}))
+	e.Project("notes", harness.PlainManifest)
+	id := upload(e, "notes", "stuck.txt", "text/plain", "stays")
 	var stored string
 	_ = filepath.WalkDir(home.Layout(dir).Files(), func(path string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() {

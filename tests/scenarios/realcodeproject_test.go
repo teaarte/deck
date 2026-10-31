@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"os"
 	"strings"
 	"testing"
@@ -13,7 +14,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	repo := repoFolder(t)
 	module := codeModule(t, "")
 
@@ -42,7 +43,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	submit("deck.project_import")
 	b.until("the imported draft", itemOf("code", "draft"))
 	b.reviewAndEnable("code")
-	e.Until("the enabled project", func() bool { return e.project("code").Status == "enabled" })
+	e.Until("the enabled project", func() bool { return project(e, "code").Status == "enabled" })
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the enabled project", itemOf("code", ""))
 
@@ -63,7 +64,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.shot("code-settings")
 
 	e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
-		"records": jsonl(map[string]any{"title": "Fix the login button", "status": "backlog"})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "Fix the login button", "status": "backlog"})}, nil)
 	b.open(e.URL + "/#/p/code/tasks")
 	b.until("the task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Fix the login button'))`)
 	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('Fix the login button')).click(), '')`)
@@ -71,7 +72,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.pick(`[data-form="deck.record_update"] [data-field="status"]`, "ready")
 	b.eval(`(document.querySelector('[data-form="deck.record_update"] [data-submit]').click(), '')`)
 	e.Until("the task marked ready", func() bool {
-		var rs []recordRow
+		var rs []harness.RecordRow
 		e.Must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
 		return len(rs) == 1 && rs[0].Data["status"] == "ready"
 	})

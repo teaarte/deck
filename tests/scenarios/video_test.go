@@ -2,6 +2,9 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -11,9 +14,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
 )
 
 const videoManifest = `{"version": 13,
@@ -53,7 +53,7 @@ func TestAVideoModelMakesAClipOfTheJobItStarted(t *testing.T) {
 		`{"id": "job-1", "status": "completed", "unsigned_urls": ["x"], "usage": {"cost": 0.25, "is_byok": false}}`)
 	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(503) }))
 	t.Cleanup(down.Close)
-	e := New(t, WithConfig(quickVideo))
+	e := harness.New(t, harness.WithConfig(quickVideo))
 	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": down.URL + "/v1", "local": true}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1", "key": "sk-or"}, nil)
 	var m struct{ Kind string }
@@ -103,7 +103,7 @@ func TestAVideoModelMakesAClipOfTheJobItStarted(t *testing.T) {
 		t.Fatalf("the job gets the model, the prompt with the input, the frames as pictures and the options: %s %v", frames, body)
 	}
 	var spend []spendRow
-	e.modelCalls("shorts", 0, &spend)
+	e.ModelCalls("shorts", 0, &spend)
 	if len(spend) != 1 || spend[0].Provider != "wan" || spend[0].Cost == nil || *spend[0].Cost != 0.25 {
 		t.Fatalf("the clip is counted once, with the cost its job reported: %+v", spend)
 	}
@@ -121,7 +121,7 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 	failed := videoJob(t, `{"id": "job-1", "status": "failed", "error": {"code": "moderation", "message": "the prompt was refused"}, "usage": {"is_byok": false}}`)
 	stuck := videoJob(t, `{"id": "job-1", "status": "in_progress"}`)
 	spare := videoJob(t, `{"id": "job-1", "status": "completed"}`)
-	e := New(t, WithConfig(quickVideo))
+	e := harness.New(t, harness.WithConfig(quickVideo))
 	for name, api := range map[string]*fakeModels{"failed": failed, "stuck": stuck, "spare": spare} {
 		e.Must("deck.connection_set", map[string]any{"name": name, "api": "openai", "url": api.URL + "/api/v1"}, nil)
 		e.Must("deck.model_set", map[string]any{"connection": name, "model": "veo", "name": name, "kind": "video", "call_usd": 0.4}, nil)
@@ -138,7 +138,7 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 		t.Fatalf("a job a service took goes to no other model: %d calls", n)
 	}
 	var spend []spendRow
-	e.modelCalls("shorts", 0, &spend)
+	e.ModelCalls("shorts", 0, &spend)
 	costs := map[string]float64{}
 	for _, s := range spend {
 		if s.Cost != nil {
@@ -154,7 +154,7 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 // first and last frames, a file each.
 func TestAVideoCommandOfAManifestTakesAPromptAndItsFrames(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	noPrompt := strings.Replace(videoManifest, `"prompt": "Slow camera push, no text.", `, "", 1)
 	e.Refused("deck.project_create", map[string]any{"name": "shorts", "manifest": noPrompt}, 422, "a video model needs prompt or prompt_file")
 	otherFile := strings.Replace(videoManifest, `"last_frame": {"type": "string", "format": "file"}`, `"sound": {"type": "string", "format": "file"}`, 1)
@@ -182,10 +182,10 @@ func TestALongCallOfAnAgentTellsItThatItStillRuns(t *testing.T) {
 		`{"id": "job-1", "status": "in_progress"}`, `{"id": "job-1", "status": "completed", "usage": {"cost": 0.1}}`)
 	var out string
 	var bad bool
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		out, bad = c.Slow(ctx, "model_call", map[string]any{"kind": "video", "prompt": "a knight rides"})
 		return provider.Result{Text: "done"}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		quickVideo, func(c *app.Config) { c.Progress = 10 * time.Millisecond }))
 
@@ -197,7 +197,7 @@ func TestALongCallOfAnAgentTellsItThatItStillRuns(t *testing.T) {
 	if got := e.WaitState(e.Start("studio", "animate", map[string]any{}), "done", "error"); got.State != "done" || bad || !strings.Contains(out, `"type":"video/mp4"`) {
 		t.Fatalf("the agent gets the clip: %+v %s", got, out)
 	}
-	if n := e.Fake.progress.Load(); n == 0 {
+	if n := e.Fake.Progress.Load(); n == 0 {
 		t.Fatalf("a call that waits for a job tells the agent it still runs")
 	}
 }

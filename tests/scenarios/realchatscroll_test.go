@@ -2,11 +2,11 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"os"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserChatStaysOnTheLastReply: the feed of the master opens, reloads and grows at its last reply:
@@ -16,7 +16,7 @@ func TestRealBrowserChatStaysOnTheLastReply(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Text: "## Done\n\n" + strings.Repeat("A long line of the reply that takes room in the feed. ", 12)}
 	}))
 

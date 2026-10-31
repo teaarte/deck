@@ -2,6 +2,10 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/internal/provider/claudecode"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -12,10 +16,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"deck2/internal/provider"
-	"deck2/internal/provider/claudecode"
-	"deck2/internal/store/db"
 )
 
 const realManifest = `{
@@ -39,7 +39,7 @@ const realManifest = `{
 func TestRealClaudeCodeQuestionResume(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(claudecode.New(home)), WithWait(4*time.Minute))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home)), harness.WithWait(4*time.Minute))
 
 	p := e.Project("ideas", realManifest)
 	id := e.Run(p, "collect")
@@ -68,7 +68,7 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 		}
 		t.Logf("record: %s", r.Data)
 	}
-	if rows := e.screenRows(p, "main"); len(rows) != len(recs) {
+	if rows := e.ScreenRows(p, "main"); len(rows) != len(recs) {
 		t.Fatalf("screen shows %d rows, want %d", len(rows), len(recs))
 	}
 }
@@ -123,7 +123,7 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	prompt := "Read the file sub/notes.txt with the Read tool. Then try to create .claude/settings.local.json with the content {} using the Write tool. Then reply with only the marker words (ALL CAPS words ending in MARK) " +
 		"that appear anywhere in your instructions or context, separated by spaces. Do not guess and do not search for files."
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(claudecode.New(home)))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home)))
 	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.", "class": "internal",
 		"result":   map[string]any{"type": "object", "required": []string{"markers"}, "properties": map[string]any{"markers": map[string]any{"type": "string"}}},
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": prompt + " The result is those words in markers."}})
@@ -192,7 +192,7 @@ func TestRealClaudeCodeKnowsFakeFlags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(Testdata("claude/fake.sh"))
+	b, _ := os.ReadFile(harness.Testdata("claude/fake.sh"))
 	flags := regexp.MustCompile(`--[a-zA-Z-]+`).FindAllString(string(b), -1)
 	if len(flags) < 10 {
 		t.Fatalf("found only %v in the fake", flags)

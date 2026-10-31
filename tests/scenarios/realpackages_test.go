@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"os"
 	"os/exec"
 	"strings"
@@ -33,16 +34,16 @@ func TestRealScriptPackages(t *testing.T) {
 			t.Skipf("%s is not installed", prog)
 		}
 	}
-	e := New(t)
+	e := harness.New(t)
 	cases := []struct{ project, runtime, file, src, domains, want string }{
 		{"py", `"runtime": "exec", "programs": ["uv"]`, "scripts/main.py", realPythonScript, `"pypi.org", "files.pythonhosted.org"`, "1.16.0"},
 		{"js", `"runtime": "node", "programs": ["npm"]`, "scripts/main.js", realNodeScript, `"registry.npmjs.org"`, "007"},
 	}
 	for _, c := range cases {
 		m := strings.NewReplacer(`"scripts/main.py", "runtime": "python"`, `"`+c.file+`", `+c.runtime).
-			Replace(scriptManifest("use", "", `, "domains": {"read": [`+c.domains+`]}`))
+			Replace(harness.ScriptManifest("use", "", `, "domains": {"read": [`+c.domains+`]}`))
 		e.Project(c.project, m)
-		e.saveScript(c.project, c.file, c.src)
+		e.SaveScript(c.project, c.file, c.src)
 		p := e.WaitState(e.Start(c.project, "use", nil), "done", "error")
 		if p.State != "done" || !strings.Contains(string(p.Result), c.want) {
 			t.Fatalf("%s: the script installs its package from the registry: %+v", c.project, p)
@@ -115,7 +116,7 @@ func TestRealReferenceScripts(t *testing.T) {
 			t.Skipf("%s is not installed", prog)
 		}
 	}
-	e := New(t)
+	e := harness.New(t)
 	cases := []struct{ project, runtime, file, src, domains, want string }{
 		{"hf", `"runtime": "exec", "programs": ["uv"]`, "scripts/main.py", realHFScript, `"pypi.org", "files.pythonhosted.org", "huggingface.co", "hf.co"`, `"cached":true`},
 		{"git", `"runtime": "python", "programs": ["git"]`, "scripts/main.py", realGitScript, `"github.com"`, `"commits":2`},
@@ -125,12 +126,12 @@ func TestRealReferenceScripts(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.project, func(t *testing.T) {
 			m := strings.NewReplacer(`"scripts/main.py", "runtime": "python"`, `"`+c.file+`", `+c.runtime).
-				Replace(scriptManifest("use", "", `, "domains": {"read": [`+c.domains+`]}`))
+				Replace(harness.ScriptManifest("use", "", `, "domains": {"read": [`+c.domains+`]}`))
 			e.Project(c.project, m)
-			e.saveScript(c.project, c.file, c.src)
+			e.SaveScript(c.project, c.file, c.src)
 			id := e.Start(c.project, "use", nil)
 			if p := e.WaitState(id, "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), c.want) {
-				t.Fatalf("the script %s runs in the sandbox: %+v\n%v", c.project, p, e.log(id))
+				t.Fatalf("the script %s runs in the sandbox: %+v\n%v", c.project, p, log(e, id))
 			}
 		})
 	}

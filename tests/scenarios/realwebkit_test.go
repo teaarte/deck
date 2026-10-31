@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"os"
 	"strings"
 	"testing"
@@ -21,9 +22,9 @@ func TestRealBrowserCustomBlockWorksInWebKit(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", webNotesMark)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "a"})}, nil)
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", harness.WebNotesMark)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a"})}, nil)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customData}, nil)
 	b := newPlaywright(t, "webkit")
 	b.Open(e, "#/p/web/main")
@@ -44,8 +45,8 @@ func TestRealBrowserCustomBlockSaysWhatTheBrowserRefused(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", webNotesMark)
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
 		"text": `<!doctype html><html><body><script src="https://example.com/lib.js"></script></body></html>`}, nil)
 	b := newPlaywright(t)

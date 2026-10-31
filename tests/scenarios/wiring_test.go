@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,7 +11,7 @@ import (
 // filled in later by hand.
 func TestNewLeavesNoServiceHalfBuilt(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	app := reflect.ValueOf(e.App).Elem()
 	var missing []string
 	for i := range app.NumField() {

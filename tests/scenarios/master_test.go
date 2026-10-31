@@ -3,19 +3,19 @@ package scenarios
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
 // masterScript plays the master: the review tells the owner in the feed, on_error says what it got; failing makes
 // the work command of the other projects fail.
-func masterScript(ctx context.Context, c *Call) provider.Result {
-	switch c.command() {
+func masterScript(ctx context.Context, c *harness.Call) provider.Result {
+	switch c.Command() {
 	case "review":
 		if out, bad := c.Tool(ctx, "notify", map[string]any{"project": "work", "text": "The queue has not moved for three days; say \"unstick it\" to have it done."}); bad {
 			return provider.Result{Text: "refused: " + out}
@@ -29,9 +29,9 @@ func masterScript(ctx context.Context, c *Call) provider.Result {
 	return provider.Result{Text: "ok"}
 }
 
-func (e *Env) runsOf(project, command string) []Proc {
+func runsOf(e *harness.Env, project, command string) []harness.Proc {
 	e.T.Helper()
-	var out []Proc
+	var out []harness.Proc
 	for _, p := range e.Procs() {
 		if p.Project == project && p.Command == command {
 			out = append(out, p)
@@ -40,7 +40,7 @@ func (e *Env) runsOf(project, command string) []Proc {
 	return out
 }
 
-func (e *Env) masterAwake() {
+func masterAwake(e *harness.Env) {
 	e.T.Helper()
 	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": false}, nil)
 	e.UseModels("master.on_error")
@@ -48,17 +48,17 @@ func (e *Env) masterAwake() {
 
 func TestReviewRunsOnItsSchedule(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(masterScript), WithClock())
-	e.masterAwake()
-	e.Project("work", plainManifest)
+	e := harness.New(t, harness.WithAgent(masterScript), harness.WithClock())
+	masterAwake(e)
+	e.Project("work", harness.PlainManifest)
 	e.Clock.Add(2*time.Hour + 29*time.Minute)
-	e.tick()
-	if n := len(e.runsOf("master", "review")); n != 0 {
+	e.Tick()
+	if n := len(runsOf(e, "master", "review")); n != 0 {
 		t.Fatalf("not before 10:30: %d", n)
 	}
 	e.Clock.Add(2 * time.Minute)
-	e.tick()
-	e.Until("the review", func() bool { rs := e.runsOf("master", "review"); return len(rs) == 1 && rs[0].State == "done" })
+	e.Tick()
+	e.Until("the review", func() bool { rs := runsOf(e, "master", "review"); return len(rs) == 1 && rs[0].State == "done" })
 	e.Until("the note of the review", func() bool {
 		for _, n := range e.Notes() {
 			if strings.Contains(n.Text, "The queue has not moved") {
@@ -80,38 +80,38 @@ func TestReviewRunsOnItsSchedule(t *testing.T) {
 
 func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(masterScript), WithClock())
-	e.masterAwake()
-	p := e.Project("work", plainManifest)
+	e := harness.New(t, harness.WithAgent(masterScript), harness.WithClock())
+	masterAwake(e)
+	p := e.Project("work", harness.PlainManifest)
 	failed := e.WaitState(e.Run(p, "work"), "error")
-	e.Until("on_error", func() bool { return len(e.runsOf("master", "on_error")) == 1 })
+	e.Until("on_error", func() bool { return len(runsOf(e, "master", "on_error")) == 1 })
 	in := e.App.Store.Q
-	got, _ := in.GetProcess(context.Background(), e.runsOf("master", "on_error")[0].ID)
+	got, _ := in.GetProcess(context.Background(), runsOf(e, "master", "on_error")[0].ID)
 	if !strings.Contains(got.Input, `"process":`) || !strings.Contains(got.Input, strings.TrimSpace(itoa(failed.ID))) {
 		t.Fatalf("the master gets the failed process: %s", got.Input)
 	}
 	e.WaitState(e.Run(p, "work"), "error")
 	e.App.Runner.Wait()
-	if n := len(e.runsOf("master", "on_error")); n != 1 {
+	if n := len(runsOf(e, "master", "on_error")); n != 1 {
 		t.Fatalf("once a day per command: %d", n)
 	}
 	e.Clock.Add(25 * time.Hour)
 	e.WaitState(e.Run(p, "work"), "error")
-	e.Until("the next day", func() bool { return len(e.runsOf("master", "on_error")) == 2 })
+	e.Until("the next day", func() bool { return len(runsOf(e, "master", "on_error")) == 2 })
 }
 
 func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the model is overloaded"}
 	}))
 
-	e.masterAwake()
+	masterAwake(e)
 	var r struct{ Process int64 }
 	e.Must("master.review", map[string]any{}, &r)
 	e.WaitState(r.Process, "error")
 	e.App.Runner.Wait()
-	if n := len(e.runsOf("master", "on_error")); n != 0 {
+	if n := len(runsOf(e, "master", "on_error")); n != 0 {
 		t.Fatalf("the master's own failure does not go to itself: %d", n)
 	}
 	if n := e.WaitNote("review failed:"); !strings.Contains(n.Text, "the model is overloaded") {
@@ -124,14 +124,14 @@ func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 	t.Parallel()
 	var tools []string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		tools = c.Req.AllowedTools
-		out, bad := c.Tool(ctx, "manifest_save", map[string]any{"project": "work", "manifest": plainManifest})
+		out, bad := c.Tool(ctx, "manifest_save", map[string]any{"project": "work", "manifest": harness.PlainManifest})
 		return provider.Result{Text: fmt.Sprintf("%v %s", bad, out)}
 	}))
 
-	e.masterAwake()
-	e.Project("work", plainManifest)
+	masterAwake(e)
+	e.Project("work", harness.PlainManifest)
 	var r struct{ Process int64 }
 	e.Must("master.review", map[string]any{}, &r)
 	got := e.WaitState(r.Process, "done", "error")
@@ -145,37 +145,37 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 // day of silence towards the master.
 func TestADeletedProjectTakesItsErrorDayWithIt(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(masterScript), WithClock())
-	e.masterAwake()
-	e.WaitState(e.Run(e.Project("work", plainManifest), "work"), "error")
-	e.Until("on_error", func() bool { rs := e.runsOf("master", "on_error"); return len(rs) == 1 && rs[0].State == "done" })
+	e := harness.New(t, harness.WithAgent(masterScript), harness.WithClock())
+	masterAwake(e)
+	e.WaitState(e.Run(e.Project("work", harness.PlainManifest), "work"), "error")
+	e.Until("on_error", func() bool { rs := runsOf(e, "master", "on_error"); return len(rs) == 1 && rs[0].State == "done" })
 	e.Must("deck.project_delete", map[string]any{"project": "work"}, nil)
-	e.WaitState(e.Run(e.Project("work", plainManifest), "work"), "error")
-	e.Until("on_error of the new project", func() bool { return len(e.runsOf("master", "on_error")) == 2 })
+	e.WaitState(e.Run(e.Project("work", harness.PlainManifest), "work"), "error")
+	e.Until("on_error of the new project", func() bool { return len(runsOf(e, "master", "on_error")) == 2 })
 }
 
 // TestABlockThatFailsOnAScreenReachesTheMaster: a block of a module screen that fails on the records there are
 // is in the health of the module and goes to the master once per block and revision of the manifest.
 func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(masterScript))
-	e.masterAwake()
-	broken := strings.Replace(webNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
-	if broken == webNotes {
+	e := harness.New(t, harness.WithAgent(masterScript))
+	masterAwake(e)
+	broken := strings.Replace(harness.WebNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
+	if broken == harness.WebNotes {
 		t.Fatal("fixture replacement did not apply")
 	}
 	for _, name := range []string{"web", "web2"} {
 		e.Project(name, broken)
 		e.Must("deck.document_save", map[string]any{"project": name, "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": jsonl(map[string]any{"title": "b"})}, nil)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "b"})}, nil)
 	}
-	e.screenMessages("web", "main", nil)
-	e.Until("on_error", func() bool { return len(e.runsOf("master", "on_error")) == 1 })
-	got, _ := e.App.Store.Q.GetProcess(context.Background(), e.runsOf("master", "on_error")[0].ID)
+	e.ScreenMessages("web", "main", nil)
+	e.Until("on_error", func() bool { return len(runsOf(e, "master", "on_error")) == 1 })
+	got, _ := e.App.Store.Q.GetProcess(context.Background(), runsOf(e, "master", "on_error")[0].ID)
 	if !strings.Contains(got.Input, `"screen":"main"`) || !strings.Contains(got.Input, `"project":"web"`) || !strings.Contains(got.Input, "Score") {
 		t.Fatalf("the master gets the screen, the block and the error: %s", got.Input)
 	}
-	e.screenMessages("web2", "main", nil)
+	e.ScreenMessages("web2", "main", nil)
 	e.WaitHealth("screen:web2.main", "error")
 	hs := e.Health("web")
 	found := false
@@ -185,11 +185,11 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 	if !found {
 		t.Fatalf("the health of the module names the screen: %+v", hs)
 	}
-	e.screenMessages("web", "main", nil)
-	if n := len(e.runsOf("master", "on_error")); n != 2 {
+	e.ScreenMessages("web", "main", nil)
+	if n := len(runsOf(e, "master", "on_error")); n != 2 {
 		t.Fatalf("once per block and revision of each module: %d", n)
 	}
-	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": webNotes}, nil)
+	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": harness.WebNotes}, nil)
 	hs = e.Health("web")
 	for _, h := range hs {
 		if h.Subject == "screen:web.main" {
@@ -202,16 +202,16 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 // blocks after an event does not clear.
 func TestABlockThatFailsIsInTheHealthOfItsModule(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(masterScript))
-	e.masterAwake()
-	broken := strings.Replace(webNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
+	e := harness.New(t, harness.WithAgent(masterScript))
+	masterAwake(e)
+	broken := strings.Replace(harness.WebNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
 	e.Project("web", broken)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "b"})}, nil)
-	e.screenMessages("web", "main", nil)
-	e.screenMessages("web", "main", map[string]any{"topic": "asks"})
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "b"})}, nil)
+	e.ScreenMessages("web", "main", nil)
+	e.ScreenMessages("web", "main", map[string]any{"topic": "asks"})
 	hs := e.Health("web")
-	if !slices.ContainsFunc(hs, func(h HealthRow) bool {
+	if !slices.ContainsFunc(hs, func(h harness.HealthRow) bool {
 		return h.Subject == "screen:web.main" && h.Status == "error"
 	}) {
 		t.Fatalf("the health of the module names the screen, and a read of some of its blocks keeps it: %+v", hs)
@@ -223,7 +223,7 @@ func TestABlockThatFailsIsInTheHealthOfItsModule(t *testing.T) {
 func TestADocumentDeckNoLongerShipsLeavesTheMaster(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	for _, q := range []string{
 		`INSERT INTO document (workspace_id, project_id, kind, name, current) SELECT 1, id, 'skill', 'skills/old/SKILL.md', 1 FROM project WHERE name = 'master'`,
 		`INSERT INTO document_revision (document_id, n, text, author) SELECT id, 1, 'old', 'deck' FROM document WHERE name = 'skills/old/SKILL.md'`,
@@ -236,7 +236,7 @@ func TestADocumentDeckNoLongerShipsLeavesTheMaster(t *testing.T) {
 		}
 	}
 	_ = e.App.Close()
-	e = New(t, WithHome(home), WithProvider(&Fake{}))
+	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	for name, gone := range map[string]bool{"skills/old/SKILL.md": true, "skills/kept/SKILL.md": false, "prompts/reply.md": false} {
 		var deleted sql.NullString
 		if err := e.App.Store.DB.QueryRow(`SELECT deleted_at FROM document WHERE name = ? AND project_id = (SELECT id FROM project WHERE name = 'master')`, name).Scan(&deleted); err != nil || deleted.Valid != gone {
@@ -252,15 +252,15 @@ func TestOnErrorCallsOnlyWhatItsCommandLists(t *testing.T) {
 	var tools []string
 	var listed, deleted string
 	var listedBad, deletedBad bool
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		tools = c.Req.AllowedTools
 		listed, listedBad = c.Tool(ctx, "projects_list", map[string]any{})
 		deleted, deletedBad = c.Tool(ctx, "project_delete", map[string]any{"project": "work"})
 		return provider.Result{Text: "looked"}
 	}))
 
-	e.masterAwake()
-	e.Project("work", plainManifest)
+	masterAwake(e)
+	e.Project("work", harness.PlainManifest)
 	var r struct{ Process int64 }
 	e.Must("master.on_error", map[string]any{"project": "work", "screen": "main", "error": "b0: broken"}, &r)
 	e.WaitState(r.Process, "done")

@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"strings"
@@ -62,7 +63,7 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	sizes := [][2]int{{1, 1}, {2, 1}, {2, 2}, {3, 2}, {1, 2}, {3, 3}}
 	at := time.Now().Add(-39 * time.Second).UTC().Format(time.RFC3339)
@@ -73,7 +74,7 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 	for i := range sizes {
 		name := fmt.Sprintf("lab%d", i)
 		e.Project(name, widgetsOfWork)
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(recs...)}, nil)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(recs...)}, nil)
 	}
 	b := newPlaywright(t)
 	for _, phone := range []bool{false, true} {
@@ -90,18 +91,18 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 		if phone {
 			today = 1
 		}
-		cards := []deskCard{{"today", 0, 0, int64(min(2, cols)), today}}
+		cards := []harness.DeskCard{{ID: "today", X: 0, Y: 0, W: int64(min(2, cols)), H: today}}
 		x, y, row := int64(min(2, cols)), int64(0), today
 		for i, s := range sizes {
 			w, h := int64(min(s[0], cols)), int64(s[1])
 			if x+w > int64(cols) {
 				x, y, row = 0, y+row, 0
 			}
-			cards = append(cards, deskCard{fmt.Sprintf("lab%d", i), x, y, w, h})
+			cards = append(cards, harness.DeskCard{ID: fmt.Sprintf("lab%d", i), X: x, Y: y, W: w, H: h})
 			x += w
 			row = max(row, h)
 		}
-		e.place(device, cols, cards...)
+		place(e, device, cols, cards...)
 		b.open(e.URL + "/?reload=" + look)
 		b.until("every card with its view", fmt.Sprintf(`document.querySelectorAll('[data-cell] [data-widget] [data-block]').length >= %d`, len(sizes)+1))
 		time.Sleep(time.Second)

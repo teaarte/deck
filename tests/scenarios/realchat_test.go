@@ -3,6 +3,9 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -13,9 +16,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserMasterChat talks to the master from the side panel in the real browser: a topic and its reply,
@@ -25,7 +25,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
 		case strings.Contains(c.Req.Prompt, "which list"):
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "records_list", Text: "{}"})
@@ -45,12 +45,12 @@ func TestRealBrowserMasterChat(t *testing.T) {
 			return provider.Result{}
 		}
 		return provider.Result{Text: "Put it into **groceries** as task #1. [Open](#/p/groceries/tasks)"}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		func(c *app.Config) { c.QuestionWait = 2 * time.Minute; c.ConfirmTTL = time.Hour }))
 
-	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": tasksManifest}, nil)
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "x"}`) })
+	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": harness.TasksManifest}, nil)
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "x"}`) })
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	e.Project("notes", postManifest(svc.URL, ""))
 
@@ -74,7 +74,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.until("a message without the screen", `document.querySelector('[data-context-off]')`)
 	b.eval(`(document.querySelector('[data-context-off]').click(), '')`)
 	b.until("the screen back", `document.querySelector('[data-context]')`)
-	ms := e.chatMessages(1)
+	ms := e.ChatMessages(1)
 	if len(ms) != 2 || !strings.Contains(string(ms[0].Screen), `"project":"groceries"`) || !strings.Contains(string(ms[0].Screen), `"screen":"tasks"`) {
 		t.Fatalf("the message carries the screen the owner is on: %+v", ms)
 	}
@@ -118,7 +118,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-ask] [data-verb="allow"]').click(), '')`)
 	b.until("the card steps aside while the yes holds", `!document.querySelector('[data-chat-ask]') && document.querySelector('[data-toast]')`)
 	b.until("the call made after the hold", `document.querySelector('[data-toast]') === null`)
-	e.Until("the call made", func() bool { return len(svc.requests()) == 1 })
+	e.Until("the call made", func() bool { return len(svc.Requests()) == 1 })
 
 	e.Must("deck.theme_save", map[string]any{"name": "square", "text": `{"version": 1, "title": {"en": "Square"}, "mood": "flat", "radius": "0"}`}, nil)
 	e.Must("deck.theme_use", map[string]any{"name": "square"}, nil)
@@ -145,8 +145,8 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.until("the chat over the screen again", `document.querySelector('[data-chat-phone] [data-message="master"] a')`)
 	b.eval(link)
 	b.until("a link to the screen under the chat shows that screen", `!document.querySelector('[data-chat-phone] [data-chat-input]')?.offsetParent`)
-	var ts []chatTopic
-	e.chatTopics(false, &ts)
+	var ts []harness.ChatTopic
+	e.ChatTopics(false, &ts)
 	if len(ts) != 2 || ts[0].Title != "from the phone" {
 		t.Fatalf("the phone opened a topic of its own: %+v", ts)
 	}
@@ -174,7 +174,7 @@ func TestRealBrowserVoice(t *testing.T) {
 		_, _ = w.Write([]byte(`{"text": "buy oat milk"}`))
 	}))
 	t.Cleanup(whisper.Close)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Text: "Put it into groceries."}
 	}))
 
@@ -194,7 +194,7 @@ func TestRealBrowserVoice(t *testing.T) {
 	time.Sleep(1500 * time.Millisecond)
 	b.eval(`(document.querySelector('[data-mic-stop]').click(), '')`)
 	b.until("the text in the input", `document.querySelector('[data-chat-input]').value === 'buy oat milk'`)
-	if wav := Receive(t, "the recording to reach whisper", heard); len(wav) < 44 || string(wav[:4]) != "RIFF" || string(wav[8:12]) != "WAVE" || binary.LittleEndian.Uint32(wav[24:28]) != 16000 {
+	if wav := harness.Receive(t, "the recording to reach whisper", heard); len(wav) < 44 || string(wav[:4]) != "RIFF" || string(wav[8:12]) != "WAVE" || binary.LittleEndian.Uint32(wav[24:28]) != 16000 {
 		t.Fatalf("the recording is 16 kHz WAV: %d bytes %q", len(wav), wav[:min(len(wav), 12)])
 	}
 	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
@@ -226,7 +226,7 @@ func voiceEnv(t *testing.T, answer func(n int, wav []byte) (int, string)) *playw
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(whisper.Close)
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
@@ -341,7 +341,7 @@ func TestRealBrowserVoiceWithoutAMicrophone(t *testing.T) {
 		_, _ = w.Write([]byte(`{"text": "call the plumber"}`))
 	}))
 	t.Cleanup(whisper.Close)
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
@@ -366,7 +366,7 @@ func TestRealBrowserVoiceWithoutAMicrophone(t *testing.T) {
 		return '';
 	})()`)
 	b.until("the text in the input", `document.querySelector('[data-chat-input]').value === 'call the plumber'`)
-	if wav := Receive(t, "the recording to reach whisper", heard); len(wav) < 44 || string(wav[:4]) != "RIFF" || binary.LittleEndian.Uint32(wav[24:28]) != 16000 {
+	if wav := harness.Receive(t, "the recording to reach whisper", heard); len(wav) < 44 || string(wav[:4]) != "RIFF" || binary.LittleEndian.Uint32(wav[24:28]) != 16000 {
 		t.Fatalf("the file reaches whisper as 16 kHz WAV: %d bytes", len(wav))
 	}
 }
@@ -380,8 +380,8 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 	checkBuiltClient(t)
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "work" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "work" {
 			select {
 			case <-release:
 			case <-ctx.Done():
@@ -391,7 +391,7 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 	}))
 
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	e.WaitState(e.Run(e.Project("busy", testManifest([]string{agentCommand("work", "")}, nil)), "work"), "running")
+	e.WaitState(e.Run(e.Project("busy", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil)), "work"), "running")
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
@@ -411,8 +411,8 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 	b.eval(`(document.querySelector('[data-message="owner"] [data-verb="delete"]').click(), '')`)
 	b.until("the deleted message gone", `document.querySelectorAll('[data-message="owner"]').length === 1 && !document.querySelector('[data-message="owner"] [data-verb="delete"]')`)
 	var topics []struct{ ID int64 }
-	e.chatTopics(false, &topics)
-	if ms := e.chatMessages(topics[0].ID); len(ms) != 1 || ms[0].Text != "first" {
+	e.ChatTopics(false, &topics)
+	if ms := e.ChatMessages(topics[0].ID); len(ms) != 1 || ms[0].Text != "first" {
 		t.Fatalf("only the message the master took stays: %+v", ms)
 	}
 	b.until("what the reply waits for, in the language of the interface", `document.querySelector('[data-turn="waiting_slot"]')?.innerText.includes('waits for a slot')`)

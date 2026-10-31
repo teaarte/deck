@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,12 +17,12 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for _, name := range []string{"alpha", "beta"} {
-		e.Project(name, plainManifest)
+		e.Project(name, harness.PlainManifest)
 	}
 	e.Project("shelf", widgetsManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": jsonl(map[string]any{"name": "a", "n": 1})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
 	b := newPlaywright(t)
 	cell := func(id string) string {
 		return `(() => { const r = document.querySelector('[data-cell="` + id + `"]').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)].join(' ') })()`
@@ -39,7 +40,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2); await page.mouse.down();
 		await page.mouse.move(r.x + r.width / 2 + 10, r.y + r.height * 2.6, { steps: 8 }); await page.mouse.move(room.x + r.width / 2, r.y + r.height * 2.6, { steps: 8 }); await page.mouse.up(); }`})
 	e.Until("the moved card kept", func() bool {
-		v := e.desk(b.eval(`localStorage.getItem('deck-device')`), colsOf(b))
+		v := desk(e, b.eval(`localStorage.getItem('deck-device')`), colsOf(b))
 		for _, c := range v.Cards {
 			if c.ID == "beta" && c.Y >= 2 {
 				return v.Own
@@ -51,7 +52,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await page.mouse.down();
 		await page.mouse.move(h.x + 260, h.y + 40, { steps: 10 }); await page.mouse.up(); }`})
 	e.Until("the grown card kept", func() bool {
-		for _, c := range e.desk(b.eval(`localStorage.getItem('deck-device')`), colsOf(b)).Cards {
+		for _, c := range desk(e, b.eval(`localStorage.getItem('deck-device')`), colsOf(b)).Cards {
 			if c.ID == "beta" && c.W >= 2 {
 				return true
 			}
@@ -79,7 +80,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 	b.shot("desk-chat")
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.until("the grid as it was once the chat closes", cell("beta")+` === '`+moved+`'`)
-	if v := e.desk(b.eval(`localStorage.getItem('deck-device')`), cols-1); v.Own && v.Columns == int64(cols-1) {
+	if v := desk(e, b.eval(`localStorage.getItem('deck-device')`), cols-1); v.Own && v.Columns == int64(cols-1) {
 		t.Fatalf("a narrower grid of the open chat is not saved: %+v", v)
 	}
 
@@ -109,11 +110,11 @@ func TestRealBrowserTenWidgetsStayQuick(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for i := range 10 {
 		name := fmt.Sprintf("shelf%d", i)
 		e.Project(name, widgetsManifest)
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(map[string]any{"name": "a", "n": 1})}, nil)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a", "n": 1})}, nil)
 	}
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
@@ -130,7 +131,7 @@ func TestRealBrowserTenWidgetsStayQuick(t *testing.T) {
 		t.Errorf("ten views take %d ms to draw", n)
 	}
 	b.eval(`(window.deckDraws = {}, '')`)
-	e.Must("deck.records_upsert", map[string]any{"project": "shelf3", "collection": "items", "records": jsonl(map[string]any{"name": "b", "n": 2})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shelf3", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "b", "n": 2})}, nil)
 	b.until("the changed card read again", `[...document.querySelectorAll('[data-module="shelf3"] [data-widget]')].some((x) => x.innerText.includes('2'))`)
 	time.Sleep(800 * time.Millisecond)
 	var got map[string]float64

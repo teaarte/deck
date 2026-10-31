@@ -2,6 +2,11 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/manifest"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -10,29 +15,16 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"deck2/internal/manifest"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
 )
 
-type commandView struct {
-	Name        string          `json:"name"`
-	Title       string          `json:"title"`
-	Description string          `json:"description"`
-	Input       json.RawMessage `json:"input"`
-	Class       string          `json:"class"`
-}
-
 // commands are what the owner may call, each as command_describe tells it.
-func (e *Env) commands() []commandView {
+func commands(e *harness.Env) []harness.CommandView {
 	e.T.Helper()
 	var rows []struct{ Name string }
 	e.Must("deck.commands_list", nil, &rows)
-	out := make([]commandView, 0, len(rows))
+	out := make([]harness.CommandView, 0, len(rows))
 	for _, r := range rows {
-		var c commandView
+		var c harness.CommandView
 		e.Must("deck.command_describe", map[string]any{"command": r.Name}, &c)
 		out = append(out, c)
 	}
@@ -66,12 +58,12 @@ func intentType(p paramSchema, list bool) bool {
 
 func TestEveryCommandFitsAppIntents(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("ideas", ideasManifest)
 	if code, _ := e.Do("GET", "/api/commands", nil); code != 404 && code != 405 {
 		t.Fatalf("the list of commands is commands_list alone: %d", code)
 	}
-	cmds := e.commands()
+	cmds := commands(e)
 	names := map[string]bool{}
 	for _, c := range cmds {
 		names[c.Name] = true
@@ -101,7 +93,7 @@ func TestEveryCommandFitsAppIntents(t *testing.T) {
 
 func TestCommandsListDeckSelectsBuiltins(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("ideas", ideasManifest)
 	for _, kind := range []string{registry.Owner, registry.Master} {
 		act := registry.Actor{Kind: kind, Workspace: 1}
@@ -149,7 +141,7 @@ func TestCommandsListDeckSelectsBuiltins(t *testing.T) {
 
 func TestUnknownCommandAndBadInput(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	if code, _ := e.Call("deck.nope", nil); code != 404 {
 		t.Fatalf("unknown command: want 404, got %d", code)
 	}
@@ -174,7 +166,7 @@ type docView struct {
 
 func TestManifestRevisionsAndRevert(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	var created struct{ ID int64 }
 	e.Must("deck.project_create", map[string]any{"name": "ideas", "manifest": ideasManifest, "prompt": "# Ideas of the day\nShort ideas for a solo developer."}, &created)
 	p := created.ID
@@ -182,7 +174,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		Name, Description string
 		Screens           []struct{ Name string }
 	}
-	e.projectsOf(&projects)
+	e.ProjectsOf(&projects)
 	if len(projects) != 1 || projects[0].Description != "Ideas of the day" || len(projects[0].Screens) != 1 {
 		t.Fatalf("projects_list: %+v", projects)
 	}
@@ -235,7 +227,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 
 func TestDocumentsWithRevisions(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	var d docView
 	e.Must("deck.document_save", map[string]any{"name": "notes/rules.md", "kind": "doc", "text": "v1"}, &d)
 	e.Must("deck.document_save", map[string]any{"name": "notes/rules.md", "kind": "doc", "text": "v2", "reason": "sharper"}, &d)
@@ -287,14 +279,14 @@ func TestDocumentsWithRevisions(t *testing.T) {
 
 func TestRecordCommands(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("ideas", ideasManifest)
 	var up struct {
 		Written int
 		Errors  []string
 	}
 	e.Must("deck.records_upsert", map[string]any{"project": "ideas", "collection": "ideas",
-		"records": jsonl(map[string]any{"title": "alpha", "score": 7}, map[string]any{"title": "beta", "score": 3}) + "not json\n"}, &up)
+		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 7}, map[string]any{"title": "beta", "score": 3}) + "not json\n"}, &up)
 	if up.Written != 2 || len(up.Errors) != 1 || !strings.Contains(up.Errors[0], "line 3") {
 		t.Fatalf("upsert: %+v", up)
 	}
@@ -328,7 +320,7 @@ func TestRecordCommands(t *testing.T) {
 
 func TestProcessCommands(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 
@@ -336,7 +328,7 @@ func TestProcessCommands(t *testing.T) {
 	e.Project("other", ideasManifest)
 	id := e.Run(p, "collect")
 	e.WaitState(id, "done")
-	var ps []Proc
+	var ps []harness.Proc
 	e.Must("deck.processes_list", map[string]any{"project": "other"}, &ps)
 	if len(ps) != 0 {
 		t.Fatalf("filter by project: %+v", ps)
@@ -358,14 +350,14 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 		artifact, other string
 	}
 	var s seen
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		res, _ := c.Session.ListTools(ctx, &mcp.ListToolsParams{})
 		for _, tl := range res.Tools {
 			s.tools = append(s.tools, tl.Name)
 		}
-		s.foreign, _ = c.Tool(ctx, "records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": jsonl(map[string]any{"title": "x", "score": 1})})
+		s.foreign, _ = c.Tool(ctx, "records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "x", "score": 1})})
 		s.skill, _ = c.Tool(ctx, "document_save", map[string]any{"name": "x/SKILL.md", "kind": "skill", "text": "---\nname: x\ndescription: y\n---\n"})
-		c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": jsonl(map[string]any{"title": "alpha", "score": 7})})
+		c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 7})})
 		recs, _ := c.Tool(ctx, "records_list", map[string]any{"collection": "ideas"})
 		var rs []struct{ ID int64 }
 		_ = json.Unmarshal([]byte(recs), &rs)
@@ -418,7 +410,7 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 
 func TestOutOfRangeIntegersAreRefused(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Project("nums", calcManifest)
 	var res struct {
 		Written int
@@ -433,7 +425,7 @@ func TestOutOfRangeIntegersAreRefused(t *testing.T) {
 
 func TestCommandInputKeepsLargeIntegers(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Project("nums", calcManifest)
 	code, body := e.Do("POST", "/api/commands/nums.calc", map[string]any{"n": int64(9007199254740993)})
 	if code != 200 {
@@ -450,7 +442,7 @@ func TestCommandInputKeepsLargeIntegers(t *testing.T) {
 
 func TestComposedInputSchemasAreRefused(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	m := strings.Replace(calcManifest, `"input": {"type": "object", "properties": {"n": {"type": "integer"}}}`,
 		`"input": {"type": "object", "allOf": [{"properties": {"config": {"type": "object"}}, "required": ["config"]}]}`, 1)
 	e.Refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, `"allOf" is not allowed`)
@@ -460,7 +452,7 @@ func TestComposedInputSchemasAreRefused(t *testing.T) {
 
 func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Project("nums", calcManifest)
 	var res struct {
 		Written int
@@ -477,9 +469,9 @@ func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
 // description says; deck takes it as its JSON text.
 func TestAJSONParamTakesAnObjectAsWellAsItsText(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	var m map[string]any
-	if err := json.Unmarshal([]byte(plainManifest), &m); err != nil {
+	if err := json.Unmarshal([]byte(harness.PlainManifest), &m); err != nil {
 		t.Fatal(err)
 	}
 	e.Must("deck.project_create", map[string]any{"name": "notes", "manifest": m}, nil)
@@ -495,8 +487,8 @@ func TestAJSONParamTakesAnObjectAsWellAsItsText(t *testing.T) {
 // name of the command.
 func TestAToolNameOfACommandIsAnsweredWithItsName(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("notes", plainManifest)
+	e := harness.New(t)
+	e.Project("notes", harness.PlainManifest)
 	e.Refused("deck.command_try", map[string]any{"command": "notes__work"}, 404, `as "notes.work"`)
 	e.Refused("deck.command_describe", map[string]any{"command": "command_try"}, 404, `as "deck.command_try"`)
 	e.Refused("deck.command_try", map[string]any{"command": "nothing"}, 404, `unknown command "nothing"`)
@@ -508,9 +500,9 @@ func TestAnAgentCallsOnlyWhatItsCommandLists(t *testing.T) {
 	t.Parallel()
 	var listedBad, written bool
 	var wrote string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		_, listedBad = c.Tool(ctx, "records_list", map[string]any{"collection": "ideas"})
-		wrote, written = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": jsonl(map[string]any{"title": "x", "score": 1})})
+		wrote, written = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "x", "score": 1})})
 		written = !written
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
@@ -532,7 +524,7 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 	var record, process int64
 	var updated, got string
 	var updBad, getBad bool
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		mu.Lock()
 		r, p := record, process
 		mu.Unlock()
@@ -548,7 +540,7 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 
 	p := e.Project("ideas", ideasManifest)
 	other := e.Project("other", ideasManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": jsonl(map[string]any{"title": "theirs", "score": 1})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "theirs", "score": 1})}, nil)
 	theirs := e.WaitState(e.Run(other, "collect"), "done").ID
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: other, Collection: "ideas"})
 	if len(recs) != 1 {
@@ -573,12 +565,12 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 // calls, each with the address of its form taken from the stored screens, and rows without their descriptions.
 func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	cmd := strings.Replace(agentCommand("tune", `{"type": "object", "properties": {"level": {"type": "string"}}}`), `"executor":`, `"callers": ["owner"], "executor":`, 1)
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	cmd := strings.Replace(harness.AgentCommand("tune", `{"type": "object", "properties": {"level": {"type": "string"}}}`), `"executor":`, `"callers": ["owner"], "executor":`, 1)
 	e.Project("radio", fmt.Sprintf(`{"version": 13, "commands": [%s, %s],
   "screens": [{"name": "main", "title": "Main", "params": {"level": "string"}, "blocks": [
     {"type": "dialog", "name": "tune", "title": "Tune", "blocks": [{"type": "form", "command": "tune", "values": {"level": "=param.level"}}]}]}]}`,
-		cmd, agentCommand("play", "")))
+		cmd, harness.AgentCommand("play", "")))
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
 	out, err := e.App.Registry.Invoke(t.Context(), master, "deck.commands_list", json.RawMessage(`{}`))
 	if err != nil {

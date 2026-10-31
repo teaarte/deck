@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"bytes"
+	"deck2/tests/harness"
 	"fmt"
 	"image"
 	"image/color"
@@ -19,7 +20,7 @@ var labManifest = `{"version": 13, "title": "Laboratory",
       "schema": {"type": "object", "properties": {"at": {"type": "string"}, "price": {"type": "number"}}, "required": ["at"]}},
     {"name": "tasks", "description": "Tasks.", "key": "title", "display": "title",
       "schema": {"type": "object", "properties": {"title": {"type": "string"}, "order": {"type": "integer"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}],
-  "commands": [` + agentCommand("collect", "") + `, ` + agentCommand("move", `{"type": "object", "properties": {"id": {"type": "integer"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}`) + `],
+  "commands": [` + harness.AgentCommand("collect", "") + `, ` + harness.AgentCommand("move", `{"type": "object", "properties": {"id": {"type": "integer"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}`) + `],
   "triggers": [{"command": "collect", "cron": "0 * * * *"}],
   "screens": [
     {"name": "main", "title": "Main", "blocks": [
@@ -72,7 +73,7 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	e.Project("lab", labManifest)
 	start := time.Now().UTC().Truncate(time.Hour).Add(-7 * 24 * time.Hour)
@@ -80,16 +81,16 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 	for h := range 7 * 24 {
 		prices = append(prices, map[string]any{"at": start.Add(time.Duration(h) * time.Hour).Format(time.RFC3339), "price": 80000 + 1200*float64(h%37)/37 + float64(h)*3})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "prices", "records": jsonl(prices...)}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "tasks", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "prices", "records": harness.Jsonl(prices...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "tasks", "records": harness.Jsonl(
 		map[string]any{"title": "Finished long ago", "order": 1, "status": "done"},
 		map[string]any{"title": "Next to do", "order": 2, "status": "todo"},
 		map[string]any{"title": "Doing now", "order": 3, "status": "doing"})}, nil)
 	e.Project("lab2", labManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "lab2", "collection": "prices", "records": jsonl(prices...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "lab2", "collection": "prices", "records": harness.Jsonl(prices...)}, nil)
 	e.Must("deck.theme_save", map[string]any{"name": "pult", "text": `{"version": 1, "title": {"en": "Pult"}, "mood": "m", "accent": "orange"}`}, nil)
 	for _, scheme := range []string{"light", "dark"} {
-		id := e.upload("master", "cockpit.png", "image/png", console())
+		id := upload(e, "master", "cockpit.png", "image/png", console())
 		e.Must("deck.theme_image", map[string]any{"theme": "pult", "slot": "cockpit", "scheme": scheme, "file": fmt.Sprint(id)}, nil)
 	}
 	e.Must("deck.theme_use", map[string]any{"name": "pult"}, nil)
@@ -109,9 +110,9 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 				t.Fatalf("a phone has two columns of cells: %d", cols)
 			}
 			// The phone placed its cards when its grid had one column: they go across both now.
-			e.place(device, 1, deskCard{"today", 0, 0, 1, 1}, deskCard{"lab", 0, 1, 1, 2}, deskCard{"lab2", 0, 3, 1, 1})
+			place(e, device, 1, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 1, H: 1}, harness.DeskCard{ID: "lab", X: 0, Y: 1, W: 1, H: 2}, harness.DeskCard{ID: "lab2", X: 0, Y: 3, W: 1, H: 1})
 		} else {
-			e.place(device, cols, deskCard{"today", 0, 0, 2, 1}, deskCard{"lab", 2, 0, 2, 2}, deskCard{"lab2", 0, 1, 2, 1})
+			place(e, device, cols, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 2, H: 1}, harness.DeskCard{ID: "lab", X: 2, Y: 0, W: 2, H: 2}, harness.DeskCard{ID: "lab2", X: 0, Y: 1, W: 2, H: 1})
 		}
 		b.open(e.URL + "/?reload=" + look + "#/")
 		b.until("the view of each size", `document.querySelector('[data-cell="lab"] [data-widget="2x2"]') && document.querySelector('[data-cell="lab2"] [data-widget="2x1"]') &&

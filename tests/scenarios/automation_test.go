@@ -6,6 +6,7 @@ import (
 	"deck2/internal/app"
 	"deck2/internal/events"
 	"deck2/internal/registry"
+	"deck2/tests/harness"
 	"deck2/web"
 	"encoding/json"
 	"fmt"
@@ -19,15 +20,15 @@ import (
 
 func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	e.Project("notes", plainManifest)
-	id, tok := e.token("terminal", "deck.projects_list", "deck.manifest_get", "deck.token_create", "deck.project_enable", "notes.*")
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("notes", harness.PlainManifest)
+	id, tok := e.Token("terminal", "deck.projects_list", "deck.manifest_get", "deck.token_create", "deck.project_enable", "notes.*")
 
-	s, err := e.terminal(tok)
+	s, err := e.Terminal(tok)
 	if err != nil {
 		t.Fatal(err)
 	}
-	names := toolNames(s)
+	names := harness.ToolNames(s)
 	for _, want := range []string{"projects_list", "manifest_get", "notes__work"} {
 		if !slices.Contains(names, want) {
 			t.Fatalf("tool %s must be offered, got %v", want, names)
@@ -38,10 +39,10 @@ func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
 			t.Fatalf("tool %s must not be offered to this token, got %v", not, names)
 		}
 	}
-	if out, failed := use(s, "projects_list", map[string]any{}); failed || !strings.Contains(out, `"notes"`) {
+	if out, failed := harness.Use(s, "projects_list", map[string]any{}); failed || !strings.Contains(out, `"notes"`) {
 		t.Fatalf("an allowed command runs: %s", out)
 	}
-	if out, failed := use(s, "document_save", map[string]any{"name": "a.md", "kind": "doc", "text": "x"}); !failed {
+	if out, failed := harness.Use(s, "document_save", map[string]any{"name": "a.md", "kind": "doc", "text": "x"}); !failed {
 		t.Fatalf("a command outside the list is refused over MCP: %s", out)
 	}
 
@@ -61,30 +62,30 @@ func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
 	}
 
 	actor := fmt.Sprintf("token:%d", id)
-	var mine []journalRow
-	for _, r := range e.journal() {
+	var mine []harness.JournalRow
+	for _, r := range e.Journal() {
 		if r.Actor == actor {
 			mine = append(mine, r)
 		}
 	}
-	want := []journalRow{
-		{actor, "deck.projects_list", "internal", "done"},
-		{actor, "deck.manifest_get", "internal", "done"}, {actor, "deck.document_save", "internal", "rejected"},
-		{actor, "deck.token_create", "internal", "rejected"}, {actor, "deck.project_enable", "internal", "rejected"},
-		{actor, "deck.screen", "internal", "rejected"},
+	want := []harness.JournalRow{
+		{Actor: actor, Tool: "deck.projects_list", Class: "internal", Outcome: "done"},
+		{Actor: actor, Tool: "deck.manifest_get", Class: "internal", Outcome: "done"}, {Actor: actor, Tool: "deck.document_save", Class: "internal", Outcome: "rejected"},
+		{Actor: actor, Tool: "deck.token_create", Class: "internal", Outcome: "rejected"}, {Actor: actor, Tool: "deck.project_enable", Class: "internal", Outcome: "rejected"},
+		{Actor: actor, Tool: "deck.screen", Class: "internal", Outcome: "rejected"},
 	}
 	if !slices.Equal(mine, want) {
 		t.Fatalf("every call of the token is in the journal with its actor:\n got %v\nwant %v", mine, want)
 	}
 
 	e.Must("deck.token_revoke", map[string]any{"token": id}, nil)
-	if out, failed := use(s, "projects_list", map[string]any{}); !failed {
+	if out, failed := harness.Use(s, "projects_list", map[string]any{}); !failed {
 		t.Fatalf("a revoked token is refused in a live MCP session: %s", out)
 	}
 	if code, _ := e.As(tok).Call("deck.projects_list", map[string]any{}); code != 401 {
 		t.Fatalf("a revoked token is refused over the API: %d", code)
 	}
-	if _, err := e.terminal(tok); err == nil {
+	if _, err := e.Terminal(tok); err == nil {
 		t.Fatal("a revoked token cannot open a new MCP session")
 	}
 	var list []struct {
@@ -95,22 +96,22 @@ func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
 	if len(list) != 1 || !list[0].Revoked {
 		t.Fatalf("tokens_list shows the revoked token: %+v", list)
 	}
-	if strings.Contains(fmt.Sprint(e.tokenRows()), tok) {
+	if strings.Contains(fmt.Sprint(e.TokenRows()), tok) {
 		t.Fatal("deck stores only a hash of the token")
 	}
 }
 
 func TestMasterManifestEditIsUndoneFromTheFeed(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	e.Project("notes", plainManifest)
-	_, tok := e.token("terminal", "deck.*")
-	s, err := e.terminal(tok)
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("notes", harness.PlainManifest)
+	_, tok := e.Token("terminal", "deck.*")
+	s, err := e.Terminal(tok)
 	if err != nil {
 		t.Fatal(err)
 	}
-	edited := strings.Replace(plainManifest, `"title": "Work"`, `"title": "Work hard"`, 1)
-	out, failed := use(s, "manifest_save", map[string]any{"project": "notes", "manifest": edited, "reason": "clearer title"})
+	edited := strings.Replace(harness.PlainManifest, `"title": "Work"`, `"title": "Work hard"`, 1)
+	out, failed := harness.Use(s, "manifest_save", map[string]any{"project": "notes", "manifest": edited, "reason": "clearer title"})
 	if failed || !strings.Contains(out, `"revision":2`) {
 		t.Fatalf("a change that widens nothing applies at once: %s", out)
 	}
@@ -143,8 +144,8 @@ func TestMasterManifestEditIsUndoneFromTheFeed(t *testing.T) {
 		t.Fatalf("an undone change is not undone twice: %d %s", code, out)
 	}
 
-	use(s, "manifest_save", map[string]any{"project": "notes", "manifest": edited})
-	use(s, "manifest_save", map[string]any{"project": "notes", "manifest": plainManifest})
+	harness.Use(s, "manifest_save", map[string]any{"project": "notes", "manifest": edited})
+	harness.Use(s, "manifest_save", map[string]any{"project": "notes", "manifest": harness.PlainManifest})
 	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 3 {
 		t.Fatalf("each change is a line: %+v", feed)
@@ -162,10 +163,10 @@ func TestMasterManifestEditIsUndoneFromTheFeed(t *testing.T) {
 
 func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	e.Project("tools", scriptManifest("run", "", ""))
-	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
-	_, tok := e.token("terminal", "deck.*")
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("tools", harness.ScriptManifest("run", "", ""))
+	e.SaveScript("tools", "scripts/main.py", "print('{}')\n")
+	_, tok := e.Token("terminal", "deck.*")
 	save := func(name, text string) {
 		t.Helper()
 		if code, out := e.As(tok).Call("deck.document_save", map[string]any{"project": "tools", "name": name, "kind": "script", "text": text, "reason": "faster"}); code != 200 {
@@ -208,7 +209,7 @@ func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
 
 func TestEmptyTokenDoesNotOpenTheAPI(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	ts := httptest.NewServer(api.New(e.App, "", web.FS()).Handler())
 	defer ts.Close()
 	req, _ := http.NewRequest("POST", ts.URL+"/api/commands/deck.projects_list", nil)
@@ -226,39 +227,39 @@ func TestEmptyTokenDoesNotOpenTheAPI(t *testing.T) {
 // TestAChangeWithoutTheOwnerReachesTheBell: a line of the feed written by a change of an agent is heard live.
 func TestAChangeWithoutTheOwnerReachesTheBell(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	e.Project("tools", scriptManifest("run", "", ""))
-	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
-	_, tok := e.token("terminal", "deck.*")
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("tools", harness.ScriptManifest("run", "", ""))
+	e.SaveScript("tools", "scripts/main.py", "print('{}')\n")
+	_, tok := e.Token("terminal", "deck.*")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	phone := e.Events(ctx)
 	if code, out := e.As(tok).Call("deck.document_save", map[string]any{"project": "tools", "name": "scripts/main.py", "kind": "script", "text": "print(1)\n"}); code != 200 {
 		t.Fatalf("document_save: %d %s", code, out)
 	}
-	WaitEvent(t, phone, events.Event{Topic: "feed"})
+	harness.WaitEvent(t, phone, events.Event{Topic: "feed"})
 	var d struct{ ID int64 }
 	e.Must("deck.document_get", map[string]any{"project": "tools", "name": "scripts/main.py"}, &d)
 	if code, out := e.As(tok).Call("deck.document_revert", map[string]any{"document": d.ID, "revision": 1}); code != 200 {
 		t.Fatalf("document_revert: %d %s", code, out)
 	}
-	WaitEvent(t, phone, events.Event{Topic: "feed"})
+	harness.WaitEvent(t, phone, events.Event{Topic: "feed"})
 	var m struct{ Manifest string }
 	e.Must("deck.manifest_get", map[string]any{"project": "tools"}, &m)
 	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "tools", "manifest": strings.Replace(m.Manifest, `An item.`, `An item of the list.`, 1)}); code != 200 {
 		t.Fatalf("manifest_save: %d %s", code, out)
 	}
-	WaitEvent(t, phone, events.Event{Topic: "feed"})
+	harness.WaitEvent(t, phone, events.Event{Topic: "feed"})
 }
 
 // TestASaveOfTheSameTextChangesNothing: saving the text a document has keeps its revision, and a manifest or a
 // script saved again without the owner puts no line in the feed.
 func TestASaveOfTheSameTextChangesNothing(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	e.Project("tools", scriptManifest("run", "", ""))
-	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
-	_, tok := e.token("terminal", "deck.*")
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("tools", harness.ScriptManifest("run", "", ""))
+	e.SaveScript("tools", "scripts/main.py", "print('{}')\n")
+	_, tok := e.Token("terminal", "deck.*")
 	var before struct{ Revision int64 }
 	e.Must("deck.document_get", map[string]any{"project": "tools", "name": "scripts/main.py"}, &before)
 	var saved struct{ Revision int64 }
@@ -292,8 +293,8 @@ func TestACallOfATokenThatWaitsForTheOwnerIsKept(t *testing.T) {
 			sent.Add(1)
 			return map[string]any{"sent": true}, nil
 		}).As(registry.External)
-	e := New(t, WithConfig(func(c *app.Config) { c.Commands = append(c.Commands, out) }))
-	_, tok := e.token("terminal", "deck.*")
+	e := harness.New(t, harness.WithConfig(func(c *app.Config) { c.Commands = append(c.Commands, out) }))
+	_, tok := e.Token("terminal", "deck.*")
 	code, body := e.As(tok).Call("deck.send_out", map[string]any{})
 	var held struct{ Waiting int64 }
 	if code != 200 || json.Unmarshal(body, &held) != nil || held.Waiting == 0 || sent.Load() != 0 {
@@ -311,7 +312,7 @@ func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 	t.Parallel()
 	var inner atomic.Int64
 	var nested error
-	var e *Env
+	var e *harness.Env
 	in := registry.Def("inner_send", "Send inside", "Sends something outside deck.", registry.OwnerSide,
 		func(context.Context, registry.Actor, struct{}) (any, error) {
 			inner.Add(1)
@@ -322,8 +323,8 @@ func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 			_, nested = e.App.Registry.Invoke(ctx, act, "deck.inner_send", json.RawMessage(`{}`))
 			return map[string]any{"sent": true}, nil
 		}).As(registry.External)
-	e = New(t, WithConfig(func(c *app.Config) { c.Commands = append(c.Commands, in, out) }))
-	_, tok := e.token("terminal", "deck.*")
+	e = harness.New(t, harness.WithConfig(func(c *app.Config) { c.Commands = append(c.Commands, in, out) }))
+	_, tok := e.Token("terminal", "deck.*")
 	code, body := e.As(tok).Call("deck.outer_send", map[string]any{})
 	var held struct{ Waiting int64 }
 	if code != 200 || json.Unmarshal(body, &held) != nil || held.Waiting == 0 {

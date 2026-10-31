@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -10,8 +11,8 @@ import (
 // command closed to it, and a call that misses a field says which one in plain words.
 func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	_, tok := e.token("helper", "deck.command_describe", "deck.connection_set")
+	e := harness.New(t)
+	_, tok := e.Token("helper", "deck.command_describe", "deck.connection_set")
 	code, out := e.As(tok).Call("deck.command_describe", map[string]any{"command": "deck.connection_set"})
 	var spec struct {
 		Name    string
@@ -41,7 +42,7 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 // screen can show them.
 func TestReadsGiveTheirResultSchema(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	for _, name := range []string{"records_list", "record_get", "manifest_get", "chat"} {
 		var d struct {
 			Result json.RawMessage `json:"result"`

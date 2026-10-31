@@ -2,11 +2,11 @@ package scenarios
 
 import (
 	"context"
-	"strings"
-	"testing"
-
 	"deck2/internal/docs"
 	"deck2/internal/store/db"
+	"deck2/tests/harness"
+	"strings"
+	"testing"
 )
 
 type themeLook struct {
@@ -17,20 +17,11 @@ type themeLook struct {
 	Images                                          map[string]struct{ Light, Dark, Color string }
 }
 
-type themeRow struct {
-	Name     string
-	Title    string
-	Current  bool
-	Builtin  bool
-	Own      bool
-	Problems []string
-}
-
-func (e *Env) themes() map[string]themeRow {
+func themes(e *harness.Env) map[string]harness.ThemeRow {
 	e.T.Helper()
-	var rows []themeRow
+	var rows []harness.ThemeRow
 	e.Must("deck.themes_list", map[string]any{"lang": "ru"}, &rows)
-	out := map[string]themeRow{}
+	out := map[string]harness.ThemeRow{}
 	for _, r := range rows {
 		out[r.Name] = r
 	}
@@ -47,16 +38,16 @@ const nightTheme = `{"version": 1, "title": {"en": "Night", "ru": "Ночь"}, "
 // over a shipped one worn by the whole deck, and a stored one a later check refuses is worn without what it refuses.
 func TestThemesAreCheckedDocuments(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 
-	all := e.themes()
+	all := themes(e)
 	if r := all["juce"]; len(all) != 1 || !r.Builtin || r.Own || len(r.Problems) > 0 || !r.Current {
 		t.Fatalf("deck ships juce alone and wears it first: %+v", all)
 	}
 	for _, n := range []string{"default", "glass", "pixel", "neon", "paper"} {
-		e.example(n)
+		e.Example(n)
 	}
-	all = e.themes()
+	all = themes(e)
 	for _, n := range []string{"default", "glass", "pixel", "neon", "paper"} {
 		if r := all[n]; !r.Own || r.Builtin || len(r.Problems) > 0 {
 			t.Fatalf("the example %s of the skill is a theme of the owner that passes the checks: %+v", n, r)
@@ -121,11 +112,11 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 
 	juce := strings.Replace(nightTheme, `"Night"`, `"My juce"`, 1)
 	e.Must("deck.theme_save", map[string]any{"name": "juce", "text": juce}, nil)
-	if r := e.themes()["juce"]; !r.Own || !r.Builtin || r.Title != "Ночь" {
+	if r := themes(e)["juce"]; !r.Own || !r.Builtin || r.Title != "Ночь" {
 		t.Fatalf("the owner's juce over the shipped one: %+v", r)
 	}
 	e.Must("deck.theme_delete", map[string]any{"name": "juce"}, nil)
-	if r := e.themes()["juce"]; r.Own || r.Title != "Juce" {
+	if r := themes(e)["juce"]; r.Own || r.Title != "Juce" {
 		t.Fatalf("the shipped juce is back: %+v", r)
 	}
 	e.Refused("deck.theme_delete", map[string]any{"name": "juce"}, 422, "deck ships the theme juce")
@@ -160,7 +151,7 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 // cards of modules, their grid, the toast and the parts of deck by the catalog, and faint text on a card is refused.
 func TestThemesStyleTheCardsOfModules(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	var l themeLook
 	e.Must("deck.theme", map[string]any{}, &l)
 	if !strings.Contains(l.CSS, "--deck-cockpit: linear-gradient(135deg, var(--mantine-primary-color-5), var(--mantine-primary-color-8))") ||

@@ -2,21 +2,21 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestAProcessDeletesOnlyTheFilesOfItsOwnRun: an agent sent back for rework deletes the drafts its run made, as one
 // line of done without you that brings them back; a file of another run stays.
 func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if _, ids, ok := strings.Cut(c.Req.Prompt, "delete files "); ok {
 			var outs []string
 			for _, id := range strings.Fields(strings.SplitN(ids, "\n", 2)[0]) {
@@ -33,7 +33,7 @@ func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 		return provider.Result{Text: "drawn"}
 	}))
 
-	p := e.Project("draw", plainManifest)
+	p := e.Project("draw", harness.PlainManifest)
 	mine, other := e.Run(p, "work"), e.Run(p, "work")
 	e.WaitState(mine, "done")
 	e.WaitState(other, "done")

@@ -2,13 +2,13 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"slices"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserChatInput: pasted and dropped files attach as the plus does, the field has no focus ring, the turn is
@@ -18,7 +18,7 @@ func TestRealBrowserChatInput(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "think long") {
 			c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Reading the list"})
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t2", Title: "records_list", Text: "{}"})
@@ -58,7 +58,7 @@ func TestRealBrowserChatInput(t *testing.T) {
 	b.type_(`document.querySelector('[data-chat-input]')`, "we are out of milk")
 	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
 	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('groceries'))`)
-	ms := e.chatMessages(1)
+	ms := e.ChatMessages(1)
 	var names []string
 	for _, f := range ms[0].Files {
 		names = append(names, f.Name)

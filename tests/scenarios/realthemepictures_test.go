@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"fmt"
 	"image/color"
 	"os"
@@ -14,7 +15,7 @@ func TestRealBrowserThemePictures(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 820})
 	b.Open(e, "#/")
@@ -22,12 +23,12 @@ func TestRealBrowserThemePictures(t *testing.T) {
 		return !!p && getComputedStyle(p).backgroundImage.startsWith('url("blob:') })()`)
 	b.shot("pictures-juce")
 
-	e.example("paper")
+	e.Example("paper")
 	for _, x := range []struct {
 		slot, scheme string
 		c            color.RGBA
 	}{{"cockpit", "light", color.RGBA{40, 90, 70, 255}}, {"cockpit", "dark", color.RGBA{20, 40, 30, 255}}, {"pattern", "light", color.RGBA{230, 220, 200, 255}}} {
-		id := e.upload("master", x.slot+".png", "image/png", solid(x.c))
+		id := upload(e, "master", x.slot+".png", "image/png", solid(x.c))
 		e.Must("deck.theme_image", map[string]any{"theme": "paper", "slot": x.slot, "scheme": x.scheme, "file": fmt.Sprint(id)}, nil)
 	}
 	e.Must("deck.theme_use", map[string]any{"name": "paper"}, nil)

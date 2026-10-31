@@ -1,20 +1,16 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
 )
 
-type starterView struct {
-	Name, Title, Icon, Description, Status string
-	Revision                               int64
-}
-
-func (e *Env) starters() []starterView {
+func starters(e *harness.Env) []harness.StarterView {
 	e.T.Helper()
-	var out []starterView
+	var out []harness.StarterView
 	e.Must("deck.starters_list", map[string]any{"lang": "ru"}, &out)
 	return out
 }
@@ -28,13 +24,13 @@ type needView struct {
 // it comes as a draft that says what it needs and what it may do, the owner enables it, and the offer is gone.
 func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	var menu struct{ Pulse struct{ Line string } }
 	e.Must("deck.menu", map[string]any{"lang": "ru"}, &menu)
 	if !strings.HasPrefix(menu.Pulse.Line, "Скажи Деки, что делать") || !strings.Contains(menu.Pulse.Line, "модуля ниже") {
 		t.Fatalf("an empty deck says what to do: %+v", menu.Pulse)
 	}
-	ss := e.starters()
+	ss := starters(e)
 	if len(ss) != 1 || ss[0].Name != "free-models" || ss[0].Status != "" || ss[0].Title == "free-models" || ss[0].Description == "" {
 		t.Fatalf("the one starter module is offered with its title: %+v", ss)
 	}
@@ -50,7 +46,7 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 	e.Refused("deck.project_import", map[string]any{"starter": "nothing"}, 404, "no starter module")
 	e.Refused("deck.project_import", map[string]any{"starter": "free-models", "folder": "/tmp"}, 422, "one of them")
 
-	ss = e.starters()
+	ss = starters(e)
 	if len(ss) != 1 || ss[0].Status != "draft" || ss[0].Revision == 0 {
 		t.Fatalf("the draft stays offered until it is enabled: %+v", ss)
 	}
@@ -80,13 +76,13 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 	if strings.HasPrefix(menu.Pulse.Line, "Скажи Деки, что делать") {
 		t.Fatal("a deck with a module is no empty deck")
 	}
-	data := e.screenData("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "free-models", "revision": "%d"}`, ss[0].Revision)})
+	data := e.ScreenData("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "free-models", "revision": "%d"}`, ss[0].Revision)})
 	if len(data) < 2 {
 		t.Fatalf("the draft screen shows what it needs and what it may do: %v", data)
 	}
 
 	e.Must("deck.project_enable", map[string]any{"project": "free-models", "revision": ss[0].Revision}, nil)
-	if ss := e.starters(); len(ss) != 0 {
+	if ss := starters(e); len(ss) != 0 {
 		t.Fatalf("an enabled starter is offered no more: %+v", ss)
 	}
 }
@@ -94,9 +90,9 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 // TestADeckWithModulesOffersNoStarter: the starter module is for an empty deck only.
 func TestADeckWithModulesOffersNoStarter(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("notes", plainManifest)
-	if ss := e.starters(); len(ss) != 0 {
+	e := harness.New(t)
+	e.Project("notes", harness.PlainManifest)
+	if ss := starters(e); len(ss) != 0 {
 		t.Fatalf("a deck with a module of the owner's offers no starter: %+v", ss)
 	}
 }

@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"os"
@@ -42,17 +43,17 @@ var unused = [][2]string{
 // with any of unused is refused.
 func TestAManifestRefusesWhatNoModuleUsed(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	check := newCatalogCheck(t)
+	e := harness.New(t)
+	check := harness.NewCatalogCheck(t)
 	p := e.Project("shorts", videosManifest)
 	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "eu-solar.webm"), []byte("webm"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "eu-solar", "file": "eu-solar.webm", "length": 75})}, nil)
-	check.messages(t, e.screenMessages("shorts", "watch", nil))
+	check.Messages(t, e.ScreenMessages("shorts", "watch", nil))
 	var files []map[string]any
-	_ = json.Unmarshal(e.screenData("shorts", "watch", nil)["b0"]["files"], &files)
+	_ = json.Unmarshal(e.ScreenData("shorts", "watch", nil)["b0"]["files"], &files)
 	if len(files) != 1 || files[0]["type"] != "video/webm" || files[0]["url"] == "" || files[0]["marks"] != nil || files[0]["mark"] != nil {
 		t.Fatalf("the video plays from its address, without marks: %+v", files)
 	}
@@ -77,7 +78,7 @@ func TestRealBrowserVideo(t *testing.T) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg makes the video")
 	}
-	e := New(t)
+	e := harness.New(t)
 	p := e.Project("shorts", strings.Replace(videosManifest, `"screens": [`, `"screens": [{"name": "scenes", "title": "Scenes", "blocks": [
     {"type": "media", "title": "All", "source": {"collection": "videos", "sort": "slug"}, "item": {"file": "file", "title": "slug"}}]}, `, 1))
 	data := e.App.Home.Data(p)
@@ -91,7 +92,7 @@ func TestRealBrowserVideo(t *testing.T) {
 			t.Fatalf("ffmpeg: %v %s", err, out)
 		}
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, nil)
 
 	b := newPlaywright(t)
@@ -101,7 +102,7 @@ func TestRealBrowserVideo(t *testing.T) {
 	b.eval(`(document.querySelector('[data-player="video"]').muted = true, document.querySelector('[data-player="video"]').play(), '')`)
 	b.until("the video playing", `!document.querySelector('[data-player="video"]').paused`)
 	b.shot("video")
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "voice", "file": "voice.wav"})}, nil)
 	b.Open(e, "#/p/shorts/scenes")
 	b.eval(`(localStorage.removeItem('deck-files-view'), '')`)
@@ -117,7 +118,7 @@ func TestRealBrowserVideo(t *testing.T) {
 // file a field of the record names.
 func TestAMediaBlockOnARecordPageShowsAFileOfTheRecord(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	m := strings.Replace(videosManifest, `"screens": [`, `"screens": [{"name": "video", "title": "Video", "record": "videos", "blocks": [
     {"type": "media", "title": "The video", "item": {"file": "file", "title": "slug"}}]}, `, 1)
 	p := e.Project("shorts", m)
@@ -125,9 +126,9 @@ func TestAMediaBlockOnARecordPageShowsAFileOfTheRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	var w struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, &w)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, &w)
 	var files []struct{ Type, Name, Title string }
-	_ = json.Unmarshal(e.screenData("shorts", "video", map[string]any{"record": w.IDs[0]})["b0"]["files"], &files)
+	_ = json.Unmarshal(e.ScreenData("shorts", "video", map[string]any{"record": w.IDs[0]})["b0"]["files"], &files)
 	if len(files) != 1 || files[0].Name != "eu-solar.webm" || files[0].Type != "video/webm" || files[0].Title != "eu-solar" {
 		t.Fatalf("the record page plays the file of its record: %+v", files)
 	}

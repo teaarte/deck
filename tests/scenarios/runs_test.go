@@ -1,13 +1,13 @@
 package scenarios
 
 import (
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
-
-	deckhome "deck2/internal/home"
 )
 
 // spanScript notes when it began and ended in the data folder of its module, a second apart.
@@ -22,9 +22,9 @@ print("{}")
 // A command that runs one at a time: a second call while the first runs starts once the first has ended.
 func TestACommandOfOneRunAtATimeQueuesTheNextCall(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	p := e.Project("spans", strings.Replace(scriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
-	e.saveScript("spans", "scripts/main.py", spanScript)
+	e := harness.New(t)
+	p := e.Project("spans", strings.Replace(harness.ScriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
+	e.SaveScript("spans", "scripts/main.py", spanScript)
 	first, second := e.Start("spans", "run", nil), e.Start("spans", "run", nil)
 	if first == second {
 		t.Fatalf("a second call is a run of its own: %d", first)
@@ -53,9 +53,9 @@ func TestACommandOfOneRunAtATimeQueuesTheNextCall(t *testing.T) {
 // A run stopped by the owner lets the next one of its command start at once.
 func TestAStoppedRunLetsTheNextOneStart(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("spans", strings.Replace(scriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
-	e.saveScript("spans", "scripts/main.py", strings.Replace(spanScript, "time.sleep(1)", "time.sleep(30)", 1))
+	e := harness.New(t)
+	e.Project("spans", strings.Replace(harness.ScriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
+	e.SaveScript("spans", "scripts/main.py", strings.Replace(spanScript, "time.sleep(1)", "time.sleep(30)", 1))
 	first, second := e.Start("spans", "run", nil), e.Start("spans", "run", nil)
 	e.WaitState(second, "waiting_run")
 	e.Must("deck.process_stop", map[string]any{"process": first}, nil)

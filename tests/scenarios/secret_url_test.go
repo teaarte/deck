@@ -1,29 +1,14 @@
 package scenarios
 
 import (
-	"crypto/tls"
-	"crypto/x509"
+	"deck2/tests/harness"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
-
-	"deck2/internal/gateway"
 )
-
-// trustTestTLS makes the tools of deck trust the certificate of test servers on https, as a public service's.
-func trustTestTLS() {
-	s := httptest.NewTLSServer(http.NotFoundHandler())
-	defer s.Close()
-	pool, err := x509.SystemCertPool()
-	if err != nil {
-		pool = x509.NewCertPool()
-	}
-	pool.AddCert(s.Certificate())
-	gateway.Outbound.TLSClientConfig = &tls.Config{RootCAs: pool}
-}
 
 // TestAToolTakesItsWholeURLFromASecret: a private link the owner keeps as a secret is the URL of a tool, only https on
 // the hosts of the tool, with the query of its input after it, and the link stays out of answers, errors and health.
@@ -49,7 +34,7 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 		fmt.Fprintf(w, "BEGIN:VCALENDAR\nURL:https://%s%s\nEND:VCALENDAR\n", r.Host, r.URL.Path)
 	}))
 	t.Cleanup(svc.Close)
-	e := New(t)
+	e := harness.New(t)
 	link := svc.URL + "/owa/calendar/me@x.com/tok-0123456789/calendar.ics"
 	e.Must("deck.secret_set", map[string]any{"name": "outlook", "value": link}, nil)
 	tool := func(extra string) string {

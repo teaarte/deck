@@ -2,11 +2,11 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 const sourceManifest = `{"version": 13,
@@ -24,7 +24,7 @@ func readerManifest(reads string) string {
 func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 	t.Parallel()
 	got := map[string]string{}
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		try := func(key, tool string, args map[string]any) {
 			out, isErr := c.Tool(ctx, tool, args)
 			if isErr {
@@ -76,7 +76,7 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 	}
 	check("stranger:list", false, "does not read")
 	check("stranger:doc", false, "does not read")
-	if rows := e.screenRows(reader, "main"); len(rows) != 1 || rows[0].Cells[0] != "a" {
+	if rows := e.ScreenRows(reader, "main"); len(rows) != 1 || rows[0].Cells[0] != "a" {
 		t.Fatalf("a screen shows a collection of a project it reads: %v", rows)
 	}
 }
@@ -85,20 +85,20 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 // enable; then it reads the documents and collections its reads list, never by writing.
 func TestATrialOfADraftReadsWhatItsReadsList(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("source", sourceManifest)
 	e.Project("vault", strings.Replace(sourceManifest, `{"version": 13,`, `{"version": 13, "no_network": true,`, 1))
 	for _, p := range []string{"source", "vault"} {
 		e.Must("deck.records_upsert", map[string]any{"project": p, "collection": "items", "records": `{"name": "a"}`}, nil)
 	}
 	e.Must("deck.document_save", map[string]any{"project": "source", "name": "notes/shared.md", "kind": "doc", "text": "shared"}, nil)
-	_, tok := e.token("terminal", "deck.*", "draft.*")
+	_, tok := e.Token("terminal", "deck.*", "draft.*")
 	reads := `, "reads": [{"project": "source", "collections": ["items"], "documents": ["notes/shared.md"]},
     {"project": "vault", "collections": ["items"]}]`
-	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "draft", "manifest": scriptManifest("collect", "", reads)}); code != 200 {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "draft", "manifest": harness.ScriptManifest("collect", "", reads)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	e.saveScript("draft", "scripts/main.py", pythonLib+`
+	e.SaveScript("draft", "scripts/main.py", harness.PythonLib+`
 out = {}
 for key, cmd, body in [("doc", "deck.document_get", {"project": "source", "name": "notes/shared.md"}),
                        ("list", "deck.records_list", {"project": "source", "collection": "items"}),
@@ -110,7 +110,7 @@ print(json.dumps(out))
 `)
 	type seen struct{ Doc, List, Vault, Write []any }
 	code := func(v []any) float64 { f, _ := v[0].(float64); return f }
-	result := func(p Proc) seen {
+	result := func(p harness.Proc) seen {
 		t.Helper()
 		var got seen
 		if err := json.Unmarshal(p.Result, &got); err != nil {
@@ -145,17 +145,17 @@ print(json.dumps(out))
 // deck read reads it with the rights of its module, so only what reads lists.
 func TestAScreenReadsAnotherProjectOnlyByItsReads(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("source", sourceManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a"}`}, nil)
 	screen := `, "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table",
     "source": {"from": "deck.records_list", "input": {"project": "source", "collection": "items"}}, "columns": [{"label": "Data", "bind": "data"}]}]}]`
 	e.Project("peek", readerManifest(screen))
-	if b0 := e.screenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
+	if b0 := e.ScreenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
 		t.Fatalf("a module reads another project only by its reads: %s", b0)
 	}
 	e.Project("reader", readerManifest(screen+`, "reads": [{"project": "source", "collections": ["items"]}]`))
-	if b0 := e.screenData("reader", "main", nil)["b0"]; b0["error"] != nil || !strings.Contains(string(b0["rows"]), `"name":"a"`) {
+	if b0 := e.ScreenData("reader", "main", nil)["b0"]; b0["error"] != nil || !strings.Contains(string(b0["rows"]), `"name":"a"`) {
 		t.Fatalf("a module that reads it sees it: %s", b0)
 	}
 }

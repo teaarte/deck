@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -9,7 +10,7 @@ import (
 )
 
 // routedManifest has a dialog with a form its address fills, and rows whose button opens it with their title.
-var routedManifest = strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"title": "string"}, "blocks": [
+var routedManifest = strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"title": "string"}, "blocks": [
       {"type": "dialog", "name": "rescore", "title": "Score again", "icon": "refresh", "primary": true, "blocks": [
         {"type": "form", "title": "Score", "command": "score", "values": {"title": "=param.title", "n": "3"}}]},
       {"type": "actions", "title": "More", "icon": "dots", "actions": [{"label": "Tell", "command": "tell"}]},
@@ -20,11 +21,11 @@ var routedManifest = strings.Replace(webNotes, `{"name": "main", "title": "Web",
 // as its values in the type of its fields, and a button to a screen takes them from its row.
 func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", routedManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 
-	data := e.screenData("web", "main", map[string]any{"params": `{"title": "alpha"}`, "dialog": "rescore"})
+	data := e.ScreenData("web", "main", map[string]any{"params": `{"title": "alpha"}`, "dialog": "rescore"})
 	var form struct {
 		Value struct{ Values map[string]any }
 	}
@@ -37,7 +38,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	if form.Value.Values["title"] != "alpha" || form.Value.Values["n"] != float64(3) {
 		t.Fatalf("a form takes its values from the address and the manifest, typed by its fields: %+v", form.Value.Values)
 	}
-	drawn, _ := json.Marshal(e.screenMessages("web", "main", nil))
+	drawn, _ := json.Marshal(e.ScreenMessages("web", "main", nil))
 	if !strings.Contains(string(drawn), `"params":{"dialog":"rescore","title":"alpha"}`) {
 		t.Fatalf("a button to a screen carries the parameters of its row: %s", drawn)
 	}
@@ -50,7 +51,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "menus", "manifest": strings.Replace(routedManifest, `"icon": "dots", "actions"`, `"icon": "dots", "menu": true, "actions"`, 1)}); code != 422 {
 		t.Fatalf("a group of buttons has no menu of its own: %d %s", code, out)
 	}
-	without := e.screenData("web", "main", nil)
+	without := e.ScreenData("web", "main", nil)
 	for _, d := range without {
 		if v := string(d["value"]); strings.Contains(v, `"commands"`) && strings.Contains(v, `"title":"`) && strings.Contains(v, `"values"`) && strings.Contains(v, `"alpha"`) {
 			t.Fatalf("without the parameter the field is left to the owner: %s", v)
@@ -65,7 +66,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 // has; the icon of a line is an expression; the dialogs of a screen have their own names.
 func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	cases := []struct{ name, old, new, want string }{
 		{"values field", `"values": {"title": "=param.title", "n": "3"}`, `"values": {"titel": "=param.title"}`, `no field "titel"`},
 		{"undeclared param", `"values": {"title": "=param.title", "n": "3"}`, `"values": {"title": "=param.name"}`, `no param "name"`},
@@ -95,7 +96,7 @@ func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
 // client's tab and dialog; a typo fails the save, while a module saved with one still reads and is warned of.
 func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	typo := strings.Replace(routedManifest, `"params": {"title": "=title", "dialog": "rescore"}`, `"params": {"titel": "=title", "dialog": "rescore"}`, 1)
 	if typo == routedManifest {
 		t.Fatal("fixture replacement did not apply")
@@ -110,7 +111,7 @@ func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
 		UPDATE document SET current = 2 WHERE id = `+doc, typo); err != nil {
 		t.Fatal(err)
 	}
-	e.screenMessages("web", "main", nil)
+	e.ScreenMessages("web", "main", nil)
 	var got struct{ Warnings []string }
 	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &got)
 	if len(got.Warnings) != 1 || !strings.Contains(got.Warnings[0], `param "titel"`) {
@@ -122,7 +123,7 @@ func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
 // warns on read, so the module stays in the menu; a save refuses it.
 func TestAModuleSavedBeforeANewCheckStillLoads(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("ideas", ideasManifest)
 	old := strings.Replace(ideasManifest, `{"type": "table", "title": "Best ideas",`,
 		`{"type": "table", "title": "Best ideas", "description": "Open with param.day to see a day.",`, 1)
@@ -135,7 +136,7 @@ func TestAModuleSavedBeforeANewCheckStillLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	var menu []struct{ Project string }
-	e.menuOf(&menu)
+	e.MenuOf(&menu)
 	if !slices.ContainsFunc(menu, func(m struct{ Project string }) bool { return m.Project == "ideas" }) {
 		t.Fatalf("the module stays in the menu: %+v", menu)
 	}

@@ -1,13 +1,13 @@
 package scenarios
 
 import (
-	"strings"
-	"testing"
-	"time"
-
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
+	"strings"
+	"testing"
+	"time"
 )
 
 const liveManifest = `{"version": 13, "commands": [{"name": "wait", "title": "Wait", "description": "Waits for a code word", "class": "internal",
@@ -15,7 +15,7 @@ const liveManifest = `{"version": 13, "commands": [{"name": "wait", "title": "Wa
 
 // realLive starts the waiting command on a real provider, tells it the code word while it sleeps and reads the result.
 func realLive(t *testing.T, pv provider.Provider, home string) {
-	e := New(t, WithHome(home), WithProvider(pv), WithConfig(realWaits))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(pv), harness.WithConfig(realWaits))
 	p := e.Project("live", liveManifest)
 	id := e.Run(p, "wait")
 	e.Until("the running turn to take the message", func() bool {

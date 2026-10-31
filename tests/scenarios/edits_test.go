@@ -1,20 +1,20 @@
 package scenarios
 
 import (
+	"deck2/internal/manifest"
+	"deck2/tests/harness"
 	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
-
-	"deck2/internal/manifest"
 )
 
 // TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText: old parts of the current text are replaced
 // with new ones, each old part must occur once, and if_revision guards against a change made meanwhile.
 func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	save := func(in map[string]any) (int, string) {
 		in["project"], in["name"], in["kind"] = "web", "notes/a.md", "doc"
 		code, body := e.Call("deck.document_save", in)
@@ -65,7 +65,7 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 		"old": []string{`"title": "Notes"`}, "new": []string{`"title": "All notes"`}}, &saved)
 	var m struct{ Manifest string }
 	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &m)
-	if want := manifest.Canonical(strings.Replace(webNotes, `"title": "Notes"`, `"title": "All notes"`, 1)); saved.Revision != 2 || m.Manifest != want {
+	if want := manifest.Canonical(strings.Replace(harness.WebNotes, `"title": "Notes"`, `"title": "All notes"`, 1)); saved.Revision != 2 || m.Manifest != want {
 		t.Fatalf("an old part changes and the manifest is stored in deck's one form: %d\n%s", saved.Revision, m.Manifest)
 	}
 	if code, body := e.Call("deck.manifest_save", map[string]any{"project": "web",
@@ -78,7 +78,7 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 		says string
 	}{
 		{map[string]any{"old": []string{`"title": "All notes"`}, "new": []string{`"title": "Notes"`}, "if_revision": 1}, 409, "revision 2 now"},
-		{map[string]any{"old": []string{`"title": "All notes"`}, "new": []string{`"title": "Notes"`}, "manifest": webNotes}, 422, "not both"},
+		{map[string]any{"old": []string{`"title": "All notes"`}, "new": []string{`"title": "Notes"`}, "manifest": harness.WebNotes}, 422, "not both"},
 		{map[string]any{"patch": `[{"op": "replace", "path": "/menu/0", "value": "main"}]`}, 422, "patch"},
 	} {
 		c.in["project"] = "web"
@@ -92,20 +92,20 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 // record is named in the answer of the save, so the one who saved sees it before the owner does.
 func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "a", "score": 3}, map[string]any{"title": "b"})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "a", "score": 3}, map[string]any{"title": "b"})}, nil)
 	column := func(bind string) []string {
 		var saved struct{ Screens []string }
 		b, _ := json.Marshal(bind)
 		column, edit := `"columns": [{"label": "Title", "bind": "title"}]`, `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
-		changed := strings.Replace(strings.Replace(webNotes, column,
+		changed := strings.Replace(strings.Replace(harness.WebNotes, column,
 			`"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": `+string(b)+`}]`, 1),
 			edit, edit+`, {"type": "card", "fields": [{"label": "Score", "bind": `+string(b)+`}]}`, 1)
 		e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": changed}, &saved)
-		e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": webNotes}, nil)
+		e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": harness.WebNotes}, nil)
 		return saved.Screens
 	}
 	got := column("score > 0 ? score : nil")
@@ -122,9 +122,9 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 // module lacks says how to open a screen of deck; overlapping old texts name each other.
 func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	broken := strings.Replace(webNotes, `"title": "Web"`, `"title": "Web",,`, 1)
-	if broken == webNotes {
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	broken := strings.Replace(harness.WebNotes, `"title": "Web"`, `"title": "Web",,`, 1)
+	if broken == harness.WebNotes {
 		t.Fatal("fixture replacement did not apply")
 	}
 	code, out := e.Call("deck.project_create", map[string]any{"name": "web", "manifest": broken})
@@ -136,7 +136,7 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 	if code != 422 || !strings.Contains(string(out), `unknown screen "process"`) || !strings.Contains(string(out), "#/deck/") {
 		t.Fatalf("a button to a screen the module lacks says how to open a screen of deck: %d %s", code, out)
 	}
-	deckCmd := strings.Replace(webNotes, `{"label": "Mark", "command": "mark"}`, `{"label": "Mark", "command": "deck.model_set"}`, 1)
+	deckCmd := strings.Replace(harness.WebNotes, `{"label": "Mark", "command": "mark"}`, `{"label": "Mark", "command": "deck.model_set"}`, 1)
 	code, out = e.Call("deck.project_create", map[string]any{"name": "web", "manifest": deckCmd})
 	if code != 422 || !strings.Contains(string(out), `unknown command "deck.model_set"`) || !strings.Contains(string(out), "#/deck/") {
 		t.Fatalf("a button to a command of deck says how to open a screen of deck: %d %s", code, out)
@@ -158,8 +158,8 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 // with & as it is, so an old part with a literal & finds it; an escaped backslash stays.
 func TestAManifestWrittenWithEscapedAmpersandsChangesByItsCharacters(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	escaped := strings.Replace(webNotes, `"title": "Notes"`, `"title": "Notes \u0026 links \u003cold\u003E", "description": "a \\u0026 b"`, 1)
+	e := harness.New(t)
+	escaped := strings.Replace(harness.WebNotes, `"title": "Notes"`, `"title": "Notes \u0026 links \u003cold\u003E", "description": "a \\u0026 b"`, 1)
 	e.Project("web", escaped)
 	e.Must("deck.manifest_save", map[string]any{"project": "web", "reason": "rename",
 		"old": []string{`"title": "Notes & links <old>"`}, "new": []string{`"title": "Notes & more"`}}, nil)
@@ -174,8 +174,8 @@ func TestAManifestWrittenWithEscapedAmpersandsChangesByItsCharacters(t *testing.
 // them around it; many such places or none show the closest text; a manifest takes unindented lines alike.
 func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	save := func(in map[string]any) (int, string) {
 		in["project"], in["name"], in["kind"] = "web", "notes/skill.md", "doc"
 		code, body := e.Call("deck.document_save", in)
@@ -234,8 +234,8 @@ func TestAnOldPartAcrossAHardLineBreakIsFound(t *testing.T) {
 // is refused with the closest text instead of being found loosely.
 func TestAnOldPartOfAScriptKeepsItsSpaces(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	text := "def run(x):\n  if x:\n    y = 1\n  return y\n"
 	save := func(in map[string]any) (int, string) {
 		in["project"], in["name"], in["kind"] = "web", "scripts/run.py", "script"

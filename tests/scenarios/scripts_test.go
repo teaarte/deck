@@ -5,7 +5,9 @@ import (
 	"compress/gzip"
 	"context"
 	deckhome "deck2/internal/home"
+	"deck2/internal/registry"
 	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,8 +21,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"deck2/internal/registry"
 )
 
 func served(t *testing.T) *httptest.Server {
@@ -30,7 +30,7 @@ func served(t *testing.T) *httptest.Server {
 	return s
 }
 
-const collectScript = pythonLib + `
+const collectScript = harness.PythonLib + `
 inp = json.load(sys.stdin)
 checks = {}
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a", "size": inp["n"]})})
@@ -77,11 +77,11 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	_ = os.MkdirAll(filepath.Dir(key), 0o700)
 	_ = os.WriteFile(key, []byte("private"), 0o600)
 	t.Setenv("HOME", owner)
-	e := New(t)
+	e := harness.New(t)
 	allowed, other := served(t), served(t)
 	host := strings.TrimPrefix(allowed.URL, "http://")
-	pid := e.Project("tools", scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
-	e.saveScript("tools", "scripts/main.py", collectScript)
+	pid := e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
+	e.SaveScript("tools", "scripts/main.py", collectScript)
 	home := e.App.Cfg.Home
 	secret := filepath.Join(deckhome.Layout(home).State(), "secrets", "key")
 	_ = os.MkdirAll(filepath.Dir(secret), 0o700)
@@ -140,10 +140,10 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	if left, _ := os.ReadDir(filepath.Join(deckhome.Layout(home).Work(), "runs", fmt.Sprint(id))); len(left) != 1 || left[0].Name() != "stream" {
 		t.Fatalf("a finished script leaves only its log in its run folder: %v", left)
 	}
-	if b, _ := json.Marshal(e.log(id)); strings.Contains(string(b), "xcodebuild") || strings.Contains(string(b), "DVTDeveloperPaths") {
+	if b, _ := json.Marshal(log(e, id)); strings.Contains(string(b), "xcodebuild") || strings.Contains(string(b), "DVTDeveloperPaths") {
 		t.Fatalf("python runs as the interpreter itself, not the xcrun launcher: %s", b)
 	}
-	page := e.screenData("", "process", map[string]any{"record": id})["b0"]["value"]
+	page := e.ScreenData("", "process", map[string]any{"record": id})["b0"]["value"]
 	if b, _ := json.Marshal(page); strings.Contains(string(b), `"Error"`) {
 		t.Fatalf("a process without an error shows no Error field: %s", b)
 	}
@@ -158,7 +158,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	})
 }
 
-const indexScript = pythonLib + `
+const indexScript = harness.PythonLib + `
 inp = json.load(sys.stdin)
 path = os.path.join(os.environ["DECK_DATA"], "index.json")
 runs = 0
@@ -172,9 +172,9 @@ print(json.dumps({"seen": runs, "folder_write_blocked": not can_write(os.path.jo
 
 func TestScriptKeepsAnIndexInTheProjectDataFolder(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	pid := e.Project("index", scriptManifest("build", "", ""))
-	e.saveScript("index", "scripts/main.py", indexScript)
+	e := harness.New(t)
+	pid := e.Project("index", harness.ScriptManifest("build", "", ""))
+	e.SaveScript("index", "scripts/main.py", indexScript)
 	folder := t.TempDir()
 	for want := range 2 {
 		p := e.WaitState(e.Start("index", "build", map[string]any{"outside": folder}), "done", "error")
@@ -239,24 +239,24 @@ print(json.dumps({"value": deckfixture.VALUE}))
 
 func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
-	e.Project("slow", scriptManifest("wait", "", ""))
-	e.saveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
+	e := harness.New(t, harness.WithClock())
+	e.Project("slow", harness.ScriptManifest("wait", "", ""))
+	e.SaveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
 	id := e.Start("slow", "wait", nil)
-	e.Until("the script to start", func() bool { return len(e.log(id)) > 0 })
+	e.Until("the script to start", func() bool { return len(log(e, id)) > 0 })
 	e.Clock.Add(9 * time.Minute)
-	e.sweep()
+	e.Sweep()
 	if p := e.Proc(id); p.State != "running" {
 		t.Fatalf("a script runs until its ceiling of 10 minutes: %+v", p)
 	}
 	e.Clock.Add(2 * time.Minute)
-	e.sweep()
+	e.Sweep()
 	if p := e.WaitState(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
 		t.Fatalf("the ceiling stops the script: %+v", p)
 	}
 
-	e.Project("fails", scriptManifest("break", "", ""))
-	e.saveScript("fails", "scripts/main.py", "import sys\nprint('boom', file=sys.stderr)\nsys.exit(3)\n")
+	e.Project("fails", harness.ScriptManifest("break", "", ""))
+	e.SaveScript("fails", "scripts/main.py", "import sys\nprint('boom', file=sys.stderr)\nsys.exit(3)\n")
 	for i := 1; i <= 4; i++ {
 		p := e.WaitState(e.Start("fails", "break", nil), "error", "done")
 		if p.State != "error" || !strings.Contains(p.Error, "boom") {
@@ -265,9 +265,9 @@ func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 		want := 0
 		if i >= 3 {
 			want = 1
-			e.Until("the warning", func() bool { return e.warnings("failed 3 times in a row") > 0 })
+			e.Until("the warning", func() bool { return e.Warnings("failed 3 times in a row") > 0 })
 		}
-		if n := e.warnings("failed 3 times in a row"); n != want {
+		if n := e.Warnings("failed 3 times in a row"); n != want {
 			t.Fatalf("after failure %d: %d warnings, want %d", i, n, want)
 		}
 	}
@@ -276,33 +276,33 @@ func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 func TestScriptInterruptedByARestartIsNotResumed(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e1 := New(t, WithHome(home), WithProvider(&Fake{}))
-	e1.Project("restart", scriptManifest("wait", "", ""))
-	e1.saveScript("restart", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
+	e1 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
+	e1.Project("restart", harness.ScriptManifest("wait", "", ""))
+	e1.SaveScript("restart", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
 	id := e1.Start("restart", "wait", nil)
-	e1.Until("the script to start", func() bool { return len(e1.log(id)) > 0 })
+	e1.Until("the script to start", func() bool { return len(log(e1, id)) > 0 })
 	_ = e1.App.Close()
-	e2 := New(t, WithHome(home), WithProvider(&Fake{}))
+	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	if err := e2.App.Runner.ResumeInterrupted(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if p := e2.Proc(id); p.State != "interrupted" {
 		t.Fatalf("a script cut by a restart is interrupted: %+v", p)
 	}
-	if e2.warnings("interrupted by a restart") != 1 {
+	if e2.Warnings("interrupted by a restart") != 1 {
 		t.Fatal("the owner is told to run it again")
 	}
 }
 
 func TestResultFilesStayInsideTheResultsFolder(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("escape", scriptManifest("take", "", ""))
+	e := harness.New(t)
+	e.Project("escape", harness.ScriptManifest("take", "", ""))
 	outside := t.TempDir()
 	victim := filepath.Join(outside, "victim.txt")
 	_ = os.WriteFile(victim, []byte("mine"), 0o600)
 	for _, path := range []string{"link/victim.txt", "../../../" + victim, "direct"} {
-		e.saveScript("escape", "scripts/main.py", fmt.Sprintf(`import json, os
+		e.SaveScript("escape", "scripts/main.py", fmt.Sprintf(`import json, os
 res = os.environ["DECK_RESULTS"]
 os.symlink(%q, os.path.join(res, "link"))
 os.symlink(%q, os.path.join(res, "direct"))
@@ -320,9 +320,9 @@ print(json.dumps({"files": [{"path": %q}]}))
 
 func TestResultFilesAreKeptWholeOrNotAtAll(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("twice", scriptManifest("take", "", ""))
-	e.saveScript("twice", "scripts/main.py", `import json, os
+	e := harness.New(t)
+	e.Project("twice", harness.ScriptManifest("take", "", ""))
+	e.SaveScript("twice", "scripts/main.py", `import json, os
 open(os.path.join(os.environ["DECK_RESULTS"], "a.txt"), "w").write("a")
 print(json.dumps({"files": [{"path": "a.txt"}, {"path": "./a.txt"}]}))
 `)
@@ -339,9 +339,9 @@ print(json.dumps({"files": [{"path": "a.txt"}, {"path": "./a.txt"}]}))
 
 func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
-	e.Project("chatty", scriptManifest("talk", "", ""))
-	e.saveScript("chatty", "scripts/main.py", "import sys\nfor i in range(3000):\n    print('line', i, file=sys.stderr, flush=True)\nprint('null')\n")
+	e := harness.New(t, harness.WithClock())
+	e.Project("chatty", harness.ScriptManifest("talk", "", ""))
+	e.SaveScript("chatty", "scripts/main.py", "import sys\nfor i in range(3000):\n    print('line', i, file=sys.stderr, flush=True)\nprint('null')\n")
 	changes := func() int {
 		var n int
 		if err := e.App.Store.DB.QueryRow(`SELECT total_changes()`).Scan(&n); err != nil {
@@ -362,9 +362,9 @@ func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
 // to a script, which reads and writes only its own.
 func TestAScriptReadsNoFolderOfAnotherProject(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("other", scriptManifest("collect", "", ""))
-	b := e.Project("tools", scriptManifest("collect", "", ""))
+	e := harness.New(t)
+	e.Project("other", harness.ScriptManifest("collect", "", ""))
+	b := e.Project("tools", harness.ScriptManifest("collect", "", ""))
 	theirs := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects", fmt.Sprint(b-1), "data", "secret.txt")
 	if err := os.MkdirAll(filepath.Dir(theirs), 0o700); err != nil {
 		t.Fatal(err)
@@ -372,7 +372,7 @@ func TestAScriptReadsNoFolderOfAnotherProject(t *testing.T) {
 	if err := os.WriteFile(theirs, []byte("theirs"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	e.saveScript("tools", "scripts/main.py", pythonLib+`
+	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
 inp = json.load(sys.stdin)
 print(json.dumps({"read": can_read(inp["other"]), "write": can_write(os.path.join(os.path.dirname(inp["other"]), "x")),
   "db": can_read(inp["outside"]), "own": can_write(os.path.join(os.environ["DECK_DATA"], "x"))}))
@@ -400,7 +400,7 @@ func ownerHome(t *testing.T) string {
 	return dir
 }
 
-const homeScript = pythonLib + `
+const homeScript = harness.PythonLib + `
 import subprocess
 inp = json.load(sys.stdin)
 home = os.path.expanduser(inp["home"])
@@ -451,12 +451,12 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 	path := []string{filepath.Join(owner, "rt", "bin"), filepath.Join(owner, ".local", "bin"), filepath.Join(owner, ".pyenv", "shims"),
 		filepath.Join(owner, "sdk", "current", "bin"), os.Getenv("PATH")}
 	t.Setenv("PATH", strings.Join(path, string(os.PathListSeparator)))
-	e := New(t)
-	self := fakes
-	e.Project("tools", scriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
+	e := harness.New(t)
+	self := harness.Fakes
+	e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
     "env": {"DECK_FAKE_MCP": "project"}, "toolFilter": ["peek"], "classes": {"peek": "internal"}}}}}`, self)))
 	e.Must("deck.folder_add", map[string]any{"project": "tools", "path": filepath.Join(owner, "code")}, nil)
-	e.saveScript("tools", "scripts/main.py", homeScript)
+	e.SaveScript("tools", "scripts/main.py", homeScript)
 	p := e.WaitState(e.Start("tools", "collect", map[string]any{"home": owner, "folder": filepath.Join(owner, "code")}), "done", "error")
 	var got struct {
 		RC, Documents, Config, Listed, Folder, FolderWrite, State, Beside bool
@@ -479,7 +479,7 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 	}
 }
 
-const processesScript = pythonLib + `
+const processesScript = harness.PythonLib + `
 import ctypes, platform
 inp = json.load(sys.stdin)
 listed = len([d for d in os.listdir("/proc") if d.isdigit()]) > 10 if os.path.isdir("/proc") else None
@@ -494,9 +494,9 @@ print(json.dumps({"listed": listed, "deck": os.path.exists("/proc/%d/environ" % 
 // system are.
 func TestAScriptSeesNoOtherProcess(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("tools", scriptManifest("collect", "", ""))
-	e.saveScript("tools", "scripts/main.py", processesScript)
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("tools", "scripts/main.py", processesScript)
 	p := e.WaitState(e.Start("tools", "collect", map[string]any{"n": os.Getpid()}), "done", "error")
 	var got struct {
 		Listed, Deck    bool
@@ -515,9 +515,9 @@ func TestAScriptThatFailsSaysHowToOpenAFolder(t *testing.T) {
 	owner := ownerHome(t)
 	_ = os.WriteFile(filepath.Join(owner, ".zshrc"), []byte("private"), 0o600)
 	t.Setenv("HOME", owner)
-	e := New(t)
-	e.Project("tools", scriptManifest("collect", "", ""))
-	e.saveScript("tools", "scripts/main.py", "import json, sys\nprint(open(json.load(sys.stdin)[\"key\"]).read())\n")
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("tools", "scripts/main.py", "import json, sys\nprint(open(json.load(sys.stdin)[\"key\"]).read())\n")
 	id := e.Start("tools", "collect", map[string]any{"key": filepath.Join(owner, ".zshrc")})
 	p := e.WaitState(id, "done", "error")
 	if p.State != "error" || !strings.Contains(p.Error, filepath.Join(owner, ".zshrc")) || !strings.Contains(p.Error, "the settings of the module, Access") {
@@ -529,9 +529,9 @@ func TestAScriptThatFailsSaysHowToOpenAFolder(t *testing.T) {
 // stderr does not hold the run; output past 32 MB is an error.
 func TestAScriptEndsWhenItExitsThoughAChildHoldsItsOutput(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("tools", scriptManifest("collect", "", ""))
-	e.saveScript("tools", "scripts/main.py", `import json, subprocess, sys
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("tools", "scripts/main.py", `import json, subprocess, sys
 if json.load(sys.stdin).get("n") == 1:
     sys.stdout.write("x" * (33 << 20))
     sys.exit(0)
@@ -554,12 +554,12 @@ print(json.dumps({"ok": True}))
 func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 	bin := t.TempDir()
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	e := New(t)
-	m := strings.Replace(scriptManifest("use", "", ""), `"runtime": "python"`,
+	e := harness.New(t)
+	m := strings.Replace(harness.ScriptManifest("use", "", ""), `"runtime": "python"`,
 		`"runtime": "python", "programs": ["sh", {"name": "deck-later-tool", "install": "brew install deck-later-tool"}]`, 1)
 	e.Project("progs", m)
-	e.saveScript("progs", "scripts/main.py", "print('{\"out\": \"here\"}')\n")
-	if code, out := e.Call("deck.project_create", map[string]any{"name": "blank", "manifest": strings.Replace(scriptManifest("use", "", ""),
+	e.SaveScript("progs", "scripts/main.py", "print('{\"out\": \"here\"}')\n")
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "blank", "manifest": strings.Replace(harness.ScriptManifest("use", "", ""),
 		`"runtime": "python"`, `"runtime": "python", "programs": [""]`, 1)}); code != 200 {
 		t.Fatalf("an empty program, which manifests took before, still loads: %d %s", code, out)
 	}
@@ -573,7 +573,7 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bin, "deck-later-tool"), []byte("#!/bin/sh\necho here\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if code, out := e.press(e.rowAction("progs", "settings", "deck.programs_check", nil)); code != 200 {
+	if code, out := e.Press(e.RowAction("progs", "settings", "deck.programs_check", nil)); code != 200 {
 		t.Fatalf("the check button of the health row of the command works: %d %s", code, out)
 	}
 	if h := e.WaitHealth("command:progs.use", ""); h.Status != "ok" {
@@ -587,18 +587,18 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 // TestAScriptMayRunForHours: a script, such as a render or a long download, takes a ceiling of up to four hours.
 func TestAScriptMayRunForHours(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
-	e.Project("slow", strings.Replace(scriptManifest("wait", "", ""), `"runtime": "python"`, `"runtime": "python", "timeout_minutes": 180`, 1))
-	e.saveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
+	e := harness.New(t, harness.WithClock())
+	e.Project("slow", strings.Replace(harness.ScriptManifest("wait", "", ""), `"runtime": "python"`, `"runtime": "python", "timeout_minutes": 180`, 1))
+	e.SaveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
 	id := e.Start("slow", "wait", nil)
-	e.Until("the script to start", func() bool { return len(e.log(id)) > 0 })
+	e.Until("the script to start", func() bool { return len(log(e, id)) > 0 })
 	e.Clock.Add(170 * time.Minute)
-	e.sweep()
+	e.Sweep()
 	if p := e.Proc(id); p.State != "running" {
 		t.Fatalf("a script runs until its ceiling of three hours: %+v", p)
 	}
 	e.Clock.Add(11 * time.Minute)
-	e.sweep()
+	e.Sweep()
 	if p := e.WaitState(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
 		t.Fatalf("the ceiling stops the script: %+v", p)
 	}
@@ -608,11 +608,11 @@ func TestAScriptMayRunForHours(t *testing.T) {
 // field record names it, so a record page shows how its pipeline goes; its id in another field is not.
 func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("tools", scriptManifest("collect", "", ""))
-	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("tools", "scripts/main.py", "print('{}')\n")
 	var w struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "tools", "collection": "items", "records": jsonl(map[string]any{"name": "a"}, map[string]any{"name": "b"})}, &w)
+	e.Must("deck.records_upsert", map[string]any{"project": "tools", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a"}, map[string]any{"name": "b"})}, &w)
 	mine := e.WaitState(e.Start("tools", "collect", map[string]any{"record": w.IDs[0]}), "done")
 	e.WaitState(e.Start("tools", "collect", map[string]any{"record": w.IDs[1], "n": w.IDs[0]}), "done")
 	e.WaitState(e.Start("tools", "collect", nil), "done")
@@ -627,13 +627,13 @@ func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
 // renew of tools after a change of projects passes it by.
 func TestAProjectChangedWhileAScriptRunsLeavesDeckUp(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("tools", scriptManifest("slow", "", ""))
-	e.saveScript("tools", "scripts/main.py", "import json, time\ntime.sleep(2)\nprint(json.dumps({}))\n")
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("slow", "", ""))
+	e.SaveScript("tools", "scripts/main.py", "import json, time\ntime.sleep(2)\nprint(json.dumps({}))\n")
 	id := e.Start("tools", "slow", nil)
 	// The script program is up; its process is running from the start, so the state does not show it.
 	time.Sleep(500 * time.Millisecond)
-	e.Project("other", plainManifest)
+	e.Project("other", harness.PlainManifest)
 	if p := e.WaitState(id, "done", "error"); p.State != "done" {
 		t.Fatalf("the script ends as it would: %+v", p)
 	}
@@ -643,10 +643,10 @@ func TestAProjectChangedWhileAScriptRunsLeavesDeckUp(t *testing.T) {
 // refused, and that project starts nothing.
 func TestAScriptCannotCallACommandOfAnotherProject(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("a", scriptManifest("collect", "", ""))
-	e.Project("b", scriptManifest("collect", "", ""))
-	e.saveScript("a", "scripts/main.py", pythonLib+`
+	e := harness.New(t)
+	e.Project("a", harness.ScriptManifest("collect", "", ""))
+	e.Project("b", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("a", "scripts/main.py", harness.PythonLib+`
 st, out = deck("b.publish", {})
 print(json.dumps({"status": st, "out": out}))
 `)
@@ -658,7 +658,7 @@ print(json.dumps({"status": st, "out": out}))
 	if err := json.Unmarshal(p.Result, &res); err != nil || res.Status != 403 || !strings.Contains(fmt.Sprint(res.Out), "another project") {
 		t.Fatalf("a command of another project is refused: %+v %s", p, p.Result)
 	}
-	var ps []Proc
+	var ps []harness.Proc
 	e.Must("deck.processes_list", map[string]any{"project": "b"}, &ps)
 	if len(ps) != 0 {
 		t.Fatalf("the other project starts nothing: %+v", ps)
@@ -669,9 +669,9 @@ print(json.dumps({"status": st, "out": out}))
 // of deck or a missing file, has the end of its stderr, without a hint about folders the sandbox keeps closed.
 func TestAScriptThatFailsForItsOwnReasonGetsNoHintOfFolders(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("tools", scriptManifest("collect", "", ""))
-	e.saveScript("tools", "scripts/main.py", pythonLib+`
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": [{"name": "a"}]})
 sys.exit("deck answered %d: %s" % (st, out))
 `)
@@ -679,7 +679,7 @@ sys.exit("deck answered %d: %s" % (st, out))
 	if p.State != "error" || !strings.Contains(p.Error, "deck answered 422") || strings.Contains(p.Error, "the settings of the module, Access") {
 		t.Fatalf("the error is the script's own, without a hint of folders: %+v", p)
 	}
-	e.saveScript("tools", "scripts/main.py", `import os
+	e.SaveScript("tools", "scripts/main.py", `import os
 os.replace(os.path.join(os.environ["DECK_DATA"], "items.json.tmp"), os.path.join(os.environ["DECK_DATA"], "items.json"))
 `)
 	p = e.WaitState(e.Start("tools", "collect", nil), "done", "error")
@@ -692,9 +692,9 @@ os.replace(os.path.join(os.environ["DECK_DATA"], "items.json.tmp"), os.path.join
 // its folder first on PATH, so uv and a shebang find it too; health names the python and node scripts see.
 func TestScriptsRunOnOnePythonDeckPicksAndHealthNamesIt(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("tools", scriptManifest("collect", "", ""))
-	e.saveScript("tools", "scripts/main.py", `import json, os, shutil, sys
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("tools", "scripts/main.py", `import json, os, shutil, sys
 print(json.dumps({"version": list(sys.version_info[:2]), "first": os.environ["PATH"].split(":")[0], "which": shutil.which("python3")}))
 `)
 	p := e.WaitState(e.Start("tools", "collect", nil), "done", "error")

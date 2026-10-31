@@ -1,13 +1,13 @@
 package scenarios
 
 import (
+	"deck2/internal/provider/claudecode"
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/provider/claudecode"
 )
 
 // TestRealMasterBuildsAModuleFromAPhrase: the master on the installed Claude Code builds a module from one chat
@@ -19,22 +19,22 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 		phrase = "Every morning, make me a list of the three top Hacker News stories, each with one line on why it matters."
 	}
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(claudecode.New(home)), WithConfig(realWaits), WithWait(25*time.Minute))
-	topic := e.say(0, phrase)
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home)), harness.WithConfig(realWaits), harness.WithWait(25*time.Minute))
+	topic := e.Say(0, phrase)
 	answered := map[int64]bool{}
 	var draft string
 	open := func() bool {
-		var ts []chatTopic
-		e.chatTopics(false, &ts)
+		var ts []harness.ChatTopic
+		e.ChatTopics(false, &ts)
 		return len(ts) == 1 && ts[0].Reply != nil
 	}
 	defer func() {
-		for _, m := range e.chatMessages(topic) {
+		for _, m := range e.ChatMessages(topic) {
 			t.Logf("%s: %s", m.Role, m.Text)
 		}
 	}()
 	e.Until("a draft module of the master", func() bool {
-		var asks []Ask
+		var asks []harness.Ask
 		e.Must("deck.asks_list", nil, &asks)
 		for _, a := range asks {
 			if answered[a.ID] {
@@ -66,18 +66,18 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 			}
 		}
 		var ps []struct{ Name, Status string }
-		e.projectsOf(&ps)
+		e.ProjectsOf(&ps)
 		for _, p := range ps {
 			if p.Status == "draft" {
 				draft = p.Name
 			}
 		}
-		ms := e.chatMessages(topic)
+		ms := e.ChatMessages(topic)
 		last := ms[len(ms)-1]
 		if last.Role == "master" && draft == "" && strings.Contains(last.Text, "?") && !answered[-last.ID] {
 			answered[-last.ID] = true
 			t.Logf("master: %s", last.Text)
-			e.say(topic, "Go with your recommendation for everything and build it.")
+			e.Say(topic, "Go with your recommendation for everything and build it.")
 		}
 		return draft != "" && !open()
 	})

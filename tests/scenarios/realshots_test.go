@@ -3,6 +3,10 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	"deck2/internal/app"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -10,10 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"deck2/internal/app"
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserTheMasterSeesAScreen: deck draws a screen in its own browser under the master's rights, as a
@@ -24,7 +24,7 @@ func TestRealBrowserTheMasterSeesAScreen(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	shots := make(chan string, 2)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		for _, in := range []map[string]any{{"address": "#/deck/look", "scheme": "dark"},
 			{"address": "#/", "device": "phone", "theme": "juce", "scheme": "light"}} {
 			out, bad := c.Tool(ctx, "screen_shot", in)
@@ -34,11 +34,11 @@ func TestRealBrowserTheMasterSeesAScreen(t *testing.T) {
 			shots <- out
 		}
 		return provider.Result{Text: "Looked."}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		func(c *app.Config) { c.Browser = app.DefaultBrowser }))
 
-	e.say(0, "look at the settings")
+	e.Say(0, "look at the settings")
 	for i, want := range []struct{ wide bool }{{true}, {false}} {
 		var shot struct {
 			Path, Error string
@@ -78,20 +78,20 @@ func TestRealBrowserAShotDrawsACustomBlock(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	shots := make(chan string, 1)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/p/web/main", "scheme": "light"})
 		if bad {
 			out = "refused: " + out
 		}
 		shots <- out
 		return provider.Result{Text: "Looked."}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		func(c *app.Config) { c.Browser = app.DefaultBrowser }))
 
-	e.Project("web", webNotes)
+	e.Project("web", harness.WebNotes)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customMagenta}, nil)
-	e.say(0, "look at the chart")
+	e.Say(0, "look at the chart")
 	var shot struct{ Path, Error string }
 	if raw := <-shots; json.Unmarshal([]byte(raw), &shot) != nil || shot.Error != "" {
 		t.Fatalf("the shot: %s", raw)
@@ -148,7 +148,7 @@ func TestRealBrowserAShotWaitsForThePicturesACustomBlockReads(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	shots := make(chan string, 2)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		for _, device := range []string{"computer", "phone"} {
 			out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/p/web/main", "scheme": "light", "device": device})
 			if bad {
@@ -157,11 +157,11 @@ func TestRealBrowserAShotWaitsForThePicturesACustomBlockReads(t *testing.T) {
 			shots <- out
 		}
 		return provider.Result{Text: "Looked."}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		func(c *app.Config) { c.Browser = app.DefaultBrowser }))
 
-	p := e.Project("web", webNotes)
+	p := e.Project("web", harness.WebNotes)
 	pic := image.NewRGBA(image.Rect(0, 0, 400, 200))
 	for i := range pic.Pix {
 		pic.Pix[i] = []uint8{255, 0, 255, 255}[i%4]
@@ -172,7 +172,7 @@ func TestRealBrowserAShotWaitsForThePicturesACustomBlockReads(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(data, "pics"), 0o700)
 	_ = os.WriteFile(filepath.Join(data, "pics", "photo.png"), buf.Bytes(), 0o600)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customReads}, nil)
-	e.say(0, "look at the photo")
+	e.Say(0, "look at the photo")
 	for _, device := range []string{"computer", "phone"} {
 		var shot struct{ Path, Error string }
 		if raw := <-shots; json.Unmarshal([]byte(raw), &shot) != nil || shot.Error != "" {

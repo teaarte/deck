@@ -3,6 +3,9 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	"deck2/internal/app"
+	"deck2/tests/harness"
+	"deck2/web"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,9 +26,6 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"deck2/internal/app"
-	"deck2/web"
 )
 
 // TestRealBrowserWebClient builds the web client and drives it in the real browser of Playwright MCP:
@@ -36,18 +36,18 @@ func TestRealBrowserWebClient(t *testing.T) {
 	}
 	checkBuiltClient(t)
 
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-	clock := &Clock{now: time.Now()}
-	e := New(t, WithAgent(webAgent()), WithClock(clock), WithConfig(withTTL))
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
+	clock := &harness.Clock{At: time.Now()}
+	e := harness.New(t, harness.WithAgent(webAgent()), harness.WithClock(clock), harness.WithConfig(withTTL))
 	p := e.Project("notes", webManifest(svc.URL))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)
 	e.WaitState(e.Run(p, "work"), "waiting_answer", "done")
 	e.App.Sweep(context.Background(), clock.Add(24*time.Hour+time.Minute))
 	e.Run(p, "work")
-	e.Until("the fresh confirmation", func() bool { return len(e.cockpitItems()) == 2 })
+	e.Until("the fresh confirmation", func() bool { return len(e.CockpitItems()) == 2 })
 	asking := e.Run(p, "ask")
-	e.Until("the question", func() bool { return len(e.cockpitItems()) == 3 })
+	e.Until("the question", func() bool { return len(e.CockpitItems()) == 3 })
 
 	front := newFront(t, e.URL)
 	b := newPlaywright(t)
@@ -94,7 +94,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 	b.shot("cockpit-hold")
 	e.Until("the answer once its moment passed", func() bool { return front.answers.Load() == 1 })
 	b.until("the allowed one gone", `document.querySelector('[data-focus]')?.dataset.left === '2'`)
-	if n, calls := front.answers.Load(), len(svc.requests()); n != 1 || calls != 1 {
+	if n, calls := front.answers.Load(), len(svc.Requests()); n != 1 || calls != 1 {
 		t.Fatalf("a second press while the call waits sends nothing: %d answers, %d calls", n, calls)
 	}
 	if front.topics.Load() == 0 || front.full.Load() != full {
@@ -109,12 +109,12 @@ func TestRealBrowserWebClient(t *testing.T) {
 	b.eval(press("Deny"))
 	b.until("all decided, Deki glad", `document.querySelector('[data-focus-done] [data-deki="done"]')`)
 	e.WaitState(asking, "done")
-	e.Until("every answer sent", func() bool { return len(e.cockpitItems()) == 0 })
+	e.Until("every answer sent", func() bool { return len(e.CockpitItems()) == 0 })
 
 	front.slow.Store(true)
 	late := e.Run(p, "work")
 	e.Until("the delayed read", func() bool { return front.delayed.Load() })
-	for _, it := range e.cockpitItems() {
+	for _, it := range e.CockpitItems() {
 		e.Must("deck.ask_answer", map[string]any{"ask": it.ID, "answer": "deny"}, nil)
 	}
 	e.WaitState(late, "done", "error")
@@ -162,7 +162,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 // checkBuiltClient builds the client from its sources and fails when the embedded build is not that one.
 func checkBuiltClient(t *testing.T) {
 	t.Helper()
-	dir := filepath.Join(Root, "web")
+	dir := filepath.Join(harness.Root, "web")
 	out := t.TempDir()
 	cmd := exec.Command("npm", "run", "build", "--", "--outDir", out, "--emptyOutDir")
 	cmd.Dir = dir
@@ -440,7 +440,7 @@ func (b *playwright) until(what, cond string) {
 			b.t.Logf("no %s in the page:\n%s", what, b.eval("document.body.innerText"))
 		}
 	}()
-	Until(b.t, what+" in the page", func() bool {
+	harness.Until(b.t, what+" in the page", func() bool {
 		out, failed := b.try("browser_evaluate", map[string]any{"function": "() => { const W = document.querySelector('[data-block]') ?? document; return String(!!(" + cond + ")) }"})
 		if failed && !strings.Contains(out, "Execution context was destroyed") {
 			done = true
@@ -477,7 +477,9 @@ func itemOf(title, part string) string {
 }
 
 // Open opens deck of e as its owner, rest after the sign-in: more of the query, then the route of the client.
-func (b *playwright) Open(e *Env, rest string) { b.open(e.OwnerURL(e.URL, rest)) }
+func (b *playwright) Open(e *harness.Env, rest string) { b.open(e.OwnerURL(e.URL, rest)) }
 
 // OpenVia is Open through a server before deck at base.
-func (b *playwright) OpenVia(base string, e *Env, rest string) { b.open(e.OwnerURL(base, rest)) }
+func (b *playwright) OpenVia(base string, e *harness.Env, rest string) {
+	b.open(e.OwnerURL(base, rest))
+}

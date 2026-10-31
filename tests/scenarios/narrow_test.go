@@ -2,22 +2,22 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestListsOfRecordsAndProcessesNarrowToWhatTheCallerAsks: records by the values of their fields with only the
 // fields asked for, processes of one command without their results.
 func TestListsOfRecordsAndProcessesNarrowToWhatTheCallerAsks(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"big": "result"}`)}
 	}))
 
-	p := e.Project("web", webNotes)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(
+	p := e.Project("web", harness.WebNotes)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(
 		map[string]any{"title": "a", "score": 3, "source": "x", "note": "long"},
 		map[string]any{"title": "b", "score": 1, "source": "x"},
 		map[string]any{"title": "c", "score": 3, "source": "y"})}, nil)

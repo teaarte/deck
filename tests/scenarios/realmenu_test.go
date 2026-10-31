@@ -2,12 +2,12 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserCockpitHistory: History stands in the head of Today and keeps its place while what runs and what
@@ -19,17 +19,17 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 	checkBuiltClient(t)
 	hold := make(chan struct{})
 	t.Cleanup(func() { close(hold) })
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "score" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "score" {
 			select {
 			case <-hold:
 			case <-ctx.Done():
 			}
 		}
-		return webNotesAgent()(ctx, c)
+		return harness.WebNotesAgent()(ctx, c)
 	}))
 
-	e.Project("web", webNotes)
+	e.Project("web", harness.WebNotes)
 	b := newPlaywright(t)
 	at := `JSON.stringify(document.querySelector('[data-screen-head] [data-dialog-open="changes"]')?.getBoundingClientRect())`
 	for _, size := range []struct {
@@ -49,7 +49,7 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 		}
 		b.shot("cockpit-history-" + size.name + "-running")
 		e.Must("deck.process_stop", map[string]any{"process": id}, nil)
-		_, tok := e.token("ask-"+size.name, "deck.model_set")
+		_, tok := e.Token("ask-"+size.name, "deck.model_set")
 		if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": size.name}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 			t.Fatalf("a token's model waits for the owner: %d %s", code, out)
 		}
@@ -70,10 +70,10 @@ func TestRealBrowserCards(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", notesManifest)
-	e.Project("plain", plainManifest)
-	png := e.upload("notes", "cover.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
+	e.Project("plain", harness.PlainManifest)
+	png := upload(e, "notes", "cover.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
 	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": strconv.FormatInt(png, 10)}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
@@ -102,7 +102,7 @@ func TestRealBrowserCards(t *testing.T) {
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.locator('.mantine-Modal-content [data-field="wish"]').fill('a paper boat'); await page.locator('.mantine-Modal-content [data-submit]').click(); }`})
 	b.until("the master is told in the chat", `document.querySelector('[data-chat-panel]')?.innerText.includes('a paper boat')`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
-	dark := e.upload("plain", "dark.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
+	dark := upload(e, "plain", "dark.png", "image/png", "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99=\x1d\x00\x00\x00\x00IEND\xaeB`\x82")
 	e.Must("deck.project_cover", map[string]any{"project": "plain", "file": strconv.FormatInt(dark, 10), "scheme": "dark"}, nil)
 	b.until("the cover of the module in its settings", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.startsWith('Covers') && x.querySelector('img'))`)
 	b.eval(`(document.querySelector('[data-apps-home]').click(), '')`)

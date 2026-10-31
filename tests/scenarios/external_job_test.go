@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/tests/harness"
 	"fmt"
 	"net/http"
 	"strings"
@@ -35,7 +36,7 @@ func jobManifest(url string) string {
   "allowed_external": ["create_job"]}`, url)
 }
 
-const startScript = pythonLib + `
+const startScript = harness.PythonLib + `
 inp = json.load(sys.stdin)
 st, job = deck("clips.create_job", {"topic": inp["topic"]})
 if st != 200:
@@ -44,7 +45,7 @@ deck("deck.records_upsert", {"collection": "jobs", "records": json.dumps({"topic
 print(json.dumps({"job": job["id"], "secret_seen": any("tok-123" in v for v in os.environ.values())}))
 `
 
-const checkScript = pythonLib + `
+const checkScript = harness.PythonLib + `
 st, recs = deck("deck.records_list", {"collection": "jobs"})
 files = []
 for r in recs:
@@ -64,7 +65,7 @@ print(json.dumps({"files": files}))
 func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 	t.Parallel()
 	var creates, polls atomic.Int32
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if r.Header.Get("Authorization") != "Bearer tok-123" {
 			http.Error(w, "no", http.StatusUnauthorized)
 			return
@@ -72,12 +73,12 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 		switch {
 		case r.Method == "POST" && r.URL.Path == "/jobs":
 			creates.Add(1)
-			jsonReply(w, `{"id": "j1"}`)
+			harness.JsonReply(w, `{"id": "j1"}`)
 		case r.URL.Path == "/jobs/j1":
 			if polls.Add(1) == 1 {
-				jsonReply(w, `{"status": "running"}`)
+				harness.JsonReply(w, `{"status": "running"}`)
 			} else {
-				jsonReply(w, `{"status": "done"}`)
+				harness.JsonReply(w, `{"status": "done"}`)
 			}
 		case r.URL.Path == "/jobs/j1/file":
 			w.Header().Set("Content-Type", "video/mp4")
@@ -87,12 +88,12 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 		}
 	})
 	home := t.TempDir()
-	clock := &Clock{now: time.Date(2026, 9, 25, 8, 1, 0, 0, time.Local)}
-	e := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	clock := &harness.Clock{At: time.Date(2026, 9, 25, 8, 1, 0, 0, time.Local)}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "tok-123"}, nil)
 	e.Project("clips", jobManifest(svc.URL))
-	e.saveScript("clips", "scripts/start.py", startScript)
-	e.saveScript("clips", "scripts/check.py", checkScript)
+	e.SaveScript("clips", "scripts/start.py", startScript)
+	e.SaveScript("clips", "scripts/check.py", checkScript)
 
 	started := e.WaitState(e.Start("clips", "start", map[string]any{"topic": "cats"}), "done", "error")
 	if started.State != "done" || !strings.Contains(string(started.Result), `"job":"j1"`) || strings.Contains(string(started.Result), `"secret_seen":true`) {
@@ -103,11 +104,11 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 	}
 	_ = e.App.Close()
 
-	e2 := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
 	e2.Resume()
 	clock.Add(5 * time.Minute)
 	e2.App.Scheduler.Tick(context.Background())
-	var check Proc
+	var check harness.Proc
 	e2.Until("the scheduled check after the restart", func() bool {
 		for _, p := range e2.Procs() {
 			if p.Command == "check" && p.Trigger != 0 && (p.State == "done" || p.State == "error") {

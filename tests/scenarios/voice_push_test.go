@@ -7,6 +7,9 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/sha256"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -24,9 +27,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/hkdf"
-
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
 )
 
 func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
@@ -63,13 +63,13 @@ func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
 		_, _ = w.Write([]byte(`{"text": " buy oat milk "}`))
 	}))
 	t.Cleanup(whisper.Close)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Text: "Put it into groceries."}
 	}))
 
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "whisper", "model": "whisper", "kind": "stt", "name": "whisper", "free": true, "options": `{"language": "en"}`}, nil)
-	id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
+	id := upload(e, "master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
 	var out struct{ Text string }
 	e.Must("deck.transcribe", map[string]any{"file": itoa(id)}, &out)
 	mu.Lock()
@@ -80,17 +80,17 @@ func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
 	if _, err := e.App.Store.Q.GetFile(context.Background(), id); err == nil {
 		t.Fatal("the recording is not kept")
 	}
-	topic := e.say(0, out.Text)
-	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into groceries." {
+	topic := e.Say(0, out.Text)
+	if said := e.MasterSaid(topic, 1); said[0].Text != "Put it into groceries." {
 		t.Fatalf("the text goes to the master as the owner's message: %+v", said)
 	}
 	var calls []spendRow
-	e.modelCalls("", 0, &calls)
+	e.ModelCalls("", 0, &calls)
 	if len(calls) != 1 || calls[0].Provider != "whisper" || calls[0].Model != "whisper" {
 		t.Fatalf("speech to text is a call of its model in the journal: %+v", calls)
 	}
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": "http://127.0.0.1:1/inference", "local": true}, nil)
-	id = e.upload("master", "voice.wav", "audio/wav", "RIFF")
+	id = upload(e, "master", "voice.wav", "audio/wav", "RIFF")
 	if code, msg := e.Call("deck.transcribe", map[string]any{"file": itoa(id)}); code != 422 || !strings.Contains(string(msg), "speech to text") {
 		t.Fatalf("a whisper that does not answer is an error the owner reads: %d %s", code, msg)
 	}
@@ -165,14 +165,14 @@ func (d *pushDevice) decrypt(t *testing.T, body []byte) []byte {
 	return plain[:end]
 }
 
-func (d *pushDevice) subscribe(e *Env, srv *httptest.Server, name string) {
+func (d *pushDevice) subscribe(e *harness.Env, srv *httptest.Server, name string) {
 	b64 := base64.RawURLEncoding.EncodeToString
 	e.Must("deck.push_subscribe", map[string]any{"endpoint": srv.URL + "/push/" + name, "p256dh": b64(d.priv.PublicKey().Bytes()),
 		"auth": b64(d.auth), "device": name}, nil)
 }
 
 // wait looks for what to push, as the loop of deck does every 30 seconds, until the device got n pushes.
-func (d *pushDevice) wait(e *Env, n int) []map[string]string {
+func (d *pushDevice) wait(e *harness.Env, n int) []map[string]string {
 	e.T.Helper()
 	e.Until("pushes", func() bool {
 		e.App.Sweep(context.Background(), time.Now())
@@ -189,7 +189,7 @@ func (d *pushDevice) wait(e *Env, n int) []map[string]string {
 // or a reply of the master pushes nothing of its own.
 func TestPushGoesToSubscribedDevices(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "chat topic") {
 			return provider.Result{Text: "Put it into groceries, as card 1."}
 		}
@@ -206,8 +206,8 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	if len(devices) != 1 || devices[0].Name != "iPhone" {
 		t.Fatalf("the device is listed: %+v", devices)
 	}
-	p := e.Project("work", plainManifest)
-	e.Project("private", strings.Replace(plainManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
+	p := e.Project("work", harness.PlainManifest)
+	e.Project("private", strings.Replace(harness.PlainManifest, `"version": 13,`, `"version": 13, "no_network": true,`, 1))
 	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report of the week is ready"}, nil)
 	got := d.wait(e, 1)
 	if got[0]["body"] != "The report of the week is ready" || got[0]["url"] != "/#/deck/cockpit" || got[0]["badge"] != "0" ||
@@ -221,8 +221,8 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	}
 	e.Answer(e.WaitAsk().ID, "the second")
 	e.WaitState(id, "error")
-	topic := e.say(0, "buy milk")
-	e.masterSaid(topic, 1)
+	topic := e.Say(0, "buy milk")
+	e.MasterSaid(topic, 1)
 	e.Must("deck.notify", map[string]any{"project": "private", "text": "Your blood test is in"}, nil)
 	got = d.wait(e, 3)
 	if len(got) != 3 || strings.Contains(got[2]["body"], "blood") || got[2]["body"] != "Something in deck waits for you" {
@@ -256,7 +256,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 
 func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Text: "The list is updated."}
 	}))
 
@@ -275,7 +275,7 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	}))
 	t.Cleanup(flaky.Close)
 	d.subscribe(e, flaky, "mac")
-	e.Project("work", plainManifest)
+	e.Project("work", harness.PlainManifest)
 	e.Must("deck.notify", map[string]any{"project": "work", "text": "The list is updated."}, nil)
 	e.App.Sweep(context.Background(), time.Now())
 	if n := len(d.got); n != 0 {
@@ -316,14 +316,14 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 		_, _ = w.Write([]byte(`{"text": "hi"}`))
 	}))
 	t.Cleanup(whisper.Close)
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
-	id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
+	id := upload(e, "master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
 	e.Must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "openai", "api": "openai", "url": whisper.URL + "/v1", "key": "sk-o"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openai", "model": "whisper-1", "kind": "stt"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"openai/whisper-1"}}, nil)
-	id = e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
+	id = upload(e, "master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
 	e.Must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
 	mu.Lock()
 	defer mu.Unlock()
@@ -336,7 +336,7 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 // makes a new key and drops the devices subscribed with the old one.
 func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	var before struct{ Key string }
 	e.Must("deck.push_key", nil, &before)
 	d, srv := newPushDevice(t)
@@ -360,11 +360,11 @@ func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
 func TestNoToolGetsThePushKey(t *testing.T) {
 	t.Parallel()
 	seen := make(chan string, 1)
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		seen <- r.Header.Get("Authorization")
-		jsonReply(w, `{}`)
+		harness.JsonReply(w, `{}`)
 	})
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.push_key", nil, nil)
 	m := fmt.Sprintf(`{"version": 13, "allowed_external": ["post"],
   "tools": {"http": [{"name": "post", "description": "Posts", "method": "POST", "url": "%s/x", "headers": {"Authorization": "$secret.push.vapid"},
@@ -384,13 +384,13 @@ func TestNoToolGetsThePushKey(t *testing.T) {
 // service fails gets it later and the others get each push once; the health of pushes names the failing one.
 func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	good, srv := newPushDevice(t)
 	good.subscribe(e, srv, "iPhone")
 	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
 	t.Cleanup(broken.Close)
 	good.subscribe(e, broken, "mac")
-	e.Project("work", plainManifest)
+	e.Project("work", harness.PlainManifest)
 	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	good.wait(e, 1)
 	for range 3 {
@@ -408,7 +408,7 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 // the pushes of that device on again, and the row of the health opens where that is done.
 func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	dev, _ := newPushDevice(t)
 	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
@@ -416,7 +416,7 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	}))
 	t.Cleanup(refusing.Close)
 	dev.subscribe(e, refusing, "MacIntel")
-	e.Project("work", plainManifest)
+	e.Project("work", harness.PlainManifest)
 	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	e.App.Sweep(context.Background(), time.Now())
 	h := e.WaitHealth("push", "error")
@@ -434,7 +434,7 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	if machine != 0 {
 		t.Fatal("the devices are of a workspace, and so is the health of their pushes")
 	}
-	if a := e.button("", "settings", map[string]any{"dialog": "checks"}, "", map[string]any{"tab": "Advanced"}); a["screen"] != "settings" {
+	if a := e.Button("", "settings", map[string]any{"dialog": "checks"}, "", map[string]any{"tab": "Advanced"}); a["screen"] != "settings" {
 		t.Fatalf("the row of the health opens the tab with the pushes: %+v", a)
 	}
 }
@@ -444,7 +444,7 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	var first struct{ Key string }
 	e.Must("deck.push_key", nil, &first)
 	h := deckhome.Layout(home)
@@ -468,7 +468,7 @@ func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 // deck's own signature, is red in health and forgets no device.
 func TestAPushRefusedForDecksOwnSignatureKeepsTheDevice(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	dev, _ := newPushDevice(t)
 	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
@@ -476,7 +476,7 @@ func TestAPushRefusedForDecksOwnSignatureKeepsTheDevice(t *testing.T) {
 	}))
 	t.Cleanup(refusing.Close)
 	dev.subscribe(e, refusing, "MacIntel")
-	e.Project("work", plainManifest)
+	e.Project("work", harness.PlainManifest)
 	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	e.App.Sweep(context.Background(), time.Now())
 	if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, "BadJwtToken") {
@@ -498,13 +498,13 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 		_, _ = w.Write([]byte(`{"reason":"VapidPkHashMismatch"}`))
 	}))
 	t.Cleanup(refusing.Close)
-	notes := func(e *Env) int {
+	notes := func(e *harness.Env) int {
 		var n int
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM feed WHERE text LIKE 'Pushes stopped%'`).Scan(&n)
 		return n
 	}
-	e := New(t)
-	e.Project("work", plainManifest)
+	e := harness.New(t)
+	e.Project("work", harness.PlainManifest)
 	for i, name := range []string{"MacIntel", "iPad"} {
 		dev, _ := newPushDevice(t)
 		dev.subscribe(e, refusing, name)
@@ -518,8 +518,8 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 		t.Fatalf("the owner gets one note while the pushes stay stopped: %d", n)
 	}
 
-	e = New(t)
-	e.Project("work", plainManifest)
+	e = harness.New(t)
+	e.Project("work", harness.PlainManifest)
 	dev, _ := newPushDevice(t)
 	dev.subscribe(e, refusing, "MacIntel")
 	e.Must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
@@ -536,7 +536,7 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 // address of deck on the tailnet once deck is on it, and to none before.
 func TestAPageWithoutAMicrophoneLearnsWhereToRecord(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	var at struct{ HTTPS string }
 	e.Must("deck.secure_address", nil, &at)
 	if at.HTTPS != "" {

@@ -2,13 +2,13 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserAWorkToldInItsTopic: a work of the master that failed says so in its topic with a button that goes
@@ -21,11 +21,11 @@ func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
 	long := strings.Repeat("Шаг сделан, одна фраза — одно дело. ", 90) + "Что заводить первым?"
 	var from atomic.Int64
 	var works atomic.Int32
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
 		case strings.Contains(c.Req.Prompt, "go on where you stopped"):
 			return provider.Result{Text: long}
-		case c.command() != "work":
+		case c.Command() != "work":
 			return handOver(ctx, c, &from)
 		case works.Add(1) == 1:
 			return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
@@ -34,9 +34,9 @@ func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
 	}))
 
 	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	e.Project("plain", plainManifest)
-	topic := e.say(0, "сделай")
-	e.told(topic, "error", "ru")
+	e.Project("plain", harness.PlainManifest)
+	topic := e.Say(0, "сделай")
+	told(e, topic, "error", "ru")
 	b := newPlaywright(t)
 	open := func(phone bool) {
 		if phone {

@@ -2,14 +2,14 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
 )
 
 var longQuestion = "The groceries module keeps two lists, and the shop list has not been opened for three weeks. " +
@@ -26,7 +26,7 @@ func TestRealBrowserMasterQuestions(t *testing.T) {
 	opt := func(label, description string) map[string]any {
 		return map[string]any{"label": label, "description": description}
 	}
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Reading the lists"})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "records_list", Text: "{}"})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t2", Title: "document_read", Text: "{}"})
@@ -57,11 +57,11 @@ func TestRealBrowserMasterQuestions(t *testing.T) {
 			got = append(got, fmt.Sprint(answers[q.(map[string]any)["question"].(string)]))
 		}
 		return provider.Result{Text: "Answers: " + strings.Join(got, " | ")}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		func(c *app.Config) { c.QuestionWait = 5 * time.Minute; c.ConfirmTTL = time.Hour }))
 
-	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": tasksManifest}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": harness.TasksManifest}, nil)
 
 	b := newPlaywright(t)
 	say := func(text string) {

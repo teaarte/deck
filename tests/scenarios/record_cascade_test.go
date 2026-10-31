@@ -2,6 +2,9 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,9 +13,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
 )
 
 // cascadeModule keeps videos, each with a folder of the data folder its field dir names, the scenes of each video,
@@ -42,9 +42,9 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 `
 
 // videos writes videos to the cascade module and gives the id of each by its slug.
-func (e *Env) videos(recs ...map[string]any) map[string]int64 {
+func videos(e *harness.Env, recs ...map[string]any) map[string]int64 {
 	e.T.Helper()
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(recs...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(recs...)}, nil)
 	var all []struct {
 		ID  int64
 		Key string
@@ -58,7 +58,7 @@ func (e *Env) videos(recs ...map[string]any) map[string]int64 {
 }
 
 // partNames are what record_parts lists for a record, as kind and name.
-func (e *Env) partNames(record int64) string {
+func partNames(e *harness.Env, record int64) string {
 	e.T.Helper()
 	var parts []struct{ Kind, Name string }
 	e.Must("deck.record_parts", map[string]any{"record": record}, &parts)
@@ -78,7 +78,7 @@ func exists(path string) bool {
 // record also gives, or one inside or around another record's, stays.
 func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	pid := e.Project("shorts", cascadeModule)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	for _, d := range []string{"keep", "shared", "nest/inner"} {
@@ -89,11 +89,11 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ids := e.videos(map[string]any{"slug": "empty", "dir": ""}, map[string]any{"slug": "up", "dir": "x/../.."}, map[string]any{"slug": "dot", "dir": "."},
+	ids := videos(e, map[string]any{"slug": "empty", "dir": ""}, map[string]any{"slug": "up", "dir": "x/../.."}, map[string]any{"slug": "dot", "dir": "."},
 		map[string]any{"slug": "c", "dir": "shared"}, map[string]any{"slug": "d", "dir": "shared"},
 		map[string]any{"slug": "outer", "dir": "nest"}, map[string]any{"slug": "inner", "dir": "nest/inner"})
 	for _, k := range []string{"empty", "up", "dot", "c", "outer"} {
-		if got := e.partNames(ids[k]); strings.Contains(got, "folder") {
+		if got := partNames(e, ids[k]); strings.Contains(got, "folder") {
 			t.Fatalf("%s takes no folder: %s", k, got)
 		}
 		e.Must("deck.record_delete", map[string]any{"record": ids[k]}, nil)
@@ -109,7 +109,7 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 	if !exists(filepath.Join(data, "videos", "shared", "f.txt")) {
 		t.Fatal("the outbox leaves a folder a record holds by the time it gets to it")
 	}
-	if got := e.partNames(ids["d"]); !strings.Contains(got, "folder videos/shared/") {
+	if got := partNames(e, ids["d"]); !strings.Contains(got, "folder videos/shared/") {
 		t.Fatalf("the last record that holds a folder takes it: %s", got)
 	}
 	e.Must("deck.record_delete", map[string]any{"record": ids["d"]}, nil)
@@ -124,9 +124,9 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 // takes nothing.
 func TestAnExpressionErrorStopsADeletion(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("shorts", cascadeModule)
-	ids := e.videos(map[string]any{"slug": "nodir"})
+	ids := videos(e, map[string]any{"slug": "nodir"})
 	if code, out := e.Call("deck.record_parts", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") {
 		t.Fatalf("record_parts says the folder could not be worked out: %d %s", code, out)
 	}
@@ -142,14 +142,14 @@ func TestAnExpressionErrorStopsADeletion(t *testing.T) {
 // large its id, and not of a record another field names.
 func TestAProcessBelongsToARecordOnlyByItsRecordField(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	pid := e.Project("shorts", cascadeModule)
-	e.saveScript("shorts", "scripts/render.py", renderScript)
-	low := e.videos(map[string]any{"slug": "low", "dir": "low"})["low"]
+	e.SaveScript("shorts", "scripts/render.py", renderScript)
+	low := videos(e, map[string]any{"slug": "low", "dir": "low"})["low"]
 	if _, err := e.App.Store.DB.Exec(`UPDATE sqlite_sequence SET seq = 999999 WHERE name = 'record'`); err != nil {
 		t.Fatal(err)
 	}
-	big := e.videos(map[string]any{"slug": "big", "dir": "big"})["big"]
+	big := videos(e, map[string]any{"slug": "big", "dir": "big"})["big"]
 	if big < 1000000 {
 		t.Fatalf("a large record id: %d", big)
 	}
@@ -172,10 +172,10 @@ func TestAProcessBelongsToARecordOnlyByItsRecordField(t *testing.T) {
 	if got := runs(big); len(got) != 1 || got[0] != run {
 		t.Fatalf("a large record finds its run: %v", got)
 	}
-	if got := e.partNames(low); strings.Contains(got, "file") {
+	if got := partNames(e, low); strings.Contains(got, "file") {
 		t.Fatalf("a record another field of a run names takes none of its files: %s", got)
 	}
-	if got := e.partNames(big); !strings.Contains(got, "file frame.png") || !strings.Contains(got, "file log.txt") {
+	if got := partNames(e, big); !strings.Contains(got, "file frame.png") || !strings.Contains(got, "file log.txt") {
 		t.Fatalf("a large record takes the files of its run: %s", got)
 	}
 	e.Must("deck.record_delete", map[string]any{"record": low}, nil)
@@ -194,18 +194,18 @@ func TestAProcessBelongsToARecordOnlyByItsRecordField(t *testing.T) {
 // TestDeletingARecordStopsItsOpenProcesses: a process still open for a record is listed and stopped with it.
 func TestDeletingARecordStopsItsOpenProcesses(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		<-ctx.Done()
 		return provider.Result{}
 	}))
 
 	e.Project("shorts", cascadeModule)
-	ids := e.videos(map[string]any{"slug": "knights", "dir": "knights"}, map[string]any{"slug": "snails", "dir": "snails"})
+	ids := videos(e, map[string]any{"slug": "knights", "dir": "knights"}, map[string]any{"slug": "snails", "dir": "snails"})
 	watch := e.Start("shorts", "watch", map[string]any{"record": ids["knights"]})
 	other := e.Start("shorts", "watch", map[string]any{"record": ids["snails"]})
 	e.WaitState(watch, "running")
 	e.WaitState(other, "running")
-	if got := e.partNames(ids["knights"]); !strings.Contains(got, "process watch") {
+	if got := partNames(e, ids["knights"]); !strings.Contains(got, "process watch") {
 		t.Fatalf("the owner sees the open process the deletion stops: %s", got)
 	}
 	e.Must("deck.record_delete", map[string]any{"record": ids["knights"]}, nil)
@@ -224,7 +224,7 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	said := map[string]string{}
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		_, text, found := strings.Cut(c.Req.Prompt, "new message in chat topic")
 		if !found {
 			return provider.Result{Text: "Noted."}
@@ -232,7 +232,7 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 		text = strings.Split(text, "\n")[1]
 		slug, _ := strings.CutPrefix(text, "write ")
 		if slug != text {
-			out, _ := c.Tool(ctx, "records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": slug, "dir": slug})})
+			out, _ := c.Tool(ctx, "records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": slug, "dir": slug})})
 			mu.Lock()
 			said["write "+slug] = out
 			mu.Unlock()
@@ -249,19 +249,19 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	}))
 
 	pid := e.Project("shorts", cascadeModule)
-	e.saveScript("shorts", "scripts/render.py", renderScript)
-	topic := e.say(0, "write knights")
-	e.masterSaid(topic, 1)
-	e.say(topic, "write snails")
-	e.masterSaid(topic, 2)
-	ids := e.videos()
+	e.SaveScript("shorts", "scripts/render.py", renderScript)
+	topic := e.Say(0, "write knights")
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "write snails")
+	e.MasterSaid(topic, 2)
+	ids := videos(e)
 	if got := e.WaitState(e.Start("shorts", "render", map[string]any{"record": ids["knights"]}), "done", "error"); got.State != "done" {
 		t.Fatalf("the render runs: %+v", got)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(map[string]any{"video": "snails", "n": 1})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": harness.Jsonl(map[string]any{"video": "snails", "n": 1})}, nil)
 
-	e.say(topic, fmt.Sprintf("delete %d", ids["snails"]))
-	e.masterSaid(topic, 3)
+	e.Say(topic, fmt.Sprintf("delete %d", ids["snails"]))
+	e.MasterSaid(topic, 3)
 	mu.Lock()
 	refused := said[fmt.Sprintf("delete %d", ids["snails"])]
 	mu.Unlock()
@@ -269,8 +269,8 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 		t.Fatalf("the master does not delete a record with a child record of the owner: %s", refused)
 	}
 
-	e.say(topic, fmt.Sprintf("delete %d", ids["knights"]))
-	e.masterSaid(topic, 4)
+	e.Say(topic, fmt.Sprintf("delete %d", ids["knights"]))
+	e.MasterSaid(topic, 4)
 	mu.Lock()
 	waiting := said[fmt.Sprintf("delete %d", ids["knights"])]
 	mu.Unlock()
@@ -282,7 +282,7 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	}
 	a := e.WaitAsk()
 	for _, want := range []string{"frame.png", "log.txt", "videos/knights/", "Delete record"} {
-		if !strings.Contains(a.Text+fmt.Sprint(e.askWhat(a.ID)), want) {
+		if !strings.Contains(a.Text+fmt.Sprint(askWhat(e, a.ID)), want) {
 			t.Fatalf("the owner sees all the deletion takes (%s): %+v", want, a)
 		}
 	}
@@ -296,14 +296,14 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 		t.Fatalf("with its files: %d", n)
 	}
 
-	e.say(topic, "write rats")
+	e.Say(topic, "write rats")
 	var rats int64
-	e.Until("the master's record", func() bool { rats = e.videos()["rats"]; return rats != 0 })
-	e.say(topic, fmt.Sprintf("delete %d", rats))
+	e.Until("the master's record", func() bool { rats = videos(e)["rats"]; return rats != 0 })
+	e.Say(topic, fmt.Sprintf("delete %d", rats))
 	e.Until("the ask of the deletion", func() bool { a = e.WaitAsk(); return strings.Contains(a.Text, "rats") })
 	e.Must("deck.record_delete", map[string]any{"record": rats}, nil)
 	e.Answer(a.ID, "allow")
-	var left []Ask
+	var left []harness.Ask
 	e.Must("deck.asks_list", nil, &left)
 	if len(left) != 0 {
 		t.Fatalf("a yes to a record already gone closes the ask: %+v", left)
@@ -316,7 +316,7 @@ func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	said := map[string]string{}
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		_, text, found := strings.Cut(c.Req.Prompt, "new message in chat topic")
 		if !found {
 			return provider.Result{Text: "Noted."}
@@ -325,7 +325,7 @@ func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
 		var id int64
 		var out string
 		if slug, ok := strings.CutPrefix(text, "write "); ok {
-			out, _ = c.Tool(ctx, "records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": slug})})
+			out, _ = c.Tool(ctx, "records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": slug})})
 		} else if _, err := fmt.Sscanf(text, "render %d", &id); err == nil {
 			out, _ = c.Tool(ctx, "shorts__render", map[string]any{"record": id})
 		} else if _, err := fmt.Sscanf(text, "delete %d", &id); err == nil {
@@ -338,14 +338,14 @@ func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
 	}))
 
 	pid := e.Project("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, "", 1))
-	e.saveScript("shorts", "scripts/render.py", renderScript)
-	topic := e.say(0, "write knights")
-	e.masterSaid(topic, 1)
-	e.say(topic, "write snails")
-	e.masterSaid(topic, 2)
-	ids := e.videos()
-	e.say(topic, fmt.Sprintf("render %d", ids["knights"]))
-	e.masterSaid(topic, 3)
+	e.SaveScript("shorts", "scripts/render.py", renderScript)
+	topic := e.Say(0, "write knights")
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "write snails")
+	e.MasterSaid(topic, 2)
+	ids := videos(e)
+	e.Say(topic, fmt.Sprintf("render %d", ids["knights"]))
+	e.MasterSaid(topic, 3)
 	if got := e.WaitState(e.Start("shorts", "render", map[string]any{"record": ids["snails"]}), "done", "error"); got.State != "done" {
 		t.Fatalf("the owner's render runs: %+v", got)
 	}
@@ -355,16 +355,16 @@ func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
 		return n == 2
 	})
 
-	e.say(topic, fmt.Sprintf("delete %d", ids["knights"]))
-	e.masterSaid(topic, 4)
+	e.Say(topic, fmt.Sprintf("delete %d", ids["knights"]))
+	e.MasterSaid(topic, 4)
 	mu.Lock()
 	mine := said[fmt.Sprintf("delete %d", ids["knights"])]
 	mu.Unlock()
 	if !strings.Contains(mine, `"ok":true`) {
 		t.Fatalf("the master deletes its record with the frame its own run made: %s", mine)
 	}
-	e.say(topic, fmt.Sprintf("delete %d", ids["snails"]))
-	e.masterSaid(topic, 5)
+	e.Say(topic, fmt.Sprintf("delete %d", ids["snails"]))
+	e.MasterSaid(topic, 5)
 	mu.Lock()
 	theirs := said[fmt.Sprintf("delete %d", ids["snails"])]
 	mu.Unlock()
@@ -374,7 +374,7 @@ func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
 }
 
 // askWhat is what the owner reads an ask is about.
-func (e *Env) askWhat(id int64) string {
+func askWhat(e *harness.Env, id int64) string {
 	e.T.Helper()
 	var as []struct {
 		ID   int64
@@ -393,7 +393,7 @@ func (e *Env) askWhat(id int64) string {
 // collection, go with their child records and folders.
 func TestRetentionAndCollectionDeleteTakeWhatBelongsToARecord(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
+	e := harness.New(t, harness.WithClock())
 	pid := e.Project("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1))
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	count := func(collection string) int {
@@ -401,18 +401,18 @@ func TestRetentionAndCollectionDeleteTakeWhatBelongsToARecord(t *testing.T) {
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM record WHERE project_id = ? AND collection = ?`, pid, collection).Scan(&n)
 		return n
 	}
-	e.videos(map[string]any{"slug": "old", "dir": "old"})
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(map[string]any{"video": "old", "n": 1})}, nil)
+	videos(e, map[string]any{"slug": "old", "dir": "old"})
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": harness.Jsonl(map[string]any{"video": "old", "n": 1})}, nil)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "old"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	e.Clock.Add(31 * 24 * time.Hour)
-	e.videos(map[string]any{"slug": "new", "dir": "new"})
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": jsonl(map[string]any{"video": "new", "n": 1})}, nil)
+	videos(e, map[string]any{"slug": "new", "dir": "new"})
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "scenes", "records": harness.Jsonl(map[string]any{"video": "new", "n": 1})}, nil)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "new"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	e.sweep()
+	e.Sweep()
 	e.Drained()
 	if count("videos") != 1 || count("scenes") != 1 || exists(filepath.Join(data, "videos", "old")) || !exists(filepath.Join(data, "videos", "new")) {
 		t.Fatalf("an expired record goes with its scene and folder: %d videos, %d scenes", count("videos"), count("scenes"))
@@ -428,7 +428,7 @@ func TestRetentionAndCollectionDeleteTakeWhatBelongsToARecord(t *testing.T) {
 // red in the health of the outbox, which turns green once it goes.
 func TestAFolderThatWillNotGoIsTheHealthOfTheOutbox(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	pid := e.Project("shorts", cascadeModule)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	if err := os.MkdirAll(filepath.Join(data, "videos", "knights", "deep"), 0o700); err != nil {
@@ -438,17 +438,17 @@ func TestAFolderThatWillNotGoIsTheHealthOfTheOutbox(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(filepath.Join(data, "videos", "knights"), 0o700) })
-	ids := e.videos(map[string]any{"slug": "knights", "dir": "knights"})
+	ids := videos(e, map[string]any{"slug": "knights", "dir": "knights"})
 	e.Must("deck.record_delete", map[string]any{"record": ids["knights"]}, nil)
 	e.Drained()
 	e.App.Sweep(context.Background(), time.Now())
 	e.App.Sweep(context.Background(), time.Now())
-	if h := e.health("outbox"); h == nil || h["status"] != "error" || !strings.Contains(fmt.Sprint(h["error"]), "videos/knights") {
+	if h := e.HealthRowOf("outbox"); h == nil || h["status"] != "error" || !strings.Contains(fmt.Sprint(h["error"]), "videos/knights") {
 		t.Fatalf("the folder that will not go is red in the health of the outbox: %v", h)
 	}
 	_ = os.Chmod(filepath.Join(data, "videos", "knights"), 0o700)
 	e.App.Sweep(context.Background(), time.Now())
-	if h := e.health("outbox"); h != nil {
+	if h := e.HealthRowOf("outbox"); h != nil {
 		t.Fatalf("once it goes the outbox is well: %v", h)
 	}
 }
@@ -457,7 +457,7 @@ func TestAFolderThatWillNotGoIsTheHealthOfTheOutbox(t *testing.T) {
 // loses the folder on the next round of deck.
 func TestTheFolderOfADeletedProjectGoesEvenAfterACrash(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	pid := e.Project("shorts", cascadeModule)
 	dir := deckhome.Layout(e.App.Cfg.Home).Project(pid)
 	if err := os.MkdirAll(filepath.Join(dir, "data", "videos"), 0o700); err != nil {
@@ -476,15 +476,15 @@ func TestTheFolderOfADeletedProjectGoesEvenAfterACrash(t *testing.T) {
 // which is red in its health once.
 func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
+	e := harness.New(t, harness.WithClock())
 	e.Project("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1))
-	ids := e.videos(map[string]any{"slug": "old", "dir": "old"}, map[string]any{"slug": "nodir"})
+	ids := videos(e, map[string]any{"slug": "old", "dir": "old"}, map[string]any{"slug": "nodir"})
 	e.Must("deck.file_upload", map[string]any{"project": "shorts", "name": "a.txt", "content": "YQ=="}, nil)
 	if _, err := e.App.Store.DB.Exec(`UPDATE file SET owner_kind = 'record', owner_id = ?`, ids["old"]); err != nil {
 		t.Fatal(err)
 	}
 	e.Clock.Add(31 * 24 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	var n int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'retention:shorts' AND status = 'error'`).Scan(&n)
 	var files int
@@ -501,14 +501,14 @@ func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 // health, naming the record and why, and the owner reads each apart.
 func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithClock())
+	e := harness.New(t, harness.WithClock())
 	module := strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1)
 	for _, name := range []string{"shorts", "clips"} {
 		e.Project(name, module)
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "videos", "records": jsonl(map[string]any{"slug": "nodir-" + name})}, nil)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "nodir-" + name})}, nil)
 	}
 	e.Clock.Add(31 * 24 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	why := map[string]string{}
 	rows, _ := e.App.Store.DB.Query(`SELECT p.name, h.subject, h.error FROM health h JOIN project p ON p.id = h.project_id WHERE h.status = 'error'`)
 	for rows.Next() {
@@ -523,10 +523,10 @@ func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
 		}
 	}
 	e.Must("deck.health_seen", map[string]any{"subject": "retention:clips", "project": "clips"}, nil)
-	if seen, _ := e.healthSeen("clips", "retention:clips"); !seen {
+	if seen, _ := healthSeen(e, "clips", "retention:clips"); !seen {
 		t.Fatal("the owner reads the retention of one project")
 	}
-	if seen, failing := e.healthSeen("shorts", "retention:shorts"); seen || !failing {
+	if seen, failing := healthSeen(e, "shorts", "retention:shorts"); seen || !failing {
 		t.Fatal("the retention of another project stays unread")
 	}
 	if code, _ := e.Call("deck.health_seen", map[string]any{"subject": "retention:shorts", "project": "clips"}); code == 200 {
@@ -538,12 +538,12 @@ func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
 // froze stays the owner's to allow.
 func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "ext-1"}`) })
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "ext-1"}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Tool(ctx, "shorts__post", map[string]any{"id": "a", "text": "hi"})
 		<-ctx.Done()
 		return provider.Result{}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		withTTL))
 
@@ -552,7 +552,7 @@ func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
 	post := postManifest(svc.URL, "")
 	module = strings.Replace(module, `"scripts": [`, post[strings.Index(post, `"tools"`):len(post)-1]+`, "scripts": [`, 1)
 	pid := e.Project("shorts", module)
-	id := e.videos(map[string]any{"slug": "old", "dir": "old"})["old"]
+	id := videos(e, map[string]any{"slug": "old", "dir": "old"})["old"]
 	watch := e.Start("shorts", "watch", map[string]any{"record": id})
 	a := e.WaitAsk()
 	if _, err := e.App.Store.DB.Exec(`UPDATE record SET created_at = '2000-01-01T00:00:00.000Z' WHERE project_id = ?`, pid); err != nil {
@@ -563,7 +563,7 @@ func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
 		t.Fatalf("the process of the expired record is stopped: %+v", got)
 	}
 	e.Settle()
-	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 200 || len(svc.requests()) != 1 {
+	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 200 || len(svc.Requests()) != 1 {
 		t.Fatalf("the owner may still allow the call the process froze: %d %s", code, out)
 	}
 }

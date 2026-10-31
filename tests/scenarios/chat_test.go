@@ -2,6 +2,10 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -11,32 +15,28 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/internal/registry"
 )
 
 func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Text: "Put it into the inbox."}
 	}))
 
-	topic := e.say(0, "Remember to buy milk\nand bread", map[string]any{"screen": `{"project":"master","screen":"documents","record":7}`,
+	topic := e.Say(0, "Remember to buy milk\nand bread", map[string]any{"screen": `{"project":"master","screen":"documents","record":7}`,
 		"retry_key": "k1"})
-	said := e.masterSaid(topic, 1)
+	said := e.MasterSaid(topic, 1)
 	if said[0].Text != "Put it into the inbox." {
 		t.Fatalf("the final text of the turn is the master's reply: %+v", said)
 	}
-	var ts []chatTopic
-	e.chatTopics(false, &ts)
+	var ts []harness.ChatTopic
+	e.ChatTopics(false, &ts)
 	if len(ts) != 1 || ts[0].ID != topic || ts[0].Title != "Remember to buy milk" || ts[0].Last != "Put it into the inbox." {
 		t.Fatalf("the topic is named by the first line of its first message: %+v", ts)
 	}
-	var ms []chatMessage
+	var ms []harness.ChatMessage
 	e.Until("the reply done", func() bool {
-		ms = e.chatMessages(topic)
+		ms = e.ChatMessages(topic)
 		return len(ms) == 2 && ms[0].Reply != nil && ms[0].Reply.State == "done"
 	})
 	if len(ms) != 2 || ms[0].Role != "owner" || ms[0].Reply == nil || ms[0].Reply.State != "done" ||
@@ -70,14 +70,14 @@ func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 
 func TestATopicContinuesTheSameSession(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Text: fmt.Sprintf("reply %d", c.N)}
 	}))
 
-	topic := e.say(0, "first message")
-	e.masterSaid(topic, 1)
-	e.say(topic, "second message")
-	e.masterSaid(topic, 2)
+	topic := e.Say(0, "first message")
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "second message")
+	e.MasterSaid(topic, 2)
 	calls := e.Fake.Calls()
 	if len(calls) != 2 || calls[0].Resume || !calls[1].Resume || calls[1].SessionID != calls[0].SessionID {
 		t.Fatalf("the second reply resumes the session of the first: %+v", calls)
@@ -85,8 +85,8 @@ func TestATopicContinuesTheSameSession(t *testing.T) {
 	if !strings.Contains(calls[1].Prompt, "second message") || strings.Contains(calls[1].Prompt, "first message") {
 		t.Fatalf("a resumed session gets only what is new to it:\n%s", calls[1].Prompt)
 	}
-	other := e.say(0, "another topic")
-	e.masterSaid(other, 1)
+	other := e.Say(0, "another topic")
+	e.MasterSaid(other, 1)
 	if c := e.Fake.Calls()[2]; c.Resume || c.SessionID == calls[0].SessionID {
 		t.Fatalf("another topic has a session of its own: %+v", c)
 	}
@@ -96,8 +96,8 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 	t.Parallel()
 	summarize, topic := false, int64(0)
 	var mu sync.Mutex
-	script := func(name string) Script {
-		return func(ctx context.Context, c *Call) provider.Result {
+	script := func(name string) harness.Script {
+		return func(ctx context.Context, c *harness.Call) provider.Result {
 			mu.Lock()
 			write, id := summarize && name == "other", topic
 			mu.Unlock()
@@ -110,20 +110,20 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 			return provider.Result{Text: fmt.Sprintf("%s says %d", name, c.N)}
 		}
 	}
-	main := &Fake{script: script("fake")}
-	other := &Fake{script: script("other"), name: "other"}
-	third := &Fake{script: script("third"), name: "third"}
-	e := New(t, WithProvider(main, other, third))
+	main := &harness.Fake{Script: script("fake")}
+	other := &harness.Fake{Script: script("other"), ProviderName: "other"}
+	third := &harness.Fake{Script: script("third"), ProviderName: "third"}
+	e := harness.New(t, harness.WithProvider(main, other, third))
 	mu.Lock()
-	topic = e.say(0, "one")
+	topic = e.Say(0, "one")
 	mu.Unlock()
-	e.masterSaid(topic, 1)
-	e.say(topic, "two")
-	e.masterSaid(topic, 2)
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "two")
+	e.MasterSaid(topic, 2)
 
 	e.UseModels("master.reply", "other")
-	e.say(topic, "three")
-	e.masterSaid(topic, 3)
+	e.Say(topic, "three")
+	e.MasterSaid(topic, 3)
 	c := other.Calls()[0]
 	if c.Resume || !strings.Contains(c.Prompt, "did not see the earlier part of this topic") {
 		t.Fatalf("another provider starts its own session with a retelling:\n%s", c.Prompt)
@@ -133,13 +133,13 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 			t.Fatalf("the retelling has the topic word for word as data, missing %q:\n%s", want, c.Prompt)
 		}
 	}
-	if !strings.Contains(lastLine(strings.Split(c.Prompt, "The owner's new message")[1]), "summary.md") || !strings.Contains(c.Prompt, "three") {
+	if !strings.Contains(harness.LastLine(strings.Split(c.Prompt, "The owner's new message")[1]), "summary.md") || !strings.Contains(c.Prompt, "three") {
 		t.Fatalf("the new message comes after the retelling:\n%s", c.Prompt)
 	}
 
 	e.UseModels("master.reply")
-	e.say(topic, "four")
-	e.masterSaid(topic, 4)
+	e.Say(topic, "four")
+	e.MasterSaid(topic, 4)
 	back := main.Calls()[2]
 	if !back.Resume || back.SessionID != main.Calls()[0].SessionID {
 		t.Fatalf("back on the first provider its own session goes on: %+v", back)
@@ -153,11 +153,11 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 	summarize = true
 	mu.Unlock()
 	e.UseModels("master.reply", "other")
-	e.say(topic, "five")
-	e.masterSaid(topic, 5)
+	e.Say(topic, "five")
+	e.MasterSaid(topic, 5)
 	e.UseModels("master.reply", "third")
-	e.say(topic, "six")
-	e.masterSaid(topic, 6)
+	e.Say(topic, "six")
+	e.MasterSaid(topic, 6)
 	fresh := third.Calls()[0]
 	if !strings.Contains(fresh.Prompt, "SUMMARY-MARK") || strings.Contains(fresh.Prompt, "owner: one") ||
 		!strings.Contains(fresh.Prompt, "master: other says 2") || !strings.Contains(fresh.Prompt, "six") {
@@ -167,17 +167,17 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 
 func TestALostSessionStartsAgainWithTheRetelling(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 2 {
 			return provider.Result{Outcome: provider.SessionMissing}
 		}
 		return provider.Result{Text: fmt.Sprintf("reply %d", c.N)}
 	}))
 
-	topic := e.say(0, "alpha")
-	e.masterSaid(topic, 1)
-	e.say(topic, "beta")
-	e.masterSaid(topic, 2)
+	topic := e.Say(0, "alpha")
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "beta")
+	e.MasterSaid(topic, 2)
 	calls := e.Fake.Calls()
 	if len(calls) != 3 || !calls[1].Resume || calls[2].Resume {
 		t.Fatalf("a resume that finds no session starts it again: %+v", calls)
@@ -189,7 +189,7 @@ func TestALostSessionStartsAgainWithTheRetelling(t *testing.T) {
 
 func TestMasterActsAsMasterAcrossProjects(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		out, bad := c.Tool(ctx, "records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "Buy milk"}`})
 		if bad {
 			return provider.Result{Text: "refused: " + out}
@@ -197,25 +197,25 @@ func TestMasterActsAsMasterAcrossProjects(t *testing.T) {
 		return provider.Result{Text: "Put it into work."}
 	}))
 
-	e.Project("work", tasksManifest)
-	e.Project("other", plainManifest)
-	topic := e.say(0, "buy milk")
-	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into work." {
+	e.Project("work", harness.TasksManifest)
+	e.Project("other", harness.PlainManifest)
+	topic := e.Say(0, "buy milk")
+	if said := e.MasterSaid(topic, 1); said[0].Text != "Put it into work." {
 		t.Fatalf("the master writes a task into another project: %+v", said)
 	}
-	var tasks []recordRow
+	var tasks []harness.RecordRow
 	e.Must("deck.records_list", map[string]any{"project": "work", "collection": "tasks"}, &tasks)
 	if len(tasks) != 1 || tasks[0].Data["title"] != "Buy milk" {
 		t.Fatalf("the task is in work: %+v", tasks)
 	}
 	found := false
-	for _, r := range e.journal() {
+	for _, r := range e.Journal() {
 		if r.Tool == "deck.records_upsert" && r.Actor == "master" && r.Outcome == "done" {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("the call is the master's in the journal: %+v", e.journal())
+		t.Fatalf("the call is the master's in the journal: %+v", e.Journal())
 	}
 	got := e.WaitState(e.Run(e.ProjectID("other"), "work"), "done")
 	if !strings.Contains(string(got.Result), "refused") || !strings.Contains(string(got.Result), "another project") {
@@ -240,10 +240,10 @@ func TestMasterActsAsMasterAcrossProjects(t *testing.T) {
 func TestTheOwnersEditOfTheMasterStaysAcrossARestart(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(&Fake{script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "ok"} }}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{Script: func(context.Context, *harness.Call) provider.Result { return provider.Result{Text: "ok"} }}))
 	e.Must("deck.document_save", map[string]any{"project": "master", "name": "prompt.md", "kind": "prompt", "text": "# My own master\n"}, nil)
 	_ = e.App.Close()
-	e2 := New(t, WithHome(home), WithProvider(&Fake{script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "ok"} }}))
+	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{Script: func(context.Context, *harness.Call) provider.Result { return provider.Result{Text: "ok"} }}))
 	var d struct{ Text string }
 	e2.Must("deck.document_get", map[string]any{"project": "master", "name": "prompt.md"}, &d)
 	if d.Text != "# My own master\n" {
@@ -274,9 +274,9 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 		}
 		return release[key]
 	}
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		head, _, _ := strings.Cut(strings.Replace(c.Req.Prompt, "This topic has no summary", "The summary of this topic", 1), "The summary of this topic")
-		key := strings.Fields(lastLine(head))[0]
+		key := strings.Fields(harness.LastLine(head))[0]
 		select {
 		case <-gate(key):
 		case <-ctx.Done():
@@ -284,18 +284,18 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 		return provider.Result{Text: "done " + key}
 	}))
 
-	a := e.say(0, "A1 first")
-	b := e.say(0, "B1 first")
+	a := e.Say(0, "A1 first")
+	b := e.Say(0, "B1 first")
 	e.Until("two replies at once", func() bool { return len(e.Fake.Calls()) == 2 })
-	e.say(a, "A2 more")
-	e.say(a, "A3 more")
-	for _, m := range e.chatMessages(a) {
+	e.Say(a, "A2 more")
+	e.Say(a, "A3 more")
+	for _, m := range e.ChatMessages(a) {
 		if (strings.HasPrefix(m.Text, "A2") || strings.HasPrefix(m.Text, "A3")) && m.Process != 0 {
 			t.Fatalf("a waiting message has no reply yet: %+v", m)
 		}
 	}
 	close(gate("A1"))
-	e.masterSaid(a, 1)
+	e.MasterSaid(a, 1)
 	e.Until("the queued messages", func() bool { return len(e.Fake.Calls()) == 3 })
 	third := e.Fake.Calls()[2]
 	if !strings.Contains(third.Prompt, "2 new messages") || !strings.Contains(third.Prompt, "A2 more") || !strings.Contains(third.Prompt, "A3 more") {
@@ -303,16 +303,16 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 	}
 	close(gate("A3"))
 	close(gate("B1"))
-	e.masterSaid(a, 2)
-	e.masterSaid(b, 1)
+	e.MasterSaid(a, 2)
+	e.MasterSaid(b, 1)
 
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	c := e.say(0, "C1 first")
+	c := e.Say(0, "C1 first")
 	e.Until("the reply of C", func() bool { return len(e.Fake.Calls()) == 4 })
-	d := e.say(0, "D1 first")
-	var ts []chatTopic
+	d := e.Say(0, "D1 first")
+	var ts []harness.ChatTopic
 	e.Until("D to wait for a slot", func() bool {
-		e.chatTopics(false, &ts)
+		e.ChatTopics(false, &ts)
 		for _, t := range ts {
 			if t.ID == d && t.Reply != nil && t.Reply.State == "waiting_slot" {
 				return true
@@ -322,13 +322,13 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 	})
 	close(gate("C1"))
 	close(gate("D1"))
-	e.masterSaid(c, 1)
-	e.masterSaid(d, 1)
+	e.MasterSaid(c, 1)
+	e.MasterSaid(d, 1)
 }
 
 func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch c.N {
 		case 1:
 			out, _ := c.Tool(ctx, "ext__work", map[string]any{})
@@ -342,15 +342,15 @@ func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
 		return provider.Result{Text: "Put it on the market list."}
 	}))
 
-	e.Project("ext", strings.Replace(plainManifest, `"class": "internal"`, `"class": "external"`, 1))
-	topic := e.say(0, "buy apples")
-	e.masterSaid(topic, 1)
+	e.Project("ext", strings.Replace(harness.PlainManifest, `"class": "internal"`, `"class": "external"`, 1))
+	topic := e.Say(0, "buy apples")
+	e.MasterSaid(topic, 1)
 	e.Until("the reply parked", func() bool {
-		ms := e.chatMessages(topic)
+		ms := e.ChatMessages(topic)
 		return ms[0].Reply != nil && ms[0].Reply.State == "waiting_answer"
 	})
-	e.say(topic, "the market one")
-	said := e.masterSaid(topic, 2)
+	e.Say(topic, "the market one")
+	said := e.MasterSaid(topic, 2)
 	if said[0].Text != "Sending it needs your yes." || said[1].Text != "Put it on the market list." {
 		t.Fatalf("the reply that parked speaks, then answers the message sent meanwhile: %+v", said)
 	}
@@ -359,7 +359,7 @@ func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
 		!strings.Contains(calls[2].Prompt, "buy apples") {
 		t.Fatalf("the message goes into the parked process, and a lost session starts again with it: %d calls\n%s", len(calls), calls[len(calls)-1].Prompt)
 	}
-	ms := e.chatMessages(topic)
+	ms := e.ChatMessages(topic)
 	for _, m := range ms {
 		if m.Role == "owner" && m.Process != ms[0].Process {
 			t.Fatalf("both messages belong to the one reply process: %+v", ms)
@@ -369,22 +369,22 @@ func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
 
 func TestMessagesOfAFailedReplyReachTheNextTurn(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 2 {
 			return provider.Result{Outcome: provider.Failed, Text: "the model is overloaded"}
 		}
 		return provider.Result{Text: fmt.Sprintf("reply %d", c.N)}
 	}))
 
-	topic := e.say(0, "first")
-	e.masterSaid(topic, 1)
-	e.say(topic, "second, lost")
+	topic := e.Say(0, "first")
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "second, lost")
 	e.Until("the failed reply", func() bool {
-		ms := e.chatMessages(topic)
+		ms := e.ChatMessages(topic)
 		return ms[len(ms)-1].Reply != nil && ms[len(ms)-1].Reply.State == "error"
 	})
-	e.say(topic, "third")
-	e.masterSaid(topic, 2)
+	e.Say(topic, "third")
+	e.MasterSaid(topic, 2)
 	c := e.Fake.Calls()[2]
 	if !c.Resume || !strings.Contains(c.Prompt, "owner: second, lost") || strings.Contains(c.Prompt, "master: reply 1") || !strings.Contains(c.Prompt, "third") {
 		t.Fatalf("what a failed turn did not answer comes again, the session's own reply does not:\n%s", c.Prompt)
@@ -393,7 +393,7 @@ func TestMessagesOfAFailedReplyReachTheNextTurn(t *testing.T) {
 
 func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 1 {
 			return provider.Result{Text: "Hello **there**"}
 		}
@@ -407,20 +407,20 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 			map[string]any{"question": "What shows?", "multiSelect": true, "options": []any{map[string]any{"label": "price"}, map[string]any{"label": "photo"}}}}})
 		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
 		return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		func(c *app.Config) { c.QuestionWait = time.Minute }))
 
-	check := newCatalogCheck(t)
-	topic := e.say(0, "hello", map[string]any{"screen": `{"project":"master","screen":"documents"}`})
-	e.masterSaid(topic, 1)
+	check := harness.NewCatalogCheck(t)
+	topic := e.Say(0, "hello", map[string]any{"screen": `{"project":"master","screen":"documents"}`})
+	e.MasterSaid(topic, 1)
 	pick := func(v string) map[string]any {
 		return map[string]any{"filter": fmt.Sprintf(`{"b0": {"topic": %q}}`, v)}
 	}
 	chat := func(v string) ChatV {
 		t.Helper()
-		check.messages(t, e.screenMessages("", "chat", pick(v)))
-		return blockData[ChatV](t, chatData(t, e.screenData("", "chat", pick(v))))
+		check.Messages(t, e.ScreenMessages("", "chat", pick(v)))
+		return harness.BlockData[ChatV](t, harness.ChatData(t, e.ScreenData("", "chat", pick(v))))
 	}
 	if c := chat(""); c.Topic == nil || c.Topic.ID != topic || len(c.Messages) != 2 || c.Messages[1].Text != "Hello **there**" ||
 		c.Send.Params["topic"] != float64(topic) || len(c.Topics) != 1 {
@@ -429,7 +429,7 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 	if c := chat("new"); c.Topic != nil || len(c.Messages) != 0 || len(c.Topics) != 1 {
 		t.Fatalf("a new topic shows no messages: %+v", c)
 	}
-	e.say(topic, "buy apples")
+	e.Say(topic, "buy apples")
 	var c ChatV
 	e.Until("the question in the feed", func() bool {
 		c = chat(fmt.Sprint(topic))
@@ -448,7 +448,7 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 		t.Fatalf("a turn with a question open waits for the owner: %+v", c.Turn)
 	}
 	var ru ChatV
-	e.chatRead(map[string]any{"topic": fmt.Sprint(topic), "lang": "ru"}, &ru)
+	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic), "lang": "ru"}, &ru)
 	calls := map[string][2]string{}
 	for _, l := range ru.Turn.Lines {
 		if l.Doing != "" {
@@ -466,7 +466,7 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 		t.Fatalf("an open reply names the topic it answers: %+v", open)
 	}
 	e.Must(q.Answer.Command, map[string]any{"ask": q.Answer.Params["ask"], "answer": `{"Which list?": "market"}`}, nil)
-	if said := e.masterSaid(topic, 2); said[1].Text != "Picked market" {
+	if said := e.MasterSaid(topic, 2); said[1].Text != "Picked market" {
 		t.Fatalf("the answer from the feed reaches the turn: %+v", said)
 	}
 	e.Until("the turn to leave the block", func() bool { return chat(fmt.Sprint(topic)).Turn == nil })
@@ -524,21 +524,21 @@ type chatActionV struct {
 
 func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?"}}})
 		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
 		return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		func(c *app.Config) { c.QuestionWait = time.Minute }))
 
-	topic := e.say(0, "buy apples")
+	topic := e.Say(0, "buy apples")
 	e.Until("the question", func() bool {
 		_, out := e.Call("deck.asks_list", nil)
 		return strings.Contains(string(out), "Which list?")
 	})
-	e.say(topic, "the market one")
-	if said := e.masterSaid(topic, 1); said[0].Text != "Picked the market one" {
+	e.Say(topic, "the market one")
+	if said := e.MasterSaid(topic, 1); said[0].Text != "Picked the market one" {
 		t.Fatalf("a message typed while the master asks is the answer: %+v", said)
 	}
 	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.screen",
@@ -552,12 +552,12 @@ func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 // in its topic instead of waiting silently.
 func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Hi."} }))
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Hi."} }))
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models)
 		SELECT 1, id, 'reply', 'agent', '["gone"]' FROM project WHERE name = 'master'`); err != nil {
 		t.Fatal(err)
 	}
-	topic := e.say(0, "hello")
+	topic := e.Say(0, "hello")
 	e.Until("the reply that did not start", func() bool {
 		var v struct {
 			Messages []struct {
@@ -565,7 +565,7 @@ func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 				Reply *struct{ State, Error string }
 			}
 		}
-		e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &v)
+		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &v)
 		return len(v.Messages) == 1 && v.Messages[0].Reply != nil && v.Messages[0].Reply.State == "error" &&
 			strings.Contains(v.Messages[0].Reply.Error, "gone")
 	})
@@ -575,7 +575,7 @@ func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 // task there; a move writes it into the other project and deletes the first, which its own turn wrote.
 func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		list, _ := c.Tool(ctx, "projects_list", map[string]any{})
 		var ps []struct{ Name, Description string }
 		_ = json.Unmarshal([]byte(list), &ps)
@@ -595,15 +595,15 @@ func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 		return provider.Result{Text: "no project"}
 	}))
 
-	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# The shopping list of the household.\n", "manifest": tasksManifest}, nil)
-	e.Must("deck.project_create", map[string]any{"name": "garden", "prompt": "# Work in the garden.\n", "manifest": tasksManifest}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# The shopping list of the household.\n", "manifest": harness.TasksManifest}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "garden", "prompt": "# Work in the garden.\n", "manifest": harness.TasksManifest}, nil)
 	tasks := func(project string) int {
-		var rs []recordRow
+		var rs []harness.RecordRow
 		e.Must("deck.records_list", map[string]any{"project": project, "collection": "tasks"}, &rs)
 		return len(rs)
 	}
-	topic := e.say(0, "buy a rake")
-	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into groceries. Move it?" || tasks("groceries") != 1 {
+	topic := e.Say(0, "buy a rake")
+	if said := e.MasterSaid(topic, 1); said[0].Text != "Put it into groceries. Move it?" || tasks("groceries") != 1 {
 		t.Fatalf("the master picks the project by the first line of its md: %+v", said)
 	}
 	for _, skill := range []string{"dispatch/SKILL.md", "module-builder/SKILL.md", "module-conventions/SKILL.md", "module-builder/helpers/deck_helper.py"} {
@@ -611,8 +611,8 @@ func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 			t.Fatalf("the master gets its skills, the conventions of a module's code too: %s of %v", skill, slices.Collect(maps.Keys(e.Fake.Calls()[0].Skills)))
 		}
 	}
-	e.say(topic, "no, move it to garden")
-	if said := e.masterSaid(topic, 2); !strings.HasPrefix(said[1].Text, "deleted: ") || tasks("garden") != 1 || tasks("groceries") != 0 {
+	e.Say(topic, "no, move it to garden")
+	if said := e.MasterSaid(topic, 2); !strings.HasPrefix(said[1].Text, "deleted: ") || tasks("garden") != 1 || tasks("groceries") != 0 {
 		t.Fatalf("move puts the task into the other project and deletes the old one the master wrote: %+v", said)
 	}
 }
@@ -624,26 +624,26 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 	var mu sync.Mutex
 	var told string
 	var turns atomic.Int32
-	main := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	main := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		if turns.Add(1) == 1 {
 			c.Tool(ctx, "records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "half a ta", "score": 1}`})
 			return provider.Result{Outcome: provider.Failed, Text: "the turn was stopped mid-way"}
 		}
 		return provider.Result{Text: "main again"}
 	}}
-	other := &Fake{name: "other", script: func(ctx context.Context, c *Call) provider.Result {
+	other := &harness.Fake{ProviderName: "other", Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		mu.Lock()
 		told = c.Req.Prompt
 		mu.Unlock()
 		return provider.Result{Text: "Done on other."}
 	}}
-	e := New(t, WithProvider(main, other))
+	e := harness.New(t, harness.WithProvider(main, other))
 	e.Project("notes", ideasManifest)
 	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "master", "command": "reply", "models": []string{"fake", "other"}}, nil)
-	topic := e.say(0, "write half a task")
-	var m chatMessage
+	topic := e.Say(0, "write half a task")
+	var m harness.ChatMessage
 	e.Until("the reply to break off", func() bool {
-		ms := e.chatMessages(topic)
+		ms := e.ChatMessages(topic)
 		m = ms[0]
 		return m.Reply != nil && m.Reply.Cut != nil
 	})
@@ -653,12 +653,12 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 		t.Fatalf("a broken reply lists its calls, the record it left and the other provider: %+v", cut)
 	}
 	e.Must(cut.Undo[0].Action.Command, cut.Undo[0].Action.Params, nil)
-	var recs []recordRow
+	var recs []harness.RecordRow
 	if e.Must("deck.records_list", map[string]any{"project": "notes", "collection": "ideas"}, &recs); len(recs) != 0 {
 		t.Fatalf("the undo deletes the half-written record: %+v", recs)
 	}
 	e.Must(cut.Retry[0].Command, cut.Retry[0].Params, nil)
-	if said := e.masterSaid(topic, 1); said[0].Text != "Done on other." {
+	if said := e.MasterSaid(topic, 1); said[0].Text != "Done on other." {
 		t.Fatalf("the other provider answers the messages again: %+v", said)
 	}
 	mu.Lock()
@@ -666,8 +666,8 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 		t.Fatalf("the other provider is told what the broken reply did: %s", told)
 	}
 	mu.Unlock()
-	e.say(topic, "and one more")
-	said := e.masterSaid(topic, 2)
+	e.Say(topic, "and one more")
+	said := e.MasterSaid(topic, 2)
 	if said[1].Text != "main again" {
 		t.Fatalf("the next reply goes back to the assignment: %+v", said)
 	}
@@ -681,8 +681,8 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 	t.Parallel()
 	var turns, jobs atomic.Int32
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "job" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "job" {
 			if jobs.Add(1) == 2 {
 				return provider.Result{Outcome: provider.Failed, Text: "the job broke"}
 			}
@@ -699,11 +699,11 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 		return provider.Result{Text: "Started it."}
 	}))
 
-	e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
-	topic := e.say(0, "start a job")
-	e.masterSaid(topic, 1)
-	e.say(topic, "and another")
-	e.masterSaid(topic, 2)
+	e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	topic := e.Say(0, "start a job")
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "and another")
+	e.MasterSaid(topic, 2)
 	var view struct {
 		Messages []struct {
 			Role string
@@ -717,7 +717,7 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 		}
 	}
 	e.Until("the work of both replies", func() bool {
-		e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 		n := 0
 		for _, m := range view.Messages {
 			if m.Work != nil {
@@ -738,7 +738,7 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 		}
 	}
 	e.Until("the second job to fail", func() bool {
-		e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 		last := view.Messages[len(view.Messages)-1].Work
 		return last != nil && len(last.Processes) == 1 && last.Processes[0].State == "error"
 	})
@@ -754,9 +754,9 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 // sent with a model and a topic given one later answer on it, and an empty model brings back the master's own.
 func TestATopicKeepsTheModelTheOwnerPicked(t *testing.T) {
 	t.Parallel()
-	main := &Fake{script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "on fake"} }}
-	other := &Fake{name: "other", script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "on other"} }}
-	e := New(t, WithProvider(main, other))
+	main := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "on fake"} }}
+	other := &harness.Fake{ProviderName: "other", Script: func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "on other"} }}
+	e := harness.New(t, harness.WithProvider(main, other))
 	var view struct {
 		Models []string `json:"models"`
 		Model  string   `json:"model"`
@@ -769,37 +769,37 @@ func TestATopicKeepsTheModelTheOwnerPicked(t *testing.T) {
 			Input   string         `json:"input"`
 		} `json:"choose"`
 	}
-	e.chatRead(map[string]any{"topic": "new"}, &view)
+	e.ChatRead(map[string]any{"topic": "new"}, &view)
 	if !slices.Contains(view.Models, "fake") || !slices.Contains(view.Models, "other") || view.Model != "fake" {
 		t.Fatalf("the chat lists the models of the master's replies and its own: %+v", view)
 	}
 	if code, _ := e.Call("deck.chat_send", map[string]any{"text": "hi", "model": "nobody"}); code == 200 {
 		t.Fatal("a topic takes no model the master's replies cannot run on")
 	}
-	topic := e.say(0, "on the other one", map[string]any{"model": "other"})
-	if said := e.masterSaid(topic, 1); said[0].Text != "on other" {
+	topic := e.Say(0, "on the other one", map[string]any{"model": "other"})
+	if said := e.MasterSaid(topic, 1); said[0].Text != "on other" {
 		t.Fatalf("a new topic sent with a model answers on it: %+v", said)
 	}
-	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 	if view.Topic == nil || view.Topic.Model != "other" || view.Choose.Command != "deck.chat_topic_model" || view.Choose.Input != "model" {
 		t.Fatalf("the topic shows its model and the button that changes it: %+v", view)
 	}
-	e.say(topic, "and again")
-	if said := e.masterSaid(topic, 2); said[1].Text != "on other" {
+	e.Say(topic, "and again")
+	if said := e.MasterSaid(topic, 2); said[1].Text != "on other" {
 		t.Fatalf("the topic keeps its model: %+v", said)
 	}
 	e.Must(view.Choose.Command, map[string]any{"topic": topic, "model": ""}, nil)
-	e.say(topic, "back to yours")
-	if said := e.masterSaid(topic, 3); said[2].Text != "on fake" {
+	e.Say(topic, "back to yours")
+	if said := e.MasterSaid(topic, 3); said[2].Text != "on fake" {
 		t.Fatalf("an empty model brings back the master's own: %+v", said)
 	}
-	plain := e.say(0, "a plain one")
-	if said := e.masterSaid(plain, 1); said[0].Text != "on fake" {
+	plain := e.Say(0, "a plain one")
+	if said := e.MasterSaid(plain, 1); said[0].Text != "on fake" {
 		t.Fatalf("a topic without a model answers on the master's: %+v", said)
 	}
 	e.Must("deck.chat_topic_model", map[string]any{"topic": plain, "model": "other"}, nil)
-	e.say(plain, "now elsewhere")
-	if said := e.masterSaid(plain, 2); said[1].Text != "on other" {
+	e.Say(plain, "now elsewhere")
+	if said := e.MasterSaid(plain, 2); said[1].Text != "on other" {
 		t.Fatalf("a model picked for a topic takes its next reply: %+v", said)
 	}
 }

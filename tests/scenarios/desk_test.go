@@ -2,36 +2,25 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
-	"deck2/internal/store"
 )
 
-type deskCard struct {
-	ID         string
-	X, Y, W, H int64
-}
-
-type deskView struct {
-	Columns int64
-	Own     bool
-	Cards   []deskCard
-}
-
-func (e *Env) desk(device string, columns int) deskView {
+func desk(e *harness.Env, device string, columns int) harness.DeskView {
 	e.T.Helper()
-	var v deskView
+	var v harness.DeskView
 	e.Must("deck.layout", map[string]any{"device": device, "columns": columns}, &v)
 	return v
 }
 
-func (e *Env) place(device string, columns int, cards ...deskCard) {
+func place(e *harness.Env, device string, columns int, cards ...harness.DeskCard) {
 	e.T.Helper()
 	raw, _ := json.Marshal(cards)
 	e.Must("deck.layout_set", map[string]any{"device": device, "columns": columns, "cards": string(raw)}, nil)
@@ -41,46 +30,46 @@ func (e *Env) place(device string, columns int, cards ...deskCard) {
 // wider one, starts from another's or the order alone; the menu follows the order, a paused module keeps its cell.
 func TestTheTilesStandWhereEachDevicePutThem(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for _, name := range []string{"alpha", "beta", "gamma"} {
-		e.Project(name, plainManifest)
+		e.Project(name, harness.PlainManifest)
 	}
-	if v := e.desk("laptop", 4); len(v.Cards) != 0 || v.Own {
+	if v := desk(e, "laptop", 4); len(v.Cards) != 0 || v.Own {
 		t.Fatalf("a deck nobody placed gives no layout: %+v", v)
 	}
-	e.place("laptop", 4, deskCard{"today", 0, 0, 2, 1}, deskCard{"gamma", 2, 0, 2, 2}, deskCard{"alpha", 0, 1, 1, 1},
-		deskCard{"beta", 3, 3, 1, 1}, deskCard{"nowhere", 0, 3, 1, 1})
-	own := e.desk("laptop", 4)
-	if !own.Own || own.Columns != 4 || len(own.Cards) != 4 || !slices.Contains(own.Cards, deskCard{"gamma", 2, 0, 2, 2}) {
+	place(e, "laptop", 4, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 2, H: 1}, harness.DeskCard{ID: "gamma", X: 2, Y: 0, W: 2, H: 2}, harness.DeskCard{ID: "alpha", X: 0, Y: 1, W: 1, H: 1},
+		harness.DeskCard{ID: "beta", X: 3, Y: 3, W: 1, H: 1}, harness.DeskCard{ID: "nowhere", X: 0, Y: 3, W: 1, H: 1})
+	own := desk(e, "laptop", 4)
+	if !own.Own || own.Columns != 4 || len(own.Cards) != 4 || !slices.Contains(own.Cards, harness.DeskCard{ID: "gamma", X: 2, Y: 0, W: 2, H: 2}) {
 		t.Fatalf("a device gets its own layout, a card of no module dropped: %+v", own)
 	}
-	if v := e.desk("laptop", 3); !v.Own || v.Columns != 4 {
+	if v := desk(e, "laptop", 3); !v.Own || v.Columns != 4 {
 		t.Fatalf("a narrower grid derives from the device's wider layout: %+v", v)
 	}
-	if v := e.desk("tablet", 4); v.Own || v.Columns != 4 || len(v.Cards) != 4 {
+	if v := desk(e, "tablet", 4); v.Own || v.Columns != 4 || len(v.Cards) != 4 {
 		t.Fatalf("another device starts from the newest layout of its columns: %+v", v)
 	}
-	phone := e.desk("phone", 2)
+	phone := desk(e, "phone", 2)
 	if phone.Own || phone.Columns != 0 || phone.Cards[0].ID != "today" || phone.Cards[1].ID != "gamma" {
 		t.Fatalf("a device of other columns gets the order alone, in reading order: %+v", phone)
 	}
-	if names, _ := e.side(); !slices.Equal(names, []string{"gamma", "alpha", "beta"}) {
+	if names, _ := side(e); !slices.Equal(names, []string{"gamma", "alpha", "beta"}) {
 		t.Fatalf("the menu goes in the order of the newest layout: %v", names)
 	}
 	e.Refused("deck.layout_set", map[string]any{"device": "laptop", "columns": 4, "cards": `[{"id": "gamma", "x": 3, "y": 0, "w": 2, "h": 1}]`}, 422, "does not fit")
 	e.Refused("deck.layout_set", map[string]any{"device": "laptop", "columns": 4, "cards": `[{"id": "today", "x": 0, "y": 0, "w": 1, "h": 1}]`}, 422, "two cells")
-	e.place("desk", 3, deskCard{"today", 0, 0, 2, 1}, deskCard{"beta", 2, 0, 1, 1})
-	if v := e.desk("desk", 5); !v.Own || v.Columns != 3 {
+	place(e, "desk", 3, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 2, H: 1}, harness.DeskCard{ID: "beta", X: 2, Y: 0, W: 1, H: 1})
+	if v := desk(e, "desk", 5); !v.Own || v.Columns != 3 {
 		t.Fatalf("a wider grid of a device takes its narrower layout as it is: %+v", v)
 	}
-	e.place("pocket", 1, deskCard{"today", 0, 0, 1, 3}, deskCard{"beta", 0, 3, 1, 2})
-	if v := e.desk("pocket", 2); !v.Own || v.Columns != 2 || !slices.Equal(v.Cards, []deskCard{{"today", 0, 0, 2, 3}, {"beta", 0, 3, 2, 2}}) {
+	place(e, "pocket", 1, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 1, H: 3}, harness.DeskCard{ID: "beta", X: 0, Y: 3, W: 1, H: 2})
+	if v := desk(e, "pocket", 2); !v.Own || v.Columns != 2 || !slices.Equal(v.Cards, []harness.DeskCard{{ID: "today", X: 0, Y: 0, W: 2, H: 3}, {ID: "beta", X: 0, Y: 3, W: 2, H: 2}}) {
 		t.Fatalf("the cards of a grid of one column go across a wider one, their heights kept: %+v", v)
 	}
 	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
-	e.place("laptop", 4, deskCard{"today", 0, 0, 2, 1}, deskCard{"gamma", 2, 0, 2, 2}, deskCard{"beta", 3, 3, 1, 1})
+	place(e, "laptop", 4, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 2, H: 1}, harness.DeskCard{ID: "gamma", X: 2, Y: 0, W: 2, H: 2}, harness.DeskCard{ID: "beta", X: 3, Y: 3, W: 1, H: 1})
 	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)
-	if v := e.desk("laptop", 4); !slices.Contains(v.Cards, deskCard{"alpha", 0, 1, 1, 1}) {
+	if v := desk(e, "laptop", 4); !slices.Contains(v.Cards, harness.DeskCard{ID: "alpha", X: 0, Y: 1, W: 1, H: 1}) {
 		t.Fatalf("a paused module keeps its cell for its resume: %+v", v)
 	}
 }
@@ -98,37 +87,37 @@ const widgetsManifest = `{"version": 13,
 // it holds; the menu names the sizes, and a view is only of stat, list and chart blocks.
 func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("shelf", widgetsManifest)
 	var recs []map[string]any
 	for i := range 12 {
 		recs = append(recs, map[string]any{"name": fmt.Sprintf("item %d", i), "n": i})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": jsonl(recs...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(recs...)}, nil)
 	var m struct{ Projects []struct{ Widgets []string } }
 	e.Must("deck.menu", nil, &m)
 	if len(m.Projects) != 1 || !slices.Equal(m.Projects[0].Widgets, []string{"1x1", "2x2"}) {
 		t.Fatalf("the menu names the views of the card: %+v", m)
 	}
-	one := e.screenData("shelf", "widget", map[string]any{"widget": "1x1"})["b0"]
+	one := e.ScreenData("shelf", "widget", map[string]any{"widget": "1x1"})["b0"]
 	if string(one["value"]) != "12" {
 		t.Fatalf("a card of one cell shows its stat: %s", one["value"])
 	}
-	if wide := e.screenData("shelf", "widget", map[string]any{"widget": "2x1"})["b0"]; string(wide["value"]) != "12" {
+	if wide := e.ScreenData("shelf", "widget", map[string]any{"widget": "2x1"})["b0"]; string(wide["value"]) != "12" {
 		t.Fatalf("a card too low for the list shows the stat: %v", wide)
 	}
-	big := blockData[[]listItem](t, e.screenData("shelf", "widget", map[string]any{"widget": "3x3"})["b0"]["items"])
+	big := harness.BlockData[[]harness.ListItem](t, e.ScreenData("shelf", "widget", map[string]any{"widget": "3x3"})["b0"]["items"])
 	if len(big) != 7 || big[0].Title != "item 11" {
 		t.Fatalf("a large card shows the list as long as it holds, three lines a row less the head and the title: %d %+v", len(big), big)
 	}
 	e.Project("lab", widgetsOfWork)
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "items", "records": jsonl(recs...)}, nil)
-	low := e.screenData("lab", "widget", map[string]any{"widget": "2x1"})
-	if n := len(blockData[[]listItem](t, low["b1"]["items"])); n != 1 || low["b0"] == nil {
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "items", "records": harness.Jsonl(recs...)}, nil)
+	low := e.ScreenData("lab", "widget", map[string]any{"widget": "2x1"})
+	if n := len(harness.BlockData[[]harness.ListItem](t, low["b1"]["items"])); n != 1 || low["b0"] == nil {
 		t.Fatalf("a low card shows its number and one line under it: %d", n)
 	}
-	two := e.screenData("lab", "widget", map[string]any{"widget": "2x2"})
-	needs, fresh := blockData[[]listItem](t, two["b0"]["items"]), blockData[[]listItem](t, two["b1"]["items"])
+	two := e.ScreenData("lab", "widget", map[string]any{"widget": "2x2"})
+	needs, fresh := harness.BlockData[[]harness.ListItem](t, two["b0"]["items"]), harness.BlockData[[]harness.ListItem](t, two["b1"]["items"])
 	if len(needs) != 2 || len(fresh) != 2 {
 		t.Fatalf("two lists share the card: the first its limit, the next what is left under its title: %d %d", len(needs), len(fresh))
 	}
@@ -142,11 +131,11 @@ func TestACardShowsTheLargestViewItFits(t *testing.T) {
 // on a calm day that all is well, with what the day cost and what runs next.
 func TestTodayInBriefSaysTheMostPressingFirst(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the model is down"}
 	}))
 
-	e.Project("digest", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	e.Project("digest", harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
 	var lines []struct{ Kind, Title string }
 	read := func() []string {
 		lines = nil
@@ -161,14 +150,14 @@ func TestTodayInBriefSaysTheMostPressingFirst(t *testing.T) {
 		t.Fatalf("a calm day says so, what it cost and what runs next: %+v", lines)
 	}
 	e.WaitState(e.Start("digest", "work", nil), "error")
-	_, tok := e.token("asker", "deck.model_set")
+	_, tok := e.Token("asker", "deck.model_set")
 	if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": "x"}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 		t.Fatalf("a token's call waits for the owner: %d %s", code, out)
 	}
 	if kinds := read(); !slices.Equal(kinds[:2], []string{"asks", "failures"}) || lines[0].Title != "Ждёт одно решение" {
 		t.Fatalf("what waits comes first, then what failed: %+v", lines)
 	}
-	if items := blockData[[]listItem](t, e.screenData("", "today", map[string]any{"widget": "2x1"})["b0"]["items"]); len(items) != 2 {
+	if items := harness.BlockData[[]harness.ListItem](t, e.ScreenData("", "today", map[string]any{"widget": "2x1"})["b0"]["items"]); len(items) != 2 {
 		t.Fatalf("the card of Today of two cells holds two lines: %+v", items)
 	}
 }
@@ -177,11 +166,11 @@ func TestTodayInBriefSaysTheMostPressingFirst(t *testing.T) {
 // model of the role widget once the owner picked one.
 func TestDekiDrawsAViewForTheSizeOfACard(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("shelf", widgetsManifest)
 	var sent struct{ Topic int64 }
 	e.Must("deck.widget_draw", map[string]any{"project": "shelf", "size": "4x2", "wish": "the newest first"}, &sent)
-	msgs := e.chatMessages(sent.Topic)
+	msgs := e.ChatMessages(sent.Topic)
 	if len(msgs) == 0 || !strings.Contains(msgs[0].Text, "shelf") || !strings.Contains(msgs[0].Text, "4x2") || !strings.Contains(msgs[0].Text, "the newest first") {
 		t.Fatalf("the master is told the module, the size and the wish: %+v", msgs)
 	}
@@ -192,7 +181,7 @@ func TestDekiDrawsAViewForTheSizeOfACard(t *testing.T) {
 		ID    int64
 		Model string
 	}
-	e.chatTopics(false, &topics)
+	e.ChatTopics(false, &topics)
 	if i := slices.IndexFunc(topics, func(x struct {
 		ID    int64
 		Model string

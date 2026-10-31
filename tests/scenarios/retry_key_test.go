@@ -2,11 +2,11 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestASecondPressWithARetryKeyReturnsTheRunningProcess: a button that passes a retry key in its params starts the
@@ -14,18 +14,18 @@ import (
 func TestASecondPressWithARetryKeyReturnsTheRunningProcess(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		<-release
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
 
-	e.Project("web", strings.Replace(webNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
+	e.Project("web", strings.Replace(harness.WebNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
 		`"actions": [{"label": "Open", "screen": "note"}, {"label": "Touch", "command": "touch", "params": {"note": "=_id", "retry_key": "='touch:' + string(_id)"}}]`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
-	a := e.rowAction("web", "main", "web.touch", nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
+	a := e.RowAction("web", "main", "web.touch", nil)
 	var first, second struct{ Process int64 }
 	for _, out := range []*struct{ Process int64 }{&first, &second} {
-		code, body := e.press(a)
+		code, body := e.Press(a)
 		if code != 200 || json.Unmarshal(body, out) != nil {
 			t.Fatalf("a press calls the command: %d %s", code, body)
 		}

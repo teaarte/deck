@@ -1,6 +1,9 @@
 package scenarios
 
 import (
+	deckdocs "deck2/internal/docs"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,14 +12,11 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	deckdocs "deck2/internal/docs"
-	"deck2/internal/store"
 )
 
 func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("links", fullManifest)
 	docs := []map[string]any{
 		{"name": "prompt.md", "kind": "prompt", "text": "# Collects links\nMore."},
@@ -33,8 +33,8 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	var up struct{ IDs []int64 }
 	e.Must("deck.records_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
 	e.Must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
-	_, tok := e.token("terminal", "deck.*")
-	s, err := e.terminal(tok)
+	_, tok := e.Token("terminal", "deck.*")
+	s, err := e.Terminal(tok)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 		Name, Status string
 		Rights       []string
 	}
-	out, failed := use(s, "project_import", map[string]any{"folder": dir})
+	out, failed := harness.Use(s, "project_import", map[string]any{"folder": dir})
 	if failed || json.Unmarshal([]byte(out), &im) != nil {
 		t.Fatalf("the terminal agent imports the folder: %s", out)
 	}
@@ -97,8 +97,8 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	if code, out := e.Call("deck.project_import", map[string]any{"folder": bad, "name": "bad"}); code != 422 || !strings.Contains(string(out), "_init.py") {
 		t.Fatalf("a file name deck cannot store is refused: %d %s", code, out)
 	}
-	var ps []projectV
-	e.projectsOf(&ps)
+	var ps []harness.ProjectV
+	e.ProjectsOf(&ps)
 	if len(ps) != 2 {
 		t.Fatalf("a refused import leaves no project behind: %+v", ps)
 	}
@@ -109,9 +109,9 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 
 func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	_, tok := e.token("terminal", "deck.*")
-	s, err := e.terminal(tok)
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	_, tok := e.Token("terminal", "deck.*")
+	s, err := e.Terminal(tok)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
 		t.Fatalf("the MCP server points the terminal agent at the skill: %+v", res)
 	}
 	save := func(name, text string) (string, bool) {
-		return use(s, "document_save", map[string]any{"name": name, "kind": "skill", "text": text})
+		return harness.Use(s, "document_save", map[string]any{"name": name, "kind": "skill", "text": text})
 	}
 	if out, failed := save("skills/voice/SKILL.md", "---\nname: voice\ndescription: Writes like the owner.\n---\nShort sentences.\n"); failed {
 		t.Fatalf("a skill is saved as a workspace skill: %s", out)
@@ -130,7 +130,7 @@ func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
 	if out, failed := save("skills/greedy/SKILL.md", "---\nname: greedy\ndescription: x\nallowed-tools: Bash\n---\n"); !failed || !strings.Contains(out, "allowed-tools") {
 		t.Fatalf("a skill that grants tools does not come in: %s", out)
 	}
-	m := strings.Replace(plainManifest, `"prompt": "Do the work."}`, `"prompt": "Do the work.", "skills": ["voice"]}`, 1)
+	m := strings.Replace(harness.PlainManifest, `"prompt": "Do the work."}`, `"prompt": "Do the work.", "skills": ["voice"]}`, 1)
 	p := e.Project("plain", m)
 	e.WaitState(e.Run(p, "work"), "done")
 	if got := e.Fake.Calls()[0].Skills; len(got) != 2 || got["voice/examples/one.md"] != "An example." {
@@ -145,7 +145,7 @@ func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
 
 func TestImportTakesNoLinks(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, deckdocs.ManifestName), []byte(`{"version": 13}`), 0o644)
 	secret := filepath.Join(t.TempDir(), "secret.txt")
@@ -159,7 +159,7 @@ func TestImportTakesNoLinks(t *testing.T) {
 // exportLikeTheSkill writes a module folder the way the module-building skill tells an agent to.
 func exportLikeTheSkill(t *testing.T, s *mcp.ClientSession, project, dir string) {
 	t.Helper()
-	out, failed := use(s, "documents_list", map[string]any{"project": project})
+	out, failed := harness.Use(s, "documents_list", map[string]any{"project": project})
 	var docs []docView
 	if failed || json.Unmarshal([]byte(out), &docs) != nil {
 		t.Fatalf("documents_list: %s", out)
@@ -168,7 +168,7 @@ func exportLikeTheSkill(t *testing.T, s *mcp.ClientSession, project, dir string)
 		if d.OwnerKind != "" || !slices.Contains([]string{"manifest", "prompt", "script", "skill", "custom", "doc"}, d.Kind) {
 			continue
 		}
-		out, _ := use(s, "document_get", map[string]any{"document": d.ID})
+		out, _ := harness.Use(s, "document_get", map[string]any{"document": d.ID})
 		var full docView
 		_ = json.Unmarshal([]byte(out), &full)
 		path := filepath.Join(dir, filepath.FromSlash(d.Name))
@@ -180,12 +180,12 @@ func exportLikeTheSkill(t *testing.T, s *mcp.ClientSession, project, dir string)
 func TestBuiltInSkillsReachEveryWorkspace(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	first := New(t, WithHome(home), WithProvider(&Fake{script: ok}))
+	first := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{Script: harness.Ok}))
 	if _, err := first.App.Store.DB.Exec(`INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
 	}
 	_ = first.App.Close()
-	e := New(t, WithHome(home), WithProvider(&Fake{script: ok}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{Script: harness.Ok}))
 	var n int
 	err := e.App.Store.DB.QueryRow(`SELECT COUNT(*) FROM document WHERE workspace_id = 2 AND name = 'skills/module-builder/SKILL.md'`).Scan(&n)
 	if err != nil || n != 1 {

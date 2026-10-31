@@ -2,6 +2,11 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/docs"
+	"deck2/internal/manifest"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -9,11 +14,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"deck2/internal/docs"
-	"deck2/internal/manifest"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
 )
 
 // rightsManifest is a manifest of a random pick of every right deck grants, the same picks giving the same manifest.
@@ -182,14 +182,14 @@ func asksEachTime(g, in *manifest.Manifest, w string) bool {
 // never granted, what deck runs widens nothing beyond the grant but what asks the owner on every call.
 func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	ctx := context.Background()
 	e.Project("other", `{"version": 13, "collections": [
     {"name": "items", "description": "An item.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
     {"name": "notes", "description": "A note.", "key": "name", "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`)
 	r := rand.New(rand.NewPCG(1, 2))
 	read := 0
-	for i := range rightsPairs {
+	for i := range harness.RightsPairs {
 		granted, next := rightsManifest(r), rightsManifest(r)
 		if _, err := manifest.Parse([]byte(granted)); err != nil {
 			t.Fatalf("a generated manifest does not read: %v\n%s", err, granted)
@@ -229,7 +229,7 @@ func TestWhatIsInForceWidensNothingTheOwnerDidNotGrant(t *testing.T) {
 			t.Errorf("pair %d: what is in force widens %q\ngranted: %s\nnext: %s", i, w, granted, next)
 		}
 	}
-	if read < rightsPairs*4/5 {
+	if read < harness.RightsPairs*4/5 {
 		t.Fatalf("too few pairs reached a revision beyond the grant: %d", read)
 	}
 }

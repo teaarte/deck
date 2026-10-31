@@ -2,6 +2,8 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,13 +11,11 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
 // hangingService answers the requests numbered in hang only when released, like a service deck lost the
 // answer of; release(0) frees all of them.
-func hangingService(t *testing.T, hang ...int) (*service, func(n int)) {
+func hangingService(t *testing.T, hang ...int) (*harness.Service, func(n int)) {
 	t.Helper()
 	gates := map[int]chan struct{}{}
 	for _, n := range hang {
@@ -32,14 +32,14 @@ func hangingService(t *testing.T, hang ...int) (*service, func(n int)) {
 			}
 		}
 	}
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		mu.Lock()
 		g := gates[n]
 		mu.Unlock()
 		if g != nil {
 			<-g
 		}
-		jsonReply(w, fmt.Sprintf(`{"id": "job-%d"}`, n))
+		harness.JsonReply(w, fmt.Sprintf(`{"id": "job-%d"}`, n))
 	})
 	t.Cleanup(func() { release(0) })
 	return svc, release
@@ -65,20 +65,20 @@ func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) 
 	svc, release := hangingService(t, 1, 2)
 	defer release(0)
 	home := t.TempDir()
-	clock := &Clock{now: time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)}
-	e := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	clock := &harness.Clock{At: time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
 	e.Project("clips", generateManifest(svc.URL))
 	clock.Add(time.Hour + time.Minute)
 	e.App.Scheduler.Tick(context.Background())
-	e.Until("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
 
-	e2 := e.Restart(WithProvider(&Fake{}))
+	e2 := e.Restart(harness.WithProvider(&harness.Fake{}))
 
 	e2.Resume()
-	var unknown Ask
+	var unknown harness.Ask
 	e2.Until("the unknown outcome", func() bool {
 		_, out := e2.Call("deck.asks_list", nil)
-		var as []Ask
+		var as []harness.Ask
 		_ = json.Unmarshal(out, &as)
 		for _, a := range as {
 			if a.Kind == "unknown" {
@@ -100,8 +100,8 @@ func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) 
 		ps := e2.Procs()
 		return len(ps) == 2 && ps[0].State == "error"
 	})
-	if ps := e2.Procs(); !strings.Contains(ps[0].Error, "unknown outcome") || len(svc.requests()) != 1 {
-		t.Fatalf("a catch-up run does not repeat the call: %+v, %d requests", ps[0], len(svc.requests()))
+	if ps := e2.Procs(); !strings.Contains(ps[0].Error, "unknown outcome") || len(svc.Requests()) != 1 {
+		t.Fatalf("a catch-up run does not repeat the call: %+v, %d requests", ps[0], len(svc.Requests()))
 	}
 	var out struct{ Result map[string]any }
 	retried := make(chan struct{})
@@ -109,20 +109,20 @@ func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) 
 		defer close(retried)
 		e2.Must("deck.ask_answer", map[string]any{"ask": unknown.ID, "answer": "retry"}, &out)
 	}()
-	e2.Until("the retry reaches the service", func() bool { return len(svc.requests()) == 2 })
+	e2.Until("the retry reaches the service", func() bool { return len(svc.Requests()) == 2 })
 	clock.Add(24 * time.Hour)
 	e2.App.Scheduler.Tick(context.Background())
 	e2.Until("the catch-up run during the retry ends", func() bool {
 		ps := e2.Procs()
 		return len(ps) == 3 && ps[0].State == "error"
 	})
-	if len(svc.requests()) != 2 {
-		t.Fatalf("a catch-up run does not repeat the call while the owner's retry is in flight: %d requests", len(svc.requests()))
+	if len(svc.Requests()) != 2 {
+		t.Fatalf("a catch-up run does not repeat the call while the owner's retry is in flight: %d requests", len(svc.Requests()))
 	}
 	release(2)
 	<-retried
-	if len(svc.requests()) != 2 || out.Result["id"] != "job-2" {
-		t.Fatalf("retry makes the frozen call again: %+v, %d requests", out, len(svc.requests()))
+	if len(svc.Requests()) != 2 || out.Result["id"] != "job-2" {
+		t.Fatalf("retry makes the frozen call again: %+v, %d requests", out, len(svc.Requests()))
 	}
 	release(1)
 	e.App.Runner.Wait()
@@ -139,74 +139,74 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 	defer release(0)
 	home := t.TempDir()
 	started := make(chan struct{})
-	first := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	first := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		close(started)
 		c.Tool(ctx, "clips__generate", map[string]any{"topic": "dogs"})
 		<-ctx.Done()
 		return provider.Result{}
 	}}
-	clock := &Clock{now: t0}
-	e := New(t, WithHome(home), WithProvider(first), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
 	p := e.Project("clips", generateManifest(svc.URL))
 	id := e.Run(p, "work")
 	<-started
-	e.Until("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
 
 	var again string
-	second := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	second := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 1 {
 			again, _ = c.Tool(ctx, "clips__generate", map[string]any{"topic": "dogs"})
 		}
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e2 := e.Restart(WithProvider(second))
+	e2 := e.Restart(harness.WithProvider(second))
 	e2.Resume()
 	e2.WaitState(id, "waiting_answer")
 	msg := second.Calls()[0].Prompt
 	if !second.Calls()[0].Resume || !strings.Contains(msg, "Outcome unknown") || !strings.Contains(msg, "Do not make this call again") {
 		t.Fatalf("the resumed agent is told the outcome is unknown: %q", msg)
 	}
-	if !strings.Contains(again, "unknown outcome") || len(svc.requests()) != 1 {
-		t.Fatalf("the resumed agent cannot repeat the call: %q, %d requests", again, len(svc.requests()))
+	if !strings.Contains(again, "unknown outcome") || len(svc.Requests()) != 1 {
+		t.Fatalf("the resumed agent cannot repeat the call: %q, %d requests", again, len(svc.Requests()))
 	}
 	e2.Answer(e2.WaitAsk().ID, "done")
 	e2.WaitState(id, "done")
-	if msg := second.Calls()[1].Prompt; !strings.Contains(msg, "counts it as done") || len(svc.requests()) != 1 {
+	if msg := second.Calls()[1].Prompt; !strings.Contains(msg, "counts it as done") || len(svc.Requests()) != 1 {
 		t.Fatalf("the owner's done reaches the agent and nothing is repeated: %q", msg)
 	}
 }
 
 func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
 	home := t.TempDir()
-	first := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	first := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e := New(t, WithHome(home), WithProvider(first))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first))
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	p := e.Project("notes", postManifest(svc.URL, ""))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()
 	_ = e.App.Close()
-	second := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	second := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e2 := New(t, WithHome(home), WithProvider(second))
+	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(second))
 	if _, err := e2.App.Store.DB.Exec(`UPDATE ask SET state = 'answered', answer = 'allow' WHERE id = ?;
 UPDATE tool_call SET run = 'running' WHERE ask_id = ?`, a.ID, a.ID); err != nil {
 		t.Fatal(err)
 	}
 	e2.Resume()
 	got := e2.WaitAsk()
-	if got.ID == a.ID || got.Kind != "unknown" || !strings.Contains(got.Text, "Outcome unknown") || len(svc.requests()) != 0 {
+	if got.ID == a.ID || got.Kind != "unknown" || !strings.Contains(got.Text, "Outcome unknown") || len(svc.Requests()) != 0 {
 		t.Fatalf("a call cut off after yes and before it was sent is an unknown outcome for the owner: %+v", got)
 	}
 	e2.Answer(got.ID, "retry")
-	if p := e2.WaitState(id, "done", "error"); p.State != "done" || len(svc.requests()) != 1 {
-		t.Fatalf("a retry makes the call once and the agent goes on: %+v %d", p, len(svc.requests()))
+	if p := e2.WaitState(id, "done", "error"); p.State != "done" || len(svc.Requests()) != 1 {
+		t.Fatalf("a retry makes the call once and the agent goes on: %+v %d", p, len(svc.Requests()))
 	}
 	if c := second.Calls(); !strings.Contains(c[len(c)-1].Prompt, "retry a call of unknown outcome") {
 		t.Fatalf("the agent hears what the retry gave: %s", c[len(c)-1].Prompt)
@@ -220,10 +220,10 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 	svc, release := hangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()
-	clock := &Clock{now: t0}
-	e := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
 	e.Project("clips", generateManifest(svc.URL))
-	tid, tok := e.token("shortcuts", "clips.*")
+	tid, tok := e.Token("shortcuts", "clips.*")
 	go func() {
 		req, _ := http.NewRequest("POST", e.URL+"/api/commands/clips.generate", strings.NewReader(`{"topic": "owls"}`))
 		req.Header.Set("Authorization", "Bearer "+tok)
@@ -231,8 +231,8 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 			r.Body.Close()
 		}
 	}()
-	e.Until("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
-	e2 := e.Restart(WithProvider(&Fake{}))
+	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
+	e2 := e.Restart(harness.WithProvider(&harness.Fake{}))
 	e2.Resume()
 	a := e2.WaitAsk()
 	var frozen struct {
@@ -256,12 +256,12 @@ func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 	svc, release := hangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()
-	first := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	first := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	clock := &Clock{now: t0}
-	e := New(t, WithHome(home), WithProvider(first), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	id := e.Run(e.Project("notes", postManifest(svc.URL, "")), "work")
 	e.WaitState(id, "waiting_answer")
@@ -274,21 +274,21 @@ func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 			r.Body.Close()
 		}
 	}()
-	e.Until("the allowed call reaches the service", func() bool { return len(svc.requests()) == 1 })
-	second := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	e.Until("the allowed call reaches the service", func() bool { return len(svc.Requests()) == 1 })
+	second := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e2 := e.Restart(WithProvider(second))
+	e2 := e.Restart(harness.WithProvider(second))
 	e2.Resume()
 	e2.Until("the unknown outcome", func() bool {
 		_, out := e2.Call("deck.asks_list", nil)
-		var as []Ask
+		var as []harness.Ask
 		_ = json.Unmarshal(out, &as)
 		return len(as) > 0
 	})
 	e2.App.Runner.Wait()
 	_, out := e2.Call("deck.asks_list", nil)
-	var as []Ask
+	var as []harness.Ask
 	_ = json.Unmarshal(out, &as)
 	if len(as) != 1 || as[0].Kind != "unknown" {
 		t.Fatalf("one unknown outcome for the owner: %+v", as)

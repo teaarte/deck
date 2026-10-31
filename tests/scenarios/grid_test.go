@@ -1,9 +1,9 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"slices"
-
 	"strings"
 	"testing"
 )
@@ -11,12 +11,12 @@ import (
 // TestTheSpanOfAModuleBlockReachesTheScreen: a block of a module's manifest takes the cells its span says.
 func TestTheSpanOfAModuleBlockReachesTheScreen(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "stat", "title": "Two", "span": 2, "source": {"collection": "notes"}, "value": "len(rows)"},
       {"type": "stat", "title": "Whole", "span": "full", "source": {"collection": "notes"}, "value": "len(rows)"},`, 1))
 	spans := map[string]any{}
-	for _, m := range e.screenMessages("web", "main", nil) {
+	for _, m := range e.ScreenMessages("web", "main", nil) {
 		var u struct {
 			Components []map[string]any `json:"components"`
 		}
@@ -36,22 +36,22 @@ func TestTheSpanOfAModuleBlockReachesTheScreen(t *testing.T) {
 // empty one is left out.
 func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"n": "integer"}, "blocks": [
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"n": "integer"}, "blocks": [
       {"type": "list", "title": "Latest", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n ?? 5"}}, "item": {"title": "text"}},
       {"type": "stat", "title": "Many", "when": "(param.n ?? 0) > 1", "source": {"from": "deck.probe"}},
       {"type": "list", "title": "Exact", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n"}}, "item": {"title": "text"}},`, 1))
 	for _, params := range []map[string]any{{"params": `{"n": "2"}`}, nil} {
-		drawn, _ := json.Marshal(e.screenData("web", "main", params)["b0"])
+		drawn, _ := json.Marshal(e.ScreenData("web", "main", params)["b0"])
 		if !strings.Contains(string(drawn), `"state":"empty"`) {
 			t.Fatalf("the source reads with %v: %s", params, drawn)
 		}
 	}
-	if drawn, _ := json.Marshal(e.screenData("web", "main", nil)["b2"]); !strings.Contains(string(drawn), `"state":"error"`) {
+	if drawn, _ := json.Marshal(e.ScreenData("web", "main", nil)["b2"]); !strings.Contains(string(drawn), `"state":"error"`) {
 		t.Fatalf("a param left out with no default is an error of the block, not a read without it: %s", drawn)
 	}
 	many := func(params map[string]any) bool {
-		drawn, _ := json.Marshal(e.screenMessages("web", "main", params))
+		drawn, _ := json.Marshal(e.ScreenMessages("web", "main", params))
 		return strings.Contains(string(drawn), `"title":"Many"`)
 	}
 	if !many(map[string]any{"params": `{"n": "2"}`}) || many(map[string]any{"params": `{"n": "1"}`}) || many(nil) {
@@ -62,14 +62,14 @@ func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
 // TestEachSourceOfAScreenIsReadOnce: blocks that read the same command with the same input share one read.
 func TestEachSourceOfAScreenIsReadOnce(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "stat", "title": "Today", "source": {"from": "deck.probe", "input": {"days": 1}}},
       {"type": "stat", "title": "Today again", "source": {"from": "deck.probe", "input": {"days": 1}}, "value": "len(rows) * 2"},
       {"type": "table", "title": "All", "source": {"from": "deck.probe", "sort": "-name"}, "columns": [{"label": "Name", "bind": "name"}]},
       {"type": "stat", "title": "Some", "source": {"from": "deck.probe", "where": "name == 'a'"}},`, 1))
 	e.Probes.Store(0)
-	data := e.screenData("web", "main", nil)
+	data := e.ScreenData("web", "main", nil)
 	if n := e.Probes.Load(); n != 2 {
 		t.Fatalf("two sources, two reads: %d", n)
 	}
@@ -82,11 +82,11 @@ func TestEachSourceOfAScreenIsReadOnce(t *testing.T) {
 // not read again.
 func TestAnEventReadsNoBlockItDoesNotChange(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "stat", "title": "Some", "when": "len(rows) > 0", "source": {"from": "deck.probe"}},`, 1))
 	e.Probes.Store(0)
-	e.screenMessages("web", "main", map[string]any{"topic": "asks"})
+	e.ScreenMessages("web", "main", map[string]any{"topic": "asks"})
 	if n := e.Probes.Load(); n != 0 {
 		t.Fatalf("an event of asks reads no probe: %d", n)
 	}
@@ -96,11 +96,11 @@ func TestAnEventReadsNoBlockItDoesNotChange(t *testing.T) {
 // of the screen like any other expression.
 func TestAParamReachesEveryExpressionOfAScreen(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"k": "integer"}, "blocks": [
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"k": "integer"}, "blocks": [
       {"type": "chart", "title": "Scaled", "source": {"from": "deck.probe"}, "x": "name", "series": [{"label": "N", "y": "id * param.k"}]},
       {"type": "stat", "title": "Toned", "source": {"from": "deck.probe"}, "tone": "param.k > 1 ? 'warn' : 'ok'"},`, 1))
-	data := e.screenData("web", "main", map[string]any{"params": `{"k": "3"}`})
+	data := e.ScreenData("web", "main", map[string]any{"params": `{"k": "3"}`})
 	chart, _ := json.Marshal(data["b0"])
 	if !strings.Contains(string(chart), `"values":[3,6]`) || string(data["b1"]["tone"]) != `"warn"` {
 		t.Fatalf("the chart and the tone read param: %s %s", chart, data["b1"]["tone"])
@@ -111,10 +111,10 @@ func TestAParamReachesEveryExpressionOfAScreen(t *testing.T) {
 // client reads it again, and no other.
 func TestAScreenNamesTheTopicsItFollows(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", webNotes)
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", harness.WebNotes)
 	topics := func(project, screen string) []string {
-		for _, m := range e.screenMessages(project, screen, nil) {
+		for _, m := range e.ScreenMessages(project, screen, nil) {
 			var u struct {
 				Components []struct {
 					ID     string

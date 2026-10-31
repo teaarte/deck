@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -15,19 +16,19 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(user, ".claude", "projects", "-elsewhere"), 0o700)
 	_ = os.WriteFile(filepath.Join(user, ".claude", "settings.json"), []byte("{}"), 0o600)
 	t.Setenv("HOME", user)
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
-	e := New(t, WithCLI(c))
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
 	home := e.Home
 	p := e.Project("notes", postManifest("http://127.0.0.1:1", ""))
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
-	call := c.call(1)
+	call := c.Call(1)
 	var set struct {
 		Permissions struct{ Deny []string }
 	}
-	if err := json.Unmarshal([]byte(call.settings), &set); err != nil {
+	if err := json.Unmarshal([]byte(call.Settings), &set); err != nil {
 		t.Fatal(err)
 	}
 	real, _ := filepath.EvalSymlinks(home)
@@ -49,7 +50,7 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	if slices.ContainsFunc(set.Permissions.Deny, func(d string) bool { return strings.Contains(d, "/.claude/projects") }) {
 		t.Fatalf("the sessions of the CLI, where it keeps long tool output, stay readable: %v", set.Permissions.Deny)
 	}
-	allowed, _ := flag(call.args, "--allowedTools")
+	allowed, _ := harness.Flag(call.Args, "--allowedTools")
 	if !strings.Contains(allowed, "mcp__deck__notes__post") {
 		t.Fatalf("deck tools skip the permission prompt, the gateway applies classes itself: %s", allowed)
 	}

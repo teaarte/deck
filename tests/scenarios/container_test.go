@@ -1,16 +1,16 @@
 package scenarios
 
 import (
+	deckhome "deck2/internal/home"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
-
-	deckhome "deck2/internal/home"
-	"deck2/internal/sandbox"
 )
 
-const userScript = pythonLib + `
+const userScript = harness.PythonLib + `
 inp = json.load(sys.stdin)
 def readable(p):
     try:
@@ -30,9 +30,9 @@ func TestInDecksContainerAScriptRunsAsTheUserOfAgents(t *testing.T) {
 	if !sandbox.HasAgentUser() {
 		t.Skip("runs where deck has a user of agents, as in its image: DECK_AGENT_USER")
 	}
-	e := New(t)
-	e.Project("tools", scriptManifest("collect", "", ""))
-	e.saveScript("tools", "scripts/main.py", userScript)
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("tools", "scripts/main.py", userScript)
 	h := deckhome.Layout(e.App.Cfg.Home)
 	p := e.WaitState(e.Start("tools", "collect", map[string]any{"secret": h.Token(), "outside": h.DB()}), "done", "error")
 	var out struct {

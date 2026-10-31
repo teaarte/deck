@@ -2,6 +2,9 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -9,9 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
-	"deck2/internal/provider/codex"
 )
 
 func realCodex(t *testing.T) {
@@ -42,7 +42,7 @@ func TestRealCodexSelfCheck(t *testing.T) {
 func TestRealCodexQuestion(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(codex.New(home)), WithConfig(realWaits), WithWait(5*time.Minute))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(codex.New(home)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
 	p := e.Project("ask", `{"version": 13,
   "commands": [{"name": "work", "title": "Work", "description": "Asks the owner", "class": "internal",
     "result": {"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}},
@@ -53,7 +53,7 @@ func TestRealCodexQuestion(t *testing.T) {
 		if st := e.Proc(id).State; st == "done" || st == "error" {
 			return true
 		}
-		var asks []Ask
+		var asks []harness.Ask
 		_, out := e.Call("deck.asks_list", nil)
 		_ = json.Unmarshal(out, &asks)
 		for _, ask := range asks {
@@ -100,7 +100,7 @@ func TestRealCodexCommitsInTheFolder(t *testing.T) {
 	git("add", "-A")
 	git("commit", "-q", "-m", "start")
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(codex.New(home)), WithConfig(realWaits))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(codex.New(home)), harness.WithConfig(realWaits))
 	cmd, _ := json.Marshal(map[string]any{"name": "work", "title": "Work", "description": "Commits a file.", "class": "internal",
 		"result": map[string]any{"type": "object", "required": []string{"markers", "commit"},
 			"properties": map[string]any{"markers": map[string]any{"type": "string"}, "commit": map[string]any{"type": "string"}}},
@@ -136,7 +136,7 @@ func TestRealCodexResolvesItsRunAndKeepsCaches(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(home) })
-	e := New(t, WithHome(home), WithProvider(codex.New(home)), WithConfig(realWaits), WithWait(5*time.Minute))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(codex.New(home)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
 	secret := filepath.Join(home, "state", "probe")
 	if err := os.WriteFile(secret, []byte("closed"), 0o600); err != nil {
 		t.Fatal(err)

@@ -2,36 +2,26 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/health"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
-
-	"deck2/internal/health"
-	"deck2/internal/provider"
 )
 
-type menuView struct {
-	Project string
-	Icon    string
-	Screens []struct{ Name, Title, Icon string }
-	Open    *struct{ Name string }
-	Running int64
-	Asks    int64
-	Errors  int64
-}
-
-func (e *Env) menuEntry(project string) menuView {
+func menuEntry(e *harness.Env, project string) harness.MenuView {
 	e.T.Helper()
-	var menu []menuView
-	e.menuList(nil, true, &menu)
+	var menu []harness.MenuView
+	e.MenuList(nil, true, &menu)
 	for _, m := range menu {
 		if m.Project == project {
 			return m
 		}
 	}
 	e.T.Fatalf("no %q in the menu: %+v", project, menu)
-	return menuView{}
+	return harness.MenuView{}
 }
 
 // TestMenuShowsIconsAndWhatEachProjectIsBusyWith: icons come from manifests and deck's screens, down to blocks and
@@ -39,8 +29,8 @@ func (e *Env) menuEntry(project string) menuView {
 func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		switch c.command() {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		switch c.Command() {
 		case "score":
 			select {
 			case <-release:
@@ -55,26 +45,26 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 	}))
 
 	defer close(release)
-	manifest := strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "icon": "rocket",`, 1)
+	manifest := strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"name": "main", "title": "Web",`, `{"name": "main", "title": "Web", "icon": "chart-line",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1)
 	p := e.Project("web", manifest)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
-	drawn, _ := json.Marshal(e.screenMessages("web", "main", nil))
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
+	drawn, _ := json.Marshal(e.ScreenMessages("web", "main", nil))
 	for _, want := range []string{`"icon":"chart-line"`, `"icon":"notes"`, `"icon":"arrow-right"`} {
 		if !strings.Contains(string(drawn), want) {
 			t.Fatalf("the screen, its block and its button carry their icons: no %s in %s", want, drawn)
 		}
 	}
 
-	var menu []menuView
-	e.menuOf(&menu)
+	var menu []harness.MenuView
+	e.MenuOf(&menu)
 	if menu[0].Screens[0].Icon != "calendar-time" {
 		t.Fatalf("deck's own screens carry their icons: %+v", menu[0].Screens)
 	}
-	if m := e.menuEntry("web"); m.Icon != "rocket" || m.Screens[0].Icon != "chart-line" || m.Running+m.Asks+m.Errors != 0 ||
+	if m := menuEntry(e, "web"); m.Icon != "rocket" || m.Screens[0].Icon != "chart-line" || m.Running+m.Asks+m.Errors != 0 ||
 		m.Open == nil || m.Open.Name != "main" {
 		t.Fatalf("a quiet project carries the icons of its manifest and no status, and its one screen opens from its header: %+v", m)
 	}
@@ -83,14 +73,14 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 	}
 
 	e.Start("web", "score", map[string]any{"title": "x"})
-	e.Until("a running process in the menu", func() bool { return e.menuEntry("web").Running == 1 })
+	e.Until("a running process in the menu", func() bool { return menuEntry(e, "web").Running == 1 })
 	e.Start("web", "tell", nil)
 	e.WaitAsk()
-	if m := e.menuEntry("web"); m.Asks != 1 || m.Running != 2 {
+	if m := menuEntry(e, "web"); m.Asks != 1 || m.Running != 2 {
 		t.Fatalf("the menu counts the open question and both running processes, the one that asks too: %+v", m)
 	}
 	health.Write(context.Background(), e.App.Store, health.Of{Workspace: 1, Project: p}, "server:x", "error", "down")
-	if m := e.menuEntry("web"); m.Errors != 1 {
+	if m := menuEntry(e, "web"); m.Errors != 1 {
 		t.Fatalf("the menu counts a failing health row of the project: %+v", m)
 	}
 }
@@ -101,7 +91,7 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
 	defer close(release)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		select {
 		case <-release:
 		case <-ctx.Done():
@@ -117,10 +107,10 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 			Asks, Running, Errors int64
 			State                 string
 		}
-		Projects []menuView
+		Projects []harness.MenuView
 	}
 	e.Must("deck.menu", nil, &m)
-	h := e.today("")
+	h := today(e, "")
 	var feed []struct{ Kind, Check string }
 	e.Must("deck.feed_list", map[string]any{"failures": true}, &feed)
 	if m.Pulse.Running != 1 || m.Pulse.Errors != 1 || m.Pulse.Asks != 0 || m.Pulse.State != "errors" || h.Line != "Nothing to decide. One failure is in the feed below." ||
@@ -135,7 +125,7 @@ func TestThePulseSaysTalkingWhileOnlyTheMasterWorks(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
 	defer close(release)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		select {
 		case <-release:
 		case <-ctx.Done():
@@ -148,7 +138,7 @@ func TestThePulseSaysTalkingWhileOnlyTheMasterWorks(t *testing.T) {
 		e.Must("deck.menu", nil, &m)
 		return m.Pulse.State
 	}
-	e.say(0, "plan my week")
+	e.Say(0, "plan my week")
 	e.Until("the master at work", func() bool { return state() == "talking" })
 	e.Project("clips", cutModule)
 	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "a"}), "running")
@@ -158,7 +148,7 @@ func TestThePulseSaysTalkingWhileOnlyTheMasterWorks(t *testing.T) {
 }
 
 // side is the projects of the side list of deck.menu by name, in their order, and the master's project.
-func (e *Env) side() ([]string, string) {
+func side(e *harness.Env) ([]string, string) {
 	e.T.Helper()
 	var menu struct {
 		Projects []struct{ Project string }
@@ -179,16 +169,16 @@ func (e *Env) side() ([]string, string) {
 // stays at the foot, paused or not.
 func TestAPausedProjectLeavesTheMenu(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("alpha", notesManifest)
-	e.Project("beta", plainManifest)
+	e.Project("beta", harness.PlainManifest)
 	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
 	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": true}, nil)
-	if names, master := e.side(); !slices.Equal(names, []string{"beta"}) || master != "master" {
+	if names, master := side(e); !slices.Equal(names, []string{"beta"}) || master != "master" {
 		t.Fatalf("a paused project leaves the side list, the master stays: %v %q", names, master)
 	}
 	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)
-	if names, _ := e.side(); !slices.Equal(names, []string{"alpha", "beta"}) {
+	if names, _ := side(e); !slices.Equal(names, []string{"alpha", "beta"}) {
 		t.Fatalf("a resumed project is in the side list again: %v", names)
 	}
 }

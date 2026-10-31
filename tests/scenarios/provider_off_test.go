@@ -2,27 +2,19 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/home"
-	"deck2/internal/provider"
-	"deck2/internal/provider/codex"
 )
 
-type agentsV struct {
-	Agents []struct{ Name, Status string }
-	Models []struct {
-		Name, Status string
-		Builtin      bool
-	}
-}
-
-func (e *Env) agentStatus(name string) (agent, model string) {
-	var v agentsV
+func agentStatus(e *harness.Env, name string) (agent, model string) {
+	var v harness.AgentsV
 	e.Must("deck.models_list", nil, &v)
 	for _, a := range v.Agents {
 		if a.Name == name {
@@ -37,7 +29,7 @@ func (e *Env) agentStatus(name string) (agent, model string) {
 	return agent, model
 }
 
-func (e *Env) healthSubjects() []string {
+func healthSubjects(e *harness.Env) []string {
 	var out []string
 	for _, h := range e.Health() {
 		out = append(out, h.Subject)
@@ -51,15 +43,15 @@ func TestACLIThatIsNotInstalledIsOffByItself(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	missing := &codex.Adapter{Binary: filepath.Join(dir, "codex"), Home: home.Layout(dir), Dir: home.Layout(dir).Codex(), Linger: time.Second}
-	main := &Fake{script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "ok"} }}
-	e := New(t, WithHome(dir), WithProvider(main, missing))
+	main := &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result { return provider.Result{Text: "ok"} }}
+	e := harness.New(t, harness.WithHome(dir), harness.WithProvider(main, missing))
 	e.App.Providers.Checks(context.Background(), time.Now())
 	e.Until("codex to be missing, as an agent and as a model", func() bool {
-		a, m := e.agentStatus("codex")
+		a, m := agentStatus(e, "codex")
 		return a == "missing" && m == "missing"
 	})
-	if slices.Contains(e.healthSubjects(), "provider:codex") {
-		t.Fatalf("a missing CLI has no row of health: %v", e.healthSubjects())
+	if slices.Contains(healthSubjects(e), "provider:codex") {
+		t.Fatalf("a missing CLI has no row of health: %v", healthSubjects(e))
 	}
 	var topics struct{ Models []string }
 	e.Must("deck.chat_topics", nil, &topics)
@@ -72,20 +64,20 @@ func TestACLIThatIsNotInstalledIsOffByItself(t *testing.T) {
 // to it says why; turned on, it is checked again.
 func TestTheOwnerTurnsAProviderOffAndOnAgain(t *testing.T) {
 	t.Parallel()
-	c := newCodex(t)
+	c := harness.NewCodex(t)
 	for i, f := range []string{"selfcheck.jsonl", "selfcheck_resume.jsonl", "selfcheck_offline.jsonl"} {
-		c.stream(i+1, f)
-		c.stream(i+4, f)
+		c.Stream(i+1, f)
+		c.Stream(i+4, f)
 	}
-	e := New(t, WithCodex(c))
+	e := harness.New(t, harness.WithCodex(c))
 	e.App.Providers.Checks(context.Background(), time.Now())
-	e.Until("the first self-check of codex", func() bool { a, _ := e.agentStatus("codex"); return a == "ok" })
+	e.Until("the first self-check of codex", func() bool { a, _ := agentStatus(e, "codex"); return a == "ok" })
 	e.Must("deck.provider_off", map[string]any{"provider": "codex", "off": true}, nil)
-	if a, m := e.agentStatus("codex"); a != "off" || m != "off" {
+	if a, m := agentStatus(e, "codex"); a != "off" || m != "off" {
 		t.Fatalf("a provider turned off says so: %q %q", a, m)
 	}
-	if slices.Contains(e.healthSubjects(), "provider:codex") {
-		t.Fatalf("a provider turned off keeps no row of health: %v", e.healthSubjects())
+	if slices.Contains(healthSubjects(e), "provider:codex") {
+		t.Fatalf("a provider turned off keeps no row of health: %v", healthSubjects(e))
 	}
 	p := e.Project("paint", colorManifest)
 	e.UseModels("paint.work", "codex")
@@ -94,7 +86,7 @@ func TestTheOwnerTurnsAProviderOffAndOnAgain(t *testing.T) {
 	}
 	_ = p
 	e.Refused("deck.provider_off", map[string]any{"provider": "nope", "off": true}, 422, "no built-in provider")
-	before := c.calls()
+	before := c.Calls()
 	e.Must("deck.provider_off", map[string]any{"provider": "codex", "off": false}, nil)
-	e.Until("turned on again, the provider is checked", func() bool { a, _ := e.agentStatus("codex"); return c.calls() > before && a == "ok" })
+	e.Until("turned on again, the provider is checked", func() bool { a, _ := agentStatus(e, "codex"); return c.Calls() > before && a == "ok" })
 }

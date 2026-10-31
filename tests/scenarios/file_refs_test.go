@@ -2,14 +2,14 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // pictureModule is a module whose model command draws a picture, and a collection of pictures a media block shows.
@@ -31,7 +31,7 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
 	})
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"openrouter/google/gemini-3.1-flash-lite-image"}}, nil)
@@ -50,10 +50,10 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 	id := res.Files[0].File
 	var name string
 	_ = e.App.Store.DB.QueryRow(`SELECT name FROM file WHERE id = ?`, id).Scan(&name)
-	e.Must("deck.records_upsert", map[string]any{"project": "art", "collection": "pics", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "art", "collection": "pics", "records": harness.Jsonl(
 		map[string]any{"title": "a number", "file": id}, map[string]any{"title": "b digits", "file": fmt.Sprint(id)},
 		map[string]any{"title": "c name", "file": name})}, nil)
-	raw, _ := json.Marshal(e.screenMessages("art", "main", nil))
+	raw, _ := json.Marshal(e.ScreenMessages("art", "main", nil))
 	if s := string(raw); strings.Count(s, fmt.Sprintf(`"url":"/api/files/%d"`, id)) != 2 || !strings.Contains(s, "a stored file is named by its id") {
 		t.Fatalf("media shows the file by its id and its digits, not by its name: %s", s)
 	}
@@ -64,7 +64,7 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 	t.Parallel()
 	var linked int64
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		results := c.Req.Dirs[len(c.Req.Dirs)-1]
 		if err := os.WriteFile(filepath.Join(results, "voice-1.wav"), []byte("RIFF"), 0o600); err != nil {
 			return provider.Result{Outcome: provider.Failed, Text: err.Error()}
@@ -73,9 +73,9 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 	}))
 
 	e.Project("art", pictureModule)
-	linked = e.upload("art", "old.txt", "text/plain", "an older take")
-	topic := e.say(0, "make a voice")
-	e.masterSaid(topic, 1)
+	linked = upload(e, "art", "old.txt", "text/plain", "an older take")
+	topic := e.Say(0, "make a voice")
+	e.MasterSaid(topic, 1)
 	var view struct {
 		Messages []struct {
 			Role  string
@@ -86,7 +86,7 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 			}
 		}
 	}
-	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 	m := view.Messages[len(view.Messages)-1]
 	if m.Role != "master" || len(m.Files) != 1 || m.Files[0].Name != "voice-1.wav" {
 		t.Fatalf("the reply shows the file it made, not the one it links to: %+v", m)

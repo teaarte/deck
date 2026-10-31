@@ -1,6 +1,8 @@
 package scenarios
 
 import (
+	"deck2/internal/app"
+	"deck2/tests/harness"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -8,8 +10,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-
-	"deck2/internal/app"
 )
 
 var refOf = regexp.MustCompile(`Send.{0,4} \[ref=(e\d+)\]`)
@@ -36,7 +36,7 @@ func TestRealBrowser(t *testing.T) {
 	}))
 	t.Cleanup(page.Close)
 	ag := &seqAgent{files: []string{"cv.txt"}}
-	e := New(t, WithAgent(ag.script), WithConfig(func(c *app.Config) { c.Browser = app.DefaultBrowser }))
+	e := harness.New(t, harness.WithAgent(ag.script), harness.WithConfig(func(c *app.Config) { c.Browser = app.DefaultBrowser }))
 	host := strings.TrimPrefix(page.URL, "http://")
 	e.Project("web", browserManifest(`{"read": ["127.0.0.1"], "act": ["`+host+`"]}`))
 	e.WaitState(e.Start("web", "browse", steps(nav(page.URL), step{"browser_snapshot", map[string]any{}})), "done")

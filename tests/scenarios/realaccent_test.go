@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"os"
 	"strings"
 	"testing"
@@ -17,10 +18,10 @@ func TestRealBrowserOneAccent(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
-	e.Project("web", webNotes)
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("web", harness.WebNotes)
 	for _, name := range []string{"first", "second"} {
-		_, tok := e.token("ask-"+name, "deck.model_set")
+		_, tok := e.Token("ask-"+name, "deck.model_set")
 		if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": name}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 			t.Fatalf("a token's model waits for the owner: %d %s", code, out)
 		}

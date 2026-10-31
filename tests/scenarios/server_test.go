@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -39,7 +40,7 @@ func TestServerFromScratch(t *testing.T) {
 	if os.Getenv("DECK_SERVER") == "" {
 		t.Skip("set DECK_SERVER=1 to run deck's image on a bare docker; needs docker with buildx")
 	}
-	root := Root
+	root := harness.Root
 	run := func(name string, args ...string) string {
 		t.Helper()
 		out, err := exec.Command(name, args...).CombinedOutput()
@@ -60,7 +61,7 @@ func TestServerFromScratch(t *testing.T) {
 	run("docker", "run", "-d", "--privileged", "--name", name, "-e", "DOCKER_TLS_CERTDIR=", "docker:dind")
 	t.Cleanup(func() { _ = exec.Command("docker", "rm", "-f", "-v", name).Run() })
 	in := func(args ...string) string { return run("docker", append([]string{"exec", name}, args...)...) }
-	Until(t, "docker in docker to start", func() bool { return exec.Command("docker", "exec", name, "docker", "info").Run() == nil })
+	harness.Until(t, "docker in docker to start", func() bool { return exec.Command("docker", "exec", name, "docker", "info").Run() == nil })
 	save := exec.Command("sh", "-c", "docker save ghcr.io/teaarte/deck:latest caddy:2 | docker exec -i "+name+" docker load")
 	if out, err := save.CombinedOutput(); err != nil {
 		t.Fatalf("the images in the bare docker: %v\n%s", err, out)
@@ -88,7 +89,7 @@ func TestServerFromScratch(t *testing.T) {
 			t.Logf("the log of deck:\n%s", logs)
 		}
 	}()
-	Until(t, "the link with the token in the log of deck", func() bool {
+	harness.Until(t, "the link with the token in the log of deck", func() bool {
 		logs = compose("logs", "deck")
 		if m := regexp.MustCompile(`url="https://localhost/\?token=([0-9a-f]+)"`).FindStringSubmatch(logs); m != nil {
 			token = m[1]
@@ -131,7 +132,7 @@ func TestServerFromScratch(t *testing.T) {
 				t.Logf("%s is %s, want %s: %s", subject, status, want, text)
 			}
 		}()
-		UntilWithin(t, 4*time.Minute, subject+" to be "+want, func() bool {
+		harness.UntilWithin(t, 4*time.Minute, subject+" to be "+want, func() bool {
 			status, text = health(subject)
 			return status == want
 		})
@@ -155,15 +156,15 @@ func TestServerFromScratch(t *testing.T) {
 	waitHealth("provider:codex", "ok")
 
 	var p struct{ ID int64 }
-	if err := json.Unmarshal(call("deck.project_create", map[string]any{"name": "tools", "manifest": scriptManifest("collect", "", "")}), &p); err != nil || p.ID == 0 {
+	if err := json.Unmarshal(call("deck.project_create", map[string]any{"name": "tools", "manifest": harness.ScriptManifest("collect", "", "")}), &p); err != nil || p.ID == 0 {
 		t.Fatalf("a module: %v", err)
 	}
-	call("deck.document_save", map[string]any{"project": "tools", "name": "scripts/main.py", "kind": "script", "text": pythonLib + `
+	call("deck.document_save", map[string]any{"project": "tools", "name": "scripts/main.py", "kind": "script", "text": harness.PythonLib + `
 print(json.dumps({"uid": os.getuid(), "deck": deck("deck.records_list", {"collection": "items"})[0]}))
 `})
 	var started struct{ Process int64 }
 	_ = json.Unmarshal(call("tools.collect", map[string]any{}), &started)
-	Until(t, "the script of the module to end", func() bool {
+	harness.Until(t, "the script of the module to end", func() bool {
 		var pr struct {
 			State  string
 			Result json.RawMessage

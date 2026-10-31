@@ -2,12 +2,12 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserTheSidePanelOfAScreen: on a computer the panel stands left of the blocks and a pick narrows them in
@@ -17,10 +17,10 @@ func TestRealBrowserTheSidePanelOfAScreen(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	e.Project("lab", strings.Replace(sideManifest, `"screens": [`, `"menu": ["lab", "all"], "screens": [{"name": "all", "title": "All",
     "blocks": [{"type": "stat", "title": "All", "source": {"collection": "trades"}}]}, `, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
 		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
 
@@ -70,9 +70,9 @@ func TestRealBrowserAFilterStartsOnItsDefault(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	e.Project("lab", strings.Replace(sideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "BTC"}, "side": "string"}`, 1))
-	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
 		map[string]any{"title": "a", "coin": "BTC", "side": "long"}, map[string]any{"title": "b", "coin": "ETH", "side": "short"},
 		map[string]any{"title": "c", "coin": "BTC", "side": "short"})}, nil)
 	b := newPlaywright(t)
@@ -98,15 +98,15 @@ func TestRealBrowserAWorkTellsItsTopic(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	var from atomic.Int64
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "work" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "work" {
 			return provider.Result{Text: "Counted: **3 records**."}
 		}
 		return handOver(ctx, c, &from)
 	}))
 
-	topic := e.say(0, "count the records")
-	e.told(topic, "done", "")
+	topic := e.Say(0, "count the records")
+	told(e, topic, "done", "")
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 820})

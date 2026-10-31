@@ -3,14 +3,14 @@ package scenarios
 import (
 	"context"
 	"deck2/internal/events"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // webManifest is a project with every block of the catalog, a record page and an external tool.
@@ -51,13 +51,13 @@ func webManifest(url string) string {
 }
 
 // webAgent posts a new note through the external tool on work and asks a question with options on ask.
-func webAgent() Script {
+func webAgent() harness.Script {
 	var n atomic.Int32
-	return func(ctx context.Context, c *Call) provider.Result {
+	return func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Req.Resume {
 			return provider.Result{Structured: json.RawMessage(`{}`)}
 		}
-		switch c.command() {
+		switch c.Command() {
 		case "work":
 			c.Tool(ctx, "notes__post", map[string]any{"id": fmt.Sprintf("n%d", n.Add(1)), "text": "hi"})
 		case "ask":
@@ -68,86 +68,24 @@ func webAgent() Script {
 	}
 }
 
-func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage) {
-	t.Helper()
-	for _, m := range msgs {
-		if string(m["version"]) != `"v0.9"` {
-			t.Fatalf("every message carries protocol v0.9: %s", m["version"])
-		}
-		if raw, ok := m["updateComponents"]; ok {
-			var uc struct{ Components []map[string]any }
-			_ = json.Unmarshal(raw, &uc)
-			for _, comp := range uc.Components {
-				name := comp["component"].(string)
-				k.comps[comp["id"].(string)] = name
-				if slices.Contains(k.basic, name) {
-					continue
-				}
-				s, err := k.c.Compile("https://deck2.test/catalog.json#/components/" + name)
-				if err != nil {
-					t.Fatalf("component %s is not in the catalog: %v", name, err)
-				}
-				props := map[string]any{}
-				for key, v := range comp {
-					if key != "id" && key != "component" {
-						props[key] = v
-					}
-					// A block that reads data at other paths too, as a chat its parts, has its value at each.
-					if m, ok := v.(map[string]any); ok && key != "data" && m["path"] != nil {
-						at, _ := m["path"].(string)
-						k.comps[strings.TrimPrefix(at, "/")] = name
-					}
-				}
-				if err := s.Validate(roundTrip(props)); err != nil {
-					t.Fatalf("component %s does not match the catalog: %v", comp["id"], err)
-				}
-			}
-		}
-		if raw, ok := m["updateDataModel"]; ok {
-			var dm struct {
-				Path  string
-				Value any
-			}
-			_ = json.Unmarshal(raw, &dm)
-			values := map[string]any{dm.Path: dm.Value}
-			for id, v := range values {
-				if err := k.data.Validate(v); err != nil {
-					t.Fatalf("data of %s does not match the catalog: %v", id, err)
-				}
-				value, ok := v.(map[string]any)["value"]
-				if !ok {
-					continue
-				}
-				s, err := k.c.Compile("https://deck2.test/catalog.json#/$defs/values/" + k.comps[strings.TrimPrefix(id, "/")])
-				if err != nil {
-					t.Fatalf("the catalog has no value of block %s (%s): %v", id, k.comps[strings.TrimPrefix(id, "/")], err)
-				}
-				if err := s.Validate(value); err != nil {
-					t.Fatalf("value of %s does not match the catalog: %v", id, err)
-				}
-			}
-		}
-	}
-}
-
 // TestScreenBlocksFollowTheCatalog: a screen resolves into components of the catalog with data by its schema:
 // containers, an aggregate, tabs, a record page and moves to it.
 func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webAgent()))
-	check := newCatalogCheck(t)
+	e := harness.New(t, harness.WithAgent(webAgent()))
+	check := harness.NewCatalogCheck(t)
 	e.Project("notes", webManifest("http://127.0.0.1:1"))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7},
+		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7},
 			map[string]any{"title": "gamma", "score": 5})}, nil)
 
-	msgs := e.screenMessages("notes", "main", nil)
-	check.messages(t, msgs)
-	data := e.screenData("notes", "main", nil)
+	msgs := e.ScreenMessages("notes", "main", nil)
+	check.Messages(t, msgs)
+	data := e.ScreenData("notes", "main", nil)
 	if string(data["b0-0"]["value"]) != "3" || string(data["b0-1"]["value"]) != "12" {
 		t.Fatalf("a stat counts the rows, or sums them by its expression: %s %s", data["b0-0"]["value"], data["b0-1"]["value"])
 	}
-	rows := blockData[[]screenRow](t, data["b1-0-0"]["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, data["b1-0-0"]["rows"])
 	if len(rows) != 3 || rows[0].Cells[0] != "beta" {
 		t.Fatalf("a table inside a tab sorts by score: %+v", rows)
 	}
@@ -158,7 +96,7 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	if p := rows[0].Actions[1]["params"].(map[string]any); p["note"] != rows[0].ID || rows[0].Actions[1]["command"] != "notes.touch" {
 		t.Fatalf("a row command takes the record id: %v", rows[0].Actions[1])
 	}
-	top := blockData[[]listItem](t, data["b1-1-0"]["items"])
+	top := harness.BlockData[[]harness.ListItem](t, data["b1-1-0"]["items"])
 	if len(top) != 2 || top[0].Meta != "score 7" {
 		t.Fatalf("a list binds its lines: %+v", top)
 	}
@@ -167,13 +105,13 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	}
 
 	id := int64(rows[0].ID.(float64))
-	page := e.screenMessages("notes", "note", map[string]any{"record": id})
-	check.messages(t, page)
+	page := e.ScreenMessages("notes", "note", map[string]any{"record": id})
+	check.Messages(t, page)
 	if !strings.Contains(string(page[1]["updateComponents"]), `"title":"Note: beta"`) {
 		t.Fatalf("a record page is titled with the record: %s", page[1]["updateComponents"])
 	}
-	pd := e.screenData("notes", "note", map[string]any{"record": id})
-	card := blockData[struct {
+	pd := e.ScreenData("notes", "note", map[string]any{"record": id})
+	card := harness.BlockData[struct {
 		Fields []struct {
 			Label string
 			Value any
@@ -183,7 +121,7 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	if len(card.Fields) != 2 || card.Fields[1].Value != float64(7) || card.Actions[0]["params"].(map[string]any)["note"] != float64(id) {
 		t.Fatalf("a card shows the record of the page and its buttons take its id: %+v", card)
 	}
-	if better := blockData[[]listItem](t, pd["b1"]["items"]); len(better) != 0 {
+	if better := harness.BlockData[[]harness.ListItem](t, pd["b1"]["items"]); len(better) != 0 {
 		t.Fatalf("where reads the record of the page: %+v", better)
 	}
 	if code, out := e.Call("deck.screen", map[string]any{"project": "notes", "screen": "note"}); code != 404 || !strings.Contains(string(out), "record id") {
@@ -198,20 +136,20 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 		Screens []struct{ Name string }
 		Extra   []struct{ Name string }
 	}
-	e.menuOf(&menu)
+	e.MenuOf(&menu)
 	if len(menu) != 2 || menu[0].Project != "" || menu[0].Screens[0].Name != "schedule" || menu[1].Project != "notes" ||
 		len(menu[1].Screens) != 1 || menu[1].Screens[0].Name != "main" || len(menu[1].Extra) != 2 || menu[1].Extra[0].Name != "documents" || menu[1].Extra[1].Name != "settings" {
 		t.Fatalf("the menu has deck's screens, then the project menu with its documents and settings apart: %+v", menu)
 	}
 	for _, name := range []string{"cockpit", "schedule", "files", "settings"} {
-		check.messages(t, e.screenMessages("", name, nil))
+		check.Messages(t, e.ScreenMessages("", name, nil))
 	}
 }
 
 // TestInvalidScreenIsRefusedWithItsReason: a screen outside the catalog or with broken references is refused on save.
 func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	good := webManifest("http://127.0.0.1:1")
 	e.Project("notes", good)
 	for _, tc := range []struct{ from, to, want string }{
@@ -254,7 +192,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 // TestScreenTopicReadsOnlyTheBlocksItChanges: after an event the client reads only the blocks of its topic.
 func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webAgent()))
+	e := harness.New(t, harness.WithAgent(webAgent()))
 	e.Project("notes", webManifest("http://127.0.0.1:1"))
 	// paths are the blocks a topic reads, with the tab and dialog of extra shown, or with each tab shown in turn.
 	paths := func(project, screen, topic string, extra ...string) []string {
@@ -262,15 +200,15 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		var msgs []map[string]json.RawMessage
 		switch {
 		case len(extra) > 1:
-			msgs = e.screenMessages(project, screen, map[string]any{"topic": topic, "tab": extra[0], "dialog": extra[1]})
+			msgs = e.ScreenMessages(project, screen, map[string]any{"topic": topic, "tab": extra[0], "dialog": extra[1]})
 		case len(extra) > 0:
-			msgs = e.screenMessages(project, screen, map[string]any{"topic": topic, "tab": extra[0]})
+			msgs = e.ScreenMessages(project, screen, map[string]any{"topic": topic, "tab": extra[0]})
 		default:
-			for _, p := range tabPanels(e.screenMessages(project, screen, nil)) {
-				msgs = append(msgs, e.screenMessages(project, screen, map[string]any{"topic": topic, "tab": p[1]})...)
+			for _, p := range harness.TabPanels(e.ScreenMessages(project, screen, nil)) {
+				msgs = append(msgs, e.ScreenMessages(project, screen, map[string]any{"topic": topic, "tab": p[1]})...)
 			}
 			if len(msgs) == 0 {
-				msgs = e.screenMessages(project, screen, map[string]any{"topic": topic})
+				msgs = e.ScreenMessages(project, screen, map[string]any{"topic": topic})
 			}
 		}
 		for _, m := range msgs {
@@ -316,7 +254,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		t.Fatalf("documents reads the projects, whose descriptions are their prompts: %v", got)
 	}
 	for _, topic := range []string{"projects", "spaceship"} {
-		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 7 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 5 {
+		if n := len(e.ScreenMessages("notes", "main", map[string]any{"topic": topic})); n != 7 || len(e.ScreenData("notes", "main", map[string]any{"topic": topic})) != 5 {
 			t.Fatalf("a topic no block reads gives the whole screen with its data but of the tab not shown: %s, %d messages", topic, n)
 		}
 	}
@@ -327,7 +265,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 	t.Parallel()
 	more := make(chan struct{})
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Req.OnEvent(provider.Event{Kind: provider.EventThought, Text: "plan"})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "Read", Text: `{"path": "a"}`})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventToolUpdate, ID: "t1", Status: "failed", Text: "no such file"})
@@ -337,53 +275,53 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		return provider.Result{}
 	}))
 
-	p := e.Project("quiet", testManifest([]string{agentCommand("job", "")}, nil))
+	p := e.Project("quiet", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	id := e.Run(p, "job")
-	e.Until("three lines", func() bool { return len(e.log(id)) == 3 })
+	e.Until("three lines", func() bool { return len(log(e, id)) == 3 })
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stream := e.Events(ctx)
 	close(more)
-	WaitEvent(t, stream, events.Event{Topic: "log"})
-	e.Until("four lines", func() bool { return len(e.log(id)) == 4 })
+	harness.WaitEvent(t, stream, events.Event{Topic: "log"})
+	e.Until("four lines", func() bool { return len(log(e, id)) == 4 })
 
-	newCatalogCheck(t).messages(t, e.screenMessages("", "process", map[string]any{"record": id}))
-	data := e.screenData("", "process", map[string]any{"record": id})
-	lines := blockData[[]map[string]string](t, data["b1"]["lines"])
+	harness.NewCatalogCheck(t).Messages(t, e.ScreenMessages("", "process", map[string]any{"record": id}))
+	data := e.ScreenData("", "process", map[string]any{"record": id})
+	lines := harness.BlockData[[]map[string]string](t, data["b1"]["lines"])
 	if len(lines) != 4 || lines[3]["kind"] != "thought" || lines[2]["kind"] != "tool" || lines[2]["id"] != "t1" || lines[2]["title"] != "Read" ||
 		lines[1]["kind"] != "tool_update" || lines[1]["id"] != "t1" || lines[1]["status"] != "failed" || len(lines[0]["text"]) > 4100 {
 		t.Fatalf("the log keeps the words of ACP, newest first, and cuts long text: %v", lines)
 	}
-	card := blockData[struct {
+	card := harness.BlockData[struct {
 		Fields []struct {
 			Label string
 			Value any
 		}
 		Actions []map[string]any
 	}](t, data["b0"]["value"])
-	say := blockData[map[string]any](t, data["b1"]["say"])
+	say := harness.BlockData[map[string]any](t, data["b1"]["say"])
 	if len(card.Actions) != 1 || card.Actions[0]["verb"] != "stop" || say["command"] != "deck.process_tell" || say["input"] != "text" ||
-		blockData[string](t, data["b1"]["since"]) == "" {
+		harness.BlockData[string](t, data["b1"]["since"]) == "" {
 		t.Fatalf("the page of a running process offers stop, and its log a message to it and how long it runs: %+v %v", card, say)
 	}
 	e.Must("deck.process_tell", map[string]any{"process": id, "text": "look at b too"}, nil)
-	data = e.screenData("", "process", map[string]any{"record": id})
-	owner := blockData[[]map[string]any](t, data["b1"]["lines"])[0]
+	data = e.ScreenData("", "process", map[string]any{"record": id})
+	owner := harness.BlockData[[]map[string]any](t, data["b1"]["lines"])[0]
 	del, _ := owner["delete"].(map[string]any)
 	if owner["kind"] != "owner" || owner["text"] != "look at b too" || owner["status"] != "waiting" || del == nil {
 		t.Fatalf("the owner's message is the newest line, waiting with its delete: %v", owner)
 	}
 	e.Must(del["command"].(string), del["params"].(map[string]any), nil)
-	if first := blockData[[]map[string]any](t, e.screenData("", "process", map[string]any{"record": id})["b1"]["lines"])[0]; first["kind"] == "owner" {
+	if first := harness.BlockData[[]map[string]any](t, e.ScreenData("", "process", map[string]any{"record": id})["b1"]["lines"])[0]; first["kind"] == "owner" {
 		t.Fatalf("a message the agent did not take is deleted: %v", first)
 	}
-	running := e.cockpitRunning()
+	running := e.CockpitRunning()
 	if len(running) != 1 || running[0].Title != "job" || !strings.Contains(running[0].Details, "quiet.job") || running[0].Actions[0]["screen"] != "process" {
 		t.Fatalf("the cockpit lists the running process with a move to its page: %+v", running)
 	}
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 	e.WaitState(id, "stopped")
-	if running := e.cockpitRunning(); len(running) != 0 {
+	if running := e.CockpitRunning(); len(running) != 0 {
 		t.Fatalf("a stopped process is not running: %+v", running)
 	}
 }
@@ -392,7 +330,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 // a value written as $record.<field> is refused with the expression to write.
 func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	m := `{"version": 13,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "id": {"type": "string"}}, "required": ["title"]}}],
@@ -405,14 +343,14 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
     {"name": "note", "title": "Note", "record": "notes", "blocks": [{"type": "form", "title": "Again", "command": "touch",
       "values": {"note": "%[1]s", "score": "%[2]s"}}]}]}`
 	e.Project("notes", fmt.Sprintf(m, "=_id", "=title"))
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
-	rows := blockData[[]screenRow](t, e.screenData("notes", "main", nil)["b0"]["rows"])
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("notes", "main", nil)["b0"]["rows"])
 	params, _ := rows[0].Actions[0]["params"].(map[string]any)
 	if len(rows) != 1 || params["note"] != rows[0].ID || params["score"] != "a" {
 		t.Fatalf("a button takes the id of the record and its field: %+v", rows)
 	}
 	var form struct{ Values map[string]any }
-	_ = json.Unmarshal(e.screenData("notes", "note", map[string]any{"record": rows[0].ID})["b0"]["value"], &form)
+	_ = json.Unmarshal(e.ScreenData("notes", "note", map[string]any{"record": rows[0].ID})["b0"]["value"], &form)
 	if form.Values["note"] != rows[0].ID || form.Values["score"] != "a" {
 		t.Fatalf("a form takes the record of the page: %+v", form)
 	}
@@ -426,7 +364,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 // =$env["<field>"] for a field whose name is no name of an expression give their values.
 func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	pid := e.Project("notes", `{"version": 13,
   "collections": [{"name": "notes", "description": "Notes", "key": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "first-name": {"type": "string"}, "in": {"type": "string"}}, "required": ["title"]}}],
@@ -438,11 +376,11 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
       "actions": [{"label": "Touch", "command": "touch", "params": {"process": "=_id"}}]},
     {"type": "table", "title": "Notes", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
       "actions": [{"label": "Who", "command": "touch", "params": {"who": "=$env[\"first-name\"]"}}, {"label": "Where", "command": "touch", "params": {"who": "=$env[\"in\"]"}}]}]}]}`)
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "first-name": "Ann", "in": "Oslo"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a", "first-name": "Ann", "in": "Oslo"})}, nil)
 	e.Run(pid, "touch")
-	data := e.screenData("notes", "main", nil)
-	runs := blockData[[]screenRow](t, data["b0"]["rows"])
-	notes := blockData[[]screenRow](t, data["b1"]["rows"])
+	data := e.ScreenData("notes", "main", nil)
+	runs := harness.BlockData[[]harness.ScreenRow](t, data["b0"]["rows"])
+	notes := harness.BlockData[[]harness.ScreenRow](t, data["b1"]["rows"])
 	p, _ := runs[0].Actions[0]["params"].(map[string]any)
 	n, _ := notes[0].Actions[0]["params"].(map[string]any)
 	w, _ := notes[0].Actions[1]["params"].(map[string]any)
@@ -455,7 +393,7 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
 // description that mentions it is text.
 func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	m := `{"version": 13, "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
     "result": {"type": "object"}, "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Runs",
@@ -468,12 +406,12 @@ func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
 
 func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	p := e.Project("items", numbersManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "items", "collection": "items",
-		"records": jsonl(map[string]any{"id": 1, "name": "nine", "score": 9}, map[string]any{"id": 2, "name": "hundred", "score": 100},
+		"records": harness.Jsonl(map[string]any{"id": 1, "name": "nine", "score": 9}, map[string]any{"id": 2, "name": "hundred", "score": 100},
 			map[string]any{"id": 3, "name": "twenty", "score": 20})}, nil)
-	rows := e.screenRows(p, "main")
+	rows := e.ScreenRows(p, "main")
 	if len(rows) != 1 || rows[0].Cells[0] != "hundred" {
 		t.Fatalf("descending numeric sort must put 100 first, got %v", rows)
 	}
@@ -486,8 +424,8 @@ func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 // TestNewBlocksAreRefusedWithTheirReason: a form, custom block or filter that cannot work is refused on save.
 func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "board", "title": "Work"}`, "/screens/0/blocks/1/type"},
 		{`"command": "score"}`, `"keep_open": true}`, "missing property 'command'"},
@@ -505,10 +443,10 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 		{`{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "nowhere is not a deck command that only reads"},
 		{`{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "stat", "source": {"collection": "notes"}, "item": {"title": "title"}}`, "additional properties 'item' not allowed"},
 	} {
-		if !strings.Contains(webNotes, tc.from) {
+		if !strings.Contains(harness.WebNotes, tc.from) {
 			t.Fatalf("fixture lacks %s", tc.from)
 		}
-		bad := strings.Replace(webNotes, tc.from, tc.to, 1)
+		bad := strings.Replace(harness.WebNotes, tc.from, tc.to, 1)
 		code, out := e.Call("deck.manifest_save", map[string]any{"project": "web", "manifest": bad})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
@@ -520,7 +458,7 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 // has still loads, as a module of before; only that block is an error, and a save with it is refused.
 func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	m := `{"version": 13, "screens": [{"name": "main", "title": "Main", "blocks": [
     {"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "name"}},
     {"type": "list", "source": {"from": "deck.models_list", "rows": "models"}, "item": {"title": "name"}}]}]}`
@@ -542,7 +480,7 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	}); i < 0 || ps[i].ManifestError != "" {
 		t.Fatalf("the module still loads: %+v", ps)
 	}
-	data := e.screenData("old", "main", nil)
+	data := e.ScreenData("old", "main", nil)
 	if string(data["b0"]["state"]) == `"error"` || !strings.Contains(string(data["b1"]["error"]), "providers_list") {
 		t.Fatalf("only the block of the command that is gone is an error: %v", data)
 	}
@@ -556,26 +494,26 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 // and leave out the empty tools, secrets and tokens; the documents of the master are a folder of files.
 func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	check := newCatalogCheck(t)
-	check.messages(t, e.screenMessages("master", "settings", nil))
-	data := e.screenData("master", "settings", nil)
-	var sched []screenRow
+	e := harness.New(t)
+	check := harness.NewCatalogCheck(t)
+	check.Messages(t, e.ScreenMessages("master", "settings", nil))
+	data := e.ScreenData("master", "settings", nil)
+	var sched []harness.ScreenRow
 	for id, d := range data {
 		if strings.Contains(string(d["rows"]), `review"`) && strings.Contains(string(d["rows"]), "30 10 * * *") {
-			sched = blockData[[]screenRow](t, data[id]["rows"])
+			sched = harness.BlockData[[]harness.ScreenRow](t, data[id]["rows"])
 		}
 	}
 	if len(sched) == 0 {
-		t.Fatalf("the settings of the master list its runs on schedule: %v", keys(data))
+		t.Fatalf("the settings of the master list its runs on schedule: %v", harness.Keys(data))
 	}
-	comps := string(e.screenMessages("master", "settings", nil)[1]["updateComponents"])
+	comps := string(e.ScreenMessages("master", "settings", nil)[1]["updateComponents"])
 	for _, gone := range []string{`"title":"Tools"`, `"title":"Secrets"`, `"title":"Tokens with access"`} {
 		if strings.Contains(comps, gone) {
 			t.Fatalf("an empty block is left out of the settings of the master: %s", gone)
 		}
 	}
-	docs := blockData[[]map[string]any](t, e.screenBlock("", "files", "Modules", map[string]any{"params": `{"path": "master/documents"}`})["files"])
+	docs := harness.BlockData[[]map[string]any](t, e.ScreenBlock("", "files", "Modules", map[string]any{"params": `{"path": "master/documents"}`})["files"])
 	if len(docs) == 0 {
 		t.Fatalf("the documents of the master are a folder of files")
 	}
@@ -599,10 +537,10 @@ const ocrManifest = `{
 // show, never the record: a long recognized text goes only as far as its column cuts it, a field no block shows not at all.
 func TestATableSendsOnlyWhatItsColumnsShow(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	id := e.Project("ocr", ocrManifest)
 	text := strings.Repeat("recognized ", 400) + "THE-TAIL"
-	e.Must("deck.records_upsert", map[string]any{"project": "ocr", "collection": "docs", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "ocr", "collection": "docs", "records": harness.Jsonl(
 		map[string]any{"key": "a", "name": "scan.pdf", "status": "done", "text": text, "private": "NOT-SHOWN"})}, nil)
 	var raw []json.RawMessage
 	e.Must("deck.screen", map[string]any{"project": "ocr", "screen": "docs"}, &raw)
@@ -613,7 +551,7 @@ func TestATableSendsOnlyWhatItsColumnsShow(t *testing.T) {
 	if strings.Contains(all, "THE-TAIL") || strings.Contains(all, "NOT-SHOWN") || !strings.Contains(all, text[:160]) || strings.Contains(all, text[:161]) {
 		t.Fatalf("the screen sends what the blocks show and nothing more of the record: %d bytes", len(all))
 	}
-	rows := e.screenRows(id, "docs")
+	rows := e.ScreenRows(id, "docs")
 	if len(rows) != 1 || len(rows[0].Cells) != 3 || len(rows[0].Actions) != 1 {
 		t.Fatalf("the table row is its three cells and its button: %+v", rows)
 	}

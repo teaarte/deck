@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"fmt"
 	"io"
 	"mime"
@@ -31,7 +32,7 @@ func bodiesManifest(url string) string {
      "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}, "title": {"type": "string"}}, "required": ["doc"]}}]}}`, url)
 }
 
-const makeScript = pythonLib + `
+const makeScript = harness.PythonLib + `
 with open(os.path.join(os.environ["DECK_RESULTS"], "clip.mp4"), "wb") as f:
     f.write(b"clip bytes")
 st, out = deck("media.put_file", {"doc": "results/clip.mp4"})
@@ -44,7 +45,7 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	got := map[string][]string{}
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		mu.Lock()
 		defer mu.Unlock()
 		switch r.URL.Path {
@@ -66,11 +67,11 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 				got["form"] = append(got["form"], "no length")
 			}
 		}
-		jsonReply(w, `{"ok": true}`)
+		harness.JsonReply(w, `{"ok": true}`)
 	})
-	e := New(t)
+	e := harness.New(t)
 	e.Project("media", bodiesManifest(svc.URL))
-	doc := fmt.Sprint(e.upload("media", "photo.jpg", "image/jpeg", "JPEGDATA"))
+	doc := fmt.Sprint(upload(e, "media", "photo.jpg", "image/jpeg", "JPEGDATA"))
 
 	if p := e.WaitState(e.Start("media", "put", map[string]any{"doc": doc}), "done", "error"); p.State != "done" || got["put"][0] != "image/jpeg JPEGDATA" {
 		t.Fatalf("a file body sends the file as it is: %+v %v", p, got)
@@ -79,13 +80,13 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 		strings.Join(got["form"], ";") != "title||Title: Sea;upload|photo.jpg|JPEGDATA" {
 		t.Fatalf("a multipart body sends file fields as files, with a length: %+v %v", p, got["form"])
 	}
-	tricky := fmt.Sprint(e.upload("media", "note.txt", "text/plain", "a\r\n--deck-form-boundary\r\nb"))
+	tricky := fmt.Sprint(upload(e, "media", "note.txt", "text/plain", "a\r\n--deck-form-boundary\r\nb"))
 	got["form"] = nil
 	if p := e.WaitState(e.Start("media", "form", map[string]any{"doc": tricky, "title": "x"}), "done", "error"); p.State != "done" ||
 		strings.Join(got["form"], ";") != "title||Title: x;upload|note.txt|a\r\n--deck-form-boundary\r\nb" {
 		t.Fatalf("a file holding the text of a boundary reaches the form whole: %+v %q", p, got["form"])
 	}
-	e.saveScript("media", "scripts/make.py", makeScript)
+	e.SaveScript("media", "scripts/make.py", makeScript)
 	if p := e.WaitState(e.Start("media", "make", nil), "done", "error"); !strings.Contains(string(p.Result), `"status":200`) ||
 		!strings.Contains(string(p.Result), `"escape":422`) ||
 		got["put"][1] != "video/mp4 clip bytes" {
@@ -99,13 +100,13 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 
 func TestACommandCallLargerThan32MBIsRefusedWhole(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	big := map[string]any{"text": strings.Repeat("x", 33<<20)}
 	if code, out := e.Call("deck.projects_list", big); code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("the API refuses a body over 32 MB: %d %.200s", code, out)
 	}
-	e.Project("big", scriptManifest("send", "", ""))
-	e.saveScript("big", "scripts/main.py", pythonLib+`
+	e.Project("big", harness.ScriptManifest("send", "", ""))
+	e.SaveScript("big", "scripts/main.py", harness.PythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "x" * (33 << 20)})})
 print(json.dumps({"status": st}))
 `)
@@ -116,11 +117,11 @@ print(json.dumps({"status": st}))
 
 func TestATextAnswerOverTheLimitIsNotPassedOnCut(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte(strings.Repeat("x", 11<<20)))
 	})
-	e := New(t)
+	e := harness.New(t)
 	e.Project("big", fmt.Sprintf(`{"version": 13, "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET",
   "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, svc.URL+"/page"))
 	if code, out := e.Call("big.page", map[string]any{}); code == 200 || !strings.Contains(string(out), "cut answer") {

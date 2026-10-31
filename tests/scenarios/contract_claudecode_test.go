@@ -4,6 +4,8 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,20 +13,18 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
 func TestRateLimitWarningDoesNotPause(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "ratelimit_warning.jsonl")
-	e := New(t, WithCLI(c))
-	p := e.Project("plain", plainManifest)
+	c := harness.NewCLI(t)
+	c.Stream(0, "ratelimit_warning.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
+	p := e.Project("plain", harness.PlainManifest)
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("a warning about the limit must not stop the turn, got %+v", got)
 	}
-	res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
+	res, err := c.Adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
 	if err != nil || res.Outcome != provider.Done {
 		t.Fatalf("allowed_warning and a rejected overage are not a limit: %+v %v", res, err)
 	}
@@ -32,14 +32,14 @@ func TestRateLimitWarningDoesNotPause(t *testing.T) {
 
 func TestRateLimitIsOnlyAnExplicitRefusal(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(1, "ratelimit_rejected.jsonl")
-	b, _ := os.ReadFile(Testdata("claude/ratelimit_rejected.jsonl"))
+	c := harness.NewCLI(t)
+	c.Stream(1, "ratelimit_rejected.jsonl")
+	b, _ := os.ReadFile(harness.Testdata("claude/ratelimit_rejected.jsonl"))
 	ls := strings.Split(strings.TrimSpace(string(b)), "\n")
-	b, _ = os.ReadFile(Testdata("claude/ok.jsonl"))
+	b, _ = os.ReadFile(harness.Testdata("claude/ok.jsonl"))
 	ok := strings.Split(strings.TrimSpace(string(b)), "\n")
-	c.streamText(2, strings.Join([]string{ls[0], ls[1], ok[1], ok[3]}, "\n")+"\n")
-	a := c.adapter(t.TempDir())
+	c.StreamText(2, strings.Join([]string{ls[0], ls[1], ok[1], ok[3]}, "\n")+"\n")
+	a := c.Adapter(t.TempDir())
 	res, err := a.Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
 	if err != nil || res.Outcome != provider.Limited || res.ResetsAt != 1790379000 {
 		t.Fatalf("a rejected rate limit event is a limit: %+v %v", res, err)
@@ -52,10 +52,10 @@ func TestRateLimitIsOnlyAnExplicitRefusal(t *testing.T) {
 
 func TestSubAgentEventsAreNotProcessEvents(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "subagent.jsonl")
+	c := harness.NewCLI(t)
+	c.Stream(0, "subagent.jsonl")
 	var events []provider.Event
-	res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s",
+	res, err := c.Adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s",
 		OnEvent: func(ev provider.Event) { events = append(events, ev) }})
 	if err != nil || res.Text != "done" {
 		t.Fatalf("want the result of the main agent, got %+v %v", res, err)
@@ -82,8 +82,8 @@ func TestSubAgentEventsAreNotProcessEvents(t *testing.T) {
 
 func TestCodeRunSeesRepoInstructionsOnly(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
 	outer := t.TempDir()
 	repo := filepath.Join(outer, "repo")
 	if err := os.MkdirAll(filepath.Join(repo, ".claude"), 0o755); err != nil {
@@ -93,12 +93,12 @@ func TestCodeRunSeesRepoInstructionsOnly(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repo, ".claude", "settings.json"), []byte(repoSettings), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	a := c.adapter(t.TempDir())
+	a := c.Adapter(t.TempDir())
 	if _, err := a.Run(context.Background(), provider.Request{Cwd: repo, Repo: true, Prompt: "x", SessionID: "s"}); err != nil {
 		t.Fatal(err)
 	}
-	args := c.call(1).args
-	if src, _ := flag(args, "--setting-sources"); src != "project" {
+	args := c.Call(1).Args
+	if src, _ := harness.Flag(args, "--setting-sources"); src != "project" {
 		t.Fatalf("a code run loads the repo settings, got %q", src)
 	}
 	var s struct {
@@ -106,7 +106,7 @@ func TestCodeRunSeesRepoInstructionsOnly(t *testing.T) {
 		Env         map[string]string `json:"env"`
 		Permissions struct{ Deny []string }
 	}
-	if err := json.Unmarshal([]byte(c.call(1).settings), &s); err != nil {
+	if err := json.Unmarshal([]byte(c.Call(1).Settings), &s); err != nil {
 		t.Fatal(err)
 	}
 	real, _ := filepath.EvalSymlinks(outer)
@@ -138,10 +138,10 @@ func TestCodeRunSeesRepoInstructionsOnly(t *testing.T) {
 
 func TestResumedClaudeCodeTurnCountsOnlyItsOwnTokens(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(1, "selfcheck.jsonl")
-	c.stream(2, "selfcheck_resume.jsonl")
-	a := c.adapter(t.TempDir())
+	c := harness.NewCLI(t)
+	c.Stream(1, "selfcheck.jsonl")
+	c.Stream(2, "selfcheck_resume.jsonl")
+	a := c.Adapter(t.TempDir())
 	var got []provider.Usage
 	req := provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s", OnUsage: func(u provider.Usage) { got = append(got, u) }}
 	if _, err := a.Run(context.Background(), req); err != nil {
@@ -160,9 +160,9 @@ func TestResumedClaudeCodeTurnCountsOnlyItsOwnTokens(t *testing.T) {
 func TestTheAnswerOfAClaudeCodeTurnIsTheLastResultOfItsSession(t *testing.T) {
 	t.Parallel()
 	for fixture, want := range map[string]string{"background_agents.jsonl": "gamma", "two_results.jsonl": "ok"} {
-		c := newCLI(t)
-		c.stream(0, fixture)
-		res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
+		c := harness.NewCLI(t)
+		c.Stream(0, fixture)
+		res, err := c.Adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
 		if err != nil || res.Outcome != provider.Done || res.Text != want {
 			t.Fatalf("%s: background agents wake the session for more results, and the last one is the answer: %+v %v", fixture, res, err)
 		}
@@ -173,17 +173,17 @@ func TestTheAnswerOfAClaudeCodeTurnIsTheLastResultOfItsSession(t *testing.T) {
 // needs; the CLI is stopped only for silence after a result.
 func TestAWokenClaudeCodeSessionMayWorkInSilence(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	b, _ := os.ReadFile(Testdata("claude/background_agents.jsonl"))
+	c := harness.NewCLI(t)
+	b, _ := os.ReadFile(harness.Testdata("claude/background_agents.jsonl"))
 	ls := strings.Split(strings.TrimSpace(string(b)), "\n")
 	last := slices.IndexFunc(ls, func(l string) bool { return strings.Contains(l, `"result": "beta"`) })
-	c.streamText(1, strings.Join(ls[:last+2], "\n")+"\n")
-	rest := filepath.Join(c.dir, "rest")
+	c.StreamText(1, strings.Join(ls[:last+2], "\n")+"\n")
+	rest := filepath.Join(c.Dir, "rest")
 	if err := os.WriteFile(rest, []byte(strings.Join(ls[last+2:], "\n")+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	c.after(`sleep 1; sed "s/{{session}}/$session/g" '` + rest + `'` + "\n")
-	res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
+	c.After(`sleep 1; sed "s/{{session}}/$session/g" '` + rest + `'` + "\n")
+	res, err := c.Adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
 	if err != nil || res.Text != "gamma" {
 		t.Fatalf("the woken session is not cut off while it works: %+v %v", res, err)
 	}
@@ -193,13 +193,13 @@ func TestAWokenClaudeCodeSessionMayWorkInSilence(t *testing.T) {
 // network, is slow, not broken.
 func TestASelfCheckCutByItsCeilingIsSlowNotABrokenAdapter(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	if err := os.WriteFile(filepath.Join(c.dir, "before"), []byte("sleep 30\n"), 0o644); err != nil {
+	c := harness.NewCLI(t)
+	if err := os.WriteFile(filepath.Join(c.Dir, "before"), []byte("sleep 30\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	got := c.adapter(t.TempDir()).SelfCheck(ctx)
+	got := c.Adapter(t.TempDir()).SelfCheck(ctx)
 	if !got.Slow || got.Err == nil || !strings.Contains(got.Err.Error(), "without network") {
 		t.Fatalf("a self-check cut by its ceiling is slow and says the network may be down: %+v", got)
 	}

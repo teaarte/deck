@@ -3,6 +3,8 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,19 +17,17 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestTodayHealthAndTheScheduleSayOneThing: a schedule that failed is one failure on Today, on Health with its
 // count and on top of the Schedule, each with its way to run it again; closed once, it is red nowhere.
 func TestTodayHealthAndTheScheduleSayOneThing(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the model is down"}
 	}))
 
-	e.Project("digest", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	e.Project("digest", harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
 	var ts []struct {
 		ID           int64
 		Title        string
@@ -53,26 +53,26 @@ func TestTodayHealthAndTheScheduleSayOneThing(t *testing.T) {
 	if ts[0].Failure == "" || ts[0].LastTone != "error" || ts[0].LastAt == "" {
 		t.Fatalf("a failed last run is a failure of the schedule with when it ran: %+v", ts)
 	}
-	if h := e.today(""); h.Failed != 1 {
+	if h := today(e, ""); h.Failed != 1 {
 		t.Fatalf("Today counts the failure: %+v", h)
 	}
-	broken := blockData[[]listItem](t, e.settingsBlock("Broken now", nil)["items"])
+	broken := harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Broken now", nil)["items"])
 	if len(broken) != 1 || broken[0].Text != ts[0].Failure && !strings.Contains(broken[0].Text, "the model is down") || !hasLabel(broken[0].Actions, "Run again") {
 		t.Fatalf("Health says the same failure with a way to run it again: %+v", broken)
 	}
 	counted := false
-	for _, m := range e.screenMessages("", "settings", nil) {
+	for _, m := range e.ScreenMessages("", "settings", nil) {
 		counted = counted || strings.Contains(string(m["updateComponents"]), `"count":"failures"`)
 	}
 	if !counted {
 		t.Fatal("the tab of Health counts the failures")
 	}
-	top := blockData[[]listItem](t, e.screenBlock("", "schedule", "Did not pass", nil)["items"])
+	top := harness.BlockData[[]harness.ListItem](t, e.ScreenBlock("", "schedule", "Did not pass", nil)["items"])
 	if len(top) != 1 || !strings.Contains(top[0].Title, "work") || !hasLabel(top[0].Actions, "Run again") {
 		t.Fatalf("the schedule says on top what did not pass: %+v", top)
 	}
-	rows := blockData[[]screenRow](t, e.screenBlock("", "schedule", "What runs by itself", nil)["rows"])
-	rows = slices.DeleteFunc(rows, func(r screenRow) bool { return !strings.HasPrefix(fmt.Sprint(r.Cells[0]), "work") })
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("", "schedule", "What runs by itself", nil)["rows"])
+	rows = slices.DeleteFunc(rows, func(r harness.ScreenRow) bool { return !strings.HasPrefix(fmt.Sprint(r.Cells[0]), "work") })
 	if len(rows) != 1 || rows[0].Cells[3] != "see above" || rows[0].Tones[3] != "error" {
 		t.Fatalf("the row of the schedule points up instead of saying it twice: %+v", rows)
 	}
@@ -86,10 +86,10 @@ func TestTodayHealthAndTheScheduleSayOneThing(t *testing.T) {
 	}
 	e.Must("deck.process_dismiss", map[string]any{"process": ts[0].LastProcess}, nil)
 	read()
-	if h := e.today(""); h.Failed != 0 || ts[0].Failure != "" || ts[0].LastTone == "error" {
+	if h := today(e, ""); h.Failed != 0 || ts[0].Failure != "" || ts[0].LastTone == "error" {
 		t.Fatalf("a closed failure is red nowhere: %+v %+v", h, ts)
 	}
-	if broken := blockData[[]listItem](t, e.settingsBlock("Broken now", nil)["items"]); len(broken) != 0 {
+	if broken := harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Broken now", nil)["items"]); len(broken) != 0 {
 		t.Fatalf("Health is quiet again: %+v", broken)
 	}
 }
@@ -102,8 +102,8 @@ func hasLabel(acts []map[string]any, label string) bool {
 // shows those, as the chat does.
 func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	_, tok := e.token("asker", "deck.model_set")
+	e := harness.New(t)
+	_, tok := e.Token("asker", "deck.model_set")
 	if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": "x"}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 		t.Fatalf("a token's call waits for the owner: %d %s", code, out)
 	}
@@ -112,7 +112,7 @@ func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 	if len(asks) != 1 || len(asks[0].Actions) < 3 {
 		t.Fatalf("a decision carries its buttons: %+v", asks)
 	}
-	items := blockData[[]listItem](t, e.screenData("", "cockpit", map[string]any{"lang": "ru"})["b0"]["items"])
+	items := harness.BlockData[[]harness.ListItem](t, e.ScreenData("", "cockpit", map[string]any{"lang": "ru"})["b0"]["items"])
 	verbs := func(acts []map[string]any) []string {
 		var out []string
 		for _, a := range acts {
@@ -135,10 +135,10 @@ func TestTodayTakesTheButtonsOfADecisionFromItsRow(t *testing.T) {
 // and data folder, by steps of its own; the master is a folder with what it holds, and a search finds a file by name.
 func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	p := e.Project("inbox", filesManifest())
-	e.upload("inbox", "invoice-october.pdf", "application/pdf", "%PDF-1.4")
-	e.upload("inbox", "notes.txt", "text/plain", "hello")
+	upload(e, "inbox", "invoice-october.pdf", "application/pdf", "%PDF-1.4")
+	upload(e, "inbox", "notes.txt", "text/plain", "hello")
 	data := e.App.Home.Data(p)
 	if err := errors.Join(os.MkdirAll(filepath.Join(data, "cache", "empty"), 0o700), os.WriteFile(filepath.Join(data, "cache", "seen.json"), []byte("{}"), 0o600)); err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	}
 	type crumb struct{ Label string }
 	at := func(path string) ([]line, []crumb, string) {
-		b := e.screenBlock("", "files", "Modules", map[string]any{"lang": "ru", "params": fmt.Sprintf(`{"path": %q}`, path)})
+		b := e.ScreenBlock("", "files", "Modules", map[string]any{"lang": "ru", "params": fmt.Sprintf(`{"path": %q}`, path)})
 		var ls []line
 		var cs []crumb
 		_ = json.Unmarshal(b["files"], &ls)
@@ -190,8 +190,8 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	if _, crumbs, state := at("inbox/data/cache/empty"); state != "empty" || len(crumbs) != 5 {
 		t.Fatalf("an empty folder keeps its steps back: %s %+v", state, crumbs)
 	}
-	id, _ := e.findBlock("", "files", "All files")
-	found := e.screenData("", "files", map[string]any{"filter": `{"` + id + `": {"~": "invoice oct"}}`})[id]
+	id, _ := e.FindBlock("", "files", "All files")
+	found := e.ScreenData("", "files", map[string]any{"filter": `{"` + id + `": {"~": "invoice oct"}}`})[id]
 	var hits []line
 	_ = json.Unmarshal(found["files"], &hits)
 	if len(hits) != 1 || hits[0].Title != "invoice-october.pdf" {
@@ -202,7 +202,7 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	if len(all) != 1 || all[0].Name != "invoice-october.pdf" {
 		t.Fatalf("files_list looks for the words through every file: %+v", all)
 	}
-	if mod := e.screenData("inbox", "documents", map[string]any{"params": `{"path": "files"}`})["b0"]; !strings.Contains(string(mod["files"]), "invoice-october.pdf") {
+	if mod := e.ScreenData("inbox", "documents", map[string]any{"params": `{"path": "files"}`})["b0"]; !strings.Contains(string(mod["files"]), "invoice-october.pdf") {
 		t.Fatalf("the files of a module are the same manager inside it: %s", mod["files"])
 	}
 }
@@ -211,11 +211,11 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 // nothing; a button that only opens the chat is refused, as the button of Deki opens it.
 func TestAManifestIsCheckedWithoutASave(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	var before struct{ Revision int64 }
 	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &before)
-	chat := strings.Replace(webNotes, `"screens": [`, `"screens": [{"name": "inbox", "title": "Inbox", "blocks": [{"type": "list", "source": {"collection": "notes"},
+	chat := strings.Replace(harness.WebNotes, `"screens": [`, `"screens": [{"name": "inbox", "title": "Inbox", "blocks": [{"type": "list", "source": {"collection": "notes"},
     "item": {"title": "title"}, "actions": [{"label": "New note", "chat": true}]}]},`, 1)
 	var c struct {
 		Ok       bool
@@ -227,7 +227,7 @@ func TestAManifestIsCheckedWithoutASave(t *testing.T) {
 	if c.Ok || !slices.ContainsFunc(c.Refused, func(r string) bool { return strings.Contains(r, "button of Deki") }) {
 		t.Fatalf("a chat button is refused by the check: %+v", c)
 	}
-	wider := strings.Replace(webNotes, `{"version": 13,`, `{"version": 13, "domains": {"read": ["example.com"]},`, 1)
+	wider := strings.Replace(harness.WebNotes, `{"version": 13,`, `{"version": 13, "domains": {"read": ["example.com"]},`, 1)
 	e.Must("deck.manifest_check", map[string]any{"project": "web", "manifest": wider}, &c)
 	if !c.Ok || len(c.Widens) == 0 {
 		t.Fatalf("the check says what a manifest widens: %+v", c)
@@ -248,13 +248,13 @@ func TestAManifestIsCheckedWithoutASave(t *testing.T) {
 // wears in the theme in use, with buttons to draw another and to take it off.
 func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("notes", filesManifest())
 	img := image.NewRGBA(image.Rect(0, 0, 800, 450))
 	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
 	var b bytes.Buffer
 	_ = png.Encode(&b, img)
-	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(e.upload("notes", "blue.png", "image/png", b.String()))}, nil)
+	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(upload(e, "notes", "blue.png", "image/png", b.String()))}, nil)
 	var m struct {
 		Projects []struct{ Project, Cover string }
 	}
@@ -265,7 +265,7 @@ func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 		Actions           []map[string]any
 	}
 	var cards []card
-	_ = json.Unmarshal(e.settingsBlock("Modules", nil)["items"], &cards)
+	_ = json.Unmarshal(e.SettingsBlock("Modules", nil)["items"], &cards)
 	i := slices.IndexFunc(cards, func(c card) bool { return c.Title == "notes" })
 	if m := slices.IndexFunc(cards, func(c card) bool { return c.Title != "notes" }); m < 0 || cards[m].Cover["light"] != "/deki/chill.webp" || cards[i].Text != "" || cards[i].Meta != "" {
 		t.Fatalf("a card of a module says only its name, the master's wears Deki: %+v", cards)
@@ -277,21 +277,21 @@ func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 		t.Fatalf("a module card pauses, draws its cover anew and takes it off: %+v", cards[i].Actions)
 	}
 	var files []card
-	_ = json.Unmarshal(e.screenBlock("", "files", "Modules", nil)["files"], &files)
+	_ = json.Unmarshal(e.ScreenBlock("", "files", "Modules", nil)["files"], &files)
 	if j := slices.IndexFunc(files, func(c card) bool { return c.Title == "notes" }); j < 0 || files[j].Cover["light"] != m.Projects[0].Cover {
 		t.Fatalf("the folder of the module wears its cover too: %+v", files)
 	}
 	foreign := strings.Replace(filesManifest(), `"commands": [`, `"screens": [{"name": "wall", "title": "Wall", "blocks": [{"type": "list", "source": {"collection": "items"},
     "item": {"title": "name", "cover": "{'light': 'https://example.com/x.png'}"}}]}], "commands": [`, 1)
 	e.Project("wall", foreign)
-	e.Must("deck.records_upsert", map[string]any{"project": "wall", "collection": "items", "records": jsonl(map[string]any{"name": "a"})}, nil)
-	if wall := e.screenData("wall", "wall", nil)["b0"]; strings.Contains(string(wall["items"]), "example.com") {
+	e.Must("deck.records_upsert", map[string]any{"project": "wall", "collection": "items", "records": harness.Jsonl(map[string]any{"name": "a"})}, nil)
+	if wall := e.ScreenData("wall", "wall", nil)["b0"]; strings.Contains(string(wall["items"]), "example.com") {
 		t.Fatalf("a screen of a module names no address of a cover: %s", wall["items"])
 	}
 	off := cards[i].Actions[slices.IndexFunc(cards[i].Actions, func(a map[string]any) bool { return a["label"] == "Take off the cover" })]
 	e.Must(fmt.Sprint(off["command"]), off["params"], nil)
 	cards = nil
-	_ = json.Unmarshal(e.settingsBlock("Modules", nil)["items"], &cards)
+	_ = json.Unmarshal(e.SettingsBlock("Modules", nil)["items"], &cards)
 	if i := slices.IndexFunc(cards, func(c card) bool { return c.Title == "notes" }); cards[i].Cover != nil {
 		t.Fatalf("a cover taken off is gone from the card: %+v", cards[i])
 	}

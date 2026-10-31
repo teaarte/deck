@@ -1,15 +1,15 @@
 package scenarios
 
 import (
+	"deck2/internal/health"
+	"deck2/tests/harness"
 	"fmt"
 	"net/http"
 	"testing"
-
-	"deck2/internal/health"
 )
 
 // healthSeen is whether the owner read the failing check of a subject in a project.
-func (e *Env) healthSeen(project, subject string) (bool, bool) {
+func healthSeen(e *harness.Env, project, subject string) (bool, bool) {
 	e.T.Helper()
 	var hs []struct {
 		Subject, Project, Status string
@@ -25,7 +25,7 @@ func (e *Env) healthSeen(project, subject string) (bool, bool) {
 }
 
 // pulseErrors is the count of failing checks the pulse of the menu shows.
-func (e *Env) pulseErrors() int64 {
+func pulseErrors(e *harness.Env) int64 {
 	e.T.Helper()
 	var m struct{ Pulse struct{ Errors int64 } }
 	e.Must("deck.menu", nil, &m)
@@ -35,17 +35,17 @@ func (e *Env) pulseErrors() int64 {
 // TestAReadCheckIsOfItsProject: the same failing check deck works out for two projects is read in each apart.
 func TestAReadCheckIsOfItsProject(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
-	e := New(t)
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
+	e := harness.New(t)
 	for _, name := range []string{"stock", "photos"} {
 		e.Project(name, fmt.Sprintf(`{"version": 13, "tools": {"http": [
     {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL))
 	}
 	e.Must("deck.health_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
-	if seen, failing := e.healthSeen("photos", "secret:photos.pexels"); !seen || !failing {
+	if seen, failing := healthSeen(e, "photos", "secret:photos.pexels"); !seen || !failing {
 		t.Fatal("the owner reads the check of one project")
 	}
-	if seen, failing := e.healthSeen("stock", "secret:stock.pexels"); seen || !failing {
+	if seen, failing := healthSeen(e, "stock", "secret:stock.pexels"); seen || !failing {
 		t.Fatal("the same check of another project stays unread")
 	}
 
@@ -56,21 +56,21 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	pid := e.Project("broken", `{"version": 13}`)
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 13, "nonsense": true}'
 		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = New(t, WithHome(home), WithProvider(&Fake{}))
-	before := e.pulseErrors()
-	if seen, failing := e.healthSeen("broken", "project:broken"); seen || !failing {
+	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
+	before := pulseErrors(e)
+	if seen, failing := healthSeen(e, "broken", "project:broken"); seen || !failing {
 		t.Fatalf("a manifest that does not load is a failing check of the pulse: %d", before)
 	}
 	e.Must("deck.health_seen", map[string]any{"subject": "project:broken", "project": "broken"}, nil)
-	if seen, _ := e.healthSeen("broken", "project:broken"); !seen || e.pulseErrors() != before-1 {
-		t.Fatalf("once read it counts no more: %d", e.pulseErrors())
+	if seen, _ := healthSeen(e, "broken", "project:broken"); !seen || pulseErrors(e) != before-1 {
+		t.Fatalf("once read it counts no more: %d", pulseErrors(e))
 	}
 }
 
@@ -78,16 +78,16 @@ func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 // out of the call.
 func TestMarkReadOfACheckOfTheMachine(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	health.Write(t.Context(), e.App.Store, health.Of{}, "tool:web.fetch", "error", "the server exited: 1")
-	a := e.rowAction("", "settings", "deck.health_seen", map[string]any{"subject": "tool:web.fetch"})
+	a := e.RowAction("", "settings", "deck.health_seen", map[string]any{"subject": "tool:web.fetch"})
 	if _, ok := a["params"].(map[string]any)["project"]; ok {
 		t.Fatalf("a value an expression leaves empty is not a param of the call: %v", a["params"])
 	}
-	if code, out := e.press(a); code != 200 {
+	if code, out := e.Press(a); code != 200 {
 		t.Fatalf("mark read: %d %s", code, out)
 	}
-	if seen, failing := e.healthSeen("", "tool:web.fetch"); !seen || !failing {
+	if seen, failing := healthSeen(e, "", "tool:web.fetch"); !seen || !failing {
 		t.Fatal("the check of the machine is read")
 	}
 }
@@ -97,9 +97,9 @@ func TestMarkReadOfACheckOfTheMachine(t *testing.T) {
 func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	pid := e.Project("shorts", modelManifest)
-	if h := e.health("command:shorts.factcheck"); h == nil {
+	if h := e.HealthRowOf("command:shorts.factcheck"); h == nil {
 		t.Fatal("a model command no model takes is a row of health")
 	}
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 13, "nonsense": true}'
@@ -107,8 +107,8 @@ func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = New(t, WithHome(home), WithProvider(&Fake{}))
-	if h := e.health("command:shorts.factcheck"); h != nil || e.health("project:shorts") == nil {
+	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
+	if h := e.HealthRowOf("command:shorts.factcheck"); h != nil || e.HealthRowOf("project:shorts") == nil {
 		t.Fatalf("the manifest that does not read is the row, not its commands: %v", h)
 	}
 }
@@ -118,21 +118,21 @@ func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 func TestTheBuiltInMasterOnceFreeIsWell(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	if _, err := e.App.Store.DB.Exec(`UPDATE project SET builtin = 0 WHERE name = 'master'`); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = New(t, WithHome(home), WithProvider(&Fake{}))
-	if h := e.health("master"); h == nil || h["status"] != "error" {
+	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
+	if h := e.HealthRowOf("master"); h == nil || h["status"] != "error" {
 		t.Fatalf("a project of the owner named master is red in health: %v", h)
 	}
 	if _, err := e.App.Store.DB.Exec(`UPDATE project SET name = 'mine' WHERE name = 'master'`); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	e = New(t, WithHome(home), WithProvider(&Fake{}))
-	if h := e.health("master"); h != nil {
+	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
+	if h := e.HealthRowOf("master"); h != nil {
 		t.Fatalf("once the name is free the row goes: %v", h)
 	}
 }

@@ -1,6 +1,10 @@
 package scenarios
 
 import (
+	"deck2/internal/provider"
+	"deck2/internal/provider/claudecode"
+	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,10 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
-	"deck2/internal/provider/claudecode"
-	"deck2/internal/provider/codex"
 )
 
 // TestRealCodeModule rehearses the code module on the installed CLIs in a fresh repo with uncommitted work of
@@ -78,15 +78,15 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	}
 
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(newProvider(home)), WithConfig(realWaits))
-	e.importEnabled(codeModule(t, ""), "code")
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(newProvider(home)), harness.WithConfig(realWaits))
+	importEnabled(e, codeModule(t, ""), "code")
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
 	for _, c := range []struct{ title, text string }{
 		{"Add subtract", "Add a function subtract(a, b) to calc.py that returns a - b, with a test in test_calc.py."},
 		{"Add multiply", "Add a function multiply(a, b) to calc.py that returns a * b, with a test in test_calc.py."},
 	} {
 		e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
-			"records": jsonl(map[string]any{"title": c.title, "text": c.text, "status": "ready"})}, nil)
+			"records": harness.Jsonl(map[string]any{"title": c.title, "text": c.text, "status": "ready"})}, nil)
 	}
 	owner := func(what string) {
 		t.Helper()
@@ -103,7 +103,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 			t.Fatalf("after %s no stash is left: %s", what, got)
 		}
 	}
-	wait := func(id int64, what string) Proc {
+	wait := func(id int64, what string) harness.Proc {
 		t.Helper()
 		got := e.WaitState(id, "done", "error", "stopped", "interrupted")
 		t.Logf("%s: %s %s %s", what, got.State, got.Result, got.Error)
@@ -114,7 +114,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	}
 	lanes := func() map[string][]string {
 		t.Helper()
-		var rs []recordRow
+		var rs []harness.RecordRow
 		e.Must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
 		out := map[string][]string{}
 		for _, r := range rs {
@@ -173,7 +173,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	var prompt struct{ Text string }
 	e.Must("deck.document_get", map[string]any{"project": "code", "name": "prompt.md"}, &prompt)
 	e.Must("deck.document_save", map[string]any{"project": "code", "name": "prompt.md", "kind": "prompt", "text": prompt.Text + "\nMerge: yourself.\n"}, nil)
-	e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks", "records": jsonl(map[string]any{"title": "Add divide",
+	e.Must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks", "records": harness.Jsonl(map[string]any{"title": "Add divide",
 		"status": "ready", "text": "Add a function divide(a, b) to calc.py that returns a / b, with a test in test_calc.py."})}, nil)
 	before := git("rev-parse", "main")
 	var auto struct{ Process int64 }

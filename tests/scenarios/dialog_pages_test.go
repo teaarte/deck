@@ -1,13 +1,14 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"testing"
 )
 
 // pagedNotes is webNotes whose main screen has a dialog with a table of the notes two at a time.
-var pagedNotes = strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+var pagedNotes = strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "dialog", "name": "all", "title": "All notes", "blocks": [
         {"type": "table", "title": "All", "source": {"collection": "notes", "sort": "title", "limit": 2}, "columns": [{"label": "Title", "bind": "title"}]},
         {"type": "table", "title": "Broken", "source": {"collection": "notes"}, "columns": [{"label": "Score", "bind": "score > 0 ? score : nil"}]}]},`, 1)
@@ -16,28 +17,28 @@ var pagedNotes = strings.Replace(webNotes, `{"name": "main", "title": "Web", "bl
 // open one does, read alone too; a table shows its limit a page at a time; a save still checks the dialogs.
 func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("web", pagedNotes)
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 1}, map[string]any{"title": "c", "score": 1},
+		"records": harness.Jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 1}, map[string]any{"title": "c", "score": 1},
 			map[string]any{"title": "d", "score": 1}, map[string]any{"title": "e", "score": 1})}, nil)
 
-	closed := e.screenData("web", "main", nil)
+	closed := e.ScreenData("web", "main", nil)
 	if _, ok := closed["b0-0"]; ok || closed["b1"] == nil {
-		t.Fatalf("a closed dialog sends no data of its blocks, the rest of the screen does: %v", keys(closed))
+		t.Fatalf("a closed dialog sends no data of its blocks, the rest of the screen does: %v", harness.Keys(closed))
 	}
-	open := e.screenData("web", "main", map[string]any{"dialog": "all"})
-	var rows []screenRow
+	open := e.ScreenData("web", "main", map[string]any{"dialog": "all"})
+	var rows []harness.ScreenRow
 	_ = json.Unmarshal(open["b0-0"]["rows"], &rows)
 	if len(rows) != 2 || string(open["b0-0"]["more"]) != "3" {
 		t.Fatalf("an open dialog reads its table, its limit a page: %d rows, %s more", len(rows), open["b0-0"]["more"])
 	}
 
-	msgs := e.screenMessages("web", "main", map[string]any{"dialog": "all", "block": "b0-in", "pages": `{"b0-0": 2}`})
-	alone := dataOf(t, msgs)
+	msgs := e.ScreenMessages("web", "main", map[string]any{"dialog": "all", "block": "b0-in", "pages": `{"b0-0": 2}`})
+	alone := harness.DataOf(t, msgs)
 	_ = json.Unmarshal(alone["b0-0"]["rows"], &rows)
 	if len(msgs) != 2 || len(alone) != 2 || len(rows) != 4 || string(alone["b0-0"]["more"]) != "1" {
-		t.Fatalf("a read of the dialog alone gives only its data, its table two pages: %v %d rows", keys(alone), len(rows))
+		t.Fatalf("a read of the dialog alone gives only its data, its table two pages: %v %d rows", harness.Keys(alone), len(rows))
 	}
 	for _, m := range msgs {
 		if m["updateDataModel"] == nil {
@@ -45,7 +46,7 @@ func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 		}
 	}
 
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "f"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "f"})}, nil)
 	var saved struct{ Screens []string }
 	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": pagedNotes}, &saved)
 	if len(saved.Screens) == 0 || !strings.Contains(strings.Join(saved.Screens, "\n"), `table block "Broken"`) {
@@ -57,12 +58,12 @@ func TestADialogReadsItsBlocksWhenItOpensAPageAtATime(t *testing.T) {
 // the screen's grid, or inside columns the standard weight of the child.
 func TestASpanOfAContainerInsideColumnsIsItsWeight(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := harness.New(t)
+	e.Project("web", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "columns", "span": 2, "blocks": [{"type": "document", "document": "a.md"},
         {"type": "tabs", "span": 2, "tabs": [{"title": "One", "blocks": [{"type": "document", "document": "a.md"}]}]}]},`, 1))
 	comps := map[string]map[string]any{}
-	for _, m := range e.screenMessages("web", "main", nil) {
+	for _, m := range e.ScreenMessages("web", "main", nil) {
 		var uc struct{ Components []map[string]any }
 		_ = json.Unmarshal(m["updateComponents"], &uc)
 		for _, c := range uc.Components {

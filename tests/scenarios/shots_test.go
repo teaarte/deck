@@ -2,14 +2,14 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
-	"deck2/internal/registry"
 )
 
 // The master takes a shot of a screen: deck draws it in its own browser and keeps the picture as a file of the
@@ -17,7 +17,7 @@ import (
 func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 	t.Parallel()
 	got := make(chan string, 1)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/deck/look", "scheme": "dark", "device": "phone"})
 		if bad {
 			got <- "refused: " + out
@@ -27,7 +27,7 @@ func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 		return provider.Result{Text: "Looked."}
 	}))
 
-	e.say(0, "how does the settings screen look?")
+	e.Say(0, "how does the settings screen look?")
 	var shot struct {
 		File, Path string
 		MS         int64
@@ -57,7 +57,7 @@ func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 // and once returned it opens nothing.
 func TestALentTokenOnlyReadsWhileItLasts(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	tok := e.App.Tokens.Lend(registry.Actor{Kind: registry.Master, Workspace: 1}, time.Minute)
 	if code, out := e.As(tok).Call("deck.screen", map[string]any{"screen": "settings"}); code != 200 {
 		t.Fatalf("a lent token reads a screen: %d %s", code, out)
@@ -65,7 +65,7 @@ func TestALentTokenOnlyReadsWhileItLasts(t *testing.T) {
 	if code, out := e.As(tok).Call("deck.menu", map[string]any{}); code != 200 {
 		t.Fatalf("a lent token reads the menu: %d %s", code, out)
 	}
-	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "x", "manifest": plainManifest}); code != 403 || !strings.Contains(string(out), "only reads") {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "x", "manifest": harness.PlainManifest}); code != 403 || !strings.Contains(string(out), "only reads") {
 		t.Fatalf("a lent token changes nothing: %d %s", code, out)
 	}
 	e.App.Tokens.Return(tok)

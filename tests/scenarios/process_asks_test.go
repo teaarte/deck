@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"slices"
@@ -27,25 +28,16 @@ for c in calls:
 print(body if body.strip() else "{}")
 `
 
-type pressAsk struct {
-	ID    int64          `json:"id"`
-	Kind  string         `json:"kind"`
-	What  string         `json:"what"`
-	Where string         `json:"where"`
-	Allow map[string]any `json:"allow"`
-	Deny  map[string]any `json:"deny"`
-}
-
 // pressAsks are the calls a run the owner started waits to make, as the button reads them.
-func (e *Env) pressAsks(process int64) []pressAsk {
+func pressAsks(e *harness.Env, process int64) []harness.PressAsk {
 	e.T.Helper()
-	var out struct{ Asks []pressAsk }
+	var out struct{ Asks []harness.PressAsk }
 	e.Must("deck.process_asks", map[string]any{"process": process}, &out)
 	return out.Asks
 }
 
 // pressRun starts the script of project as a button of the owner does, with the deck call of method and form.
-func (e *Env) pressRun(project, method string, form map[string]any) int64 {
+func pressRun(e *harness.Env, project, method string, form map[string]any) int64 {
 	e.T.Helper()
 	raw, _ := json.Marshal(form)
 	return e.Start(project, "main", map[string]any{"method": method, "form": string(raw)})
@@ -55,27 +47,27 @@ func (e *Env) pressRun(project, method string, form map[string]any) int64 {
 // the button with what it was and what it becomes; yes there applies it and nothing waits in the cockpit.
 func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "gemma", "kind": "text", "call_usd": 0.02}, nil)
-	e.Project("shorts", plainManifest)
-	e.Project("picker", scriptManifest("main", "", ""))
-	e.saveScript("picker", "scripts/main.py", pressScript)
+	e.Project("shorts", harness.PlainManifest)
+	e.Project("picker", harness.ScriptManifest("main", "", ""))
+	e.SaveScript("picker", "scripts/main.py", pressScript)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
 
-	run := e.pressRun("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
-	asks := e.pressAsks(run)
+	run := pressRun(e, "picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
+	asks := pressAsks(e, run)
 	if len(asks) != 1 || asks[0].Kind != "call" || asks[0].What != "Assign models" || asks[0].Where != "text of shorts: openrouter/gemma → openrouter/qwen" {
 		t.Fatalf("the button gets the call its run waits for, before and after: %+v", asks)
 	}
-	if got := e.pressAsks(e.Start("picker", "main", map[string]any{"n": asks[0].ID})); len(got) != 1 || got[0].ID != asks[0].ID {
+	if got := pressAsks(e, e.Start("picker", "main", map[string]any{"n": asks[0].ID})); len(got) != 1 || got[0].ID != asks[0].ID {
 		t.Fatalf("a run that names the ask it waits for gives the same ask to answer, not a copy: %+v", got)
 	}
-	if code, out := e.press(asks[0].Allow); code != 200 {
+	if code, out := e.Press(asks[0].Allow); code != 200 {
 		t.Fatalf("the button that allows comes with the ask: %d %s", code, out)
 	}
-	if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+	if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("yes at the button applies the call: %v", got)
 	}
 	var left []struct{ Kind string }
@@ -84,35 +76,35 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 		t.Fatalf("nothing waits in the cockpit after the yes at the button: %+v", left)
 	}
 
-	if got := e.pressAsks(e.pressRun("picker", "deck.models_list", map[string]any{})); len(got) != 0 {
+	if got := pressAsks(e, pressRun(e, "picker", "deck.models_list", map[string]any{})); len(got) != 0 {
 		t.Fatalf("a run that waits for nothing gives the button nothing once it ends: %+v", got)
 	}
-	add := e.pressRun("picker", "deck.model_set", map[string]any{"connection": "openrouter", "model": "llama", "kind": "text"})
-	if got := e.pressAsks(add); len(got) != 1 || got[0].Where != "openrouter/llama → kind text" {
+	add := pressRun(e, "picker", "deck.model_set", map[string]any{"connection": "openrouter", "model": "llama", "kind": "text"})
+	if got := pressAsks(e, add); len(got) != 1 || got[0].Where != "openrouter/llama → kind text" {
 		t.Fatalf("a model to add says what it sets: %+v", got)
 	}
-	if code, out := e.press(e.pressAsks(add)[0].Deny); code != 200 {
+	if code, out := e.Press(pressAsks(e, add)[0].Deny); code != 200 {
 		t.Fatalf("the button that denies comes with the ask: %d %s", code, out)
 	}
-	two := e.Start("picker", "main", map[string]any{"method": "many", "form": string(mustJSON([]map[string]any{
+	two := e.Start("picker", "main", map[string]any{"method": "many", "form": string(harness.MustJSON([]map[string]any{
 		{"method": "deck.model_set", "form": map[string]any{"connection": "openrouter", "model": "mistral", "kind": "text", "free": true}},
 		{"method": "deck.assignment_set", "form": map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}}}))})
-	twoAsks := e.pressAsks(two)
+	twoAsks := pressAsks(e, two)
 	if len(twoAsks) != 2 || twoAsks[0].Where != "openrouter/mistral → free true, kind text" {
 		t.Fatalf("a run that waits for two calls gives the button both: %+v", twoAsks)
 	}
 
 	var try struct{ Process int64 }
-	e.Must("deck.command_try", map[string]any{"command": "picker.main", "live": true, "input": string(mustJSON(map[string]any{
-		"method": "deck.model_set", "form": string(mustJSON(map[string]any{"connection": "openrouter", "model": "phi", "kind": "text"}))}))}, &try)
-	if p := e.WaitState(try.Process, "done", "error"); !strings.Contains(string(p.Result), "trial") || len(e.pressAsks(try.Process)) != 0 {
+	e.Must("deck.command_try", map[string]any{"command": "picker.main", "live": true, "input": string(harness.MustJSON(map[string]any{
+		"method": "deck.model_set", "form": string(harness.MustJSON(map[string]any{"connection": "openrouter", "model": "phi", "kind": "text"}))}))}, &try)
+	if p := e.WaitState(try.Process, "done", "error"); !strings.Contains(string(p.Result), "trial") || len(pressAsks(e, try.Process)) != 0 {
 		t.Fatalf("a trial does not propose a model: %s", p.Result)
 	}
 
-	e.Project("other", scriptManifest("main", "", ""))
-	e.saveScript("other", "scripts/main.py", pressScript)
+	e.Project("other", harness.ScriptManifest("main", "", ""))
+	e.SaveScript("other", "scripts/main.py", pressScript)
 	theirs := twoAsks[0].ID
-	if got := e.pressAsks(e.Start("other", "main", map[string]any{"n": theirs})); len(got) != 0 {
+	if got := pressAsks(e, e.Start("other", "main", map[string]any{"n": theirs})); len(got) != 0 {
 		t.Fatalf("a run names no ask of another project to the button: %+v", got)
 	}
 	if code, out := e.Call("deck.process_asks", map[string]any{"process": 99999}); code != 404 || !strings.Contains(string(out), "no process") {
@@ -127,16 +119,16 @@ func TestRealBrowserPressAnswersItsAsk(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "gemma", "kind": "text", "call_usd": 0.02}, nil)
-	e.Project("shorts", plainManifest)
+	e.Project("shorts", harness.PlainManifest)
 	form, _ := json.Marshal(map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
 	params, _ := json.Marshal(map[string]string{"method": "deck.assignment_set", "form": string(form)})
-	e.Project("picker", scriptManifest("main", "", `, "screens": [{"name": "main", "title": "Proposals", "blocks": [
+	e.Project("picker", harness.ScriptManifest("main", "", `, "screens": [{"name": "main", "title": "Proposals", "blocks": [
     {"type": "actions", "title": "Proposal", "actions": [{"label": "Apply", "command": "main", "params": `+string(params)+`}]}]}], "menu": ["main"]`))
-	e.saveScript("picker", "scripts/main.py", pressScript)
+	e.SaveScript("picker", "scripts/main.py", pressScript)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/gemma"}}, nil)
 
 	b := newPlaywright(t)
@@ -155,7 +147,7 @@ func TestRealBrowserPressAnswersItsAsk(t *testing.T) {
 		b.shot("press-ask-" + size.name)
 		b.eval(`(document.querySelector('[data-press-answer="allow"]').click(), '')`)
 		b.until("the window gone after yes", `!document.querySelector('[data-press-ask] [data-press-answer]')`)
-		if got := e.assigned("shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+		if got := assigned(e, "shorts", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 			t.Fatalf("yes at the button applies the call on a %s: %v", size.name, got)
 		}
 		var left []struct{ Kind string }

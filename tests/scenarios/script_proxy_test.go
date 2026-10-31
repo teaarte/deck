@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -18,7 +19,7 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 	if _, err := exec.LookPath("uv"); err != nil {
 		t.Skip("uv is not installed")
 	}
-	whl := wheel(t, "deckfixture")
+	whl := harness.Wheel(t, "deckfixture")
 	var mu sync.Mutex
 	hits := map[string]int{}
 	index := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,13 +39,13 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 	host := strings.TrimPrefix(index.URL, "http://")
 	src := fmt.Sprintf(packageScript, index.URL)
 	manifest := func(extra string) string {
-		m := strings.Replace(scriptManifest("use", "", extra), `"scripts/main.py", "runtime": "python"`,
+		m := strings.Replace(harness.ScriptManifest("use", "", extra), `"scripts/main.py", "runtime": "python"`,
 			`"scripts/main.py", "runtime": "exec", "programs": ["uv"]`, 1)
 		return m
 	}
-	e := New(t)
+	e := harness.New(t)
 	e.Project("pkgs", manifest(fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
-	e.saveScript("pkgs", "scripts/main.py", src)
+	e.SaveScript("pkgs", "scripts/main.py", src)
 	var downloads []int
 	for i := range 2 {
 		p := e.WaitState(e.Start("pkgs", "use", nil), "done", "error")
@@ -60,7 +61,7 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 	}
 
 	e.Project("closed", manifest(""))
-	e.saveScript("closed", "scripts/main.py", src)
+	e.SaveScript("closed", "scripts/main.py", src)
 	mu.Lock()
 	clear(hits)
 	mu.Unlock()
@@ -74,9 +75,9 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 		t.Fatalf("nothing reaches an index outside domains.read: %v", hits)
 	}
 
-	m := strings.Replace(scriptManifest("use", "", ""), `"runtime": "python"`, `"runtime": "python", "programs": ["deck-no-such-program"]`, 1)
+	m := strings.Replace(harness.ScriptManifest("use", "", ""), `"runtime": "python"`, `"runtime": "python", "programs": ["deck-no-such-program"]`, 1)
 	e.Project("progs", m)
-	e.saveScript("progs", "scripts/main.py", "print('null')\n")
+	e.SaveScript("progs", "scripts/main.py", "print('null')\n")
 	h := e.WaitHealth("command:progs.use", "error")
 	if !strings.Contains(h.Error, "deck-no-such-program") {
 		t.Fatalf("the health names the missing program: %+v", h)
@@ -88,14 +89,14 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 
 func TestTheProxyOfAScriptDropsHeadersThatAreOnlyForTheHop(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		w.Header().Set("Keep-Alive", "timeout=5")
 		_, _ = w.Write([]byte("ok"))
 	})
 	host := strings.TrimPrefix(svc.URL, "http://")
-	e := New(t)
-	e.Project("hops", scriptManifest("go", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
-	e.saveScript("hops", "scripts/main.py", `import base64, json, os, socket, urllib.parse
+	e := harness.New(t)
+	e.Project("hops", harness.ScriptManifest("go", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
+	e.SaveScript("hops", "scripts/main.py", `import base64, json, os, socket, urllib.parse
 p = urllib.parse.urlparse(os.environ["HTTP_PROXY"])
 auth = base64.b64encode((p.username + ":" + p.password).encode()).decode()
 s = socket.create_connection((p.hostname, p.port))
@@ -110,7 +111,7 @@ while True:
 print(json.dumps({"down": "keep-alive: timeout" in got.decode().lower(), "ok": got.endswith(b"ok")}))
 `)
 	p := e.WaitState(e.Start("hops", "go", nil), "done", "error")
-	seen := svc.requests()
+	seen := svc.Requests()
 	if p.State != "done" || string(p.Result) != `{"down":false,"ok":true}` || len(seen) != 1 || seen[0].Header.Get("X-Up") != "" {
 		t.Fatalf("headers of the hop go no further than the proxy, either way: %+v %+v", p, seen)
 	}
@@ -120,11 +121,11 @@ print(json.dumps({"down": "keep-alive: timeout" in got.decode().lower(), "ok": g
 // to a script; a local service is reached by naming its host:port.
 func TestScriptWildcardDomainIsOnlyThePublicInternet(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	named, local := served(t), served(t)
 	host := strings.TrimPrefix(named.URL, "http://")
-	e.Project("tools", scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": ["*", %q]}`, host)))
-	e.saveScript("tools", "scripts/main.py", pythonLib+`
+	e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": ["*", %q]}`, host)))
+	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
 inp = json.load(sys.stdin)
 print(json.dumps({"named": fetch(inp["allowed"]), "local": fetch(inp["other"]), "tailnet": fetch("http://100.100.100.100/")}))
 `)
@@ -140,30 +141,30 @@ print(json.dumps({"named": fetch(inp["allowed"]), "local": fetch(inp["other"]), 
 // is refused on save; a name that resolves to the owner's machine is refused, one that does not resolve is not reached.
 func TestADomainIsAHostThatResolvesOnceToWhereItMayGo(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	for domain, says := range map[string]string{"https://hf.co/models": "a host", "co.uk": "public suffix", "com": "public suffix"} {
-		code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, domain))})
+		code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, domain))})
 		if code != 422 || !strings.Contains(string(out), says) {
 			t.Errorf("%s is refused on save naming %q: %d %s", domain, says, code, out)
 		}
 	}
-	_, tok := e.token("terminal", "deck.*")
-	e.As(tok).Call("deck.project_create", map[string]any{"name": "masks", "manifest": scriptManifest("collect", "", `, "domains": {"read": ["*.hf.co"]}`)})
-	if r := e.project("masks").Rights; len(r) != 1 || r[0] != "read domain: hf.co" {
+	_, tok := e.Token("terminal", "deck.*")
+	e.As(tok).Call("deck.project_create", map[string]any{"name": "masks", "manifest": harness.ScriptManifest("collect", "", `, "domains": {"read": ["*.hf.co"]}`)})
+	if r := project(e, "masks").Rights; len(r) != 1 || r[0] != "read domain: hf.co" {
 		t.Fatalf("*.hf.co is hf.co with its subdomains: %v", r)
 	}
 
-	local := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte("hello")) })
+	local := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte("hello")) })
 	_, port, _ := net.SplitHostPort(strings.TrimPrefix(local.URL, "http://"))
-	e.Project("tools", scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": ["localhost:%s", "nowhere.invalid"]}`, port)))
-	e.saveScript("tools", "scripts/main.py", pythonLib+`
+	e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": ["localhost:%s", "nowhere.invalid"]}`, port)))
+	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
 inp = json.load(sys.stdin)
 print(json.dumps({"local": fetch(inp["allowed"]), "nowhere": fetch("http://nowhere.invalid/")}))
 `)
 	p := e.WaitState(e.Start("tools", "collect", map[string]any{"allowed": "http://localhost:" + port + "/"}), "done", "error")
 	var got struct{ Local, Nowhere any }
 	_ = json.Unmarshal(p.Result, &got)
-	if got.Local != float64(403) || got.Nowhere != float64(502) || len(local.requests()) != 0 {
+	if got.Local != float64(403) || got.Nowhere != float64(502) || len(local.Requests()) != 0 {
 		t.Fatalf("a name of the owner's machine is refused, a name that does not resolve is a bad gateway: %s", p.Result)
 	}
 }
@@ -175,9 +176,9 @@ func TestANodeScriptFetchesThroughTheProxyOfDeck(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
-	e := New(t)
-	e.Project("tools", strings.Replace(scriptManifest("collect", "", ""), `"scripts/main.py", "runtime": "python"`, `"scripts/main.mjs", "runtime": "node"`, 1))
-	e.saveScript("tools", "scripts/main.mjs", `const deck = await fetch(process.env.DECK_URL + "/commands/deck.records_list", {method: "POST",
+	e := harness.New(t)
+	e.Project("tools", strings.Replace(harness.ScriptManifest("collect", "", ""), `"scripts/main.py", "runtime": "python"`, `"scripts/main.mjs", "runtime": "node"`, 1))
+	e.SaveScript("tools", "scripts/main.mjs", `const deck = await fetch(process.env.DECK_URL + "/commands/deck.records_list", {method: "POST",
   headers: {Authorization: "Bearer " + process.env.DECK_TOKEN, "Content-Type": "application/json"}, body: JSON.stringify({collection: "items"})});
 let outside;
 try { outside = (await fetch("http://example.com/")).status; } catch (e) { outside = String(e.cause?.cause?.message || e.cause?.code || e); }

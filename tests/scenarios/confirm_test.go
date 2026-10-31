@@ -2,6 +2,9 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,9 +12,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
 )
 
 // postManifest has an agent command and an HTTP tool of the given extra fields that is not allowed yet.
@@ -29,9 +29,11 @@ func withTTL(c *app.Config) { c.ConfirmTTL = 24 * time.Hour }
 
 func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, fmt.Sprintf(`{"id": "ext-%d"}`, n)) })
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		harness.JsonReply(w, fmt.Sprintf(`{"id": "ext-%d"}`, n))
+	})
 	var first, again, second string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch c.N {
 		case 1:
 			first, _ = c.Tool(ctx, "notes__post", map[string]any{"id": "a 1", "text": "hi", "n": 3})
@@ -40,14 +42,14 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 			second, _ = c.Tool(ctx, "notes__post", map[string]any{"id": "a2", "text": "again"})
 		}
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
-	}), WithClock(), WithConfig(
+	}), harness.WithClock(), harness.WithConfig(
 
 		withTTL))
 
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret-value\n"}, nil)
 	p := e.Project("notes", postManifest(svc.URL, ""))
 
-	for _, c := range e.commands() {
+	for _, c := range commands(e) {
 		if c.Name == "notes.post" && c.Class != "external" {
 			t.Fatalf("a tool without a class is external: %+v", c)
 		}
@@ -58,8 +60,8 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	if again != first {
 		t.Fatalf("the same call made twice waits on the same ask: %s vs %s", first, again)
 	}
-	if !strings.Contains(first, `"waiting"`) || len(svc.requests()) != 0 {
-		t.Fatalf("the call waits and is not made before yes: %s, %d requests", first, len(svc.requests()))
+	if !strings.Contains(first, `"waiting"`) || len(svc.Requests()) != 0 {
+		t.Fatalf("the call waits and is not made before yes: %s, %d requests", first, len(svc.Requests()))
 	}
 	a := e.WaitAsk()
 	if a.Kind != "call" || !strings.Contains(a.Text, "notes.post") || strings.Contains(string(a.Payload), "s3cret") {
@@ -67,7 +69,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	}
 	var allowed struct{ Result map[string]any }
 	e.Must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, &allowed)
-	reqs := svc.requests()
+	reqs := svc.Requests()
 	if len(reqs) != 1 || reqs[0].Path != "/items/a%201" || reqs[0].Body != `{"n":3,"text":"hi"}` || reqs[0].Header.Get("X-Key") != "s3cret-value" {
 		t.Fatalf("after yes deck makes the call with the frozen parameters and the secret: %+v", reqs)
 	}
@@ -88,10 +90,10 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	if msg := e.Fake.Calls()[2].Prompt; !strings.Contains(msg, "Expired") {
 		t.Fatalf("after 24 hours the agent gets expired: %q", msg)
 	}
-	if code, _ := e.Call("deck.ask_answer", map[string]any{"ask": late.ID, "answer": "allow"}); code != 409 || len(svc.requests()) != 1 {
-		t.Fatalf("an expired call cannot be allowed: %d, %d requests", code, len(svc.requests()))
+	if code, _ := e.Call("deck.ask_answer", map[string]any{"ask": late.ID, "answer": "allow"}); code != 409 || len(svc.Requests()) != 1 {
+		t.Fatalf("an expired call cannot be allowed: %d, %d requests", code, len(svc.Requests()))
 	}
-	journal := e.calls(id)
+	journal := e.Calls(id)
 	if !strings.Contains(journal, "notes.post waiting") || !strings.Contains(journal, "notes.post done ext-1") ||
 		!strings.Contains(journal, "notes.post expired") || strings.Contains(journal, "s3cret") {
 		t.Fatalf("the journal keeps waiting, done with the outside id and expired, never the secret:\n%s", journal)
@@ -100,10 +102,10 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 
 func TestNoBecauseReachesTheAgentAndTheToolKeepsItsOwnTerm(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
 	var mu sync.Mutex
 	var calls []string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		text := "hello"
 		if c.N == 2 && strings.Contains(c.Req.Prompt, "say it politely") {
 			text = "hello, please"
@@ -115,7 +117,7 @@ func TestNoBecauseReachesTheAgentAndTheToolKeepsItsOwnTerm(t *testing.T) {
 			mu.Unlock()
 		}
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
-	}), WithClock(), WithConfig(
+	}), harness.WithClock(), harness.WithConfig(
 
 		withTTL))
 
@@ -136,37 +138,20 @@ func TestNoBecauseReachesTheAgentAndTheToolKeepsItsOwnTerm(t *testing.T) {
 	}
 	e.App.Sweep(context.Background(), e.Clock.Add(11*time.Minute))
 	e.WaitState(id, "done")
-	if msg := e.Fake.Calls()[2].Prompt; !strings.Contains(msg, "Expired") || len(svc.requests()) != 0 {
-		t.Fatalf("the tool's own term of 10 minutes expires the confirmation: %q, %d requests", msg, len(svc.requests()))
+	if msg := e.Fake.Calls()[2].Prompt; !strings.Contains(msg, "Expired") || len(svc.Requests()) != 0 {
+		t.Fatalf("the tool's own term of 10 minutes expires the confirmation: %q, %d requests", msg, len(svc.Requests()))
 	}
-	if j := e.calls(id); !strings.Contains(j, "notes.post rejected") {
+	if j := e.Calls(id); !strings.Contains(j, "notes.post rejected") {
 		t.Fatalf("the refusal is in the journal:\n%s", j)
 	}
 }
 
-// calls lists the gateway journal of a process as "tool outcome external_id error" lines with params.
-func (e *Env) calls(process int64) string {
-	e.T.Helper()
-	rows, err := e.App.Store.DB.Query(`SELECT tool || ' ' || outcome || ' ' || external_id || ' ' || params || ' ' || error FROM tool_call WHERE process_id = ? ORDER BY id`, process)
-	if err != nil {
-		e.T.Fatal(err)
-	}
-	defer rows.Close()
-	var b strings.Builder
-	for rows.Next() {
-		var s string
-		_ = rows.Scan(&s)
-		b.WriteString(s + "\n")
-	}
-	return b.String()
-}
-
 func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "n"}`) })
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "n"}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
-	}), WithClock())
+	}), harness.WithClock())
 
 	p := e.Project("feed", fmt.Sprintf(`{"version": 13,
   "commands": [
@@ -193,20 +178,20 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 		asks = nil
 		return json.Unmarshal(out, &asks) == nil && len(asks) == 2
 	})
-	if len(asks) != 2 || asks[0].Process != 0 || asks[1].Process != 0 || len(svc.requests()) != 0 {
+	if len(asks) != 2 || asks[0].Process != 0 || asks[1].Process != 0 || len(svc.Requests()) != 0 {
 		t.Fatalf("a triggered external call waits for the owner on its own: %+v", asks)
 	}
 	for _, a := range asks {
 		e.Answer(a.ID, "allow")
 	}
-	e.Until("both triggered calls are made", func() bool { return len(svc.requests()) == 2 })
+	e.Until("both triggered calls are made", func() bool { return len(svc.Requests()) == 2 })
 }
 
 func TestAWaitingCallSurvivesTheEmptyProcessCleanup(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("jobs", scriptManifest("run", "", ""))
-	e.saveScript("jobs", "scripts/main.py", pythonLib+`
+	e := harness.New(t)
+	e.Project("jobs", harness.ScriptManifest("run", "", ""))
+	e.SaveScript("jobs", "scripts/main.py", harness.PythonLib+`
 st, out = deck("jobs.publish", {})
 print("null" if st == 202 else json.dumps({"status": st}))
 `)
@@ -225,14 +210,14 @@ print("null" if st == 202 else json.dumps({"status": st}))
 
 func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "work" {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "work" {
 			c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
 			c.Tool(ctx, "notes__post", map[string]any{"id": "b", "text": "hi"})
 		}
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
-	}), WithClock(), WithConfig(
+	}), harness.WithClock(), harness.WithConfig(
 
 		withTTL))
 
@@ -241,11 +226,11 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
 	_, out := e.Call("deck.asks_list", nil)
-	var asks []Ask
+	var asks []harness.Ask
 	_ = json.Unmarshal(out, &asks)
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL+"/v2", "")}, nil)
 	e.Until("deck to close the calls of the changed tool", func() bool {
-		var left []Ask
+		var left []harness.Ask
 		e.Must("deck.asks_list", nil, &left)
 		return len(left) == 0
 	})
@@ -255,7 +240,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL, "")}, nil)
 	e.WaitState(id, "done", "error")
 	e.WaitState(e.Run(p, "work"), "waiting_answer")
-	var again []Ask
+	var again []harness.Ask
 	e.Must("deck.asks_list", nil, &again)
 	e.Clock.Add(25 * time.Hour)
 	if code, _ := e.Call("deck.ask_answer", map[string]any{"ask": again[1].ID, "answer": "allow_always"}); code != 409 {
@@ -263,7 +248,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	}
 	var m struct{ Manifest string }
 	e.Must("deck.manifest_get", map[string]any{"project": "notes"}, &m)
-	if strings.Contains(m.Manifest, "allowed_external") || len(svc.requests()) != 0 {
+	if strings.Contains(m.Manifest, "allowed_external") || len(svc.Requests()) != 0 {
 		t.Fatalf("a refused allow always does not widen the list: %s", m.Manifest)
 	}
 }
@@ -271,17 +256,17 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 func TestIdenticalExternalCallIsNotMadeWhileTheFirstIsOut(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if n == 1 {
 			<-release
 		}
-		jsonReply(w, `{"id": "x"}`)
+		harness.JsonReply(w, `{"id": "x"}`)
 	})
-	e := New(t)
+	e := harness.New(t)
 	e.Project("pics", toolManifest(svc.URL, `, "allowed_external": ["note"]`))
 	first := make(chan int)
 	go func() { code, _ := e.Call("pics.note", map[string]any{"text": "pay"}); first <- code }()
-	e.Until("the first call is out", func() bool { return len(svc.requests()) == 1 })
+	e.Until("the first call is out", func() bool { return len(svc.Requests()) == 1 })
 	code, out := e.Call("pics.note", map[string]any{"text": "pay"})
 	close(release)
 	if code == 200 || !strings.Contains(string(out), "being made now") || <-first != 200 {
@@ -291,11 +276,11 @@ func TestIdenticalExternalCallIsNotMadeWhileTheFirstIsOut(t *testing.T) {
 
 func TestConfirmationNamesTheMethodAndHost(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		_, _ = c.Tool(ctx, "notes__post", map[string]any{"id": "x", "text": "hi"})
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
-	}), WithClock(), WithConfig(
+	}), harness.WithClock(), harness.WithConfig(
 
 		withTTL))
 
@@ -311,7 +296,7 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	var behaviors []string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", map[string]any{"command": "make deploy"})
 			return provider.Result{Text: "stopped"}
@@ -327,13 +312,13 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 		}
 		wg.Wait()
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	}), WithClock())
+	}), harness.WithClock())
 
 	p := e.Project("ideas", ideasManifest)
 	id := e.Run(p, "collect")
-	e.passState(id, "waiting_answer")
+	e.PassState(id, "waiting_answer")
 	e.Answer(e.WaitAsk().ID, "allow")
-	e.passWaits("the four calls answered", func() bool {
+	e.PassWaits("the four calls answered", func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return len(behaviors) == 4
@@ -355,24 +340,24 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 // and the owner's yes makes it.
 func TestACallWaitingForTheOwnerWaitsAcrossARestart(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "x"}`) })
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "x"}`) })
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
 	e.Project("notes", postManifest(svc.URL, ""))
-	_, tok := e.token("terminal", "notes.*")
+	_, tok := e.Token("terminal", "notes.*")
 	code, out := e.As(tok).Call("notes.post", map[string]any{"id": "a", "text": "hi"})
 	var held struct{ Waiting int64 }
 	if code != 200 || json.Unmarshal(out, &held) != nil || held.Waiting == 0 {
 		t.Fatalf("the call waits: %d %s", code, out)
 	}
 	_ = e.App.Close()
-	e = New(t, WithHome(home), WithProvider(&Fake{}))
+	e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Answer(held.Waiting, "allow")
 	var waited int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM tool_call WHERE ask_id = ? AND outcome = 'waiting'`, held.Waiting).Scan(&waited)
-	if len(svc.requests()) != 1 || waited != 1 {
-		t.Fatalf("the owner's yes makes the call and the journal keeps its ask: %d requests, %d waiting rows", len(svc.requests()), waited)
+	if len(svc.Requests()) != 1 || waited != 1 {
+		t.Fatalf("the owner's yes makes the call and the journal keeps its ask: %d requests, %d waiting rows", len(svc.Requests()), waited)
 	}
 }
 
@@ -380,12 +365,12 @@ func TestACallWaitingForTheOwnerWaitsAcrossARestart(t *testing.T) {
 // unless the owner stops the process.
 func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "ext-1"}`) })
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "ext-1"}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
 		<-ctx.Done()
 		return provider.Result{}
-	}), WithClock(), WithConfig(
+	}), harness.WithClock(), harness.WithConfig(
 
 		withTTL, func(c *app.Config) { c.ConfirmWait = 50 * time.Millisecond }))
 
@@ -394,11 +379,11 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 	e.WaitAsk()
 	e.Must("deck.process_stop", map[string]any{"process": stopped}, nil)
 	e.WaitState(stopped, "stopped")
-	e.Until("a stop of the owner to drop the frozen call", func() bool { return strings.Contains(e.calls(stopped), "notes.post rejected") })
+	e.Until("a stop of the owner to drop the frozen call", func() bool { return strings.Contains(e.Calls(stopped), "notes.post rejected") })
 	id := e.Run(e.ProjectID("notes"), "work")
-	var a Ask
+	var a harness.Ask
 	e.Until("the frozen call", func() bool {
-		var as []Ask
+		var as []harness.Ask
 		e.Must("deck.asks_list", nil, &as)
 		for _, x := range as {
 			if x.Kind == "call" {
@@ -409,17 +394,17 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 	})
 	e.Until("the ceiling to run", func() bool { return e.Proc(id).Deadline != "" })
 	e.Clock.Add(2 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	if got := e.WaitState(id, "error"); !strings.Contains(got.Error, "ceiling") {
 		t.Fatalf("the process ends at its ceiling: %+v", got)
 	}
-	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 200 || len(svc.requests()) != 1 {
+	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 200 || len(svc.Requests()) != 1 {
 		t.Fatalf("the owner may still allow the frozen call of a process that ended: %d %s", code, out)
 	}
 	byToken := e.Run(e.ProjectID("notes"), "work")
-	var b Ask
+	var b harness.Ask
 	e.Until("the frozen call of the next process", func() bool {
-		var as []Ask
+		var as []harness.Ask
 		e.Must("deck.asks_list", nil, &as)
 		for _, x := range as {
 			if x.Kind == "call" {
@@ -428,13 +413,13 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 		}
 		return b.ID != 0
 	})
-	_, tok := e.token("ops", "deck.process_stop")
+	_, tok := e.Token("ops", "deck.process_stop")
 	if code, out := e.As(tok).Call("deck.process_stop", map[string]any{"process": byToken}); code != 200 {
 		t.Fatalf("the token stops the process: %d %s", code, out)
 	}
 	e.WaitState(byToken, "stopped")
 	e.Settle()
-	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": b.ID, "answer": "allow"}); code != 200 || len(svc.requests()) != 2 {
+	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": b.ID, "answer": "allow"}); code != 200 || len(svc.Requests()) != 2 {
 		t.Fatalf("a stop by another than the owner leaves the frozen call to the owner: %d %s", code, out)
 	}
 }

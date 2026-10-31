@@ -3,6 +3,7 @@ package scenarios
 import (
 	"bytes"
 	"crypto/sha256"
+	"deck2/tests/harness"
 	"encoding/hex"
 	"image"
 	"image/color"
@@ -22,14 +23,14 @@ func TestRealBrowserCatalog(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	e.Project("btc", forecastManifest)
 	made := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
 	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices",
-		"records": jsonl(map[string]any{"at": "2026-09-30T10:00:00Z", "price": 60100}, map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5},
+		"records": harness.Jsonl(map[string]any{"at": "2026-09-30T10:00:00Z", "price": 60100}, map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5},
 			map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25, "forecast": 63000})}, nil)
 	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts",
-		"records": jsonl(map[string]any{"at": made, "horizon": "7d", "change": 0.042, "confidence": 0.6, "status": "open", "source": "https://example.com/a"},
+		"records": harness.Jsonl(map[string]any{"at": made, "horizon": "7d", "change": 0.042, "confidence": 0.6, "status": "open", "source": "https://example.com/a"},
 			map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "confidence": 0.3, "status": "missed"})}, nil)
 
 	b := newPlaywright(t)
@@ -81,9 +82,9 @@ func TestRealBrowserCatalog(t *testing.T) {
 		t.Fatal("a block whose when does not hold is not drawn")
 	}
 	e.Must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "forecasts",
-		"records": jsonl(map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "status": "missed"})}, nil)
+		"records": harness.Jsonl(map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "status": "missed"})}, nil)
 	b.until("the block its when now holds for, without a reload", `[...document.querySelectorAll('[data-block] h3')].some(x => x.innerText === 'Missed')`)
-	e.Must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "forecasts", "records": jsonl(map[string]any{"at": "3", "horizon": "2d"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "forecasts", "records": harness.Jsonl(map[string]any{"at": "3", "horizon": "2d"})}, nil)
 	b.until("a time that is not one shown as it is", `[...document.querySelectorAll('[data-format="relative"]')].some(x => x.innerText === '3')`)
 }
 
@@ -94,13 +95,13 @@ func TestRealBrowserMedia(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	id := e.Project("btc", forecastManifest)
 	var pic bytes.Buffer
 	img := image.NewRGBA(image.Rect(0, 0, 64, 48))
 	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
 	_ = png.Encode(&pic, img)
-	scan := e.upload("btc", "scan.png", "image/png", pic.String())
+	scan := upload(e, "btc", "scan.png", "image/png", pic.String())
 	pdf := "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj " +
 		"3 0 obj<</Type/Page/MediaBox[0 0 200 100]/Parent 2 0 R>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF"
 	data := e.App.Home.Data(id)
@@ -108,7 +109,7 @@ func TestRealBrowserMedia(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(data, "report.pdf"), []byte(pdf), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "notes.csv"), []byte("a,b\n1,2\n"), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "logo.svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`), 0o600)
-	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": harness.Jsonl(
 		map[string]any{"title": "a scan", "file": scan}, map[string]any{"title": "b report", "file": "report.pdf"},
 		map[string]any{"title": "c notes", "file": "notes.csv"}, map[string]any{"title": "d gone", "file": "gone.png"},
 		map[string]any{"title": "e logo", "file": "logo.svg"})}, nil)

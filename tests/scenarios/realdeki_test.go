@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"os"
 	"testing"
 )
@@ -12,13 +13,13 @@ func TestRealBrowserDekiAndMotion(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
-	e.Project("shorts", plainManifest)
-	e.Project("picker", scriptManifest("main", "", `, "screens": [{"name": "main", "title": "Picker", "blocks": [
+	e.Project("shorts", harness.PlainManifest)
+	e.Project("picker", harness.ScriptManifest("main", "", `, "screens": [{"name": "main", "title": "Picker", "blocks": [
     {"type": "actions", "title": "Run", "actions": [{"label": "Run", "command": "main", "params": {"method": "deck.models_list", "form": "{}"}}]}]}], "menu": ["main"]`))
-	e.saveScript("picker", "scripts/main.py", deckCallScript)
+	e.SaveScript("picker", "scripts/main.py", deckCallScript)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
@@ -27,7 +28,7 @@ func TestRealBrowserDekiAndMotion(t *testing.T) {
 	b.until("Deki greeting on the first open of the device", deki+`?.dataset.pose === 'hello'`)
 	b.until("Deki at rest after the greeting", `['chill', 'sleepy'].includes(`+deki+`?.dataset.pose)`)
 
-	e.scriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
+	scriptCall(e, "picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
 	b.until("Deki pointing at the decision", deki+`?.dataset.pose === 'point' && `+deki+`.dataset.deki === 'point'`)
 	b.shot("deki-point")
 	b.until("the motion of the pose playing", deki+`.getAnimations().some((a) => a.playState === 'running')`)

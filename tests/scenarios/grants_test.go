@@ -3,46 +3,46 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	"deck2/internal/docs"
+	"deck2/internal/manifest"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 	"testing"
-
-	"deck2/internal/docs"
-	"deck2/internal/manifest"
-	"deck2/internal/store/db"
 )
 
 // TestADraftHasOnlyTheRightsTheOwnerGave: a draft the master writes sends no secret, reaches no domain of its
 // scripts and reads no other project until the owner enables it at the revision he saw.
 func TestADraftHasOnlyTheRightsTheOwnerGave(t *testing.T) {
 	t.Parallel()
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-	e := New(t)
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
+	e := harness.New(t)
 	e.Must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
-	_, tok := e.token("terminal", "deck.*", "leak.*", "net.*")
+	_, tok := e.Token("terminal", "deck.*", "leak.*", "net.*")
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "leak", "manifest": postManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	code, out := e.As(tok).Call("leak.post", map[string]any{"id": "a", "text": "hi"})
 	var held struct{ Waiting int64 }
-	if n := len(svc.requests()); n != 0 || json.Unmarshal(out, &held) != nil || held.Waiting == 0 {
+	if n := len(svc.Requests()); n != 0 || json.Unmarshal(out, &held) != nil || held.Waiting == 0 {
 		t.Fatalf("a tool of a draft that calls itself internal sends no secret before the owner says yes: %d %s, %d requests", code, out, n)
 	}
 
 	host := strings.TrimPrefix(svc.URL, "http://")
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "net",
-		"manifest": scriptManifest("run", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host))}); code != 200 {
+		"manifest": harness.ScriptManifest("run", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host))}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	e.saveScript("net", "scripts/main.py", pythonLib+`
+	e.SaveScript("net", "scripts/main.py", harness.PythonLib+`
 print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 `)
 	var run struct{ Process int64 }
 	e.Must("net.run", map[string]any{"allowed": svc.URL + "/x"}, &run)
-	if p := e.WaitState(run.Process, "done", "error"); string(p.Result) == `{"status":200}` || len(svc.requests()) != 0 {
+	if p := e.WaitState(run.Process, "done", "error"); string(p.Result) == `{"status":200}` || len(svc.Requests()) != 0 {
 		t.Fatalf("a script of a draft reaches only package registries, not the domains it asks for: %+v", p)
 	}
 
@@ -55,14 +55,14 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "peek", "manifest": readerManifest(reads)}); code != 200 || json.Unmarshal(out, &peek) != nil {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	e.names[peek.ID] = "peek"
-	if b0 := e.screenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
+	e.Names[peek.ID] = "peek"
+	if b0 := e.ScreenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
 		t.Fatalf("a draft reads no other project: %s", b0)
 	}
 
-	e.Must("deck.project_enable", map[string]any{"project": "leak", "revision": e.project("leak").Revision}, nil)
+	e.Must("deck.project_enable", map[string]any{"project": "leak", "revision": project(e, "leak").Revision}, nil)
 	code, posted := e.As(tok).Call("leak.post", map[string]any{"id": "a", "text": "hi"})
-	if seen := svc.requests(); code != 200 || len(seen) != 1 || seen[0].Header.Get("X-Key") != "s3cret" {
+	if seen := svc.Requests(); code != 200 || len(seen) != 1 || seen[0].Header.Get("X-Key") != "s3cret" {
 		t.Fatalf("once enabled, the tool has the rights of the revision the owner saw: %d %s %+v", code, posted, seen)
 	}
 }
@@ -78,7 +78,7 @@ const grantManifest = `{
 }`
 
 // inForce is the current manifest of a project with the rights the owner granted.
-func (e *Env) inForce(project string) *manifest.Manifest {
+func inForce(e *harness.Env, project string) *manifest.Manifest {
 	e.T.Helper()
 	ctx := context.Background()
 	p, err := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: project})
@@ -99,9 +99,9 @@ func (e *Env) inForce(project string) *manifest.Manifest {
 // that widens nothing saves at once beside it, and the owner's yes merges the right into the manifest as it is then.
 func TestAnEditThatWidensNothingKeepsTheRequestForRights(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", grantManifest)
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	var w struct {
 		Revision int64
 		Waiting  int64
@@ -114,7 +114,7 @@ func TestAnEditThatWidensNothingKeepsTheRequestForRights(t *testing.T) {
 	}
 	code, out = e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"Does work"`},
 		"new": []string{`"Does the work"`}})
-	if code != 200 || strings.Contains(string(out), "waiting") || e.manifestRevision("notes") != 2 {
+	if code != 200 || strings.Contains(string(out), "waiting") || manifestRevision(e, "notes") != 2 {
 		t.Fatalf("an edit that widens nothing saves at once while a request waits: %d %s", code, out)
 	}
 	if a := e.WaitAsk(); a.ID != w.Waiting {
@@ -130,7 +130,7 @@ func TestAnEditThatWidensNothingKeepsTheRequestForRights(t *testing.T) {
 		t.Fatalf("the same change asked again waits too: %s", out)
 	}
 	e.Answer(w.Waiting, "allow")
-	m := e.inForce("notes")
+	m := inForce(e, "notes")
 	if !m.MayWrite("report.md") || m.Command("work").Description != "Does the work" || m.Revision != 3 {
 		t.Fatalf("the yes merges the right into the current manifest, which keeps the edit: revision %d, writes %v, %q",
 			m.Revision, m.Writes, m.Command("work").Description)
@@ -142,13 +142,13 @@ func TestAnEditThatWidensNothingKeepsTheRequestForRights(t *testing.T) {
 // old and new parts and a waiting request apply to it as to an indented one.
 func TestAOneLineManifestTakesANeutralEditWhileARequestWaits(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	var line bytes.Buffer
 	if err := json.Compact(&line, []byte(grantManifest)); err != nil {
 		t.Fatal(err)
 	}
 	e.Project("notes", line.String())
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	var w struct{ Waiting int64 }
 	code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"writes": []`},
 		"new": []string{`"writes": ["report.md"]`}})
@@ -165,7 +165,7 @@ func TestAOneLineManifestTakesANeutralEditWhileARequestWaits(t *testing.T) {
 		t.Fatalf("deck stores the manifest indented: %s", cur.Manifest)
 	}
 	e.Answer(w.Waiting, "allow")
-	m := e.inForce("notes")
+	m := inForce(e, "notes")
 	if !m.MayWrite("report.md") || m.Command("work").Description != "Does the work" {
 		t.Fatalf("the yes keeps the edit and grants the right: writes %v, %q", m.Writes, m.Command("work").Description)
 	}
@@ -180,11 +180,11 @@ func TestAOneLineManifestTakesANeutralEditWhileARequestWaits(t *testing.T) {
 // request closes with a note naming the path and grants nothing. Two requests that add to one set both merge.
 func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	withTool := strings.Replace(grantManifest, `"writes": [],`, `"writes": [],
   "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET", "url": "https://a.example/p", "class": "external"}]},`, 1)
 	e.Project("notes", withTool)
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	var w struct{ Waiting int64 }
 	_, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes",
 		"manifest": strings.Replace(withTool, `"class": "external"}`, `"class": "internal"}`, 1)})
@@ -202,7 +202,7 @@ func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
 	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": w.Waiting, "answer": "allow"}); code == 200 {
 		t.Fatalf("an outdated request is closed: %d %s", code, out)
 	}
-	if m := e.inForce("notes"); len(m.Tools.HTTP) != 0 || m.Revision != 2 {
+	if m := inForce(e, "notes"); len(m.Tools.HTTP) != 0 || m.Revision != 2 {
 		t.Fatalf("nothing of the outdated request is granted: %+v", m.Tools)
 	}
 
@@ -219,7 +219,7 @@ func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
 	}
 	e.Answer(first.Waiting, "allow")
 	e.Answer(second.Waiting, "allow")
-	if m := e.inForce("notes"); !slices.Equal(m.Domains.Read, []string{"a.example", "c.example", "d.example"}) {
+	if m := inForce(e, "notes"); !slices.Equal(m.Domains.Read, []string{"a.example", "c.example", "d.example"}) {
 		t.Fatalf("two requests that add to one set both merge: %+v", m.Domains)
 	}
 }
@@ -228,9 +228,9 @@ func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
 // once each, with the screen that answers it, and not the manifest it changes.
 func TestARequestForRightsListsWhatItWidens(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", grantManifest)
-	tokID, tok := e.token("terminal", "deck.*")
+	tokID, tok := e.Token("terminal", "deck.*")
 	e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"writes": []`},
 		"new": []string{`"writes": ["report.md"]`}, "reason": "keep the weekly report"})
 	_, out := e.Call("deck.asks_list", nil)
@@ -265,9 +265,9 @@ const mergeManifest = `{
 // grant stay when a request merges; an edit of the same field another way outdates the request with its path.
 func TestAGrantMergesIntoTheManifestByItsStructure(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", mergeManifest)
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	save := func(m string) (waiting int64) {
 		t.Helper()
 		var w struct{ Waiting int64 }
@@ -292,7 +292,7 @@ func TestAGrantMergesIntoTheManifestByItsStructure(t *testing.T) {
 	}
 	e.Answer(domain, "allow")
 	e.Answer(request, "allow")
-	m := e.inForce("notes")
+	m := inForce(e, "notes")
 	if m.Command("alpha").Class != "reversible" || m.Command("alpha").Description != "Does alpha well" || m.Command("beta").Description != "Does beta now" ||
 		!slices.Equal(m.Domains.Read, []string{"a.example", "d.example", "c.example"}) {
 		t.Fatalf("both grants and the edit of another command and the same edit stay: %+v %+v %+v", m.Command("alpha"), m.Command("beta"), m.Domains)

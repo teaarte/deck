@@ -2,10 +2,10 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"os"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserTheScreensOfManagement: a failed schedule is counted on the tab of Health and is on top of the
@@ -15,13 +15,13 @@ func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the model is down"}
 	}))
 
-	e.Project("digest", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	e.Project("digest", harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
 	e.Project("inbox", filesManifest())
-	e.upload("inbox", "invoice.pdf", "application/pdf", "%PDF-1.4")
+	upload(e, "inbox", "invoice.pdf", "application/pdf", "%PDF-1.4")
 	var ts []struct {
 		ID          int64
 		LastProcess int64 `json:"last_process"`

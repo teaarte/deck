@@ -2,10 +2,10 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"os"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestRealBrowserChatTopicsFollowTheModuleFilter: the module picked above the chat narrows its topics, without a
@@ -15,11 +15,11 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "ok"} }))
-	e.Project("web", webNotes)
-	e.masterSaid(e.say(0, "about web", map[string]any{"screen": `{"project":"web","screen":"main"}`}), 1)
-	e.masterSaid(e.say(0, "about master", map[string]any{"screen": `{"project":"master","screen":"documents"}`}), 1)
-	e.masterSaid(e.say(0, "about nothing"), 1)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "ok"} }))
+	e.Project("web", harness.WebNotes)
+	e.MasterSaid(e.Say(0, "about web", map[string]any{"screen": `{"project":"web","screen":"main"}`}), 1)
+	e.MasterSaid(e.Say(0, "about master", map[string]any{"screen": `{"project":"master","screen":"documents"}`}), 1)
+	e.MasterSaid(e.Say(0, "about nothing"), 1)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})

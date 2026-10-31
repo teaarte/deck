@@ -3,6 +3,11 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	"deck2/internal/app"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -16,12 +21,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	deckhome "deck2/internal/home"
-	"deck2/internal/sandbox"
-
-	"deck2/internal/provider"
 )
 
 // themeProbe is the HTML of a custom block that reports the theme of its host, first and after each change.
@@ -36,12 +35,10 @@ await app.connect();
 await report();
 </script></body></html>`
 
-type hostTheme struct{ Theme, Bg, Ring, Radius string }
-
 // themesSeen are the themes the custom block reported, in order.
-func (e *Env) themesSeen() []hostTheme {
+func themesSeen(e *harness.Env) []harness.HostTheme {
 	e.T.Helper()
-	var out []hostTheme
+	var out []harness.HostTheme
 	ps := e.Procs()
 	slices.Reverse(ps)
 	for _, x := range ps {
@@ -50,7 +47,7 @@ func (e *Env) themesSeen() []hostTheme {
 		}
 		var res struct{ Seen string }
 		_ = json.Unmarshal(e.WaitState(x.ID, "done").Result, &res)
-		var th hostTheme
+		var th harness.HostTheme
 		_ = json.Unmarshal([]byte(res.Seen), &th)
 		out = append(out, th)
 	}
@@ -64,18 +61,18 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	f := newACP(t)
-	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
+	f := harness.NewACP(t)
+	if err := os.WriteFile(filepath.Join(f.Dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	e := New(t, WithAgent(webNotesAgent()), WithConfig(func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()), harness.WithConfig(func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
+		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
 	}))
 
 	e.App.Providers.Checks(t.Context(), time.Now())
 	e.WaitHealth("agent:goose", "error")
-	e.Project("web", webNotesMark)
+	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
 
 	b := newPlaywright(t)
@@ -107,10 +104,10 @@ func TestRealBrowserSettings(t *testing.T) {
 
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the custom block", `document.querySelector('[data-custom]')`)
-	dark := hostTheme{Theme: "dark", Bg: b.eval(root("--mantine-color-body")), Ring: b.eval(root("--mantine-color-grape-filled")),
+	dark := harness.HostTheme{Theme: "dark", Bg: b.eval(root("--mantine-color-body")), Ring: b.eval(root("--mantine-color-grape-filled")),
 		Radius: b.eval(root("--mantine-radius-md"))}
-	e.Until("the custom block to report its theme", func() bool { return len(e.themesSeen()) > 0 })
-	if got := e.themesSeen()[0]; got != dark || got.Bg == "" || got.Radius == "" {
+	e.Until("the custom block to report its theme", func() bool { return len(themesSeen(e)) > 0 })
+	if got := themesSeen(e)[0]; got != dark || got.Bg == "" || got.Radius == "" {
 		t.Fatalf("a custom block gets the scheme and the resolved variables of the host: %+v, want %+v", got, dark)
 	}
 
@@ -122,14 +119,14 @@ func TestRealBrowserSettings(t *testing.T) {
 	light := b.eval(root("--mantine-color-body"))
 	b.call("browser_tabs", map[string]any{"action": "select", "index": 0})
 	e.Until("the custom block to hear of the light scheme in place", func() bool {
-		ts := e.themesSeen()
+		ts := themesSeen(e)
 		return len(ts) > 1 && ts[len(ts)-1].Theme == "light"
 	})
-	if ts := e.themesSeen(); ts[len(ts)-1].Bg != light || ts[len(ts)-1].Bg == dark.Bg {
+	if ts := themesSeen(e); ts[len(ts)-1].Bg != light || ts[len(ts)-1].Bg == dark.Bg {
 		t.Fatalf("the new scheme brings its colors to the frame: %+v, want %s", ts, light)
 	}
 
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
@@ -141,11 +138,11 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the projects tab", itemOf("notes", "enabling grants"))
 	b.reviewAndEnable("notes")
-	e.Until("the enabled draft", func() bool { return e.project("notes").Status == "enabled" })
+	e.Until("the enabled draft", func() bool { return project(e, "notes").Status == "enabled" })
 	b.shot("settings-draft")
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	b.until("the enabled draft", itemOf("notes", "")+" && !"+itemOf("notes", "draft"))
-	if p := e.project("notes"); p.Status != "enabled" {
+	if p := project(e, "notes"); p.Status != "enabled" {
 		t.Fatalf("enable on the projects tab turns the draft on: %+v", p)
 	}
 	b.shot("settings-projects")
@@ -257,23 +254,23 @@ func TestRealBrowserSettings(t *testing.T) {
 
 	b.open(e.URL + "/#/deck/settings?tab=Modules")
 	tab("Modules")
-	if names, _ := e.side(); !slices.Contains(names, "notes") {
+	if names, _ := side(e); !slices.Contains(names, "notes") {
 		t.Fatalf("the project is in the menu before the delete: %v", names)
 	}
 	b.eval(pressIn(itemOf("notes", ""), "delete"))
 	b.until("the owner asked before the delete", `document.querySelector('[data-confirm]')?.innerText.includes('notes')`)
-	var still []projectV
-	e.projectsOf(&still)
+	var still []harness.ProjectV
+	e.ProjectsOf(&still)
 	if len(still) != 2 {
 		t.Fatalf("nothing is deleted before the owner says yes: %+v", still)
 	}
 	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
 	b.until("the deleted project gone from the tab", `![...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes ·'))`)
-	if names, _ := e.side(); slices.Contains(names, "notes") {
+	if names, _ := side(e); slices.Contains(names, "notes") {
 		t.Fatalf("the deleted project is gone from the menu: %v", names)
 	}
 	still = nil
-	e.projectsOf(&still)
+	e.ProjectsOf(&still)
 	if len(still) != 1 || still[0].Name != "web" {
 		t.Fatalf("the project is deleted after the yes: %+v", still)
 	}
@@ -286,8 +283,8 @@ func TestRealBrowserDocuments(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	evil := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("GIF89a")) })
-	e := New(t)
+	evil := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("GIF89a")) })
+	e := harness.New(t)
 	e.Project("web", docsManifest)
 	var d struct{ ID int64 }
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc",
@@ -295,7 +292,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 	for _, text := range []string{"<p>one</p>", "<p>two</p>"} {
 		e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": text}, nil)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "note": "a **bold** note"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "note": "a **bold** note"})}, nil)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
@@ -307,7 +304,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 	}
 	b.until("the picture of the markdown in the page", `document.querySelector('[data-markdown] img[alt="seen"]')`)
 	time.Sleep(time.Second)
-	if n := len(evil.requests()); n != 0 {
+	if n := len(evil.Requests()); n != 0 {
 		t.Fatalf("a picture in markdown is not fetched from the network: %d requests", n)
 	}
 
@@ -381,8 +378,8 @@ func TestRealBrowserJournal(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
-	pid := e.Project("web", webNotesMark)
+	e := harness.New(t)
+	pid := e.Project("web", harness.WebNotesMark)
 	if err := os.MkdirAll(filepath.Join(e.App.Home.Data(pid), "sub"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +387,7 @@ func TestRealBrowserJournal(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"notes ü.txt", "100%.txt", `100% a;b".txt`} {
-		e.upload("web", name, "text/html", "body of "+name)
+		upload(e, "web", name, "text/html", "body of "+name)
 	}
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
@@ -438,8 +435,8 @@ func TestRealBrowserRework(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
-	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	job := e.Run(p, "job")
 	e.WaitState(job, "done")
 	b := newPlaywright(t)
@@ -463,8 +460,8 @@ func TestRealBrowserScreenKeepsItsStateOnReturn(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
-	e.Project("web", strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"},`,
+	e := harness.New(t)
+	e.Project("web", strings.Replace(harness.WebNotes, `{"type": "form", "title": "Score a title", "command": "score"},`,
 		`{"type": "tabs", "tabs": [{"title": "Board", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},
 			{"title": "Score", "blocks": [{"type": "form", "title": "Score a title", "command": "score"}]}]},`, 1))
 	b := newPlaywright(t)
@@ -497,14 +494,14 @@ func TestRealBrowserLogReadsEasily(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	long := `{"id":1327,"project":"btc-forecast","command":"collect","state":"done","result":"` + strings.Repeat("a-long-value-without-spaces-", 20) + `"}`
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "mcp__deck__process_get", Text: `{"process":1327,"fields":["state","result"]}`})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventToolUpdate, ID: "t1", Status: "completed", Text: long})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "The run is **done**:\n\n- one\n- two"})
 		return provider.Result{Text: "{}"}
 	}))
 
-	p := e.Project("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	job := e.Run(p, "job")
 	e.WaitState(job, "done")
 	b := newPlaywright(t)
@@ -526,7 +523,7 @@ func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("work", boardManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
 	b := newPlaywright(t)
@@ -578,8 +575,8 @@ func TestRealBrowserCustomBlockOpensWindowsOfDeck(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(webNotesAgent()))
-	m := strings.Replace(webNotesMark, `{"type": "form", "title": "Score a title", "command": "score"},`,
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	m := strings.Replace(harness.WebNotesMark, `{"type": "form", "title": "Score a title", "command": "score"},`,
 		`{"type": "form", "title": "Score a title", "command": "score"}, {"type": "dialog", "name": "note-help", "title": "Help", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},`, 1)
 	e.Project("web", m)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customWindows}, nil)
@@ -613,10 +610,10 @@ func TestRealBrowserCustomBlockGetsItsParams(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(webNotesAgent()))
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	chart := `"document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},`
 	e.Project("web", strings.NewReplacer(`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"kind": "string"}, "blocks": [`,
-		chart, chart+` "params": {"mode": "voice", "kind": "=param.kind"},`).Replace(webNotesMark))
+		chart, chart+` "params": {"mode": "voice", "kind": "=param.kind"},`).Replace(harness.WebNotesMark))
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customParams}, nil)
 	b := newPlaywright(t)
 	b.Open(e, "#/p/web/main?kind=video")
@@ -659,10 +656,10 @@ func TestRealBrowserCustomBlockShowsAPictureOfItsModule(t *testing.T) {
 
 // customPictureIn shows the picture block in a browser and checks that it reads its file without a refusal shown.
 func customPictureIn(t *testing.T, browser ...string) {
-	e := New(t, WithAgent(webNotesAgent()))
-	p := e.Project("web", webNotesMark)
-	e.Project("other", plainManifest)
-	theirs := e.upload("other", "theirs.png", "image/png", "theirs")
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	p := e.Project("web", harness.WebNotesMark)
+	e.Project("other", harness.PlainManifest)
+	theirs := upload(e, "other", "theirs.png", "image/png", "theirs")
 	var pic bytes.Buffer
 	_ = png.Encode(&pic, image.NewRGBA(image.Rect(0, 0, 3, 2)))
 	data := deckhome.Layout(e.App.Cfg.Home).Data(p)
@@ -692,7 +689,7 @@ func TestRealBrowserTheChatOpensBesideTheScreenInANewTopic(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("work", boardManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
 	b := newPlaywright(t)
@@ -741,8 +738,8 @@ const F = "ifr" + "ame";
 const T = (way) => "<" + F + " srcdoc='" + leaks(way).replace(/&/g, "&amp;").replace(/'/g, "&#39;") + "'></" + F + ">";
 const frame = (way, f) => { f.srcdoc = leaks(way); return f; };
 `
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("web", webNotesMark)
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><script>
 ` + lib + `
 try { const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:" + at.window }] }); pc.createDataChannel("l"); pc.createOffer().then((o) => pc.setLocalDescription(o)); } catch (e) {}
@@ -856,10 +853,10 @@ func TestRealBrowserReadableTable(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	e.Project("ops", readableManifest)
 	now := time.Now().UTC().Format(time.RFC3339)
-	e.Must("deck.records_upsert", map[string]any{"project": "ops", "collection": "jobs", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "ops", "collection": "jobs", "records": harness.Jsonl(
 		map[string]any{"name": "backup", "status": "error", "why": "the disk is full: 0 bytes left on /backup", "note": strings.Repeat("a long note that goes on and on ", 20),
 			"host": "nas", "region": "home", "started": now},
 		map[string]any{"name": "mail", "status": "ok", "host": "vps", "started": now})}, nil)

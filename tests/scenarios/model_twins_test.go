@@ -1,10 +1,9 @@
 package scenarios
 
 import (
+	"deck2/internal/store"
 	"path/filepath"
 	"testing"
-
-	"deck2/internal/store"
 )
 
 // TestTwinsOfAModelMergeIntoTheFirst: models of one connection with the same API name, kind and options become the

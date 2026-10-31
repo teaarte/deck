@@ -3,6 +3,10 @@ package scenarios
 import (
 	"bufio"
 	"context"
+	"deck2/internal/events"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,17 +15,13 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/events"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 )
 
 // TestASlowDeviceHearsEveryChange: a device that reads its live channel slower than deck publishes still hears
 // each topic of each project once; nothing is dropped.
 func TestASlowDeviceHearsEveryChange(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	phone := e.Events(ctx)
@@ -30,7 +30,7 @@ func TestASlowDeviceHearsEveryChange(t *testing.T) {
 	}
 	heard := map[string]bool{}
 	for len(heard) < 500 {
-		heard[Receive(t, fmt.Sprintf("change %d of 500", len(heard)+1), phone).Project] = true
+		heard[harness.Receive(t, fmt.Sprintf("change %d of 500", len(heard)+1), phone).Project] = true
 	}
 }
 
@@ -38,15 +38,15 @@ func TestASlowDeviceHearsEveryChange(t *testing.T) {
 // they read, its own or one its manifest reads.
 func TestAChangeOfAnotherProjectDoesNotRereadAScreen(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("a", webNotes)
-	e.Project("b", webNotes)
-	e.Project("c", strings.Replace(strings.Replace(webNotes, `"menu": ["main"]}`, `"menu": ["main"], "reads": [{"project": "a", "collections": ["notes"]}]}`, 1),
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("a", harness.WebNotes)
+	e.Project("b", harness.WebNotes)
+	e.Project("c", strings.Replace(strings.Replace(harness.WebNotes, `"menu": ["main"]}`, `"menu": ["main"], "reads": [{"project": "a", "collections": ["notes"]}]}`, 1),
 		`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "table", "title": "Of a", "source": {"from": "deck.records_list", "input": {"project": "a", "collection": "notes"}}, "columns": [{"label": "Title", "bind": "data.title"}]},`, 1))
 	data := func(project, changed string) string {
 		var out []string
-		for _, m := range e.screenMessages(project, "main", map[string]any{"topic": "collection", "changed": changed}) {
+		for _, m := range e.ScreenMessages(project, "main", map[string]any{"topic": "collection", "changed": changed}) {
 			if m["updateDataModel"] != nil {
 				var dm struct{ Path string }
 				_ = json.Unmarshal(m["updateDataModel"], &dm)
@@ -70,17 +70,17 @@ func TestAChangeOfAnotherProjectDoesNotRereadAScreen(t *testing.T) {
 // project, and a when of another screen does not draw that screen whole for them.
 func TestABlockThatReadsEveryProjectFollowsThemAll(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("a", webNotes)
-	e.Project("b", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("a", harness.WebNotes)
+	e.Project("b", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "list", "title": "All files", "source": {"from": "deck.files_list", "input": {"project": ""}}, "item": {"title": "name"}},
       {"type": "stat", "title": "Some", "when": "len(rows) > 0", "source": {"collection": "notes"}},`, 1))
-	msgs := e.screenMessages("b", "main", map[string]any{"topic": "files", "changed": "a"})
+	msgs := e.ScreenMessages("b", "main", map[string]any{"topic": "files", "changed": "a"})
 	drawn, _ := json.Marshal(msgs)
 	if !strings.Contains(string(drawn), `"path":"/b0"`) {
 		t.Fatalf("the files of every project are read again for a change in a: %s", drawn)
 	}
-	if msgs := e.screenMessages("b", "main", map[string]any{"topic": "collection", "changed": "a"}); len(msgs) > 0 && msgs[0]["createSurface"] != nil {
+	if msgs := e.ScreenMessages("b", "main", map[string]any{"topic": "collection", "changed": "a"}); len(msgs) > 0 && msgs[0]["createSurface"] != nil {
 		t.Fatal("a when over b's notes does not draw b whole for a change in a")
 	}
 }
@@ -89,23 +89,23 @@ func TestABlockThatReadsEveryProjectFollowsThemAll(t *testing.T) {
 // project of the row, whichever command wrote it.
 func TestAWriteTellsTheReadersOfItsTable(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	ev := e.Events(t.Context())
-	e.upload("web", "scan.txt", "text/plain", "a page")
-	WaitEvent(t, ev, events.Event{Topic: "files", Project: "web"})
+	upload(e, "web", "scan.txt", "text/plain", "a page")
+	harness.WaitEvent(t, ev, events.Event{Topic: "files", Project: "web"})
 }
 
 // TestADeckReadWithoutAProjectFollowsEveryProject: a block of a module screen that reads a deck command taking no
 // project reads every project, so a change in any project reads it again.
 func TestADeckReadWithoutAProjectFollowsEveryProject(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webNotesAgent()))
-	e.Project("a", webNotes)
-	e.Project("c", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Project("a", harness.WebNotes)
+	e.Project("c", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "table", "title": "Runs", "source": {"from": "deck.spend_daily"}, "columns": [{"label": "Day", "bind": "day"}]},`, 1))
 	var paths []string
-	for _, m := range e.screenMessages("c", "main", map[string]any{"topic": "processes", "changed": "a"}) {
+	for _, m := range e.ScreenMessages("c", "main", map[string]any{"topic": "processes", "changed": "a"}) {
 		var dm struct{ Path string }
 		if m["updateDataModel"] != nil && json.Unmarshal(m["updateDataModel"], &dm) == nil {
 			paths = append(paths, dm.Path)
@@ -120,8 +120,8 @@ func TestADeckReadWithoutAProjectFollowsEveryProject(t *testing.T) {
 // topic, not a change of the project that draws its screens anew; a write that changes nothing tells no one.
 func TestAFolderAndAnAssignmentTellOnlyTheirReaders(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	e.Must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "2"}, nil)
 	seen := func(write func()) []string {
 		ctx, cancel := context.WithCancel(t.Context())
@@ -155,11 +155,11 @@ func TestAFolderAndAnAssignmentTellOnlyTheirReaders(t *testing.T) {
 // again.
 func TestTheSettingsOfAModuleFollowItsFolders(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
 	dir := t.TempDir()
 	e.Must("deck.folder_add", map[string]any{"project": "web", "path": dir}, nil)
-	drawn, _ := json.Marshal(e.screenMessages("web", "settings", map[string]any{"topic": "folders", "changed": "web"}))
+	drawn, _ := json.Marshal(e.ScreenMessages("web", "settings", map[string]any{"topic": "folders", "changed": "web"}))
 	if !strings.Contains(string(drawn), filepath.Base(dir)) {
 		t.Fatalf("the settings of the module are read again with the new folder: %s", drawn)
 	}
@@ -168,7 +168,7 @@ func TestTheSettingsOfAModuleFollowItsFolders(t *testing.T) {
 // TestTheLiveChannelSaysItIsThere: a channel with nothing to tell pings, so a client finds one that went dead.
 func TestTheLiveChannelSaysItIsThere(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, "GET", e.URL+"/api/events", nil)
@@ -191,7 +191,7 @@ func TestTheLiveChannelSaysItIsThere(t *testing.T) {
 // workspace takes along when it goes, tell only the readers of that workspace.
 func TestAChangeOfAnotherWorkspaceStaysThere(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	ctx := t.Context()
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
@@ -237,8 +237,8 @@ func TestAChangeOfAnotherWorkspaceStaysThere(t *testing.T) {
 // no session of an agent reads its project again.
 func TestSavingTheSameManifestTellsNoOne(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("work", plainManifest)
+	e := harness.New(t)
+	e.Project("work", harness.PlainManifest)
 	var m struct{ Manifest string }
 	e.Must("deck.manifest_get", map[string]any{"project": "work"}, &m)
 	live := e.Events(t.Context())

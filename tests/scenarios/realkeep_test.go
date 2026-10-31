@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"strings"
@@ -15,11 +16,11 @@ func TestRealBrowserClientKeepsWhatItShows(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	svc := newService(t, nil)
-	e := New(t)
+	svc := harness.NewService(t, nil)
+	e := harness.New(t)
 	e.Project("notes", webManifest(svc.URL))
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)
 	var d struct{ ID int64 }
 	e.Must("deck.document_save", map[string]any{"project": "notes", "name": "plan.md", "kind": "doc", "text": "# Plan"}, &d)
 

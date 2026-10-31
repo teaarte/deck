@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -18,16 +19,16 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
-	dir := filepath.Join(Root, "web")
+	dir := filepath.Join(harness.Root, "web")
 	out := t.TempDir()
 	build := exec.Command(filepath.Join(dir, "node_modules/.bin/vite"), "build", "foreign", "--outDir", out, "--emptyOutDir")
 	build.Dir = dir
 	if b, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("the foreign page builds: %v\n%s", err, b)
 	}
-	e := New(t, WithAgent(webNotesAgent()))
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", routedManifest)
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	deck, _ := url.Parse(e.URL)
 	api, files := httputil.NewSingleHostReverseProxy(deck), http.FileServer(http.Dir(out))
 	page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

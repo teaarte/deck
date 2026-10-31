@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"strconv"
@@ -42,13 +43,13 @@ func TestRealBrowserGlass(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(webNotesAgent()))
-	e.example("glass")
-	e.example("default")
-	e.Project("web", webNotesMark)
+	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
+	e.Example("glass")
+	e.Example("default")
+	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "alpha", "source": "mail"}, map[string]any{"title": "beta", "source": "web"})}, nil)
+		"records": harness.Jsonl(map[string]any{"title": "alpha", "source": "mail"}, map[string]any{"title": "beta", "source": "web"})}, nil)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
@@ -88,8 +89,8 @@ func TestRealBrowserGlass(t *testing.T) {
 	if got := b.eval(`(() => { const s = getComputedStyle(` + table + `); return s.backdropFilter + ' ' + s.backgroundColor })()`); got != "none rgb(255, 255, 255)" {
 		t.Fatalf("a block with a table stays solid: %s", got)
 	}
-	e.Until("the custom block to report its theme", func() bool { return len(e.themesSeen()) > 0 })
-	if got, body := e.themesSeen()[0], b.eval(`getComputedStyle(document.documentElement).getPropertyValue('--mantine-color-body').trim()`); got.Bg != body {
+	e.Until("the custom block to report its theme", func() bool { return len(themesSeen(e)) > 0 })
+	if got, body := themesSeen(e)[0], b.eval(`getComputedStyle(document.documentElement).getPropertyValue('--mantine-color-body').trim()`); got.Bg != body {
 		t.Fatalf("a custom block gets the solid body of the host as its background: %+v, want %s", got, body)
 	}
 	if got, _ := strconv.ParseFloat(b.eval(worstContrast), 64); got < 4.5 {

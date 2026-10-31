@@ -1,15 +1,15 @@
 package scenarios
 
 import (
+	deckhome "deck2/internal/home"
+	"deck2/internal/registry"
+	"deck2/tests/harness"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	deckhome "deck2/internal/home"
-	"deck2/internal/registry"
 )
 
 func keysOf(m map[string]any) []string {
@@ -25,7 +25,7 @@ func keysOf(m map[string]any) []string {
 // the one list of an object, or of the object; without fields it gives all; records_list cuts the data of records.
 func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	p := e.Project("source", sourceManifest)
 	e.Must("deck.records_upsert", map[string]any{"project": "source", "collection": "items",
 		"records": "{\"name\": \"a\", \"size\": 3}\n{\"name\": \"b\", \"size\": 5}"}, nil)
@@ -102,7 +102,7 @@ func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 // stored in, an item of a named list by its name, and an old part for manifest_save may come from that text.
 func TestFieldsReachIntoTheManifestText(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("source", sourceManifest)
 	var whole struct{ Manifest string }
 	e.Must("deck.manifest_get", map[string]any{"project": "source"}, &whole)

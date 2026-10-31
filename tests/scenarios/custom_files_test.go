@@ -1,23 +1,23 @@
 package scenarios
 
 import (
+	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	deckhome "deck2/internal/home"
 )
 
 // TestACustomBlockReadsOnlyTheFilesOfItsModule: the host of a custom block reads a file of the module of its screen,
 // stored or in its data folder, whole; a file of another module, a path out of the data folder or one too big is refused.
 func TestACustomBlockReadsOnlyTheFilesOfItsModule(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	p := e.Project("web", webNotes)
-	e.Project("other", plainManifest)
+	e := harness.New(t)
+	p := e.Project("web", harness.WebNotes)
+	e.Project("other", harness.PlainManifest)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(p)
 	_ = os.MkdirAll(filepath.Join(data, "pics"), 0o700)
@@ -26,10 +26,10 @@ func TestACustomBlockReadsOnlyTheFilesOfItsModule(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.txt"), []byte("outside"), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "big.mp4"), nil, 0o600)
 	_ = os.Truncate(filepath.Join(data, "big.mp4"), 201<<20)
-	own := e.upload("web", "logo.svg", "image/svg+xml", "<svg/>")
-	theirs := e.upload("other", "theirs.txt", "text/plain", "theirs")
+	own := upload(e, "web", "logo.svg", "image/svg+xml", "<svg/>")
+	theirs := upload(e, "other", "theirs.txt", "text/plain", "theirs")
 
-	block := blockData[map[string]any](t, e.screenData("web", "main", nil)["b2"]["value"])
+	block := harness.BlockData[map[string]any](t, e.ScreenData("web", "main", nil)["b2"]["value"])
 	if block["project"] != "web" {
 		t.Fatalf("a custom block knows the module it reads files of: %+v", block["project"])
 	}

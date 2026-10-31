@@ -5,6 +5,11 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
+	"deck2/internal/app"
+	"deck2/internal/app/updates"
+	"deck2/internal/provider"
+	"deck2/internal/release"
+	"deck2/tests/harness"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -14,11 +19,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-
-	"deck2/internal/app"
-	"deck2/internal/app/updates"
-	"deck2/internal/provider"
-	"deck2/internal/release"
 )
 
 // fakeRelease is the latest release of deck on an https server of its own, signed with a key of the test.
@@ -30,7 +30,7 @@ type fakeRelease struct {
 }
 
 func newRelease(t *testing.T) *fakeRelease {
-	trustTestTLS()
+	harness.TrustTestTLS()
 	_, key, _ := ed25519.GenerateKey(rand.Reader)
 	r := &fakeRelease{key: key, files: map[string][]byte{}}
 	r.srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -82,13 +82,13 @@ func newBinary(version string) []byte {
 }
 
 // updateEnv is a deck of v0.1.0 whose binary is a file of the test, updated from the fake release.
-func updateEnv(t *testing.T, r *fakeRelease, launcher bool, script Script) (*Env, string, chan release.Restart) {
+func updateEnv(t *testing.T, r *fakeRelease, launcher bool, script harness.Script) (*harness.Env, string, chan release.Restart) {
 	exe := filepath.Join(t.TempDir(), "deck")
 	if err := os.WriteFile(exe, newBinary("v0.1.0"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	restarts := make(chan release.Restart, 1)
-	e := New(t, WithAgent(script), WithConfig(func(c *app.Config) {
+	e := harness.New(t, harness.WithAgent(script), harness.WithConfig(func(c *app.Config) {
 		c.Releases, c.Version, c.Variant, c.Launcher = r.source(), "v0.1.0", "deck-test", launcher
 		c.Exe = func() (string, error) { return exe, nil }
 		c.Restart = func(rs release.Restart) { restarts <- rs }
@@ -205,7 +205,7 @@ func TestOnlyTheOwnerUpdatesDeck(t *testing.T) {
 	r := newRelease(t)
 	r.publish(t, "v0.2.0", map[string][]byte{"deck-test": newBinary("v0.2.0")}, nil)
 	said := make(chan string, 2)
-	e, exe, _ := updateEnv(t, r, false, func(ctx context.Context, c *Call) provider.Result {
+	e, exe, _ := updateEnv(t, r, false, func(ctx context.Context, c *harness.Call) provider.Result {
 		out, bad := c.Tool(ctx, "update", map[string]any{})
 		if !bad {
 			out = "done: " + out
@@ -213,8 +213,8 @@ func TestOnlyTheOwnerUpdatesDeck(t *testing.T) {
 		said <- out
 		return provider.Result{Text: "tried"}
 	})
-	e.say(0, "update deck")
-	p := e.Project("plain", plainManifest)
+	e.Say(0, "update deck")
+	p := e.Project("plain", harness.PlainManifest)
 	e.Run(p, "work")
 	for range 2 {
 		if out := <-said; strings.HasPrefix(out, "done: ") {

@@ -2,6 +2,9 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,9 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	deckhome "deck2/internal/home"
-	"deck2/internal/provider"
 )
 
 // TestProcessPageSendsAFinishedAgentBackForReworkWithARemark: a finished agent process has a rework button that
@@ -19,8 +19,8 @@ import (
 func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{}, 1)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "hold" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "hold" {
 			select {
 			case <-release:
 			case <-ctx.Done():
@@ -29,10 +29,10 @@ func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
 
-	p := e.Project("jobs", testManifest([]string{agentCommand("job", ""), agentCommand("hold", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", ""), harness.AgentCommand("hold", "")}, nil))
 	cardActions := func(id int64) []map[string]any {
 		t.Helper()
-		v := blockData[struct{ Actions []map[string]any }](t, e.screenData("", "process", map[string]any{"record": id})["b0"]["value"])
+		v := harness.BlockData[struct{ Actions []map[string]any }](t, e.ScreenData("", "process", map[string]any{"record": id})["b0"]["value"])
 		return v.Actions
 	}
 	held := e.Run(p, "hold")
@@ -59,8 +59,8 @@ func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 		t.Fatalf("rework resumes the session with the remark: %+v", last)
 	}
 
-	e.Project("tools", scriptManifest("take", "", ""))
-	e.saveScript("tools", "scripts/main.py", "import json\nprint(json.dumps({}))\n")
+	e.Project("tools", harness.ScriptManifest("take", "", ""))
+	e.SaveScript("tools", "scripts/main.py", "import json\nprint(json.dumps({}))\n")
 	s := e.Start("tools", "take", nil)
 	e.WaitState(s, "done")
 	if hasVerb(cardActions(s), "rework") {
@@ -70,18 +70,18 @@ func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 
 func TestWorkFolderOfAFinishedAgentGoesAfterAWeek(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok), WithClock())
-	p := e.Project("plain", testManifest([]string{agentCommand("work", "")}, nil))
+	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock())
+	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	id := e.Run(p, "work")
 	e.WaitState(id, "done")
 	work := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(id))
 	e.Clock.Add(6 * 24 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	if _, err := os.Stat(work); err != nil {
 		t.Fatalf("the work folder stays for rework during the week: %v", err)
 	}
 	e.Clock.Add(2 * 24 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	if _, err := os.Stat(work); !os.IsNotExist(err) {
 		t.Fatalf("after a week the work folder goes: %v", err)
 	}

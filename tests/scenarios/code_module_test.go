@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,7 +21,7 @@ import (
 // agent adds a tracker by the code-project skill (testdata/tracker).
 func codeModule(t *testing.T, url string) string {
 	t.Helper()
-	src := filepath.Join(Root, "skills/code-project/example")
+	src := filepath.Join(harness.Root, "skills/code-project/example")
 	dst := filepath.Join(t.TempDir(), "code")
 	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -49,7 +50,7 @@ func codeModule(t *testing.T, url string) string {
 func addTracker(t *testing.T, dir, url string) {
 	t.Helper()
 	var m, in map[string]any
-	for path, v := range map[string]*map[string]any{filepath.Join(dir, "manifest.json"): &m, Testdata("tracker/intake.json"): &in} {
+	for path, v := range map[string]*map[string]any{filepath.Join(dir, "manifest.json"): &m, harness.Testdata("tracker/intake.json"): &in} {
 		b, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
@@ -69,7 +70,7 @@ func addTracker(t *testing.T, dir, url string) {
 	b, _ := json.Marshal(m)
 	files := map[string][]byte{"manifest.json": b}
 	for _, f := range []string{"poll_gitlab.py", "follow_gitlab.py"} {
-		src, err := os.ReadFile(filepath.Join(Testdata("tracker"), f))
+		src, err := os.ReadFile(filepath.Join(harness.Testdata("tracker"), f))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,14 +83,14 @@ func addTracker(t *testing.T, dir, url string) {
 	}
 }
 
-func (e *Env) importEnabled(dir, name string) int64 {
+func importEnabled(e *harness.Env, dir, name string) int64 {
 	e.T.Helper()
 	var p struct{ ID int64 }
 	e.Must("deck.project_import", map[string]any{"folder": dir, "name": name}, &p)
 	var m struct{ Revision int64 }
 	e.Must("deck.manifest_get", map[string]any{"project": name}, &m)
 	e.Must("deck.project_enable", map[string]any{"project": name, "revision": m.Revision}, nil)
-	e.names[p.ID] = name
+	e.Names[p.ID] = name
 	return p.ID
 }
 
@@ -114,7 +115,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 		{IID: 2, Title: "Crash on save", CreatedAt: day + "T11:00:00.000Z"},
 	}
 	closeAfterFirstPage := 0
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if r.Header.Get("PRIVATE-TOKEN") != "glpat-secret" {
 			http.Error(w, `{"message": "401 Unauthorized"}`, http.StatusUnauthorized)
 			return
@@ -140,16 +141,16 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 		}
 		mu.Unlock()
 		b, _ := json.Marshal(out)
-		jsonReply(w, string(b))
+		harness.JsonReply(w, string(b))
 	})
-	clock := &Clock{now: time.Now()}
-	e := New(t, WithAgent(ok), WithClock(clock))
+	clock := &harness.Clock{At: time.Now()}
+	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock(clock))
 	e.Must("deck.secret_set", map[string]any{"name": "gitlab", "value": "glpat-secret"}, nil)
-	e.importEnabled(codeModule(t, svc.URL), "code")
+	importEnabled(e, codeModule(t, svc.URL), "code")
 	if got := e.WaitState(e.Start("code", "follow_gitlab", map[string]any{"project": "team/app"}), "done", "error"); got.State != "done" {
 		t.Fatalf("follow: %+v", got)
 	}
-	poll := func() Proc {
+	poll := func() harness.Proc {
 		t.Helper()
 		got := e.WaitState(e.Start("code", "poll_gitlab", nil), "done", "error")
 		if got.State != "done" {
@@ -159,9 +160,9 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	}
 	board := func() []string {
 		t.Helper()
-		var rs []recordRow
+		var rs []harness.RecordRow
 		e.Must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
-		slices.SortFunc(rs, func(a, b recordRow) int { return int(a.ID - b.ID) })
+		slices.SortFunc(rs, func(a, b harness.RecordRow) int { return int(a.ID - b.ID) })
 		var out []string
 		for _, r := range rs {
 			out = append(out, fmt.Sprint(r.Data["status"])+": "+fmt.Sprint(r.Data["title"])+" | "+fmt.Sprint(r.Data["text"]))
@@ -170,7 +171,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	}
 	clock.Add(16 * time.Minute)
 	e.App.Scheduler.Tick(context.Background())
-	var first Proc
+	var first harness.Proc
 	e.Until("the poll on its schedule", func() bool {
 		for _, p := range e.Procs() {
 			if p.Command == "poll_gitlab" && p.Trigger != 0 && (p.State == "done" || p.State == "error") {
@@ -210,7 +211,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	if n := len(board()); n != 4+65 {
 		t.Fatalf("an issue closed between pages shifts none past the poll: %d tasks", n)
 	}
-	for _, r := range svc.requests() {
+	for _, r := range svc.Requests() {
 		if !strings.Contains(r.Path, "labels=&") || !strings.Contains(r.Path, "per_page=50") {
 			t.Fatalf("the tool asks for open issues of every label, oldest first: %s", r.Path)
 		}
@@ -231,11 +232,11 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 // button and the table of tasks, and its run command waits for the owner's folder.
 func TestTheCodeExampleImportsWithItsTasksAndRunButton(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	check := newCatalogCheck(t)
-	p := e.importEnabled(codeModule(t, ""), "code")
-	msgs := e.screenMessages("code", "tasks", nil)
-	check.messages(t, msgs)
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	check := harness.NewCatalogCheck(t)
+	p := importEnabled(e, codeModule(t, ""), "code")
+	msgs := e.ScreenMessages("code", "tasks", nil)
+	check.Messages(t, msgs)
 	raw, _ := json.Marshal(msgs)
 	for _, want := range []string{`"Run"`, `"Merge"`, `"Revert the merge"`, `"Show the diff"`, `"Push"`, `"component":"table"`} {
 		if !strings.Contains(string(raw), want) {

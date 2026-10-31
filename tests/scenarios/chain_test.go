@@ -2,11 +2,11 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestAChainAskedInTheChatCountsAsTheOwnersButton: what the master starts counts as the owner's start; a model
@@ -16,8 +16,8 @@ func TestAChainAskedInTheChatCountsAsTheOwnersButton(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("a still") },
 	})
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		switch c.command() {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		switch c.Command() {
 		case "direct":
 			c.Tool(ctx, "studio__media", map[string]any{"scene": "a knight"})
 			c.Tool(ctx, "studio__board", map[string]any{})
@@ -37,9 +37,9 @@ func TestAChainAskedInTheChatCountsAsTheOwnersButton(t *testing.T) {
 	media := `{"name": "media", "title": "Media", "description": "Makes a still.", "class": "internal",
 	  "input": {"type": "object", "properties": {"scene": {"type": "string"}}},
 	  "executor": {"type": "model", "kind": "text", "prompt": "Describe a still."}}`
-	e.Project("studio", testManifest([]string{agentCommand("direct", ""), agentCommand("board", ""), media}, nil))
-	topic := e.say(0, "make the video")
-	if said := e.masterSaid(topic, 1); said[0].Text != "Started the video." {
+	e.Project("studio", harness.TestManifest([]string{harness.AgentCommand("direct", ""), harness.AgentCommand("board", ""), media}, nil))
+	topic := e.Say(0, "make the video")
+	if said := e.MasterSaid(topic, 1); said[0].Text != "Started the video." {
 		t.Fatalf("the master starts the command: %+v", said)
 	}
 	depth := map[string]int64{}

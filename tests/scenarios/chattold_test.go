@@ -2,43 +2,23 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
 )
 
-type toldMessage struct {
-	Role    string `json:"role"`
-	Text    string `json:"text"`
-	Process int64  `json:"process"`
-	Told    *struct {
-		ID      int64  `json:"id"`
-		Project string `json:"project"`
-		Command string `json:"command"`
-		State   string `json:"state"`
-		Word    string `json:"word"`
-		Tone    string `json:"tone"`
-		Reason  string `json:"reason"`
-		Error   string `json:"error"`
-		Open    struct {
-			Screen string `json:"screen"`
-			Record int64  `json:"record"`
-		} `json:"open"`
-	} `json:"told"`
-}
-
 // told waits for the message deck writes into topic of a work in state, read in lang.
-func (e *Env) told(topic int64, state, lang string) toldMessage {
+func told(e *harness.Env, topic int64, state, lang string) harness.ToldMessage {
 	e.T.Helper()
-	var got toldMessage
+	var got harness.ToldMessage
 	e.Until("deck tells the topic of a work "+state, func() bool {
-		var view struct{ Messages []toldMessage }
-		e.chatRead(map[string]any{"topic": fmt.Sprint(topic), "lang": lang}, &view)
+		var view struct{ Messages []harness.ToldMessage }
+		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic), "lang": lang}, &view)
 		for _, m := range view.Messages {
 			if m.Role == "deck" && m.Told != nil && m.Told.State == state {
 				got = m
@@ -52,9 +32,9 @@ func (e *Env) told(topic int64, state, lang string) toldMessage {
 
 // handOver is a reply of the master that hands the owner's task to master.work with its topic; a resumed reply
 // names no command, and its topic is the one the first named.
-func handOver(ctx context.Context, c *Call, topic *atomic.Int64) provider.Result {
+func handOver(ctx context.Context, c *harness.Call, topic *atomic.Int64) provider.Result {
 	var in struct{ Topic int64 }
-	if m := inputOf.FindStringSubmatch(c.Req.Prompt); m != nil && json.Unmarshal([]byte(m[1]), &in) == nil && in.Topic != 0 {
+	if m := harness.InputOf.FindStringSubmatch(c.Req.Prompt); m != nil && json.Unmarshal([]byte(m[1]), &in) == nil && in.Topic != 0 {
 		topic.Store(in.Topic)
 	}
 	if out, bad := c.Tool(ctx, "master__work", map[string]any{"task": "count the records", "topic": topic.Load()}); bad {
@@ -70,8 +50,8 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	var works atomic.Int32
 	var replies atomic.Int64
 	var from atomic.Int64
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() != "work" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() != "work" {
 			if replies.Add(1) == 3 {
 				return provider.Result{Text: "ok"}
 			}
@@ -90,8 +70,8 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	}))
 
 	e.Must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	topic := e.say(0, "count the records")
-	done := e.told(topic, "done", "ru")
+	topic := e.Say(0, "count the records")
+	done := told(e, topic, "done", "ru")
 	for _, c := range e.Fake.Calls()[:2] {
 		if !strings.Contains(c.Prompt, "The owner reads deck in Russian") {
 			t.Fatalf("the reply and the work it handed over are told the owner's language:\n%s", c.Prompt)
@@ -111,8 +91,8 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 		}
 		return false
 	})
-	var view struct{ Messages []toldMessage }
-	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	var view struct{ Messages []harness.ToldMessage }
+	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 	deck := 0
 	for _, m := range view.Messages {
 		if m.Role == "deck" {
@@ -123,13 +103,13 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 		t.Fatalf("one message of deck for one work: %+v", view.Messages)
 	}
 
-	e.say(topic, "count again")
-	failed := e.told(topic, "error", "ru")
+	e.Say(topic, "count again")
+	failed := told(e, topic, "error", "ru")
 	if failed.Told.Reason != "агент сообщил об ошибке" || !strings.Contains(failed.Told.Error, "the site is down") || failed.Told.Tone != "error" {
 		t.Fatalf("a work that failed says why in the owner's words: %+v", failed.Told)
 	}
 	e.Until("the note of the failed work reads in Russian", func() bool {
-		var notes []Note
+		var notes []harness.Note
 		e.Must("deck.feed_list", map[string]any{"kind": "note", "lang": "ru"}, &notes)
 		for _, n := range notes {
 			if n.Text == "Команда мастера work не удалась: агент сообщил об ошибке: the site is down" {
@@ -138,20 +118,20 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 		}
 		return false
 	})
-	e.say(topic, "and now?")
-	e.masterSaid(topic, 3)
+	e.Say(topic, "and now?")
+	e.MasterSaid(topic, 3)
 	var after struct {
 		Topic struct {
-			Reply *topicReply `json:"reply"`
+			Reply *harness.TopicReply `json:"reply"`
 		} `json:"topic"`
 	}
-	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &after)
+	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &after)
 	if after.Topic.Reply != nil && after.Topic.Reply.State != "done" {
 		t.Fatalf("a message of deck does not make its work the reply of the topic: %+v", after.Topic.Reply)
 	}
 
-	e.say(topic, "count the notes")
-	waits := e.told(topic, "waiting_answer", "ru")
+	e.Say(topic, "count the notes")
+	waits := told(e, topic, "waiting_answer", "ru")
 	if !strings.HasPrefix(waits.Told.Word, "ждёт вашего ответа") || !strings.Contains(waits.Told.Word, "Which collection?") || waits.Told.Tone != "warn" {
 		t.Fatalf("a work that waits for the owner says what it waits for: %+v", waits.Told)
 	}
@@ -161,22 +141,22 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 func TestAWorkSentBackTellsItsTopicAgain(t *testing.T) {
 	t.Parallel()
 	var from atomic.Int64
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
 		case strings.Contains(c.Req.Prompt, "count the drafts too"):
 			return provider.Result{Text: "Recounted: 4 records."}
-		case c.command() == "work":
+		case c.Command() == "work":
 			return provider.Result{Text: "Counted: 3 records."}
 		}
 		return handOver(ctx, c, &from)
 	}))
 
-	topic := e.say(0, "count the records")
-	done := e.told(topic, "done", "")
+	topic := e.Say(0, "count the records")
+	done := told(e, topic, "done", "")
 	e.Must("deck.process_rework", map[string]any{"process": done.Process, "remark": "count the drafts too"}, nil)
 	e.Until("the new result in the topic", func() bool {
-		var view struct{ Messages []toldMessage }
-		e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+		var view struct{ Messages []harness.ToldMessage }
+		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 		var said []string
 		for _, m := range view.Messages {
 			if m.Role == "deck" {
@@ -195,8 +175,8 @@ func TestAWorkTellsItsTopicItsWholeResult(t *testing.T) {
 	var replies atomic.Int32
 	var prompt atomic.Value
 	worked := make(chan struct{})
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "work" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "work" {
 			defer close(worked)
 			return provider.Result{Text: long}
 		}
@@ -211,12 +191,12 @@ func TestAWorkTellsItsTopicItsWholeResult(t *testing.T) {
 		return provider.Result{Text: "ok"}
 	}))
 
-	topic := e.say(0, "plan it")
-	if done := e.told(topic, "done", ""); done.Text != long {
+	topic := e.Say(0, "plan it")
+	if done := told(e, topic, "done", ""); done.Text != long {
 		t.Fatalf("the topic gets the whole result of %d bytes, not %d", len(long), len(done.Text))
 	}
-	e.say(topic, "and?")
-	e.masterSaid(topic, 2)
+	e.Say(topic, "and?")
+	e.MasterSaid(topic, 2)
 	if p, _ := prompt.Load().(string); !strings.Contains(p, "Что заводить первым?") {
 		t.Fatalf("the master reads the whole result:\n%s", p)
 	}
@@ -227,11 +207,11 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 	t.Parallel()
 	var from atomic.Int64
 	var works atomic.Int32
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
 		case strings.Contains(c.Req.Prompt, "go on where you stopped"):
 			return provider.Result{Text: "Finished the rest."}
-		case c.command() != "work":
+		case c.Command() != "work":
 			return handOver(ctx, c, &from)
 		case works.Add(1) == 1:
 			return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
@@ -239,10 +219,10 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 		return provider.Result{Text: "a second fresh run"}
 	}))
 
-	topic := e.say(0, "do it")
-	failed := e.told(topic, "error", "")
+	topic := e.Say(0, "do it")
+	failed := told(e, topic, "error", "")
 	var view struct{ Messages []json.RawMessage }
-	e.chatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
 	var goOn struct {
 		Told struct {
 			Go struct {
@@ -260,7 +240,7 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 		t.Fatalf("a failed work offers to go on: %+v", view.Messages)
 	}
 	e.Must(goOn.Told.Go.Command, goOn.Told.Go.Params, nil)
-	if done := e.told(topic, "done", ""); done.Text != "Finished the rest." || done.Process != failed.Process {
+	if done := told(e, topic, "done", ""); done.Text != "Finished the rest." || done.Process != failed.Process {
 		t.Fatalf("the same work goes on in its session: %+v", done)
 	}
 }

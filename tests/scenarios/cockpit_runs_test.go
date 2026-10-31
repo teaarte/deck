@@ -2,6 +2,9 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -9,9 +12,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"deck2/internal/provider"
-	"deck2/internal/store"
 )
 
 // jobsModule renders an item of its collection by an agent command whose input names the record.
@@ -42,7 +42,7 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 	t.Parallel()
 	var fail atomic.Bool
 	fail.Store(true)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if fail.Load() {
 			return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 		}
@@ -50,7 +50,7 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 	}))
 
 	e.Project("shorts", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
 	failed := func() []cockpitRun {
@@ -97,8 +97,8 @@ func TestARunThatTakesLongerThanUsualIsMarked(t *testing.T) {
 			release := make(chan struct{})
 			t.Cleanup(func() { close(release) })
 			var n atomic.Int32
-			clock := &Clock{now: t0}
-			e := New(t, WithProvider(&Fake{script: func(ctx context.Context, c *Call) provider.Result {
+			clock := &harness.Clock{At: harness.T0}
+			e := harness.New(t, harness.WithProvider(&harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 				if int(n.Add(1)) > tc.runs {
 					select {
 					case <-release:
@@ -108,7 +108,7 @@ func TestARunThatTakesLongerThanUsualIsMarked(t *testing.T) {
 					clock.Add(time.Minute)
 				}
 				return provider.Result{Text: "voiced"}
-			}}), WithClock(clock))
+			}}), harness.WithClock(clock))
 
 			e.Project("shorts", jobsModule)
 			for range tc.runs {
@@ -135,13 +135,13 @@ const usualRunsForTest = 5
 func TestARunSentBackCountsFromThenAndFailsAnew(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
-	clock := &Clock{now: t0}
-	e := New(t, WithProvider(&Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithProvider(&harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N > 1 {
 			<-release
 		}
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
-	}}), WithClock(clock))
+	}}), harness.WithClock(clock))
 
 	e.Project("shorts", jobsModule)
 	id := e.Start("shorts", "voice", nil)
@@ -170,14 +170,14 @@ func TestARunSentBackCountsFromThenAndFailsAnew(t *testing.T) {
 // TestARunThatWaitsIsNotLongerThanUsual: a run that waits, here on a usage limit, is not slow work.
 func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 	t.Parallel()
-	clock := &Clock{now: t0}
-	e := New(t, WithProvider(&Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithProvider(&harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N > usualRunsForTest {
-			return provider.Result{Outcome: provider.Limited, ResetsAt: t0.Add(time.Hour).Unix()}
+			return provider.Result{Outcome: provider.Limited, ResetsAt: harness.T0.Add(time.Hour).Unix()}
 		}
 		clock.Add(time.Second)
 		return provider.Result{Text: "voiced"}
-	}}), WithClock(clock))
+	}}), harness.WithClock(clock))
 
 	e.Project("shorts", jobsModule)
 	for range usualRunsForTest {
@@ -209,7 +209,7 @@ func TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks(t *testing.T) {
 	t.Parallel()
 	var fail atomic.Bool
 	fail.Store(true)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if fail.Load() {
 			return provider.Result{Outcome: provider.Failed, Text: "the cutter is down"}
 		}
@@ -243,7 +243,7 @@ func TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks(t *testing.T) {
 	if got := failed(); len(got) != 0 {
 		t.Fatalf("a failed trial is not in the cockpit: %+v", got)
 	}
-	_, tok := e.token("terminal", "clips.*")
+	_, tok := e.Token("terminal", "clips.*")
 	code, out := e.As(tok).Call("clips.trim", map[string]any{"clip": "a"})
 	if code != 200 || json.Unmarshal(out, &started) != nil {
 		t.Fatalf("the master starts trim: %d %s", code, out)
@@ -261,12 +261,12 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 	svc, release := hangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()
-	clock := &Clock{now: t0}
-	e := New(t, WithHome(home), WithProvider(&Fake{}), WithClock(clock))
+	clock := &harness.Clock{At: harness.T0}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
 	e.Project("clips", generateManifest(svc.URL))
 	id := e.Start("clips", "make", map[string]any{"topic": "cats"})
-	e.Until("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
-	e2 := e.Restart(WithProvider(&Fake{}))
+	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
+	e2 := e.Restart(harness.WithProvider(&harness.Fake{}))
 	e2.Resume()
 	var failed []cockpitRun
 	e2.Must("deck.processes_list", map[string]any{"failed": true}, &failed)
@@ -279,7 +279,7 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 // says how many more there are.
 func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: fmt.Sprintf("down %d", c.N)}
 	}))
 
@@ -288,7 +288,7 @@ func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 		e.WaitState(e.Start("clips", "cut", map[string]any{"clip": fmt.Sprint(i)}), "error")
 	}
 	var more int
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2"]["more"], &more)
+	_ = json.Unmarshal(e.ScreenData("", "cockpit", nil)["b2"]["more"], &more)
 	if more != 2 {
 		t.Fatalf("the cockpit shows 20 and says 2 more: %d", more)
 	}
@@ -300,7 +300,7 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 1 {
 			return provider.Result{Outcome: provider.Failed, Text: "down"}
 		}
@@ -316,12 +316,12 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 	e.WaitState(failed, "error")
 	id := e.Start("clips", "cut", map[string]any{"clip": "b"})
 	e.WaitState(id, "running")
-	var running []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", map[string]any{"lang": "ru"})["b1"]["items"], &running)
+	var running []harness.ListItem
+	_ = json.Unmarshal(e.ScreenData("", "cockpit", map[string]any{"lang": "ru"})["b1"]["items"], &running)
 	if len(running) != 1 || running[0].Text != "" || !strings.Contains(running[0].Details, "работает на") || running[0].Since == "" {
 		t.Fatalf("a running run says since when, and what it runs on in the owner's words under its details: %+v", running)
 	}
-	page, _ := json.Marshal(e.screenData("", "process", map[string]any{"record": failed, "lang": "ru"}))
+	page, _ := json.Marshal(e.ScreenData("", "process", map[string]any{"record": failed, "lang": "ru"}))
 	if !strings.Contains(string(page), `"value":"не получилось"`) || !strings.Contains(string(page), `"tone":"error"`) {
 		t.Fatalf("the page of a failed run says so in red: %s", page)
 	}
@@ -331,14 +331,14 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 // time they happened, which the line shows and gives in full on hover.
 func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "down"}
 	}))
 
 	e.Project("clips", cutModule)
 	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "a"}), "error")
-	var failed []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2"]["items"], &failed)
+	var failed []harness.ListItem
+	_ = json.Unmarshal(e.ScreenData("", "cockpit", nil)["b2"]["items"], &failed)
 	if len(failed) != 1 || failed[0].Since == "" {
 		t.Fatalf("a failure says when it happened: %+v", failed)
 	}
@@ -348,34 +348,29 @@ func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 // a run closed on the cockpit stays there.
 func TestFailedRunsStayInTheHistoryOfTheSchedule(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	}))
 
 	e.Project("shorts", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
 	id := e.Start("shorts", "voice", map[string]any{"record": recs[0].ID})
 	e.WaitState(id, "done", "error")
 	e.Must("deck.process_dismiss", map[string]any{"process": id}, nil)
-	failed := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
+	failed := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
 	if len(failed) != 1 || failed[0].Cells[0] != "Voice" || failed[0].ID != float64(id) || failed[0].Tones[2] != "error" || failed[0].Cells[4] != "by a button" {
 		t.Fatalf("the failed run is in the history by its state, closed on the cockpit or not: %+v", failed)
 	}
-	if page, _ := json.Marshal(e.screenData("", "process", map[string]any{"record": id})); !strings.Contains(string(page), "voice server is down") {
+	if page, _ := json.Marshal(e.ScreenData("", "process", map[string]any{"record": id})); !strings.Contains(string(page), "voice server is down") {
 		t.Fatalf("the page of the failed run says why: %s", page)
 	}
 }
 
-type todayPulse struct {
-	State, Line, Mark string
-	Failed, Notes     int64
-}
-
-func (e *Env) today(lang string) todayPulse {
+func today(e *harness.Env, lang string) harness.TodayPulse {
 	e.T.Helper()
-	var m struct{ Pulse todayPulse }
+	var m struct{ Pulse harness.TodayPulse }
 	e.Must("deck.menu", map[string]any{"lang": lang}, &m)
 	return m.Pulse
 }
@@ -384,33 +379,33 @@ func (e *Env) today(lang string) todayPulse {
 // an empty deck, that all is well, the failures in the feed, the rest beside the decisions, in the owner's language.
 func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	}))
 
-	if h := e.today(""); h.State != "calm" || !strings.HasPrefix(h.Line, "Tell Deki what to do") {
+	if h := today(e, ""); h.State != "calm" || !strings.HasPrefix(h.Line, "Tell Deki what to do") {
 		t.Fatalf("a quiet empty deck says what to do: %+v", h)
 	}
 	e.Project("shorts", jobsModule)
-	if h := e.today(""); h.Line != "All is well: nothing to decide, no failures." || h.Mark != "check" {
+	if h := today(e, ""); h.Line != "All is well: nothing to decide, no failures." || h.Mark != "check" {
 		t.Fatalf("a quiet deck with a module says all is well: %+v", h)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
 	e.WaitState(e.Start("shorts", "voice", map[string]any{"record": recs[0].ID}), "error")
 	e.Must("deck.notify", map[string]any{"project": "shorts", "text": "a new video is ready"}, nil)
-	if h := e.today(""); h.State != "errors" || h.Failed != 1 || h.Notes != 1 || h.Line != "Nothing to decide. One failure is in the feed below." || h.Mark != "alert-circle" {
+	if h := today(e, ""); h.State != "errors" || h.Failed != 1 || h.Notes != 1 || h.Line != "Nothing to decide. One failure is in the feed below." || h.Mark != "alert-circle" {
 		t.Fatalf("a failure alone is said to be in the feed: %+v", h)
 	}
-	if ru := e.today("ru"); ru.Line != "Решать нечего. Один сбой — в ленте ниже." {
+	if ru := today(e, "ru"); ru.Line != "Решать нечего. Один сбой — в ленте ниже." {
 		t.Fatalf("the line speaks the language of the owner: %+v", ru)
 	}
-	_, tok := e.token("asker", "deck.model_set")
+	_, tok := e.Token("asker", "deck.model_set")
 	if code, out := e.As(tok).Call("deck.model_set", map[string]any{"connection": "none", "model": "x"}); code != 200 || !strings.Contains(string(out), `"waiting"`) {
 		t.Fatalf("a token's call waits for the owner: %d %s", code, out)
 	}
-	if h := e.today("ru"); h.Line != "Остальное идёт само, кроме одного сбоя в ленте." || h.Mark != "hand-finger" {
+	if h := today(e, "ru"); h.Line != "Остальное идёт само, кроме одного сбоя в ленте." || h.Mark != "hand-finger" {
 		t.Fatalf("beside a decision the line says the rest, but for the failure: %+v", h)
 	}
 	var asks []struct{ Allow string }
@@ -424,12 +419,12 @@ func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 // line; read all and close clear it, while the schedule and the history keep them.
 func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
 	}))
 
 	e.Project("shorts", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "knights", "title": "Knights"}, map[string]any{"slug": "dragons", "title": "Dragons"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
@@ -439,10 +434,10 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	for _, text := range []string{"one", "two", "three"} {
 		e.Must("deck.notify", map[string]any{"project": "shorts", "text": text}, nil)
 	}
-	feed := e.screenData("", "cockpit", nil)["b2"]
-	items := blockData[[]listItem](t, feed["items"])
-	head := blockData[[]map[string]any](t, feed["head"])
-	var fails []listItem
+	feed := e.ScreenData("", "cockpit", nil)["b2"]
+	items := harness.BlockData[[]harness.ListItem](t, feed["items"])
+	head := harness.BlockData[[]map[string]any](t, feed["head"])
+	var fails []harness.ListItem
 	for _, it := range items {
 		if strings.Contains(it.Meta, "voice server is down") {
 			fails = append(fails, it)
@@ -464,16 +459,16 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	for _, f := range failed {
 		e.Must("deck.process_dismiss", map[string]any{"process": f.ID}, nil)
 	}
-	if h := e.today(""); h.Failed != 0 || h.Notes != 0 || h.State != "calm" {
+	if h := today(e, ""); h.Failed != 0 || h.Notes != 0 || h.State != "calm" {
 		t.Fatalf("the feed is read and its failure closed: %+v", h)
 	}
-	if feed := e.screenData("", "cockpit", nil)["b2"]; feed["head"] != nil || len(blockData[[]listItem](t, feed["items"])) != 3 {
+	if feed := e.ScreenData("", "cockpit", nil)["b2"]; feed["head"] != nil || len(harness.BlockData[[]harness.ListItem](t, feed["items"])) != 3 {
 		t.Fatalf("the notes stay in the feed, read, without the failure: %s %s", feed["head"], feed["items"])
 	}
-	if runs := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(runs) != 2 {
+	if runs := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(runs) != 2 {
 		t.Fatalf("the history of the schedule keeps both failed runs: %+v", runs)
 	}
-	notes := blockData[[]screenRow](t, e.screenData("", "cockpit", map[string]any{"dialog": "changes"})["b3-1"]["rows"])
+	notes := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "cockpit", map[string]any{"dialog": "changes"})["b3-1"]["rows"])
 	if len(notes) != 3 || notes[0].Cells[2] != "read" {
 		t.Fatalf("the history keeps the notes, read: %+v", notes)
 	}
@@ -486,15 +481,15 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 	t.Parallel()
 	var calls atomic.Int64
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if n := calls.Add(1); c.command() != "voice" || n <= 3 {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if n := calls.Add(1); c.Command() != "voice" || n <= 3 {
 			return provider.Result{Outcome: provider.Failed, Text: fmt.Sprintf("the voice server is down (%d)", n)}
 		}
 		return provider.Result{Text: "voiced"}
 	}))
 
 	e.Project("shorts", jobsModule)
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "knights"}, map[string]any{"slug": "dragons"}, map[string]any{"slug": "castles"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
@@ -509,7 +504,7 @@ func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 
 	var open []struct{ ID int64 }
 	e.Must("deck.processes_list", map[string]any{"failed": true}, &open)
-	failed := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
+	failed := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
 	if len(open) != 1 || open[0].ID != ids[0] || len(failed) != 3 {
 		t.Fatalf("3 failed as the history finds them, 1 open as processes_list gives it: %+v, %d rows", open, len(failed))
 	}

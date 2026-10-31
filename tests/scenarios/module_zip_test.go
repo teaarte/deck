@@ -3,19 +3,19 @@ package scenarios
 import (
 	"archive/zip"
 	"bytes"
+	"deck2/internal/store"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
-
-	"deck2/internal/store"
 )
 
 func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("links", fullManifest)
 	for _, d := range []map[string]any{
 		{"name": "prompt.md", "kind": "prompt", "text": "# Collects links\nMore."},
@@ -34,11 +34,11 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 	e.Must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
 	e.Must("deck.secret_set", map[string]any{"name": "feed", "value": "s3cret-feed-value"}, nil)
 
-	a := e.rowAction("", "settings", "deck.project_export", map[string]any{"project": "links"})
+	a := e.RowAction("", "settings", "deck.project_export", map[string]any{"project": "links"})
 	if a == nil || a["download"] != true {
 		t.Fatalf("a module's row in Settings exports it to a file the browser downloads: %v", a)
 	}
-	code, out := e.press(a)
+	code, out := e.Press(a)
 	var ex struct {
 		File  int64
 		Name  string
@@ -65,7 +65,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		t.Fatal("no secret leaves deck in an export")
 	}
 
-	id := e.upload("", "links.zip", "application/zip", string(body))
+	id := upload(e, "", "links.zip", "application/zip", string(body))
 	var im struct {
 		Name, Status string
 		Rights       []string
@@ -86,17 +86,17 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		!slices.Contains(rights, struct{ What, Detail string }{"read domain", "news.example.com"}) {
 		t.Fatalf("what a draft may do is a row each: %+v", rights)
 	}
-	if b, _ := json.Marshal(e.screenData("", "settings", nil)); !strings.Contains(string(b), `"params":{"project":"links-shared","revision":`) ||
+	if b, _ := json.Marshal(e.ScreenData("", "settings", nil)); !strings.Contains(string(b), `"params":{"project":"links-shared","revision":`) ||
 		!strings.Contains(string(b), `"screen":"draft"`) {
 		t.Fatalf("a draft is enabled from the page of what it may do: %s", b)
 	}
-	rev := e.manifestRevision("links-shared")
-	data := e.screenData("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "links-shared", "revision": "%d"}`, rev)})
+	rev := manifestRevision(e, "links-shared")
+	data := e.ScreenData("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "links-shared", "revision": "%d"}`, rev)})
 	b, _ := json.Marshal(data)
 	if !strings.Contains(string(b), "post_link") {
 		t.Fatalf("the page of a draft lists what it may do: %s", b)
 	}
-	msgs, _ := json.Marshal(e.screenMessages("", "draft", nil))
+	msgs, _ := json.Marshal(e.ScreenMessages("", "draft", nil))
 	if !strings.Contains(string(msgs), "Install modules only from authors you know") {
 		t.Fatalf("under the warning not to install modules of unknown authors: %s", msgs)
 	}
@@ -105,14 +105,14 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		t.Fatalf("its button enables the revision the owner read: %s", b)
 	}
 	e.Must("deck.project_enable", map[string]any{"project": "links-shared", "revision": rev}, nil)
-	if e.project("links-shared").Status != store.ProjectEnabled {
+	if project(e, "links-shared").Status != store.ProjectEnabled {
 		t.Fatal("the draft is enabled")
 	}
 }
 
 func TestAZipThatLeavesItsFolderIsRefused(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	pack := func(files map[string]string) string {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
@@ -124,10 +124,10 @@ func TestAZipThatLeavesItsFolderIsRefused(t *testing.T) {
 		return buf.String()
 	}
 	for _, evil := range []string{"../evil.md", "a/../../evil.md", "/etc/evil.md"} {
-		id := e.upload("", "evil.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, evil: "x"}))
+		id := upload(e, "", "evil.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, evil: "x"}))
 		e.Refused("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, 422, "leaves the module folder")
 	}
-	id := e.upload("", "plain.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, ".hidden/x.md": "x", "__MACOSX/._manifest.json": "x"}))
+	id := upload(e, "", "plain.zip", "application/zip", pack(map[string]string{"manifest.json": `{"version": 13}`, ".hidden/x.md": "x", "__MACOSX/._manifest.json": "x"}))
 	var im struct{ Name string }
 	e.Must("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10)}, &im)
 	if im.Name != "plain" {

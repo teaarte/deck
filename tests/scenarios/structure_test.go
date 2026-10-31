@@ -4,6 +4,9 @@ import (
 	"context"
 	"deck2/internal/app"
 	deckhome "deck2/internal/home"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,14 +14,11 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 )
 
 func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	var recovered any
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		defer func() { recovered = recover() }()
@@ -32,7 +32,7 @@ func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {
 
 func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("mine", ideasManifest)
 	ctx := context.Background()
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
@@ -47,7 +47,7 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 		}
 	}
 	var projects []struct{ Name string }
-	e.projectsOf(&projects)
+	e.ProjectsOf(&projects)
 	if len(projects) != 1 || projects[0].Name != "mine" {
 		t.Fatalf("projects of another workspace must not be listed: %+v", projects)
 	}
@@ -77,7 +77,7 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 
 func TestCoreDocumentNamesKeepTheirKind(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("ideas", ideasManifest)
 	for _, name := range []string{"prompt.md", "manifest.json"} {
 		if code, _ := e.Call("deck.document_save", map[string]any{"project": "ideas", "name": name, "kind": "artifact", "text": "Injected"}); code != 422 {
@@ -93,7 +93,7 @@ func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Project("mine", ideasManifest)
 	if _, err := os.Stat(filepath.Join(deckhome.Layout(home).State(), "deck.db")); err != nil {
 		t.Fatalf("the database lives in the home of deck: %v", err)
@@ -103,7 +103,7 @@ func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
 // TestAWriteOutsideATransactionFailsLoudly: every write runs in Store.Tx; one through the shared queries panics.
 func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	defer func() {
 		if p := recover(); p == nil || !strings.Contains(fmt.Sprint(p), "outside a transaction") {
 			t.Fatalf("a write through Store.Q panics: %v", p)
@@ -116,9 +116,9 @@ func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
 // project of the same name in another workspace keeps its own.
 func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	ctx := context.Background()
-	mine := e.Project("x", plainManifest)
+	mine := e.Project("x", harness.PlainManifest)
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, "deck.db"), []byte("old"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := app.New(app.Config{Home: home}, &Fake{}); err == nil || !strings.Contains(err.Error(), "older layout (deck.db)") {
+	if _, err := app.New(app.Config{Home: home}, &harness.Fake{}); err == nil || !strings.Contains(err.Error(), "older layout (deck.db)") {
 		t.Fatalf("deck does not start on a folder of the older layout: %v", err)
 	}
 }
@@ -163,7 +163,7 @@ func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
 // a manifest saved) holds no screen, and a read of another context inside a transaction does not freeze deck.
 func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("mine", ideasManifest)
 	hold, held := make(chan struct{}), make(chan struct{})
 	go func() {
@@ -180,7 +180,7 @@ func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 		code, _ := e.Call("deck.projects_list", nil)
 		done <- code
 	}()
-	if code := Receive(t, "a read while a transaction is open", done); code != 200 {
+	if code := harness.Receive(t, "a read while a transaction is open", done); code != 200 {
 		t.Fatalf("projects_list: %d", code)
 	}
 }
@@ -189,7 +189,7 @@ func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 // its deadline is an error with the stack in the log, not deck frozen without a line.
 func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.App.Store.Wait = time.Second
 	done := make(chan error, 1)
 	go func() {
@@ -197,7 +197,7 @@ func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t 
 			return e.App.Store.Tx(context.Background(), func(context.Context, *db.Queries) error { return nil })
 		})
 	}()
-	if err := Receive(t, "a transaction inside a transaction to fail", done); err == nil || !strings.Contains(err.Error(), "waited") {
+	if err := harness.Receive(t, "a transaction inside a transaction to fail", done); err == nil || !strings.Contains(err.Error(), "waited") {
 		t.Fatalf("a nested transaction fails with why: %v", err)
 	}
 }
@@ -207,12 +207,12 @@ func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t 
 func TestATableWithoutATopicKeepsDeckFromStarting(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	e := New(t, WithHome(home), WithProvider(&Fake{}))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	if _, err := e.App.Store.DB.Exec(`CREATE TABLE stray (id INTEGER PRIMARY KEY, project_id INTEGER)`); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	if _, err := app.New(app.Config{Home: home}, &Fake{}); err == nil || !strings.Contains(err.Error(), "table stray publishes no topic") {
+	if _, err := app.New(app.Config{Home: home}, &harness.Fake{}); err == nil || !strings.Contains(err.Error(), "table stray publishes no topic") {
 		t.Fatalf("deck does not start with a table it does not know: %v", err)
 	}
 }
@@ -221,7 +221,7 @@ func TestATableWithoutATopicKeepsDeckFromStarting(t *testing.T) {
 // events and its files, but no command; a command takes the token in its header.
 func TestATokenInTheAddressOpensOnlyReads(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	r, err := http.Post(e.URL+"/api/commands/deck.projects_list?token="+e.OwnerToken(), "application/json", strings.NewReader("{}"))
 	if err != nil {
 		t.Fatal(err)

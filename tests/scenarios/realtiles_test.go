@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"os"
 	"strings"
 	"testing"
@@ -13,8 +14,8 @@ func TestRealBrowserThemeStylesTheCards(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
-	e.Project("web", webNotes)
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("web", harness.WebNotes)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.Open(e, "#/deck/apps")

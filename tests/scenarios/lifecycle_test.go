@@ -2,26 +2,26 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/app"
+	"deck2/internal/provider"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/json"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/internal/store/db"
 )
 
-func askQuestion(ctx context.Context, c *Call, q string) map[string]any {
+func askQuestion(ctx context.Context, c *harness.Call, q string) map[string]any {
 	return c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": q}}})
 }
 
 func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 	t.Parallel()
 	asked, answered := make(chan struct{}), make(chan struct{})
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if !c.Req.Resume {
 			askQuestion(ctx, c, "Which topic?")
 			close(asked)
@@ -30,12 +30,12 @@ func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 		}
 		writeIdeas(ctx, c, "late")
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
-	}), WithClock())
+	}), harness.WithClock())
 
 	p := e.Project("ideas", ideasManifest)
 	id := e.Run(p, "collect")
 	a := e.WaitAsk()
-	e.passWaits("the question's wait to pass while the turn still runs", func() bool {
+	e.PassWaits("the question's wait to pass while the turn still runs", func() bool {
 		select {
 		case <-asked:
 			return true
@@ -54,7 +54,7 @@ func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 func TestTwoLateAnswersResumeOnce(t *testing.T) {
 	t.Parallel()
 	var running, maxRunning int32
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Req.Resume {
 			n := atomic.AddInt32(&running, 1)
 			defer atomic.AddInt32(&running, -1)
@@ -70,12 +70,12 @@ func TestTwoLateAnswersResumeOnce(t *testing.T) {
 		askQuestion(ctx, c, "First?")
 		askQuestion(ctx, c, "Second?")
 		return provider.Result{Text: "stopped"}
-	}), WithClock())
+	}), harness.WithClock())
 
 	p := e.Project("ideas", ideasManifest)
 	id := e.Run(p, "collect")
-	e.passState(id, "waiting_answer")
-	var asks []Ask
+	e.PassState(id, "waiting_answer")
+	var asks []harness.Ask
 	e.Must("deck.asks_list", nil, &asks)
 	if len(asks) != 2 {
 		t.Fatalf("want 2 open asks, got %d", len(asks))
@@ -95,8 +95,8 @@ func TestTwoLateAnswersResumeOnce(t *testing.T) {
 
 func TestProviderErrorMarksProcessError(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Fake.script = func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t)
+	e.Fake.Script = func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Outcome: provider.Failed, Text: "boom"}
 	}
 	p := e.Project("ideas", ideasManifest)
@@ -109,7 +109,7 @@ func TestProviderErrorMarksProcessError(t *testing.T) {
 func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 	t.Parallel()
 	var second, third map[string]any
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		call := map[string]any{"command": "make deploy"}
 		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", call)
@@ -118,15 +118,15 @@ func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 		second = c.Approve(ctx, "Bash", call)
 		third = c.Approve(ctx, "Bash", call)
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	}), WithClock())
+	}), harness.WithClock())
 
 	p := e.Project("ideas", ideasManifest)
 	id := e.Run(p, "collect")
-	e.passState(id, "waiting_answer")
+	e.PassState(id, "waiting_answer")
 	a := e.WaitAsk()
 	e.Answer(a.ID, "allow")
 	e.Until("the resume", func() bool { return len(e.Fake.Calls()) >= 2 })
-	e.passState(id, "waiting_answer")
+	e.PassState(id, "waiting_answer")
 	e.App.Runner.Wait()
 	if second["behavior"] != "allow" {
 		t.Fatalf("the allowed call must go through after resume: %v", second)
@@ -141,22 +141,22 @@ func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 
 func TestConfirmationExpiresAndProcessIsTold(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", map[string]any{"command": "rm -rf build"})
 			return provider.Result{Text: "stopped"}
 		}
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	}), WithClock(), WithConfig(
+	}), harness.WithClock(), harness.WithConfig(
 
 		func(c *app.Config) { c.ConfirmTTL = time.Hour }))
 
 	p := e.Project("ideas", ideasManifest)
 	id := e.Run(p, "collect")
-	e.passState(id, "waiting_answer")
+	e.PassState(id, "waiting_answer")
 	a := e.WaitAsk()
 	e.Clock.Add(2 * time.Hour)
-	e.sweep()
+	e.Sweep()
 	e.WaitState(id, "done")
 	if !strings.Contains(e.Fake.Calls()[1].Prompt, "Expired") {
 		t.Fatalf("resume must report the expiry: %q", e.Fake.Calls()[1].Prompt)
@@ -171,21 +171,21 @@ func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	started := make(chan struct{})
-	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	fake := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		close(started)
 		<-ctx.Done()
 		return provider.Result{}
 	}}
-	e := New(t, WithHome(home), WithProvider(fake), WithConfig(func(c *app.Config) { c.QuestionWait, c.ConfirmWait = time.Second, time.Second }))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(fake), harness.WithConfig(func(c *app.Config) { c.QuestionWait, c.ConfirmWait = time.Second, time.Second }))
 	p := e.Project("ideas", ideasManifest)
 	id := e.Run(p, "collect")
 	<-started
 	_ = e.App.Close()
 
-	fake2 := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	fake2 := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}}
-	e2 := e.Restart(WithProvider(fake2))
+	e2 := e.Restart(harness.WithProvider(fake2))
 	e2.Resume()
 	e2.WaitState(id, "done")
 	calls := fake2.Calls()
@@ -197,8 +197,8 @@ func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
 func TestRecordWithoutKeyIsRejected(t *testing.T) {
 	t.Parallel()
 	var out string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		out, _ = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": jsonl(map[string]any{"score": 5})})
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		out, _ = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"score": 5})})
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 
@@ -212,7 +212,7 @@ func TestRecordWithoutKeyIsRejected(t *testing.T) {
 
 func TestDuplicateTriggerIsRejected(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	m := strings.Replace(ideasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`,
 		`"triggers": [{"command": "collect", "cron": "0 9 * * *"}, {"command": "collect", "cron": "0 9 * * *"}]`, 1)
 	code, out := e.Call("deck.project_create", map[string]any{"name": "dup", "manifest": m})
@@ -225,17 +225,17 @@ func itoa(n int64) string { b, _ := json.Marshal(n); return string(b) }
 
 func TestResumeKeepsTheManifestRevisionTheProcessStartedBy(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if !c.Req.Resume {
 			askQuestion(ctx, c, "Go on?")
 			return provider.Result{Text: "waiting"}
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 2}`)}
-	}), WithConfig(
+	}), harness.WithConfig(
 
 		func(c *app.Config) { c.QuestionWait = 50 * time.Millisecond }))
 
-	m := testManifest([]string{agentCommand("job", "")}, nil)
+	m := harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)
 	p := e.Project("pinned", m)
 	id := e.Run(p, "job")
 	e.WaitState(id, "waiting_answer")
@@ -259,12 +259,12 @@ func TestResumeKeepsTheManifestRevisionTheProcessStartedBy(t *testing.T) {
 func TestStopThatSucceedsAlwaysEndsTheProcessStopped(t *testing.T) {
 	t.Parallel()
 	returning := make(chan struct{}, 1)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		returning <- struct{}{}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
 
-	p := e.Project("race", testManifest([]string{agentCommand("job", "")}, nil))
+	p := e.Project("race", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	for i := range 60 {
 		id := e.Run(p, "job")
 		<-returning
@@ -281,21 +281,21 @@ func TestStopThatSucceedsAlwaysEndsTheProcessStopped(t *testing.T) {
 func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	fake := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		askQuestion(ctx, c, "Which topic?")
 		return provider.Result{Text: "stopped"}
 	}}
-	e := New(t, WithHome(home), WithProvider(fake), WithConfig(func(c *app.Config) { c.QuestionWait, c.ConfirmWait = time.Second, time.Second }))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(fake), harness.WithConfig(func(c *app.Config) { c.QuestionWait, c.ConfirmWait = time.Second, time.Second }))
 	p := e.Project("ideas", ideasManifest)
 	id := e.Run(p, "collect")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()
 	_ = e.App.Close()
 
-	fake2 := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	fake2 := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}}
-	e2 := e.Restart(WithProvider(fake2))
+	e2 := e.Restart(harness.WithProvider(fake2))
 	if err := e2.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		_, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: "rust", ID: a.ID})
 		return err
@@ -311,17 +311,17 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 
 func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Req.Resume {
 			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 		}
 		askQuestion(ctx, c, "Which topic?")
 		return provider.Result{Text: "stopped"}
-	}), WithClock())
+	}), harness.WithClock())
 
 	p := e.Project("ideas", ideasManifest)
 	id := e.Run(p, "collect")
-	e.passState(id, "waiting_answer")
+	e.PassState(id, "waiting_answer")
 	a := e.WaitAsk()
 	renamed := strings.NewReplacer(`"name": "collect"`, `"name": "gather"`, `"command": "collect"`, `"command": "gather"`).Replace(ideasManifest)
 	e.Must("deck.manifest_save", map[string]any{"project": "ideas", "manifest": renamed}, nil)
@@ -338,14 +338,14 @@ func TestAStopEndsTheTurnsBeforeTheServerGoes(t *testing.T) {
 	started, ended := make(chan struct{}), make(chan struct{})
 	// Run resumes what runs as at a start of deck, so a second turn of the same process may begin before the stop.
 	var once, end sync.Once
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		once.Do(func() { close(started) })
 		<-ctx.Done()
 		end.Do(func() { close(ended) })
 		return provider.Result{}
 	}))
 
-	p := e.Project("long", testManifest([]string{agentCommand("work", "")}, nil))
+	p := e.Project("long", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	id := e.Run(p, "work")
 	<-started
 	e.App.Run(t.Context(), time.Hour)

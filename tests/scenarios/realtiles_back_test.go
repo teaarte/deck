@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"strings"
@@ -14,11 +15,11 @@ func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for i := range 3 {
 		name := fmt.Sprintf("lab%d", i)
 		e.Project(name, strings.Replace(widgetsOfWork, `"screens": [`, `"screens": [{"name": "main", "title": "Main", "blocks": [{"type": "table", "source": {"collection": "items"}, "columns": [{"label": "Name", "bind": "name"}]}]}, `, 1))
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": jsonl(map[string]any{"name": "one", "n": 1})}, nil)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "items", "records": harness.Jsonl(map[string]any{"name": "one", "n": 1})}, nil)
 	}
 	b := newPlaywright(t)
 	// back goes back to the tiles and watches them for a second: they stand in the first frames the address is theirs,
@@ -49,8 +50,8 @@ func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
 		b.until("the cards", `document.querySelector('[data-cell="today"] [data-widget]') && document.querySelector('[data-cols]')`)
 		cols := int64(colsOf(b))
 		// The owner's own layout: the modules first, Today after them.
-		e.place(b.eval(`localStorage.getItem('deck-device')`), int(cols), deskCard{"lab2", 0, 0, 1, 1}, deskCard{"lab1", 0, 1, 1, 1},
-			deskCard{"lab0", 0, 2, 1, 1}, deskCard{"today", 0, 3, min(2, cols), 2})
+		place(e, b.eval(`localStorage.getItem('deck-device')`), int(cols), harness.DeskCard{ID: "lab2", X: 0, Y: 0, W: 1, H: 1}, harness.DeskCard{ID: "lab1", X: 0, Y: 1, W: 1, H: 1},
+			harness.DeskCard{ID: "lab0", X: 0, Y: 2, W: 1, H: 1}, harness.DeskCard{ID: "today", X: 0, Y: 3, W: min(2, cols), H: 2})
 		b.open(e.URL + "/?reload=" + fmt.Sprint(size.w) + "#/")
 		b.until("the cards with their views where the owner put them", `document.querySelectorAll('[data-cell] [data-widget] [data-screen]').length >= 4 &&
 			document.querySelector('[data-cell="lab2"]').getBoundingClientRect().y < document.querySelector('[data-cell="today"]').getBoundingClientRect().y`)

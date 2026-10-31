@@ -1,7 +1,10 @@
 package scenarios
 
 import (
+	"deck2/internal/app"
 	"deck2/internal/health"
+	"deck2/internal/sandbox"
+	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,29 +12,26 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/sandbox"
 )
 
 // TestAgentsAreFoundWithTheirVersion: deck finds the ACP agents installed with their version, one health row each.
 func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	t.Parallel()
-	f := newACP(t)
-	if err := os.WriteFile(filepath.Join(f.dir, "version"), []byte(" 1.53.0"), 0o644); err != nil {
+	f := harness.NewACP(t)
+	if err := os.WriteFile(filepath.Join(f.Dir, "version"), []byte(" 1.53.0"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	e := New(t, WithConfig(func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
+		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
 	}))
 
 	e.App.Providers.Checks(t.Context(), time.Now())
 	if h := e.WaitHealth("agent:goose", "ok"); h.Version != "goose 1.53.0" {
 		t.Fatalf("an agent is found with its version: %+v", h)
 	}
-	found := func(e *Env) string {
-		var m modelsOut
+	found := func(e *harness.Env) string {
+		var m harness.ModelsOut
 		e.Must("deck.models_list", nil, &m)
 		for _, a := range m.Agents {
 			if a.Name == "goose" {
@@ -43,7 +43,7 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	if got := found(e); got != "goose 1.53.0|ok" {
 		t.Fatalf("the models list shows the agent with its version: %s", got)
 	}
-	gone := New(t, WithConfig(func(c *app.Config) { c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "no-goose")} }))
+	gone := harness.New(t, harness.WithConfig(func(c *app.Config) { c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "no-goose")} }))
 	gone.App.Providers.Checks(t.Context(), time.Now())
 	if _, err := health.Get(t.Context(), gone.App.Store.Q, health.Of{}, "agent:goose"); err == nil {
 		t.Fatal("an agent that is not installed has no health row")
@@ -51,7 +51,7 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	if got := found(gone); got != "|missing" {
 		t.Fatalf("the models list shows an agent that is not installed: %s", got)
 	}
-	if agents := blockData[[]screenRow](t, gone.settingsBlock("Agents", nil)["rows"]); !strings.Contains(fmt.Sprint(agents), "not installed") {
+	if agents := harness.BlockData[[]harness.ScreenRow](t, gone.SettingsBlock("Agents", nil)["rows"]); !strings.Contains(fmt.Sprint(agents), "not installed") {
 		t.Fatalf("the agents tab shows an agent that is not installed: %+v", agents)
 	}
 }
@@ -60,14 +60,14 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 // line and in full on demand, and its dialog the connections; Advanced the agents and the other secrets.
 func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	t.Parallel()
-	f := newACP(t)
-	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
+	f := harness.NewACP(t)
+	if err := os.WriteFile(filepath.Join(f.Dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	llm := acpLLM(t)
-	e := New(t, WithConfig(func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
+		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
 	}))
 
 	e.App.Providers.Checks(t.Context(), time.Now())
@@ -87,16 +87,16 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("a model changed without its kind and price keeps them: %+v", kept)
 	}
 
-	rows := blockData[[]screenRow](t, e.settingsBlock("Who does what", nil)["rows"])
-	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[1] == "image" })
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Who does what", nil)["rows"])
+	i := slices.IndexFunc(rows, func(r harness.ScreenRow) bool { return r.Cells[1] == "image" })
 	if i < 0 || rows[i].Cells[0] != "deck" || rows[i].Cells[2] != "router/x/pic" || rows[i].Cells[3] != "$0.04 a call" || !hasVerb(rows[i].Actions, "remove") {
 		t.Fatalf("the assignments show which models do which work and which one does it now: %+v", rows)
 	}
 	if pick := verb(t, rows[i].Actions, "model"); fmt.Sprint(pick["options"]) != "[router/x/pic]" || fmt.Sprint(pick["groups"]) != "[router]" {
 		t.Fatalf("the models a row picks from stand under their provider: %+v", pick)
 	}
-	var acp *listItem
-	models := e.allModels(nil)
+	var acp *harness.ListItem
+	models := e.AllModels(nil)
 	for i, r := range models {
 		if r.Title == "acp" {
 			acp = &models[i]
@@ -109,18 +109,18 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	if !strings.Contains(whole, "--version") || !hasVerb(acp.Actions, "check") {
 		t.Fatalf("the error of a model is in full on demand, and its check runs again: %+v", acp)
 	}
-	agents := blockData[[]screenRow](t, e.settingsBlock("Agents", nil)["rows"])
+	agents := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Agents", nil)["rows"])
 	if !strings.Contains(fmt.Sprint(agents), "goose --version") {
 		t.Fatalf("the agents show why one gives no version: %+v", agents)
 	}
-	conns := blockData[[]screenRow](t, e.settingsBlock("Connections", nil)["rows"])
+	conns := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Connections", nil)["rows"])
 	if len(conns) != 4 || conns[2].Cells[0] != "router" || conns[3].Cells[0] != "whisper" || fmt.Sprint(verb(t, conns[3].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
 		t.Fatalf("the connections tab lists the connections, the whisper of deck too, and edits each as it is: %+v", conns)
 	}
 	if conns[0].Cells[0] != "claude-code" || conns[1].Cells[0] != "codex" || len(conns[0].Actions)+len(conns[1].Actions) != 0 {
 		t.Fatalf("the connections of the CLIs are deck's own, with no edit or remove: %+v", conns[:2])
 	}
-	secrets := blockData[[]screenRow](t, e.settingsBlock("Secrets", nil)["rows"])
+	secrets := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Secrets", nil)["rows"])
 	if !strings.Contains(fmt.Sprint(secrets), "wiki") {
 		t.Fatalf("the connections tab lists the secrets of tools too: %+v", secrets)
 	}
@@ -129,13 +129,13 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 // TestAnAgentWhoseVersionFailsSaysSo: an agent whose --version fails is red with that error and no version.
 func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 	t.Parallel()
-	f := newACP(t)
-	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
+	f := harness.NewACP(t)
+	if err := os.WriteFile(filepath.Join(f.Dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	e := New(t, WithConfig(func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
+		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
 	}))
 
 	e.App.Providers.Checks(t.Context(), time.Now())
@@ -148,10 +148,10 @@ func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 // assigned to it anyway refuses with the agents to set it in.
 func TestAModelInNoAgentRunsNoCommand(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "x/free", "name": "free", "kind": "text"}, nil)
-	e.Project("plain", testManifest([]string{agentCommand("work", "")}, nil))
+	e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	if code, out := e.Call("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"free"}}); code != 422 || !strings.Contains(string(out), "goose") {
 		t.Fatalf("a model in no agent is not assigned: %d %s", code, out)
 	}
@@ -167,11 +167,11 @@ func TestAModelInNoAgentRunsNoCommand(t *testing.T) {
 // of its calls from before does not keep it out of its assignment.
 func TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls(t *testing.T) {
 	t.Parallel()
-	f := newACP(t)
+	f := harness.NewACP(t)
 	llm := acpLLM(t)
-	e := New(t, WithConfig(func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
+		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
 	}))
 
 	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)

@@ -1,32 +1,32 @@
 package scenarios
 
 import (
+	"deck2/internal/events"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/events"
 )
 
 // lightScreens are the most a whole read of each screen of deck may weigh on lightEnv, in bytes.
 var lightScreens = map[string]int{"settings": 26_000, "files": 25_000, "spend": 10_000, "schedule": 10_000, "cockpit": 10_000, "chat": 10_000}
 
 // lightEnv is deck with a working week behind it: modules with many records and files, runs and a long chat.
-func lightEnv(t *testing.T) *Env {
+func lightEnv(t *testing.T) *harness.Env {
 	t.Helper()
-	e := New(t)
+	e := harness.New(t)
 	for _, name := range []string{"notes", "clips", "jobs"} {
-		p := e.Project(name, strings.Replace(webNotes, `"menu": ["main"]}`, `"menu": ["main"]}`, 1))
+		p := e.Project(name, strings.Replace(harness.WebNotes, `"menu": ["main"]}`, `"menu": ["main"]}`, 1))
 		var recs []map[string]any
 		for i := range 200 {
 			recs = append(recs, map[string]any{"title": fmt.Sprintf("%s note %03d", name, i), "source": "web", "note": strings.Repeat("words ", 20)})
 		}
-		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": jsonl(recs...)}, nil)
+		e.Must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": harness.Jsonl(recs...)}, nil)
 		for i := range 60 {
-			e.upload(name, fmt.Sprintf("file-%02d.txt", i), "text/plain", strings.Repeat("x", 100))
+			upload(e, name, fmt.Sprintf("file-%02d.txt", i), "text/plain", strings.Repeat("x", 100))
 		}
 		for i := range 20 {
 			if _, err := e.App.Store.DB.Exec(`INSERT INTO process (project_id, command, kind, state, started_at, finished_at) VALUES (?, 'score', 'agent', ?, ?, ?)`,
@@ -35,8 +35,8 @@ func lightEnv(t *testing.T) *Env {
 			}
 		}
 	}
-	topic := e.say(0, "hello")
-	e.masterSaid(topic, 1)
+	topic := e.Say(0, "hello")
+	e.MasterSaid(topic, 1)
 	return e
 }
 
@@ -46,13 +46,13 @@ func TestTheScreensOfDeckStayLight(t *testing.T) {
 	t.Parallel()
 	e := lightEnv(t)
 	for screen, most := range lightScreens {
-		raw, _ := json.Marshal(e.screenMessages("", screen, map[string]any{"lang": "ru"}))
+		raw, _ := json.Marshal(e.ScreenMessages("", screen, map[string]any{"lang": "ru"}))
 		t.Logf("%s: %d bytes", screen, len(raw))
 		if len(raw) > most {
 			t.Errorf("a whole read of %s weighs %d bytes, more than %d", screen, len(raw), most)
 		}
 	}
-	raw, _ := json.Marshal(e.screenMessages("notes", "main", nil))
+	raw, _ := json.Marshal(e.ScreenMessages("notes", "main", nil))
 	if t.Logf("notes main: %d bytes", len(raw)); len(raw) > 15_000 {
 		t.Errorf("a screen of a module with 200 records weighs %d bytes", len(raw))
 	}
@@ -66,7 +66,7 @@ func TestRealBrowserStaysQuick(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := lightEnv(t)
-	var recs []recordRow
+	var recs []harness.RecordRow
 	e.Must("deck.records_list", map[string]any{"project": "notes", "collection": "notes"}, &recs)
 	b := newPlaywright(t)
 	b.Open(e, "#/")

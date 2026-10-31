@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -10,18 +11,18 @@ import (
 
 func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(webAgent()))
+	e := harness.New(t, harness.WithAgent(webAgent()))
 	e.Project("notes", webManifest("http://127.0.0.1:1"))
 	var up struct{ IDs []int64 }
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "score": 3})}, &up)
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 3})}, &up)
 	score := func(topic string) any {
 		in := map[string]any{"record": up.IDs[0]}
 		var block map[string]json.RawMessage
 		if topic == "" {
-			block = e.screenData("notes", "note", in)["b2"]
+			block = e.ScreenData("notes", "note", in)["b2"]
 		} else {
 			in["topic"] = topic
-			for _, m := range e.screenMessages("notes", "note", in) {
+			for _, m := range e.ScreenMessages("notes", "note", in) {
 				var dm struct {
 					Path  string
 					Value map[string]json.RawMessage
@@ -31,13 +32,13 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 				}
 			}
 		}
-		acts := blockData[[]map[string]any](t, block["value"])
+		acts := harness.BlockData[[]map[string]any](t, block["value"])
 		return acts[0]["params"].(map[string]any)["score"]
 	}
 	if got := fmt.Sprint(score("")); got != "3" {
 		t.Fatalf("the button of the page takes the field of its record: %v", got)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "score": 9})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 9})}, nil)
 	if got := fmt.Sprint(score("collection")); got != "9" {
 		t.Fatalf("after a change of the record its buttons are read again with the rest: %v", got)
 	}
@@ -47,7 +48,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 // its when holds for, takes a param from an expression over the row, asks first or asks for a typed value.
 func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("notes", `{"version": 13,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
@@ -59,8 +60,8 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
     "actions": [{"label": "Boost", "command": "touch", "params": {"note": "=_id", "score": "=string(score * 2)"}, "when": "score >= 5", "confirm": true},
       {"label": "Rate", "command": "touch", "params": {"note": "=_id"}, "input": "score"}]}]}]}`)
 	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 7})}, nil)
-	rows := blockData[[]screenRow](t, e.screenData("notes", "main", nil)["b0"]["rows"])
+		"records": harness.Jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 7})}, nil)
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenData("notes", "main", nil)["b0"]["rows"])
 	if len(rows) != 2 || len(rows[0].Actions) != 1 || rows[0].Actions[0]["label"] != "Rate" || rows[0].Actions[0]["input"] != "score" {
 		t.Fatalf("a button whose when does not hold is not on the row; the other asks for its input: %+v", rows)
 	}
@@ -81,9 +82,9 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 // stands in for a yes and takes nothing the owner types.
 func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(idle))
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	with := func(undo string) string {
-		return strings.Replace(webNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
+		return strings.Replace(harness.WebNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
 			`"actions": [{"label": "Open", "screen": "note"}, {"label": "Mark", "command": "mark"`+undo+`}]`, 1)
 	}
 	for undo, want := range map[string]string{
@@ -98,7 +99,7 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 	e.Project("web", with(`, "undo": {"command": "tag", "params": {"tag": "=title"}}`))
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
 	found := false
-	for _, v := range e.screenData("web", "main", nil) {
+	for _, v := range e.ScreenData("web", "main", nil) {
 		for _, raw := range v {
 			found = found || strings.Contains(string(raw), `"undo":{"command":"web.tag","params":{"tag":"alpha"}`)
 		}
@@ -121,15 +122,15 @@ const fixedClips = `{"version": 13,
 // resolved by the server, goes apart for the call; a fixed field without a value is refused on save.
 func TestAFormKeepsItsFixedFieldsFromTheOwner(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	check := newCatalogCheck(t)
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	check := harness.NewCatalogCheck(t)
 	e.Project("clips", fmt.Sprintf(fixedClips, `"slug"`))
 	e.Must("deck.records_upsert", map[string]any{"project": "clips", "collection": "clips",
-		"records": jsonl(map[string]any{"slug": "a-1", "title": "First"})}, nil)
+		"records": harness.Jsonl(map[string]any{"slug": "a-1", "title": "First"})}, nil)
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "clips", "collection": "clips"}, &recs)
-	check.messages(t, e.screenMessages("clips", "clip", map[string]any{"record": recs[0].ID}))
-	form := blockData[struct {
+	check.Messages(t, e.ScreenMessages("clips", "clip", map[string]any{"record": recs[0].ID}))
+	form := harness.BlockData[struct {
 		Values, Fixed map[string]any
 		Commands      []struct {
 			Input struct {
@@ -138,7 +139,7 @@ func TestAFormKeepsItsFixedFieldsFromTheOwner(t *testing.T) {
 			}
 			Order []string
 		}
-	}](t, e.screenData("clips", "clip", map[string]any{"record": recs[0].ID})["b0"]["value"])
+	}](t, e.ScreenData("clips", "clip", map[string]any{"record": recs[0].ID})["b0"]["value"])
 	in := form.Commands[0]
 	if form.Fixed["slug"] != "a-1" || form.Values["slug"] != nil || form.Values["title"] != "First" || in.Input.Properties["slug"] != nil ||
 		slices.Contains(in.Input.Required, "slug") || slices.Contains(in.Order, "slug") {
@@ -152,14 +153,14 @@ func TestAFormKeepsItsFixedFieldsFromTheOwner(t *testing.T) {
 // dialog filled from the item, nothing called; an unknown screen or param of it is refused on save.
 func TestAButtonOfAModuleOpensAScreenOfDeckFilled(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	open := `"actions": [{"label": "Open", "screen": "note"}]`
 	add := func(button string) string {
-		return strings.Replace(webNotes, open, `"actions": [{"label": "Open", "screen": "note"}, `+button+`]`, 1)
+		return strings.Replace(harness.WebNotes, open, `"actions": [{"label": "Open", "screen": "note"}, `+button+`]`, 1)
 	}
 	e.Project("web", add(`{"label": "Add", "screen": "deck/settings", "params": {"tab": "Models", "dialog": "model", "model": "=title", "connection": "openrouter"}, "when": "score == nil"}`))
 	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "qwen"}`}, nil)
-	rows := blockData[[]screenRow](t, e.screenBlock("web", "main", "Notes", nil)["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "main", "Notes", nil)["rows"])
 	if len(rows) != 1 || len(rows[0].Actions) != 2 {
 		t.Fatalf("the row has both buttons: %+v", rows)
 	}

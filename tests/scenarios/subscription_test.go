@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"slices"
 	"testing"
 )
@@ -9,10 +10,10 @@ import (
 // subscription: the process, the spend by day and by model and the spend screen keep it apart from the money spent.
 func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.stream(0, "ok.jsonl")
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
 	e := clockCLIEnv(t, c)
-	id := e.Run(e.Project("plain", plainManifest), "work")
+	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn runs: %+v", got)
 	}
@@ -33,8 +34,8 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 	if len(days) != 1 || days[0].CostUSD != 0 || days[0].SubscriptionUSD < 0.04 || !days[0].Subscription {
 		t.Fatalf("the spend keeps the estimate out of the money: %+v", days)
 	}
-	page := e.screenData("", "spend", nil)
-	rows := blockData[[]screenRow](t, page["b2-0-0"]["rows"])
+	page := e.ScreenData("", "spend", nil)
+	rows := harness.BlockData[[]harness.ScreenRow](t, page["b2-0-0"]["rows"])
 	if len(rows) != 1 || rows[0].Cells[0] != "plain" || rows[0].Cells[1] != nil || rows[0].Cells[2].(float64) < 0.04 {
 		t.Fatalf("the spend of a project shows a model on a subscription apart from the money paid: %+v", rows)
 	}
@@ -65,14 +66,14 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 // subscription keeps what the turns of its agent would cost out of the money, as Claude Code does.
 func TestATurnOnAModelOfAConnectionOnASubscriptionCostsNoMoney(t *testing.T) {
 	t.Parallel()
-	f := newACP(t)
-	e := New(t, WithACP(f, acpLLM(t)))
+	f := harness.NewACP(t)
+	e := harness.New(t, harness.WithACP(f, acpLLM(t)))
 	if _, err := e.App.Store.DB.Exec(`UPDATE model SET subscription = 1, input_usd = 1000, output_usd = 1000 WHERE name = 'acp'`); err != nil {
 		t.Fatal(err)
 	}
-	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
+	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	id := e.Run(e.acpProject("paint", colorManifest), "work")
+	id := e.Run(e.AcpProject("paint", colorManifest), "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn runs: %+v", got)
 	}
@@ -99,7 +100,7 @@ func TestATurnOnAModelOfAConnectionOnASubscriptionCostsNoMoney(t *testing.T) {
 // and it keeps the mark when changed without it.
 func TestAModelOfTheSettingsMayBeOnASubscription(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "zai", "api": "openai", "url": "http://127.0.0.1:1/v1", "key": "k"}, nil)
 	var m struct{ Subscription bool }
 	e.Must("deck.model_set", map[string]any{"connection": "zai", "model": "glm-5", "kind": "text", "subscription": true}, &m)
@@ -116,10 +117,10 @@ func TestAModelOfTheSettingsMayBeOnASubscription(t *testing.T) {
 // an empty status.
 func TestAModelNeverCalledSaysSo(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "zai", "api": "openai", "url": "http://127.0.0.1:1/v1", "key": "k"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "zai", "model": "glm-5", "kind": "text"}, nil)
-	rows := e.allModels(nil)
+	rows := e.AllModels(nil)
 	for _, r := range rows {
 		if r.Title == "zai/glm-5" {
 			if r.Tone != "muted" || r.Details != "No work has gone to it yet" || r.Group != "zai" {

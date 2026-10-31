@@ -3,6 +3,7 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	"deck2/tests/harness"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,11 +25,11 @@ import (
 // first; a read of the block of another tab gives its blocks, as the client does when the owner shows it.
 func TestATabNotShownIsReadWhenShown(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("notes", webManifest("http://127.0.0.1:1"))
-	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "score": 7})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha", "score": 7})}, nil)
 	read := func(extra map[string]any) []string {
-		return slices.Sorted(maps.Keys(dataOf(t, e.screenMessages("notes", "main", extra))))
+		return slices.Sorted(maps.Keys(harness.DataOf(t, e.ScreenMessages("notes", "main", extra))))
 	}
 	if got := read(nil); !slices.Contains(got, "b1-0-0") || slices.Contains(got, "b1-1-0") {
 		t.Fatalf("the first tab is read, the other waits: %v", got)
@@ -40,8 +41,8 @@ func TestATabNotShownIsReadWhenShown(t *testing.T) {
 		t.Fatalf("a read of the block of a tab gives its blocks: %v", got)
 	}
 	var tabs int
-	all := dataOf(t, e.screenMessages("", "spend", nil))
-	whole := e.screenData("", "spend", nil)
+	all := harness.DataOf(t, e.ScreenMessages("", "spend", nil))
+	whole := e.ScreenData("", "spend", nil)
 	for id := range whole {
 		if strings.HasPrefix(id, "b2-") {
 			tabs++
@@ -56,25 +57,25 @@ func TestATabNotShownIsReadWhenShown(t *testing.T) {
 // repeat the cell are left out, a save names such a block on a collection past a page.
 func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	m := strings.Replace(webNotes, `"columns": [{"label": "Title", "bind": "title"}]`,
+	e := harness.New(t)
+	m := strings.Replace(harness.WebNotes, `"columns": [{"label": "Title", "bind": "title"}]`,
 		`"columns": [{"label": "Title", "bind": "title", "details": "title"}, {"label": "Note", "bind": "source", "details": "note"}]`, 1)
 	e.Project("web", m)
 	var recs []map[string]any
 	for i := range 60 {
 		recs = append(recs, map[string]any{"title": fmt.Sprintf("note %02d", i), "source": "web", "note": "longer"})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(recs...)}, nil)
-	data := dataOf(t, e.screenMessages("web", "main", nil))
-	rows := blockData[[]screenRow](t, data["b3"]["rows"])
-	if len(rows) != 50 || string(data["b3"]["more"]) != "10" || len(blockData[[]map[string]any](t, data["b0"]["items"])) != 50 {
+	e.Must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(recs...)}, nil)
+	data := harness.DataOf(t, e.ScreenMessages("web", "main", nil))
+	rows := harness.BlockData[[]harness.ScreenRow](t, data["b3"]["rows"])
+	if len(rows) != 50 || string(data["b3"]["more"]) != "10" || len(harness.BlockData[[]map[string]any](t, data["b0"]["items"])) != 50 {
 		t.Fatalf("a table and a list without a limit show a page and say how many more: %d rows, more %s", len(rows), data["b3"]["more"])
 	}
 	if d := rows[0].Details; len(d) != 2 || d[0] != nil || d[1] != "longer" {
 		t.Fatalf("details that say what the cell says are left out: %v", d)
 	}
-	more := dataOf(t, e.screenMessages("web", "main", map[string]any{"pages": `{"b3": 2}`}))
-	if n := len(blockData[[]screenRow](t, more["b3"]["rows"])); n != 60 {
+	more := harness.DataOf(t, e.ScreenMessages("web", "main", map[string]any{"pages": `{"b3": 2}`}))
+	if n := len(harness.BlockData[[]harness.ScreenRow](t, more["b3"]["rows"])); n != 60 {
 		t.Fatalf("the next page shows the rest: %d", n)
 	}
 	var saved struct{ Warnings []string }
@@ -92,7 +93,7 @@ func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 // picture, a small one is its own; a picture of a data folder has one made when asked; the copies are no files.
 func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	p := e.Project("shorts", videosManifest)
 	png := func(w, h int) string {
 		img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -104,8 +105,8 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		_ = gopng.Encode(&b, img)
 		return b.String()
 	}
-	big := e.upload("shorts", "big.png", "image/png", png(1600, 900))
-	small := e.upload("shorts", "small.png", "image/png", png(64, 36))
+	big := upload(e, "shorts", "big.png", "image/png", png(1600, 900))
+	small := upload(e, "shorts", "small.png", "image/png", png(64, 36))
 	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "wide.png"), []byte(png(1500, 500)), 0o600)); err != nil {
 		t.Fatal(err)
 	}
@@ -124,13 +125,13 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 		strings.Contains(seen[big], fmt.Sprintf("/api/files/%d ", big)) {
 		t.Fatalf("a picture has its light copy with its size, a small one is its own, and the copies are no files: %v", seen)
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+	e.Must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": harness.Jsonl(
 		map[string]any{"slug": "a", "file": fmt.Sprint(big)}, map[string]any{"slug": "b", "file": "wide.png"})}, nil)
 	var files []struct {
 		URL, Thumb    string
 		Width, Height int
 	}
-	_ = json.Unmarshal(e.screenData("shorts", "watch", nil)["b0"]["files"], &files)
+	_ = json.Unmarshal(e.ScreenData("shorts", "watch", nil)["b0"]["files"], &files)
 	if len(files) != 2 || files[0].Thumb == "" || files[0].Thumb == files[0].URL || files[1].Thumb != files[1].URL+"?thumb=1" || files[1].Width != 1500 {
 		t.Fatalf("a media block gives the light copy and the size of each picture: %+v", files)
 	}
@@ -150,10 +151,10 @@ func TestAPictureShowsSmallByItsLightCopy(t *testing.T) {
 // turn apart; a line of a log reads the turn alone, and only a line of the master's.
 func TestAChatReadsItsPartsByTheirOwnTopics(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	paths := func(extra map[string]any) []string {
 		var out []string
-		for _, m := range e.screenMessages("", "chat", extra) {
+		for _, m := range e.ScreenMessages("", "chat", extra) {
 			var dm struct{ Path string }
 			if json.Unmarshal(m["updateDataModel"], &dm) == nil && dm.Path != "" {
 				out = append(out, dm.Path)

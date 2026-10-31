@@ -4,6 +4,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/tests/harness"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -40,7 +41,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	control.HTTPTestServer.Start()
 	t.Cleanup(control.HTTPTestServer.Close)
 
-	e := New(t)
+	e := harness.New(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	srv := api.New(e.App, e.OwnerToken(), web.FS())

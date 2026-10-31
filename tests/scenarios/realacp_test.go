@@ -1,8 +1,11 @@
 package scenarios
 
 import (
+	"deck2/internal/app"
 	"deck2/internal/health"
 	deckhome "deck2/internal/home"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,9 +15,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/store/db"
 )
 
 // realACP gives the installed ACP agents by name and the model they run on: a local Ollama, or the API of
@@ -66,11 +66,11 @@ func TestRealACPAgents(t *testing.T) {
 	bins, url, model := realACP(t)
 	for agent, bin := range bins {
 		t.Run(agent, func(t *testing.T) {
-			svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-			e := New(t, WithConfig(func(c *app.Config) {
+			svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
+			e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 				c.ACPBinaries = map[string]string{agent: bin}
 				c.SelfCheckCeiling, c.QuestionWait, c.ConfirmWait = 20*time.Minute, 4*time.Minute, 4*time.Minute
-			}), WithWait(25*time.Minute))
+			}), harness.WithWait(25*time.Minute))
 
 			start := time.Now()
 			add := map[string]any{"name": "acp", "url": url, "model": model, "no_cloud": true, "agent": agent}
@@ -78,7 +78,7 @@ func TestRealACPAgents(t *testing.T) {
 				e.Must("deck.secret_set", map[string]any{"name": "model_key", "value": key}, nil)
 				add["key_secret"], add["no_cloud"] = "model_key", false
 			}
-			e.mustAgentModel(add)
+			e.MustAgentModel(add)
 			var h db.Health
 			for try := 1; try <= 3; try++ {
 				if try > 1 {
@@ -110,7 +110,7 @@ func TestRealACPAgents(t *testing.T) {
 			}
 			for i, tc := range []struct{ name, extra string }{{"open", ""}, {"closed", `, "no_network": true`}} {
 				data := filepath.Join(deckhome.Layout(home).Work(), "projects", itoa(next+int64(i)), "data")
-				p := e.acpProject(tc.name, acpRealManifest(tc.name, svc.URL, tc.extra, deckhome.Layout(home).State(), data))
+				p := e.AcpProject(tc.name, acpRealManifest(tc.name, svc.URL, tc.extra, deckhome.Layout(home).State(), data))
 				if p != next+int64(i) {
 					t.Fatalf("project %s got id %d, the data folder in its prompt is for %d", tc.name, p, next+int64(i))
 				}
@@ -121,7 +121,7 @@ func TestRealACPAgents(t *testing.T) {
 					if st := e.Proc(id).State; st == "done" || st == "error" {
 						return true
 					}
-					var asks []Ask
+					var asks []harness.Ask
 					_, out := e.Call("deck.asks_list", nil)
 					_ = json.Unmarshal(out, &asks)
 					for _, ask := range asks {

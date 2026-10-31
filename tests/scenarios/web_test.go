@@ -2,6 +2,8 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,13 +11,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // searxng is a fake SearXNG that answers its JSON search, or fails with the status it is set to.
-func searxng(t *testing.T, failing *atomic.Int32) *service {
-	return newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+func searxng(t *testing.T, failing *atomic.Int32) *harness.Service {
+	return harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if f := failing.Load(); f != 0 {
 			w.WriteHeader(int(f))
 			return
@@ -24,13 +24,13 @@ func searxng(t *testing.T, failing *atomic.Int32) *service {
 			http.NotFound(w, r)
 			return
 		}
-		jsonReply(w, fmt.Sprintf(`{"results": [{"title": "Hit for %s", "url": "https://example.com/a", "content": "a snippet"},
+		harness.JsonReply(w, fmt.Sprintf(`{"results": [{"title": "Hit for %s", "url": "https://example.com/a", "content": "a snippet"},
 			{"title": "Second", "url": "https://example.com/b", "content": "more"}]}`, r.URL.Query().Get("q")))
 	})
 }
 
 // useSearch adds a search service at url as the owner does: a connection, a model of kind search, its assignment.
-func (e *Env) useSearch(name, url string) {
+func useSearch(e *harness.Env, name, url string) {
 	e.T.Helper()
 	e.Must("deck.connection_set", map[string]any{"name": name, "api": "raw", "url": url, "local": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": name, "model": name, "name": name, "kind": "search", "free": true}, nil)
@@ -42,14 +42,14 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 	t.Parallel()
 	var failing atomic.Int32
 	search := searxng(t, &failing)
-	page := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	page := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(`<html><head><title>The page</title><script>var secret = 1;</script></head>
 <body><h1>Heading</h1><p>First   paragraph.</p><style>p {}</style><p>Second</p></body></html>`))
 	})
 	var mu sync.Mutex
 	got := map[string][]string{}
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		var out []string
 		for _, call := range []struct {
 			tool string
@@ -63,16 +63,16 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 			out = append(out, fmt.Sprint(failed, " ", text))
 		}
 		mu.Lock()
-		got[c.command()] = out
+		got[c.Command()] = out
 		mu.Unlock()
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
 
-	e.useSearch("searxng", search.URL)
+	useSearch(e, "searxng", search.URL)
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
-	open := `{"version": 13, "domains": {"read": ["127.0.0.1"]}, "commands": [` + agentCommand("look", "") + `]}`
+	open := `{"version": 13, "domains": {"read": ["127.0.0.1"]}, "commands": [` + harness.AgentCommand("look", "") + `]}`
 	e.WaitState(e.Run(e.Project("open", open), "look"), "done")
-	closed := `{"version": 13, "no_network": true, "commands": [` + agentCommand("hide", "") + `]}`
+	closed := `{"version": 13, "no_network": true, "commands": [` + harness.AgentCommand("hide", "") + `]}`
 	e.WaitState(e.Run(e.Project("closed", closed), "hide"), "done")
 
 	mu.Lock()
@@ -86,15 +86,15 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 		!strings.Contains(look[1], `Heading\nFirst paragraph.\nSecond`) || strings.Contains(look[1], "secret") {
 		t.Fatalf("a page of its domains comes as its words: %v", look[1])
 	}
-	if !strings.HasPrefix(look[2], "true ") || !strings.Contains(look[2], "domains") || len(page.requests()) != 1 {
-		t.Fatalf("a page outside its domains is refused unread: %v, %d requests", look[2], len(page.requests()))
+	if !strings.HasPrefix(look[2], "true ") || !strings.Contains(look[2], "domains") || len(page.Requests()) != 1 {
+		t.Fatalf("a page outside its domains is refused unread: %v, %d requests", look[2], len(page.Requests()))
 	}
 	for i, h := range hide {
 		if !strings.HasPrefix(h, "true ") || !strings.Contains(h, "no_network") {
 			t.Fatalf("a project with no_network has no web (%d): %v", i, hide)
 		}
 	}
-	if n := len(search.requests()); n != 1 {
+	if n := len(search.Requests()); n != 1 {
 		t.Fatalf("only the open project searched: %d", n)
 	}
 
@@ -113,7 +113,7 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 // TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold: a search with nothing assigned says how to set SearXNG up.
 func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	if code, out := e.Call("deck.web_search", map[string]any{"query": "deck"}); code != 422 || !strings.Contains(string(out), "searxng/searxng") ||
 		!strings.Contains(string(out), "only read pages") {
 		t.Fatalf("a search with no service says how to add one: %d %s", code, out)
@@ -127,8 +127,8 @@ func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 // set up the health of a command that calls deck.web_search there says the agent only reads pages.
 func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithACP(newACP(t), acpLLM(t)))
-	scout := strings.Replace(agentCommand("scout", ""), `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.web_search"]`, 1)
+	e := harness.New(t, harness.WithACP(harness.NewACP(t), acpLLM(t)))
+	scout := strings.Replace(harness.AgentCommand("scout", ""), `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.web_search"]`, 1)
 	e.Project("scout", `{"version": 13, "commands": [`+scout+`]}`)
 	e.UseModels("scout.scout", "acp")
 	warned := func() string {
@@ -143,7 +143,7 @@ func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
 		t.Fatalf("without a search the health of the command says how to add one: %q", w)
 	}
 	var failing atomic.Int32
-	e.useSearch("searxng", searxng(t, &failing).URL)
+	useSearch(e, "searxng", searxng(t, &failing).URL)
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
 	if w := warned(); w != "" {
 		t.Fatalf("with a search the command is healthy: %q", w)
@@ -157,7 +157,7 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 	var failing atomic.Int32
 	search := searxng(t, &failing)
 	var said string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		said, _ = c.Tool(ctx, "web_search", map[string]any{"query": "deck"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
@@ -165,12 +165,12 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "paid", "api": "raw", "url": search.URL}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "paid", "model": "paid", "name": "paid", "kind": "search", "call_usd": 0.01}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"paid"}}, nil)
-	e.Project("sketch", `{"version": 13, "commands": [`+agentCommand("look", "")+`]}`)
+	e.Project("sketch", `{"version": 13, "commands": [`+harness.AgentCommand("look", "")+`]}`)
 	var try struct{ Process int64 }
 	e.Must("deck.command_try", map[string]any{"live": true, "command": "sketch.look"}, &try)
 	e.WaitState(try.Process, "done")
-	if !strings.Contains(said, "trial run") || len(search.requests()) != 0 {
-		t.Fatalf("a trial does not search through a paid service: %q, %d requests", said, len(search.requests()))
+	if !strings.Contains(said, "trial run") || len(search.Requests()) != 0 {
+		t.Fatalf("a trial does not search through a paid service: %q, %d requests", said, len(search.Requests()))
 	}
 }
 
@@ -178,13 +178,13 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 // run SearXNG; the warning goes once a search is assigned.
 func TestHealthSaysHowToSetUpSearch(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	row := e.WaitHealth("search", "warning")
 	if !strings.Contains(row.Error, "docker run") || !strings.Contains(row.Error, `default_lang: "en"`) || !strings.Contains(row.Error, "only read pages") {
 		t.Fatalf("the warning says how to set up search: %s", row.Error)
 	}
 	var failing atomic.Int32
-	e.useSearch("searxng", searxng(t, &failing).URL)
+	useSearch(e, "searxng", searxng(t, &failing).URL)
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
 	for _, h := range e.Health() {
 		if h.Subject == "search" {

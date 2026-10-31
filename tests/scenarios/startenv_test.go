@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	deckhome "deck2/internal/home"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -30,7 +31,7 @@ var listening = regexp.MustCompile(`url="(http://[^/]+)/\?token=([0-9a-f]+)"`)
 func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "deck")
-	if out, err := exec.Command("go", "build", "-o", bin, filepath.Join(Root, "cmd/deck")).CombinedOutput(); err != nil {
+	if out, err := exec.Command("go", "build", "-o", bin, filepath.Join(harness.Root, "cmd/deck")).CombinedOutput(); err != nil {
 		t.Fatalf("build deck: %v\n%s", err, out)
 	}
 	// Agent CLIs that fail stand before the owner's, so a self-check never runs on the owner's accounts.
@@ -72,7 +73,7 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 			t.Logf("deck said:\n%s", strings.Join(said, "\n"))
 		}
 	}()
-	m := Receive(t, "deck to start", up)
+	m := harness.Receive(t, "deck to start", up)
 	started = true
 	return &deckBinary{cmd: cmd, url: m[1], token: m[2]}
 }
@@ -108,9 +109,9 @@ func TestDeckRestartsItselfWithACleanEnvironment(t *testing.T) {
 
 func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 	t.Parallel()
-	slow := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+	slow := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		time.Sleep(2 * time.Second)
-		jsonReply(w, `{"ok": true}`)
+		harness.JsonReply(w, `{"ok": true}`)
 	})
 	d := startDeck(t, t.TempDir())
 	m := fmt.Sprintf(`{"version": 13, "tools": {"http": [{"name": "slow", "description": "Answers slowly.", "method": "GET",
@@ -128,7 +129,7 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 		code, out, err := d.call("late.slow", map[string]any{})
 		got <- answer{code, out, err}
 	}()
-	Until(t, "the call to reach the tool", func() bool { return len(slow.requests()) > 0 })
+	harness.Until(t, "the call to reach the tool", func() bool { return len(slow.Requests()) > 0 })
 	_ = d.cmd.Process.Signal(syscall.SIGTERM)
 	a := <-got
 	if a.err != nil || a.code != 200 || !strings.Contains(a.out, "ok") {
@@ -136,7 +137,7 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() { done <- d.cmd.Wait() }()
-	Receive(t, "deck to exit after the stop", done)
+	harness.Receive(t, "deck to exit after the stop", done)
 }
 
 func TestTheHomeAndTheTokenOfDeckAreOnlyTheOwners(t *testing.T) {

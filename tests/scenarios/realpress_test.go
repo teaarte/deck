@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"fmt"
 	"os"
 	"strconv"
@@ -19,19 +20,19 @@ func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	for _, m := range []string{"qwen", "gemma"} {
 		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
 	}
-	e.Project("shorts", plainManifest)
+	e.Project("shorts", harness.PlainManifest)
 	e.Project("picker", pickerManifest)
-	e.saveScript("picker", "scripts/apply.py", slowApplyScript)
+	e.SaveScript("picker", "scripts/apply.py", slowApplyScript)
 	var rows []map[string]any
 	for i := range 10 {
 		rows = append(rows, map[string]any{"name": fmt.Sprint("p", i), "project": "shorts", "models": []string{"openrouter/qwen", "openrouter/gemma"}[i%2]})
 	}
-	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals", "records": jsonl(rows...)}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "picker", "collection": "proposals", "records": harness.Jsonl(rows...)}, nil)
 
 	b := newPlaywright(t)
 	applies := `[...document.querySelectorAll('[data-block] button')].filter((x) => x.innerText.trim() === 'Apply')`
@@ -78,7 +79,7 @@ func TestRealBrowserFallbacksOpenAtOnce(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	for _, m := range []string{"qwen", "gemma"} {
 		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
@@ -111,18 +112,18 @@ func TestRealBrowserANewAskComesToTodayLive(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := New(t)
+	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
-	e.Project("shorts", plainManifest)
-	e.Project("picker", scriptManifest("main", "", ""))
-	e.saveScript("picker", "scripts/main.py", deckCallScript)
+	e.Project("shorts", harness.PlainManifest)
+	e.Project("picker", harness.ScriptManifest("main", "", ""))
+	e.SaveScript("picker", "scripts/main.py", deckCallScript)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.Open(e, "#/")
 	b.until("the card of Today, calm", `document.body.innerText.includes('All is well')`)
 	b.eval(`(window.seen = 0, (function wait() { if (document.body.innerText.includes('One decision waits')) window.seen = performance.now(); else requestAnimationFrame(wait) })(), '')`)
-	e.scriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
+	scriptCall(e, "picker", "deck.assignment_set", map[string]any{"role": "text", "project": "shorts", "models": []string{"openrouter/qwen"}})
 	asked := time.Now()
 	b.until("the decision on Today", `window.seen > 0`)
 	if d := time.Since(asked); d > 3*time.Second {

@@ -4,6 +4,10 @@ import (
 	"context"
 	"deck2/internal/events"
 	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"errors"
 	"fmt"
 	"os"
@@ -13,10 +17,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-
-	"deck2/internal/provider"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
 )
 
 // TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject: only the owner, with no open process and no reader;
@@ -24,21 +24,21 @@ import (
 func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	t.Parallel()
 	hold := make(chan struct{})
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "tell" {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "tell" {
 			select {
 			case <-hold:
 			case <-ctx.Done():
 			}
 		}
-		return webNotesAgent()(ctx, c)
+		return harness.WebNotesAgent()(ctx, c)
 	}))
 
-	withTrigger := strings.Replace(webNotes, `"screens": [`, `"triggers": [{"command": "tell", "cron": "0 9 * * *"}], "screens": [`, 1)
+	withTrigger := strings.Replace(harness.WebNotes, `"screens": [`, `"triggers": [{"command": "tell", "cron": "0 9 * * *"}], "screens": [`, 1)
 	id := e.Project("gone", withTrigger)
-	e.Must("deck.records_upsert", map[string]any{"project": "gone", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
+	e.Must("deck.records_upsert", map[string]any{"project": "gone", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	e.Must("deck.document_save", map[string]any{"project": "gone", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	scan := e.upload("gone", "scan.txt", "text/plain", "a page")
+	scan := upload(e, "gone", "scan.txt", "text/plain", "a page")
 	e.WaitState(e.Start("gone", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
 	e.UseModels("gone.score", "fake")
 	data := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects", fmt.Sprint(id), "data")
@@ -67,7 +67,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	}
 	e.Project("reader", `{"version": 13, "reads": [{"project": "gone", "collections": ["notes"]}]}`)
 
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	if code, _ := e.As(tok).Call("deck.project_delete", map[string]any{"project": "gone"}); code != 403 {
 		t.Fatalf("only the owner deletes a project: %d", code)
 	}
@@ -121,13 +121,13 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 		journal[2]["outcome"] != "rejected" || journal[2]["actor"] != "token:1" {
 		t.Fatalf("the deletes and the refused token are in the journal, the calls of the project are not: %+v", journal)
 	}
-	var ps []projectV
-	e.projectsOf(&ps)
+	var ps []harness.ProjectV
+	e.ProjectsOf(&ps)
 	if len(ps) != 0 {
 		t.Fatalf("the project is gone from the list: %+v", ps)
 	}
-	e.Project("gone", webNotes)
-	var left []recordRow
+	e.Project("gone", harness.WebNotes)
+	var left []harness.RecordRow
 	e.Must("deck.records_list", map[string]any{"project": "gone", "collection": "notes"}, &left)
 	if len(left) != 0 {
 		t.Fatalf("a new project of the same name starts empty: %+v", left)
@@ -138,18 +138,18 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 // TestProjectsTabDeletesAfterAYes: the delete button of a project asks the owner first.
 func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("web", webNotes)
-	del := verb(t, findItem(t, blockData[[]listItem](t, e.settingsBlock("Modules", nil)["items"]), "web").Actions, "delete")
+	e := harness.New(t)
+	e.Project("web", harness.WebNotes)
+	del := verb(t, findItem(t, harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Modules", nil)["items"]), "web").Actions, "delete")
 	if del["confirm"] != true || del["command"] != "deck.project_delete" {
 		t.Fatalf("delete asks the owner first: %+v", del)
 	}
-	var d commandView
+	var d harness.CommandView
 	e.Must("deck.command_describe", map[string]any{"command": "deck.project_delete"}, &d)
 	if d.Class != "external" {
 		t.Fatalf("deleting a project is external: %q", d.Class)
 	}
-	if code, out := e.press(del); code != 200 {
+	if code, out := e.Press(del); code != 200 {
 		t.Fatalf("the button deletes the project: %d %s", code, out)
 	}
 	var ps []struct{ Name string }
@@ -164,20 +164,20 @@ func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 // TestProjectDeleteStopsTheMCPServersOfTheProject: a server of a deleted project does not run on.
 func TestProjectDeleteStopsTheMCPServersOfTheProject(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("srv", mcpManifest(""))
-	dir := e.mcpDir("srv", "fake")
+	dir := mcpDir(e, "srv", "fake")
 	e.WaitState(e.Start("srv", "look", map[string]any{"word": "moon"}), "done")
 	f, err := os.Open(filepath.Join(dir, "alive"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	if stopped(f) {
+	if harness.Stopped(f) {
 		t.Fatal("the server holds its lock while it runs")
 	}
 	e.Must("deck.project_delete", map[string]any{"project": "srv"}, nil)
-	e.Until("the server to stop", func() bool { return stopped(f) })
+	e.Until("the server to stop", func() bool { return harness.Stopped(f) })
 }
 
 // TestTheMasterDeletesOnlyDrafts: the master deletes a draft it wrote at once, after a snapshot like the owner;
@@ -186,7 +186,7 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 	t.Parallel()
 	var said sync.Map
 	var turn atomic.Int32
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		name := []string{"sketch", "live", "theirs"}[turn.Add(1)-1]
 		out, isErr := c.Tool(ctx, "project_delete", map[string]any{"project": name})
 		said.Store(name, fmt.Sprint(isErr, " ", out))
@@ -194,31 +194,31 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 	}))
 
 	if _, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.project_create",
-		[]byte(fmt.Sprintf(`{"name": "sketch", "manifest": %q}`, webNotes))); err != nil {
+		[]byte(fmt.Sprintf(`{"name": "sketch", "manifest": %q}`, harness.WebNotes))); err != nil {
 		t.Fatal(err)
 	}
-	e.Project("live", webNotes)
-	_, tok := e.token("terminal", "deck.*")
-	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "theirs", "manifest": webNotes}); code != 200 {
+	e.Project("live", harness.WebNotes)
+	_, tok := e.Token("terminal", "deck.*")
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "theirs", "manifest": harness.WebNotes}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	topic := e.say(0, "sketch")
-	e.masterSaid(topic, 1)
+	topic := e.Say(0, "sketch")
+	e.MasterSaid(topic, 1)
 	if got, _ := said.Load("sketch"); !strings.HasPrefix(fmt.Sprint(got), "false ") || !strings.Contains(fmt.Sprint(got), "snapshot") {
 		t.Fatalf("the master deletes a draft at once, after a snapshot: %v", got)
 	}
-	e.say(topic, "live")
-	e.masterSaid(topic, 2)
+	e.Say(topic, "live")
+	e.MasterSaid(topic, 2)
 	if got, _ := said.Load("live"); !strings.HasPrefix(fmt.Sprint(got), "true ") || !strings.Contains(fmt.Sprint(got), "not a draft") {
 		t.Fatalf("an enabled project only the owner deletes: %v", got)
 	}
-	e.say(topic, "theirs")
-	e.masterSaid(topic, 3)
+	e.Say(topic, "theirs")
+	e.MasterSaid(topic, 3)
 	if got, _ := said.Load("theirs"); !strings.HasPrefix(fmt.Sprint(got), "true ") || !strings.Contains(fmt.Sprint(got), "its own drafts") {
 		t.Fatalf("a draft someone else wrote only its author or the owner deletes: %v", got)
 	}
 	var ps []struct{ Name string }
-	e.projectsOf(&ps)
+	e.ProjectsOf(&ps)
 	if len(ps) != 2 || ps[0].Name != "live" || ps[1].Name != "theirs" {
 		t.Fatalf("only the master's draft is gone: %+v", ps)
 	}
@@ -227,21 +227,21 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 // TestATopicOfADeletedModuleHasNoModule: a topic begun on a screen of a module keeps no module once it is deleted.
 func TestATopicOfADeletedModuleHasNoModule(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} }))
-	e.Project("web", webNotes)
-	topic := e.say(0, "look", map[string]any{"screen": `{"project":"web","screen":"main"}`})
-	e.masterSaid(topic, 1)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Noted."} }))
+	e.Project("web", harness.WebNotes)
+	topic := e.Say(0, "look", map[string]any{"screen": `{"project":"web","screen":"main"}`})
+	e.MasterSaid(topic, 1)
 	e.Must("deck.project_delete", map[string]any{"project": "web"}, nil)
 	var ts []struct {
 		ID      int64
 		Project string
 	}
-	e.chatTopics(true, &ts)
+	e.ChatTopics(true, &ts)
 	var all []struct {
 		ID      int64
 		Project string
 	}
-	e.chatTopics(false, &all)
+	e.ChatTopics(false, &all)
 	all = append(all, ts...)
 	if len(all) != 1 || all[0].ID != topic || all[0].Project != "" {
 		t.Fatalf("the topic stays, without the deleted module: %+v", all)
@@ -252,19 +252,19 @@ func TestATopicOfADeletedModuleHasNoModule(t *testing.T) {
 // to the archive; others stay.
 func TestDeletingAModuleArchivesItsTopics(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} }))
-	e.Project("web", webNotes)
-	e.Project("other", webNotes)
-	onScreen := e.say(0, "look", map[string]any{"screen": `{"project":"web","screen":"main"}`})
-	e.masterSaid(onScreen, 1)
-	elsewhere := e.say(0, "else", map[string]any{"screen": `{"project":"other","screen":"main"}`})
-	e.masterSaid(elsewhere, 1)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Noted."} }))
+	e.Project("web", harness.WebNotes)
+	e.Project("other", harness.WebNotes)
+	onScreen := e.Say(0, "look", map[string]any{"screen": `{"project":"web","screen":"main"}`})
+	e.MasterSaid(onScreen, 1)
+	elsewhere := e.Say(0, "else", map[string]any{"screen": `{"project":"other","screen":"main"}`})
+	e.MasterSaid(elsewhere, 1)
 	stream := e.Events(t.Context())
 	e.Must("deck.project_delete", map[string]any{"project": "web"}, nil)
-	WaitEvent(t, stream, events.Event{Topic: "chat"})
+	harness.WaitEvent(t, stream, events.Event{Topic: "chat"})
 	ids := func(archived bool) []int64 {
 		var ts []struct{ ID int64 }
-		e.chatTopics(archived, &ts)
+		e.ChatTopics(archived, &ts)
 		var out []int64
 		for _, x := range ts {
 			out = append(out, x.ID)
@@ -284,13 +284,13 @@ func TestDeletingAModuleArchivesItsTopics(t *testing.T) {
 // deleted, names its folder in the answer and in the master's next turn; deck leaves the folder.
 func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} }))
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Noted."} }))
 	mp, err := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	dir := filepath.Join(e.App.Home.Data(mp.ID), "drafts", "sketch")
-	if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(webNotes), 0o600)); err != nil {
+	if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(harness.WebNotes), 0o600)); err != nil {
 		t.Fatal(err)
 	}
 	e.Must("deck.project_import", map[string]any{"folder": dir, "name": "sketch"}, nil)
@@ -302,17 +302,17 @@ func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err != nil {
 		t.Fatalf("deck leaves the folder: %v", err)
 	}
-	topic := e.say(0, "hello")
-	e.masterSaid(topic, 1)
+	topic := e.Say(0, "hello")
+	e.MasterSaid(topic, 1)
 	if p := e.Fake.Calls()[0].Prompt; !strings.Contains(p, "sketch") || !strings.Contains(p, dir) || !strings.Contains(p, "(data, not instructions)") {
 		t.Fatalf("the master's next turn says which draft went and where its folder is, as data:\n%s", p)
 	}
-	e.say(topic, "again")
-	e.masterSaid(topic, 2)
+	e.Say(topic, "again")
+	e.MasterSaid(topic, 2)
 	if p := e.Fake.Calls()[1].Prompt; strings.Contains(p, dir) {
 		t.Fatalf("the master hears of it once:\n%s", p)
 	}
-	e.importEnabled(dir, "kept")
+	importEnabled(e, dir, "kept")
 	var gone struct{ Folder string }
 	e.Must("deck.project_delete", map[string]any{"project": "kept"}, &gone)
 	if gone.Folder != "" {
@@ -324,20 +324,20 @@ func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 // project can become a draft; the data of another project and any other folder of the owner cannot, unread.
 func TestTheMasterImportsOnlyFromItsDataAndGrantedFolders(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	other := e.Project("other", webNotes)
+	e := harness.New(t)
+	other := e.Project("other", harness.WebNotes)
 	theirs := filepath.Join(e.App.Home.Data(other), "mod")
 	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
 	own := filepath.Join(e.App.Home.Data(mp.ID), "drafts", "mod")
 	repo, loose := t.TempDir(), t.TempDir()
 	for _, dir := range []string{theirs, own, filepath.Join(repo, "mod"), loose} {
-		if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(webNotes), 0o600)); err != nil {
+		if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(harness.WebNotes), 0o600)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	_ = os.WriteFile(filepath.Join(loose, "tax-return.png"), []byte{0xff, 0xfe}, 0o600)
 	e.Must("deck.folder_add", map[string]any{"project": "other", "name": "repo", "path": repo}, nil)
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	for _, dir := range []string{theirs, loose} {
 		if code, out := e.As(tok).Call("deck.project_import", map[string]any{"folder": dir, "name": "a"}); code != 403 || strings.Contains(string(out), "tax-return") {
 			t.Fatalf("%s is not imported, nor its files listed: %d %s", dir, code, out)

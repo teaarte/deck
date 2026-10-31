@@ -2,13 +2,13 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"encoding/json"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // studioModule has one agent command that edits the code of the module.
@@ -25,7 +25,7 @@ func TestAnAgentWritesTheDocumentsItsManifestNames(t *testing.T) {
 	var mu sync.Mutex
 	outs := map[string]string{}
 	var prompt string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		save := func(key string, args map[string]any) {
 			out, bad := c.Tool(ctx, "document_save", args)
 			if bad {
@@ -75,7 +75,7 @@ func TestAnAgentWritesTheDocumentsItsManifestNames(t *testing.T) {
 		t.Fatalf("the owner sees the change with an undo: %+v", feed)
 	}
 
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	var w struct {
 		Waiting int64
 		Widens  []string
@@ -98,8 +98,8 @@ func TestAnAgentDeletesTheRecordsOfItsOwnProject(t *testing.T) {
 	var mu sync.Mutex
 	outs := map[string]string{}
 	var own, other int64
-	e := clipsEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "tally" {
+	e := clipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "tally" {
 			for key, id := range map[string]int64{"own": own, "other": other} {
 				out, bad := c.Tool(ctx, "record_delete", map[string]any{"record": id})
 				if bad {
@@ -113,8 +113,8 @@ func TestAnAgentDeletesTheRecordsOfItsOwnProject(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	e.Project("reels", clipsModule)
-	own = e.clip("a")
-	e.Must("deck.records_upsert", map[string]any{"project": "reels", "collection": "clips", "records": jsonl(map[string]any{"slug": "b"})}, nil)
+	own = clip(e, "a")
+	e.Must("deck.records_upsert", map[string]any{"project": "reels", "collection": "clips", "records": harness.Jsonl(map[string]any{"slug": "b"})}, nil)
 	var reels []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "reels", "collection": "clips"}, &reels)
 	other = reels[0].ID
@@ -154,12 +154,12 @@ print("{}")
 // who may call it, as a failure of rights.
 func TestAScriptFailedByARefusalSaysWhatDeckRefused(t *testing.T) {
 	t.Parallel()
-	e := New(t)
+	e := harness.New(t)
 	e.Project("probe", probeModule)
-	e.saveScript("probe", "scripts/probe.py", probeScript)
+	e.SaveScript("probe", "scripts/probe.py", probeScript)
 	id := e.Start("probe", "probe", nil)
 	e.WaitState(id, "done", "error")
-	f := e.fault(id)
+	f := e.Fault(id)
 	if f.ErrorType != "rights.denied" || !strings.Contains(f.Error, "deck refused its calls: deck.settings_list") ||
 		!strings.Contains(f.Error, "cannot be called by agent (script); only owner, master may call it") {
 		t.Fatalf("the failure names the refusal: %+v", f)

@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"deck2/tests/harness"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,9 +11,9 @@ import (
 )
 
 // args reads the arguments of call n of the fake CLI, and the value of a flag in them.
-func (c *fakeCLI) argOf(n int, name string) string {
-	c.t.Helper()
-	v, _ := flag(c.call(n).args, name)
+func argOf(c *harness.FakeCLI, n int, name string) string {
+	c.T.Helper()
+	v, _ := harness.Flag(c.Call(n).Args, name)
 	return v
 }
 
@@ -20,11 +21,11 @@ func (c *fakeCLI) argOf(n int, name string) string {
 // the self-check runs only on the button, and it and turns run with --model and --effort, on the subscription.
 func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.models("models.jsonl")
-	c.checksPass()
-	c.stream(0, "ok.jsonl")
-	e := New(t, WithCLI(c))
+	c := harness.NewCLI(t)
+	c.Models("models.jsonl")
+	c.ChecksPass()
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
 	var list struct {
 		Connections []struct{ Name, API, URL string }
 	}
@@ -59,8 +60,8 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 		t.Fatalf("a model of the CLI runs in it on the subscription: %+v", m)
 	}
 	onModel := func() int {
-		for i := c.calls(); i >= 1; i-- {
-			if c.argOf(i, "--model") == "sonnet" {
+		for i := c.Calls(); i >= 1; i-- {
+			if argOf(c, i, "--model") == "sonnet" {
 				return i
 			}
 		}
@@ -82,24 +83,24 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	if h := e.WaitHealth("provider:sonnet-low", "ok"); h.Version != "2.1.281" {
 		t.Fatalf("its self-check on the button runs the CLI on the model: %+v", h)
 	}
-	if i := onModel(); i < 0 || c.argOf(i, "--effort") != "low" {
+	if i := onModel(); i < 0 || argOf(c, i, "--effort") != "low" {
 		t.Fatalf("the self-check runs on the model and effort: %d", i)
 	}
 	e.Refused("deck.assignment_set", map[string]any{"role": "text", "models": []string{"sonnet-low"}}, 422, "runs agent turns in claude-code")
 
-	p := e.Project("plain", plainManifest)
+	p := e.Project("plain", harness.PlainManifest)
 	e.UseModels("plain.work", "sonnet-low")
-	before := c.calls()
+	before := c.Calls()
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn runs on the model: %+v", got)
 	}
 	n := before + 1
-	if c.argOf(n, "--model") != "sonnet" || c.argOf(n, "--effort") != "low" {
-		t.Fatalf("the turn runs the CLI with --model and --effort: %v", c.call(n).args)
+	if argOf(c, n, "--model") != "sonnet" || argOf(c, n, "--effort") != "low" {
+		t.Fatalf("the turn runs the CLI with --model and --effort: %v", c.Call(n).Args)
 	}
 	var calls []map[string]any
-	e.modelCalls("", id, &calls)
+	e.ModelCalls("", id, &calls)
 	var sub int
 	_ = e.App.Store.DB.QueryRow(`SELECT subscription FROM llm_call WHERE process_id = ?`, id).Scan(&sub)
 	if len(calls) != 1 || calls[0]["gen_ai.provider.name"] != "sonnet-low" || sub != 1 {
@@ -144,32 +145,32 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 // with its own --model.
 func TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne(t *testing.T) {
 	t.Parallel()
-	c := newCLI(t)
-	c.models("models.jsonl")
-	c.checksPass()
-	raw, _ := os.ReadFile(Testdata("claude/ratelimit_rejected.jsonl"))
-	if err := os.WriteFile(filepath.Join(c.dir, "stream.opus"), raw, 0o644); err != nil {
+	c := harness.NewCLI(t)
+	c.Models("models.jsonl")
+	c.ChecksPass()
+	raw, _ := os.ReadFile(harness.Testdata("claude/ratelimit_rejected.jsonl"))
+	if err := os.WriteFile(filepath.Join(c.Dir, "stream.opus"), raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	c.stream(0, "ok.jsonl")
-	e := New(t, WithCLI(c))
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
 	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus", "name": "opus-high", "options": `{"effort": "high"}`}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "sonnet-low", "options": `{"effort": "low"}`}, nil)
-	p := e.Project("plain", plainManifest)
+	p := e.Project("plain", harness.PlainManifest)
 	e.UseModels("plain.work", "opus-high", "sonnet-low")
-	before := c.calls()
+	before := c.Calls()
 	id := e.Run(p, "work")
-	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.fault(id).ErrorType != "model.limit" {
-		t.Fatalf("opus at its limit fails as the model's: %+v %+v", got, e.fault(id))
+	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" {
+		t.Fatalf("opus at its limit fails as the model's: %+v %+v", got, e.Fault(id))
 	}
-	next := e.following(id)
+	next := following(e, id)
 	var in struct{ Provider string }
 	e.Must("deck.process_get", map[string]any{"process": next}, &in)
 	if got := e.WaitState(next, "done", "error"); got.State != "done" || in.Provider != "sonnet-low" {
 		t.Fatalf("sonnet goes on with the work: %+v %+v", got, in)
 	}
-	if c.argOf(before+1, "--model") != "opus" || c.argOf(before+2, "--model") != "sonnet" || c.argOf(before+2, "--effort") != "low" {
-		t.Fatalf("each turn runs on its own model: %v %v", c.call(before+1).args, c.call(before+2).args)
+	if argOf(c, before+1, "--model") != "opus" || argOf(c, before+2, "--model") != "sonnet" || argOf(c, before+2, "--effort") != "low" {
+		t.Fatalf("each turn runs on its own model: %v %v", c.Call(before+1).Args, c.Call(before+2).Args)
 	}
 }
 
@@ -177,12 +178,12 @@ func TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne(t *testing.T) {
 // of the app-server, and its turns start with its model and effort.
 func TestAModelOfCodexRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	t.Parallel()
-	c := newCodex(t)
+	c := harness.NewCodex(t)
 	for i, s := range []string{"models.jsonl", "models.jsonl", "models.jsonl", "selfcheck.jsonl", "selfcheck_resume.jsonl", "selfcheck_offline.jsonl"} {
-		c.stream(i+1, s)
+		c.Stream(i+1, s)
 	}
-	c.stream(0, "ok.jsonl")
-	e := New(t, WithCodex(c))
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCodex(c))
 	e.Refused("deck.model_set", map[string]any{"connection": "codex", "model": "gpt-6-luna", "name": "luna-min", "options": `{"effort": "minimal"}`}, 422,
 		`takes effort low, medium, high, xhigh, max in codex, not "minimal"`)
 	e.Refused("deck.model_set", map[string]any{"connection": "codex", "model": "sonnet", "name": "codex-sonnet"}, 422, "codex lists no model \"sonnet\"; it lists gpt-6-astra")
@@ -199,19 +200,19 @@ func TestAModelOfCodexRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn runs on the model: %+v", got)
 	}
-	cc := c.call(7)
-	start := cc.request("turn/start")
-	if string(start["model"]) != `"gpt-6-luna"` || string(start["effort"]) != `"low"` || cc.violation != "" {
-		t.Fatalf("turn/start carries the model and its effort: %s %s %s", start["model"], start["effort"], cc.violation)
+	cc := c.Call(7)
+	start := cc.Request("turn/start")
+	if string(start["model"]) != `"gpt-6-luna"` || string(start["effort"]) != `"low"` || cc.Violation != "" {
+		t.Fatalf("turn/start carries the model and its effort: %s %s %s", start["model"], start["effort"], cc.Violation)
 	}
-	if s := c.call(4).request("turn/start"); string(s["model"]) != `"gpt-6-luna"` {
+	if s := c.Call(4).Request("turn/start"); string(s["model"]) != `"gpt-6-luna"` {
 		t.Fatalf("the self-check runs on the model: %s", s["model"])
 	}
-	if s := cc.request("thread/start"); string(s["model"]) != `"gpt-6-luna"` {
+	if s := cc.Request("thread/start"); string(s["model"]) != `"gpt-6-luna"` {
 		t.Fatalf("the thread starts on the model: %s", s["model"])
 	}
 	var calls []map[string]any
-	e.modelCalls("", id, &calls)
+	e.ModelCalls("", id, &calls)
 	if len(calls) == 0 || calls[0]["gen_ai.provider.name"] != "luna-low" {
 		t.Fatalf("its spend goes by the model: %v", calls)
 	}

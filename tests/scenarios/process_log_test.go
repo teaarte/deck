@@ -2,11 +2,11 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/provider"
+	"deck2/tests/harness"
 	"fmt"
 	"strings"
 	"testing"
-
-	"deck2/internal/provider"
 )
 
 // TestALongLogComesInPages: a log of hundreds of events comes a page at a time, oldest first, each event with its
@@ -14,7 +14,7 @@ import (
 func TestALongLogComesInPages(t *testing.T) {
 	t.Parallel()
 	long := strings.Repeat("x", 3000)
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		for i := range 180 {
 			id := fmt.Sprintf("t%d", i)
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: id, Title: "read", Text: `{"n": ` + fmt.Sprint(i) + `}`})
@@ -31,7 +31,7 @@ func TestALongLogComesInPages(t *testing.T) {
 		return provider.Result{Text: "ok"}
 	}))
 
-	id := e.Run(e.Project("plain", plainManifest), "work")
+	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
 	e.WaitState(id, "done", "error")
 
 	type event struct {

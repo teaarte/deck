@@ -2,24 +2,24 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/docs"
+	"deck2/internal/manifest"
+	"deck2/internal/provider"
+	"deck2/internal/store/db"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
-
-	"deck2/internal/docs"
-	"deck2/internal/manifest"
-	"deck2/internal/provider"
-	"deck2/internal/store/db"
 )
 
 func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
-	e.Project("notes", plainManifest)
-	_, tok := e.token("terminal", "deck.*")
-	wider := strings.Replace(plainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["example.com"]}`, 1)
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("notes", harness.PlainManifest)
+	_, tok := e.Token("terminal", "deck.*")
+	wider := strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["example.com"]}`, 1)
 
 	var w struct {
 		Revision int64
@@ -31,14 +31,14 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		!slices.Equal(w.Widens, []string{"read domain: example.com"}) {
 		t.Fatalf("a change that widens rights waits: %d %s", code, out)
 	}
-	if rev := e.manifestRevision("notes"); rev != 1 {
+	if rev := manifestRevision(e, "notes"); rev != 1 {
 		t.Fatalf("the manifest stays until the owner allows: revision %d", rev)
 	}
 	broken := strings.Replace(wider, `"screens": [],`, `"screens": [], "reads": [{"project": "nowhere"}],`, 1)
 	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": broken}); code != 422 || strings.Contains(string(out), "waiting") {
 		t.Fatalf("a widening change is checked in full before the owner is asked: %d %s", code, out)
 	}
-	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": plainManifest, "if_revision": 7}); code != 409 {
+	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": harness.PlainManifest, "if_revision": 7}); code != 409 {
 		t.Fatalf("if_revision guards a save: %d %s", code, out)
 	}
 	a := e.WaitAsk()
@@ -49,7 +49,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		t.Fatalf("the master cannot allow its own change: %d", code)
 	}
 	e.Answer(a.ID, "allow")
-	if rev := e.manifestRevision("notes"); rev != 2 {
+	if rev := manifestRevision(e, "notes"); rev != 2 {
 		t.Fatalf("allow applies the frozen change: revision %d", rev)
 	}
 	var feed []any
@@ -58,16 +58,16 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		t.Fatalf("a change the owner allowed is not done without them: %v", feed)
 	}
 
-	code, out = e.As(tok).Call("deck.document_revert", map[string]any{"document": e.manifestDocument("notes"), "revision": 1})
+	code, out = e.As(tok).Call("deck.document_revert", map[string]any{"document": manifestDocument(e, "notes"), "revision": 1})
 	if code != 200 || !strings.Contains(string(out), `"revision":3`) {
 		t.Fatalf("a revert that narrows rights applies at once: %d %s", code, out)
 	}
-	code, out = e.As(tok).Call("deck.document_revert", map[string]any{"document": e.manifestDocument("notes"), "revision": 2})
+	code, out = e.As(tok).Call("deck.document_revert", map[string]any{"document": manifestDocument(e, "notes"), "revision": 2})
 	if code != 200 || !strings.Contains(string(out), `"waiting"`) {
 		t.Fatalf("a revert that widens rights waits too: %d %s", code, out)
 	}
 	stale := e.WaitAsk()
-	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(plainManifest, `"Does work"`, `"Does the work"`, 1), "reason": "owner"}, nil)
+	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(harness.PlainManifest, `"Does work"`, `"Does the work"`, 1), "reason": "owner"}, nil)
 	if n := e.WaitNote("outdated"); !strings.Contains(n.Text, "notes") || !strings.Contains(n.Text, "revision 4") {
 		t.Fatalf("the owner hears that a request for rights older than the manifest is outdated: %+v", n)
 	}
@@ -79,7 +79,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": stale.ID, "answer": "allow"}); code == 200 {
 		t.Fatalf("an outdated request for rights is closed: %d %s", code, out)
 	}
-	if rev := e.manifestRevision("notes"); rev != 4 {
+	if rev := manifestRevision(e, "notes"); rev != 4 {
 		t.Fatalf("the outdated change is not applied: revision %d", rev)
 	}
 }
@@ -110,11 +110,11 @@ func TestWhatCountsAsWideningRights(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			e := New(t, WithAgent(ok))
-			e.Project("other", plainManifest)
+			e := harness.New(t, harness.WithAgent(harness.Ok))
+			e.Project("other", harness.PlainManifest)
 			e.Project("notes", fmt.Sprintf(base, c.from))
 			var cmd = strings.Replace(fmt.Sprintf(base, c.to), `"class": "external"`, `"class": "internal"`, 1)
-			_, tok := e.token("terminal", "deck.*")
+			_, tok := e.Token("terminal", "deck.*")
 			_, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": fmt.Sprintf(base, c.to)})
 			if !strings.Contains(string(out), c.want) {
 				t.Fatalf("want %q, got %s", c.want, out)
@@ -142,9 +142,9 @@ func TestCommandRightsWidenToo(t *testing.T) {
 	renamed := strings.Replace(fmt.Sprintf(cmd, `"provider": "local", "callers": ["owner"],`), `"name": "run"`, `"name": "run2"`, 1)
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			e := New(t, WithAgent(ok))
+			e := harness.New(t, harness.WithAgent(harness.Ok))
 			e.Project("notes", from)
-			_, tok := e.token("terminal", "deck.*")
+			_, tok := e.Token("terminal", "deck.*")
 			_, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": fmt.Sprintf(cmd, c.to)})
 			var w struct {
 				Waiting int64
@@ -155,9 +155,9 @@ func TestCommandRightsWidenToo(t *testing.T) {
 			}
 		})
 	}
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", from)
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	if _, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": renamed}); !strings.Contains(string(out), "command run2: new without no_cloud") {
 		t.Fatalf("a renamed command does not drop no_cloud quietly: %s", out)
 	}
@@ -165,10 +165,10 @@ func TestCommandRightsWidenToo(t *testing.T) {
 
 func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 	t.Parallel()
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", `{"version": 13, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`)
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	for _, c := range []struct{ auth, want string }{
 		{`{"type": "secret", "secret": "github_token"}`, "secret: github_token"},
 		{`{"type": "secret", "secret": "shared"}`, "secret: shared"},
@@ -193,10 +193,10 @@ func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 // granted: a milder class waits for the owner's button, and a draft keeps the class of its granted revision.
 func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	e.Project("pub", scriptManifest("media", "", ""))
-	_, tok := e.token("terminal", "deck.*", "pub.*")
-	milder := strings.Replace(scriptManifest("media", "", ""), `"class": "external",
+	e := harness.New(t)
+	e.Project("pub", harness.ScriptManifest("media", "", ""))
+	_, tok := e.Token("terminal", "deck.*", "pub.*")
+	milder := strings.Replace(harness.ScriptManifest("media", "", ""), `"class": "external",
      "executor": {"type": "agent", "prompt": "Publish."}`, `"class": "reversible",
      "executor": {"type": "agent", "prompt": "Publish."}`, 1)
 	var w struct {
@@ -220,16 +220,16 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 		t.Fatalf("once granted the milder class runs at once: %d %s", code, raw)
 	}
 
-	if code, raw = e.As(tok).Call("deck.project_create", map[string]any{"name": "draft", "manifest": scriptManifest("media", "", "")}); code != 200 {
+	if code, raw = e.As(tok).Call("deck.project_create", map[string]any{"name": "draft", "manifest": harness.ScriptManifest("media", "", "")}); code != 200 {
 		t.Fatalf("create: %d %s", code, raw)
 	}
-	internal := strings.Replace(scriptManifest("media", "", ""), `"class": "external",
+	internal := strings.Replace(harness.ScriptManifest("media", "", ""), `"class": "external",
      "executor": {"type": "agent", "prompt": "Publish."}`, `"class": "internal",
      "executor": {"type": "agent", "prompt": "Publish."}`, 1)
 	if code, raw = e.As(tok).Call("deck.manifest_save", map[string]any{"project": "draft", "manifest": internal}); code != 200 {
 		t.Fatalf("a draft saves what it widens, to be granted when enabled: %d %s", code, raw)
 	}
-	for _, c := range e.commands() {
+	for _, c := range commands(e) {
 		if c.Name == "draft.publish" && c.Class != "external" {
 			t.Fatalf("a draft's command keeps the class the owner granted until the owner enables it: %+v", c)
 		}
@@ -264,13 +264,13 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 func TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls(t *testing.T) {
 	t.Parallel()
 	var outs []string
-	e := New(t, WithAgent(func(ctx context.Context, c *Call) provider.Result {
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		out, _ := c.Tool(ctx, "records_list", map[string]any{"collection": "items"})
 		outs = append(outs, out)
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
 
-	m := testManifest([]string{agentCommand("work", "")}, nil)
+	m := harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil)
 	m = strings.Replace(m, `"version": 13,`, `"version": 13, "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],`, 1)
 	p := e.Project("calls", m)
@@ -296,9 +296,9 @@ func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
 		return `{"version": 13, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
     "executor": {"type": "agent", ` + folder + `"prompt": "Run."}}]}`
 	}
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("code", m(`"folder": "main", `))
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	for _, c := range []struct{ to, want string }{
 		{m(`"folder": "docs", `), "command run: works in folder docs"},
 		{m(`"folder": true, `), "command run: works in the one folder of the project"},
@@ -325,9 +325,9 @@ func TestAnotherExecutorOfACommandWidensRights(t *testing.T) {
     {"name": "post_anything", "description": "Posts", "method": "POST", "url": "https://b.example/x", "class": "external"}]},
   "allowed_external": ["digest"], "domains": {"act": ["a.example", "b.example"]}}`
 	}
-	e := New(t, WithAgent(ok))
+	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("mail", m(`{"type": "tool", "tool": "send_digest"}`))
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	for _, c := range []struct{ to, want string }{
 		{m(`{"type": "tool", "tool": "post_anything"}`), "command digest: runs tool post_anything instead of send_digest"},
 		{m(`{"type": "agent", "prompt": "Send it."}`), "command digest: runs an agent instead of a tool"},
@@ -342,11 +342,11 @@ func TestAnotherExecutorOfACommandWidensRights(t *testing.T) {
 // so the master saves it without the owner and a draft keeps its grant.
 func TestADomainTheGrantCoversIsNoNewRight(t *testing.T) {
 	t.Parallel()
-	e := New(t)
-	base := `{"version": 13, "domains": {"read": [%s]}, "commands": [` + agentCommand("work", "") + `]}`
+	e := harness.New(t)
+	base := `{"version": 13, "domains": {"read": [%s]}, "commands": [` + harness.AgentCommand("work", "") + `]}`
 	e.Project("wide", fmt.Sprintf(base, `"*"`))
 	e.Project("plain", fmt.Sprintf(base, ``))
-	_, tok := e.token("terminal", "deck.*")
+	_, tok := e.Token("terminal", "deck.*")
 	if code, raw := e.As(tok).Call("deck.project_create", map[string]any{"name": "sketch", "manifest": fmt.Sprintf(base, ``)}); code != 200 {
 		t.Fatalf("create: %d %s", code, raw)
 	}

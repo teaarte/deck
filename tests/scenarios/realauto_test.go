@@ -1,7 +1,12 @@
 package scenarios
 
 import (
+	"deck2/internal/app"
 	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
+	"deck2/internal/provider/claudecode"
+	"deck2/internal/provider/codex"
+	"deck2/tests/harness"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,11 +15,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
-	"deck2/internal/provider/claudecode"
-	"deck2/internal/provider/codex"
 )
 
 // Prompts of the autonomy command agent in the words of each CLI; %s are the project name and the home.
@@ -53,8 +53,8 @@ func TestRealCodexAutonomy(t *testing.T) {
 }
 
 func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string) {
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-	e := New(t, WithHome(home), WithProvider(p), WithConfig(realWaits), WithWait(6*time.Minute))
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(p), harness.WithConfig(realWaits), harness.WithWait(6*time.Minute))
 	owner := []byte("owner-token-" + fmt.Sprint(time.Now().UnixNano()))
 	if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), owner, 0o600); err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 	}{{"open", "", true}, {"closed", `, "no_network": true`, false}} {
 		p := e.Project(tc.name, autoManifest(prompt, tc.name, svc.URL, tc.extra, deckhome.Layout(home).State()))
 		id := e.Run(p, "work")
-		var asks []Ask
+		var asks []harness.Ask
 		confirmed := 0
 		answered := map[int64]bool{}
 		e.Until(tc.name+": the run to end", func() bool {
@@ -101,7 +101,7 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 			t.Fatalf("%s: want done with the file written and web %v: %+v", tc.name, tc.web, got)
 		}
 	}
-	if n := len(svc.requests()); n != 2 {
+	if n := len(svc.Requests()); n != 2 {
 		t.Fatalf("deck made the external call once per project after yes: %d", n)
 	}
 }

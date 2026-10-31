@@ -47,6 +47,11 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	if len(a.FromBlock) > 0 && (b.Type != "custom" || a.Command == "") {
 		return errors.New("from_block names the fields a custom block fills in a call of the command of its button")
 	}
+	for _, k := range a.FromBlock {
+		if registry.Reserved(k) {
+			c.warn("screen %q: from_block: %q is deck's own field of a press, not one a custom block fills", c.screen.Name, k)
+		}
+	}
 	if err := c.fromItems(b, a); err != nil {
 		return err
 	}

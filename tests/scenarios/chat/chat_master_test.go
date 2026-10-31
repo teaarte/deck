@@ -169,7 +169,7 @@ func TestAManifestCheckOfAProjectAloneChecksItsCurrentManifest(t *testing.T) {
 }
 
 // TestNoSchemaAnAgentSeesHasAllows: the field a press of the owner gives the calls its button allows in is in no input
-// schema of a command, and only the owner's call gives it.
+// schema of a command, and only the owner's press of a button deck drew gives it.
 func TestNoSchemaAnAgentSeesHasAllows(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
@@ -183,8 +183,8 @@ func TestNoSchemaAnAgentSeesHasAllows(t *testing.T) {
 	if code, out := e.As(tok).Call("notes.collect", map[string]any{"allows": "[]"}); code != 422 || !strings.Contains(string(out), "allows") {
 		t.Fatalf("allows from another than the owner is refused: %d %s", code, out)
 	}
-	if code, out := e.Call("notes.collect", map[string]any{"allows": `[{"command": "deck.owner_notify", "params": {}}]`}); code != 200 {
-		t.Fatalf("the owner's call gives allows: %d %s", code, out)
+	if code, out := e.Call("notes.collect", map[string]any{"allows": `[{"command": "deck.owner_notify", "params": {}}]`}); code != 403 || !strings.Contains(string(out), "button deck drew") {
+		t.Fatalf("the owner's call gives allows only from a button deck drew: %d %s", code, out)
 	}
 }
 

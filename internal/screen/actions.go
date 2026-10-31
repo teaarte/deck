@@ -173,7 +173,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		}
 		delete(ps, registry.AllowsKey)
 		if len(a.Allows) > 0 && !r.deck() && !r.inCustom {
-			ps[registry.AllowsKey] = r.allows(a.Allows, env, &failed)
+			ps[registry.AllowsKey] = registry.SignAllows(name, r.allows(a.Allows, env, &failed))
 		}
 		// A press of a button of a module again while its run goes is that run, said to be running already.
 		if _, ok := ps[registry.RetryKey]; !ok && a.Input == "" && len(a.FromBlock) == 0 && a.Verb != "undo" && !registry.IsBuiltin(name) {
@@ -181,12 +181,13 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			ps[registry.RetryKey] = "press:" + string(b)
 		}
 		act["command"], act["params"] = name, ps
-		if len(a.FromBlock) > 0 {
-			act["from_block"] = a.FromBlock
+		fromBlock := slices.DeleteFunc(slices.Clone(a.FromBlock), registry.Reserved)
+		if len(fromBlock) > 0 {
+			act["from_block"] = fromBlock
 			if c := r.req.Manifest.Command(a.Command); c != nil && !r.deck() {
 				var recs []string
 				for _, f := range manifest.FieldsOf(c.InputSchema(), "record") {
-					if slices.Contains(a.FromBlock, f) {
+					if slices.Contains(fromBlock, f) {
 						recs = append(recs, f)
 					}
 				}

@@ -12,9 +12,13 @@ import { hostContext } from './hostContext';
 type CustomButton = NonNullable<CustomValue['actions']>[number];
 export type Ask = { act: CustomButton; input: Record<string, unknown> };
 
+// reserved are deck's own fields of a press, which a frame never gives.
+const reserved = ['allows', 'retry_key'];
+
 // button is the one of the block's buttons a call means: its command, fixed params the call does not contradict, and
 // no field but those params and the ones the block fills, a record only one the block was given.
 function button(value: CustomValue, name: string, args: Record<string, unknown>): CustomButton | undefined {
+  if (Object.keys(args).some((k) => reserved.includes(k))) return undefined;
   const ids = new Set([...(value.items ?? []), ...(value.record ? [value.record] : [])].map((it) => String((it as { _id?: unknown })._id)));
   return (value.actions ?? []).find((a) => a.command === name &&
     Object.entries(a.params ?? {}).every(([k, v]) => args[k] === undefined || String(args[k]) === String(v)) &&

@@ -141,3 +141,44 @@ func TestAPressStandsForNoMoneyAndNoFrame(t *testing.T) {
 		t.Fatalf("allows is no param a button sets itself: %d %s", code, out)
 	}
 }
+
+// TestAllowsComeOnlyFromAButtonDeckDrew: the calls a press allows are deck's own signed field of the button it drew;
+// one written by hand, one moved to another command and one a custom block would fill are refused.
+func TestAllowsComeOnlyFromAButtonDeckDrew(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.Project("films", harness.PlainManifest)
+	e.Project("picker", harness.PickerManifest)
+	e.SaveScript("picker", "scripts/apply.py", harness.ApplyScript)
+	e.Must("deck.record_upsert", map[string]any{"project": "picker", "collection": "proposals",
+		"records": harness.Jsonl(map[string]any{"name": "a", "project": "films", "models": "openrouter/qwen"})}, nil)
+	apply := e.RowAction("picker", "main", "picker.apply", nil)
+	params := apply["params"].(map[string]any)
+	signed, _ := params["allows"].(string)
+	_, calls, ok := strings.Cut(signed, ".")
+	if !ok || !strings.HasPrefix(calls, "[") {
+		t.Fatalf("the button carries its calls signed by deck: %q", signed)
+	}
+
+	for what, allows := range map[string]string{"bare": calls, "forged": "00" + signed[2:], "of another": "ab." + calls} {
+		code, out := e.Call("picker.apply", map[string]any{"id": params["id"], "allows": allows})
+		if code < 400 || !strings.Contains(string(out), "only with a button deck drew") {
+			t.Fatalf("allows %s is refused: %d %s", what, code, out)
+		}
+	}
+	code, out := e.Call("deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/qwen"}, "allows": signed})
+	if code < 400 || !strings.Contains(string(out), "only with a button deck drew") {
+		t.Fatalf("allows drawn for another command is refused: %d %s", code, out)
+	}
+	if got := e.Assigned("films", "text"); len(got) != 0 {
+		t.Fatalf("nothing was assigned: %v", got)
+	}
+
+	frame := harness.ManifestWith(harness.ScriptManifest("main", "", `, "screens": [{"name": "main", "title": "Frame", "blocks": [
+    {"type": "custom", "document": "custom/x.html", "actions": [{"label": "Add", "command": "main", "from_block": ["method", "allows"]}]}]}]`), `"title": "Frame"`)
+	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "picker", "manifest": frame}); code < 400 || !strings.Contains(string(out), `"allows"`) {
+		t.Fatalf("a custom block fills no allows: %d %s", code, out)
+	}
+}

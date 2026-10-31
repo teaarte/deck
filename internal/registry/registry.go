@@ -3,6 +3,9 @@ package registry
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
+	"deck2/internal/nonce"
 	"deck2/schemas"
 )
 
@@ -373,16 +377,44 @@ const AllowsKey = "allows"
 
 // Invoke checks the caller, validates the input against the command schema and runs the command.
 func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.RawMessage) (any, error) {
-	if a.Kind == Owner {
-		a.Allows, input = allows(input)
-	} else if got, _ := allows(input); got != "" {
+	signed, input := allows(input)
+	switch {
+	case signed == "":
+	case a.Kind != Owner:
 		return nil, Invalid("%s comes only with a press of the owner", AllowsKey)
+	default:
+		calls, ok := verified(name, signed)
+		if !ok {
+			return nil, Refuse("%s comes only with a button deck drew for %s; press it again", AllowsKey, name)
+		}
+		a.Allows = calls
 	}
 	c, input, err := r.Check(ctx, a, name, input)
 	if err != nil {
 		return nil, err
 	}
 	return c.Handler(ctx, a, input)
+}
+
+// pressKey signs the calls a button deck drew allows; it lives as long as deck runs.
+var pressKey = []byte(nonce.Hex(32))
+
+// SignAllows is the field of the calls a button of command allows, as deck draws it: a client cannot make or move one.
+func SignAllows(command, calls string) string {
+	return hex.EncodeToString(allowsMAC(command, calls)) + "." + calls
+}
+
+// verified are the calls of a signed field when deck signed them for command.
+func verified(command, signed string) (string, bool) {
+	mac, calls, ok := strings.Cut(signed, ".")
+	got, err := hex.DecodeString(mac)
+	return calls, ok && err == nil && hmac.Equal(got, allowsMAC(command, calls))
+}
+
+func allowsMAC(command, calls string) []byte {
+	m := hmac.New(sha256.New, pressKey)
+	m.Write([]byte(command + "\x00" + calls))
+	return m.Sum(nil)
 }
 
 // allows takes the field of the calls a press allows out of an input.

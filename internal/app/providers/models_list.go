@@ -245,7 +245,7 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 		if err != nil {
 			continue
 		}
-		mws := docs.Words(ws, m, lang)
+		mws := manifest.Words(ws, m, lang)
 		title, _, _ := manifest.Nav(p.Name, m, mws)
 		own := func(command, role string) bool {
 			return slices.ContainsFunc(out.Assignments, func(a assignmentView) bool {

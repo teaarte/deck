@@ -448,7 +448,7 @@ func (ch *Service) suggest(ctx context.Context, workspace int64, project, lang s
 		if c.Title == "" || len(in.Required) > 0 || !slices.Contains(c.Callable(), "owner") {
 			continue
 		}
-		s := suggestView{Icon: "player-play", Text: manifest.Tr(m.I18n[lang], c.Title)}
+		s := suggestView{Icon: "player-play", Text: manifest.Tr(manifest.Words(nil, m, lang), c.Title)}
 		if c.Executor.Type == "agent" {
 			s.Icon = "sparkles"
 			agents = append(agents, s)

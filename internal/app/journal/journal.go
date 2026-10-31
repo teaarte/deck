@@ -278,7 +278,7 @@ func (s *Service) titles(ctx context.Context, act registry.Actor, in spendDailyI
 		t := name
 		if p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
 			if m, err := docs.Manifest(ctx, s.St.Q, p); err == nil {
-				t, _, _ = manifest.Nav(name, m, docs.Words(ws, m, in.Lang))
+				t, _, _ = manifest.Nav(name, m, manifest.Words(ws, m, in.Lang))
 			}
 		}
 		seen[name] = t

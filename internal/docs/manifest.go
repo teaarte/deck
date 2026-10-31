@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"maps"
 	"sync"
 
 	"deck2/internal/manifest"
@@ -116,16 +115,4 @@ func For(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64
 		return in, err
 	}
 	return manifest.Trial(in, m), nil
-}
-
-// Words are deck's words of a language with those of a module's manifest over them.
-func Words(deck map[string]string, m *manifest.Manifest, lang string) map[string]string {
-	out := maps.Clone(deck)
-	if m != nil && len(m.I18n[lang]) > 0 {
-		if out == nil {
-			out = map[string]string{}
-		}
-		maps.Copy(out, m.I18n[lang])
-	}
-	return out
 }

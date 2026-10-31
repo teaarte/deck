@@ -115,7 +115,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		}
 		v.Title, v.ProjectTitle = t.Command, p.Name
 		if m != nil {
-			mws := docs.Words(ws, m, in.Lang)
+			mws := manifest.Words(ws, m, in.Lang)
 			v.ProjectTitle, _, _ = manifest.Nav(p.Name, m, mws)
 			if c := m.Command(t.Command); c != nil && c.Title != "" {
 				v.Title = manifest.Tr(mws, c.Title)

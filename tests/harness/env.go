@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http/httptest"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -39,6 +40,7 @@ type Env struct {
 	Probes *atomic.Int64
 	opts   []Option
 	wait   time.Duration
+	stop   func(wait bool)
 }
 
 type probeIn struct {
@@ -164,21 +166,31 @@ func New(t *testing.T, opts ...Option) *Env {
 	ts.Start()
 	e := &Env{T: t, App: a, URL: base, Side: side.URL, Home: s.home, Fake: s.fake, Clock: s.clock, Names: map[int64]string{},
 		Browser: browser, Probes: probes, opts: opts, wait: s.wait}
-	t.Cleanup(func() {
-		for _, p := range ps {
-			if f, ok := p.(*Fake); ok {
-				f.mu.Lock()
-				if len(f.broken) > 0 {
-					t.Errorf("a call of the harness failed in a turn: %v", f.broken)
+	var once sync.Once
+	e.stop = func(wait bool) {
+		once.Do(func() {
+			for _, p := range ps {
+				if f, ok := p.(*Fake); ok {
+					f.mu.Lock()
+					if len(f.broken) > 0 {
+						t.Errorf("a call of the harness failed in a turn: %v", f.broken)
+					}
+					f.mu.Unlock()
 				}
-				f.mu.Unlock()
 			}
-		}
-		_ = a.Close()
-		ts.CloseClientConnections()
-		ts.Close()
-		side.Close()
-	})
+			_ = a.Close()
+			ts.CloseClientConnections()
+			// A restart does not wait for the calls deck still served, as a crash would not.
+			if !wait {
+				_ = ts.Config.Close()
+				_ = side.Config.Close()
+				return
+			}
+			ts.Close()
+			side.Close()
+		})
+	}
+	t.Cleanup(func() { e.stop(true) })
 	// The master looks into failed processes on a provider of its own, so tests of failures see only their calls.
 	e.UseModels("master.on_error", "quiet")
 	// Its schedule stays out of the clocks of tests; a test of the master's own triggers resumes them.
@@ -189,10 +201,11 @@ func New(t *testing.T, opts ...Option) *Env {
 	return e
 }
 
-// Restart starts deck again on its home, as after a crash, with its options and more; a provider in more takes the
-// place of the old ones. The old deck is not stopped: a test of a clean stop closes it first.
+// Restart stops deck and starts it again on its home with its options and more; a provider in more takes the
+// place of the old ones. Turns the old deck held stay running, as after a crash, and resume on Resume.
 func (e *Env) Restart(more ...Option) *Env {
 	e.T.Helper()
+	e.stop(false)
 	opts := append([]Option{}, e.opts...)
 	if s := (&setup{t: e.T}); len(more) > 0 {
 		for _, o := range more {

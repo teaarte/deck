@@ -128,7 +128,8 @@ func (g guard) QueryRowContext(ctx context.Context, q string, a ...any) *sql.Row
 
 func Open(path string) (*Store, error) {
 	uri := "file:" + strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
-	base, err := sqlite.NewConnector(uri + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	// A write takes the lock at BEGIN: a read before it in the same transaction cannot go stale and fail as busy.
+	base, err := sqlite.NewConnector(uri + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate")
 	if err != nil {
 		return nil, err
 	}

@@ -150,11 +150,10 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting_answer")
 	a := e.WaitAsk()
-	_ = e.App.Close()
 	second := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(second))
+	e2 := e.Restart(harness.WithProvider(second))
 	// A deck that died after the owner's yes and before it sent the call.
 	e2.SQL(`UPDATE ask SET state = 'answered', answer = 'allow' WHERE id = ?;
 UPDATE tool_call SET run = 'running' WHERE ask_id = ?`, a.ID, a.ID)

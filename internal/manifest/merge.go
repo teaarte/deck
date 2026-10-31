@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
 )
@@ -32,12 +31,6 @@ func Merge3(edit, base, next []byte) ([]byte, []Conflict, error) {
 	var buf bytes.Buffer
 	encodeOrdered(&buf, out, "")
 	return []byte(Unescaped(buf.String())), m.conflicts, nil
-}
-
-// object is a JSON object that keeps the order of its keys.
-type object struct {
-	keys []string
-	vals map[string]any
 }
 
 type merger struct{ conflicts []Conflict }
@@ -206,102 +199,4 @@ func cmpPath(p string) string {
 		return "/"
 	}
 	return p
-}
-
-func decodeOrdered(raw []byte) (any, error) {
-	d := json.NewDecoder(bytes.NewReader(raw))
-	d.UseNumber()
-	v, err := decodeValue(d)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := d.Token(); err != io.EOF {
-		return nil, fmt.Errorf("manifest: text after the JSON value")
-	}
-	return v, nil
-}
-
-func decodeValue(d *json.Decoder) (any, error) {
-	t, err := d.Token()
-	if err != nil {
-		return nil, err
-	}
-	switch t {
-	case json.Delim('{'):
-		o := &object{vals: map[string]any{}}
-		for d.More() {
-			k, err := d.Token()
-			if err != nil {
-				return nil, err
-			}
-			v, err := decodeValue(d)
-			if err != nil {
-				return nil, err
-			}
-			key := k.(string)
-			if _, dup := o.vals[key]; !dup {
-				o.keys = append(o.keys, key)
-			}
-			o.vals[key] = v
-		}
-		_, err := d.Token()
-		return o, err
-	case json.Delim('['):
-		a := []any{}
-		for d.More() {
-			v, err := decodeValue(d)
-			if err != nil {
-				return nil, err
-			}
-			a = append(a, v)
-		}
-		_, err := d.Token()
-		return a, err
-	}
-	return t, nil
-}
-
-// encodeOrdered writes v as Canonical does: two spaces a level.
-func encodeOrdered(w *bytes.Buffer, v any, indent string) {
-	in := indent + "  "
-	switch x := v.(type) {
-	case *object:
-		if len(x.keys) == 0 {
-			w.WriteString("{}")
-			return
-		}
-		w.WriteString("{\n")
-		for i, k := range x.keys {
-			b, _ := json.Marshal(k)
-			w.WriteString(in)
-			w.Write(b)
-			w.WriteString(": ")
-			encodeOrdered(w, x.vals[k], in)
-			if i < len(x.keys)-1 {
-				w.WriteByte(',')
-			}
-			w.WriteByte('\n')
-		}
-		w.WriteString(indent + "}")
-	case []any:
-		if len(x) == 0 {
-			w.WriteString("[]")
-			return
-		}
-		w.WriteString("[\n")
-		for i, e := range x {
-			w.WriteString(in)
-			encodeOrdered(w, e, in)
-			if i < len(x)-1 {
-				w.WriteByte(',')
-			}
-			w.WriteByte('\n')
-		}
-		w.WriteString(indent + "]")
-	case json.Number:
-		w.WriteString(x.String())
-	default:
-		b, _ := json.Marshal(x)
-		w.Write(b)
-	}
 }

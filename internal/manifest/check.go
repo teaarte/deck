@@ -1,8 +1,6 @@
 package manifest
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -271,31 +269,6 @@ func (m *Manifest) checkAction(a Action) error {
 
 // CheckButton checks a button a caller builds at run time, as notify does: a command of the project the owner may call.
 func (m *Manifest) CheckButton(a Action) error { return m.checkAction(a) }
-
-// PropertyOrder lists the properties of an object schema in the order the schema writes them.
-func PropertyOrder(schema json.RawMessage) []string {
-	var top map[string]json.RawMessage
-	if json.Unmarshal(schema, &top) != nil || top["properties"] == nil {
-		return []string{}
-	}
-	dec := json.NewDecoder(bytes.NewReader(top["properties"]))
-	out := []string{}
-	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
-		return out
-	}
-	for dec.More() {
-		t, err := dec.Token()
-		if err != nil {
-			return out
-		}
-		out = append(out, t.(string))
-		var skip json.RawMessage
-		if dec.Decode(&skip) != nil {
-			return out
-		}
-	}
-	return out
-}
 
 // checkModel checks that a model command gives its model what its kind needs; a list of files it warns of, so a
 // saved module keeps loading.

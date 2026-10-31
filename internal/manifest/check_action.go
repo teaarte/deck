@@ -228,7 +228,7 @@ func (m *Manifest) CheckButton(a Action) error {
 		return fmt.Errorf("command %q has no input field %q", a.Command, a.Input)
 	}
 	for k := range a.Params {
-		if _, ok := in.Properties[k]; !ok && k != RetryKey {
+		if _, ok := in.Properties[k]; !ok && k != registry.RetryKey {
 			return fmt.Errorf("command %q has no input field %q", a.Command, k)
 		}
 	}

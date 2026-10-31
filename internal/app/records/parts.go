@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/app/access"
+	"deck2/internal/access"
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/fault"

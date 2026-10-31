@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"unicode/utf8"
 
-	"deck2/internal/app/access"
+	"deck2/internal/access"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/untrusted"

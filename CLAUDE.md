@@ -36,13 +36,16 @@ hold; look inside a package for the rest.
 - `internal/app` — the wiring only: `New` builds every service from the functions of the others (a test checks none
   is left unset), registers their commands, runs `Loop`/`Sweep`; background work goes through `Go(func(ctx)) bool`.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
-  `internal/app`. Who may touch what is `app/access`. Deck's screens are data in `app/screens/shipped/` (a file a
+  `internal/app`. Who may touch what is `internal/access`. Deck's screens are data in `app/screens/shipped/` (a file a
   screen).
 - `internal/words` — `ru.json`, the one dictionary of deck's words — of screens, of commands and of the sentences
   deck writes, phrases with verbs too (`manifest.TrText`); `words.In(lang)`. One phrase a meaning (`lint.Words`).
 - `internal/registry` — every input (API, MCP, triggers) calls commands through it; input schemas are limited to
   App Intents types; `Def` takes the schema from a tagged input struct, `Read` declares a read with its result type
-  and event topics (screens read only these; a read without topics panics, `registry.Static` for none).
+  and event topics (screens read only these; a read without topics panics, `registry.Static` for none); a command
+  not written in Go is `registry.Loose`, the policy of the gateway `Command.Gate`; deck's commands are named
+  `<entity>_<verb>` (`_list`, `_get`, `_delete`, `_revoke`), a name of one only through `registry.Deck`/`IsBuiltin`;
+  the reserved fields of an input (`retry_key`, `allows`) only the registry adds and takes out.
 - `internal/store` — SQLite: one writer (`Tx`; no network or waiting inside), readers apart; a committed write
   publishes the topic of its table (`changes.go`; a table is in a scope or `silent`); goose migrations from the base
   `00043_base.sql`; sqlc queries one file per area (`db/` is generated).
@@ -50,7 +53,9 @@ hold; look inside a package for the rest.
   observers only `Follow` it: beside the commits, merged by workspace with the projects changed.
 - `internal/manifest` — the manifest of a module (one format, `version.go`): types, parsing, checks of screens by
   part, expressions (`Where`, `Resolve`), the table of rights (`grants.go`: `Widens` and `Clip` by one table), the
-  structural merge of a grant (`merge.go`), texts and their translation.
+  structural merge of a grant (`merge.go`), texts and their translation (`words.go`); one ordered JSON (`json.go`),
+  one reader of an object schema (`ObjectOf`), one reference to a secret (`SecretRef`), defaults in one step of
+  `Parse`.
 - `internal/docs` — documents with revisions, skill files, the manifest reader and what is in force (`For`,
   `InForce`); `Ship` lays out what deck ships (master, skills) with a merge of others' edits and removal.
 - `internal/process` — the runner of processes: turns of agents, scripts, tools and models, slots, resume, the
@@ -91,8 +96,8 @@ hold; look inside a package for the rest.
   code of deck for any of them, roles rather than the connections of their author.
 - `master` — the built-in project master (manifest, prompts, skills) and `templates`, deck's texts for agents: the
   rule every agent follows (`agent.md`), the prompt of a command, the words of a chat turn.
-- `skills` — the skills deck ships to agents; `schemas` — manifest schema, screen block catalog, App Intents rules;
-  `deck_only` marks what only deck's own screens use (the format a model reads drops it, a module with it warns).
+- `skills` — the skills deck ships to agents; `schemas` — manifest schema, screen block catalog, App Intents rules,
+  the rules of names (`names.go`) and the one compile of a JSON Schema; `deck_only` marks what only deck's own screens use (the format a model reads drops it, a module with it warns).
 - `web` — the client: Vite + React + Mantine v9 + `@a2ui/react` v0.9 — import from `@a2ui/react/v0_9` and
   `@a2ui/web_core/v0_9` (the root export is v0.8); folders by owner in `src/` (`app` the frame,
   `screen`, `cockpit`, `apps` the cards that stand for the side menu in that look, `blocks` a folder or file per block,

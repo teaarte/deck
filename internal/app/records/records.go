@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/app/access"
+	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/fault"
 	"deck2/internal/gateway"

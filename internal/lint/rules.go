@@ -30,6 +30,8 @@ var rules = []rule{
 		[]string{"internal/registry/", "internal/fault/", "internal/home/", "internal/lint/"}, deckName},
 	{"refusal", "a refusal built by hand: take a constructor of registry or a failure of fault", []string{"internal/", "cmd/"},
 		[]string{"internal/registry/"}, refusalLit},
+	{"secret", "a reference to a secret written out: take manifest.SecretRef or SecretPrefix", []string{"internal/", "cmd/"},
+		[]string{"internal/manifest/", "internal/lint/"}, secretLit},
 }
 
 // Rules finds what breaks the conventions of the Go code under root outside the exceptions, and the exceptions
@@ -167,6 +169,25 @@ func refusalLit(f *ast.File, fset *token.FileSet) []int {
 					out = append(out, fset.Position(c.Pos()).Line)
 				}
 			}
+		}
+		return true
+	})
+	return out
+}
+
+// secretLit are the lines of string literals, not tags, that hold a reference to a secret.
+func secretLit(f *ast.File, fset *token.FileSet) []int {
+	tags := map[*ast.BasicLit]bool{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		if fl, ok := n.(*ast.Field); ok && fl.Tag != nil {
+			tags[fl.Tag] = true
+		}
+		return true
+	})
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if l, ok := n.(*ast.BasicLit); ok && l.Kind == token.STRING && !tags[l] && strings.Contains(l.Value, "$secret.") {
+			out = append(out, fset.Position(l.Pos()).Line)
 		}
 		return true
 	})

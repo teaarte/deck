@@ -7,7 +7,7 @@ import (
 	"errors"
 	"strings"
 
-	"deck2/internal/app/access"
+	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"

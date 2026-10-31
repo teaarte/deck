@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"deck2/internal/app/access"
+	"deck2/internal/access"
 	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/registry"

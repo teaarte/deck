@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"deck2/internal/app/access"
+	"deck2/internal/access"
 	"deck2/internal/files"
 	"deck2/internal/paths"
 	"deck2/internal/registry"

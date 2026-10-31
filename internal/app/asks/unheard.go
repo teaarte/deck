@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/internal/app/access"
+	"deck2/internal/access"
 	"deck2/internal/ask"
 	"deck2/internal/process"
 	"deck2/internal/store"

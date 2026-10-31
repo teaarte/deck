@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"deck2/internal/app/access"
+	"deck2/internal/access"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"

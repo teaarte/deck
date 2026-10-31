@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; font-family: var(--font-sans); font-size: var(--font-text-sm-size, 14px);
+         color: var(--color-text-primary); background: var(--color-background-primary); }
+  .bar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 12px; }
+  .group { display: flex; flex-wrap: wrap; gap: 4px; }
+  input { font: inherit; color: inherit; background: var(--color-background-primary); min-width: 150px; flex: 1;
+          border: 1px solid var(--color-border-primary); border-radius: var(--border-radius-md); padding: 4px 8px; }
+  .chip { padding: 2px 10px; border-radius: 999px; cursor: pointer; user-select: none; white-space: nowrap;
+          border: 1px solid var(--color-border-primary); color: var(--color-text-secondary); }
+  .chip.on { color: var(--color-text-primary); border-color: var(--color-ring-primary);
+             background: color-mix(in srgb, var(--color-ring-primary) 18%, transparent); }
+  .count { color: var(--color-text-secondary); margin-left: auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+  .card { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; cursor: pointer;
+          border: 1px solid var(--color-border-primary); border-radius: var(--border-radius-lg, 10px); }
+  .card:hover { background: color-mix(in srgb, var(--color-text-primary) 4%, transparent); }
+  .head { display: flex; gap: 10px; align-items: center; min-width: 0; }
+  .logo { flex: none; width: 48px; height: 48px; border-radius: 12px; background: #fff; display: grid; place-items: center;
+          overflow: hidden; font-weight: 700; color: #555; box-shadow: 0 0 0 1px var(--color-border-primary); }
+  .logo img { width: 30px; height: 30px; }
+  .who { min-width: 0; flex: 1; }
+  .name { font-weight: 600; font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; }
+  .sub { color: var(--color-text-secondary); font-size: 14px; margin-top: 4px; line-height: 1.35; }
+  .score { flex: none; font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; color: var(--s); }
+  .text { color: var(--color-text-primary); opacity: .85; font-size: 15px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4;
+          -webkit-box-orient: vertical; overflow: hidden; }
+  .add { position: absolute; right: 14px; bottom: 14px; width: 32px; height: 32px; padding: 0; border-radius: 50%;
+         display: grid; place-items: center; cursor: pointer; color: var(--color-text-primary); background: var(--color-background-primary);
+         border: 1px solid var(--color-border-primary); }
+  .add:hover { border-color: var(--color-ring-primary); background: color-mix(in srgb, var(--color-ring-primary) 15%, transparent); }
+  .card.has-add .text { padding-right: 38px; }
+  .empty { color: var(--color-text-secondary); padding: 24px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <input id="q" placeholder="Search">
+  <div class="group" id="kinds"></div>
+  <div class="group" id="prices"></div>
+  <div class="group" id="decks"></div>
+  <div class="group" id="scores"></div>
+  <span class="chip" id="mine">Models in deck →</span>
+  <span class="count" id="count"></span>
+</div>
+<div class="grid" id="grid"></div>
+<script type="module">
+import { App, applyDocumentTheme, applyHostStyleVariables } from "/ext-apps.js";
+
+const app = new App({ name: "free-models-grid", version: "1" });
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const RU = { Search: "Поиск", All: "Все", Text: "Текст", Images: "Картинки", Voice: "Озвучка", "Speech to text": "Речь в текст",
+  Video: "Видео", Music: "Музыка", Free: "Бесплатно", Cheap: "Дёшево", "On this Mac": "На этом Mac", "Not in deck": "Ещё не в deck",
+  "In deck": "Уже в deck", "Score 8+": "Оценка 8+", "Any score": "Любая оценка", "Models in deck →": "Модели в deck →", Add: "Добавить", "in deck": "в deck", of: "из", "Nothing matches": "Ничего не подходит",
+  free: "бесплатно", local: "на этом Mac" };
+let ru = false;
+const T = (s) => (ru && RU[s]) || s;
+const KINDS = [["", "All"], ["llm", "Text"], ["image", "Images"], ["tts", "Voice"], ["stt", "Speech to text"], ["video", "Video"], ["music", "Music"]];
+const PRICES = [["", "All"], ["free", "Free"], ["cheap", "Cheap"], ["local", "On this Mac"]];
+const DECKS = [["", "All"], ["out", "Not in deck"], ["in", "In deck"]];
+const SCORES = [["8", "Score 8+"], ["", "Any score"]];
+const KIND_C = { llm: "#3b82f6", image: "#ec4899", tts: "#f59e0b", stt: "#14b8a6", video: "#8b5cf6", music: "#22c55e" };
+// by default only what is worth acting on: not yet in deck and strong
+const pick = { kind: "", price: "", deck: "out", score: "8" };
+
+// one card per model: the same family at several sources is one item, shown by its best source
+function group(list) {
+  const by = new Map();
+  for (const t of list) {
+    const k = t.family || t.source + ":" + t.model_id;
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(t);
+  }
+  return [...by.values()].map((g) => {
+    g.sort((a, b) => (!!b.in_deck - !!a.in_deck) || ((a.tier === "cheap") - (b.tier === "cheap")) || (b.score - a.score));
+    return { ...g[0], members: g, score: Math.max(...g.map((x) => x.score || 0)), in_deck: g.some((x) => x.in_deck),
+      sources: [...new Set(g.map((x) => x.source).filter((s) => s !== "local"))] };
+  });
+}
+let items = [];
+
+const price = (t) => t.source === "local" ? "local" : (t.tier || "free");
+const slug = (s) => s.toLowerCase().replace(/[:._]/g, "-");
+function addUrl(t) {
+  const media = ["image", "video", "tts", "stt", "music"];
+  const ok = (t.kind === "llm" && ["openrouter", "nvidia", "groq", "google", "mistral"].includes(t.source)) ||
+    (media.includes(t.kind) && ["openrouter", "groq", "mistral"].includes(t.source));
+  if (!ok || t.in_deck) return null;
+  let u = "#/deck/settings?tab=Models&dialog=model&connection=" + t.source + "&model=" + t.model_id +
+    "&name=" + slug(t.source + "-" + t.model_id.split("/").pop()) + "&kind=" + (t.kind === "llm" ? "text" : t.kind);
+  if (t.tier === "cheap") u += "&input_usd=" + t.price_in + "&output_usd=" + t.price_out;
+  else if (!(t.source === "openrouter" && t.kind !== "llm")) u += "&free=true";
+  if (t.kind === "llm") u += "&agent=goose";
+  return u;
+}
+
+function chips(box, list, key) {
+  box.innerHTML = "";
+  for (const [v, label] of list) {
+    const el = document.createElement("span");
+    el.className = "chip" + (pick[key] === v ? " on" : "");
+    el.textContent = T(label);
+    el.onclick = () => { pick[key] = v; render(); };
+    box.appendChild(el);
+  }
+}
+
+function card(t) {
+  const el = document.createElement("div");
+  el.className = "card";
+  const s = t.score >= 9 ? "#22c55e" : t.score >= 8 ? "#84cc16" : "#9ca3af";
+  const p = price(t), k = KINDS.find(([v]) => v === t.kind);
+  const tagP = p === "cheap" ? "$" + t.price_in + "/$" + t.price_out : T(p);
+  const url = addUrl(t);
+  const sub = [t.sources.join(", "), T(k ? k[1] : t.kind).toLowerCase(), tagP, t.in_deck ? "✓ " + T("in deck") : ""]
+    .filter(Boolean).join(" · ");
+  if (url) el.classList.add("has-add");
+  el.innerHTML = `<div class="head">
+      <div class="logo">${logoSrc(logos[t.vendor]) ? `<img src="${esc(logoSrc(logos[t.vendor]))}" alt="">` : esc((t.name || "?")[0])}</div>
+      <div class="who"><div class="name" title="${esc(t.name)}">${esc(t.name)}</div><div class="sub">${esc(sub)}</div></div>
+      <span class="score" style="--s:${s}">${esc(t.score)}</span></div>
+    <div class="text">${esc(t.strengths)}</div>
+    ${url ? `<button class="add" title="${T("Add")}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>` : ""}`;
+  el.onclick = () => app.openLink({ url: "#/p/free-models/model/" + t._id });
+  const b = el.querySelector("button");
+  if (b) b.onclick = (e) => { e.stopPropagation(); app.openLink({ url }); };
+  return el;
+}
+
+function render() {
+  chips($("kinds"), KINDS, "kind"); chips($("prices"), PRICES, "price"); chips($("decks"), DECKS, "deck");
+  chips($("scores"), SCORES, "score");
+  $("mine").textContent = T("Models in deck →");
+  const q = $("q").value.trim().toLowerCase();
+  const shown = items.filter((t) => (!pick.kind || t.kind === pick.kind) && (!pick.price || t.members.some((x) => price(x) === pick.price)) &&
+      (!pick.deck || (pick.deck === "in") === !!t.in_deck) && (!pick.score || t.score >= Number(pick.score)) &&
+      (!q || t.members.map((x) => [x.name, x.model_id, x.source, x.vendor, x.strengths].join(" ")).join(" ").toLowerCase().includes(q)))
+    .sort((a, b) => (b.score - a.score) || String(a.name).localeCompare(b.name));
+  $("count").textContent = shown.length + " " + T("of") + " " + items.length;
+  const grid = $("grid");
+  grid.innerHTML = "";
+  if (!shown.length) grid.innerHTML = `<div class="empty">${T("Nothing matches")}</div>`;
+  for (const t of shown) grid.appendChild(card(t));
+}
+
+function theme() {
+  const c = app.getHostContext() || {};
+  if (c.theme) applyDocumentTheme(c.theme);
+  if (c.styles?.variables) applyHostStyleVariables(c.styles.variables);
+  ru = String(c.locale || navigator.language || "").toLowerCase().startsWith("ru");
+  document.documentElement.lang = ru ? "ru" : "en";
+  $("q").placeholder = T("Search");
+}
+
+$("q").oninput = render;
+$("mine").onclick = () => app.openLink({ url: "#/deck/settings?tab=Models" });
+let logos = {};
+// a logo is a path in the data folder of the module (or, in an old record, a data: URI); each path is read once
+const srcs = {}, asked = new Set();
+function logoSrc(v) {
+  if (!v) return "";
+  if (v.startsWith("data:")) return v;
+  if (v in srcs) return srcs[v];
+  if (!asked.has(v)) { asked.add(v); loadLogo(v); }
+  return "";
+}
+async function loadLogo(path) {
+  try {
+    const c = (await app.readServerResource({ uri: "deck://data/" + path }))?.contents?.[0];
+    srcs[path] = c?.blob ? `data:${c.mimeType || "image/svg+xml"};base64,${c.blob}` : "";
+  } catch { srcs[path] = ""; }
+  if (srcs[path]) render();
+}
+app.ontoolresult = (r) => {
+  items = group(r.structuredContent?.items || []);
+  logos = {};
+  for (const t of items) if (t.vendor && t.logo) logos[t.vendor] = t.logo;
+  render();
+};
+app.onhostcontextchanged = () => { theme(); render(); };
+await app.connect();
+theme();
+render();
+</script>
+</body>
+</html>

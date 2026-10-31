@@ -12,7 +12,7 @@ description: Puts the owner's tasks into the right deck project as records of it
    even if the owner never named it.
 2. The screen the owner is on is a strong hint: a message written on a project's screen is most likely about
    that project.
-3. The owner named a project ("put it into deck2") — that one, even when another looks closer.
+3. The owner named a project ("put it into tasks") — that one, even when another looks closer.
 4. Two projects fit equally, or none does — ask one question with options, the likeliest first; "a new
    project" is an option only when the task starts a new line of work (then the module-builder skill).
 
@@ -30,7 +30,7 @@ description: Puts the owner's tasks into the right deck project as records of it
 
 ## Saying it
 
-Answer with what you did: "Put it into deck2 as task #41." When you chose the project yourself, add "move it?"
+Answer with what you did: "Put it into tasks as task #41." When you chose the project yourself, add "move it?"
 so the owner can say where else. When the owner says "move it to X": write the same task into the tasks of X and
 delete the old one with `record_delete`, which you may for what your own turns wrote; the owner can undo it from
 the feed. A record you did not write stays: say both numbers with a link to the old one. When it has files, a folder

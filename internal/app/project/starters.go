@@ -1,15 +1,14 @@
 package project
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"database/sql"
 	"deck2/internal/words"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
-	"path"
 	"slices"
 	"strings"
 
@@ -21,15 +20,19 @@ import (
 	"deck2/starters"
 )
 
-// starter is the files of a module deck offers on its first run, by the name of its .zip.
+// starter is the files of a module deck offers on its first run, by the name of its folder.
 func starter(name string) ([]folderFile, error) {
-	b, err := starters.FS.ReadFile(name + ".zip")
-	if err != nil {
+	if d, err := fs.Stat(starters.FS, name); !fs.ValidPath(name) || strings.Contains(name, "/") || err != nil || !d.IsDir() {
 		return nil, registry.NotFound("deck: no starter module %q; deck.starters_list names them", name)
 	}
-	files, skipped, _, err := readZip(name+".zip", bytes.NewReader(b), int64(len(b)))
-	if err == nil && len(skipped) > 0 {
-		err = registry.Invalid("deck: starter %s has files deck cannot take: %s", name, strings.Join(skipped, "; "))
+	sub, err := fs.Sub(starters.FS, name)
+	if err != nil {
+		return nil, err
+	}
+	shipped, err := docs.Files(sub, "", func(string) string { return "" })
+	files := make([]folderFile, 0, len(shipped))
+	for _, f := range shipped {
+		files = append(files, folderFile{path: f.Name, text: f.Text})
 	}
 	return files, err
 }
@@ -61,7 +64,7 @@ func (pj *Service) startersList(ctx context.Context, act registry.Actor, in star
 	}
 	names := map[string]bool{}
 	for _, e := range es {
-		names[strings.TrimSuffix(e.Name(), path.Ext(e.Name()))] = true
+		names[e.Name()] = e.IsDir()
 	}
 	own := false
 	for _, p := range ps {
@@ -71,7 +74,10 @@ func (pj *Service) startersList(ctx context.Context, act registry.Actor, in star
 	}
 	var out []starterRow
 	for _, e := range es {
-		name := strings.TrimSuffix(e.Name(), path.Ext(e.Name()))
+		name := e.Name()
+		if !e.IsDir() {
+			continue
+		}
 		row := starterRow{Name: name, Title: name}
 		p, err := pj.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name})
 		switch {

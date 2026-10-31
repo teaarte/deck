@@ -1,0 +1,15 @@
+{
+  "about": "Limits of free tiers (tpm: tokens a minute, context: tokens of one request) by deck model name or by connection, and the size of each piece of work in bytes of what one agent run reads (tool results). compare and test read this; an agent turn sends the whole history, so one request must fit both the context and the tokens a minute.",
+  "models": {
+    "groq-gpt-oss-120b-free": {"tpm": 8000, "context": 131072, "why": "бесплатный Groq: 8000 токенов в минуту"}
+  },
+  "connections": {
+    "groq": {"tpm": 6000, "why": "бесплатный Groq: 6000–8000 токенов в минуту"}
+  },
+  "work": {
+    "free-models/review/agent": 90000
+  },
+  "work_default": {"agent": 60000, "text": 8000},
+  "bytes_per_token": 3,
+  "overhead_tokens": {"agent": 4000, "text": 500}
+}

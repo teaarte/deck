@@ -68,6 +68,9 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 	if slices.ContainsFunc(needs, func(n needView) bool { return n.Kind == "model" && !n.Optional && !n.Done }) {
 		t.Fatalf("the starter asks for roles, not for the connections or models of its author: %+v", needs)
 	}
+	if slices.ContainsFunc(needs, func(n needView) bool { return slices.Contains([]string{"local", "media", "music"}, n.What) }) {
+		t.Fatalf("the starter names no local connection of its author: %+v", needs)
+	}
 	e.Must("deck.connection_set", map[string]any{"name": "nvidia", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
 	e.Must("deck.project_needs", map[string]any{"project": "free-models"}, &needs)
 	if slices.ContainsFunc(needs, func(n needView) bool { return n.What == "nvidia" }) {

@@ -17,8 +17,8 @@ var (
 		mark string
 		not  *regexp.Regexp
 	}{".sql": {"--", regexp.MustCompile(`^--\s*(\+goose|name:)`)}, ".py": {"#", regexp.MustCompile(`^#!`)}}
-	// textDirs are where texts other than code are checked for vertical names: the schemas and the master.
-	textDirs    = []string{"schemas/", "master/"}
+	// textDirs are where texts other than code are checked for vertical names: what deck ships.
+	textDirs    = []string{"schemas/", "master/", "skills/", "starters/", "internal/words/", "internal/app/screens/shipped/", "internal/theme/shipped/"}
 	textExt     = []string{".json", ".md"}
 	skipDirs    = []string{".git", ".claude", "node_modules", "dist", "testdata"}
 	requirement = regexp.MustCompile(`\b(FR|NFR)-\d+|\bR\d{1,3}\b`)

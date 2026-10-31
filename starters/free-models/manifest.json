@@ -1,0 +1,1383 @@
+{
+  "version": 13,
+  "title": "Free models",
+  "icon": "gift",
+  "models": [
+    "nvidia",
+    "openrouter",
+    "groq"
+  ],
+  "reads": [
+    {
+      "project": "*",
+      "models": true
+    }
+  ],
+  "domains": {
+    "read": [
+      "openrouter.ai",
+      "integrate.api.nvidia.com",
+      "unpkg.com"
+    ]
+  },
+  "collections": [
+    {
+      "name": "models",
+      "description": "A free AI model at one source, with its verdict and how to connect it to deck.",
+      "display": "name + ' (' + source + ')'",
+      "immutable": [
+        "source",
+        "model_id"
+      ],
+      "key": "source + ':' + model_id",
+      "schema": {
+        "type": "object",
+        "required": [
+          "source",
+          "model_id",
+          "name",
+          "status"
+        ],
+        "properties": {
+          "card": {
+            "type": "integer"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "context": {
+            "type": "integer"
+          },
+          "first_seen": {
+            "type": "string"
+          },
+          "how_to": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "llm",
+              "image",
+              "video",
+              "tts",
+              "stt",
+              "music",
+              "embed",
+              "other"
+            ]
+          },
+          "last_seen": {
+            "type": "string"
+          },
+          "limits": {
+            "type": "string"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "modality": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rated": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "secret": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "rated",
+              "skipped",
+              "gone"
+            ]
+          },
+          "strengths": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tools": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "cheap"
+            ]
+          },
+          "price_in": {
+            "type": "number"
+          },
+          "price_out": {
+            "type": "number"
+          },
+          "vendor": {
+            "type": "string",
+            "description": "Maker of the model, a lobe-icons name"
+          },
+          "logo": {
+            "type": "string",
+            "description": "Path of the maker's logo file in the data folder, such as logos/deepseek.svg (old records may hold a data URI)"
+          },
+          "in_deck": {
+            "type": "boolean",
+            "description": "deck already has this model"
+          },
+          "family": {
+            "type": "string",
+            "description": "The same model at other sources has the same family"
+          },
+          "text_ok": {
+            "type": "boolean",
+            "description": "false when strengths or limits are not plain Russian: review rewrites them"
+          }
+        }
+      }
+    },
+    {
+      "name": "digests",
+      "description": "What the review of one day found and which roles of deck still lack a free model.",
+      "display": "day",
+      "key": "day",
+      "schema": {
+        "type": "object",
+        "required": [
+          "day",
+          "text"
+        ],
+        "properties": {
+          "cards": {
+            "type": "integer"
+          },
+          "day": {
+            "type": "string"
+          },
+          "rated": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "proposals",
+      "description": "One piece of work of deck (a command or a role of a project): the models it runs on now, their health, and the model proposed for it with its test, if any.",
+      "display": "project + ' · ' + (title ?? command ?? role)",
+      "key": "target",
+      "immutable": [
+        "target"
+      ],
+      "schema": {
+        "type": "object",
+        "required": [
+          "target",
+          "project",
+          "role",
+          "status"
+        ],
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "project/command/role"
+          },
+          "project": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "text",
+              "image",
+              "tts",
+              "stt",
+              "music",
+              "video"
+            ]
+          },
+          "current": {
+            "type": "string"
+          },
+          "current_models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "current_price": {
+            "type": "string"
+          },
+          "proposed": {
+            "type": "string",
+            "description": "Name of the model in deck, or source:model_id of one deck lacks"
+          },
+          "proposed_key": {
+            "type": "string",
+            "description": "source:model_id, as the key of the models list"
+          },
+          "proposed_price": {
+            "type": "string"
+          },
+          "in_deck": {
+            "type": "boolean"
+          },
+          "keep_first": {
+            "type": "boolean"
+          },
+          "asked": {
+            "type": "boolean"
+          },
+          "apply_models": {
+            "type": "string",
+            "description": "The chain the assign form gets, comma separated"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "test": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "fail",
+              "waiting",
+              "asked",
+              "watching"
+            ]
+          },
+          "test_note": {
+            "type": "string"
+          },
+          "latency": {
+            "type": "number"
+          },
+          "day": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "new",
+              "ready",
+              "asked",
+              "applied",
+              "rejected",
+              "stale"
+            ]
+          },
+          "now": {
+            "type": "string",
+            "description": "The model doing the work now"
+          },
+          "now_models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "health": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warn",
+              "error"
+            ]
+          },
+          "alert": {
+            "type": "string",
+            "description": "What the owner should know of this work now; empty when nothing"
+          },
+          "revert": {
+            "type": "boolean",
+            "description": "The proposal goes back to the models before a change that made the work worse"
+          },
+          "watch_from": {
+            "type": "string"
+          },
+          "watch_until": {
+            "type": "string"
+          },
+          "watch_prev": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "watch_note": {
+            "type": "string"
+          },
+          "watch_verdict": {
+            "type": "string"
+          },
+          "watch_done": {
+            "type": "boolean"
+          },
+          "ask": {
+            "type": "integer",
+            "description": "The ask of deck.assignment_set that waits for the owner's yes"
+          },
+          "ask_day": {
+            "type": "string"
+          },
+          "rejected_models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Models the owner rejected for this work: never proposed for it again"
+          }
+        }
+      }
+    },
+    {
+      "name": "trials",
+      "description": "A failed test of a model for one piece of work: the model is not proposed for it again until the cooldown ends (for any work when the model itself failed).",
+      "display": "model + ' · ' + target",
+      "key": "target + ' ' + model",
+      "retention_days": 60,
+      "schema": {
+        "type": "object",
+        "required": [
+          "target",
+          "model",
+          "day",
+          "until"
+        ],
+        "properties": {
+          "target": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string"
+          },
+          "until": {
+            "type": "string"
+          },
+          "fails": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "whole": {
+            "type": "boolean",
+            "description": "The model itself failed (hung, 5xx, gone), not only this work"
+          }
+        }
+      }
+    },
+    {
+      "name": "alerts",
+      "description": "A model in use that went gone at its source or broke in deck, so the owner hears of it once.",
+      "display": "model",
+      "key": "model",
+      "schema": {
+        "type": "object",
+        "required": [
+          "model",
+          "active"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  ],
+  "scripts": [
+    {
+      "name": "collect",
+      "file": "scripts/collect.py",
+      "runtime": "exec",
+      "programs": [
+        "python3"
+      ],
+      "timeout_minutes": 3
+    },
+    {
+      "name": "save",
+      "file": "scripts/save.py",
+      "runtime": "exec",
+      "programs": [
+        "python3"
+      ],
+      "timeout_minutes": 3
+    },
+    {
+      "name": "enrich",
+      "file": "scripts/enrich.py",
+      "runtime": "exec",
+      "programs": [
+        "python3"
+      ],
+      "timeout_minutes": 5
+    },
+    {
+      "name": "compare",
+      "file": "scripts/compare.py",
+      "runtime": "exec",
+      "programs": [
+        "python3"
+      ],
+      "timeout_minutes": 5
+    },
+    {
+      "name": "test",
+      "file": "scripts/test.py",
+      "runtime": "exec",
+      "programs": [
+        "python3"
+      ],
+      "timeout_minutes": 15
+    },
+    {
+      "name": "watch",
+      "file": "scripts/watch.py",
+      "runtime": "exec",
+      "programs": [
+        "python3"
+      ],
+      "timeout_minutes": 3
+    },
+    {
+      "name": "mark",
+      "file": "scripts/mark.py",
+      "runtime": "exec",
+      "programs": [
+        "python3"
+      ],
+      "timeout_minutes": 2
+    },
+    {
+      "name": "ask",
+      "file": "scripts/apply.py",
+      "runtime": "exec",
+      "programs": [
+        "python3"
+      ],
+      "timeout_minutes": 2
+    }
+  ],
+  "commands": [
+    {
+      "name": "collect",
+      "title": "Собрать списки",
+      "class": "internal",
+      "description": "Reads the free models of OpenRouter and NVIDIA and the cheap text models of OpenRouter, and queues the new ones for review.",
+      "executor": {
+        "type": "script",
+        "script": "collect"
+      },
+      "input": {
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "type": [
+          "object",
+          "null"
+        ]
+      }
+    },
+    {
+      "name": "review",
+      "title": "Оценить модели",
+      "class": "internal",
+      "description": "Rates the queued models and checks other free sources, writing how to connect each strong one to deck.",
+      "executor": {
+        "type": "agent",
+        "prompt_file": "prompts/review.md",
+        "calls": [
+          "deck.process_get",
+          "deck.records_list",
+          "deck.document_get",
+          "deck.web_search",
+          "deck.web_fetch"
+        ]
+      },
+      "provider": "claude-code",
+      "timeout_minutes": 45,
+      "input": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "integer",
+            "description": "Прогон collect"
+          }
+        }
+      },
+      "result": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "required": [
+          "models",
+          "summary"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "source",
+                "model_id",
+                "name",
+                "kind",
+                "score",
+                "how_to"
+              ],
+              "properties": {
+                "confidence": {
+                  "type": "number"
+                },
+                "how_to": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "llm",
+                    "image",
+                    "video",
+                    "tts",
+                    "stt",
+                    "music",
+                    "embed",
+                    "other"
+                  ]
+                },
+                "limits": {
+                  "type": "string"
+                },
+                "model_id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                },
+                "secret": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "strengths": {
+                  "type": "string"
+                },
+                "roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "url": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "save",
+      "title": "Записать оценки",
+      "class": "internal",
+      "description": "Writes the verdicts of review into the list and tells the owner about new strong models.",
+      "executor": {
+        "type": "script",
+        "script": "save"
+      },
+      "input": {
+        "type": "object",
+        "required": [
+          "process"
+        ],
+        "properties": {
+          "process": {
+            "type": "integer"
+          }
+        }
+      },
+      "result": {
+        "type": [
+          "object",
+          "null"
+        ]
+      }
+    },
+    {
+      "name": "enrich",
+      "title": "Логотипы и «уже в deck»",
+      "class": "internal",
+      "description": "Gives each strong model the logo of its maker and marks the ones deck already has.",
+      "executor": {
+        "type": "script",
+        "script": "enrich"
+      },
+      "input": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "integer"
+          }
+        }
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    {
+      "name": "compare",
+      "title": "Сравнить с deck",
+      "class": "internal",
+      "description": "Compares the models of deck's work with the list: notes models in use that are gone or broken, marks applied and stale proposals, and gives the plan the work with better candidates.",
+      "executor": {
+        "type": "script",
+        "script": "compare"
+      },
+      "input": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "string",
+            "description": "Names of projects to read besides those it knows, comma separated: deck names no projects to a module"
+          },
+          "work": {
+            "type": "string",
+            "format": "json",
+            "description": "Work rows of projects deck does not let it read, as deck.models_list gives them; kept for later runs"
+          }
+        }
+      },
+      "result": {
+        "type": [
+          "object",
+          "null"
+        ]
+      }
+    },
+    {
+      "name": "plan",
+      "title": "Подобрать модели",
+      "class": "internal",
+      "description": "Picks the best free or cheap model for each piece of work of deck from the candidates of compare, with a reason.",
+      "executor": {
+        "type": "agent",
+        "prompt_file": "prompts/plan.md",
+        "calls": [
+          "deck.process_get",
+          "deck.records_list"
+        ]
+      },
+      "timeout_minutes": 20,
+      "input": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "integer",
+            "description": "The run of compare"
+          }
+        },
+        "required": [
+          "process"
+        ]
+      },
+      "result": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "required": [
+          "proposals",
+          "summary"
+        ],
+        "properties": {
+          "proposals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "target",
+                "proposed",
+                "reason"
+              ],
+              "properties": {
+                "target": {
+                  "type": "string"
+                },
+                "proposed": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "test",
+      "title": "Проверить предложения",
+      "class": "internal",
+      "description": "Tests each proposed model on a sample as large as its real work (an agent: several tool turns over real-size records; looping or losing a tool result fails), proposes models deck lacks, and writes the proposals; only those that pass are ready.",
+      "executor": {
+        "type": "script",
+        "script": "test"
+      },
+      "input": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "integer",
+            "description": "The run of plan"
+          }
+        },
+        "required": [
+          "process"
+        ]
+      },
+      "result": {
+        "type": [
+          "object",
+          "null"
+        ]
+      }
+    },
+    {
+      "name": "mark",
+      "title": "Отметить предложение",
+      "class": "internal",
+      "description": "Sets the status of a proposal, such as rejected by the owner.",
+      "executor": {
+        "type": "script",
+        "script": "mark"
+      },
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "rejected",
+              "ready",
+              "new"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    {
+      "name": "watch",
+      "title": "Наблюдать после замены",
+      "class": "internal",
+      "description": "For about three days after a proposal was applied, compares the real runs of that work with the runs before; when it got worse, proposes going back to the earlier models.",
+      "executor": {
+        "type": "script",
+        "script": "watch"
+      },
+      "input": {
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    {
+      "name": "apply",
+      "title": "Применить предложение",
+      "class": "internal",
+      "description": "Asks the owner to assign the models of a ready proposal: a call of deck.assignment_set that waits for the owner's yes.",
+      "executor": {
+        "type": "script",
+        "script": "ask"
+      },
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    },
+    {
+      "name": "add",
+      "title": "Добавить модель в deck",
+      "class": "internal",
+      "description": "Asks the owner to add a model of the list to deck: a call of deck.model_set that waits for the owner's yes.",
+      "executor": {
+        "type": "script",
+        "script": "ask"
+      },
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "result": {
+        "type": "object"
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "command": "collect",
+      "cron": "0 8 * * *",
+      "skip_missed": true
+    },
+    {
+      "after": "collect",
+      "command": "review"
+    },
+    {
+      "command": "review",
+      "cron": "0 10 * * 1",
+      "skip_missed": true
+    },
+    {
+      "after": "review",
+      "command": "save"
+    },
+    {
+      "after": "save",
+      "command": "enrich"
+    },
+    {
+      "command": "enrich",
+      "cron": "50 8 * * *",
+      "skip_missed": true
+    },
+    {
+      "command": "watch",
+      "cron": "5 9 * * *",
+      "skip_missed": true
+    },
+    {
+      "command": "compare",
+      "cron": "20 9 * * *",
+      "skip_missed": true
+    },
+    {
+      "after": "compare",
+      "command": "plan"
+    },
+    {
+      "after": "plan",
+      "command": "test"
+    }
+  ],
+  "menu": [
+    "models",
+    "proposals"
+  ],
+  "screens": [
+    {
+      "name": "models",
+      "title": "Бесплатные модели",
+      "icon": "list-details",
+      "blocks": [
+        {
+          "type": "actions",
+          "actions": [
+            {
+              "label": "Connections",
+              "icon": "key",
+              "screen": "deck/settings",
+              "params": {
+                "tab": "Models",
+                "dialog": "connections"
+              }
+            },
+            {
+              "label": "Assign a role",
+              "icon": "users",
+              "screen": "deck/settings",
+              "params": {
+                "tab": "Models",
+                "dialog": "assign"
+              }
+            },
+            {
+              "label": "Collect now",
+              "command": "collect",
+              "icon": "refresh",
+              "confirm": true
+            }
+          ]
+        },
+        {
+          "type": "custom",
+          "document": "custom/grid.html",
+          "source": {
+            "collection": "models",
+            "where": "status == 'rated' && (listed ?? true) && score >= 7",
+            "sort": "-score",
+            "fields": [
+              "name",
+              "model_id",
+              "source",
+              "kind",
+              "tier",
+              "price_in",
+              "price_out",
+              "score",
+              "strengths",
+              "vendor",
+              "logo",
+              "in_deck",
+              "family"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "model",
+      "title": "Модель",
+      "icon": "cpu",
+      "record": "models",
+      "blocks": [
+        {
+          "type": "actions",
+          "span": "full",
+          "when": "!(in_deck ?? false) && source in ['openrouter', 'nvidia', 'groq', 'google', 'mistral']",
+          "actions": [
+            {
+              "label": "Add to deck",
+              "icon": "plus",
+              "primary": true,
+              "command": "add",
+              "params": {
+                "id": "=_id"
+              }
+            }
+          ]
+        },
+        {
+          "type": "card",
+          "span": "full",
+          "fields": [
+            {
+              "label": "Модель",
+              "bind": "name"
+            },
+            {
+              "label": "Оценка",
+              "bind": "score",
+              "format": "number",
+              "tone": "score >= 9 ? 'ok' : ''"
+            },
+            {
+              "label": "Цена",
+              "bind": "(tier ?? '') == 'cheap' ? '$' + string(price_in) + ' вход / $' + string(price_out) + ' выход за 1M токенов' : nil"
+            },
+            {
+              "label": "В deck",
+              "bind": "(in_deck ?? false) ? 'уже добавлена' : nil",
+              "tone": "'ok'"
+            },
+            {
+              "label": "Чем хороша",
+              "bind": "strengths"
+            },
+            {
+              "label": "Важно знать",
+              "bind": "limits"
+            },
+            {
+              "label": "Роль в deck",
+              "markdown": true,
+              "bind": "kind in ['image', 'video', 'tts', 'stt', 'music'] ? 'Модуль зовёт модель по роли `@' + kind + '`. Когда модель есть в Настройках → Модели, [назначьте её на эту роль](#/deck/settings?tab=Models&dialog=assign&role=' + kind + ').' : nil"
+            },
+            {
+              "label": "Как подключить",
+              "bind": "how_to",
+              "markdown": true
+            },
+            {
+              "label": "Страница",
+              "bind": "url",
+              "format": "link"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "Other sources",
+          "span": "full",
+          "source": {
+            "collection": "models",
+            "where": "(record.family ?? '') != '' && (family ?? '') == record.family && _id != record._id && status == 'rated'",
+            "sort": "-score"
+          },
+          "columns": [
+            {
+              "label": "Source",
+              "bind": "source"
+            },
+            {
+              "label": "Model",
+              "bind": "model_id"
+            },
+            {
+              "label": "Score",
+              "bind": "score",
+              "format": "number"
+            },
+            {
+              "label": "Price",
+              "bind": "tier ?? 'free'",
+              "format": "tag"
+            }
+          ],
+          "actions": [
+            {
+              "label": "Open",
+              "icon": "arrow-right",
+              "primary": true,
+              "screen": "model"
+            }
+          ],
+          "when": "len(rows) > 0"
+        },
+        {
+          "type": "table",
+          "title": "Assign to…",
+          "span": "full",
+          "source": {
+            "collection": "proposals",
+            "where": "proposed_key == record.source + ':' + record.model_id && status in ['ready', 'new', 'asked']"
+          },
+          "columns": [
+            {
+              "label": "Work",
+              "bind": "project + ' · ' + title"
+            },
+            {
+              "label": "Now",
+              "bind": "current"
+            },
+            {
+              "label": "Test",
+              "bind": "status == 'asked' ? 'asked' : (test ?? 'waiting')",
+              "format": "tag",
+              "tone": "status == 'asked' ? 'warn' : (test == 'ok' ? 'ok' : (test == 'fail' ? 'error' : 'warn'))",
+              "details": "(test_note ?? '') + ((latency ?? 0) > 0 ? ' · ' + string(latency) + ' с' : '')"
+            }
+          ],
+          "actions": [
+            {
+              "label": "Apply",
+              "icon": "check",
+              "primary": true,
+              "command": "apply",
+              "params": {
+                "id": "=_id"
+              },
+              "when": "status == 'ready'"
+            }
+          ],
+          "when": "len(rows) > 0"
+        }
+      ]
+    },
+    {
+      "name": "work",
+      "title": "Piece of work",
+      "icon": "briefcase",
+      "record": "proposals",
+      "blocks": [
+        {
+          "type": "card",
+          "span": "full",
+          "fields": [
+            {
+              "label": "Work",
+              "bind": "project + ' · ' + (title ?? command ?? role)"
+            },
+            {
+              "label": "Models now",
+              "bind": "join(now_models ?? current_models ?? [], ' → ')",
+              "tone": "(health ?? 'ok') == 'error' ? 'error' : ((health ?? 'ok') == 'warn' ? 'warn' : '')"
+            },
+            {
+              "label": "What is wrong",
+              "bind": "alert",
+              "tone": "'warn'"
+            },
+            {
+              "label": "Proposed",
+              "bind": "status in ['new', 'ready', 'asked'] ? join(split(apply_models ?? '', ','), ' → ') : nil"
+            },
+            {
+              "label": "Why",
+              "bind": "status in ['new', 'ready', 'asked'] ? reason : nil"
+            },
+            {
+              "label": "Test",
+              "bind": "status in ['new', 'ready', 'asked'] ? (test_note ?? '') + ((latency ?? 0) > 0 ? ' · ' + string(latency) + ' с' : '') : nil"
+            },
+            {
+              "label": "Price",
+              "bind": "status in ['new', 'ready', 'asked'] && (proposed_price ?? '') != '' ? (current_price ?? '') + ' → ' + proposed_price : nil"
+            },
+            {
+              "label": "After the change",
+              "bind": "watch_note"
+            }
+          ],
+          "actions": [
+            {
+              "label": "Apply",
+              "icon": "check",
+              "primary": true,
+              "command": "apply",
+              "params": {
+                "id": "=_id"
+              },
+              "when": "status in ['ready', 'asked']"
+            },
+            {
+              "label": "Reject",
+              "icon": "x",
+              "command": "mark",
+              "params": {
+                "id": "=_id",
+                "status": "rejected"
+              },
+              "when": "status in ['new', 'ready', 'asked']"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "proposals",
+      "title": "Proposals",
+      "icon": "wand",
+      "blocks": [
+        {
+          "type": "actions",
+          "actions": [
+            {
+              "label": "Pick now",
+              "icon": "sparkles",
+              "command": "compare",
+              "confirm": true
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "Work",
+          "description": "Work of deck with something to say: a better model to try, a model in trouble, or a change being watched.",
+          "source": {
+            "collection": "proposals",
+            "where": "status in ['new', 'ready', 'asked'] || (alert ?? '') != ''",
+            "sort": "project"
+          },
+          "filter": [
+            "project"
+          ],
+          "columns": [
+            {
+              "label": "Work",
+              "bind": "project + ' · ' + (title ?? command ?? role)"
+            },
+            {
+              "label": "Now",
+              "bind": "now ?? current",
+              "tone": "(health ?? 'ok') == 'error' ? 'error' : ((health ?? 'ok') == 'warn' ? 'warn' : '')",
+              "details": "alert ?? ''"
+            },
+            {
+              "label": "Proposed",
+              "bind": "status in ['new', 'ready', 'asked'] ? ((revert ?? false) ? '↩ ' + apply_models : ((keep_first ?? false) ? '+ ' + proposed : proposed)) : nil",
+              "details": "status in ['new', 'ready', 'asked'] ? (reason ?? '') + ((proposed_price ?? '') != '' ? ' · ' + (current_price ?? '') + ' → ' + proposed_price : '') : ''"
+            },
+            {
+              "label": "Test",
+              "bind": "test",
+              "format": "tag",
+              "tone": "test == 'ok' ? 'ok' : (test == 'fail' ? 'error' : (test in ['waiting', 'asked', 'watching'] ? 'warn' : ''))",
+              "details": "status == 'applied' ? (watch_note ?? '') : (status in ['new', 'ready', 'asked'] ? (test_note ?? '') + ((latency ?? 0) > 0 ? ' · ' + string(latency) + ' с' : '') : '')"
+            }
+          ],
+          "actions": [
+            {
+              "label": "Details",
+              "icon": "info-circle",
+              "primary": true,
+              "screen": "work"
+            },
+            {
+              "label": "Apply",
+              "icon": "check",
+              "command": "apply",
+              "params": {
+                "id": "=_id"
+              },
+              "when": "status in ['ready', 'asked']"
+            },
+            {
+              "label": "Reject",
+              "icon": "x",
+              "command": "mark",
+              "params": {
+                "id": "=_id",
+                "status": "rejected"
+              },
+              "when": "status in ['new', 'ready', 'asked']",
+              "undo": {
+                "command": "mark",
+                "params": {
+                  "id": "=_id",
+                  "status": "=status == 'new' ? 'new' : 'ready'"
+                }
+              }
+            }
+          ],
+          "empty": "Nothing needs you: every work runs on a healthy model"
+        }
+      ]
+    }
+  ],
+  "i18n": {
+    "ru": {
+      "Free models": "Бесплатные модели",
+      "llm": "текст",
+      "image": "картинки",
+      "video": "видео",
+      "tts": "озвучка",
+      "stt": "речь в текст",
+      "music": "музыка",
+      "embed": "эмбеддинги",
+      "other": "другое",
+      "new": "новая",
+      "rated": "оценена",
+      "skipped": "отсеяна",
+      "gone": "пропала",
+      "free": "бесплатно",
+      "cheap": "дёшево",
+      "Collect now": "Собрать сейчас",
+      "Add to deck": "Добавить в deck",
+      "Connections": "Подключения",
+      "Assign a role": "Назначить роль",
+      "Proposals": "Предложения",
+      "Pick now": "Подобрать сейчас",
+      "Work": "Работа",
+      "Work of deck with something to say: a better model to try, a model in trouble, or a change being watched.": "Работа deck, о которой есть что сказать: лучшая модель, модель с проблемой или замена под наблюдением.",
+      "Proposed": "Предлагаю",
+      "Details": "Подробнее",
+      "Open": "Открыть",
+      "Nothing needs you: every work runs on a healthy model": "Всё в порядке: вся работа идёт на здоровых моделях",
+      "Piece of work": "Работа",
+      "Models now": "Модели сейчас",
+      "What is wrong": "Что не так",
+      "After the change": "После замены",
+      "watching": "наблюдаю",
+      "Other sources": "Другие источники",
+      "Source": "Источник",
+      "Score": "Оценка",
+      "Model": "Модель",
+      "Why": "Почему",
+      "Test": "Проверка",
+      "Price": "Цена",
+      "Apply": "Применить",
+      "Reject": "Отклонить",
+      "Assign to…": "Назначить на…",
+      "Now": "Сейчас",
+      "ok": "прошла",
+      "fail": "не прошла",
+      "waiting": "ждёт",
+      "ready": "готово",
+      "applied": "применено",
+      "rejected": "отклонено",
+      "stale": "устарело",
+      "asked": "ждёт вашего «Да»",
+      "project": "Проект",
+      "Free AI models: every day finds free, strong AI models (text, image, video, voice, speech recognition) on OpenRouter, NVIDIA and other sources, keeps a list of the good ones and writes the owner cards on how to use each in deck for free; proposes which free or cheap model should do each command of deck, tests it first and gives the owner a button to apply it.": "Бесплатные модели: каждый день находит бесплатные сильные модели (текст, картинки, видео, озвучка, распознавание речи) на OpenRouter, NVIDIA и в других источниках, держит список хороших и пишет карточки, как бесплатно подключить каждую к deck; предлагает, какая бесплатная или дешёвая модель должна делать каждую работу deck, сначала проверяет её и даёт кнопку «Применить»."
+    }
+  }
+}

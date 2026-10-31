@@ -10,13 +10,13 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestACommandCallLargerThan32MBIsRefusedWhole(t *testing.T) {

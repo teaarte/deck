@@ -3,17 +3,18 @@ package providers
 import (
 	"cmp"
 	"context"
+	"encoding/json"
+	"net/http"
+	"slices"
+	"strconv"
+	"strings"
+
 	"deck2/internal/docs"
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
-	"encoding/json"
-	"net/http"
-	"slices"
-	"strconv"
-	"strings"
 )
 
 // Route finds where an actor's call of a model goes: the model of deck's settings the request names on its

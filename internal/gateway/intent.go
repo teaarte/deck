@@ -8,12 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/store"
-	"deck2/internal/untrusted"
-
 	"deck2/internal/ask"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // Intent writes the start of an external action with its parameters before it happens. An identical call

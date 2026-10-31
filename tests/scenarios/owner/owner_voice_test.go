@@ -23,11 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/hkdf"
+
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
-
-	"golang.org/x/crypto/hkdf"
 )
 
 func TestVoiceBecomesTextOfTheMessage(t *testing.T) {

@@ -1,12 +1,13 @@
 package manifest
 
 import (
-	"deck2/internal/registry"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
 	"strings"
+
+	"deck2/internal/registry"
 )
 
 // form checks a form: one command the owner may call, or a choice of them from the commands source.

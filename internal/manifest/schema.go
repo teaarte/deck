@@ -2,7 +2,6 @@ package manifest
 
 import (
 	"cmp"
-	"deck2/schemas"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"deck2/schemas"
 )
 
 func compileSchema(name string, raw json.RawMessage) (*jsonschema.Schema, error) {

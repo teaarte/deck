@@ -3,8 +3,6 @@ package process
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/fault"
-	"deck2/internal/paths"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +14,9 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/fault"
 	"deck2/internal/files"
+	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"

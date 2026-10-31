@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"deck2/tests/harness"
-
 	"tailscale.com/ipn/store/mem"
 	"tailscale.com/net/netns"
 	"tailscale.com/tailcfg"
@@ -26,6 +24,7 @@ import (
 	"deck2/internal/api"
 	"deck2/internal/gateway"
 	"deck2/internal/tsnet"
+	"deck2/tests/harness"
 	"deck2/web"
 )
 

@@ -1,10 +1,11 @@
 package manifest
 
 import (
-	"deck2/schemas"
 	"encoding/json"
 	"regexp"
 	"slices"
+
+	"deck2/schemas"
 )
 
 // SecretPrefix begins a reference to a secret, $secret.<name>.

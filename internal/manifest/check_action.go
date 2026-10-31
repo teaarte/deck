@@ -1,7 +1,6 @@
 package manifest
 
 import (
-	"deck2/internal/registry"
 	"errors"
 	"fmt"
 	"maps"
@@ -9,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"deck2/internal/registry"
 )
 
 // gone refuses a $record.<field> of format 7 with the expression that took its place.

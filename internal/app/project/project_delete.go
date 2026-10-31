@@ -2,8 +2,6 @@ package project
 
 import (
 	"context"
-	"deck2/internal/app/access"
-	"deck2/internal/paths"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,8 +9,10 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
+	"deck2/internal/paths"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"

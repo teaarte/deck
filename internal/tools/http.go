@@ -13,14 +13,13 @@ import (
 	"time"
 
 	"deck2/internal/fault"
-	"deck2/internal/home"
-	"deck2/internal/untrusted"
-
 	"deck2/internal/files"
 	"deck2/internal/gateway"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 const (

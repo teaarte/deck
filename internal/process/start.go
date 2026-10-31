@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"deck2/internal/docs"
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
@@ -18,8 +20,6 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/trigger"
-
-	"github.com/google/uuid"
 )
 
 // Started is what a call that starts a process gives back; Running is a process of the same call that was going

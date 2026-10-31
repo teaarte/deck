@@ -3,8 +3,6 @@ package tools
 import (
 	"cmp"
 	"context"
-	"deck2/internal/home"
-	"deck2/internal/sandbox"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -18,16 +16,17 @@ import (
 	"sync"
 	"time"
 
-	"deck2/internal/docs"
-	"deck2/internal/store"
-	"deck2/internal/untrusted"
-
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
+	"deck2/internal/store"
+	"deck2/internal/untrusted"
 )
 
 // BrowserKey names the browser server with deck's profile; OpenBrowserKey the one without sign-ins, which

@@ -3,19 +3,19 @@ package manifest
 import (
 	"bytes"
 	"cmp"
-	"deck2/internal/registry"
-	"deck2/schemas"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/robfig/cron/v3"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	"github.com/robfig/cron/v3"
-	"github.com/santhosh-tekuri/jsonschema/v6"
+	"deck2/internal/registry"
+	"deck2/schemas"
 )
 
 var CronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)

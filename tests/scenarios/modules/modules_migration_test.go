@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"deck2/tests/harness"
-
 	_ "modernc.org/sqlite"
+
+	"deck2/tests/harness"
 )
 
 var peopleV1 = harness.Manifest(`{"collections": [{"name": "people", "description": "A person.", "key": "name",

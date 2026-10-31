@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"deck2/internal/fault"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +13,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"deck2/internal/fault"
 )
 
 type pinnedKey struct{}

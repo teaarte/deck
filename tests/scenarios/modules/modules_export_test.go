@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"deck2/internal/store"
 	"deck2/tests/harness"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {

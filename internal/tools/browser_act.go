@@ -11,11 +11,10 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/files"
-	"deck2/internal/paths"
-	"deck2/internal/untrusted"
-
 	"deck2/internal/gateway"
+	"deck2/internal/paths"
 	"deck2/internal/registry"
+	"deck2/internal/untrusted"
 )
 
 // actor makes an action on the page the browser shows now: on an act domain or on a page the owner allowed

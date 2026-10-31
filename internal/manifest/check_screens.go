@@ -2,7 +2,6 @@ package manifest
 
 import (
 	"cmp"
-	"deck2/internal/registry"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -11,6 +10,8 @@ import (
 	"strings"
 
 	xcurrency "golang.org/x/text/currency"
+
+	"deck2/internal/registry"
 )
 
 // RecordUpdate is the command a form on a record page edits its record with.

@@ -11,13 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/docs"
-	"deck2/internal/untrusted"
-
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // Waiting is what a caller gets for a call that waits for the owner's confirmation.

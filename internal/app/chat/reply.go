@@ -3,8 +3,6 @@ package chat
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/app/access"
-	"deck2/master"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/manifest"
@@ -21,6 +20,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
+	"deck2/master"
 )
 
 // chatQueue runs the replies of a topic one at a time; a pump of a topic whose reply runs, even from a hook that

@@ -4,8 +4,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
-	"deck2/internal/home"
-	"deck2/internal/sandbox"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,17 +13,18 @@ import (
 	"strconv"
 	"strings"
 
-	"deck2/internal/docs"
-	"deck2/internal/untrusted"
-
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // MCP turns the tools of project MCP servers into registry commands; deck starts the servers itself.

@@ -44,12 +44,12 @@ var Blocks = func() []string {
 	return out
 }()
 
-// Format is the manifest schema with the blocks of the catalog and the sources deck knows.
-var Format = format()
+// full is the manifest schema with the blocks of the catalog and the sources deck knows.
+var full = format()
 
-// Taught is Format as a model reads it to write a module: without the blocks and fields marked deck_only, which
+// Taught is full as a model reads it to write a module: without the blocks and fields marked deck_only, which
 // only deck's own screens use.
-var Taught = taught(Format)
+var Taught = taught(full)
 
 func taught(format []byte) []byte {
 	var m map[string]any

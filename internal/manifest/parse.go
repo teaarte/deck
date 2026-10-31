@@ -20,9 +20,9 @@ import (
 
 var CronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 
-var formatSchema, screenSchema = compile(Format)
+var formatSchema, screenSchema = compile(full)
 
-// moduleSchema is Format without what only deck's own screens use.
+// moduleSchema is full without what only deck's own screens use.
 var moduleSchema, _ = compile(Taught)
 
 func compile(format []byte) (*jsonschema.Schema, *jsonschema.Schema) {

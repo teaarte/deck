@@ -38,7 +38,7 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 	// Agent CLIs that fail stand before the owner's, so a self-check never runs on the owner's accounts.
 	shims := t.TempDir()
 	for _, name := range []string{"claude", "codex"} {
-		if err := os.WriteFile(filepath.Join(shims, name), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		if err := harness.WriteProgram(filepath.Join(shims, name), []byte("#!/bin/sh\nexit 1\n")); err != nil {
 			t.Fatal(err)
 		}
 	}

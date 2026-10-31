@@ -22,7 +22,7 @@ func NewCLI(t *testing.T) *FakeCLI {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "claude"), b, 0o755); err != nil {
+	if err := WriteProgram(filepath.Join(dir, "claude"), b); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {

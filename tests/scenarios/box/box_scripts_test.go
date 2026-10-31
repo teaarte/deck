@@ -537,7 +537,7 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 	if p := e.WaitState(e.Start("progs", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "brew install deck-later-tool") {
 		t.Fatalf("a run without its program is refused at once with the same line: %+v", p)
 	}
-	if err := os.WriteFile(filepath.Join(bin, "deck-later-tool"), []byte("#!/bin/sh\necho here\n"), 0o755); err != nil {
+	if err := harness.WriteProgram(filepath.Join(bin, "deck-later-tool"), []byte("#!/bin/sh\necho here\n")); err != nil {
 		t.Fatal(err)
 	}
 	if code, out := e.Press(e.RowAction("progs", "settings", "deck.programs_check", nil)); code != 200 {

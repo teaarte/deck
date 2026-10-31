@@ -2,7 +2,6 @@ package harness
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -22,7 +21,7 @@ func NewCodex(t *testing.T) *fakeCodex {
 	dir := t.TempDir()
 	self := Fakes
 	script := "#!/bin/sh\nexec env DECK_FAKE_CODEX='" + dir + "' '" + self + "' \"$@\"\n"
-	if err := os.WriteFile(filepath.Join(dir, "codex"), []byte(script), 0o755); err != nil {
+	if err := WriteProgram(filepath.Join(dir, "codex"), []byte(script)); err != nil {
 		t.Fatal(err)
 	}
 	return &fakeCodex{fakeBin{T: t, Dir: dir, fixtures: Testdata("codex"), version: "CLI", who: "the app-server"}}

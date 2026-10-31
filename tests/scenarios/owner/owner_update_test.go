@@ -84,7 +84,7 @@ func newBinary(version string) []byte {
 // updateEnv is a deck of v0.1.0 whose binary is a file of the test, updated from the fake release.
 func updateEnv(t *testing.T, r *fakeRelease, launcher bool, script harness.Script) (*harness.Env, string, chan release.Restart) {
 	exe := filepath.Join(t.TempDir(), "deck")
-	if err := os.WriteFile(exe, newBinary("v0.1.0"), 0o755); err != nil {
+	if err := harness.WriteProgram(exe, newBinary("v0.1.0")); err != nil {
 		t.Fatal(err)
 	}
 	restarts := make(chan release.Restart, 1)

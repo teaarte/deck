@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/egress"
 	"deck2/internal/registry"
 )
 
@@ -50,11 +51,13 @@ var rights = []right{
 	{func(prev, next *Manifest, add say) {
 		for _, d := range uncovered(readGrant(prev), next.Domains.Read) {
 			add("read domain: %s", d)
+			local(d, add)
 		}
 	}, func(granted, m, c *Manifest) { c.Domains.Read = covered(readGrant(granted), m.Domains.Read) }},
 	{func(prev, next *Manifest, add say) {
 		for _, d := range uncovered(prev.Domains.Act, next.Domains.Act) {
 			add("act domain: %s", d)
+			local(d, add)
 		}
 	}, func(granted, m, c *Manifest) { c.Domains.Act = covered(granted.Domains.Act, m.Domains.Act) }},
 	// The right of MCP servers below drops a new server, so its secrets are not in force either.
@@ -409,6 +412,13 @@ func covers(granted []string, d string) bool {
 	}
 	_, literal := address(d)
 	return !literal && slices.Contains(granted, "*")
+}
+
+// local says a domain reaches the local network: deck's machine, its network and the metadata of its cloud.
+func local(d string, add say) {
+	if egress.Local(d) {
+		add("local network: %s", d)
+	}
 }
 
 // readGrant are the read domains m reaches without a grant of their own: the registries and its read domains.

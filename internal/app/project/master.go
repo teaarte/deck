@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
-	"time"
+	"slices"
 
 	"deck2/internal/docs"
 	"deck2/internal/health"
@@ -16,21 +16,18 @@ import (
 	"deck2/master"
 )
 
-// SeedMaster stores the built-in project master in every workspace; a file someone else edited stays theirs.
+// SeedMaster ships the built-in project master into every workspace with docs.Ship; the master gets a note of
+// each edit deck could not carry whole.
 func (pj *Service) SeedMaster(ctx context.Context) error {
-	files := map[string]string{}
-	err := fs.WalkDir(master.FS, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		b, err := fs.ReadFile(master.FS, path)
-		files[path] = string(b)
-		return err
-	})
+	raw, err := fs.ReadFile(master.FS, docs.ManifestName)
 	if err != nil {
 		return err
 	}
-	m, err := manifest.Parse([]byte(files[docs.ManifestName]))
+	m, err := manifest.Parse(raw)
+	if err != nil {
+		return err
+	}
+	files, err := docs.Files(master.FS, "", func(name string) string { return moduleKind(m, name) })
 	if err != nil {
 		return err
 	}
@@ -39,14 +36,14 @@ func (pj *Service) SeedMaster(ctx context.Context) error {
 		return err
 	}
 	for _, w := range ws {
-		if err := pj.seedMaster(ctx, w, m, files); err != nil {
+		if err := pj.seedMaster(ctx, w, files); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (pj *Service) seedMaster(ctx context.Context, workspace int64, m *manifest.Manifest, files map[string]string) error {
+func (pj *Service) seedMaster(ctx context.Context, workspace int64, files []docs.File) error {
 	return pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
 		switch {
@@ -68,33 +65,16 @@ func (pj *Service) seedMaster(ctx context.Context, workspace int64, m *manifest.
 		if err := health.Clear(ctx, q, health.Of{Workspace: workspace}, health.Master); err != nil {
 			return err
 		}
-		changed := false
-		for path, text := range files {
-			ref := docs.Ref{Scope: docs.ProjectScope(p), Name: path}
-			d, err := q.FindDocument(ctx, ref.Find())
-			if err == nil && d.DeletedAt.Valid {
-				continue
-			}
-			if err == nil {
-				r, err := docs.Revision(ctx, q, d, 0)
-				if err != nil {
-					return err
-				}
-				if r.Author != "deck" || r.Text == text {
-					continue
-				}
-			} else if !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-			if _, _, _, err := docs.Save(ctx, q, ref, moduleKind(m, path), text, "deck", "built-in project"); err != nil {
-				return err
-			}
-			changed = changed || path == docs.ManifestName
-		}
-		if err := dropUnshipped(ctx, q, p, files, pj.Now()); err != nil {
+		done, err := docs.Ship(ctx, q, docs.ProjectScope(p), "", files, pj.Now())
+		if err != nil {
 			return err
 		}
-		if !changed {
+		for _, n := range done.Notes {
+			if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(pj.Now()), WorkspaceID: workspace, ProjectID: p.ID, Text: n}); err != nil {
+				return err
+			}
+		}
+		if !slices.Contains(done.Changed, docs.ManifestName) {
 			return nil
 		}
 		cur, err := docs.Manifest(ctx, q, p)
@@ -103,29 +83,4 @@ func (pj *Service) seedMaster(ctx context.Context, workspace int64, m *manifest.
 		}
 		return pj.Scheduler.Sync(ctx, q, p.ID, cur)
 	})
-}
-
-// dropUnshipped deletes the documents deck wrote into project master that it ships no more; one the owner or an
-// agent changed since stays.
-func dropUnshipped(ctx context.Context, q *db.Queries, p db.Project, files map[string]string, now time.Time) error {
-	ds, err := q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
-	if err != nil {
-		return err
-	}
-	for _, d := range ds {
-		if _, shipped := files[d.Name]; shipped || d.RecordID.Valid {
-			continue
-		}
-		r, err := docs.Revision(ctx, q, d, 0)
-		if err != nil {
-			return err
-		}
-		if r.Author != "deck" {
-			continue
-		}
-		if _, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(now), Valid: true}, ID: d.ID}); err != nil {
-			return err
-		}
-	}
-	return nil
 }

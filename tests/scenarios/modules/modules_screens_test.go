@@ -394,7 +394,13 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 
 	p := e.Project("quiet", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	id := e.Run(p, "job")
-	e.Until("three lines", func() bool { return len(e.Log(id)) == 3 })
+	e.Until("three lines", func() bool {
+		l := e.Log(id)
+		if len(l) > 3 {
+			t.Fatalf("more lines than the turn wrote: %v %+v", l, e.Proc(id))
+		}
+		return len(l) == 3
+	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stream := e.Events(ctx)

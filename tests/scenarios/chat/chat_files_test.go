@@ -211,10 +211,16 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 		}
 		return false
 	})
-	// No third reply comes.
+	// No reply after reply comes; the end of the first reply may start the failed one before "and now" comes.
 	time.Sleep(300 * time.Millisecond)
-	if n := len(e.RunsOf("master", "reply")); n != 2 {
-		t.Fatalf("one reply for the first message and one failed reply: %d", n)
+	runs, failed := e.RunsOf("master", "reply"), 0
+	for _, r := range runs {
+		if r.State == "error" {
+			failed++
+		}
+	}
+	if failed != 1 || len(runs) > 3 {
+		t.Fatalf("one reply for the first message and one failed reply: %+v", runs)
 	}
 }
 

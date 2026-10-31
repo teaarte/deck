@@ -74,7 +74,7 @@ function Theme() {
   const current = rows.find((r) => r.current)?.name ?? worn.name;
   const pick = async (name: string) => {
     try {
-      const got = await call<{ accent?: string }>('deck.theme', { name });
+      const got = await call<{ accent?: string }>('deck.theme_get', { name });
       await call('deck.theme_use', { name });
       endPreview();
       if (got.accent) setLook({ accent: got.accent });

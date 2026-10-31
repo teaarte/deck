@@ -22,7 +22,7 @@ func masterReplies(e *harness.Env, topic int64, n int) []harness.ChatMessage {
 		}
 		for _, m := range e.ChatMessages(topic) {
 			if m.Reply != nil {
-				_, log := e.Call("deck.process_log", map[string]any{"process": m.Reply.Process, "limit": 30})
+				_, log := e.Call("deck.process_log_get", map[string]any{"process": m.Reply.Process, "limit": 30})
 				e.T.Logf("message %d: reply %+v, log %s", m.ID, *m.Reply, log)
 			}
 		}

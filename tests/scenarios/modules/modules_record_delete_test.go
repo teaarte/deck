@@ -61,11 +61,11 @@ func videos(e *harness.Env, recs ...map[string]any) map[string]int64 {
 	return ids
 }
 
-// partNames are what record_parts lists for a record, as kind and name.
+// partNames are what record_parts_list lists for a record, as kind and name.
 func partNames(e *harness.Env, record int64) string {
 	e.T.Helper()
 	var parts []struct{ Kind, Name string }
-	e.Must("deck.record_parts", map[string]any{"record": record}, &parts)
+	e.Must("deck.record_parts_list", map[string]any{"record": record}, &parts)
 	var names []string
 	for _, p := range parts {
 		names = append(names, p.Kind+" "+p.Name)
@@ -123,15 +123,15 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 	}
 }
 
-// TestAnExpressionErrorStopsADeletion: a folder deck cannot work out stops record_parts and the deletion, which
+// TestAnExpressionErrorStopsADeletion: a folder deck cannot work out stops record_parts_list and the deletion, which
 // takes nothing.
 func TestAnExpressionErrorStopsADeletion(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("films", cascadeModule)
 	ids := videos(e, map[string]any{"slug": "nodir"})
-	if code, out := e.Call("deck.record_parts", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") {
-		t.Fatalf("record_parts says the folder could not be worked out: %d %s", code, out)
+	if code, out := e.Call("deck.record_parts_list", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") {
+		t.Fatalf("record_parts_list says the folder could not be worked out: %d %s", code, out)
 	}
 	if code, out := e.Call("deck.record_delete", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") || !strings.Contains(string(out), "nodir") {
 		t.Fatalf("the deletion stops: %d %s", code, out)
@@ -530,14 +530,14 @@ func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
 			t.Fatalf("retention of %s is red, naming the record and why: %v", name, why)
 		}
 	}
-	e.Must("deck.health_seen", map[string]any{"subject": "retention:clips", "project": "clips"}, nil)
+	e.Must("deck.health_mark_seen", map[string]any{"subject": "retention:clips", "project": "clips"}, nil)
 	if seen, _ := e.HealthSeen("clips", "retention:clips"); !seen {
 		t.Fatal("the owner reads the retention of one project")
 	}
 	if seen, failing := e.HealthSeen("films", "retention:films"); seen || !failing {
 		t.Fatal("the retention of another project stays unread")
 	}
-	if code, _ := e.Call("deck.health_seen", map[string]any{"subject": "retention:films", "project": "clips"}); code == 200 {
+	if code, _ := e.Call("deck.health_mark_seen", map[string]any{"subject": "retention:films", "project": "clips"}); code == 200 {
 		t.Fatal("a check is read only in its own project")
 	}
 }
@@ -626,7 +626,7 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 		t.Fatalf("the render runs: %+v", got)
 	}
 	var parts []struct{ Kind, Name string }
-	e.Must("deck.record_parts", map[string]any{"record": video}, &parts)
+	e.Must("deck.record_parts_list", map[string]any{"record": video}, &parts)
 	var names []string
 	for _, p := range parts {
 		names = append(names, p.Kind+" "+p.Name)

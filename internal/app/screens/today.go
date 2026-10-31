@@ -88,7 +88,7 @@ func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([
 	var spent []struct {
 		CostUSD float64 `json:"cost_usd"`
 	}
-	if err := ss.read(ctx, act, "spend_daily", map[string]any{"days": 1}, &spent); err == nil {
+	if err := ss.read(ctx, act, "spend_days_list", map[string]any{"days": 1}, &spent); err == nil {
 		var sum float64
 		for _, d := range spent {
 			sum += d.CostUSD
@@ -120,7 +120,7 @@ func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([
 // read calls a read of deck as the caller and takes its result.
 func (ss *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
 	raw, _ := json.Marshal(input)
-	got, err := ss.Registry.Invoke(ctx, act, registry.Builtin+"."+name, raw)
+	got, err := ss.Registry.Invoke(ctx, act, registry.Deck(name), raw)
 	if err != nil {
 		return err
 	}

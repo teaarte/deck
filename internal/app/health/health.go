@@ -34,7 +34,7 @@ type healthRow struct {
 	// Seen marks a failing check the owner read since it last changed.
 	Seen bool `json:"seen"`
 	// Kind is what the row is of, the start of its subject: provider, model, command, trigger, secret, ….
-	Kind string `json:"kind" enum:"provider|agent|model|command|trigger|tool|mcp|secret|screen|project|retention|site|scripts|sandbox|tailscale|snapshot|disk|outbox|push|search|master|browser"`
+	Kind string `json:"kind" enum:"provider|agent|model|command|trigger|tool|mcp|secret|screen|project|retention|site|scripts|sandbox|tailscale|snapshot|disk|outbox|push|search|master|browser|update"`
 }
 
 // shownRow is a row of health with the work it stands for: the model of the command of a row of a command or of its
@@ -192,7 +192,7 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("health_list", "Health",
 			"Lists the health of providers and other dependencies with the last error, worst first.",
 			registry.OwnerSide, s.shown).On("health", "secrets", "projects", "models", "assignments", "triggers", "documents"),
-		registry.Def("health_seen", "Mark a failing check read",
+		registry.Def("health_mark_seen", "Mark a failing check read",
 			"Marks a failing check read: it stops counting among the failing until its status or error changes.",
 			registry.OwnerOnly, s.seen),
 	}

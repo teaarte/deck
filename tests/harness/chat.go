@@ -93,7 +93,7 @@ func (e *Env) ChatTopics(archived bool, out any) {
 		Topics   json.RawMessage `json:"topics"`
 		Archived json.RawMessage `json:"archived"`
 	}
-	e.Must("deck.chat_topics", nil, &view)
+	e.Must("deck.chat_topics_list", nil, &view)
 	raw := view.Topics
 	if archived {
 		raw = view.Archived
@@ -139,7 +139,7 @@ func (e *Env) MenuList(in map[string]any, master bool, out any) {
 		Projects []json.RawMessage
 		Master   json.RawMessage
 	}
-	e.Must("deck.menu", in, &m)
+	e.Must("deck.menu_get", in, &m)
 	all := append([]json.RawMessage{m.Deck}, m.Projects...)
 	if master && m.Master != nil {
 		all = append(all, m.Master)
@@ -154,9 +154,9 @@ func (e *Env) MenuList(in map[string]any, master bool, out any) {
 func (e *Env) ChatRead(in map[string]any, out any) {
 	e.T.Helper()
 	all := map[string]json.RawMessage{}
-	for _, read := range []string{"deck.chat_topics", "deck.chat_turn", "deck.chat"} {
+	for _, read := range []string{"deck.chat_topics_list", "deck.chat_turn_get", "deck.chat_get"} {
 		var part map[string]json.RawMessage
-		if lang, _ := in["lang"].(string); read == "deck.chat_topics" {
+		if lang, _ := in["lang"].(string); read == "deck.chat_topics_list" {
 			e.Must(read, map[string]any{"lang": lang}, &part)
 		} else {
 			e.Must(read, in, &part)

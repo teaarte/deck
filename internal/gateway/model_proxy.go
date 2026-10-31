@@ -8,7 +8,7 @@ import (
 )
 
 // ModelCommand is the command whose rules a call of a model through the proxy goes by.
-const ModelCommand = registry.Builtin + ".model_call"
+var ModelCommand = registry.Deck("model_call")
 
 // proxyModel serves a script's call of a model: the rules of deck.model_call decide whether it goes; one that would
 // wait for the owner is refused, one that goes is streamed through the hops.

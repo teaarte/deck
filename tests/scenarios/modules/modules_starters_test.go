@@ -27,7 +27,7 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	var menu struct{ Pulse struct{ Line string } }
-	e.Must("deck.menu", map[string]any{"lang": "ru"}, &menu)
+	e.Must("deck.menu_get", map[string]any{"lang": "ru"}, &menu)
 	if !strings.HasPrefix(menu.Pulse.Line, "Скажи Деки, что делать") || !strings.Contains(menu.Pulse.Line, "модуля ниже") {
 		t.Fatalf("an empty deck says what to do: %+v", menu.Pulse)
 	}
@@ -52,7 +52,7 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 		t.Fatalf("the draft stays offered until it is enabled: %+v", ss)
 	}
 	var needs []needView
-	e.Must("deck.project_needs", map[string]any{"project": "free-models", "lang": "ru"}, &needs)
+	e.Must("deck.project_needs_get", map[string]any{"project": "free-models", "lang": "ru"}, &needs)
 	kinds := map[string]int{}
 	for _, n := range needs {
 		kinds[n.Kind]++
@@ -72,11 +72,11 @@ func TestAnEmptyDeckStartsWithAModule(t *testing.T) {
 		t.Fatalf("the starter names no local connection of its author: %+v", needs)
 	}
 	e.Must("deck.connection_set", map[string]any{"name": "nvidia", "api": "openai", "url": "http://127.0.0.1:9/v1"}, nil)
-	e.Must("deck.project_needs", map[string]any{"project": "free-models"}, &needs)
+	e.Must("deck.project_needs_get", map[string]any{"project": "free-models"}, &needs)
 	if slices.ContainsFunc(needs, func(n needView) bool { return n.What == "nvidia" }) {
 		t.Fatalf("a connection deck has is no need: %+v", needs)
 	}
-	e.Must("deck.menu", map[string]any{"lang": "ru"}, &menu)
+	e.Must("deck.menu_get", map[string]any{"lang": "ru"}, &menu)
 	if strings.HasPrefix(menu.Pulse.Line, "Скажи Деки, что делать") {
 		t.Fatal("a deck with a module is no empty deck")
 	}

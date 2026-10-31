@@ -241,10 +241,10 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	if better := harness.BlockData[[]harness.ListItem](t, pd["b1"]["items"]); len(better) != 0 {
 		t.Fatalf("where reads the record of the page: %+v", better)
 	}
-	if code, out := e.Call("deck.screen", map[string]any{"project": "notes", "screen": "note"}); code != 404 || !strings.Contains(string(out), "record id") {
+	if code, out := e.Call("deck.screen_get", map[string]any{"project": "notes", "screen": "note"}); code != 404 || !strings.Contains(string(out), "record id") {
 		t.Fatalf("a record page needs its record: %d %s", code, out)
 	}
-	if code, out := e.Call("deck.screen", map[string]any{"project": "notes", "screen": "note", "record": 999}); code != 404 {
+	if code, out := e.Call("deck.screen_get", map[string]any{"project": "notes", "screen": "note", "record": 999}); code != 404 {
 		t.Fatalf("a record of another collection or none is not shown: %d %s", code, out)
 	}
 
@@ -276,7 +276,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "list", "source": {"from": "deck.asks_list"}, "item": {"title": "whom"}}`, `unknown field "whom"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
-			`{"type": "log", "source": {"from": "deck.process_chat", "input": {"process": "=_id"}}}`, `source: the log is read on a page of a process`},
+			`{"type": "log", "source": {"from": "deck.process_chat_get", "input": {"process": "=_id"}}}`, `source: the log is read on a page of a process`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "table", "source": {"from": "deck.project_delete"}, "columns": [{"label": "N", "bind": "name"}]}`, `source: deck.project_delete is not a deck command that only reads`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
@@ -661,7 +661,7 @@ func TestATableSendsOnlyWhatItsColumnsShow(t *testing.T) {
 	e.Must("deck.records_upsert", map[string]any{"project": "ocr", "collection": "docs", "records": harness.Jsonl(
 		map[string]any{"key": "a", "name": "scan.pdf", "status": "done", "text": text, "private": "NOT-SHOWN"})}, nil)
 	var raw []json.RawMessage
-	e.Must("deck.screen", map[string]any{"project": "ocr", "screen": "docs"}, &raw)
+	e.Must("deck.screen_get", map[string]any{"project": "ocr", "screen": "docs"}, &raw)
 	all := ""
 	for _, m := range raw {
 		all += string(m)

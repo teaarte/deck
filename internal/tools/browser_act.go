@@ -21,7 +21,7 @@ import (
 // actor makes an action on the page the browser shows now: on an act domain or on a page the owner allowed
 // this call on; files it sends come only from the process's own folder.
 func (b *Browser) actor(tool string) registry.Handler {
-	name := registry.Builtin + "." + tool
+	name := registry.Deck(tool)
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		m, err := docs.For(ctx, b.Store.Q, act, act.ProjectID)
 		if err != nil {

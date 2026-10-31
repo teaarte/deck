@@ -73,7 +73,7 @@ revert commits below.
    `**Run N** (branch deck/run-N):` and a few plain sentences — what changed, how you checked it, anything the
    owner should look at — and `status` `review`.
 6. When the project prompt says `Merge: yourself.` and every test passed, leave your branch (above), merge the
-   run yourself as in `do = merge` and write one `notify` line: what was merged into which branch, and that
+   run yourself as in `do = merge` and write one `owner_notify` line: what was merged into which branch, and that
    "Revert the merge" on the Tasks screen undoes it. Otherwise do not merge: the owner reads the reports and asks.
 7. Finish. Summary: the tasks, the branch, the commits.
 

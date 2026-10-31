@@ -37,7 +37,7 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("asks_list", "Waiting for you",
 			"Lists what waits for the owner, oldest first: questions, confirmations, requests for rights and sign-ins, with who asks, what and where, and the link of the screen that answers them; a request for rights gives what it widens and why. Confirmations that expired stay until the owner clears them.",
 			registry.OwnerSide, s.asksList).On("asks"),
-		registry.Def("process_asks", "Asks of a run",
+		registry.Def("process_asks_list", "Asks of a run",
 			"Gives what a process the owner started by a button came to once it asks or ends, a few seconds at most: the calls it waits to make and those its result names as {\"waiting\": <ask>}, so the owner answers them at the button, where it stands and why it failed.",
 			registry.OwnerOnly, s.processAsks),
 		registry.Def("ask_answer", "Answer",

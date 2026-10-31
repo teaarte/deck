@@ -125,7 +125,7 @@ func TestTheSameNoteOfDeckIsToldOnceWithACount(t *testing.T) {
 	if !strings.Contains(notes[0].Text, "does not match its schema") {
 		t.Fatalf("the same note twice is one note counted twice: %+v", notes)
 	}
-	e.Must("deck.feed_read", map[string]any{"entry": notes[0].ID}, nil)
+	e.Must("deck.feed_mark_read", map[string]any{"entry": notes[0].ID}, nil)
 	e.WaitState(e.Start("work", "run", nil), "done")
 	e.Until("a new note after the read one", func() bool { return told(2, 1) })
 }
@@ -282,9 +282,9 @@ func TestNotesOfOneCauseOfADayAreOneNote(t *testing.T) {
 	for _, name := range []string{"films", "coin"} {
 		e.Project(name, harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	}
-	e.Must("deck.notify", map[string]any{"project": "films", "text": "Groq does not answer; move films to nemotron", "cause": "provider:groq"}, nil)
-	e.Must("deck.notify", map[string]any{"project": "coin", "text": "Groq refuses with 413; move coin to local-qwen", "cause": "provider:groq"}, nil)
-	e.Must("deck.notify", map[string]any{"project": "coin", "text": "The estimate is ready"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "films", "text": "Groq does not answer; move films to nemotron", "cause": "provider:groq"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "coin", "text": "Groq refuses with 413; move coin to local-qwen", "cause": "provider:groq"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "coin", "text": "The estimate is ready"}, nil)
 	var notes []struct {
 		Text     string
 		Cause    string
@@ -306,7 +306,7 @@ func TestNotesOfOneCauseOfADayAreOneNote(t *testing.T) {
 	if i < 0 || !slices.Equal(notes[i].Projects, []string{"films", "coin"}) || len(notes[i].Parts) != 2 || !strings.Contains(notes[i].Parts[1].Text, "local-qwen") {
 		t.Fatalf("the note of the cause holds each module's part: %+v", notes)
 	}
-	e.Must("deck.notify", map[string]any{"project": "coin", "text": "Groq refuses with 413; move coin to local-qwen", "cause": "provider:groq"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "coin", "text": "Groq refuses with 413; move coin to local-qwen", "cause": "provider:groq"}, nil)
 	e.Must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
 	if i := slices.IndexFunc(notes, func(n struct {
 		Text     string
@@ -319,7 +319,7 @@ func TestNotesOfOneCauseOfADayAreOneNote(t *testing.T) {
 		t.Fatalf("the same note again adds no part: %+v", notes)
 	}
 	e.Clock.Add(24 * time.Hour)
-	e.Must("deck.notify", map[string]any{"project": "films", "text": "Groq does not answer again", "cause": "provider:groq"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "films", "text": "Groq does not answer again", "cause": "provider:groq"}, nil)
 	e.Must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
 	if len(notes) != 3 {
 		t.Fatalf("a note of the cause on another day is its own: %+v", notes)

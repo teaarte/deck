@@ -32,7 +32,7 @@ func (dv *Service) transcribe(ctx context.Context, act registry.Actor, in transc
 		return nil, err
 	}
 	if p.Builtin == 0 || f.OwnerKind != "upload" || !strings.HasPrefix(f.Type, "audio/") {
-		return nil, registry.Invalid("deck: transcribe takes a recording just uploaded for project master")
+		return nil, registry.Invalid("deck: recording_transcribe takes a recording just uploaded for project master")
 	}
 	// The recording goes whatever the model says.
 	defer func() {
@@ -47,7 +47,7 @@ func (dv *Service) transcribe(ctx context.Context, act registry.Actor, in transc
 	}
 	act.ProjectID = p.ID
 	input, _ := json.Marshal(map[string]string{"kind": "stt", "file": in.File})
-	out, err := dv.Invoke(ctx, act, registry.Builtin+".model_call", input)
+	out, err := dv.Invoke(ctx, act, registry.Deck("model_call"), input)
 	if err != nil {
 		return nil, registry.Invalid("deck: speech to text failed: %v", err)
 	}
@@ -75,10 +75,10 @@ func (dv *Service) secureAddress(ctx context.Context, act registry.Actor, _ stru
 
 func (dv *Service) voiceCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("transcribe", "Speech to text",
+		registry.Def("recording_transcribe", "Speech to text",
 			"Turns a recording the owner uploaded into text with the model assigned to speech to text; the recording is not kept.",
 			registry.OwnerOnly, dv.transcribe),
-		registry.Read("secure_address", "Secure address",
+		registry.Read("secure_address_get", "Secure address",
 			"Gives the https address of deck on the owner's tailnet, where a browser lets a page record from the microphone; none while deck is not on one.",
 			registry.OwnerOnly, dv.secureAddress).On("health"),
 	}

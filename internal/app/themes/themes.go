@@ -247,7 +247,7 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in checkIn) (an
 
 type saveIn struct {
 	Name       string `desc:"The theme: lowercase letters, digits and -; a shipped theme's name puts the owner's over it"`
-	Text       string `type:"text" desc:"The whole JSON text of the theme by deck.theme_format"`
+	Text       string `type:"text" desc:"The whole JSON text of the theme by deck.theme_format_get"`
 	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 	Reason     string `opt:"" desc:"Why it changed"`
 }
@@ -341,12 +341,12 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("themes_list", "Themes",
 			"Lists the themes of deck: the shipped ones and the owner's, which one is in use and what a check refuses in each.",
 			registry.Everyone, s.list).On("documents", "settings"),
-		registry.Read("theme", "Theme",
+		registry.Read("theme_get", "Theme",
 			"Returns a theme as the client applies it: its CSS, fonts, radius, density, mood and pictures; the one in use without a name.",
 			registry.Everyone, s.theme).On("documents", "settings", "files"),
-		registry.Def("theme_format", "Theme format",
+		registry.Read("theme_format_get", "Theme format",
 			"Returns the JSON Schema of a theme with the catalog of its tokens, variables and classes.",
-			registry.Everyone, func(context.Context, registry.Actor, struct{}) (any, error) { return Format(), nil }),
+			registry.Everyone, func(context.Context, registry.Actor, struct{}) (json.RawMessage, error) { return Format(), nil }).On(registry.Static),
 		registry.Def("theme_check", "Check theme",
 			"Checks a theme without saving it: its schema, its CSS and the contrast of its text in both schemes with every accent; for a saved theme also the addresses of deck in it, light and dark.",
 			registry.OwnerSide, s.check),
@@ -362,7 +362,7 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("theme_draw", "Draw theme pictures",
 			"Asks the master to draw the pictures of the theme in use in its mood, for its schemes: the scene of the card of Today and the backdrop or the pattern behind the page.",
 			registry.OwnerOnly, s.drawPictures),
-		registry.Read("project_covers", "Covers",
+		registry.Read("project_covers_list", "Covers",
 			"Lists the covers of a module's card: the theme each is for, empty for every theme, its scheme and picture, and which ones the card shows in the theme in use.",
 			registry.Everyone, s.covers).On("files", "documents", "settings"),
 		registry.Def("theme_use", "Use theme",

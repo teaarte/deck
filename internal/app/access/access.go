@@ -236,7 +236,7 @@ func Name(ctx context.Context, q *db.Queries, id int64) string {
 // Files refuses an automation token the files of a project unless it may call every command of it; a token that tries
 // commands also uploads, the input of a trial.
 func Files(act registry.Actor, project string, upload bool) error {
-	if act.Kind != registry.Token || registry.Permits(act.Commands, project+".*") || upload && registry.Permits(act.Commands, "deck.command_try") {
+	if act.Kind != registry.Token || registry.Permits(act.Commands, project+".*") || upload && registry.Permits(act.Commands, registry.Deck("command_try")) {
 		return nil
 	}
 	return registry.Refuse("deck: this automation token may not call every command of %s, so it does not touch its files", project)

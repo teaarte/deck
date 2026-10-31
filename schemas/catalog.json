@@ -178,7 +178,7 @@
     "log": {
       "description": "The log of the process of a record page.",
       "deck_only": true,
-      "block": {"description": "Needs source, deck.process_chat of the process; takes nothing else.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source, deck.process_chat_get of the process; takes nothing else.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -251,7 +251,7 @@
     "chat": {
       "description": "The chat with the master: the topics, the messages of one, the master's questions in it and the turn going on, with send, stop, archive and delete.",
       "deck_only": true,
-      "block": {"description": "Needs source deck.chat and no other field; it reads deck.chat_topics and deck.chat_turn beside it. The client picks the topic as the filter topic of the block: a topic id, new for a new one, empty for the newest.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}}},
+      "block": {"description": "Needs source deck.chat_get and no other field; it reads deck.chat_topics_list and deck.chat_turn_get beside it. The client picks the topic as the filter topic of the block: a topic id, new for a new one, empty for the newest.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -395,7 +395,7 @@
         "error": {"type": "string"},
         "empty": {"type": "string", "description": "the text of an empty block"},
         "tone": {"$ref": "#/$defs/tone"},
-        "filters": {"type": "array", "description": "Choices the owner narrows the block by; the client sends the picked ones back to deck.screen.", "items": {
+        "filters": {"type": "array", "description": "Choices the owner narrows the block by; the client sends the picked ones back to deck.screen_get.", "items": {
           "type": "object", "required": ["field", "options"], "additionalProperties": false,
           "properties": {"field": {"type": "string"}, "search": {"type": "boolean", "description": "the words the owner looks for in the fields of search, sent as the value of the field ~"}, "label": {"type": "string", "description": "the field in the owner's language"}, "value": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}, "labels": {"type": "array", "description": "each option in the owner's language, when one differs", "items": {"type": "string"}}}
         }},

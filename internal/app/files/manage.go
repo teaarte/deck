@@ -61,7 +61,7 @@ func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileIn)
 		}
 		params, _ := json.Marshal(out)
 		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
-			Author: act.Author(), Text: fmt.Sprintf("deleted file %s", untrusted.Line(f.Name, 80)), Actions: "[]", Command: registry.Builtin + ".file_restore",
+			Author: act.Author(), Text: fmt.Sprintf("deleted file %s", untrusted.Line(f.Name, 80)), Actions: "[]", Command: registry.Deck("file_restore"),
 			Params: string(params), ProcessID: store.ID(act.ProcessID), What: "deleted files"})
 	})
 }

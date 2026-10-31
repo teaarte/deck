@@ -174,7 +174,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the glass of the theme document on the tabs", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
 	var worn struct{ Name string }
-	e.Must("deck.theme", map[string]any{}, &worn)
+	e.Must("deck.theme_get", map[string]any{}, &worn)
 	if worn.Name != "glass" {
 		t.Fatalf("the theme is the whole deck's, kept on the server: %+v", worn)
 	}
@@ -237,7 +237,7 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("the clouds of juce are its picture behind the page: %s", got)
 	}
 	var cur struct{ Name string }
-	e.Must("deck.theme", map[string]any{}, &cur)
+	e.Must("deck.theme_get", map[string]any{}, &cur)
 	if cur.Name != "glass" {
 		t.Fatalf("a preview changes no theme: %+v", cur)
 	}
@@ -272,7 +272,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the address names the tab as written", `/tab=30(\+|%20| )days$/.test(location.hash)`)
 	b.open(e.URL + "/#/deck/settings?tab=Advanced")
 	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Сколько агентских процессов')`)
-	e.Must("deck.notify", map[string]any{"project": "web", "text": "one more note"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "web", "text": "one more note"}, nil)
 	b.open(e.URL + "/#/deck/cockpit")
 	readAll := `document.querySelector('[data-block] [data-verb="read_all"]')`
 	b.until("the button that reads every note in the head of the feed", readAll)

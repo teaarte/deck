@@ -64,11 +64,11 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64, tr func
 	}
 	v.Undo = ch.undos(ctx, p.ID)
 	if v.Stopped {
-		v.Retry = append(v.Retry, chatAction("continue", registry.Builtin+".chat_retry", map[string]any{"message": message, "provider": p.Provider}))
+		v.Retry = append(v.Retry, chatAction("continue", registry.Deck("chat_retry"), map[string]any{"message": message, "provider": p.Provider}))
 		return v
 	}
 	for _, name := range ch.others(ctx, p) {
-		a := chatAction("retry", registry.Builtin+".chat_retry", map[string]any{"message": message, "provider": name})
+		a := chatAction("retry", registry.Deck("chat_retry"), map[string]any{"message": message, "provider": name})
 		a["label"] = name
 		v.Retry = append(v.Retry, a)
 	}
@@ -86,12 +86,12 @@ func (ch *Service) undos(ctx context.Context, processID int64) []undoView {
 		var a action
 		switch {
 		case l.Kind == process.LeftChange && l.Undo:
-			a = chatAction("undo", registry.Builtin+".feed_undo", map[string]any{"entry": l.ID})
+			a = chatAction("undo", registry.Deck("feed_undo"), map[string]any{"entry": l.ID})
 		case l.Kind == process.LeftRecord:
-			a = chatAction("delete", registry.Builtin+".record_delete", map[string]any{"record": l.ID})
+			a = chatAction("delete", registry.Deck("record_delete"), map[string]any{"record": l.ID})
 			a["confirm"], a["parts"] = true, manifest.RecordParts
 		case l.Kind == process.LeftFile:
-			a = chatAction("delete", registry.Builtin+".file_delete", map[string]any{"file": l.ID})
+			a = chatAction("delete", registry.Deck("file_delete"), map[string]any{"file": l.ID})
 			a["confirm"] = true
 		default:
 			continue

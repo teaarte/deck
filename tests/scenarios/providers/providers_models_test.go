@@ -683,7 +683,7 @@ func TestAssignmentsGoWithTheirCommandsAndModels(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "router", "model": "x/voice2", "name": "voice2", "kind": "tts"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"voice", "voice2"}}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "tts", "project": "plain", "models": []string{"voice"}}, nil)
-	e.Must("deck.model_remove", map[string]any{"name": "voice"}, nil)
+	e.Must("deck.model_delete", map[string]any{"name": "voice"}, nil)
 	var m harness.ModelsOut
 	e.Must("deck.models_list", nil, &m)
 	for _, a := range m.Assignments {

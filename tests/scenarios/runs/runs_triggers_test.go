@@ -118,7 +118,7 @@ func TestTriggerChainStopsAtNinthStep(t *testing.T) {
 			t.Fatalf("depth of %s must be %d: %+v", pr.Command, want, pr)
 		}
 	}
-	e.Must("deck.feed_read", map[string]any{"entry": n.ID}, nil)
+	e.Must("deck.feed_mark_read", map[string]any{"entry": n.ID}, nil)
 	if e.Warnings("chain.c9") != 0 {
 		t.Fatalf("a note marked read stays read: %+v", e.Notes())
 	}

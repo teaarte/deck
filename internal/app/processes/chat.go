@@ -57,7 +57,7 @@ func (s *Service) processChat(ctx context.Context, act registry.Actor, in proces
 		l := map[string]any{"at": m.CreatedAt, "kind": kind, "text": untrusted.Cut(m.Text, 4000), "status": "taken"}
 		if !m.DeliveredAt.Valid {
 			l["status"] = "waiting"
-			l["delete"] = map[string]any{"verb": "delete", "command": registry.Builtin + ".process_message_delete",
+			l["delete"] = map[string]any{"verb": "delete", "command": registry.Deck("process_message_delete"),
 				"params": map[string]any{"process": p.ID, "message": m.ID}}
 		}
 		v.Lines = append(v.Lines, l)
@@ -76,7 +76,7 @@ func (s *Service) processChat(ctx context.Context, act registry.Actor, in proces
 	if !p.FinishedAt.Valid {
 		v.Since = p.StartedAt
 		if p.Kind == process.KindAgent {
-			v.Say = map[string]any{"verb": "send", "command": registry.Builtin + ".process_tell", "params": map[string]any{"process": p.ID}, "input": "text"}
+			v.Say = map[string]any{"verb": "send", "command": registry.Deck("process_tell"), "params": map[string]any{"process": p.ID}, "input": "text"}
 		}
 	}
 	return v, nil
@@ -109,7 +109,7 @@ func (s *Service) processMessageDelete(ctx context.Context, act registry.Actor, 
 
 func (s *Service) chatCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Read("process_chat", "Process chat",
+		registry.Read("process_chat_get", "Process chat",
 			"Gives the log of a process with the owner's messages among its lines, newest first, while it runs when it started and how to write to it.",
 			registry.OwnerSide, s.processChat).On("log", "processes"),
 		registry.Def("process_message_delete", "Delete message to a process",

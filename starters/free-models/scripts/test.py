@@ -348,7 +348,7 @@ def main(inp):
         call("deck.records_upsert", {"collection": "trials", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in fresh)})
     ready = sum(1 for r in rows if r["status"] == "ready")
     if ready:
-        call("deck.notify", {"text": f"Подобрал модели: {ready} готовы к применению.", "screen": "proposals"})
+        call("deck.owner_notify", {"text": f"Подобрал модели: {ready} готовы к применению.", "screen": "proposals"})
     return {"ready": ready, "waiting": sum(1 for r in rows if r.get("test") == "waiting"),
             "failed": sum(1 for r in rows if r.get("test") == "fail"), "refused": refused,
             "tests": [f"{k[0]} {k[1]}: {'ok' if v[0] else ('fail' if v[0] is False else 'wait')} {v[2][:80]}" for k, v in tests.items()]}

@@ -55,7 +55,7 @@ func (s *Service) themeImage(ctx context.Context, act registry.Actor, in themeIm
 }
 
 func (s *Service) themeImageCommand() *registry.Command {
-	return registry.Def("theme_image", "Set theme picture",
+	return registry.Def("theme_image_set", "Set theme picture",
 		"Sets a picture of a theme for the light or the dark scheme, or takes it off: cockpit, the scene of the card of Today, backdrop, the page behind, or pattern, a tile repeated behind it. The pictures are not in the theme's text; deck keeps them with a light copy and checks the words of Today over the cockpit.",
 		registry.OwnerSide, s.themeImage)
 }

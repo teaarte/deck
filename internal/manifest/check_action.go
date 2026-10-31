@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"deck2/internal/registry"
 	"errors"
 	"fmt"
 	"maps"
@@ -8,8 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
-	"deck2/schemas"
 )
 
 // gone refuses a $record.<field> of format 7 with the expression that took its place.
@@ -93,13 +92,13 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	case n != 1:
 		return errors.New("a button has a command or a screen")
 	case a.Command != "" && c.deck:
-		if !strings.HasPrefix(a.Command, "deck.") {
+		if !registry.IsBuiltin(a.Command) {
 			return errors.New("a button of a deck screen calls a deck command")
 		}
 		return nil
 	case a.Command == RecordDelete && !c.deck:
 		return c.recordDelete(b, a)
-	case a.Command != "" && strings.HasPrefix(a.Command, schemas.Builtin+".") && c.m.commands[a.Command] == nil:
+	case a.Command != "" && registry.IsBuiltin(a.Command) && c.m.commands[a.Command] == nil:
 		return fmt.Errorf("unknown command %q: a button calls a command of its module; %s", a.Command, deckLink)
 	case a.Command != "":
 		return c.m.checkAction(a)
@@ -144,7 +143,7 @@ func (c *screenCheck) allows(b Block, a Action, fields []string) error {
 		return nil
 	}
 	switch {
-	case a.Command == "" || c.deck || strings.HasPrefix(a.Command, schemas.Builtin+"."):
+	case a.Command == "" || c.deck || registry.IsBuiltin(a.Command):
 		return errors.New("allows names calls of the run a command of the module starts; the button calls one")
 	case b.Type == "custom":
 		return errors.New("allows is not on a custom block: its frame presses without the owner")

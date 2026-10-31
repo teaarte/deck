@@ -80,12 +80,12 @@ func (s *Service) draw(ctx context.Context, act registry.Actor, in drawIn) (any,
 		model = "the image model deck gives"
 	}
 	if len(l.Schemes) == 1 {
-		b = append(b, manifest.TrText(ws, fmt.Sprintf("One picture for the %s scheme, the only one of the theme: call deck.model_call of kind image on %s, then set it with deck.project_cover, theme %s, its file as results/<the name the call gave>, scheme %s.", l.Schemes[0], model, cur, l.Schemes[0])))
+		b = append(b, manifest.TrText(ws, fmt.Sprintf("One picture for the %s scheme, the only one of the theme: call deck.model_call of kind image on %s, then set it with deck.project_cover_set, theme %s, its file as results/<the name the call gave>, scheme %s.", l.Schemes[0], model, cur, l.Schemes[0])))
 	} else {
-		b = append(b, manifest.TrText(ws, fmt.Sprintf("One picture for the light scheme and one for the dark: call deck.model_call of kind image on %s for each, then set each with deck.project_cover, theme %s, its file as results/<the name the call gave>, scheme light or dark.", model, cur)))
+		b = append(b, manifest.TrText(ws, fmt.Sprintf("One picture for the light scheme and one for the dark: call deck.model_call of kind image on %s for each, then set each with deck.project_cover_set, theme %s, its file as results/<the name the call gave>, scheme light or dark.", model, cur)))
 	}
 	input, _ := json.Marshal(map[string]any{"text": strings.Join(b, "\n\n")})
-	return s.Invoke(ctx, act, registry.Builtin+".chat_send", input)
+	return s.Invoke(ctx, act, registry.Deck("chat_send"), input)
 }
 
 // freeImageModel is the image model a cover is drawn on by default: a free one of the owner's machine first, then

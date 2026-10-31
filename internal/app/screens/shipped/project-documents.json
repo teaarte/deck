@@ -5,7 +5,7 @@
   "params": {"path": "string"},
   "blocks": [
     {"type": "media", "span": "full", "path": "param.path ?? ''",
-      "source": {"from": "deck.files_folder", "input": {"path": "=param.path ?? ''"}, "rows": "entries", "sort": "-dir"},
+      "source": {"from": "deck.files_folder_list", "input": {"path": "=param.path ?? ''"}, "rows": "entries", "sort": "-dir"},
       "empty": "The folder is empty",
       "item": {"file": "file ?? ''", "title": "name", "meta": "meta ?? ''", "icon": "icon ?? 'folder'"},
       "actions": [

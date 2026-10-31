@@ -135,7 +135,7 @@ def main(inp):
                                            "records": "\n".join(json.dumps(r, ensure_ascii=False) for r in write)})
         errors += res.get("errors") or []
     if gone:
-        call("deck.notify", {"text": "Перестали быть бесплатными, подорожали или пропали: " + ", ".join(gone)[:250], "screen": "models"})
+        call("deck.owner_notify", {"text": "Перестали быть бесплатными, подорожали или пропали: " + ", ".join(gone)[:250], "screen": "models"})
 
     state = {**have, **{f"{r['source']}:{r['model_id']}": r for r in write}}
     queue = [f"{r['source']} | {r['model_id']} | {r.get('name', '')} | {r.get('modality', '')} | {r.get('context', 0)} | "

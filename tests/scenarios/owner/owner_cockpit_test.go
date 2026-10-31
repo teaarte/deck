@@ -372,7 +372,7 @@ func TestFailedRunsStayInTheHistoryOfTheSchedule(t *testing.T) {
 func today(e *harness.Env, lang string) harness.TodayPulse {
 	e.T.Helper()
 	var m struct{ Pulse harness.TodayPulse }
-	e.Must("deck.menu", map[string]any{"lang": lang}, &m)
+	e.Must("deck.menu_get", map[string]any{"lang": lang}, &m)
 	return m.Pulse
 }
 
@@ -395,7 +395,7 @@ func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 	var recs []struct{ ID int64 }
 	e.Must("deck.records_list", map[string]any{"project": "films", "collection": "videos"}, &recs)
 	e.WaitState(e.Start("films", "voice", map[string]any{"record": recs[0].ID}), "error")
-	e.Must("deck.notify", map[string]any{"project": "films", "text": "a new video is ready"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "films", "text": "a new video is ready"}, nil)
 	if h := today(e, ""); h.State != "errors" || h.Failed != 1 || h.Notes != 1 || h.Line != "Nothing to decide. One failure is in the feed below." || h.Mark != "alert-circle" {
 		t.Fatalf("a failure alone is said to be in the feed: %+v", h)
 	}
@@ -433,7 +433,7 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 		e.WaitState(e.Start("films", "voice", map[string]any{"record": r.ID}), "error")
 	}
 	for _, text := range []string{"one", "two", "three"} {
-		e.Must("deck.notify", map[string]any{"project": "films", "text": text}, nil)
+		e.Must("deck.owner_notify", map[string]any{"project": "films", "text": text}, nil)
 	}
 	feed := e.Screen("", "cockpit", nil)["b2"]
 	items := harness.BlockData[[]harness.ListItem](t, feed["items"])
@@ -454,7 +454,7 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	if !slices.Equal(verbs, []string{"retry", "open", "close"}) {
 		t.Fatalf("a failure is retried, opened or closed: %v", verbs)
 	}
-	e.Must("deck.feed_read", map[string]any{"all": true}, nil)
+	e.Must("deck.feed_mark_read", map[string]any{"all": true}, nil)
 	var failed []cockpitRun
 	e.Must("deck.processes_list", map[string]any{"failed": true}, &failed)
 	for _, f := range failed {
@@ -473,7 +473,7 @@ func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	if len(notes) != 3 || notes[0].Cells[2] != "read" {
 		t.Fatalf("the history keeps the notes, read: %+v", notes)
 	}
-	e.Refused("deck.feed_read", map[string]any{}, 422, "give the entry of one note, or all")
+	e.Refused("deck.feed_mark_read", map[string]any{}, 422, "give the entry of one note, or all")
 	e.Refused("deck.process_dismiss", map[string]any{"all": true, "process": 1}, 422, "give one process, or all")
 }
 
@@ -713,7 +713,7 @@ func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 		{map[string]any{"project": "web", "text": "x", "screen": "deck/nowhere"}, `deck has no screen "nowhere"`},
 		{map[string]any{"project": "web", "text": "x", "screen": "deck/process"}, "give record"},
 	} {
-		e.Refused("deck.notify", tc.in, 422, tc.want)
+		e.Refused("deck.owner_notify", tc.in, 422, tc.want)
 	}
 }
 
@@ -723,8 +723,8 @@ func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("web", harness.WebNotes)
-	e.Must("deck.notify", map[string]any{"project": "web", "text": "the runs of today", "screen": "deck/schedule"}, nil)
-	e.Must("deck.notify", map[string]any{"project": "web", "text": "a new note", "screen": "main"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "web", "text": "the runs of today", "screen": "deck/schedule"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "web", "text": "a new note", "screen": "main"}, nil)
 	var feed []struct {
 		Text, Screen string
 		DeckScreen   bool `json:"deck_screen"`
@@ -736,7 +736,7 @@ func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 		t.Fatalf("a note says whether its screen is of deck: %+v", feed)
 	}
 	if fmt.Sprint(feed[1].Open) != "map[screen:schedule verb:open]" || fmt.Sprint(feed[0].Open) != "map[project:web screen:main verb:open]" ||
-		feed[0].MarkRead["command"] != "deck.feed_read" {
+		feed[0].MarkRead["command"] != "deck.feed_mark_read" {
 		t.Fatalf("a note gives the buttons the bell draws, opening its screen and marking it read: %+v", feed)
 	}
 	data, _ := json.Marshal(e.Screen("", "cockpit", nil))

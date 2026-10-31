@@ -41,7 +41,7 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 		v["readonly"] = ro
 	case b.Command != "":
 		name := b.Command
-		if !r.deck() && !strings.HasPrefix(name, "deck.") {
+		if !r.deck() && !registry.IsBuiltin(name) {
 			name = r.req.Project.Name + "." + name
 		}
 		c, err := r.src.Command(r.ctx, r.scope.Workspace, name)
@@ -50,7 +50,7 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 		}
 		cmds = []map[string]any{c}
 		// A deck command on a screen of a project works on that project.
-		if in, _ := c["input"].(map[string]any); !r.deck() && strings.HasPrefix(name, "deck.") && in != nil {
+		if in, _ := c["input"].(map[string]any); !r.deck() && registry.IsBuiltin(name) && in != nil {
 			if props, _ := in["properties"].(map[string]any); props["project"] != nil {
 				v["values"], v["readonly"] = map[string]any{"project": r.req.Project.Name}, []string{"project"}
 			}
@@ -203,7 +203,7 @@ func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any
 				if b.Choices == nil {
 					b.Choices = map[string]manifest.Choice{}
 				}
-				b.Choices[field] = manifest.Choice{Source: manifest.Source{From: "deck.projects_list", Input: map[string]any{"project": ""}, Sort: "name"}, Value: "name"}
+				b.Choices[field] = manifest.Choice{Source: manifest.Source{From: registry.Deck("projects_list"), Input: map[string]any{"project": ""}, Sort: "name"}, Value: "name"}
 			}
 		}
 	}

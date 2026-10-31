@@ -49,7 +49,7 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	e.Refused("deck.model_set", set("gpt-6-sol", ""), 422, "claude-code lists no model")
 	e.Refused("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "cc-x", "agent": "goose"}, 422, "run in claude-code, not goose")
 	e.Refused("deck.connection_set", map[string]any{"name": "claude-code", "api": "openai", "url": "https://example.com/v1"}, 422, "deck keeps itself")
-	e.Refused("deck.connection_remove", map[string]any{"name": "claude-code"}, 422, "deck keeps itself")
+	e.Refused("deck.connection_delete", map[string]any{"name": "claude-code"}, 422, "deck keeps itself")
 
 	var m struct {
 		Agent        string

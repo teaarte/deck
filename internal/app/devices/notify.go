@@ -45,7 +45,7 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 		return nil, err
 	}
 	if strings.TrimSpace(in.Text) == "" {
-		return nil, registry.Invalid("deck: notify needs text")
+		return nil, registry.Invalid("deck: owner_notify needs text")
 	}
 	m, err := docs.Manifest(ctx, dv.St.Q, p)
 	if err != nil {
@@ -114,7 +114,7 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 
 func (dv *Service) notifyCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("notify", "Notify the owner",
+		registry.Def("owner_notify", "Notify the owner",
 			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
 			registry.Everyone, dv.notify),
 	}

@@ -265,7 +265,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 	}
 
 	var rights []struct{ What, Detail string }
-	e.Must("deck.project_rights", map[string]any{"project": "links-shared"}, &rights)
+	e.Must("deck.project_rights_list", map[string]any{"project": "links-shared"}, &rights)
 	if !slices.Contains(rights, struct{ What, Detail string }{"allowed external", "post_link"}) ||
 		!slices.Contains(rights, struct{ What, Detail string }{"read domain", "news.example.com"}) {
 		t.Fatalf("what a draft may do is a row each: %+v", rights)

@@ -21,9 +21,9 @@
       {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"},
       {"verb": "rework", "primary": true, "command": "deck.process_rework", "params": {"process": "=id"}, "input": "remark", "when": "kind == 'agent' && (session_id ?? '') != '' && (finished_at ?? '') != ''"}
     ]},
-    {"type": "log", "title": "Log", "source": {"from": "deck.process_chat", "input": {"process": "=id"}},
+    {"type": "log", "title": "Log", "source": {"from": "deck.process_chat_get", "input": {"process": "=id"}},
       "empty": "Nothing in the log: a script logs only what it writes to stderr, a tool or a model call nothing; its input and result are above"},
-    {"type": "table", "title": "What it left", "source": {"from": "deck.process_left", "input": {"process": "=id"}},
+    {"type": "table", "title": "What it left", "source": {"from": "deck.process_left_list", "input": {"process": "=id"}},
       "when": "(trial ?? false) && len(rows) > 0",
       "description": "The records, files of deck and changes of documents the trial and the processes it started made; what a script or an agent wrote into the data folder of the project is not listed and is not undone.",
       "columns": [

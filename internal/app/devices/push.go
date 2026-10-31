@@ -180,14 +180,21 @@ func (dv *Service) pushReset(ctx context.Context, act registry.Actor, _ struct{}
 	return map[string]any{"ok": true}, nil
 }
 
-func (dv *Service) pushDevices(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+// pushDeviceView is a device that gets pushes.
+type pushDeviceView struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at"`
+}
+
+func (dv *Service) pushDevices(ctx context.Context, act registry.Actor, _ struct{}) ([]pushDeviceView, error) {
 	rows, err := dv.St.Q.ListPushSubscriptions(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	out := []map[string]any{}
+	out := []pushDeviceView{}
 	for _, r := range rows {
-		out = append(out, map[string]any{"id": r.ID, "name": r.Device, "created_at": r.CreatedAt})
+		out = append(out, pushDeviceView{ID: r.ID, Name: r.Device, CreatedAt: r.CreatedAt})
 	}
 	return out, nil
 }
@@ -431,7 +438,7 @@ func otherKey(body string) bool {
 
 func (dv *Service) pushCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("push_key", "Push key",
+		registry.Def("push_key_get", "Push key",
 			"Returns the public key a device subscribes to the pushes of deck with.",
 			registry.OwnerOnly, dv.pushKey),
 		registry.Def("push_subscribe", "Get pushes",
@@ -440,11 +447,11 @@ func (dv *Service) pushCommands() []*registry.Command {
 		registry.Def("push_unsubscribe", "Stop pushes",
 			"Stops pushes to a device.",
 			registry.OwnerOnly, dv.pushUnsubscribe),
-		registry.Def("push_reset", "Reset the push key",
+		registry.Def("push_key_reset", "Reset the push key",
 			"Makes a new key for pushes; every device subscribed with the old one has to subscribe again.",
 			registry.OwnerOnly, dv.pushReset),
-		registry.Def("push_devices", "Devices",
+		registry.Read("push_devices_list", "Devices",
 			"Lists the devices that get pushes.",
-			registry.OwnerOnly, dv.pushDevices),
+			registry.OwnerOnly, dv.pushDevices).On("settings"),
 	}
 }

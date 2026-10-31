@@ -11,7 +11,7 @@ import (
 // `desc`, `type` past the Go type, `enum` joined by "|", `opt` when optional; embedded structs add theirs.
 func Def[In any](name, title, desc string, callers []string, h func(ctx context.Context, a Actor, in In) (any, error)) *Command {
 	ps := fields(reflect.TypeFor[In]())
-	return &Command{Name: Builtin + "." + name, Title: title, Description: desc, Class: Internal, Callers: callers,
+	return &Command{Name: Deck(name), Title: title, Description: desc, Class: Internal, Callers: callers,
 		Input: Params(ps...), Handler: Typed(h), params: ps}
 }
 

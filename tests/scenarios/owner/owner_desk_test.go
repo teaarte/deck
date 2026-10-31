@@ -74,7 +74,7 @@ func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	}
 	e.Must("deck.records_upsert", map[string]any{"project": "shelf", "collection": "items", "records": harness.Jsonl(recs...)}, nil)
 	var m struct{ Projects []struct{ Widgets []string } }
-	e.Must("deck.menu", nil, &m)
+	e.Must("deck.menu_get", nil, &m)
 	if len(m.Projects) != 1 || !slices.Equal(m.Projects[0].Widgets, []string{"1x1", "2x2"}) {
 		t.Fatalf("the menu names the views of the card: %+v", m)
 	}
@@ -100,7 +100,7 @@ func TestACardShowsTheLargestViewItFits(t *testing.T) {
 	if len(needs) != 2 || len(fresh) != 2 {
 		t.Fatalf("two lists share the card: the first its limit, the next what is left under its title: %d %d", len(needs), len(fresh))
 	}
-	e.Refused("deck.screen", map[string]any{"project": "shelf", "screen": "widget", "widget": "big"}, 422, "size")
+	e.Refused("deck.screen_get", map[string]any{"project": "shelf", "screen": "widget", "widget": "big"}, 422, "size")
 	bad := strings.Replace(harness.WidgetsManifest, `{"type": "stat", "title": "Items", "source": {"collection": "items"}}`,
 		`{"type": "table", "title": "Items", "source": {"collection": "items"}, "columns": [{"label": "Name", "bind": "name"}]}`, 1)
 	e.Refused("deck.manifest_save", map[string]any{"project": "shelf", "manifest": bad}, 422, "stat, list and chart")
@@ -118,7 +118,7 @@ func TestTodayInBriefSaysTheMostPressingFirst(t *testing.T) {
 	var lines []struct{ Kind, Title string }
 	read := func() []string {
 		lines = nil
-		e.Must("deck.today", map[string]any{"lang": "ru"}, &lines)
+		e.Must("deck.today_get", map[string]any{"lang": "ru"}, &lines)
 		var kinds []string
 		for _, l := range lines {
 			kinds = append(kinds, l.Kind)

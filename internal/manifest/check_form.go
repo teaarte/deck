@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"deck2/internal/registry"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -20,7 +21,7 @@ func (c *screenCheck) form(where string, b Block) {
 			c.fail("%s: %s edits the record of its page; the screen needs record", where, RecordUpdate)
 		}
 	case c.deck:
-		if !strings.HasPrefix(b.Command, "deck.") {
+		if !registry.IsBuiltin(b.Command) {
 			c.fail("%s: a form of a deck screen calls a deck command", where)
 		}
 	default:

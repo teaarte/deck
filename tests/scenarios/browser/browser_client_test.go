@@ -205,7 +205,7 @@ func newFront(t *testing.T, deck string) *frontServer {
 		case "/api/commands/notes.touch":
 			http.Error(w, "deck: refused by the test", http.StatusConflict)
 			return
-		case "/api/commands/deck.screen":
+		case "/api/commands/deck.screen_get":
 			if f.fail.Load() {
 				http.Error(w, "deck: the read failed in the test", http.StatusInternalServerError)
 				return

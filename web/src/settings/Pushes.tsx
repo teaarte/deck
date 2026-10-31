@@ -16,7 +16,7 @@ export function Pushes() {
   const device = navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.platform || 'a browser';
   const load = async () => {
     setOn(await reconcilePush(device).catch(() => false));
-    setDevices(await call<Device[]>('deck.push_devices').catch(() => []));
+    setDevices(await call<Device[]>('deck.push_devices_list').catch(() => []));
   };
   useEffect(() => { void load(); }, []);
   const toggle = async () => {

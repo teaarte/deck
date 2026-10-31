@@ -43,7 +43,7 @@ func TestALongLogComesInPages(t *testing.T) {
 	page := func(in map[string]any) []event {
 		in["process"] = id
 		var out []event
-		e.Must("deck.process_log", in, &out)
+		e.Must("deck.process_log_get", in, &out)
 		return out
 	}
 	last := page(map[string]any{})
@@ -90,7 +90,7 @@ func TestALongLogComesInPages(t *testing.T) {
 		t.Fatalf("only the tool calls and their results: %d", len(tools))
 	}
 	var short []map[string]any
-	e.Must("deck.process_log", map[string]any{"process": id, "fields": []string{"n", "kind"}, "limit": 2}, &short)
+	e.Must("deck.process_log_get", map[string]any{"process": id, "fields": []string{"n", "kind"}, "limit": 2}, &short)
 	if len(short) != 2 || len(short[0]) != 2 {
 		t.Fatalf("fields cut each event: %v", short)
 	}
@@ -128,7 +128,7 @@ func TestAThoughtWithoutTextIsNoLineOfTheLog(t *testing.T) {
 	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
 	e.WaitState(id, "done", "error")
 	var lines []struct{ Kind, Text string }
-	e.Must("deck.process_log", map[string]any{"process": id}, &lines)
+	e.Must("deck.process_log_get", map[string]any{"process": id}, &lines)
 	for _, l := range lines {
 		if strings.TrimSpace(l.Text) == "" && (l.Kind == "thought" || l.Kind == "message") {
 			t.Fatalf("an empty thought or message is no line: %+v", lines)

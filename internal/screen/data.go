@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"deck2/internal/manifest"
+	"deck2/internal/registry"
 	"deck2/master"
 )
 
@@ -431,7 +432,7 @@ func (r *renderer) resultEnum(src manifest.Source, expr string) []string {
 	if !bare.MatchString(expr) {
 		field = manifest.OneField(expr)
 	}
-	if field == "" || !strings.HasPrefix(src.From, "deck.") {
+	if field == "" || !registry.IsBuiltin(src.From) {
 		return nil
 	}
 	raw, ok := r.results[src.From]

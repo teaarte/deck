@@ -204,7 +204,7 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("folder_add", "Add a folder",
 			"Gives a project a folder on disk: its agent commands with folder work in it, its scripts and MCP servers read it; only the owner, since it lets agents write there.",
 			registry.OwnerOnly, s.folderAdd),
-		registry.Def("folder_remove", "Remove folder",
+		registry.Def("folder_delete", "Remove folder",
 			"Takes a folder from a project; the folder on disk stays as it is.",
 			registry.OwnerOnly, s.folderRemove),
 	}

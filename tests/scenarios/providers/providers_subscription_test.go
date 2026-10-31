@@ -31,7 +31,7 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 		SubscriptionUSD float64 `json:"subscription_usd"`
 		Subscription    bool
 	}
-	e.Must("deck.spend_daily", map[string]any{"by": "provider"}, &days)
+	e.Must("deck.spend_days_list", map[string]any{"by": "provider"}, &days)
 	if len(days) != 1 || days[0].CostUSD != 0 || days[0].SubscriptionUSD < 0.04 || !days[0].Subscription {
 		t.Fatalf("the spend keeps the estimate out of the money: %+v", days)
 	}
@@ -89,7 +89,7 @@ func TestATurnOnAModelOfAConnectionOnASubscriptionCostsNoMoney(t *testing.T) {
 		CostUSD         float64 `json:"cost_usd"`
 		SubscriptionUSD float64 `json:"subscription_usd"`
 	}
-	e.Must("deck.spend_daily", map[string]any{"by": "provider"}, &days)
+	e.Must("deck.spend_days_list", map[string]any{"by": "provider"}, &days)
 	if len(days) != 1 || days[0].CostUSD != 0 || days[0].SubscriptionUSD <= 0 {
 		t.Fatalf("the spend keeps the estimate out of the money: %+v", days)
 	}

@@ -85,9 +85,9 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 		}
 	}
 	var format json.RawMessage
-	e.Must("deck.manifest_format", nil, &format)
+	e.Must("deck.manifest_format_get", nil, &format)
 	if !strings.Contains(string(format), "0.42 is 42 %") {
-		t.Fatalf("the model reads the formats in manifest_format: %.300s", format)
+		t.Fatalf("the model reads the formats in manifest_format_get: %.300s", format)
 	}
 }
 

@@ -348,7 +348,7 @@ func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *m
 			_, fits, _, err := s.fitting(ctx, project, &c)
 			if errors.As(err, &refused) {
 				out[c.Name] = refused.Text
-			} else if err == nil && !m.NoNetwork && c.Executor.Calls != nil && registry.Permits(c.Executor.Calls, registry.Builtin+".web_search") {
+			} else if err == nil && !m.NoNetwork && c.Executor.Calls != nil && registry.Permits(c.Executor.Calls, registry.Deck("web_search")) {
 				// The first model that fits, as health tells of the assignment and not of who is up now.
 				search, _ := Assigned(ctx, s.St.Q, workspace, project, c.Name, RoleSearch)
 				if pv := fits[0]; len(search) == 0 && s.inAgent(ctx, workspace, pv.Name()) {

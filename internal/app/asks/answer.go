@@ -144,7 +144,7 @@ func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask)
 		return registry.Invalid("deck: only a tool or command of a project can be allowed always")
 	}
 	local, ok := strings.CutPrefix(f.Call.Command, p.Name+".")
-	if strings.HasPrefix(f.Call.Command, registry.Builtin+".browser_") {
+	if strings.HasPrefix(f.Call.Command, registry.Deck("browser_")) {
 		u, err := url.Parse(f.Tool)
 		if err != nil || u.Host == "" {
 			return registry.Invalid("deck: deck could not tell the page of this browser action; allow it once or add the site to domains.act")

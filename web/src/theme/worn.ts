@@ -4,7 +4,7 @@ import i18n from '../lib/i18n';
 import { liveRead } from '../lib/live';
 import { createStore, useStore } from '../lib/store';
 
-// Worn is the theme the whole deck wears, as deck.theme gives it: the CSS of its tokens, parts and rules is checked
+// Worn is the theme the whole deck wears, as deck.theme_get gives it: the CSS of its tokens, parts and rules is checked
 // and written by the server, the client only puts it on the page.
 export interface Worn {
   name: string;
@@ -76,7 +76,7 @@ export function useWear(on: boolean) {
   useEffect(() => {
     if (!on) return;
     const input = { name: theme || undefined, lang: i18n.language };
-    return liveRead<Worn>('deck.theme', input, () => ['documents', 'settings', 'files'], (w) => {
+    return liveRead<Worn>('deck.theme_get', input, () => ['documents', 'settings', 'files'], (w) => {
       if (!w) return;
       if (!theme) localStorage.setItem(KEY, JSON.stringify(w));
       put(w);

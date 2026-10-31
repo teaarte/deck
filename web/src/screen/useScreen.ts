@@ -124,7 +124,7 @@ export function useScreen(route: Route, shownNow = true) {
       const mine = ++generation;
       const ticket = feed.ticket();
       try {
-        const msgs = await call<Message[]>('deck.screen', input());
+        const msgs = await call<Message[]>('deck.screen_get', input());
         if (gone || mine !== generation) return;
         setError('');
         wide = ticket;
@@ -143,7 +143,7 @@ export function useScreen(route: Route, shownNow = true) {
       const mine = generation;
       const ticket = feed.ticket();
       try {
-        const msgs = await call<Message[]>('deck.screen', input({ block, ...extra }));
+        const msgs = await call<Message[]>('deck.screen_get', input({ block, ...extra }));
         if (gone || mine !== generation) return;
         topics = rootTopics(msgs) ?? topics;
         feed.feed(msgs, ticket);
@@ -163,7 +163,7 @@ export function useScreen(route: Route, shownNow = true) {
       const mine = generation;
       const ticket = feed.ticket();
       try {
-        const msgs = await call<Message[]>('deck.screen', input({ topic: e.topic, ...(e.project ? { changed: e.project } : {}) }));
+        const msgs = await call<Message[]>('deck.screen_get', input({ topic: e.topic, ...(e.project ? { changed: e.project } : {}) }));
         if (gone || mine !== generation) return;
         wide = ticket;
         topics = rootTopics(msgs) ?? topics;

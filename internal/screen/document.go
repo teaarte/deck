@@ -42,7 +42,7 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 		if m, ok := rv.(map[string]any); ok {
 			rev := map[string]any{"revision": m["revision"], "author": m["author"], "reason": m["reason"], "created_at": m["created_at"]}
 			if editable && fmt.Sprint(m["revision"]) != fmt.Sprint(d["revision"]) {
-				rev["revert"] = map[string]any{"verb": "revert", "command": "deck.document_revert",
+				rev["revert"] = map[string]any{"verb": "revert", "command": registry.Deck("document_revert"),
 					"params": map[string]any{"document": d["id"], "revision": m["revision"], "if_revision": d["revision"]}}
 			}
 			revs = append(revs, rev)
@@ -66,7 +66,7 @@ func (r *renderer) briefed(id, key string) func(map[string]any, error) (map[stri
 		}
 		body, _ := v[key].(string)
 		delete(v, key)
-		v["size"], v["whole"] = len(body), map[string]any{"command": "deck.screen", "block": id}
+		v["size"], v["whole"] = len(body), map[string]any{"command": registry.Deck("screen_get"), "block": id}
 		return out, nil
 	}
 }
@@ -81,6 +81,6 @@ func withSave(v map[string]any) map[string]any {
 	if rec, ok := v["record"]; ok {
 		params["record"] = rec
 	}
-	v["save"] = map[string]any{"verb": "save", "command": "deck.document_save", "params": params}
+	v["save"] = map[string]any{"verb": "save", "command": registry.Deck("document_save"), "params": params}
 	return v
 }

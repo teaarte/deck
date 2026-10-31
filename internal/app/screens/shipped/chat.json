@@ -2,5 +2,5 @@
   "name": "chat",
   "icon": "sparkles",
   "title": "Master",
-  "blocks": [{"type": "chat", "source": {"from": "deck.chat"}}]
+  "blocks": [{"type": "chat", "source": {"from": "deck.chat_get"}}]
 }

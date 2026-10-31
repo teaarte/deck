@@ -32,7 +32,7 @@ const shown = document.createElement('pre');
 shown.setAttribute('data-foreign-actions', '');
 document.body.append(shown);
 const input = { screen: q.get('screen'), ...(q.get('project') ? { project: q.get('project') } : {}) };
-const screenOf = async (extra: Record<string, unknown> = {}) => (await fetch('/api/commands/deck.screen', {
+const screenOf = async (extra: Record<string, unknown> = {}) => (await fetch('/api/commands/deck.screen_get', {
   method: 'POST', headers: { Authorization: 'Bearer ' + token(), 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, ...extra }),
 })).json();
 // The page hears every action and answers only the read of an opened dialog or a tab shown, with the messages deck gives

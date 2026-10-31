@@ -21,17 +21,17 @@
               {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
             ]},
           {"type": "dialog", "name": "cover", "title": "Upload a cover", "icon": "photo-up", "blocks": [
-            {"type": "form", "command": "deck.project_cover", "fixed": ["remove"], "description": "A picture for the card of the module: for one theme or for every theme, one for the light scheme, one for the dark."}]},
+            {"type": "form", "command": "deck.project_cover_set", "fixed": ["remove"], "description": "A picture for the card of the module: for one theme or for every theme, one for the light scheme, one for the dark."}]},
           {"type": "dialog", "name": "draw-cover", "title": "Draw the cover for this theme", "icon": "sparkles", "blocks": [
             {"type": "form", "command": "deck.covers_draw", "fixed": ["project"], "values": {"project": "=param.name"},
               "description": "The master draws the pictures of the schemes of the theme in use in its mood. Without a model it takes a free one of deck.",
               "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + (free ? ' · free' : '')"}}}]},
           {"type": "media", "title": "Covers", "description": "The picture of the module's card in each theme, light and dark; the card shows the one of the theme in use, else one for every theme, else any.",
-            "source": {"from": "deck.project_covers"},
+            "source": {"from": "deck.project_covers_list"},
             "item": {"file": "file", "title": "title + ' · ' + (scheme == 'dark' ? 'dark scheme' : 'light scheme') + (shown ? ' · ' + 'on the card' : '')"},
             "empty": "The card has no picture yet: it shows the icon of the module.",
             "actions": [
-              {"verb": "delete", "confirm": true, "command": "deck.project_cover", "params": {"project": "=project", "theme": "=theme", "scheme": "=scheme", "remove": "true"}}
+              {"verb": "delete", "confirm": true, "command": "deck.project_cover_set", "params": {"project": "=project", "theme": "=theme", "scheme": "=scheme", "remove": "true"}}
             ]},
           {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
             "description": "What the module can do and when it runs by itself.",
@@ -73,7 +73,7 @@
               {"label": "Path", "bind": "path", "format": "copy"}
             ],
             "actions": [
-              {"verb": "remove", "confirm": true, "command": "deck.folder_remove", "params": {"name": "=name"}}
+              {"verb": "remove", "confirm": true, "command": "deck.folder_delete", "params": {"name": "=name"}}
             ]},
           {"type": "table", "title": "Secrets", "when": "len(rows) > 0", "source": {"from": "deck.secrets_list"},
             "description": "Keys and passwords its tools need.",

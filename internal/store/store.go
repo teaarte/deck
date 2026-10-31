@@ -136,7 +136,8 @@ func Open(path string) (*Store, error) {
 	conn := sql.OpenDB(hooked{base, ch})
 	conn.SetMaxOpenConns(1)
 	dir, _ := fs.Sub(migrations, "migrations")
-	up, err := goose.NewProvider(goose.DialectSQLite3, conn, dir, goose.WithDisableGlobalRegistry(true))
+	up, err := goose.NewProvider(goose.DialectSQLite3, conn, dir, goose.WithDisableGlobalRegistry(true),
+		goose.WithGoMigrations(commandsRenamed))
 	if err != nil {
 		return nil, err
 	}

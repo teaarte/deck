@@ -10,9 +10,9 @@ plus documents (md prompt, scripts, skills). deck gives models channels, tools, 
 work itself is done by scripts and agents you describe. You build the module; the owner answers questions
 and presses "enable". Its scripts, prompts and their review follow the module-conventions skill.
 
-You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format`,
+You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format_get`,
 `project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
-`command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `files_list`,
+`command_try`, `process_get`, `process_log_get`, `records_list`, `records_upsert`, `files_list`,
 `projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Ask a read for only
 the fields you need (`fields`; of `records_list` they are the fields of the data of each record). Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `project_enable`; say which one and why when the module needs it.
@@ -49,7 +49,7 @@ hand-over.
 
 ## 2. Design
 
-Read `manifest_format` first: it is the JSON Schema deck checks every manifest against.
+Read `manifest_format_get` first: it is the JSON Schema deck checks every manifest against.
 
 - **Collections** hold the data. Pick a key that identifies an item for good (a URL, an external id); records
   with the same key are updated, not duplicated. Give `display` so people and voice can name a record. Put
@@ -144,7 +144,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   without the owner's sign-ins: a module that needs a signed-in site lists its sites instead. Reading needs no
   clicks: open the next page by its URL (`?page=2`, `&start=25`) rather than clicking "next", which on a site
   only in `read` waits for the owner each time. The owner signs in to a site once (`browser_login`); a page
-  that asks for a sign-in again means the agent calls `browser_needs_login` and stops — deck resumes it after
+  that asks for a sign-in again means the agent calls `browser_login_request` and stops — deck resumes it after
   the owner signs in.
 - **Command input** is a flat object; a choice is `{"type": "string", "enum": [...]}` — an `enum` without
   `"type": "string"` is refused.
@@ -219,7 +219,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   of cells; the card shows the largest view it fits, its blocks from the top while the card has room, a list as
   many lines as are left. Give a `1x1` or `2x1` view with what needs the owner; without one the card is the cover.
   The master's skill `widgets` says what to show on what size.
-- **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type
+- **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format_get` each block type
   has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
   schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):
   `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `media`, `actions`, `form`, `custom`,
@@ -375,7 +375,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   documents spaces and line breaks count as one too, in scripts and custom blocks `old` is exact, indentation too.
   A large manifest is read in parts: `fields` such as `manifest.writes`, `manifest.commands.<name>` or
   `manifest.screens.<name>` give only that part, as text in the same form, and `old` may come from it.
-- **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and
+- **Telling the owner**: a script or agent that finds something worth a look calls `owner_notify` with `text`, and
   optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
   in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing. A note about
   something outside the module, such as a model or a connection, names it in `cause` as the subject of its row
@@ -626,9 +626,9 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    runs the same checks and saves nothing: what a save refuses, its warnings, what it widens and whether that
    waits for the owner, `screens`, `untranslated`; of a project with the whole text or `old`/`new`, or of a
    manifest alone (an old `.zip`). Check before you save, and fix a module from a `.zip` before its import.
-   To see a screen as the owner does, `screen_shot` draws it (`#/p/<module>/<screen>?tab=…`, a phone or a
+   To see a screen as the owner does, `screen_capture` draws it (`#/p/<module>/<screen>?tab=…`, a phone or a
    computer, light or dark) and answers the picture's `path` to read and `ms` it took to draw.
-   `project_needs` is what the module needs to work, which deck counts from the manifest: rights that enabling
+   `project_needs_get` is what the module needs to work, which deck counts from the manifest: rights that enabling
    grants, secrets and whether they are set, programs its scripts miss, roles without a model and work no model
    takes; a connection it names that deck lacks is `optional`. Build on it, not on your own list: tell the owner
    what is not `done`, and hand over a module whose needs are only rights.
@@ -649,8 +649,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    the process; what went to `$DECK_DATA` is not listed. Before the hand-over, delete what
    the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project what your own runs wrote, with an undo of its data for the owner in
    the feed, and when it takes a file, folder or process you did not make it waits for the owner's yes; the rest only the owner, by a button);
-   say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives
-   the state and result; `process_log` shows the events of a process, also after it ended, a page at a time
+   say in the hand-over what you kept; lines a trial sent with `owner_notify` stay in the feed. `process_get` gives
+   the state and result; `process_log_get` shows the events of a process, also after it ended, a page at a time
    (`before` the first `n` read for the page before it, `only` `errors` for what failed),
    and a local model may think for many minutes before its first one: wait with
    `process_get` and `wait` in the foreground (up to 30 minutes on Claude Code and Codex). `processes_list`

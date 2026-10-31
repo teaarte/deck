@@ -28,7 +28,7 @@ var agentTools = map[string][2]string{
 
 var (
 	searches = regexp.MustCompile(`(?i)web_?search|web_?fetch|browser|search`)
-	draws    = regexp.MustCompile(`(?i)draw|cover|theme_image|image|model_call`)
+	draws    = regexp.MustCompile(`(?i)draw|cover|theme_image_set|image|model_call`)
 )
 
 // doing is what a call of a turn does in the owner's words and the kind of work it is: read, search, draw or work.

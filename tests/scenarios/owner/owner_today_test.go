@@ -29,7 +29,7 @@ var twoRunsManifest = harness.Manifest(`{"collections": [{"name": "items", "desc
 func doneToday(e *harness.Env) string {
 	e.T.Helper()
 	var lines []struct{ ID, Title string }
-	e.Must("deck.today", nil, &lines)
+	e.Must("deck.today_get", nil, &lines)
 	i := slices.IndexFunc(lines, func(l struct{ ID, Title string }) bool { return l.ID == "day" })
 	if i < 0 {
 		e.T.Fatalf("Today has a line of the day: %+v", lines)
@@ -83,7 +83,7 @@ print(json.dumps({"updated": ["a"]}))
 		t.Fatalf("a run of the schedule that wrote counts, one that only read does not: %s", got)
 	}
 	var ru []struct{ ID, Title string }
-	e.Must("deck.today", map[string]any{"lang": "ru"}, &ru)
+	e.Must("deck.today_get", map[string]any{"lang": "ru"}, &ru)
 	if !slices.ContainsFunc(ru, func(l struct{ ID, Title string }) bool {
 		return strings.HasPrefix(l.Title, fmt.Sprint("Сделано сегодня: 606"))
 	}) {

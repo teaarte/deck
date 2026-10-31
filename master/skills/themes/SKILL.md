@@ -5,7 +5,7 @@ description: Makes, changes, checks and deletes the themes of deck — colors of
 
 # Themes of deck
 
-A theme is the look of the whole deck: a JSON document checked before it is saved. `deck.theme_format` gives its
+A theme is the look of the whole deck: a JSON document checked before it is saved. `deck.theme_format_get` gives its
 schema with the catalog — the tokens (canvas, island, block, text, dimmed, …), the variables a value may read and
 the classes CSS may name. deck ships juce alone; `deck.themes_list` names it and the owner's. Other looks are
 examples in this skill's folder `examples/` — default, glass (frosted islands), neon (dark only), paper and pixel:
@@ -14,7 +14,7 @@ asks, as a theme of its own name.
 
 ## Making or changing one
 
-1. Start from the closest theme or example: `deck.theme` with its name gives its `text`. Save under its name to
+1. Start from the closest theme or example: `deck.theme_get` with its name gives its `text`. Save under its name to
    put the owner's over juce, under a new name for a new one.
 2. Write the tokens of both schemes (`tokens` for both, `light`, `dark` over them). Text and dimmed need 4.5:1
    on canvas, body, island and block with every accent: give those tokens as #hex, rgb() or color-mix().
@@ -40,19 +40,19 @@ asks, as a theme of its own name.
    free cells while the owner places the tiles. Radius `0` squares all of them already.
 6. `deck.theme_check` with the text names every problem; fix them all, then `deck.theme_save`. Its answer
    gives two preview addresses, light and dark: give them to the owner as links. Look at it before the owner
-   does: `screen_shot` with `theme` and `scheme` draws a screen in it (the tiles `#/`, Today `#/deck/cockpit`, a
+   does: `screen_capture` with `theme` and `scheme` draws a screen in it (the tiles `#/`, Today `#/deck/cockpit`, a
    module) on a computer and a phone; read the picture at `path`.
 7. Only the owner puts a theme on: tell them it is in Look, the place beside Files.
 
 ## Pictures of a theme
 
 A theme may have pictures, each for the light and the dark scheme, set apart from its text with
-`deck.theme_image` (theme, slot, scheme, the file as `results/<name>` of an image call): `cockpit`, the scene of the
+`deck.theme_image_set` (theme, slot, scheme, the file as `results/<name>` of an image call): `cockpit`, the scene of the
 card of Today under its words (calm on the left, room for Deki on the right); `backdrop`, one wide picture behind
 the page; or `pattern`, a seamless square tile repeated behind it, `pattern-size` wide. Keep them quiet: they stay
 behind everything. Draw them with `deck.model_call` of kind image in the theme's `mood`; the owner's button
 "Draw the background" in Look asks for them (`deck.theme_draw`). `deck.theme_check` checks the words of
-Today over the cockpit by its main color; look at the tiles with `screen_shot` after.
+Today over the cockpit by its main color; look at the tiles with `screen_capture` after.
 
 ## Deleting
 

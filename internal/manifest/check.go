@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/net/publicsuffix"
 
+	"deck2/internal/registry"
 	"deck2/schemas"
 )
 
@@ -33,7 +34,7 @@ func (m *Manifest) compile() error {
 	m.checkTriggers(fail)
 	m.checkScreens(fail)
 	for _, name := range m.AllowedExternal {
-		if strings.HasPrefix(name, schemas.Builtin+".browser_") {
+		if strings.HasPrefix(name, registry.Deck("browser_")) {
 			fail("allowed_external: %q: the browser acts without asking only on the sites in domains.act", name)
 		} else if !m.knownAction(name) {
 			fail("allowed_external: %q is neither a command nor a tool of this project", name)
@@ -225,7 +226,7 @@ func (m *Manifest) knownTool(name string) bool {
 		return false
 	}
 	_, declared := m.Tools.MCP.Servers[server]
-	return declared || server == schemas.Builtin
+	return declared || server == registry.Builtin
 }
 
 func (m *Manifest) knownAction(name string) bool {

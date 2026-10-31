@@ -29,7 +29,7 @@ export function useVoice(heard: (text: string) => void) {
         return;
       }
       setNoMic({});
-      const at = await call<{ https?: string }>('deck.secure_address', {}).catch(() => ({ https: undefined }));
+      const at = await call<{ https?: string }>('deck.secure_address_get', {}).catch(() => ({ https: undefined }));
       setNoMic({ https: at.https });
     }
   };

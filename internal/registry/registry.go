@@ -35,6 +35,12 @@ const (
 // Builtin is the name prefix of commands implemented in Go.
 const Builtin = schemas.Builtin
 
+// Deck is the name of deck's command name: deck.<name>.
+func Deck(name string) string { return Builtin + "." + name }
+
+// IsBuiltin says a command name is one of deck's.
+func IsBuiltin(name string) bool { return strings.HasPrefix(name, Builtin+".") }
+
 // ClassRank orders classes from the one that asks least: internal, reversible, external.
 func ClassRank(class string) int {
 	switch class {
@@ -122,7 +128,7 @@ func New(projects Projects) *Registry {
 
 // Add registers a builtin command; it panics on a malformed description.
 func (r *Registry) Add(c *Command) {
-	if !strings.HasPrefix(c.Name, Builtin+".") || r.builtins[c.Name] != nil {
+	if !IsBuiltin(c.Name) || r.builtins[c.Name] != nil {
 		panic("registry: bad or duplicate builtin " + c.Name)
 	}
 	if err := Prepare(c); err != nil {
@@ -259,7 +265,7 @@ func CommandName(tool string) string {
 	case strings.Contains(tool, "__"):
 		return strings.Replace(tool, "__", ".", 1)
 	}
-	return Builtin + "." + tool
+	return Deck(tool)
 }
 
 // AllowsKey is the field of an input a press of the owner gives the calls its button allows in; the registry takes it

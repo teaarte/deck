@@ -15,7 +15,7 @@ import (
 func pulseErrors(e *harness.Env) int64 {
 	e.T.Helper()
 	var m struct{ Pulse struct{ Errors int64 } }
-	e.Must("deck.menu", nil, &m)
+	e.Must("deck.menu_get", nil, &m)
 	return m.Pulse.Errors
 }
 
@@ -28,7 +28,7 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 		e.Project(name, harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
     {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL)))
 	}
-	e.Must("deck.health_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
+	e.Must("deck.health_mark_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
 	if seen, failing := e.HealthSeen("photos", "secret:photos.pexels"); !seen || !failing {
 		t.Fatal("the owner reads the check of one project")
 	}
@@ -55,7 +55,7 @@ func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	if seen, failing := e.HealthSeen("broken", "project:broken"); seen || !failing {
 		t.Fatalf("a manifest that does not load is a failing check of the pulse: %d", before)
 	}
-	e.Must("deck.health_seen", map[string]any{"subject": "project:broken", "project": "broken"}, nil)
+	e.Must("deck.health_mark_seen", map[string]any{"subject": "project:broken", "project": "broken"}, nil)
 	if seen, _ := e.HealthSeen("broken", "project:broken"); !seen || pulseErrors(e) != before-1 {
 		t.Fatalf("once read it counts no more: %d", pulseErrors(e))
 	}
@@ -67,7 +67,7 @@ func TestMarkReadOfACheckOfTheMachine(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	health.Write(t.Context(), e.App.Store, health.Of{}, "tool:web.fetch", "error", "the server exited: 1")
-	a := e.RowAction("", "settings", "deck.health_seen", map[string]any{"subject": "tool:web.fetch"})
+	a := e.RowAction("", "settings", "deck.health_mark_seen", map[string]any{"subject": "tool:web.fetch"})
 	if _, ok := a["params"].(map[string]any)["project"]; ok {
 		t.Fatalf("a value an expression leaves empty is not a param of the call: %v", a["params"])
 	}

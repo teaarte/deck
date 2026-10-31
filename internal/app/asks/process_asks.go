@@ -22,7 +22,7 @@ type processAsksIn struct {
 	Lang    string `opt:"" desc:"Language of the sentences of deck, such as ru; English without one"`
 }
 
-// processAsksWait is how long process_asks waits for a script or tool to ask or end, processAsksQuiet how long
+// processAsksWait is how long process_asks_list waits for a script or tool to ask or end, processAsksQuiet how long
 // after its last ask for one more.
 const (
 	processAsksWait  = 15 * time.Second

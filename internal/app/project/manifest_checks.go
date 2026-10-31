@@ -126,7 +126,7 @@ func (pj *Service) checkToolFit(ctx context.Context, q *db.Queries, workspace, p
 		}
 		name := c.Executor.Tool
 		var input json.RawMessage
-		if strings.HasPrefix(name, registry.Builtin+".") {
+		if registry.IsBuiltin(name) {
 			t, err := pj.Registry.Lookup(ctx, workspace, name)
 			if err != nil {
 				return registry.Invalid("deck: command %q: no builtin tool %q", c.Name, name)

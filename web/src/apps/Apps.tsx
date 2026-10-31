@@ -136,7 +136,7 @@ export function Apps() {
   // The narrowest grid still has two columns, as a phone: a card across it is two cells wide, a half one.
   const cols = Math.max(2, Math.floor((width + cell.gap) / (cell.min + cell.gap)));
   const me = device();
-  const saved = useLiveRead<Saved>('deck.layout', { device: me, columns: cols }, ['settings', 'projects'], EMPTY, !mounted);
+  const saved = useLiveRead<Saved>('deck.layout_get', { device: me, columns: cols }, ['settings', 'projects'], EMPTY, !mounted);
   const ids = [TODAY, ...menu.projects.map((p) => p.project ?? '')];
   const [placing, setPlacing] = useState(route.params?.edit === '1');
   const [room, setRoom] = useState(0);

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"deck2/internal/manifest"
+	"deck2/internal/registry"
 )
 
 // follows reports whether the block is read again after an event of the topic.
@@ -69,11 +70,11 @@ func sourceTopics(src manifest.Source) []string {
 }
 
 // The reads of a screen deck makes itself: the record of a page, a document and the records of a collection.
-const (
-	processRead  = "deck.process_get"
-	documentRead = "deck.document_get"
-	recordRead   = "deck.record_get"
-	recordsRead  = "deck.records_list"
+var (
+	processRead  = registry.Deck("process_get")
+	documentRead = registry.Deck("document_get")
+	recordRead   = registry.Deck("record_get")
+	recordsRead  = registry.Deck("records_list")
 )
 
 // pageRead is the read of the record of a page: a process on a screen of deck, a document, else a record.

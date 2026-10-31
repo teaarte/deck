@@ -38,7 +38,7 @@ export interface Pulse {
 // MenuGroup is a group at the foot of the menu, its links each of a project or of deck.
 export interface MenuGroup { key: string; title?: string; links: (ScreenLink & { project?: string })[] }
 
-// Menu is what deck.menu gives: the pulse, deck's screens, the projects of the side, the master, the foot and the
+// Menu is what deck.menu_get gives: the pulse, deck's screens, the projects of the side, the master, the foot and the
 // topics after which it is read again.
 export interface Menu { pulse: Pulse; deck: MenuEntry; projects: MenuEntry[]; master?: MenuEntry; system: MenuGroup[]; language?: string; topics: string[] }
 
@@ -53,7 +53,7 @@ export const MenuContext = createContext<Menu>(EMPTY);
 export const useMenuData = () => useContext(MenuContext);
 
 // useMenu is the menu of deck, read again after a change of a topic it names.
-export const useMenu = () => useLiveRead<Menu>('deck.menu', { lang: i18n.language }, (m) => m?.topics ?? [], EMPTY);
+export const useMenu = () => useLiveRead<Menu>('deck.menu_get', { lang: i18n.language }, (m) => m?.topics ?? [], EMPTY);
 
 // Place is a screen to open, of a project or of deck.
 export type Place = ScreenLink & { project?: string };

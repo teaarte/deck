@@ -98,7 +98,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 			r.What = tr(r.What)
 		case q.Kind == ask.KindLogin:
 			r.What, r.Text = tr(r.What), tr(r.Text)
-		case strings.HasPrefix(r.Command, registry.Builtin+"."):
+		case registry.IsBuiltin(r.Command):
 			r.Where = tr(r.Where)
 		}
 		if slices.Contains([]string{ask.KindCall, ask.KindConfirm, ask.KindGrant}, q.Kind) && r.What != "" {
@@ -240,7 +240,7 @@ func (s *Service) callerWho(ctx context.Context, c gateway.Caller) string {
 // always says what a yes for always to frozen call f of command c of project would allow from now on: its own
 // external command or tool, or the site of a browser action; empty for a call allowed only once.
 func (s *Service) always(project string, f gateway.Frozen, c *registry.Command, title string) string {
-	if strings.HasPrefix(f.Call.Command, registry.Builtin+".browser_") {
+	if strings.HasPrefix(f.Call.Command, registry.Deck("browser_")) {
 		if u, err := url.Parse(f.Tool); err == nil && u.Host != "" {
 			return fmt.Sprintf("Always let %s act on %s", project, u.Host)
 		}

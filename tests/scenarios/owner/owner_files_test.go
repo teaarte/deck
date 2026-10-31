@@ -347,7 +347,7 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 	}
 	menu := func() card {
 		var m struct{ Projects []card }
-		e.Must("deck.menu", nil, &m)
+		e.Must("deck.menu_get", nil, &m)
 		for _, p := range m.Projects {
 			if p.Project == "notes" {
 				return p
@@ -365,7 +365,7 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 	set := func(name string, c color.RGBA, in map[string]any) int64 {
 		id := e.Upload("notes", name, "image/png", picture(c))
 		in["project"], in["file"] = "notes", fmt.Sprint(id)
-		e.Must("deck.project_cover", in, nil)
+		e.Must("deck.project_cover_set", in, nil)
 		return id
 	}
 	red := set("red.png", color.RGBA{220, 30, 30, 255}, map[string]any{})
@@ -390,7 +390,7 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 	}
 
 	cur := themeLook{}
-	e.Must("deck.theme", map[string]any{}, &cur)
+	e.Must("deck.theme_get", map[string]any{}, &cur)
 	set("blue.png", color.RGBA{30, 30, 220, 255}, map[string]any{"theme": cur.Name, "scheme": "dark"})
 	got = menu()
 	if got.CoverDark != got.Cover || !strings.HasPrefix(got.CoverColor, "#1") {
@@ -401,20 +401,20 @@ func TestAModuleHasACoverForEachTheme(t *testing.T) {
 	if got = menu(); !strings.HasPrefix(got.CoverColor, "#d") {
 		t.Fatalf("another theme shows the cover for every theme: %+v", got)
 	}
-	e.Refused("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(red), "theme": "nowhere"}, 404, "theme")
+	e.Refused("deck.project_cover_set", map[string]any{"project": "notes", "file": fmt.Sprint(red), "theme": "nowhere"}, 404, "theme")
 	text := e.Upload("notes", "a.txt", "text/plain", "hello")
-	e.Refused("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(text)}, 422, "picture")
-	e.Refused("deck.project_cover", map[string]any{"project": "notes"}, 422, "remove")
+	e.Refused("deck.project_cover_set", map[string]any{"project": "notes", "file": fmt.Sprint(text)}, 422, "picture")
+	e.Refused("deck.project_cover_set", map[string]any{"project": "notes"}, 422, "remove")
 
 	var rows []struct {
 		Theme, Scheme string
 		Shown         bool
 	}
-	e.Must("deck.project_covers", map[string]any{"project": "notes"}, &rows)
+	e.Must("deck.project_covers_list", map[string]any{"project": "notes"}, &rows)
 	if len(rows) != 2 || rows[0].Theme != "" || !rows[0].Shown || rows[1].Theme != cur.Name || rows[1].Shown {
 		t.Fatalf("the covers of a module by theme, and which the card shows: %+v", rows)
 	}
-	e.Must("deck.project_cover", map[string]any{"project": "notes", "remove": true}, nil)
+	e.Must("deck.project_cover_set", map[string]any{"project": "notes", "remove": true}, nil)
 	if got = menu(); !strings.HasPrefix(got.CoverColor, "#1") {
 		t.Fatalf("remove takes off the covers for every theme alone; the card shows any other: %+v", got)
 	}
@@ -452,14 +452,14 @@ func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
 	}
 	shown := func() []row {
 		var rows []row
-		e.Must("deck.project_covers", map[string]any{"project": "notes"}, &rows)
+		e.Must("deck.project_covers_list", map[string]any{"project": "notes"}, &rows)
 		return rows
 	}
 	// set gives the light copy a card shows and the picture itself.
 	set := func(name string, c color.RGBA, in map[string]any) (int64, int64) {
 		var out struct{ Cover int64 }
 		in["project"], in["file"] = "notes", fmt.Sprint(e.Upload("notes", name, "image/png", picture(c)))
-		e.Must("deck.project_cover", in, &out)
+		e.Must("deck.project_cover_set", in, &out)
 		for _, r := range shown() {
 			if r.Theme == fmt.Sprint(cmp.Or(in["theme"], any(""))) {
 				return r.File, out.Cover
@@ -488,7 +488,7 @@ func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
 		return ids
 	}
 	first := themeLook{}
-	e.Must("deck.theme", map[string]any{}, &first)
+	e.Must("deck.theme_get", map[string]any{}, &first)
 	red, _ := set("red.png", color.RGBA{220, 30, 30, 255}, map[string]any{})
 	e.Example("pixel")
 	e.Must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
@@ -515,9 +515,9 @@ func TestAReplacedCoverStaysTheCoverOfItsTheme(t *testing.T) {
 	// A cover a deck before covers by theme kept.
 	e.SQL(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'old'`, old)
 	var out struct{ Cover int64 }
-	e.Must("deck.project_cover", map[string]any{"project": "old", "file": fmt.Sprint(e.Upload("old", "new.png", "image/png", picture(color.RGBA{200, 200, 10, 255})))}, &out)
+	e.Must("deck.project_cover_set", map[string]any{"project": "old", "file": fmt.Sprint(e.Upload("old", "new.png", "image/png", picture(color.RGBA{200, 200, 10, 255})))}, &out)
 	var oldCovers []row
-	e.Must("deck.project_covers", map[string]any{"project": "old"}, &oldCovers)
+	e.Must("deck.project_covers_list", map[string]any{"project": "old"}, &oldCovers)
 	if !slices.Contains(oldCovers, row{"pixel", old}) {
 		t.Fatalf("a cover kept before deck knew its theme goes to the theme in use: %+v", oldCovers)
 	}
@@ -537,14 +537,14 @@ func TestAPictureWithoutALightCopyGetsOne(t *testing.T) {
 	e.SQL(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'notes'`, id)
 	e.App.Sweep(context.Background(), time.Now())
 	var covers []struct{ File int64 }
-	e.Must("deck.project_covers", map[string]any{"project": "notes"}, &covers)
+	e.Must("deck.project_covers_list", map[string]any{"project": "notes"}, &covers)
 	var m struct {
 		Projects []struct {
 			Project    string
 			CoverColor string `json:"cover_color"`
 		}
 	}
-	e.Must("deck.menu", nil, &m)
+	e.Must("deck.menu_get", nil, &m)
 	c := ""
 	for _, p := range m.Projects {
 		if p.Project == "notes" {
@@ -571,7 +571,7 @@ func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
 	e.Must("deck.covers_draw", map[string]any{"project": "notes", "wish": "a fox with a notebook"}, &out)
 	said := e.ChatMessages(out.Topic)
 	var mood themeLook
-	e.Must("deck.theme", map[string]any{}, &mood)
+	e.Must("deck.theme_get", map[string]any{}, &mood)
 	if len(said) == 0 || !strings.Contains(said[0].Text, "module notes") || !strings.Contains(said[0].Text, mood.Mood) ||
 		!strings.Contains(said[0].Text, "a fox with a notebook") || !strings.Contains(said[0].Text, "kind image on local-image") ||
 		!strings.Contains(said[0].Text, "scheme light or dark") {

@@ -262,7 +262,7 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("file_upload", "Upload file",
 			"Uploads a file for a project from base64 text and returns its id for a command input.",
 			registry.OwnerSide, s.fileUpload),
-		registry.Read("files_folder", "Folder of files",
+		registry.Read("files_folder_list", "Folder of files",
 			"Lists a folder of deck's file manager: the modules at its root, in a module its files, documents and data folder, then what is in each.",
 			registry.OwnerSide, s.filesFolder).On("files", "documents", "projects", "settings", "processes"),
 		registry.Read("data_read", "Read data folder",

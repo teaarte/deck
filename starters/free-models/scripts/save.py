@@ -130,7 +130,7 @@ def main(inp):
                 rows.append(dict(cur, text_ok=ok))
     errors = list(upsert(rows).get("errors") or [])
     if named:
-        call("deck.notify", {"text": f"Новые сильные бесплатные модели ({len(named)}): " + ", ".join(named)[:240],
+        call("deck.owner_notify", {"text": f"Новые сильные бесплатные модели ({len(named)}): " + ", ".join(named)[:240],
                              "screen": "models"})
     if res.get("summary"):
         call("deck.records_upsert", {"collection": "digests", "records": json.dumps(

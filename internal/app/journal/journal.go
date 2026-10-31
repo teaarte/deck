@@ -295,7 +295,7 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("spend_list", "Spend",
 			"Lists the tokens and cost of model calls by project, command, provider and model, the largest first.",
 			registry.OwnerOnly, s.spendList).On("usage"),
-		registry.Read("spend_daily", "Spend by day",
+		registry.Read("spend_days_list", "Spend by day",
 			"Gives the tokens, calls and cost of model calls of the last days: a row for every day, or the totals of each provider or project with their share; by provider also the runs each model did.",
 			registry.OwnerOnly, s.spendDaily).On("usage", "processes"),
 	}

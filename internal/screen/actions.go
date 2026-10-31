@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"deck2/internal/manifest"
+	"deck2/internal/registry"
 )
 
 // rowActions are the buttons of a block that hold for a row; one whose expression fails on the data of the row,
@@ -115,7 +116,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		act["options"] = v
 		if a.Command != "" && a.Input != "" {
 			name := a.Command
-			if !r.deck() && !strings.HasPrefix(name, "deck.") {
+			if !r.deck() && !registry.IsBuiltin(name) {
 				name = r.req.Project.Name + "." + a.Command
 			}
 			values := r.inputEnum(name, a.Input)
@@ -158,13 +159,13 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		}
 	default:
 		name := a.Command
-		if !r.deck() && !strings.HasPrefix(name, "deck.") {
+		if !r.deck() && !registry.IsBuiltin(name) {
 			name = r.req.Project.Name + "." + a.Command
 		}
 		types := r.inputTypes(name)
 		ps := params(types)
 		// A command of deck on a screen of a project acts on that project unless the button names another.
-		if _, ok := types["project"]; ok && strings.HasPrefix(name, "deck.") && ps["project"] == nil && !r.deck() {
+		if _, ok := types["project"]; ok && registry.IsBuiltin(name) && ps["project"] == nil && !r.deck() {
 			ps["project"] = r.req.Project.Name
 		}
 		if name == manifest.RecordDelete {
@@ -175,7 +176,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			ps[manifest.AllowsKey] = r.allows(a.Allows, env, &failed)
 		}
 		// A press of a button of a module again while its run goes is that run, said to be running already.
-		if _, ok := ps[manifest.RetryKey]; !ok && a.Input == "" && len(a.FromBlock) == 0 && a.Verb != "undo" && !strings.HasPrefix(name, "deck.") {
+		if _, ok := ps[manifest.RetryKey]; !ok && a.Input == "" && len(a.FromBlock) == 0 && a.Verb != "undo" && !registry.IsBuiltin(name) {
 			b, _ := json.Marshal(ps)
 			ps[manifest.RetryKey] = "press:" + string(b)
 		}
@@ -213,7 +214,7 @@ func (r *renderer) allows(as []manifest.Allowed, env map[string]any, failed *err
 	out := make([]map[string]any, 0, len(as))
 	for _, w := range as {
 		name := w.Command
-		if !strings.HasPrefix(name, "deck.") {
+		if !registry.IsBuiltin(name) {
 			name = r.req.Project.Name + "." + name
 		}
 		types, ps := r.inputTypes(name), map[string]any{}
@@ -254,7 +255,7 @@ func labeled(act map[string]any, label func(string) string) {
 
 // inputEnum are the values a field of the input of a command takes, when its schema lists them.
 func (r *renderer) inputEnum(name, field string) []string {
-	if r.deck() || strings.HasPrefix(name, "deck.") {
+	if r.deck() || registry.IsBuiltin(name) {
 		c, _ := r.src.Command(r.ctx, r.scope.Workspace, name)
 		in, _ := json.Marshal(c["input"])
 		return manifest.Enum(in, field)
@@ -270,7 +271,7 @@ func (r *renderer) inputTypes(name string) map[string]string {
 		return t
 	}
 	var out map[string]string
-	if r.deck() || strings.HasPrefix(name, "deck.") {
+	if r.deck() || registry.IsBuiltin(name) {
 		c, _ := r.src.Command(r.ctx, r.scope.Workspace, name)
 		in, _ := json.Marshal(c["input"])
 		out = manifest.FieldTypes(in)

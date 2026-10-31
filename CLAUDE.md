@@ -70,7 +70,7 @@ hold; look inside a package for the rest.
 - `internal/ask` — the broker of what waits for the owner; `app/asks` its commands.
 - `internal/screen` — stored screens resolved into A2UI messages (blocks, data, actions, forms, topics, i18n): the
   containers of a manifest become the standard `Row`/`Column`/`Tabs`/`Modal`; data goes only by the path of a block;
-  `deck.screen` with `block` reads one block, the blocks of a closed dialog get no data, a source's `limit` is a page.
+  `deck.screen_get` with `block` reads one block, the blocks of a closed dialog get no data, a source's `limit` is a page.
 - `internal/api` — HTTP API, SSE, files and the second origin of `custom` blocks (`Sandbox`: the guard of
   `sandbox.html` stays its first script — no WebRTC, no frames).
 - `internal/sandbox` — the sandbox of scripts, MCP servers and ACP agents (`sandbox-exec` on macOS, bubblewrap on

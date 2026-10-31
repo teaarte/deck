@@ -31,8 +31,8 @@ func (a *App) builtins() []*registry.Command {
 		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Shots.Commands(), a.Updates.Commands(), a.Cfg.Commands} {
 		out = append(out, cs...)
 	}
-	return append(out, registry.Def("manifest_format", "Manifest format", "Returns the JSON Schema of project manifests.", registry.Everyone,
-		func(context.Context, registry.Actor, struct{}) (any, error) {
+	return append(out, registry.Read("manifest_format_get", "Manifest format", "Returns the JSON Schema of project manifests.", registry.Everyone,
+		func(context.Context, registry.Actor, struct{}) (json.RawMessage, error) {
 			return json.RawMessage(manifest.Taught), nil
-		}))
+		}).On(registry.Static))
 }

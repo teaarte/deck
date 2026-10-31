@@ -141,7 +141,7 @@ func TestRealACPAgents(t *testing.T) {
 						e.Answer(ask.ID, "allow")
 						confirmed++
 					}
-					if _, out := e.Call("deck.process_log", map[string]any{"process": id}); len(out) > 2 {
+					if _, out := e.Call("deck.process_log_get", map[string]any{"process": id}); len(out) > 2 {
 						lastLog = out
 					}
 					return false

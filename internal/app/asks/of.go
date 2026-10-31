@@ -71,11 +71,11 @@ func buttons(r askRow) []map[string]any {
 		if pl.Site != "" {
 			url := map[string]any{"url": "https://" + pl.Site}
 			return []map[string]any{
-				primary(map[string]any{"verb": "sign_in", "command": registry.Builtin + ".browser_login", "params": url}),
-				{"verb": "signed_in", "command": registry.Builtin + ".browser_login_done", "params": url},
+				primary(map[string]any{"verb": "sign_in", "command": registry.Deck("browser_login"), "params": url}),
+				{"verb": "signed_in", "command": registry.Deck("browser_login_finish"), "params": url},
 			}
 		}
-		return []map[string]any{primary(map[string]any{"verb": "sign_in", "command": registry.Builtin + ".oauth_start",
+		return []map[string]any{primary(map[string]any{"verb": "sign_in", "command": registry.Deck("oauth_start"),
 			"params": map[string]any{"tool": pl.Tool}})}
 	}
 	return []map[string]any{{"verb": "open", "screen": "cockpit"}}
@@ -83,5 +83,5 @@ func buttons(r askRow) []map[string]any {
 
 // button calls ask_answer with an answer under a verb.
 func button(id int64, verb, answer string) map[string]any {
-	return map[string]any{"verb": verb, "command": registry.Builtin + ".ask_answer", "params": map[string]any{"ask": id, "answer": answer}}
+	return map[string]any{"verb": verb, "command": registry.Deck("ask_answer"), "params": map[string]any{"ask": id, "answer": answer}}
 }

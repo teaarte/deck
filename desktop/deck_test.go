@@ -58,7 +58,7 @@ func opens(t *testing.T, d *Deck) {
 		t.Fatalf("the address of the window carries the token: %q %v", u, err)
 	}
 	token := u[strings.Index(u, "=")+1:]
-	req, _ := http.NewRequest(http.MethodPost, "http://"+d.Addr+"/api/commands/deck.menu", strings.NewReader("{}"))
+	req, _ := http.NewRequest(http.MethodPost, "http://"+d.Addr+"/api/commands/deck.menu_get", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil || res.StatusCode != http.StatusOK {

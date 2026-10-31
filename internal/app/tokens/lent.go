@@ -14,7 +14,7 @@ import (
 const lentPrefix = "deck_lent_"
 
 // pageReads are the commands a page of the client reads that are not declared reads of deck.
-var pageReads = []string{"deck.screen", "deck.menu", "deck.themes_list"}
+var pageReads = []string{registry.Deck("screen_get"), registry.Deck("menu_get"), registry.Deck("themes_list")}
 
 type lent struct {
 	act   registry.Actor

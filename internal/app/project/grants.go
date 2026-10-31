@@ -43,7 +43,7 @@ func (pj *Service) ask(ctx context.Context, q *db.Queries, act registry.Actor, p
 		command, input = "document_revert", map[string]any{"document": cur.ID, "revision": revertTo, "reason": own, "if_revision": cur.Current}
 	}
 	raw, _ := json.Marshal(input)
-	f := gateway.Freeze(act, registry.Builtin+"."+command, raw)
+	f := gateway.Freeze(act, registry.Deck(command), raw)
 	f.As, f.Reason, f.Widens = gateway.AsOwner, reason, widens
 	text := fmt.Sprintf("%s asks to widen the rights of %s: %s", act.Author(), p.Name, strings.Join(widens, "; "))
 	row, err := gateway.Hold(ctx, q, act, p.ID, 0, ask.KindGrant, registry.Internal, text, f, time.Time{}, pj.Now())

@@ -304,7 +304,7 @@ func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Pro
 		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
 			Author: act.Author(), Text: fmt.Sprintf("deleted %s with %d records, %d files and %d folders in all; an undo writes back its data, not what belonged to it",
 				pl.parts(m)[0].Name, len(pl.records), len(pl.files), len(pl.folders)),
-			Actions: "[]", Command: registry.Builtin + ".records_upsert", Params: string(params), ProcessID: store.ID(act.ProcessID),
+			Actions: "[]", Command: registry.Deck("records_upsert"), Params: string(params), ProcessID: store.ID(act.ProcessID),
 			What: "deleted records of " + rec.Collection})
 	})
 	if err != nil {
@@ -364,7 +364,7 @@ func mastersOnly(ctx context.Context, q *db.Queries, p db.Project, pl plan) (oth
 func (s *Service) hold(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, pl plan, others string) (gateway.Waiting, error) {
 	rec := pl.records[0]
 	input, _ := json.Marshal(map[string]any{"record": rec.ID})
-	f := gateway.Freeze(act, registry.Builtin+".record_delete", input)
+	f := gateway.Freeze(act, registry.Deck("record_delete"), input)
 	f.As = gateway.AsOwner
 	a, err := q.FindOpenCallAsk(ctx, db.FindOpenCallAskParams{ProjectID: p.ID, Payload: f.String(), ProcessID: act.ProcessID})
 	if errors.Is(err, sql.ErrNoRows) {

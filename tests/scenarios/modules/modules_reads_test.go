@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	deckhome "deck2/internal/home"
+	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/tests/harness"
@@ -129,7 +130,7 @@ func TestFieldsReachIntoTheManifestText(t *testing.T) {
 		Version     int
 		Collections []map[string]any
 	}
-	if json.Unmarshal([]byte(m.Manifest), &part) != nil || part.Version != 13 || len(part.Collections) != 2 || !slices.Equal(keysOf(part.Collections[1]), []string{"name"}) {
+	if json.Unmarshal([]byte(m.Manifest), &part) != nil || part.Version != manifest.FormatVersion || len(part.Collections) != 2 || !slices.Equal(keysOf(part.Collections[1]), []string{"name"}) {
 		t.Fatalf("a field of every item of a list: %s", m.Manifest)
 	}
 

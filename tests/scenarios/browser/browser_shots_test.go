@@ -26,7 +26,7 @@ func TestRealBrowserTheMasterSeesAScreen(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		for _, in := range []map[string]any{{"address": "#/deck/look", "scheme": "dark"},
 			{"address": "#/", "device": "phone", "theme": "juce", "scheme": "light"}} {
-			out, bad := c.Tool(ctx, "screen_shot", in)
+			out, bad := c.Tool(ctx, "screen_capture", in)
 			if bad {
 				out = "refused: " + out
 			}
@@ -76,7 +76,7 @@ func TestRealBrowserAShotDrawsACustomBlock(t *testing.T) {
 	checkBuiltClient(t)
 	shots := make(chan string, 1)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/p/web/main", "scheme": "light"})
+		out, bad := c.Tool(ctx, "screen_capture", map[string]any{"address": "#/p/web/main", "scheme": "light"})
 		if bad {
 			out = "refused: " + out
 		}
@@ -145,7 +145,7 @@ func TestRealBrowserAShotWaitsForThePicturesACustomBlockReads(t *testing.T) {
 	shots := make(chan string, 2)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		for _, device := range []string{"computer", "phone"} {
-			out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/p/web/main", "scheme": "light", "device": device})
+			out, bad := c.Tool(ctx, "screen_capture", map[string]any{"address": "#/p/web/main", "scheme": "light", "device": device})
 			if bad {
 				out = "refused: " + out
 			}

@@ -13,7 +13,7 @@ import (
 func pressAsks(e *harness.Env, process int64) []harness.PressAsk {
 	e.T.Helper()
 	var out struct{ Asks []harness.PressAsk }
-	e.Must("deck.process_asks", map[string]any{"process": process}, &out)
+	e.Must("deck.process_asks_list", map[string]any{"process": process}, &out)
 	return out.Asks
 }
 
@@ -88,7 +88,7 @@ func TestTheOwnersPressAnswersTheCallItsRunWaitsFor(t *testing.T) {
 	if got := pressAsks(e, e.Start("other", "main", map[string]any{"n": theirs})); len(got) != 0 {
 		t.Fatalf("a run names no ask of another project to the button: %+v", got)
 	}
-	if code, out := e.Call("deck.process_asks", map[string]any{"process": 99999}); code != 404 || !strings.Contains(string(out), "no process") {
+	if code, out := e.Call("deck.process_asks_list", map[string]any{"process": 99999}); code != 404 || !strings.Contains(string(out), "no process") {
 		t.Fatalf("no asks of a process that is not there: %d %s", code, out)
 	}
 }

@@ -75,7 +75,7 @@ type menuOut struct {
 // what it counts.
 var menuTopics = sync.OnceValue(func() []string {
 	out := []string{"projects", "documents", "settings", "files", "triggers"}
-	for _, name := range []string{"deck.asks_list", "deck.processes_list", "deck.health_list", "deck.feed_list"} {
+	for _, name := range []string{registry.Deck("asks_list"), registry.Deck("processes_list"), registry.Deck("health_list"), registry.Deck("feed_list")} {
 		c, _ := manifest.Reads(name)
 		for _, t := range c.Topics {
 			if !slices.Contains(out, t) {

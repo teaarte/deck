@@ -160,7 +160,7 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 		if err != nil {
 			return err
 		}
-		buttons, _ := json.Marshal([]map[string]any{{"label": "Update", "command": registry.Builtin + ".update", "icon": "download"}})
+		buttons, _ := json.Marshal([]map[string]any{{"label": "Update", "command": registry.Deck("update_install"), "icon": "download"}})
 		if s.Image != "" {
 			buttons = []byte("[]")
 		}
@@ -369,13 +369,13 @@ func runs(ctx context.Context, bin, version string) error {
 
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
-		registry.Read("version", "Version of deck",
+		registry.Read("version_get", "Version of deck",
 			"Gives the version, commit and build of deck, the latest release deck found and whether it is newer.",
 			registry.OwnerSide, s.version).On("health"),
 		registry.Def("update_check", "Look for an update",
 			"Reads the latest release of deck now and tells the owner when it is newer.",
 			registry.OwnerOnly, s.checkNow),
-		registry.Def("update", "Update deck",
+		registry.Def("update_install", "Update deck",
 			"Puts the latest release of deck in place, checked against its signed list, and restarts deck in it; agents go on in their sessions.",
 			registry.OwnerOnly, s.update),
 	}

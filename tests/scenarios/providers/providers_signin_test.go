@@ -13,7 +13,7 @@ import (
 func signIns(e *harness.Env) []harness.SignInRow {
 	e.T.Helper()
 	var rows []harness.SignInRow
-	e.Must("deck.agent_logins", map[string]any{"lang": "ru"}, &rows)
+	e.Must("deck.agent_logins_list", map[string]any{"lang": "ru"}, &rows)
 	return rows
 }
 
@@ -58,13 +58,13 @@ func TestTheOwnerSignsClaudeCodeInWithTheCodeOfThePage(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.ChecksPass()
 	e := harness.New(t, harness.WithCLI(c))
-	e.Refused("deck.agent_login_code", map[string]any{"provider": "claude-code", "code": "x"}, 422, "no sign-in")
+	e.Refused("deck.agent_login_finish", map[string]any{"provider": "claude-code", "code": "x"}, 422, "no sign-in")
 	var l harness.SignInRow
 	e.Must("deck.agent_login", map[string]any{"provider": "claude-code"}, &l)
 	if !l.Paste || l.Code != "" || l.URL == "" {
 		t.Fatalf("the sign-in waits for the code of the page: %+v", l)
 	}
-	e.Must("deck.agent_login_code", map[string]any{"provider": "claude-code", "code": "bad"}, nil)
+	e.Must("deck.agent_login_finish", map[string]any{"provider": "claude-code", "code": "bad"}, nil)
 	e.Until("the wrong code to fail", func() bool {
 		rows := signIns(e)
 		return len(rows) == 1 && rows[0].Error != ""
@@ -73,7 +73,7 @@ func TestTheOwnerSignsClaudeCodeInWithTheCodeOfThePage(t *testing.T) {
 		t.Fatalf("the failure says why, in the owner's language: %+v", rows)
 	}
 	e.Must("deck.agent_login", map[string]any{"provider": "claude-code"}, &l)
-	e.Must("deck.agent_login_code", map[string]any{"provider": "claude-code", "code": "good-code"}, nil)
+	e.Must("deck.agent_login_finish", map[string]any{"provider": "claude-code", "code": "good-code"}, nil)
 	e.Until("the sign-in to end", func() bool { return len(signIns(e)) == 0 })
 	if _, err := os.Stat(filepath.Join(c.Dir, "signed-in")); err != nil {
 		t.Fatal("the code reached the CLI")

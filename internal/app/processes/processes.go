@@ -493,7 +493,7 @@ func (s *Service) processCommands() []*registry.Command {
 		registry.Read("process_get", "Process status",
 			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner, and an agent's slot is free for others meanwhile; a process waiting for an agent slot names in slot_ahead how many wait before it.",
 			registry.Everyone, s.processGet).On("processes", "usage", "asks"),
-		registry.Read("process_left", "Left by a process",
+		registry.Read("process_left_list", "Left by a process",
 			"Lists what a process and the processes it started left: the changes of documents of an enabled project with whether they can be undone, the records and the files of deck they made; not what was written into the data folder.",
 			registry.Everyone, s.processLeft).On("collection", "files", "feed", "processes"),
 		registry.Def("process_retry", "Run a failed process again",
@@ -508,7 +508,7 @@ func (s *Service) processCommands() []*registry.Command {
 		registry.Def("process_rework", "Send back for rework",
 			"Sends a finished agent process back to the same session with a remark, or one that failed or was stopped on where it stopped; changed artifacts get new revisions.",
 			registry.OwnerSide, s.processRework),
-		registry.Read("process_log", "Process log",
+		registry.Read("process_log_get", "Process log",
 			"Gives a page of the events of a process, oldest first, each with its number n: the last ones, or those before or after a number; only errors, tool calls or messages; a text longer than 1000 bytes is cut, and a page of one event gives it whole. While it runs and for a week after it ended.",
 			registry.Everyone, s.processLog).On("log"),
 	}

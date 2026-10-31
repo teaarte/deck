@@ -140,8 +140,8 @@ func (r *Runner) thread(ctx context.Context, p db.Process) string {
 	for i := len(links) - 1; i >= 0; i-- {
 		b.WriteString(links[i] + "\n")
 	}
-	return fmt.Sprintf("Earlier processes of record %d in this project, the latest last; deck.process_get gives one in full, "+
-		"deck.processes_list with record gives all.\n", record) + untrusted.Block("The processes of the record", strings.TrimSpace(b.String()))
+	return fmt.Sprintf("Earlier processes of record %d in this project, the latest last; %s gives one in full, "+
+		"%s with record gives all.\n", record, registry.Deck("process_get"), registry.Deck("processes_list")) + untrusted.Block("The processes of the record", strings.TrimSpace(b.String()))
 }
 
 // link is one process of a thread in a line or two: who ran it, how it ended, what it gave and what it was told.

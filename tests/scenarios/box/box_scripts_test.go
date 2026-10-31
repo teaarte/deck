@@ -691,7 +691,7 @@ func TestANoteOfAScriptIsSignedByTheScript(t *testing.T) {
 	e := harness.New(t)
 	e.Project("tools", harness.ScriptManifest("run", "", ""))
 	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
-code, out = deck("deck.notify", {"text": "The report is ready"})
+code, out = deck("deck.owner_notify", {"text": "The report is ready"})
 print(json.dumps({"code": code}))
 `)
 	id := e.Start("tools", "run", nil)

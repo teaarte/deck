@@ -226,7 +226,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.until("the token form", `document.querySelector('[data-form="deck.token_create"]')`)
 	b.type_(`document.querySelector('[data-form="deck.token_create"] input[data-field="name"]')`, "shortcuts")
 	b.eval(`(() => { const i = document.querySelector('[data-form="deck.token_create"] input[data-field="commands"]'); i.focus();
-		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'deck.notify');
+		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'deck.owner_notify');
 		i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return '' })()`)
 	b.eval(`(document.querySelector('[data-form="deck.token_create"] [data-submit]').click(), '')`)
 	b.until("the new token shown once under its form", `document.querySelector('[data-form="deck.token_create"] [data-outcome="done"]')?.innerText.includes('claude mcp add')`)
@@ -507,7 +507,7 @@ func TestRealBrowserScreenKeepsItsStateOnReturn(t *testing.T) {
 		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'half typed');
 		i.dispatchEvent(new Event('input', { bubbles: true }));
 		window.reads = 0; const f = window.fetch;
-		window.fetch = (u, o) => { if (String(u).includes('deck.screen') && !String(o?.body ?? '').includes('topic')) window.reads++; return f(u, o) };
+		window.fetch = (u, o) => { if (String(u).includes('deck.screen_get') && !String(o?.body ?? '').includes('topic')) window.reads++; return f(u, o) };
 		return '' })()`)
 	b.eval(`(document.dispatchEvent(new Event('visibilitychange')), '')`)
 	b.until("a full read on return", `window.reads > 0`)

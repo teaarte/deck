@@ -14,11 +14,11 @@ import (
 	"deck2/tests/harness"
 )
 
-// screenAs is the data of a screen read through deck.screen by act, by block id.
+// screenAs is the data of a screen read through deck.screen_get by act, by block id.
 func screenAs(e *harness.Env, act registry.Actor, in map[string]any) map[string]map[string]json.RawMessage {
 	e.T.Helper()
 	raw, _ := json.Marshal(in)
-	out, err := e.App.Registry.Invoke(context.Background(), act, "deck.screen", raw)
+	out, err := e.App.Registry.Invoke(context.Background(), act, "deck.screen_get", raw)
 	if err != nil {
 		e.T.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestTheMasterReadsAScreenWithoutTheBodiesOfDocuments(t *testing.T) {
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
 	brief := screenAs(e, master, map[string]any{"project": "web", "screen": "main"})
 	if d := harness.BlockData[body](t, brief["b1"]["value"]); d.Text != nil || d.Size != len("be short") || d.Name != "notes/criteria.md" ||
-		d.Whole["command"] != "deck.screen" || d.Whole["block"] != "b1" {
+		d.Whole["command"] != "deck.screen_get" || d.Whole["block"] != "b1" {
 		t.Fatalf("the master reads a document by its name and size, and the block that gives it whole: %+v", d)
 	}
 	if c := harness.BlockData[body](t, brief["b4"]["value"]); c.HTML != nil || c.Size != len("<p>chart</p>") || c.Name != "custom/chart.html" || c.Whole["block"] != "b4" {
@@ -82,7 +82,7 @@ func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 	t.Parallel()
 	got := make(chan string, 1)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		out, bad := c.Tool(ctx, "screen_shot", map[string]any{"address": "#/deck/look", "scheme": "dark", "device": "phone"})
+		out, bad := c.Tool(ctx, "screen_capture", map[string]any{"address": "#/deck/look", "scheme": "dark", "device": "phone"})
 		if bad {
 			got <- "refused: " + out
 		} else {
@@ -109,12 +109,12 @@ func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 		Kept *bool
 		MS   int64
 	}
-	e.Must("deck.screen_shot", map[string]any{"address": "#/"}, &owner)
+	e.Must("deck.screen_capture", map[string]any{"address": "#/"}, &owner)
 	if owner.Kept == nil || *owner.Kept || owner.MS != 12 {
 		t.Fatalf("the owner without a process gets the time alone: %+v", owner)
 	}
-	e.Refused("deck.screen_shot", map[string]any{"address": "https://example.com"}, 422, "begins with #/")
-	e.Refused("deck.screen_shot", map[string]any{"address": "#/", "theme": "nope"}, 404, `no theme "nope"`)
+	e.Refused("deck.screen_capture", map[string]any{"address": "https://example.com"}, 422, "begins with #/")
+	e.Refused("deck.screen_capture", map[string]any{"address": "#/", "theme": "nope"}, 404, `no theme "nope"`)
 }
 
 // A token deck lends its own browser acts as its caller for a while and only reads: a page opens, nothing changes,
@@ -123,17 +123,17 @@ func TestALentTokenOnlyReadsWhileItLasts(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	tok := e.App.Tokens.Lend(registry.Actor{Kind: registry.Master, Workspace: 1}, time.Minute)
-	if code, out := e.As(tok).Call("deck.screen", map[string]any{"screen": "settings"}); code != 200 {
+	if code, out := e.As(tok).Call("deck.screen_get", map[string]any{"screen": "settings"}); code != 200 {
 		t.Fatalf("a lent token reads a screen: %d %s", code, out)
 	}
-	if code, out := e.As(tok).Call("deck.menu", map[string]any{}); code != 200 {
+	if code, out := e.As(tok).Call("deck.menu_get", map[string]any{}); code != 200 {
 		t.Fatalf("a lent token reads the menu: %d %s", code, out)
 	}
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "x", "manifest": harness.PlainManifest}); code != 403 || !strings.Contains(string(out), "only reads") {
 		t.Fatalf("a lent token changes nothing: %d %s", code, out)
 	}
 	e.App.Tokens.Return(tok)
-	if code, _ := e.As(tok).Call("deck.menu", map[string]any{}); code != 401 {
+	if code, _ := e.As(tok).Call("deck.menu_get", map[string]any{}); code != 401 {
 		t.Fatalf("a returned token opens nothing: %d", code)
 	}
 }

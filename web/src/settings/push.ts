@@ -24,7 +24,7 @@ export async function currentPush(): Promise<PushSubscription | null> {
 // subscribePush asks the browser for pushes of deck and hands the subscription to deck.
 export async function subscribePush(device: string): Promise<void> {
   if ((await Notification.requestPermission()) !== 'granted') throw new Error('notifications are not allowed for deck');
-  const { key } = await call<{ key: string }>('deck.push_key');
+  const { key } = await call<{ key: string }>('deck.push_key_get');
   const reg = await navigator.serviceWorker.ready;
   const old = await reg.pushManager.getSubscription();
   if (old) await old.unsubscribe();

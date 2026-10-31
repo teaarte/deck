@@ -183,7 +183,7 @@ func TestNoSchemaAnAgentSeesHasAllows(t *testing.T) {
 	if code, out := e.As(tok).Call("notes.collect", map[string]any{"allows": "[]"}); code != 422 || !strings.Contains(string(out), "allows") {
 		t.Fatalf("allows from another than the owner is refused: %d %s", code, out)
 	}
-	if code, out := e.Call("notes.collect", map[string]any{"allows": `[{"command": "deck.notify", "params": {}}]`}); code != 200 {
+	if code, out := e.Call("notes.collect", map[string]any{"allows": `[{"command": "deck.owner_notify", "params": {}}]`}); code != 200 {
 		t.Fatalf("the owner's call gives allows: %d %s", code, out)
 	}
 }
@@ -333,7 +333,7 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 	var r struct{ Process int64 }
 	e.Must("master.review", map[string]any{}, &r)
 	got := e.WaitState(r.Process, "done", "error")
-	if !strings.HasPrefix(string(got.Result), `"true`) || !slices.Contains(tools, "mcp__deck__notify") || !slices.Contains(tools, "mcp__deck__health_list") || slices.Contains(tools, "mcp__deck__suggest") ||
+	if !strings.HasPrefix(string(got.Result), `"true`) || !slices.Contains(tools, "mcp__deck__owner_notify") || !slices.Contains(tools, "mcp__deck__health_list") || slices.Contains(tools, "mcp__deck__suggest") ||
 		slices.Contains(tools, "mcp__deck__manifest_save") || slices.Contains(tools, "mcp__deck__record_delete") {
 		t.Fatalf("the review gets the tools it lists and no other: %s %v", got.Result, tools)
 	}

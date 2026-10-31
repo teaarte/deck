@@ -112,7 +112,7 @@ func WriteIdeas(ctx context.Context, c *Call, topic string) {
 func MasterScript(ctx context.Context, c *Call) provider.Result {
 	switch c.Command() {
 	case "review":
-		if out, bad := c.Tool(ctx, "notify", map[string]any{"project": "work", "text": "The queue has not moved for three days; say \"unstick it\" to have it done."}); bad {
+		if out, bad := c.Tool(ctx, "owner_notify", map[string]any{"project": "work", "text": "The queue has not moved for three days; say \"unstick it\" to have it done."}); bad {
 			return provider.Result{Text: "refused: " + out}
 		}
 		return provider.Result{Text: "one note"}
@@ -183,7 +183,7 @@ func WebNotesAgent() Script {
 			var recs []struct{ ID int64 }
 			out, _ := c.Tool(ctx, "records_list", map[string]any{"collection": "notes"})
 			_ = json.Unmarshal([]byte(out), &recs)
-			if text, bad := c.Tool(ctx, "notify", map[string]any{"text": "alpha scored high", "screen": "note", "record": recs[0].ID,
+			if text, bad := c.Tool(ctx, "owner_notify", map[string]any{"text": "alpha scored high", "screen": "note", "record": recs[0].ID,
 				"actions": fmt.Sprintf(`[{"label": "Touch it", "icon": "hand-finger", "confirm": true, "command": "touch", "params": {"note": %d}}]`, recs[0].ID)}); bad {
 				return provider.Result{Structured: json.RawMessage(fmt.Sprintf(`{"error": %q}`, text))}
 			}

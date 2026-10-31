@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
@@ -20,7 +19,7 @@ import (
 func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 	name := t.cmd.Executor.Tool
 	r.runCall(ctx, t, trial, true, func(proj db.Project) (string, json.RawMessage, error) {
-		if !strings.HasPrefix(name, registry.Builtin+".") {
+		if !registry.IsBuiltin(name) {
 			name = proj.Name + "." + name
 		}
 		r.deps.Servers(context.WithoutCancel(ctx), t.project)
@@ -77,7 +76,7 @@ func (r *Runner) runModel(ctx context.Context, t turn, trial bool) {
 			call["input"] = string(b)
 		}
 		b, _ := json.Marshal(call)
-		return registry.Builtin + ".model_call", b, nil
+		return registry.Deck("model_call"), b, nil
 	})
 }
 

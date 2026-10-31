@@ -35,7 +35,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 				{"question": "Which collection?", "options": []map[string]any{{"label": "tasks"}, {"label": "notes"}}}}})
 			return provider.Result{Text: "Waiting for the owner."}
 		}
-		c.Tool(ctx, "notify", map[string]any{"project": "master", "text": "Counted: 3 records."})
+		c.Tool(ctx, "owner_notify", map[string]any{"project": "master", "text": "Counted: 3 records."})
 		return provider.Result{Text: "Counted: **3 records**."}
 	}))
 

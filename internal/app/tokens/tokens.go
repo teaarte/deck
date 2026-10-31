@@ -127,7 +127,7 @@ func (s *Service) tokenRevoke(ctx context.Context, act registry.Actor, in tokenR
 	if n == 0 {
 		return nil, registry.NotFound("deck: no active token %d", in.Token)
 	}
-	s.Journal(ctx, act, 0, registry.Builtin+".token_revoke", registry.External, "done", fmt.Sprintf(`{"token": %d}`, in.Token))
+	s.Journal(ctx, act, 0, registry.Deck("token_revoke"), registry.External, "done", fmt.Sprintf(`{"token": %d}`, in.Token))
 	return map[string]any{"revoked": in.Token}, nil
 }
 

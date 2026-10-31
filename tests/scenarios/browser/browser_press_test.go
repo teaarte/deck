@@ -135,7 +135,7 @@ func TestRealBrowserFallbacksOpenAtOnce(t *testing.T) {
 	b.Open(e, "#/deck/settings?tab=Models")
 	b.until("the fallbacks of a work", `document.querySelector('[data-verb="fallbacks"]')`)
 	b.eval(`(() => { window.reads = 0; const f = window.fetch;
-		window.fetch = (u, o) => { if (String(u).includes('deck.screen') && !String(o?.body ?? '').includes('"block"')) window.reads++; return f(u, o) }; return '' })()`)
+		window.fetch = (u, o) => { if (String(u).includes('deck.screen_get') && !String(o?.body ?? '').includes('"block"')) window.reads++; return f(u, o) }; return '' })()`)
 	b.eval(`(window.t1 = 0, window.t0 = performance.now(), document.querySelector('[data-verb="fallbacks"]').click(),
 		(function wait() { if (document.querySelector('[data-form="deck.assignment_set"] [data-submit]')) window.t1 = performance.now(); else requestAnimationFrame(wait) })(), '')`)
 	b.until("the dialog with its form", `window.t1 > 0`)

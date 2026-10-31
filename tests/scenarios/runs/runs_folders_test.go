@@ -80,10 +80,10 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 	if own := harness.BlockData[[]harness.ListItem](t, e.ScreenBlock("code", "settings", "Module", nil)["items"]); len(own) != 1 || !strings.Contains(own[0].Meta, "folders: my-repo, notes") {
 		t.Fatalf("the settings of the module show its folders: %+v", own)
 	}
-	if code, out := e.Press(e.RowAction("code", "settings", "deck.folder_remove", map[string]any{"name": "notes"})); code != 200 {
+	if code, out := e.Press(e.RowAction("code", "settings", "deck.folder_delete", map[string]any{"name": "notes"})); code != 200 {
 		t.Fatalf("the remove button of a folder on the settings of the project works: %d %s", code, out)
 	}
-	e.Refused("deck.folder_remove", map[string]any{"project": "code", "name": "notes"}, 404, "no folder notes")
+	e.Refused("deck.folder_delete", map[string]any{"project": "code", "name": "notes"}, 404, "no folder notes")
 	if _, err := os.Stat(notes); err != nil {
 		t.Fatalf("removing a folder leaves it on disk: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestOnlyTheOwnerAddsAFolder(t *testing.T) {
 
 	p := e.Project("code", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	_, tok := e.Token("terminal", "deck.*")
-	for _, name := range []string{"deck.folder_add", "deck.folder_remove"} {
+	for _, name := range []string{"deck.folder_add", "deck.folder_delete"} {
 		code, out := e.As(tok).Call(name, map[string]any{"project": "code", "path": t.TempDir(), "name": "x"})
 		if code != 403 {
 			t.Fatalf("%s on an automation token: %d %s", name, code, out)
@@ -248,7 +248,7 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	if err := errors.Join(os.MkdirAll(tree, 0o700), os.WriteFile(filepath.Join(tree, ".git"), []byte("gitdir: "+home+"\n"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
-	e.Must("deck.folder_remove", map[string]any{"project": "paint", "name": "main"}, nil)
+	e.Must("deck.folder_delete", map[string]any{"project": "paint", "name": "main"}, nil)
 	e.Must("deck.folder_add", map[string]any{"project": "paint", "path": tree, "name": "main"}, nil)
 	id = e.Run(p, "work")
 	e.WaitState(id, "done", "error")

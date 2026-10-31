@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "deck theme",
-  "description": "A theme of deck: the look of the whole deck in a light and a dark scheme. Values are CSS values: colors, lengths, shadows, gradients and the functions rgb, hsl, oklch, color-mix, *-gradient, calc, min, max, clamp, var, blur, saturate and the like; no url() and no backslashes: the pictures of a theme (the cockpit, the page behind, a pattern) are set apart by deck.theme_image. var() takes the tokens below as --<token>, the accent of the device as --accent (--accent-0..9, --accent-light, --accent-contrast), the colors of the palette as --color-<name>-<0..9>, the radii --radius, --island-radius and --card-radius, the spacings --spacing-xs..xl, and a theme's own --theme-<name>.",
+  "description": "A theme of deck: the look of the whole deck in a light and a dark scheme. Values are CSS values: colors, lengths, shadows, gradients and the functions rgb, hsl, oklch, color-mix, *-gradient, calc, min, max, clamp, var, blur, saturate and the like; no url() and no backslashes: the pictures of a theme (the cockpit, the page behind, a pattern) are set apart by deck.theme_image_set. var() takes the tokens below as --<token>, the accent of the device as --accent (--accent-0..9, --accent-light, --accent-contrast), the colors of the palette as --color-<name>-<0..9>, the radii --radius, --island-radius and --card-radius, the spacings --spacing-xs..xl, and a theme's own --theme-<name>.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "title", "mood"],

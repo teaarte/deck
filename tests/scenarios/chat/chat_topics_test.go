@@ -544,7 +544,7 @@ func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 	if said := e.MasterSaid(topic, 1); said[0].Text != "Picked the market one" {
 		t.Fatalf("a message typed while the master asks is the answer: %+v", said)
 	}
-	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.screen",
+	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.screen_get",
 		[]byte(`{"screen": "chat"}`))
 	if err != nil || !strings.Contains(fmt.Sprint(out), "only the owner sees this") {
 		t.Fatalf("only the owner reads the chat: %v %v", out, err)
@@ -785,7 +785,7 @@ func TestATopicKeepsTheModelTheOwnerPicked(t *testing.T) {
 		t.Fatalf("a new topic sent with a model answers on it: %+v", said)
 	}
 	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
-	if view.Topic == nil || view.Topic.Model != "other" || view.Choose.Command != "deck.chat_topic_model" || view.Choose.Input != "model" {
+	if view.Topic == nil || view.Topic.Model != "other" || view.Choose.Command != "deck.chat_topic_model_set" || view.Choose.Input != "model" {
 		t.Fatalf("the topic shows its model and the button that changes it: %+v", view)
 	}
 	e.Say(topic, "and again")
@@ -801,7 +801,7 @@ func TestATopicKeepsTheModelTheOwnerPicked(t *testing.T) {
 	if said := e.MasterSaid(plain, 1); said[0].Text != "on fake" {
 		t.Fatalf("a topic without a model answers on the master's: %+v", said)
 	}
-	e.Must("deck.chat_topic_model", map[string]any{"topic": plain, "model": "other"}, nil)
+	e.Must("deck.chat_topic_model_set", map[string]any{"topic": plain, "model": "other"}, nil)
 	e.Say(plain, "now elsewhere")
 	if said := e.MasterSaid(plain, 2); said[1].Text != "on other" {
 		t.Fatalf("a model picked for a topic takes its next reply: %+v", said)

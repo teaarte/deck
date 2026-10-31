@@ -136,7 +136,7 @@ func TestDeckUpdatesItselfFromASignedRelease(t *testing.T) {
 			button = f.Buttons[0]
 		}
 	}
-	if button.Command != "deck.update" || button.Label != "Обновить" {
+	if button.Command != "deck.update_install" || button.Label != "Обновить" {
 		t.Fatalf("the note's button is deck's update in the owner's words: %+v %+v", button, feed)
 	}
 	e.Must(button.Command, nil, nil)
@@ -172,7 +172,7 @@ func TestDeckRefusesAReleaseThatIsNotSigned(t *testing.T) {
 				r.mu.Unlock()
 			}
 			e, exe, restarts := updateEnv(t, r, false, nil)
-			if status, body := e.Call("deck.update", nil); status < 400 {
+			if status, body := e.Call("deck.update_install", nil); status < 400 {
 				t.Fatalf("the update is refused: %d %s", status, body)
 			}
 			got, _ := os.ReadFile(exe)
@@ -190,7 +190,7 @@ func TestDeckOfALauncherAsksTheLauncher(t *testing.T) {
 	r := newRelease(t)
 	r.publish(t, "v0.2.0", map[string][]byte{release.MacApp: []byte("zip")}, nil)
 	e, exe, restarts := updateEnv(t, r, true, nil)
-	e.Must("deck.update", nil, nil)
+	e.Must("deck.update_install", nil, nil)
 	if rs := <-restarts; !rs.Launcher {
 		t.Fatalf("the launcher is asked: %+v", rs)
 	}
@@ -206,7 +206,7 @@ func TestOnlyTheOwnerUpdatesDeck(t *testing.T) {
 	r.publish(t, "v0.2.0", map[string][]byte{"deck-test": newBinary("v0.2.0")}, nil)
 	said := make(chan string, 2)
 	e, exe, _ := updateEnv(t, r, false, func(ctx context.Context, c *harness.Call) provider.Result {
-		out, bad := c.Tool(ctx, "update", map[string]any{})
+		out, bad := c.Tool(ctx, "update_install", map[string]any{})
 		if !bad {
 			out = "done: " + out
 		}

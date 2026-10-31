@@ -17,14 +17,17 @@ import (
 type rule struct {
 	name string
 	text string
-	// in are the folders it looks in.
-	in   []string
-	find func(f *ast.File, fset *token.FileSet) []int
+	// in are the folders it looks in, out those of them it leaves.
+	in, out []string
+	find    func(f *ast.File, fset *token.FileSet) []int
 }
 
 var rules = []rule{
-	{"now", "the wall clock outside the clock of deck: take Now of the config", []string{"internal/", "cmd/"}, timeNow},
-	{"go", "a bare go statement in a domain: run it through Go of the background", []string{"internal/app/"}, goStmt},
+	{"now", "the wall clock outside the clock of deck: take Now of the config", []string{"internal/", "cmd/"}, nil, timeNow},
+	{"go", "a bare go statement in a domain: run it through Go of the background", []string{"internal/app/"}, nil, goStmt},
+	// fault names its types deck.<kind> and home its files deck.db, neither a command.
+	{"deck", "a name of deck's command written out: take registry.Deck or registry.IsBuiltin", []string{"internal/", "cmd/"},
+		[]string{"internal/registry/", "internal/fault/", "internal/home/", "internal/lint/"}, deckName},
 }
 
 // Rules finds what breaks the conventions of the Go code under root outside the exceptions, and the exceptions
@@ -56,7 +59,8 @@ func Rules(root string) ([]Violation, error) {
 			return err
 		}
 		for _, r := range rules {
-			if !slices.ContainsFunc(r.in, func(p string) bool { return strings.HasPrefix(rel, p) }) {
+			under := func(p string) bool { return strings.HasPrefix(rel, p) }
+			if !slices.ContainsFunc(r.in, under) || slices.ContainsFunc(r.out, under) {
 				continue
 			}
 			for _, line := range r.find(f, fset) {
@@ -131,4 +135,38 @@ func importName(f *ast.File, path string) string {
 		}
 	}
 	return ""
+}
+
+// deckName are the lines of string literals that begin with deck's prefix of commands.
+func deckName(f *ast.File, fset *token.FileSet) []int {
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if l, ok := n.(*ast.BasicLit); ok && l.Kind == token.STRING {
+			if v, err := strconv.Unquote(l.Value); err == nil && strings.HasPrefix(v, "deck.") {
+				out = append(out, fset.Position(l.Pos()).Line)
+			}
+		}
+		return true
+	})
+	return out
+}
+
+// refusalLit are the lines of composite literals of registry.Error.
+func refusalLit(f *ast.File, fset *token.FileSet) []int {
+	name := importName(f, "deck2/internal/registry")
+	if name == "" {
+		return nil
+	}
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if c, ok := n.(*ast.CompositeLit); ok {
+			if s, ok := c.Type.(*ast.SelectorExpr); ok && s.Sel.Name == "Error" {
+				if x, ok := s.X.(*ast.Ident); ok && x.Name == name {
+					out = append(out, fset.Position(c.Pos()).Line)
+				}
+			}
+		}
+		return true
+	})
+	return out
 }

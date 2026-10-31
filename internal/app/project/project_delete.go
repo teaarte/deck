@@ -73,7 +73,7 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 		}
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
-	pj.Gateway.Journal(ctx, act, 0, registry.Builtin+".project_delete", registry.External, "done", string(params))
+	pj.Gateway.Journal(ctx, act, 0, registry.Deck("project_delete"), registry.External, "done", string(params))
 	out := map[string]any{"deleted": p.Name, "snapshot": snapshot}
 	if left != "" {
 		out["folder"] = left

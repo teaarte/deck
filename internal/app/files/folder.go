@@ -240,7 +240,7 @@ func (s *Service) projectIDs(ctx context.Context, workspace int64) (map[string]i
 // read calls a read of deck as the caller and takes its result.
 func (s *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
 	raw, _ := json.Marshal(input)
-	got, err := s.Invoke(ctx, act, registry.Builtin+"."+name, raw)
+	got, err := s.Invoke(ctx, act, registry.Deck(name), raw)
 	if err != nil {
 		return err
 	}

@@ -23,7 +23,7 @@
     {"type": "list", "title": "What was", "span": "full", "source": {"from": "deck.feed_list", "input": {"failures": true}, "limit": 20},
       "empty": "Nothing happened yet today",
       "head": [
-        {"verb": "read_all", "command": "deck.feed_read", "params": {"all": "true"}, "confirm": true, "when": "len(filter(rows, #.can_read)) > 0"}
+        {"verb": "read_all", "command": "deck.feed_mark_read", "params": {"all": "true"}, "confirm": true, "when": "len(filter(rows, #.can_read)) > 0"}
       ],
       "item": {"title": "text", "since": "created_at",
         "icon": "kind == 'failure' ? 'alert-circle' : kind == 'change' ? 'checks' : 'news'",
@@ -37,8 +37,8 @@
         {"verb": "open", "screen": "process", "record": "=process", "when": "kind == 'failure' && (process ?? 0) != 0"},
         {"verb": "open", "screen": "deck/settings", "params": {"tab": "Health"}, "when": "kind == 'failure' && (check ?? '') != ''"},
         {"verb": "close", "command": "deck.process_dismiss", "params": {"process": "=process"}, "when": "kind == 'failure' && (process ?? 0) != 0"},
-        {"verb": "mark_read", "command": "deck.health_seen", "params": {"subject": "=check", "project": "=project != '' ? project : nil"}, "when": "kind == 'failure' && (check ?? '') != ''"},
-        {"verb": "mark_read", "command": "deck.feed_read", "params": {"entry": "=id"}, "when": "can_read"}
+        {"verb": "mark_read", "command": "deck.health_mark_seen", "params": {"subject": "=check", "project": "=project != '' ? project : nil"}, "when": "kind == 'failure' && (check ?? '') != ''"},
+        {"verb": "mark_read", "command": "deck.feed_mark_read", "params": {"entry": "=id"}, "when": "can_read"}
       ]},
     {"type": "dialog", "name": "changes", "title": "History", "icon": "history", "blocks": [
       {"type": "table", "title": "Done without you", "empty": "Nothing was done without you yet", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}, "limit": 50},

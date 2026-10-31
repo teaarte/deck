@@ -91,7 +91,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		Share    float64
 		Runs     int64
 	}
-	e.Must("deck.spend_daily", map[string]any{"by": "provider"}, &by)
+	e.Must("deck.spend_days_list", map[string]any{"by": "provider"}, &by)
 	if len(by) != 1 || by[0].Tokens != 2400 || by[0].Share != 1 || by[0].Runs != 2 {
 		t.Fatalf("spend by provider sums the tokens of the days with their share and the runs of the model: %+v", by)
 	}
@@ -100,7 +100,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		Age    int64
 		Tokens int64
 	}
-	e.Must("deck.spend_daily", map[string]any{"days": 7}, &days)
+	e.Must("deck.spend_days_list", map[string]any{"days": 7}, &days)
 	if len(days) != 7 || days[6].Age != 0 || days[0].Age != 6 {
 		t.Fatalf("spend by day has every day of the window, today last: %+v", days)
 	}
@@ -128,7 +128,7 @@ func TestTheJournalKeepsHalfAYear(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("notes", harness.PlainManifest)
-	e.Must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "notes", "text": "done"}, nil)
 	e.Project("old", harness.PlainManifest)
 	e.Must("deck.project_delete", map[string]any{"project": "old"}, nil)
 	journal := func() int {
@@ -250,7 +250,7 @@ func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
 		Day    string
 		Tokens int64
 	}
-	e.Must("deck.spend_daily", map[string]any{"days": 3}, &spend)
+	e.Must("deck.spend_days_list", map[string]any{"days": 3}, &spend)
 	if len(spend) != 3 || spend[0].Day != "2026-10-05" || spend[0].Tokens != 10 || spend[1].Day != "2026-10-06" || spend[2].Day != "2026-10-07" || spend[1].Tokens != 20 {
 		t.Fatalf("a call just past the owner's midnight counts on that day: %+v", spend)
 	}
@@ -262,7 +262,7 @@ func TestTheJournalKeepsTimeByTheClockOfDeck(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
 	e.Project("notes", harness.PlainManifest)
-	e.Must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "notes", "text": "done"}, nil)
 	var at string
 	if ns := e.Notes(); len(ns) > 0 {
 		at = ns[0].CreatedAt

@@ -105,7 +105,7 @@ async function pump() {
     for (let p = pieces.find((x) => x.text === undefined && !x.error); p; p = pieces.find((x) => x.text === undefined && !x.error)) {
       try {
         const [f] = await upload('master', [new File([p.wav], 'voice.wav', { type: 'audio/wav' })]);
-        p.text = (await call<{ text: string }>('deck.transcribe', { file: String(f.id) })).text;
+        p.text = (await call<{ text: string }>('deck.recording_transcribe', { file: String(f.id) })).text;
       } catch (e) {
         p.error = errorText(e);
       }

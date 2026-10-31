@@ -421,7 +421,7 @@ func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	topics := e.Events(ctx)
-	e.Must("deck.health_seen", map[string]any{"subject": "secret:stock.pexels", "project": "stock"}, nil)
+	e.Must("deck.health_mark_seen", map[string]any{"subject": "secret:stock.pexels", "project": "stock"}, nil)
 	if !seen("secret:stock.pexels") {
 		t.Fatal("the owner marks an unset secret read like any failing check")
 	}

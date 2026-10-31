@@ -46,7 +46,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	if err := os.MkdirAll(data, 0o700); err != nil || os.WriteFile(filepath.Join(data, "keep.txt"), []byte("mine"), 0o600) != nil {
 		t.Fatal(err)
 	}
-	e.Must("deck.notify", map[string]any{"project": "gone", "text": "done"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "gone", "text": "done"}, nil)
 	// A warning of the project, as deck leaves one for the owner.
 	e.SQL(`INSERT INTO ask (workspace_id, project_id, kind, text, payload) VALUES (1, ?, 'warning', 'x', '{}')`, id)
 	// A failing check of a tool of the project.

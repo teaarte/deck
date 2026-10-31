@@ -56,7 +56,7 @@ func (c *Service) browserLogin(ctx context.Context, act registry.Actor, in brows
 	if err := c.Browser.Login(ctx, in.URL); err != nil {
 		return nil, err
 	}
-	return map[string]any{"site": site, "text": "deck's browser shows " + in.URL + " in a window; sign in there, then call deck.browser_login_done"}, nil
+	return map[string]any{"site": site, "text": "deck's browser shows " + in.URL + " in a window; sign in there, then call deck.browser_login_finish"}, nil
 }
 
 type browserLoginDoneIn struct {
@@ -131,10 +131,10 @@ func (c *Service) Commands() []*registry.Command {
 		registry.Def("browser_login", "Sign in to a site",
 			"Opens a window of deck's browser at a page so the owner signs in once with deck's own profile.",
 			registry.OwnerOnly, c.browserLogin),
-		registry.Def("browser_login_done", "Signed in",
+		registry.Def("browser_login_finish", "Signed in",
 			"Closes the sign-in window of deck's browser; processes waiting for this site go on.",
 			registry.OwnerOnly, c.browserLoginDone),
-		registry.Def("browser_needs_login", "Site needs a sign-in",
+		registry.Def("browser_login_request", "Site needs a sign-in",
 			"Tells the owner that the session of a site ran out; the process waits until the owner signs in again.",
 			[]string{registry.Agent}, c.browserNeedsLogin),
 		registry.Def("oauth_start", "Sign in to a service",

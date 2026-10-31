@@ -107,7 +107,7 @@ func TestADeckReadWithoutAProjectFollowsEveryProject(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("a", harness.WebNotes)
 	e.Project("c", strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
-      {"type": "table", "title": "Runs", "source": {"from": "deck.spend_daily"}, "columns": [{"label": "Day", "bind": "day"}]},`, 1))
+      {"type": "table", "title": "Runs", "source": {"from": "deck.spend_days_list"}, "columns": [{"label": "Day", "bind": "day"}]},`, 1))
 	var paths []string
 	for _, m := range e.ScreenMessages("c", "main", map[string]any{"topic": "processes", "changed": "a"}) {
 		var dm struct{ Path string }

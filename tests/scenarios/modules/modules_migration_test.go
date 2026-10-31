@@ -173,7 +173,7 @@ func TestADeckThatRefusesASavedManifestSaysSoOnce(t *testing.T) {
 			t.Fatalf("a manifest the checks pass gets no note: %s", f.Text)
 		}
 	}
-	if code, out := e.Call("deck.screen", map[string]any{"project": "old", "screen": "documents"}); code != 200 {
+	if code, out := e.Call("deck.screen_get", map[string]any{"project": "old", "screen": "documents"}); code != 200 {
 		t.Fatalf("the project works on: %d %s", code, out)
 	}
 	restart()

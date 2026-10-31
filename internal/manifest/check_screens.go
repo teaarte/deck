@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"cmp"
+	"deck2/internal/registry"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -13,13 +14,13 @@ import (
 )
 
 // RecordUpdate is the command a form on a record page edits its record with.
-const RecordUpdate = "deck.record_update"
+var RecordUpdate = registry.Deck("record_update")
 
 // RecordDelete is the command a button of the owner deletes the record of its row or page with.
-const RecordDelete = "deck.record_delete"
+var RecordDelete = registry.Deck("record_delete")
 
 // RecordParts lists what RecordDelete takes, before the owner says yes.
-const RecordParts = "deck.record_parts"
+var RecordParts = registry.Deck("record_parts_list")
 
 // SearchKey is the key of the words the owner looks for among the filters a block's search sends.
 const SearchKey = "~"

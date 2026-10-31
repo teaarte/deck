@@ -165,7 +165,7 @@ func viewReply(p db.Process, tr func(string) string) *replyView {
 func viewMessage(m db.ChatMessage) messageView {
 	v := messageView{ID: m.ID, Role: m.Role, Text: m.Text, Process: m.ProcessID, CreatedAt: m.CreatedAt}
 	if m.Role == roleOwner && m.ProcessID == 0 {
-		v.Delete = chatAction("delete", registry.Builtin+".chat_message_delete", map[string]any{"message": m.ID})
+		v.Delete = chatAction("delete", registry.Deck("chat_message_delete"), map[string]any{"message": m.ID})
 	}
 	if m.Context != "" && m.Role != roleDeck {
 		v.Screen = json.RawMessage(m.Context)
@@ -274,7 +274,7 @@ func (ch *Service) picked(ctx context.Context, workspace int64, topic string, tr
 
 // chat is the topic picked with its messages as a chat block shows it.
 func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
-	v := chatView{Messages: []messageView{}, Suggest: []suggestView{}, Send: chatAction("send", registry.Builtin+".chat_send", map[string]any{})}
+	v := chatView{Messages: []messageView{}, Suggest: []suggestView{}, Send: chatAction("send", registry.Deck("chat_send"), map[string]any{})}
 	tr := ch.words(in.Lang)
 	t, err := ch.picked(ctx, act.Workspace, in.Topic, tr)
 	if err != nil {
@@ -282,14 +282,14 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 	}
 	if t != nil {
 		v.Topic = t
-		v.Send = chatAction("send", registry.Builtin+".chat_send", map[string]any{"topic": t.ID})
-		v.Archive = chatAction("archive", registry.Builtin+".chat_topic_archive", map[string]any{"topic": t.ID, "archived": !t.Archived})
+		v.Send = chatAction("send", registry.Deck("chat_send"), map[string]any{"topic": t.ID})
+		v.Archive = chatAction("archive", registry.Deck("chat_topic_archive"), map[string]any{"topic": t.ID, "archived": !t.Archived})
 		if t.Archived {
 			v.Archive["verb"] = "unarchive"
 		}
-		v.Choose = chatAction("model", registry.Builtin+".chat_topic_model", map[string]any{"topic": t.ID})
+		v.Choose = chatAction("model", registry.Deck("chat_topic_model_set"), map[string]any{"topic": t.ID})
 		v.Choose["input"] = "model"
-		v.Delete = chatAction("delete", registry.Builtin+".chat_topic_delete", map[string]any{"topic": t.ID})
+		v.Delete = chatAction("delete", registry.Deck("chat_topic_delete"), map[string]any{"topic": t.ID})
 		v.Delete["confirm"] = true
 		rows, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 100})
 		if err != nil {
@@ -339,7 +339,7 @@ func (ch *Service) chatTurn(ctx context.Context, act registry.Actor, in chatIn) 
 	}
 	open := t.Reply
 	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: ch.children(ctx, open.Process, false, tr),
-		Lines: ch.turnLines(ctx, act.Workspace, open.Process, tr), Stop: chatAction("stop", registry.Builtin+".process_stop", map[string]any{"process": open.Process}),
+		Lines: ch.turnLines(ctx, act.Workspace, open.Process, tr), Stop: chatAction("stop", registry.Deck("process_stop"), map[string]any{"process": open.Process}),
 		Open: openProcess(open.Process), Shown: open.Shown}
 	if p, err := ch.St.Q.GetProcess(ctx, open.Process); err == nil {
 		v.Turn.StartedAt = cmp.Or(p.ReopenedAt.String, p.StartedAt)
@@ -370,7 +370,7 @@ func (ch *Service) chatTurn(ctx context.Context, act registry.Actor, in chatIn) 
 				questions = append(questions, one)
 			}
 		}
-		answer := chatAction("answer", registry.Builtin+".ask_answer", map[string]any{"ask": q.ID})
+		answer := chatAction("answer", registry.Deck("ask_answer"), map[string]any{"ask": q.ID})
 		answer["input"] = "answer"
 		v.Questions = append(v.Questions, questionView{Ask: q.ID, Text: q.Text, Questions: questions, Answer: answer})
 	}

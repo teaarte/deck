@@ -151,7 +151,7 @@ func TestACallForARecordJoinsItsRunningAgent(t *testing.T) {
 	var log struct {
 		Lines []map[string]any
 	}
-	e.Must("deck.process_chat", map[string]any{"process": first}, &log)
+	e.Must("deck.process_chat_get", map[string]any{"process": first}, &log)
 	found := false
 	for _, l := range log.Lines {
 		if l["kind"] == "deck" && strings.Contains(fmt.Sprint(l["text"]), "the background at 5.2 s") {
@@ -200,7 +200,7 @@ func TestAStepAlreadyGoingForARecordIsNotStartedTwice(t *testing.T) {
 		if len(checks) != 1 {
 			return false
 		}
-		e.Must("deck.process_chat", map[string]any{"process": checks[0].ID}, &log)
+		e.Must("deck.process_chat_get", map[string]any{"process": checks[0].ID}, &log)
 		for _, l := range log.Lines {
 			if l["kind"] == "deck" && strings.Contains(fmt.Sprint(l["text"]), fmt.Sprintf(`"process":%d`, second)) {
 				return true
@@ -316,7 +316,7 @@ func TestTheNextModelHearsWhatTheOwnerWroteAndKeepsTheRetryKey(t *testing.T) {
 	close(release)
 	e.WaitState(next, "done")
 	var log struct{ Lines []map[string]any }
-	e.Must("deck.process_chat", map[string]any{"process": id}, &log)
+	e.Must("deck.process_chat_get", map[string]any{"process": id}, &log)
 	for _, l := range log.Lines {
 		if l["kind"] == "owner" && l["status"] != "taken" {
 			t.Fatalf("the message the next model took is not left waiting on the refused one: %+v", l)
@@ -417,7 +417,7 @@ func TestAScheduleOfARecordJoinsItsRunOncePerSlot(t *testing.T) {
 		time.Sleep(300 * time.Millisecond)
 	}
 	var log struct{ Lines []map[string]any }
-	e.Must("deck.process_chat", map[string]any{"process": first}, &log)
+	e.Must("deck.process_chat_get", map[string]any{"process": first}, &log)
 	joined := 0
 	for _, l := range log.Lines {
 		if l["kind"] == "deck" && strings.Contains(fmt.Sprint(l["text"]), "nightly") {

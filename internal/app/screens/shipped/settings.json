@@ -26,7 +26,7 @@
             ],
             "actions": [
               {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}, "when": "api != 'cli'"},
-              {"verb": "remove", "confirm": true, "command": "deck.connection_remove", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
+              {"verb": "remove", "confirm": true, "command": "deck.connection_delete", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
             ]},
           {"type": "form", "title": "Add or change a connection", "command": "deck.connection_set", "description": "Where models are reached: the API, its address and key; deck keeps the key in a secret.",
             "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "key_secret": "=param.key_secret", "local": "=param.local"},
@@ -53,7 +53,7 @@
             {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=command ?? ''", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"},
             {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}, "when": "kind == 'default' && own"}
           ]},
-        {"type": "table", "title": "Sign in to agents", "source": {"from": "deck.agent_logins"},
+        {"type": "table", "title": "Sign in to agents", "source": {"from": "deck.agent_logins_list"},
           "empty": "No sign-in waits; Sign in on an agent that needs one gives its link here",
           "description": "Open the link, sign in there and enter the code; the self-check runs once the agent is signed in. The sign-in stays in deck's machine.",
           "columns": [
@@ -63,7 +63,7 @@
             {"label": "Status", "bind": "(error ?? '') != '' ? error : paste ? 'Waits for the code of the page' : 'Waits for the sign-in'", "tone": "(error ?? '') != '' ? 'error' : 'warn'"}
           ],
           "actions": [
-            {"label": "Enter the code", "icon": "key", "command": "deck.agent_login_code", "params": {"provider": "=provider"}, "input": "code", "when": "paste && (error ?? '') == ''"},
+            {"label": "Enter the code", "icon": "key", "command": "deck.agent_login_finish", "params": {"provider": "=provider"}, "input": "code", "when": "paste && (error ?? '') == ''"},
             {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=provider"}, "when": "(error ?? '') != ''"}
           ]},
         {"type": "list", "title": "All models", "cards": true, "empty": "No models yet: add a connection, then its models; Deki can propose them in the chat", "source": {"from": "deck.models_list", "rows": "models"}, "filter": ["kind", "connection", "status"],
@@ -78,7 +78,7 @@
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "text", "model": "=name", "prompt": "This is a short check of the model: reply with the one word ok."}, "when": "kind == 'text' && (agent ?? '') == ''"},
             {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
               "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''", "tpm": "=tpm ?? 0", "context": "=context ?? 0"}, "when": "!builtin"},
-            {"verb": "remove", "confirm": true, "command": "deck.model_remove", "params": {"name": "=name"}, "when": "!builtin"}
+            {"verb": "remove", "confirm": true, "command": "deck.model_delete", "params": {"name": "=name"}, "when": "!builtin"}
           ]}
       ]},
       {"title": "Modules", "icon": "folders", "blocks": [
@@ -101,7 +101,7 @@
             {"verb": "pause", "command": "deck.project_pause", "params": {"project": "=name", "paused": "true"}, "when": "!paused"},
             {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
             {"label": "Draw a cover", "icon": "sparkles", "screen": "settings", "params": {"tab": "Modules", "dialog": "draw-cover", "project": "=name"}, "when": "!builtin"},
-            {"label": "Take off the cover", "icon": "photo-off", "confirm": true, "command": "deck.project_cover", "params": {"project": "=name", "theme": "=cover.theme", "remove": "true"}, "when": "cover != nil"},
+            {"label": "Take off the cover", "icon": "photo-off", "confirm": true, "command": "deck.project_cover_set", "params": {"project": "=name", "theme": "=cover.theme", "remove": "true"}, "when": "cover != nil"},
             {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!builtin && manifest_error == ''"},
             {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
           ]}
@@ -122,7 +122,7 @@
             {"verb": "open", "screen": "process", "record": "=process", "when": "(process ?? 0) != 0"},
             {"label": "Got it", "icon": "check", "command": "deck.process_dismiss", "params": {"process": "=process"}, "when": "(process ?? 0) != 0"},
             {"verb": "open", "screen": "settings", "params": {"tab": "Advanced"}, "when": "check == 'push'"}, {"verb": "set", "primary": true, "screen": "settings", "params": {"tab": "Advanced", "dialog": "secret", "name": "=trimPrefix(check, 'secret:' + project + '.')"}, "when": "hasPrefix(check ?? '', 'secret:')"},
-            {"label": "Got it", "icon": "check", "command": "deck.health_seen", "params": {"subject": "=check", "project": "=project != '' ? project : nil"}, "when": "(check ?? '') != ''"}
+            {"label": "Got it", "icon": "check", "command": "deck.health_mark_seen", "params": {"subject": "=check", "project": "=project != '' ? project : nil"}, "when": "(check ?? '') != ''"}
           ]},
         {"type": "stat", "title": "Checks that pass", "icon": "circle-check", "span": 2, "tone": "'ok'",
           "description": "Models, agents, scripts, connections, pushes and the disk: what deck checks by itself.",
@@ -149,7 +149,7 @@
             {"label": "Status", "bind": "error != '' ? error : status", "format": "tag", "tone": "status == 'ok' ? 'ok' : 'warn'"}
           ],
           "actions": [
-            {"label": "Update", "icon": "download", "command": "deck.update", "when": "status == 'warning'"},
+            {"label": "Update", "icon": "download", "command": "deck.update_install", "when": "status == 'warning'"},
             {"label": "Look for an update", "icon": "refresh", "command": "deck.update_check", "when": "version startsWith 'v'"}
           ]},
         {"type": "dialog", "name": "secret", "title": "Add a secret", "icon": "key", "blocks": [
@@ -175,8 +175,8 @@
             {"label": "Status", "bind": "status == 'missing' ? 'not installed' : status == 'off' ? 'turned off' : status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' || status == 'off' ? 'muted' : 'warn'", "details": "error"}
           ],
           "actions": [
-            {"verb": "turn_off", "command": "deck.provider_off", "params": {"provider": "=name", "off": "true"}, "when": "builtin && status != 'missing' && status != 'off'"},
-            {"verb": "turn_on", "command": "deck.provider_off", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"}
+            {"verb": "turn_off", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "true"}, "when": "builtin && status != 'missing' && status != 'off'"},
+            {"verb": "turn_on", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"}
           ]},
         {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
           "description": "Keys and passwords of connections and tools.",
@@ -201,7 +201,7 @@
         {"type": "appearance", "title": "Pushes", "icon": "bell-ringing", "part": "pushes", "span": 2,
           "description": "deck sends a push when something waits for you or a module tells you; each device turns them on for itself."},
         {"type": "actions", "title": "Push key", "icon": "key", "description": "A new key stops the pushes of every device until each turns them on again.",
-          "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}
+          "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_key_reset"}]}
       ]}
     ]}
   ]

@@ -42,7 +42,7 @@ print(json.dumps({"status": st}))
 func TestReadsGiveTheirResultSchema(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	for _, name := range []string{"records_list", "record_get", "manifest_get", "chat"} {
+	for _, name := range []string{"records_list", "record_get", "manifest_get", "chat_get"} {
 		var d struct {
 			Result json.RawMessage `json:"result"`
 		}

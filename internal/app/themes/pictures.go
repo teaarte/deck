@@ -46,13 +46,13 @@ func (s *Service) drawPictures(ctx context.Context, act registry.Actor, in drawP
 		b = append(b, manifest.TrText(ws, fmt.Sprintf("The owner wishes: %s", w)))
 	}
 	if len(l.Schemes) == 1 {
-		b = append(b, manifest.TrText(ws, fmt.Sprintf("Pictures for the %s scheme, the only one of the theme: call deck.model_call of kind image on %s for each, then set each with deck.theme_image, theme %s, its slot, its file as results/<the name the call gave>, scheme %s.", l.Schemes[0], model, cur, l.Schemes[0])))
+		b = append(b, manifest.TrText(ws, fmt.Sprintf("Pictures for the %s scheme, the only one of the theme: call deck.model_call of kind image on %s for each, then set each with deck.theme_image_set, theme %s, its slot, its file as results/<the name the call gave>, scheme %s.", l.Schemes[0], model, cur, l.Schemes[0])))
 	} else {
-		b = append(b, manifest.TrText(ws, fmt.Sprintf("Pictures for the light scheme and for the dark: call deck.model_call of kind image on %s for each, then set each with deck.theme_image, theme %s, its slot, its file as results/<the name the call gave>, scheme light or dark.", model, cur)))
+		b = append(b, manifest.TrText(ws, fmt.Sprintf("Pictures for the light scheme and for the dark: call deck.model_call of kind image on %s for each, then set each with deck.theme_image_set, theme %s, its slot, its file as results/<the name the call gave>, scheme light or dark.", model, cur)))
 	}
-	b = append(b, manifest.TrText(ws, "Then check the words of Today over the cockpit with deck.theme_check and look at the tiles with deck.screen_shot."))
+	b = append(b, manifest.TrText(ws, "Then check the words of Today over the cockpit with deck.theme_check and look at the tiles with deck.screen_capture."))
 	input, _ := json.Marshal(map[string]any{"text": strings.Join(b, "\n\n")})
-	return s.Invoke(ctx, act, registry.Builtin+".chat_send", input)
+	return s.Invoke(ctx, act, registry.Deck("chat_send"), input)
 }
 
 // Settle puts the default theme on a workspace whose theme is gone, such as one deck no longer ships, and says so

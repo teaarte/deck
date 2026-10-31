@@ -169,7 +169,7 @@ func (pj *Service) startersCommands() []*registry.Command {
 		registry.Read("starters_list", "Starter modules",
 			"Lists the modules deck offers on its first run while it has none of the owner's, and one imported as a draft until the owner enables it.",
 			registry.OwnerSide, pj.startersList).On("projects", "documents"),
-		registry.Read("project_needs", "What a module needs",
+		registry.Read("project_needs_get", "What a module needs",
 			"Sums up what a module needs to work: the rights enabling it grants, the secrets it names and whether they are set, the programs its scripts miss with how to install them, and its work no model of deck takes.",
 			registry.OwnerSide, pj.projectNeeds).On("projects", "documents", "secrets", "models", "assignments"),
 	}

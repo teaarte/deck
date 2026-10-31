@@ -3,7 +3,7 @@
   "icon": "sun",
   "title": "Today in brief",
   "blocks": [
-    {"type": "list", "span": "full", "source": {"from": "deck.today"},
+    {"type": "list", "span": "full", "source": {"from": "deck.today_get"},
       "item": {"title": "title", "text": "text ?? ''", "icon": "icon", "tone": "tone ?? ''", "since": "since ?? ''"}}
   ]
 }

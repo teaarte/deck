@@ -7,7 +7,7 @@
     {"type": "tabs", "tabs": [
       {"title": "Files", "icon": "files", "blocks": [
         {"type": "media", "title": "Modules", "span": "full", "path": "param.path ?? ''",
-          "source": {"from": "deck.files_folder", "input": {"path": "=param.path ?? ''"}, "rows": "entries", "sort": "-dir"},
+          "source": {"from": "deck.files_folder_list", "input": {"path": "=param.path ?? ''"}, "rows": "entries", "sort": "-dir"},
           "description": "The folders of the modules: what each made and took, what it works by and what it keeps on disk; master is Deki's.",
           "empty": "The folder is empty",
           "item": {"file": "file ?? ''", "title": "name", "meta": "meta ?? ''", "cover": "cover", "icon": "icon ?? 'folder'"},

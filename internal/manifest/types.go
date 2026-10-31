@@ -10,7 +10,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const FormatVersion = 13
+const FormatVersion = 14
 
 type Manifest struct {
 	Version         int          `json:"version"`

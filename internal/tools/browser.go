@@ -171,7 +171,7 @@ func (b *Browser) build(list []*mcp.Tool) {
 			continue
 		}
 		input, _ := json.Marshal(t.InputSchema)
-		c := &registry.Command{Name: registry.Builtin + "." + t.Name, Title: t.Name, Description: t.Description, Class: registry.Internal,
+		c := &registry.Command{Name: registry.Deck(t.Name), Title: t.Name, Description: t.Description, Class: registry.Internal,
 			Input: input, Callers: []string{registry.Agent}, Loose: true, Handler: b.reader(t.Name)}
 		if act {
 			c.Class, c.Journals, c.Handler, c.Probes = registry.External, true, b.actor(t.Name), true

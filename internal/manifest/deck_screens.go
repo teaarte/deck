@@ -24,15 +24,15 @@ type ReadCommand struct {
 }
 
 // LogSource is the command a log block reads; CommandsSource is the one a form picks its command from.
-const (
-	LogSource      = "deck.process_chat"
-	CommandsSource = "deck.commands_list"
-	ChatSource     = "deck.chat"
+var (
+	LogSource      = registry.Deck("process_chat_get")
+	CommandsSource = registry.Deck("commands_list")
+	ChatSource     = registry.Deck("chat_get")
 )
 
 // ChatParts are the reads a chat block makes beside its source, by the prop that names the path of their data: the
 // topics and the turn going on, each read again by its own topics.
-var ChatParts = map[string]string{"topics": "deck.chat_topics", "turn": "deck.chat_turn"}
+var ChatParts = map[string]string{"topics": registry.Deck("chat_topics_list"), "turn": registry.Deck("chat_turn_get")}
 
 // Reads is a command a screen block may read: a builtin read of deck.
 func Reads(command string) (ReadCommand, bool) {

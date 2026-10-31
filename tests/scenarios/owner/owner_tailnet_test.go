@@ -105,7 +105,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	addr := st.TailscaleIPs[0].String()
 	client := phone.HTTPClient()
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	req, _ := http.NewRequestWithContext(ctx, "POST", "http://"+addr+"/api/commands/deck.menu", strings.NewReader("{}"))
+	req, _ := http.NewRequestWithContext(ctx, "POST", "http://"+addr+"/api/commands/deck.menu_get", strings.NewReader("{}"))
 	e.Sign(req)
 	r, err := client.Do(req)
 	if err != nil {

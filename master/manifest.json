@@ -1,5 +1,5 @@
 {
-  "version": 13,
+  "version": 14,
   "icon": "sparkles",
   "i18n": {
     "ru": {
@@ -144,7 +144,7 @@
           "deck.projects_list",
           "deck.processes_list",
           "deck.process_get",
-          "deck.process_log",
+          "deck.process_log_get",
           "deck.documents_list",
           "deck.document_get",
           "deck.manifest_get",
@@ -152,7 +152,7 @@
           "deck.records_list",
           "deck.record_get",
           "deck.health_list",
-          "deck.notify"
+          "deck.owner_notify"
         ]
       }
     },
@@ -203,7 +203,7 @@
           "deck.projects_list",
           "deck.processes_list",
           "deck.process_get",
-          "deck.process_log",
+          "deck.process_log_get",
           "deck.documents_list",
           "deck.document_get",
           "deck.manifest_get",
@@ -213,7 +213,7 @@
           "deck.records_list",
           "deck.record_get",
           "deck.health_list",
-          "deck.notify"
+          "deck.owner_notify"
         ]
       }
     }

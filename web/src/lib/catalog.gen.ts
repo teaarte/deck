@@ -323,7 +323,7 @@ export interface Data {
   empty?: string;
   tone?: Tone;
   /**
-   * Choices the owner narrows the block by; the client sends the picked ones back to deck.screen.
+   * Choices the owner narrows the block by; the client sends the picked ones back to deck.screen_get.
    */
   filters?: {
     field: string;

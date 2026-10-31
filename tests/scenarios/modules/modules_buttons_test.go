@@ -203,7 +203,7 @@ func TestTheOwnerDeletesARecordFromAButtonOfItsModule(t *testing.T) {
 		}
 	}
 	params, _ := act["params"].(map[string]any)
-	if act == nil || act["confirm"] != true || act["parts"] != "deck.record_parts" || params["record"] == nil {
+	if act == nil || act["confirm"] != true || act["parts"] != "deck.record_parts_list" || params["record"] == nil {
 		t.Fatalf("the button deletes the record of its row and asks first: %+v", rows[0].Actions)
 	}
 	e.Must("deck.record_delete", params, nil)
@@ -290,7 +290,7 @@ func TestAFieldOnlyDecksScreensUseIsAWarningOnReadAndRefusedOnSave(t *testing.T)
 			Properties map[string]any `json:"properties"`
 		} `json:"$defs"`
 	}
-	e.Must("deck.manifest_format", nil, &format)
+	e.Must("deck.manifest_format_get", nil, &format)
 	for _, f := range []string{"verb", "until", "record", "project"} {
 		if _, ok := format.Defs["action"].Properties[f]; ok {
 			t.Fatalf("the format a model reads has no %s of a button", f)

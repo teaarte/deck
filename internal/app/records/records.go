@@ -231,7 +231,7 @@ type recordDeleteIn struct {
 	Record int64 `type:"record" desc:"Record id"`
 }
 
-// recordDelete deletes a record with what belongs to it for good, the owner seeing record_parts first; outside a
+// recordDelete deletes a record with what belongs to it for good, the owner seeing record_parts_list first; outside a
 // draft only the owner does, by a button or by hand, and the master what its own processes wrote.
 func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recordDeleteIn) (any, error) {
 	rec, err := s.St.Q.GetRecord(ctx, in.Record)
@@ -262,13 +262,13 @@ func (s *Service) Commands() []*registry.Command {
 			"Returns one record by its id.",
 			registry.Everyone, s.recordGet).On("collection"),
 		registry.Def("record_delete", "Delete record",
-			"Deletes a record with what belongs to it, as record_parts lists, for good, and stops its open processes; outside a draft the owner, an agent or script of the record's own project, and the master the records its own processes wrote: what else the master did not make waits for the owner's yes. The owner may undo a deletion that was not theirs.",
+			"Deletes a record with what belongs to it, as record_parts_list lists, for good, and stops its open processes; outside a draft the owner, an agent or script of the record's own project, and the master the records its own processes wrote: what else the master did not make waits for the owner's yes. The owner may undo a deletion that was not theirs.",
 			registry.Everyone, s.recordDelete),
-		registry.Read("record_parts", "What a record takes along",
+		registry.Read("record_parts_list", "What a record takes along",
 			"Lists what deleting a record takes with it: the record, the records of collections whose parent it is, their files, the files of the processes whose input field record names them, their folders of the data folder no other record holds, and the processes it stops.",
 			registry.OwnerSide, s.recordParts).On("collection", "files", "processes"),
 		registry.Def("collection_delete", "Delete collection records",
-			"Deletes every record of a collection with what belongs to each, as record_parts lists, so the collection can be removed from the manifest.",
+			"Deletes every record of a collection with what belongs to each, as record_parts_list lists, so the collection can be removed from the manifest.",
 			registry.OwnerSide, s.collectionDelete).As(registry.External),
 	}
 }

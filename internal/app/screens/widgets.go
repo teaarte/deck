@@ -48,5 +48,5 @@ func (ss *Service) widgetDraw(ctx context.Context, act registry.Actor, in widget
 		}
 	}
 	input, _ := json.Marshal(send)
-	return ss.Registry.Invoke(ctx, act, registry.Builtin+".chat_send", input)
+	return ss.Registry.Invoke(ctx, act, registry.Deck("chat_send"), input)
 }

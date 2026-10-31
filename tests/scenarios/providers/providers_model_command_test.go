@@ -238,11 +238,11 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	id := e.Run(e.AcpProject("paint", writtenManifest), "work")
 	e.Until("the turn", func() bool { return f.Calls() >= 4 && f.Call(4).Request("session/prompt") != nil })
-	e.Refused("deck.model_remove", map[string]any{"name": "acp"}, 422, "still run on acp")
+	e.Refused("deck.model_delete", map[string]any{"name": "acp"}, 422, "still run on acp")
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 	e.WaitState(id, "stopped")
 	e.Until("the turn to end", func() bool {
-		code, _ := e.Call("deck.model_remove", map[string]any{"name": "acp"})
+		code, _ := e.Call("deck.model_delete", map[string]any{"name": "acp"})
 		return code == 200
 	})
 
@@ -251,16 +251,16 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 		e.Must("deck.model_set", map[string]any{"connection": "groq", "model": m, "kind": "text", "input_usd": 0.5, "output_usd": 1}, nil)
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model", "groq/spare-model"}}, nil)
-	e.Refused("deck.connection_remove", map[string]any{"name": "groq"}, 422, "remove the models first")
-	e.Must("deck.model_remove", map[string]any{"name": "groq/fact-model"}, nil)
+	e.Refused("deck.connection_delete", map[string]any{"name": "groq"}, 422, "remove the models first")
+	e.Must("deck.model_delete", map[string]any{"name": "groq/fact-model"}, nil)
 	e.Project("films", harness.ModelManifest)
 	got := e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "Owls are birds"}), "done", "error")
 	if c := api.Calls(); got.State != "done" || len(c) != 1 || c[0].Model != "spare-model" {
 		t.Fatalf("the assignment goes on with the next model: %+v %+v", got, c)
 	}
-	e.Refused("deck.connection_remove", map[string]any{"name": "groq"}, 422, "model groq/spare-model")
-	e.Must("deck.model_remove", map[string]any{"name": "groq/spare-model"}, nil)
-	e.Must("deck.connection_remove", map[string]any{"name": "groq"}, nil)
+	e.Refused("deck.connection_delete", map[string]any{"name": "groq"}, 422, "model groq/spare-model")
+	e.Must("deck.model_delete", map[string]any{"name": "groq/spare-model"}, nil)
+	e.Must("deck.connection_delete", map[string]any{"name": "groq"}, nil)
 	var ms struct{ Connections []struct{ Name string } }
 	e.Must("deck.models_list", nil, &ms)
 	for _, c := range ms.Connections {

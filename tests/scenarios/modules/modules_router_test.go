@@ -50,7 +50,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 			t.Fatalf("without the parameter the field is left to the owner: %s", v)
 		}
 	}
-	if code, out := e.Call("deck.screen", map[string]any{"project": "web", "screen": "main", "params": `[1]`}); code != 422 {
+	if code, out := e.Call("deck.screen_get", map[string]any{"project": "web", "screen": "main", "params": `[1]`}); code != 422 {
 		t.Fatalf("params are an object of names to text: %d %s", code, out)
 	}
 }
@@ -127,7 +127,7 @@ func TestAModuleSavedBeforeANewCheckStillLoads(t *testing.T) {
 	if !slices.ContainsFunc(menu, func(m struct{ Project string }) bool { return m.Project == "ideas" }) {
 		t.Fatalf("the module stays in the menu: %+v", menu)
 	}
-	if code, out := e.Call("deck.screen", map[string]any{"project": "ideas", "screen": "main"}); code != 200 {
+	if code, out := e.Call("deck.screen_get", map[string]any{"project": "ideas", "screen": "main"}); code != 200 {
 		t.Fatalf("its screen shows: %d %s", code, out)
 	}
 	var got struct{ Warnings []string }

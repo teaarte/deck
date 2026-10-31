@@ -204,7 +204,7 @@ def main(inp):
         else:
             why = "«Сравнить с deck»: у названных модулей нет работы для моделей."
         if not os.path.exists(told) or open(told).read() != why:
-            call("deck.notify", {"text": why})
+            call("deck.owner_notify", {"text": why})
             with open(told, "w") as f:
                 f.write(why)
         return None
@@ -238,7 +238,7 @@ def main(inp):
     if alert_rows:
         call("deck.records_upsert", {"collection": "alerts", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in alert_rows)})
     if fresh:
-        call("deck.notify", {"text": "Модели в работе сломались: " + ", ".join(fresh) + ". Подберу замену — смотрите «Предложения».",
+        call("deck.owner_notify", {"text": "Модели в работе сломались: " + ", ".join(fresh) + ". Подберу замену — смотрите «Предложения».",
                              "screen": "proposals"})
 
     # proposals made before: applied, stale, or still open

@@ -147,7 +147,7 @@ func (ch *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]str
 		if m.RetryKey == endKey(p) && p.FinishedAt.Valid && p.State == at.State && len(fs) == 0 {
 			v.Left = ch.undos(ctx, p.ID)
 			if p.Kind == process.KindAgent && p.SessionID != "" {
-				v.Go = chatAction("continue", registry.Builtin+".process_rework", map[string]any{"process": p.ID})
+				v.Go = chatAction("continue", registry.Deck("process_rework"), map[string]any{"process": p.ID})
 			}
 		}
 	}

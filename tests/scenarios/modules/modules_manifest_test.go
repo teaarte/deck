@@ -110,9 +110,9 @@ func TestFullManifestIsAccepted(t *testing.T) {
 	e := harness.New(t)
 	e.Project("links", fullManifest)
 	var schema map[string]any
-	e.Must("deck.manifest_format", nil, &schema)
+	e.Must("deck.manifest_format_get", nil, &schema)
 	if schema["title"] != "deck project manifest" {
-		t.Fatalf("manifest_format must return the schema, got %v", schema["title"])
+		t.Fatalf("manifest_format_get must return the schema, got %v", schema["title"])
 	}
 	if b, _ := json.Marshal(schema["$defs"].(map[string]any)["block"]); !strings.Contains(string(b), `"required":["source","columns"]`) ||
 		!strings.Contains(string(b), "never both") || !strings.Contains(string(b), "Rows of a source.") {
@@ -510,13 +510,13 @@ func TestASliceOfTextCutsCharacters(t *testing.T) {
 	}
 }
 
-// TestTheFormatAModelReadsHasOnlyWhatAModuleUses: manifest_format leaves out the blocks and button fields only deck's
+// TestTheFormatAModelReadsHasOnlyWhatAModuleUses: manifest_format_get leaves out the blocks and button fields only deck's
 // screens use, so a model learns one way to do each thing.
 func TestTheFormatAModelReadsHasOnlyWhatAModuleUses(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	var format map[string]any
-	e.Must("deck.manifest_format", nil, &format)
+	e.Must("deck.manifest_format_get", nil, &format)
 	raw, _ := json.Marshal(format)
 	for _, gone := range []string{`"appearance"`, `"verb"`, `"until"`, `"keep_open"`} {
 		if strings.Contains(string(raw), gone) {

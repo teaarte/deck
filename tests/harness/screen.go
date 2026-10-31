@@ -59,7 +59,7 @@ type deskView struct {
 func (e *Env) Desk(device string, columns int) deskView {
 	e.T.Helper()
 	var v deskView
-	e.Must("deck.layout", map[string]any{"device": device, "columns": columns}, &v)
+	e.Must("deck.layout_get", map[string]any{"device": device, "columns": columns}, &v)
 	return v
 }
 
@@ -79,14 +79,14 @@ type MenuView struct {
 	Errors  int64
 }
 
-// SideMenu is the projects of the side list of deck.menu by name, in their order, and the master's project.
+// SideMenu is the projects of the side list of deck.menu_get by name, in their order, and the master's project.
 func (e *Env) SideMenu() ([]string, string) {
 	e.T.Helper()
 	var menu struct {
 		Projects []struct{ Project string }
 		Master   *struct{ Project string }
 	}
-	e.Must("deck.menu", map[string]any{}, &menu)
+	e.Must("deck.menu_get", map[string]any{}, &menu)
 	names := []string{}
 	for _, p := range menu.Projects {
 		names = append(names, p.Project)
@@ -126,7 +126,7 @@ type ScreenRow struct {
 	Actions []map[string]any `json:"actions"`
 }
 
-// ScreenMessages resolves a screen of a project through deck.screen.
+// ScreenMessages resolves a screen of a project through deck.screen_get.
 func (e *Env) ScreenMessages(project, screen string, extra map[string]any) []map[string]json.RawMessage {
 	e.T.Helper()
 	in := map[string]any{"screen": screen}
@@ -137,7 +137,7 @@ func (e *Env) ScreenMessages(project, screen string, extra map[string]any) []map
 		in[k] = v
 	}
 	var msgs []map[string]json.RawMessage
-	e.Must("deck.screen", in, &msgs)
+	e.Must("deck.screen_get", in, &msgs)
 	return msgs
 }
 
@@ -241,7 +241,7 @@ func (e *Env) RowAction(project, screen, command string, match map[string]any) m
 	return e.Button(project, screen, nil, command, match)
 }
 
-// Button is rowAction on a screen opened with extra input of deck.screen, such as its params.
+// Button is rowAction on a screen opened with extra input of deck.screen_get, such as its params.
 func (e *Env) Button(project, screen string, extra map[string]any, command string, match map[string]any) map[string]any {
 	e.T.Helper()
 	var find func(v any) map[string]any
@@ -357,7 +357,7 @@ func (e *Env) CockpitRunning() []ListItem {
 	return items
 }
 
-// DialogsOf are the inputs of deck.screen that open each dialog of a screen.
+// DialogsOf are the inputs of deck.screen_get that open each dialog of a screen.
 func (e *Env) DialogsOf(project, screen string) []map[string]any {
 	e.T.Helper()
 	var out []map[string]any

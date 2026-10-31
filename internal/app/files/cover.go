@@ -209,7 +209,7 @@ func (s *Service) dropUploads(ctx context.Context, ids ...int64) {
 }
 
 func (s *Service) coverCommand() *registry.Command {
-	return registry.Def("project_cover", "Set cover",
+	return registry.Def("project_cover_set", "Set cover",
 		"Sets the picture of the card of a project for a theme, or for every theme, and the light or the dark scheme, or takes it off; deck keeps a light copy for the cards. A cover for every theme it replaces stays the cover of the theme it was set in; one with no place left goes to the trash.",
 		registry.OwnerSide, s.projectCover)
 }

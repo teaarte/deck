@@ -110,7 +110,7 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 		}
 		Projects []harness.MenuView
 	}
-	e.Must("deck.menu", nil, &m)
+	e.Must("deck.menu_get", nil, &m)
 	h := today(e, "")
 	var feed []struct{ Kind, Check string }
 	e.Must("deck.feed_list", map[string]any{"failures": true}, &feed)
@@ -136,7 +136,7 @@ func TestThePulseSaysTalkingWhileOnlyTheMasterWorks(t *testing.T) {
 
 	state := func() string {
 		var m struct{ Pulse struct{ State string } }
-		e.Must("deck.menu", nil, &m)
+		e.Must("deck.menu_get", nil, &m)
 		return m.Pulse.State
 	}
 	e.Say(0, "plan my week")

@@ -55,7 +55,7 @@ func TestACLIThatIsNotInstalledIsOffByItself(t *testing.T) {
 		t.Fatalf("a missing CLI has no row of health: %v", healthSubjects(e))
 	}
 	var topics struct{ Models []string }
-	e.Must("deck.chat_topics", nil, &topics)
+	e.Must("deck.chat_topics_list", nil, &topics)
 	if slices.Contains(topics.Models, "codex") {
 		t.Fatalf("a missing CLI is not offered: %v", topics.Models)
 	}
@@ -73,7 +73,7 @@ func TestTheOwnerTurnsAProviderOffAndOnAgain(t *testing.T) {
 	e := harness.New(t, harness.WithCodex(c))
 	e.App.Providers.Checks(context.Background(), time.Now())
 	e.Until("the first self-check of codex", func() bool { a, _ := agentStatus(e, "codex"); return a == "ok" })
-	e.Must("deck.provider_off", map[string]any{"provider": "codex", "off": true}, nil)
+	e.Must("deck.provider_switch", map[string]any{"provider": "codex", "off": true}, nil)
 	if a, m := agentStatus(e, "codex"); a != "off" || m != "off" {
 		t.Fatalf("a provider turned off says so: %q %q", a, m)
 	}
@@ -86,8 +86,8 @@ func TestTheOwnerTurnsAProviderOffAndOnAgain(t *testing.T) {
 		t.Fatalf("work assigned to a provider turned off is refused with why: %d %s", code, out)
 	}
 	_ = p
-	e.Refused("deck.provider_off", map[string]any{"provider": "nope", "off": true}, 422, "no built-in provider")
+	e.Refused("deck.provider_switch", map[string]any{"provider": "nope", "off": true}, 422, "no built-in provider")
 	before := c.Calls()
-	e.Must("deck.provider_off", map[string]any{"provider": "codex", "off": false}, nil)
+	e.Must("deck.provider_switch", map[string]any{"provider": "codex", "off": false}, nil)
 	e.Until("turned on again, the provider is checked", func() bool { a, _ := agentStatus(e, "codex"); return c.Calls() > before && a == "ok" })
 }

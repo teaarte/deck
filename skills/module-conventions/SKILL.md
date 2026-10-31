@@ -74,8 +74,8 @@ Style:
 2. `project_import` the folder as a draft; later changes with `manifest_save` and `document_save`, `old` and
    `new` only, and the folder kept in step.
 3. `command_try` each command, the chain after it too; `process_get` gives the result and in `left` what the trial
-   wrote; `process_log` with `only: errors` what failed. A run that ends `done` is checked by what it made.
-4. `screen_shot` each screen on a phone and a computer; `project_needs` says what the module still lacks.
+   wrote; `process_log_get` with `only: errors` what failed. A run that ends `done` is checked by what it made.
+4. `screen_capture` each screen on a phone and a computer; `project_needs_get` says what the module still lacks.
 5. Delete what the trials left that the owner should not start with, and say what you kept.
 
 ## Review of a change

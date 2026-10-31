@@ -36,14 +36,14 @@ func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Acto
 	if prev.Current != 0 {
 		params, _ := json.Marshal(map[string]any{"document": prev.ID, "revision": prev.Current, "if_revision": n,
 			"reason": "undo a change made without the owner"})
-		row.Command, row.Params = registry.Builtin+".document_revert", string(params)
+		row.Command, row.Params = registry.Deck("document_revert"), string(params)
 	}
 	return store.AddChange(ctx, q, row)
 }
 
 type feedListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; every project without one"`
-	Kind    string `opt:"" enum:"note|change|failure" desc:"Only notes written with notify, only changes made without the owner, or only the open failures"`
+	Kind    string `opt:"" enum:"note|change|failure" desc:"Only notes written with owner_notify, only changes made without the owner, or only the open failures"`
 	Limit   int64  `opt:"" desc:"At most this many, newest first"`
 	Unread  bool   `opt:"" desc:"Only the notes the owner has not marked read"`
 	Lang    string `opt:"" desc:"Language of the sentences of deck, such as ru; English without one"`
@@ -191,12 +191,12 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 			}
 		}
 		if r.CanRead {
-			r.MarkRead = map[string]any{"verb": "mark_read", "command": registry.Builtin + ".feed_read", "params": map[string]any{"entry": r.ID}}
+			r.MarkRead = map[string]any{"verb": "mark_read", "command": registry.Deck("feed_mark_read"), "params": map[string]any{"entry": r.ID}}
 		}
 		_ = json.Unmarshal([]byte(f.Actions), &r.Buttons)
 		for i, b := range r.Buttons {
 			// A note of deck carries deck's own commands and words; a module's, the commands of its project.
-			if f.Author == "deck" && strings.HasPrefix(b.Command, registry.Builtin+".") {
+			if f.Author == "deck" && registry.IsBuiltin(b.Command) {
 				r.Buttons[i].Label = manifest.TrText(ws, b.Label)
 				continue
 			}
@@ -302,7 +302,7 @@ func failingCheck(kind, subject string) string {
 // read calls a read of deck as the caller and takes its rows.
 func (dv *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
 	raw, _ := json.Marshal(input)
-	got, err := dv.Invoke(ctx, act, registry.Builtin+"."+name, raw)
+	got, err := dv.Invoke(ctx, act, registry.Deck(name), raw)
 	if err != nil {
 		return err
 	}
@@ -437,12 +437,12 @@ func (dv *Service) Unread(ctx context.Context, act registry.Actor) (int64, error
 func (dv *Service) feedCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("feed_list", "Feed",
-			"Lists the owner's feed, newest first: notes written with notify, with the screen each opens and its buttons, changes made without the owner, with whether they can be undone, and with failures the open failures.",
+			"Lists the owner's feed, newest first: notes written with owner_notify, with the screen each opens and its buttons, changes made without the owner, with whether they can be undone, and with failures the open failures.",
 			registry.OwnerSide, dv.feedList).On("feed", "processes", "asks", "projects", "documents", "health", "secrets", "models", "assignments", "triggers"),
 		registry.Def("feed_undo", "Undo",
 			"Undoes a change made without the owner, unless the document changed since.",
 			registry.OwnerOnly, dv.feedUndo),
-		registry.Def("feed_read", "Mark read",
+		registry.Def("feed_mark_read", "Mark read",
 			"Marks a note of the feed read, or with all every unread one.",
 			registry.OwnerOnly, dv.feedRead),
 	}

@@ -18,12 +18,12 @@ func TestAThemeHasItsPictures(t *testing.T) {
 	e.Must("deck.theme_save", map[string]any{"name": "paper", "text": `{"version": 1, "title": {"en": "Paper"}, "mood": "m", "tokens": {"tile-shade": "none", "cockpit": "#1b1b21"}}`}, nil)
 	put := func(slot, scheme string, c color.RGBA) {
 		id := e.Upload("master", slot+".png", "image/png", harness.Solid(c))
-		e.Must("deck.theme_image", map[string]any{"theme": "paper", "slot": slot, "scheme": scheme, "file": fmt.Sprint(id)}, nil)
+		e.Must("deck.theme_image_set", map[string]any{"theme": "paper", "slot": slot, "scheme": scheme, "file": fmt.Sprint(id)}, nil)
 	}
 	put("cockpit", "light", color.RGBA{250, 250, 245, 255})
 	put("backdrop", "dark", color.RGBA{20, 22, 30, 255})
 	var l themeLook
-	e.Must("deck.theme", map[string]any{"name": "paper"}, &l)
+	e.Must("deck.theme_get", map[string]any{"name": "paper"}, &l)
 	scene, back := l.Images["cockpit"], l.Images["backdrop"]
 	if !strings.HasPrefix(scene.Light, "/api/files/") || scene.Dark != scene.Light || !strings.HasPrefix(scene.Color, "#f") || back.Light != back.Dark || back.Light == "" {
 		t.Fatalf("the pictures of the theme by slot, a scheme without its own taking the other: %+v", l.Images)
@@ -39,10 +39,10 @@ func TestAThemeHasItsPictures(t *testing.T) {
 	if c.OK || !strings.Contains(strings.Join(c.Problems, "\n"), "over its picture: light: tile-text on cockpit") {
 		t.Fatalf("white words of Today do not read over a white scene: %+v", c)
 	}
-	e.Refused("deck.theme_image", map[string]any{"theme": "nope", "slot": "cockpit", "remove": true}, 404, `no theme "nope"`)
-	e.Must("deck.theme_image", map[string]any{"theme": "paper", "slot": "cockpit", "remove": true}, nil)
+	e.Refused("deck.theme_image_set", map[string]any{"theme": "nope", "slot": "cockpit", "remove": true}, 404, `no theme "nope"`)
+	e.Must("deck.theme_image_set", map[string]any{"theme": "paper", "slot": "cockpit", "remove": true}, nil)
 	l = themeLook{}
-	e.Must("deck.theme", map[string]any{"name": "paper"}, &l)
+	e.Must("deck.theme_get", map[string]any{"name": "paper"}, &l)
 	if _, ok := l.Images["cockpit"]; ok {
 		t.Fatalf("a picture taken off is gone: %+v", l.Images)
 	}
@@ -63,7 +63,7 @@ func TestTheMasterIsAskedForThePicturesOfTheTheme(t *testing.T) {
 	var out struct{ Topic int64 }
 	e.Must("deck.theme_draw", map[string]any{"wish": "облака потеплее"}, &out)
 	msgs := e.ChatMessages(out.Topic)
-	if len(msgs) == 0 || !strings.Contains(msgs[0].Text, "Нарисуй картинки темы Juce") || !strings.Contains(msgs[0].Text, "deck.theme_image") ||
+	if len(msgs) == 0 || !strings.Contains(msgs[0].Text, "Нарисуй картинки темы Juce") || !strings.Contains(msgs[0].Text, "deck.theme_image_set") ||
 		!strings.Contains(msgs[0].Text, "облака потеплее") {
 		t.Fatalf("the master is told to draw the pictures and set them: %+v", msgs)
 	}
@@ -79,7 +79,7 @@ func TestAGoneThemeGivesWayToJuceAndSaysSo(t *testing.T) {
 	e.App.Themes.Settle(context.Background())
 	e.App.Themes.Settle(context.Background())
 	var l themeLook
-	e.Must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme_get", map[string]any{}, &l)
 	said := 0
 	for _, n := range e.Notes() {
 		if strings.Contains(n.Text, "glass") && strings.Contains(n.Text, "juce") {
@@ -139,7 +139,7 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 		t.Fatalf("titles translate: %+v", all["paper"])
 	}
 	var l themeLook
-	e.Must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme_get", map[string]any{}, &l)
 	clouds := l.Images["backdrop"]
 	if code, body := e.Do("GET", clouds.Light, nil); code != 200 || len(body) < 1000 || clouds.Dark != "/api/files/theme/juce/backdrop-dark.webp" {
 		t.Fatalf("the clouds of juce are its pictures, shipped with deck: %+v %d", l.Images, code)
@@ -184,7 +184,7 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 		t.Fatalf("saved: %+v", saved)
 	}
 	e.Must("deck.theme_use", map[string]any{"name": "night"}, nil)
-	e.Must("deck.theme", map[string]any{"lang": "ru"}, &l)
+	e.Must("deck.theme_get", map[string]any{"lang": "ru"}, &l)
 	if l.Name != "night" || !l.Current || l.Title != "Ночь" || len(l.Schemes) != 1 || l.Radius != "lg" ||
 		!strings.Contains(l.CSS, "text-transform: uppercase") || !strings.Contains(l.CSS, "border-radius: var(--mantine-radius-xl)") ||
 		!strings.Contains(l.CSS, "[data-mantine-color-scheme='dark'] .mantine-Tabs-tab[data-active]:hover") ||
@@ -207,7 +207,7 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 	old := strings.Replace(nightTheme, `.nav .asks { color: var(--accent-3); }`, `.nav .asks { color: var(--accent-3); background: url(x.png); } .gone { color: red }`, 1)
 	// A theme a deck before today's check stored.
 	e.PlantRevision("", "themes/night.json", old)
-	e.Must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme_get", map[string]any{}, &l)
 	if l.Name != "night" || len(l.Problems) != 2 || strings.Contains(l.CSS, "url(") || !strings.Contains(l.CSS, "[data-phone-tabs] [data-asks]") {
 		t.Fatalf("an old theme is worn without what a check refuses: %+v", l)
 	}
@@ -218,7 +218,7 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 	}
 
 	e.Must("deck.theme_delete", map[string]any{"name": "night"}, nil)
-	e.Must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme_get", map[string]any{}, &l)
 	if l.Name != "juce" || !l.Current {
 		t.Fatalf("a deleted theme in use gives way to juce: %+v", l)
 	}
@@ -230,7 +230,7 @@ func TestThemesStyleTheCardsOfModules(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
 	var l themeLook
-	e.Must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme_get", map[string]any{}, &l)
 	if !strings.Contains(l.CSS, "--deck-cockpit: linear-gradient(135deg, var(--mantine-primary-color-5), var(--mantine-primary-color-8))") ||
 		strings.Contains(l.CSS, "--deck-tile:") || !strings.Contains(l.CSS, "--deck-tile-gap: var(--mantine-spacing-xl)") || len(l.Problems) > 0 {
 		t.Fatalf("the cards of juce: the cockpit's in the accent, the others by their names: %+v", l)
@@ -253,7 +253,7 @@ func TestThemesStyleTheCardsOfModules(t *testing.T) {
 	}
 	e.Must("deck.theme_save", map[string]any{"name": "cards", "text": cards}, nil)
 	e.Must("deck.theme_use", map[string]any{"name": "cards"}, nil)
-	e.Must("deck.theme", map[string]any{}, &l)
+	e.Must("deck.theme_get", map[string]any{}, &l)
 	for _, want := range []string{"--deck-tile: #ffffff", "--deck-cockpit: linear-gradient(180deg, #ffffff, #f2f6ee)", "--deck-tile-min: 240px",
 		"--deck-meadow: radial-gradient", "[data-app-tile]:not([data-big]) { border-radius: 24px; box-shadow: var(--deck-ring), var(--deck-shadow); }",
 		":is(.mantine-Notification-root, [data-toast]) { border-radius: 14px; }", ":is(.mantine-Tabs-tab, [data-places] > a) { font-weight: 600; }",

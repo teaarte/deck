@@ -35,11 +35,11 @@ func TestTheModulesOfSettingsAreCardsWithTheCoverOfTheTheme(t *testing.T) {
 	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
 	var b bytes.Buffer
 	_ = png.Encode(&b, img)
-	e.Must("deck.project_cover", map[string]any{"project": "notes", "file": fmt.Sprint(e.Upload("notes", "blue.png", "image/png", b.String()))}, nil)
+	e.Must("deck.project_cover_set", map[string]any{"project": "notes", "file": fmt.Sprint(e.Upload("notes", "blue.png", "image/png", b.String()))}, nil)
 	var m struct {
 		Projects []struct{ Project, Cover string }
 	}
-	e.Must("deck.menu", nil, &m)
+	e.Must("deck.menu_get", nil, &m)
 	type card struct {
 		Title, Text, Meta string
 		Cover             map[string]string
@@ -210,14 +210,14 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 		Token      string
 		ClaudeCode string `json:"claude_code"`
 	}
-	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.notify", "web.*"}}, &made)
+	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.owner_notify", "web.*"}}, &made)
 	harness.WaitEvent(t, stream, events.Event{Topic: "tokens"})
 	all, _ := json.Marshal(e.Screen("", "settings", nil))
 	if strings.Contains(string(all), "s3cret-value") || strings.Contains(string(all), made.Token) || !strings.Contains(made.ClaudeCode, made.Token) {
 		t.Fatalf("no secret value or token is on the screen after it was made: %s", all)
 	}
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Automation tokens", map[string]any{"topic": "tokens"})["rows"])
-	if len(rows) != 1 || rows[0].Cells[0] != "shortcuts" || rows[0].Cells[2] != "deck.notify, web.*" || rows[0].Cells[1] != "live" {
+	if len(rows) != 1 || rows[0].Cells[0] != "shortcuts" || rows[0].Cells[2] != "deck.owner_notify, web.*" || rows[0].Cells[1] != "live" {
 		t.Fatalf("a token shows its name, commands and state: %+v", rows)
 	}
 	revoke := harness.Verb(t, rows[0].Actions, "revoke")
@@ -230,7 +230,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	if rows[0].Cells[1] != "revoked" || harness.HasVerb(rows[0].Actions, "revoke") {
 		t.Fatalf("a revoked token stays in the list without the button: %+v", rows)
 	}
-	if code, _ := e.As(made.Token).Call("deck.notify", map[string]any{"text": "hi"}); code != 401 {
+	if code, _ := e.As(made.Token).Call("deck.owner_notify", map[string]any{"text": "hi"}); code != 401 {
 		t.Fatalf("the revoked token no longer calls: %d", code)
 	}
 	var journal []map[string]any
@@ -373,11 +373,11 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	if webErrors() != 1 || unread() != 2 {
 		t.Fatalf("a failing check counts until it is read: menu %d, unread %d", webErrors(), unread())
 	}
-	e.Must("deck.health_seen", map[string]any{"subject": "command:web.digest", "project": "web"}, nil)
+	e.Must("deck.health_mark_seen", map[string]any{"subject": "command:web.digest", "project": "web"}, nil)
 	if webErrors() != 0 || unread() != 1 {
 		t.Fatalf("a read check stops counting, and its project with it: menu %d, unread %d", webErrors(), unread())
 	}
-	if code, _ := e.Call("deck.health_seen", map[string]any{"subject": "mcp:web.search", "project": "web"}); code == 200 {
+	if code, _ := e.Call("deck.health_mark_seen", map[string]any{"subject": "mcp:web.search", "project": "web"}); code == 200 {
 		t.Fatal("only a failing check is marked read")
 	}
 	if err := health.Write(ctx, e.App.Store, web, "command:web.digest", "error", "no python3.12"); err != nil {
@@ -460,7 +460,7 @@ func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	var made struct{ Token string }
-	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.notify"}}, &made)
+	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.owner_notify"}}, &made)
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
 	for _, name := range []string{"deck.settings_list", "deck.tokens_list"} {
 		out, err := e.App.Registry.Invoke(context.Background(), master, name, []byte(`{}`))
@@ -469,7 +469,7 @@ func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
 			t.Fatalf("the master reads %s without a token in it: %s %v", name, raw, err)
 		}
 	}
-	out, err := e.App.Registry.Invoke(context.Background(), master, "deck.screen", []byte(`{"screen": "settings"}`))
+	out, err := e.App.Registry.Invoke(context.Background(), master, "deck.screen_get", []byte(`{"screen": "settings"}`))
 	if drawn := fmt.Sprint(out); err != nil || strings.Contains(drawn, "settings_list cannot be called") || strings.Contains(drawn, "tokens_list cannot be called") {
 		t.Fatalf("the settings screen of the master reads the settings and the tokens: %v %v", err, drawn)
 	}

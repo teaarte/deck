@@ -138,7 +138,7 @@ func (d *Deck) URL(ctx context.Context) (string, error) {
 	if token == "" {
 		return "", errors.New("deck has no token yet")
 	}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+d.Addr+"/api/commands/deck.menu", strings.NewReader("{}"))
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+d.Addr+"/api/commands/deck.menu_get", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

@@ -53,7 +53,7 @@ func Bare(raw json.RawMessage) string {
 // pressed takes the yes the owner's press gave the run of act to this very call, once; false when the press named no
 // such call, in a trial, and for a call that spends money.
 func (g *Gateway) pressed(ctx context.Context, act registry.Actor, c *registry.Command, input json.RawMessage) (bool, error) {
-	if act.ProcessID == 0 || act.Trial || c.Spends || c.Class != registry.External {
+	if act.ProcessID == 0 || act.Trial || c.Gate.Spends || c.Class != registry.External {
 		return false, nil
 	}
 	want := Bare(input)
@@ -80,23 +80,23 @@ func (g *Gateway) pressed(ctx context.Context, act registry.Actor, c *registry.C
 func (g *Gateway) byPress(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (any, error) {
 	var undo string
 	var back json.RawMessage
-	if c.Undo != nil {
+	if c.Gate.Undo != nil {
 		var ok bool
-		if undo, back, ok = c.Undo(ctx, act.Workspace, input); !ok {
+		if undo, back, ok = c.Gate.Undo(ctx, act.Workspace, input); !ok {
 			undo = ""
 		}
 	}
 	what := untrusted.Cut(Canonical(input), 300)
-	if c.Target != nil {
+	if c.Gate.Target != nil {
 		var print string
-		if c.Fingerprint != nil {
-			print = c.Fingerprint(ctx, act.Workspace, project, input)
+		if c.Gate.Fingerprint != nil {
+			print = c.Gate.Fingerprint(ctx, act.Workspace, project, input)
 		}
-		what = cmp.Or(c.Target(print, input), what)
+		what = cmp.Or(c.Gate.Target(print, input), what)
 	}
 	act = g.clear.Clear(act, c.Name)
 	out, err := g.reg.Invoke(ctx, act, c.Name, input)
-	if !c.Journals {
+	if !c.Gate.Journals {
 		outcome, text := "done", ""
 		if err != nil {
 			outcome, text = "rejected", err.Error()
@@ -131,7 +131,7 @@ func (g *Gateway) byPress(ctx context.Context, act registry.Actor, c *registry.C
 // as done.
 func (g *Gateway) wrote(ctx context.Context, act registry.Actor, c *registry.Command) {
 	// The own call of a tool run that its module calls internal only reads.
-	if act.ProcessID == 0 || c != nil && (c.Reads || act.Run == "tool" && c.Class == registry.Internal) {
+	if act.ProcessID == 0 || c != nil && (c.Readable || act.Run == "tool" && c.Class == registry.Internal) {
 		return
 	}
 	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {

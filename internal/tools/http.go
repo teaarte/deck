@@ -50,16 +50,15 @@ func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), h
 // Command is the registry command of an HTTP tool of project p; it reaches its own host and the domains of p, a
 // name only at public addresses unless the domains name the address.
 func (h *HTTP) Command(p db.Project, t manifest.HTTPTool, domains []string) *registry.Command {
-	title := t.Title
-	if title == "" {
-		title = t.Name
-	}
 	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "hosts": t.Hosts, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
 	print := gateway.Canonical(b)
-	return &registry.Command{Name: p.Name + "." + t.Name, Title: title, Description: t.Description, Class: t.Class,
-		Input: t.Input, Result: t.Result, Callers: registry.Everyone, ProjectID: p.ID,
-		Journals: t.Class == registry.External, Handler: h.handler(p, t, domains),
-		Fingerprint: func(context.Context, int64, int64, json.RawMessage) string { return print }, Target: func(_ string, input json.RawMessage) string { return t.Method + " " + target(t, input) }, ConfirmTTL: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
+	c := registry.Loose(p.Name+"."+t.Name, t.Title, t.Description, t.Class, registry.Everyone, t.Input, h.handler(p, t, domains))
+	c.Result, c.ProjectID = t.Result, p.ID
+	c.Gate = registry.Gate{Journals: t.Class == registry.External,
+		Fingerprint: func(context.Context, int64, int64, json.RawMessage) string { return print },
+		Target:      func(_ string, input json.RawMessage) string { return t.Method + " " + target(t, input) },
+		ConfirmTTL:  time.Duration(t.ConfirmTTLMinutes) * time.Minute}
+	return c
 }
 
 func (h *HTTP) handler(p db.Project, t manifest.HTTPTool, domains []string) registry.Handler {

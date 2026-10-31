@@ -90,7 +90,7 @@ func (pj *Service) commandTry(ctx context.Context, act registry.Actor, in comman
 		return nil, err
 	case c.ProjectID == 0:
 		return nil, registry.Invalid("only project commands have trial runs")
-	case c.Fingerprint != nil:
+	case c.Gate.Fingerprint != nil:
 		return nil, registry.Invalid("%s is a tool, the call itself; only commands have trial runs", c.Name)
 	}
 	if err := pj.liveTrial(ctx, c, in.Live); err != nil {

@@ -36,7 +36,7 @@ var ChatParts = map[string]string{"topics": registry.Deck("chat_topics_list"), "
 
 // Reads is a command a screen block may read: a builtin read of deck.
 func Reads(command string) (ReadCommand, bool) {
-	c := registry.Reads(command)
+	c := registry.ReadOf(command)
 	if c == nil {
 		return ReadCommand{}, false
 	}

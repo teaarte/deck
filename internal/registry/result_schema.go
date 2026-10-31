@@ -42,12 +42,12 @@ func resultFields(t reflect.Type, props map[string]any) {
 			resultFields(f.Type, props)
 			continue
 		}
-		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-		if !f.IsExported() || name == "-" {
+		name, ok := fieldName(f)
+		if !ok {
 			continue
 		}
-		if name == "" {
-			name = f.Name
+		if n, _, _ := strings.Cut(f.Tag.Get("json"), ","); n == "" {
+			panic("registry: field " + f.Name + " of a result has no json name")
 		}
 		props[name] = resultSchema(f.Type)
 		if e := f.Tag.Get("enum"); e != "" && f.Type.Kind() == reflect.String {

@@ -61,7 +61,7 @@ type paramSchema struct {
 }
 
 var intentFormats = map[string][]string{
-	"string":  {"", "text", "date", "date-time", "file", "project"},
+	"string":  {"", "text", "json", "date", "date-time", "file", "project"},
 	"integer": {"", "record", "card", "project", "document", "process", "ask"},
 	"number":  {""},
 	"boolean": {""},

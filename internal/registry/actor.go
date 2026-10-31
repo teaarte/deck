@@ -3,6 +3,7 @@ package registry
 import (
 	"cmp"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -40,6 +41,8 @@ type Actor struct {
 	// Allows are the calls the owner's press names for the run its command starts, as the press gave them; only an
 	// owner's call has them.
 	Allows string
+	// Key is the retry key of the call of a command of a module, which the registry took out of its input.
+	Key string
 	// CallLimit is how long a tool call of the calling agent may last; zero when it has no such limit.
 	CallLimit time.Duration
 	// cleared is the command the holder of the Clearance, the gateway, let through its class rules; a call the
@@ -74,8 +77,13 @@ func (r *Registry) Clearance() Clearance {
 // Confined is an actor that stays inside its own project: an agent or a trigger.
 func (a Actor) Confined() bool { return a.Kind == Agent || a.Kind == Trigger }
 
-// OwnerSide is the owner or the master, who work across the projects of the workspace.
-func (a Actor) OwnerSide() bool { return a.Kind == Owner || a.Kind == Master || a.Kind == Token }
+// OwnerSide is the owner or the master, who work across the projects of the workspace; a token counts as the master.
+func (a Actor) OwnerSide() bool { return slices.Contains(OwnerSide, a.As()) }
+
+// MayCall says the list of commands of a token, or of an agent whose command lists its calls, lets it call name.
+func (a Actor) MayCall(name string) bool {
+	return a.Kind != Token && a.Commands == nil || Permits(a.Commands, name)
+}
 
 // As is the kind of caller the actor counts as in the callers of a command: a token as the master.
 func (a Actor) As() string {

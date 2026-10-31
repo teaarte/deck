@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"cmp"
 	"encoding/json"
 	"reflect"
 	"slices"
@@ -47,8 +48,10 @@ func paramSchema(p Param) map[string]any {
 	switch p.Type {
 	case "string", "integer", "number", "boolean":
 		s["type"] = p.Type
-	case "text", "json":
+	case "text":
 		s["type"], s["format"] = "string", "text"
+	case "json":
+		s["type"], s["format"] = "string", "json"
 	case "secret":
 		s["type"], s["writeOnly"] = "string", true
 	case "date":
@@ -81,12 +84,9 @@ func fields(t reflect.Type) []Param {
 			out = append(out, fields(f.Type)...)
 			continue
 		}
-		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-		if !f.IsExported() || name == "-" {
+		name, ok := fieldName(f)
+		if !ok {
 			continue
-		}
-		if name == "" {
-			name = strings.ToLower(f.Name)
 		}
 		_, opt := f.Tag.Lookup("opt")
 		p := Param{Name: name, Type: f.Tag.Get("type"), Desc: f.Tag.Get("desc"), Optional: opt}
@@ -117,4 +117,14 @@ func goType(t reflect.Type) string {
 		return goType(t.Elem())
 	}
 	panic("registry: no parameter type for " + t.String())
+}
+
+// fieldName is the name of a field of an input or a result: its json name, else its own in lower case; false for a
+// field JSON leaves out.
+func fieldName(f reflect.StructField) (string, bool) {
+	name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+	if !f.IsExported() || name == "-" {
+		return "", false
+	}
+	return cmp.Or(name, strings.ToLower(f.Name)), true
 }

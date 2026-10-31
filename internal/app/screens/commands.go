@@ -31,7 +31,11 @@ func (s Sources) commandForm(ctx context.Context, c *registry.Command, project s
 	var in map[string]any
 	_ = json.Unmarshal(c.Input, &in)
 	if props, ok := in["properties"].(map[string]any); ok {
-		delete(props, manifest.RetryKey)
+		for k := range props {
+			if registry.Reserved(k) {
+				delete(props, k)
+			}
+		}
 	}
 	raw := c.Input
 	if c.ProjectID != 0 {
@@ -43,7 +47,7 @@ func (s Sources) commandForm(ctx context.Context, c *registry.Command, project s
 			}
 		}
 	}
-	order := slices.DeleteFunc(manifest.PropertyOrder(raw), func(k string) bool { return k == manifest.RetryKey })
+	order := slices.DeleteFunc(manifest.PropertyOrder(raw), registry.Reserved)
 	out := map[string]any{"name": c.Name, "title": c.Title, "description": c.Description, "input": in, "order": order}
 	if project != "" {
 		out["project"] = project

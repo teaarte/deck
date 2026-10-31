@@ -166,7 +166,7 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 	if err != nil {
 		return nil, err
 	}
-	if !c.Reads {
+	if !c.Readable {
 		return nil, fmt.Errorf("%s is not a command that only reads", command)
 	}
 	types := manifest.FieldTypes(c.Input)

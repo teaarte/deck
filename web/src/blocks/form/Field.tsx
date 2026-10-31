@@ -60,7 +60,7 @@ export function Field({ name, schema, value, files, readOnly, required, choices,
       if (schema.writeOnly) {
         return <PasswordInput {...common} autoComplete="off" value={text(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
       }
-      if (schema.format === 'text') {
+      if (schema.format === 'text' || schema.format === 'json') {
         return <Textarea {...common} autosize minRows={2} value={text(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
       }
       if (schema.format === 'date' || schema.format === 'date-time') {

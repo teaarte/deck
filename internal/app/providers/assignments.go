@@ -205,17 +205,17 @@ func (s *Service) assignmentCommand() *registry.Command {
 	c := registry.Def("assignment_set", "Assign models",
 		"Sets the models that do a kind of work in the workspace, a project or a command: the first, then the fallbacks a new turn or call takes when it is down. A module or the master proposes an assignment this way, of any project, and the owner applies it with one button.",
 		registry.Everyone, s.assignmentSet).As(registry.External)
-	c.Allowed = func(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
+	c.Gate.Allowed = func(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
 		in, err := assignmentInput(input)
 		if err == nil {
 			_, _, err = s.planned(ctx, act.Workspace, in)
 		}
 		return false, err
 	}
-	c.Free = func(context.Context, registry.Actor, json.RawMessage) (bool, error) {
+	c.Gate.Free = func(context.Context, registry.Actor, json.RawMessage) (bool, error) {
 		return false, registry.Refuse("a trial or a draft does not change the models of deck; propose the assignment once the module is enabled")
 	}
-	c.Fingerprint = func(ctx context.Context, workspace, _ int64, input json.RawMessage) string {
+	c.Gate.Fingerprint = func(ctx context.Context, workspace, _ int64, input json.RawMessage) string {
 		in, err := assignmentInput(input)
 		if err != nil {
 			return ""
@@ -232,7 +232,7 @@ func (s *Service) assignmentCommand() *registry.Command {
 		return string(raw)
 	}
 	// An assignment holds when its very place has those models, not one it would inherit them from.
-	c.Holds = func(ctx context.Context, workspace int64, input json.RawMessage) bool {
+	c.Gate.Holds = func(ctx context.Context, workspace int64, input json.RawMessage) bool {
 		in, err := assignmentInput(input)
 		if err != nil {
 			return false
@@ -257,7 +257,7 @@ func (s *Service) assignmentCommand() *registry.Command {
 		return len(after) > 0 && slices.Equal(after, here)
 	}
 	// The undo sets back the models of its very place, or removes the assignment the call made there.
-	c.Undo = func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool) {
+	c.Gate.Undo = func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool) {
 		in, err := assignmentInput(input)
 		if err != nil {
 			return "", nil, false
@@ -284,7 +284,7 @@ func (s *Service) assignmentCommand() *registry.Command {
 		b, _ := json.Marshal(back)
 		return c.Name, b, true
 	}
-	c.Target = func(print string, input json.RawMessage) string {
+	c.Gate.Target = func(print string, input json.RawMessage) string {
 		in, err := assignmentInput(input)
 		if err != nil {
 			return ""

@@ -153,7 +153,7 @@ func (ss *Service) commandsList(ctx context.Context, act registry.Actor, in comm
 				}
 			case slices.ContainsFunc(m.Tools.HTTP, func(t manifest.HTTPTool) bool { return t.Name == short }):
 				r.Tool = "http"
-			case c.Fingerprint != nil:
+			case c.Gate.Fingerprint != nil:
 				r.Tool = "mcp"
 			}
 		}

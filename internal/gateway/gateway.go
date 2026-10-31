@@ -371,7 +371,7 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 	if err == nil {
 		g.wrote(ctx, act, c)
 	}
-	if !c.Journals {
+	if !c.Gate.Journals {
 		outcome, text := "done", ""
 		if err != nil {
 			outcome, text = "rejected", err.Error()

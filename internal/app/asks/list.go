@@ -147,8 +147,8 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		r.Payload = json.RawMessage(cmp.Or(string(f.Call.Input), "null"))
 		if c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
 			r.What = c.Tr(words.In(lang), lang, c.Title)
-			if f.Target == "" && c.Target != nil {
-				r.Where = c.Target(f.Tool, f.Call.Input)
+			if f.Target == "" && c.Gate.Target != nil {
+				r.Where = c.Gate.Target(f.Tool, f.Call.Input)
 			}
 			r.Always = s.always(r.Project, f, c, r.What)
 		} else if r.Project != "" && strings.HasPrefix(f.Call.Command, r.Project+".") {

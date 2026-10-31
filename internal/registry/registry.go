@@ -2,6 +2,7 @@ package registry
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -65,41 +66,71 @@ type Command struct {
 	ProjectID   int64           `json:"-"`
 	// Words are the translations of the texts of a command of a module by language, from its manifest.
 	Words map[string]map[string]string `json:"-"`
-	// Journals marks a command that writes its own intent to the gateway journal.
-	Journals bool `json:"-"`
-	// Reads marks a builtin command that changes nothing; only such a command fills a screen block. Topics are
+	// Readable marks a builtin command that changes nothing; only such a command fills a screen block. Topics are
 	// the events after which its result may differ.
-	Reads  bool     `json:"-"`
-	Topics []string `json:"-"`
-	// Loose marks a tool whose input schema comes from elsewhere and is not held to App Intents types.
-	Loose bool `json:"-"`
-	// Fingerprint is what a call would act on beside its input, a tool's request or what it changes, as it is now, so
-	// an old yes does not make a changed call.
-	Fingerprint func(ctx context.Context, workspace, project int64, input json.RawMessage) string `json:"-"`
-	// Target says where a call goes, from its fingerprint, for the owner who decides on it.
-	Target func(print string, input json.RawMessage) string `json:"-"`
-	// ConfirmTTL is the tool's own term for its confirmations.
-	ConfirmTTL time.Duration `json:"-"`
-	// Allowed decides whether an external call with this input runs without the owner; listed says the project
-	// allows it.
-	Allowed func(ctx context.Context, a Actor, input json.RawMessage, listed bool) (bool, error) `json:"-"`
-	// Free says a call costs nothing and stays on the owner's machine, so it runs in a trial or a draft too; an
-	// error is a call that cannot run at all, so it fails rather than waiting for the owner.
-	Free func(ctx context.Context, a Actor, input json.RawMessage) (bool, error) `json:"-"`
-	// Probes marks a Fingerprint that reaches out, such as to the page of a browser: deck checks it only when the
-	// owner answers, not in the background.
-	Probes bool `json:"-"`
-	// Holds says what a call would make is so already: a call waiting for the owner is then done without making it.
-	Holds func(ctx context.Context, workspace int64, input json.RawMessage) bool `json:"-"`
-	// Undo is the call that takes a call back, as things stand before it is made; false when deck cannot.
-	Undo func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool) `json:"-"`
-	// Spends marks a command that costs money: the owner's press of a button never stands for its yes.
-	Spends bool `json:"-"`
+	Readable bool     `json:"-"`
+	Topics   []string `json:"-"`
+	// Gate is how the gateway lets a call that is not internal through.
+	Gate Gate `json:"-"`
 
 	Handler Handler `json:"-"`
 	schema  *jsonschema.Schema
-	// params are the parameters Def read from the input struct.
+	// params are the parameters Def read from the input struct; json the fields of the input that hold a JSON text.
 	params []Param
+	json   []string
+	// foreign marks an input schema from elsewhere, not held to App Intents types; retries one that takes a retry key.
+	foreign, retries, keyed bool
+}
+
+// Loose declares a command not written in Go: of a module, an HTTP tool, an MCP server or the browser, its input
+// schema given whole and its title its name when it has none; Prepare checks it.
+func Loose(name, title, desc, class string, callers []string, input json.RawMessage, h Handler) *Command {
+	return &Command{Name: name, Title: cmp.Or(title, name), Description: desc, Class: class, Callers: callers,
+		Input: input, Handler: h}
+}
+
+// Foreign marks a command whose input schema comes from elsewhere: it is not held to App Intents types.
+func (c *Command) Foreign() *Command {
+	c.foreign = true
+	return c
+}
+
+// Retried gives a command of a module the retry key in its input; the registry hands it to the handler as Actor.Key.
+func (c *Command) Retried() *Command {
+	c.retries = true
+	return c
+}
+
+// RetryKey is the optional input field of every command of a module: a call with the key of a running process
+// returns it.
+const RetryKey = "retry_key"
+
+// Gate is the policy of the gateway for the calls of a command.
+type Gate struct {
+	// Journals marks a command that writes its own intent to the gateway journal.
+	Journals bool
+	// Fingerprint is what a call would act on beside its input, a tool's request or what it changes, as it is now, so
+	// an old yes does not make a changed call.
+	Fingerprint func(ctx context.Context, workspace, project int64, input json.RawMessage) string
+	// Target says where a call goes, from its fingerprint, for the owner who decides on it.
+	Target func(print string, input json.RawMessage) string
+	// ConfirmTTL is the tool's own term for its confirmations.
+	ConfirmTTL time.Duration
+	// Allowed decides whether an external call with this input runs without the owner; listed says the project
+	// allows it.
+	Allowed func(ctx context.Context, a Actor, input json.RawMessage, listed bool) (bool, error)
+	// Free says a call costs nothing and stays on the owner's machine, so it runs in a trial or a draft too; an
+	// error is a call that cannot run at all, so it fails rather than waiting for the owner.
+	Free func(ctx context.Context, a Actor, input json.RawMessage) (bool, error)
+	// Probes marks a Fingerprint that reaches out, such as to the page of a browser: deck checks it only when the
+	// owner answers, not in the background.
+	Probes bool
+	// Holds says what a call would make is so already: a call waiting for the owner is then done without making it.
+	Holds func(ctx context.Context, workspace int64, input json.RawMessage) bool
+	// Undo is the call that takes a call back, as things stand before it is made; false when deck cannot.
+	Undo func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool)
+	// Spends marks a command that costs money: the owner's press of a button never stands for its yes.
+	Spends bool
 }
 
 // Projects yields the commands declared by project manifests of a workspace; project "" means every project.
@@ -134,7 +165,7 @@ func (r *Registry) Add(c *Command) {
 	if err := Prepare(c); err != nil {
 		panic(err)
 	}
-	if c.Reads && Reads(c.Name) == nil {
+	if c.Readable && ReadOf(c.Name) == nil {
 		panic("registry: read " + c.Name + " is not declared")
 	}
 	r.builtins[c.Name] = c
@@ -148,7 +179,7 @@ var reads sync.Map
 // publishes.
 func Declare(cs []*Command, topics []string) {
 	for _, c := range cs {
-		if !c.Reads {
+		if !c.Readable {
 			continue
 		}
 		if err := Prepare(c); err != nil {
@@ -166,8 +197,8 @@ func Declare(cs []*Command, topics []string) {
 	}
 }
 
-// Reads is the builtin read command name; nil when there is none.
-func Reads(name string) *Command {
+// ReadOf is the builtin read command name; nil when there is none.
+func ReadOf(name string) *Command {
 	if c, ok := reads.Load(name); ok {
 		return c.(*Command)
 	}
@@ -185,15 +216,75 @@ func Prepare(c *Command) error {
 	if len(c.Input) == 0 {
 		c.Input = json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 	}
-	if err := schemas.CheckInput(c.Input); err != nil && !c.Loose {
+	if err := schemas.CheckInput(c.Input); err != nil && !c.foreign {
 		return fmt.Errorf("command %q input: %w", c.Name, err)
+	}
+	if c.retries && !c.keyed {
+		in, err := withRetryKey(c.Input)
+		if err != nil {
+			return fmt.Errorf("command %q input: %w", c.Name, err)
+		}
+		c.Input, c.Handler, c.keyed = in, keyed(c.Handler), true
 	}
 	s, err := compile(c.Name, c.Input)
 	if err != nil {
 		return fmt.Errorf("command %q input: %w", c.Name, err)
 	}
 	c.schema = s
+	c.json = jsonFields(c.Input)
 	return nil
+}
+
+// withRetryKey is an input schema with the optional retry key among its properties.
+func withRetryKey(in json.RawMessage) (json.RawMessage, error) {
+	d := json.NewDecoder(bytes.NewReader(in))
+	d.UseNumber()
+	var s map[string]any
+	if err := d.Decode(&s); err != nil {
+		return nil, err
+	}
+	props, _ := s["properties"].(map[string]any)
+	if props == nil {
+		props = map[string]any{}
+	}
+	props[RetryKey] = map[string]any{"type": "string",
+		"description": "Optional: while a process of this command with the same key is still going, the call returns it instead of starting another"}
+	s["properties"] = props
+	return json.Marshal(s)
+}
+
+// keyed is a handler that gets the retry key of its input as Actor.Key and the input without it.
+func keyed(h Handler) Handler {
+	return func(ctx context.Context, a Actor, input json.RawMessage) (any, error) {
+		var in map[string]json.RawMessage
+		if json.Unmarshal(input, &in) == nil && in[RetryKey] != nil {
+			_ = json.Unmarshal(in[RetryKey], &a.Key)
+			delete(in, RetryKey)
+			input, _ = json.Marshal(in)
+		}
+		return h(ctx, a, input)
+	}
+}
+
+// Reserved says a field of an input is the registry's own, not of the command: the retry key or the calls a press
+// allows.
+func Reserved(field string) bool { return field == RetryKey || field == AllowsKey }
+
+// jsonFields are the properties of an input schema of format json.
+func jsonFields(input json.RawMessage) []string {
+	var s struct {
+		Properties map[string]struct {
+			Format string `json:"format"`
+		} `json:"properties"`
+	}
+	_ = json.Unmarshal(input, &s)
+	var out []string
+	for name, p := range s.Properties {
+		if p.Format == "json" {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // List returns the commands the actor may call, sorted by name.
@@ -365,30 +456,11 @@ func schemaProblems(err error) string {
 // into its JSON text.
 func (c *Command) jsonText(input json.RawMessage) json.RawMessage {
 	var m map[string]json.RawMessage
-	if json.Unmarshal(input, &m) != nil {
+	if len(c.json) == 0 || json.Unmarshal(input, &m) != nil {
 		return input
 	}
-	var names []string
-	for _, p := range c.params {
-		if p.Type == "json" {
-			names = append(names, p.Name)
-		}
-	}
-	if c.params == nil {
-		var s struct {
-			Properties map[string]struct {
-				Format string `json:"format"`
-			} `json:"properties"`
-		}
-		_ = json.Unmarshal(c.Input, &s)
-		for name, p := range s.Properties {
-			if p.Format == "json" {
-				names = append(names, name)
-			}
-		}
-	}
 	changed := false
-	for _, name := range names {
+	for _, name := range c.json {
 		if v := bytes.TrimSpace(m[name]); len(v) > 0 && (v[0] == '{' || v[0] == '[') {
 			m[name], _ = json.Marshal(string(v))
 			changed = true
@@ -413,13 +485,13 @@ func (r *Registry) reachable(a Actor, c *Command) error {
 	if c.ProjectID != 0 && (a.Kind == Agent || a.Kind == Trigger) && a.ProjectID != c.ProjectID {
 		return Refuse("%s belongs to another project", c.Name)
 	}
-	if a.Kind == Token && !Permits(a.Commands, c.Name) {
+	if !a.MayCall(c.Name) && a.Kind == Token {
 		return Refuse("this automation token may not call %s", c.Name)
 	}
-	if a.Commands != nil && !Permits(a.Commands, c.Name) {
+	if !a.MayCall(c.Name) {
 		return Refuse("the command of this agent does not list %s in its calls", c.Name)
 	}
-	if a.Trial && c.Class != Internal && c.Fingerprint == nil {
+	if a.Trial && c.Class != Internal && c.Gate.Fingerprint == nil {
 		return Refuse("trial run: %s is %s, so it was declined", c.Name, c.Class)
 	}
 	return nil

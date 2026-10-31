@@ -55,7 +55,7 @@ func (ch *Service) doing(ctx context.Context, workspace int64, title string, tr 
 	if err != nil {
 		return title, act
 	}
-	if c.Reads && act == "work" {
+	if c.Readable && act == "work" {
 		act = "read"
 	}
 	if c.ProjectID != 0 {

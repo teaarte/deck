@@ -171,12 +171,12 @@ func (b *Browser) build(list []*mcp.Tool) {
 			continue
 		}
 		input, _ := json.Marshal(t.InputSchema)
-		c := &registry.Command{Name: registry.Deck(t.Name), Title: t.Name, Description: t.Description, Class: registry.Internal,
-			Input: input, Callers: []string{registry.Agent}, Loose: true, Handler: b.reader(t.Name)}
+		c := registry.Loose(registry.Deck(t.Name), t.Name, t.Description, registry.Internal, []string{registry.Agent}, input,
+			b.reader(t.Name)).Foreign()
 		if act {
-			c.Class, c.Journals, c.Handler, c.Probes = registry.External, true, b.actor(t.Name), true
-			c.Allowed = b.allowed
-			c.Fingerprint = func(ctx context.Context, _, project int64, _ json.RawMessage) string {
+			c.Class, c.Gate.Journals, c.Handler, c.Gate.Probes = registry.External, true, b.actor(t.Name), true
+			c.Gate.Allowed = b.allowed
+			c.Gate.Fingerprint = func(ctx context.Context, _, project int64, _ json.RawMessage) string {
 				m, err := docs.For(ctx, b.Store.Q, registry.Actor{}, project)
 				if err != nil {
 					return ""
@@ -186,7 +186,7 @@ func (b *Browser) build(list []*mcp.Tool) {
 				page, _ := b.current(ctx, readsAnySite(m))
 				return page
 			}
-			c.Target = func(page string, _ json.RawMessage) string {
+			c.Gate.Target = func(page string, _ json.RawMessage) string {
 				if page == "" {
 					return "on a page deck could not tell"
 				}

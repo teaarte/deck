@@ -45,7 +45,7 @@ func Did(ctx context.Context, q *db.Queries, processID int64) []string {
 	}
 	out := []string{}
 	for _, c := range calls {
-		if registry.Reads(c.Tool) != nil || c.Outcome == "rejected" {
+		if registry.ReadOf(c.Tool) != nil || c.Outcome == "rejected" {
 			continue
 		}
 		out = append(out, fmt.Sprintf("%s %s %s", c.Tool, c.Outcome, untrusted.Line(c.Params, 160)))

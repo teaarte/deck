@@ -184,7 +184,7 @@ func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in trigger
 		return nil, registry.Invalid("trigger %d starts on a %s; only schedule triggers run now", t.ID, t.Kind)
 	}
 	name := p.Name + "." + t.Command
-	if (act.Kind == registry.Token || act.Commands != nil) && !registry.Permits(act.Commands, name) {
+	if !act.MayCall(name) {
 		return nil, registry.Refuse("this caller may not call %s, so it does not run it now", name)
 	}
 	if act.Kind != registry.Owner && (t.Paused == 1 || p.Paused == 1) {
@@ -197,7 +197,7 @@ func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in trigger
 	if params == nil {
 		params = map[string]any{}
 	}
-	params[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
+	params[registry.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	raw, _ := json.Marshal(params)
 	as := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, TriggerID: t.ID, Confirmed: true}
 	return s.Gateway.CallAs(ctx, as, name, raw)

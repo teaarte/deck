@@ -159,7 +159,7 @@ func (pj *Service) projectDeleteCommands() []*registry.Command {
 	del := registry.Def("project_delete", "Delete project",
 		"Deletes a project after a snapshot of it (the master deletes only drafts): its records, documents, files, triggers, processes and settings; folders on disk stay.",
 		registry.OwnerSide, pj.projectDelete).As(registry.External)
-	del.Allowed = pj.draftOfMaster
+	del.Gate.Allowed = pj.draftOfMaster
 	return []*registry.Command{del}
 }
 

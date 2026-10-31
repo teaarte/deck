@@ -1,7 +1,6 @@
 package project
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -76,11 +75,9 @@ func (pj *Service) prepared(ctx context.Context, p db.Project, m, granted *manif
 		return cmds
 	}
 	for _, c := range granted.Commands {
-		cmd := &registry.Command{
-			Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
-			Input: withRetryKey(c.InputSchema()), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(), Words: m.I18n,
-			Handler: pj.startHandler(p.ID, m, c.Name),
-		}
+		cmd := registry.Loose(p.Name+"."+c.Name, c.Title, c.Description, c.Class, c.Callable(), c.InputSchema(),
+			pj.startHandler(p.ID, m, c.Name)).Retried()
+		cmd.Result, cmd.ProjectID, cmd.Words = c.Result, p.ID, m.I18n
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project command", "command", cmd.Name, "err", err)
 			continue
@@ -119,10 +116,7 @@ func (pj *Service) startHandler(projectID int64, m *manifest.Manifest, command s
 		if err != nil {
 			return nil, registry.Invalid("input: %v", err)
 		}
-		key, _ := input[manifest.RetryKey].(string)
-		delete(input, manifest.RetryKey)
-		delete(input, manifest.AllowsKey)
-		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: key, Trial: act.Trial, Alone: act.Alone}
+		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: act.Key, Trial: act.Trial, Alone: act.Alone}
 		// Only the owner's own press stands for their yes.
 		if act.Kind == registry.Owner && act.Allows != "" {
 			var as []gateway.Allow
@@ -133,26 +127,4 @@ func (pj *Service) startHandler(projectID int64, m *manifest.Manifest, command s
 		}
 		return pj.Runner.Begin(ctx, projectID, m, command, input, o)
 	}
-}
-
-// withRetryKey adds the optional retry key every project command takes.
-func withRetryKey(in json.RawMessage) json.RawMessage {
-	d := json.NewDecoder(bytes.NewReader(in))
-	d.UseNumber()
-	var s map[string]any
-	if d.Decode(&s) != nil {
-		return in
-	}
-	props, _ := s["properties"].(map[string]any)
-	if props == nil {
-		props = map[string]any{}
-	}
-	props[manifest.RetryKey] = map[string]any{"type": "string",
-		"description": "Optional: while a process of this command with the same key is still going, the call returns it instead of starting another"}
-	s["properties"] = props
-	b, err := json.Marshal(s)
-	if err != nil {
-		return in
-	}
-	return b
 }

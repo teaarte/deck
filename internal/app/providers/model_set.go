@@ -46,8 +46,8 @@ func (s *Service) modelSetCommand() *registry.Command {
 		"Adds or changes a model of a connection with its kind and price; what is left out comes from the catalog of the connection. A module or the master proposes a model it needs this way, and the owner adds it with one button.",
 		registry.Everyone, s.modelSet).Enum("agent", s.agentNames()...).As(registry.External)
 	// A model sets prices and what is free: money, which only the owner's own yes changes.
-	c.Spends = true
-	c.Target = func(_ string, input json.RawMessage) string {
+	c.Gate.Spends = true
+	c.Gate.Target = func(_ string, input json.RawMessage) string {
 		var in map[string]any
 		_ = json.Unmarshal(input, &in)
 		name := fmt.Sprint(in["connection"], "/", in["model"])

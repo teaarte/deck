@@ -19,7 +19,7 @@ import (
 // retry key, so a run does not start while the previous one is still going.
 func (s *Service) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error) {
 	if t.Kind == trigger.KindCron {
-		input[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
+		input[registry.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	}
 	return s.Start(ctx, t, input, 0)
 }

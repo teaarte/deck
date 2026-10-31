@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"deck2/internal/home"
@@ -177,23 +178,17 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		if class == "" || changed {
 			class = registry.External
 		}
-		desc := r.Description
-		if desc == "" {
-			desc = r.Name
-		}
-		title := r.Title
-		if title == "" {
-			title = r.Name
-		}
 		print := r.Spec + "/" + r.Fingerprint
-		out = append(out, &registry.Command{Name: p.Name + "." + r.Server + "." + r.Name, Title: title, Description: desc,
-			Class: class, Input: json.RawMessage(r.Input), Callers: registry.Everyone, ProjectID: p.ID,
-			Loose: true, Journals: class == registry.External, Handler: x.handler(p, r.Server, s, reached(m), r.Name, class, r.Fingerprint),
+		c := registry.Loose(p.Name+"."+r.Server+"."+r.Name, r.Title, cmp.Or(r.Description, r.Name), class, registry.Everyone, json.RawMessage(r.Input),
+			x.handler(p, r.Server, s, reached(m), r.Name, class, r.Fingerprint)).Foreign()
+		c.ProjectID = p.ID
+		c.Gate = registry.Gate{Journals: class == registry.External,
 			Fingerprint: func(context.Context, int64, int64, json.RawMessage) string { return print },
 			Target:      func(string, json.RawMessage) string { return "server " + r.Server + ", tool " + r.Name },
 			Allowed: func(_ context.Context, _ registry.Actor, _ json.RawMessage, listed bool) (bool, error) {
 				return listed && !changed, nil
-			}})
+			}}
+		out = append(out, c)
 	}
 	return out, nil
 }

@@ -63,7 +63,7 @@ func Read[In, Out any](name, title, desc string, callers []string, h func(ctx co
 		return out, nil
 	})
 	c.Result, _ = json.Marshal(resultSchema(reflect.TypeFor[Out]()))
-	c.Reads = true
+	c.Readable = true
 	if slices.ContainsFunc(c.params, func(p Param) bool { return p.Name == "fields" }) {
 		return c
 	}

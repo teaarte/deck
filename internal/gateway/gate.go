@@ -122,8 +122,8 @@ func Canonical(raw json.RawMessage) string {
 // project or the tool; a draft declines both, and a tool of a draft or a trial waits for the owner.
 func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (bool, error) {
 	if project == 0 {
-		if c.Class == registry.External && c.Allowed != nil {
-			return c.Allowed(ctx, act, input, false)
+		if c.Class == registry.External && c.Gate.Allowed != nil {
+			return c.Gate.Allowed(ctx, act, input, false)
 		}
 		return false, nil
 	}
@@ -131,11 +131,11 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 	if err != nil {
 		return false, err
 	}
-	if c.Fingerprint != nil && (act.Trial || p.Status == store.ProjectDraft) {
-		if c.Free == nil {
+	if c.Gate.Fingerprint != nil && (act.Trial || p.Status == store.ProjectDraft) {
+		if c.Gate.Free == nil {
 			return false, nil
 		}
-		return c.Free(ctx, act, input)
+		return c.Gate.Free(ctx, act, input)
 	}
 	if p.Status == store.ProjectDraft {
 		return false, registry.Refuse("%s is a draft: %s is %s, so it was declined until the owner enables the project", p.Name, c.Name, c.Class)
@@ -149,8 +149,8 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 		return true, nil
 	case registry.External:
 		listed := slices.Contains(m.AllowedExternal, strings.TrimPrefix(c.Name, p.Name+".")) || slices.Contains(m.AllowedExternal, c.Name)
-		if c.Allowed != nil {
-			return c.Allowed(ctx, act, input, listed)
+		if c.Gate.Allowed != nil {
+			return c.Gate.Allowed(ctx, act, input, listed)
 		}
 		return listed, nil
 	}
@@ -160,16 +160,16 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 // fingerprint is what a call acts on beside its input; empty for commands without one and unknown names.
 func (g *Gateway) fingerprint(ctx context.Context, workspace, project int64, name string, input json.RawMessage) string {
 	c, err := g.reg.Lookup(ctx, workspace, name)
-	if err != nil || c.Fingerprint == nil {
+	if err != nil || c.Gate.Fingerprint == nil {
 		return ""
 	}
-	return c.Fingerprint(ctx, workspace, project, input)
+	return c.Gate.Fingerprint(ctx, workspace, project, input)
 }
 
 // ttl is how long a confirmation of the command stays open: its tool's own term, else the workspace's.
 func (g *Gateway) ttl(ctx context.Context, c *registry.Command, workspace int64) time.Duration {
-	if c.ConfirmTTL > 0 {
-		return c.ConfirmTTL
+	if c.Gate.ConfirmTTL > 0 {
+		return c.Gate.ConfirmTTL
 	}
 	return g.confirmTTL(ctx, workspace)
 }
@@ -185,12 +185,12 @@ func (g *Gateway) confirmTTL(ctx context.Context, workspace int64) time.Duration
 // already waiting returns the same ask.
 func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (any, error) {
 	var print string
-	if c.Fingerprint != nil {
-		print = c.Fingerprint(ctx, act.Workspace, project, input)
+	if c.Gate.Fingerprint != nil {
+		print = c.Gate.Fingerprint(ctx, act.Workspace, project, input)
 	}
 	target := ""
-	if c.Target != nil {
-		target = c.Target(print, input)
+	if c.Gate.Target != nil {
+		target = c.Gate.Target(print, input)
 	}
 	f := Freeze(act, c.Name, input)
 	f.Tool, f.Target = print, target

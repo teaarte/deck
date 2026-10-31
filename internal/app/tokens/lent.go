@@ -69,5 +69,5 @@ func (s *Service) Lent(raw string) (registry.Actor, bool) {
 
 // Reads says whether a lent token may call a command: a read of deck or what a page reads.
 func Reads(name string) bool {
-	return registry.Reads(name) != nil || slices.Contains(pageReads, name)
+	return registry.ReadOf(name) != nil || slices.Contains(pageReads, name)
 }

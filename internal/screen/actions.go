@@ -171,14 +171,14 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		if name == manifest.RecordDelete {
 			ps["record"], act["confirm"], act["parts"] = id, true, manifest.RecordParts
 		}
-		delete(ps, manifest.AllowsKey)
+		delete(ps, registry.AllowsKey)
 		if len(a.Allows) > 0 && !r.deck() && !r.inCustom {
-			ps[manifest.AllowsKey] = r.allows(a.Allows, env, &failed)
+			ps[registry.AllowsKey] = r.allows(a.Allows, env, &failed)
 		}
 		// A press of a button of a module again while its run goes is that run, said to be running already.
-		if _, ok := ps[manifest.RetryKey]; !ok && a.Input == "" && len(a.FromBlock) == 0 && a.Verb != "undo" && !registry.IsBuiltin(name) {
+		if _, ok := ps[registry.RetryKey]; !ok && a.Input == "" && len(a.FromBlock) == 0 && a.Verb != "undo" && !registry.IsBuiltin(name) {
 			b, _ := json.Marshal(ps)
-			ps[manifest.RetryKey] = "press:" + string(b)
+			ps[registry.RetryKey] = "press:" + string(b)
 		}
 		act["command"], act["params"] = name, ps
 		if len(a.FromBlock) > 0 {

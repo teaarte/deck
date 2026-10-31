@@ -175,7 +175,7 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 			class = registry.External
 		}
 		print := r.Spec + "/" + r.Fingerprint
-		c := registry.Loose(p.Name+"."+r.Server+"."+r.Name, r.Title, cmp.Or(r.Description, r.Name), class, registry.Everyone, json.RawMessage(r.Input),
+		c := registry.Loose(p.Name+"."+r.Server+"."+r.Name, cmp.Or(r.Title, r.Name), cmp.Or(r.Description, r.Name), class, registry.Everyone, json.RawMessage(r.Input),
 			x.handler(p, r.Server, s, reached(m), r.Name, class, r.Fingerprint)).Foreign()
 		c.ProjectID = p.ID
 		c.Gate = registry.Gate{Journals: class == registry.External,

@@ -2,7 +2,6 @@ package registry
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -86,9 +85,9 @@ type Command struct {
 }
 
 // Loose declares a command not written in Go: of a module, an HTTP tool, an MCP server or the browser, its input
-// schema given whole and its title its name when it has none; Prepare checks it.
+// schema given whole; Prepare checks it.
 func Loose(name, title, desc, class string, callers []string, input json.RawMessage, h Handler) *Command {
-	return &Command{Name: name, Title: cmp.Or(title, name), Description: desc, Class: class, Callers: callers,
+	return &Command{Name: name, Title: title, Description: desc, Class: class, Callers: callers,
 		Input: input, Handler: h}
 }
 

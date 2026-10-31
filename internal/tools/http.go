@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -51,7 +52,7 @@ func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), h
 func (h *HTTP) Command(p db.Project, t manifest.HTTPTool, domains []string) *registry.Command {
 	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "hosts": t.Hosts, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
 	print := gateway.Canonical(b)
-	c := registry.Loose(p.Name+"."+t.Name, t.Title, t.Description, t.Class, registry.Everyone, t.Input, h.handler(p, t, domains))
+	c := registry.Loose(p.Name+"."+t.Name, cmp.Or(t.Title, t.Name), t.Description, t.Class, registry.Everyone, t.Input, h.handler(p, t, domains))
 	c.Result, c.ProjectID = t.Result, p.ID
 	c.Gate = registry.Gate{Journals: t.Class == registry.External,
 		Fingerprint: func(context.Context, int64, int64, json.RawMessage) string { return print },

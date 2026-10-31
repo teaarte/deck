@@ -267,12 +267,16 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	var k vapid
 	var failed []string
 	tried, lasting := false, false
-	badge := int64(0)
-	if waiting, err := dv.Waiting(ctx, registry.Actor{Kind: registry.Owner, Workspace: workspace}); err == nil {
-		for _, n := range waiting {
-			badge += n
+	// The badge is counted once the first push is read, so it counts every ask that push names.
+	badge := sync.OnceValue(func() int64 {
+		n := int64(0)
+		if waiting, err := dv.Waiting(ctx, registry.Actor{Kind: registry.Owner, Workspace: workspace}); err == nil {
+			for _, w := range waiting {
+				n += w
+			}
 		}
-	}
+		return n
+	})
 	private := sync.OnceValue(func() bool { return dv.anyPrivate(ctx, workspace) })
 	for _, s := range subs {
 	sources:
@@ -295,7 +299,7 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 					}
 				}
 				tried = true
-				it.msg.Badge = badge
+				it.msg.Badge = badge()
 				res, why := dv.deliver(ctx, workspace, k, s, it.msg)
 				if why != "" {
 					failed = append(failed, s.Device+": "+why)

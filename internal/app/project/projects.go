@@ -159,7 +159,7 @@ func (pj *Service) projectsCommands() []*registry.Command {
 		registry.Read("projects_list", "List projects",
 			"Lists projects with their description (the first line of the md prompt), screens, folders and what enabling a draft grants.",
 			registry.OwnerSide, pj.projectsList).On("projects", "folders", "documents", "files", "settings"),
-		registry.Def("project_create", "Create project",
+		registry.Def("project_create", "Create module",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it is empty.",
 			registry.OwnerSide, pj.projectCreate),
 	}

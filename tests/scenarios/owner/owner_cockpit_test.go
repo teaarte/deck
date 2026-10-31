@@ -411,7 +411,7 @@ func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 	}
 	var asks []struct{ Allow string }
 	e.Must("deck.asks_list", map[string]any{"lang": "ru"}, &asks)
-	if len(asks) != 1 || asks[0].Allow != "Разрешить: Модель" {
+	if len(asks) != 1 || asks[0].Allow != "Разрешить: Задать модель" {
 		t.Fatalf("the yes of a decision says what it lets happen: %+v", asks)
 	}
 }

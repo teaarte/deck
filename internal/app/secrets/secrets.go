@@ -172,7 +172,7 @@ func (s *Service) projectSecrets(ctx context.Context, act registry.Actor, projec
 // Commands are the commands of secrets.
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("secret_set", "Set secret",
+		registry.Def("secret_set", "Set a secret",
 			"Stores a secret for tools (a header, or the whole URL of a private link) as a file only deck reads; agents and scripts never see it.",
 			registry.OwnerOnly, s.secretSet),
 		registry.Def("secret_delete", "Delete secret",

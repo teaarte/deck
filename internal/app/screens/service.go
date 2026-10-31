@@ -50,7 +50,7 @@ func (ss *Service) Commands() []*registry.Command {
 		registry.Read("layout", "Layout of the tiles",
 			"Gives where the cards of the tiles stand on a device for its columns: its own, else the one they are derived from; columns 0 gives the order alone.",
 			registry.OwnerSide, ss.layout).On("settings", "projects"),
-		registry.Def("layout_set", "Place the tiles",
+		registry.Def("layout_set", "Arrange the tiles",
 			"Keeps where the cards of the tiles stand on a device for a number of columns, in cells.",
 			registry.OwnerSide, ss.layoutSet),
 		registry.Def("screen", "Screen",

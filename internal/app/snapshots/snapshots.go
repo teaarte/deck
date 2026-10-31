@@ -37,7 +37,7 @@ type Service struct {
 // Commands are the commands of snapshots.
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("snapshot_create", "Take snapshot",
+		registry.Def("snapshot_create", "Take a snapshot",
 			"Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.",
 			registry.OwnerOnly, s.snapshotCreate),
 		registry.Read("snapshots_list", "Snapshots",

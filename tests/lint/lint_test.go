@@ -1,6 +1,7 @@
 package lint
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,13 +40,15 @@ func TestChecksCatchViolations(t *testing.T) {
 		"sql/q.sql:3: comment block of 3 lines",
 		"script.py:8: comment block of 3 lines",
 		`schemas/manifest.json:1: vertical name "forecast"`,
+		`skills/notes/SKILL.md:5: vertical name "mailbox"`,
+		`starters/demo/prompt.md:1: vertical name "Brier"`,
 	} {
 		if !strings.Contains(all, want) {
 			t.Errorf("missing violation %q in:\n%s", want, all)
 		}
 	}
-	if len(vs) != 11 {
-		t.Errorf("want exactly 11 violations, got %d:\n%s", len(vs), all)
+	if len(vs) != 13 {
+		t.Errorf("want exactly 13 violations, got %d:\n%s", len(vs), all)
 	}
 }
 
@@ -117,5 +120,27 @@ func TestRulesOfTestsCatchViolations(t *testing.T) {
 	}
 	if len(vs) != 9 {
 		t.Errorf("want exactly 9 violations, got %d:\n%s", len(vs), all)
+	}
+}
+
+func TestDictionaryHasOnePhraseAMeaning(t *testing.T) {
+	vs, err := lint.Words("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range vs {
+		t.Error(v)
+	}
+}
+
+func TestDictionaryCheckCatchesTwoPhrasesSaidAlike(t *testing.T) {
+	vs, err := lint.Words("testdata/bad")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The exceptions of deck's dictionary are not in the fixture.
+	vs = slices.DeleteFunc(vs, func(v lint.Violation) bool { return strings.Contains(v.Text, "sameWords lists") })
+	if len(vs) != 1 || !strings.Contains(vs[0].String(), `"Create module" and "Create project"`) {
+		t.Fatalf("one violation of two phrases, not of a phrase and its field: %v", vs)
 	}
 }

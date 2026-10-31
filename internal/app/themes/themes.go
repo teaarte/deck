@@ -282,7 +282,7 @@ func (s *Service) save(ctx context.Context, act registry.Actor, in saveIn) (any,
 }
 
 type nameIn struct {
-	Name string `desc:"The theme"`
+	Name string `desc:"Theme"`
 }
 
 func (s *Service) remove(ctx context.Context, act registry.Actor, in nameIn) (any, error) {

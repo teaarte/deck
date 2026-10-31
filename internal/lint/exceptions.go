@@ -17,3 +17,13 @@ var exceptions = map[string][]string{
 		"internal/app/providers/login.go:113", "internal/app/providers/login.go:150",
 	},
 }
+
+// sameWords are phrases of deck's dictionary one translation rightly says alike, in sorted order.
+var sameWords = [][]string{
+	{"Address", "url"},
+	{"Module", "project"},
+	{"Work", "role"},
+	{"done", "ready"},
+	{"enabled", "on"},
+	{"missing", "not installed"},
+}

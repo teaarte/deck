@@ -97,8 +97,8 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   `$DECK_DATA`; the module writes no lock of its own for that. Such a command never calls itself: the call would wait
   for the run that waits for it.
 - **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
-  input (path or query, never the host), `headers` with `$secret.<name>` (the owner stores it with
-  `secret_set`; deck cuts it out of what the service answers), `body`
+  input (path or query, never the host), `headers` with `$secret.<name>` (a secret of this module: the owner stores
+  it with `secret_set` for the module, no other module reads it; deck cuts it out of what the service answers), `body`
   template, `input` and `result` schemas. A tool without `class` is `external`. An external call outside
   `allowed_external` waits for the owner; after yes deck makes that exact call and hands the result back. Give
   a paid or risky tool `confirm_ttl_minutes`. A service that gives a private link whose token is the URL itself (a
@@ -121,8 +121,8 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   prices, and which models do text, image, tts, stt, music, video, with fallbacks); the module holds only its business
   logic and calls them through deck, never with a key: a command of type `model`, `deck.model_call` from a script or
   agent, or an API path through `$DECK_MODELS` (below). Every call names a model of deck's settings or an
-  `@<kind>`; another model is refused. A tool or MCP server of the manifest never gets the key of a connection
-  (the save refuses it). The manifest names what it calls in `models`: a connection, a model by name or
+  `@<kind>`; another model is refused. A tool or MCP server of the manifest never gets the key of a connection:
+  deck keeps those apart, and `$secret.<name>` names only the module's own secrets. The manifest names what it calls in `models`: a connection, a model by name or
   `@text`/`@image`/`@tts`/`@stt`/`@music`/`@video` for the assigned ones (a script that calls
   `$DECK_MODELS/<connection>/…` needs that connection itself in `models`, a model's name is not enough); deck keeps each call with its cost in its journal,
   and the settings of the module list the models it called. A model the module needs and deck lacks: propose it

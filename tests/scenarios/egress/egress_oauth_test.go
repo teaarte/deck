@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -197,5 +198,40 @@ func TestAFailedRefreshAfterARefusalIsNotAnUnknownOutcome(t *testing.T) {
 	rows = e.Journal()
 	if last := rows[len(rows)-1]; last.Outcome != "rejected" {
 		t.Fatalf("a call refused twice by the service is rejected: %+v", rows)
+	}
+}
+
+// TestTheTokenURLGoesByTheDomainsOfTheModule: a token URL at a local address is reached only once the module's domains
+// name it, as its tools and servers are.
+func TestTheTokenURLGoesByTheDomainsOfTheModule(t *testing.T) {
+	t.Parallel()
+	f := &fakeOAuth{access: "gone", refresh: "r0"}
+	api := harness.NewService(t, f.handler)
+	tokens := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { f.handler(w, r, 0) }))
+	t.Cleanup(tokens.Close)
+	manifest := func(domains string) string {
+		return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
+    {"name": "me", "description": "Who am I", "method": "GET", "url": "%s/me", "class": "internal",
+     "auth": {"type": "oauth2", "auth_url": "%[2]s/authorize", "token_url": "%[2]s/token", "client_id": "svc_id",
+       "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}]}%s}`, api.URL, tokens.URL, domains))
+	}
+	e := harness.New(t)
+	e.Project("svc", manifest(""))
+	for k, v := range map[string]string{"svc_id": "c", "svc_secret": "s", "svc_token": `{"access_token":"gone","refresh_token":"r0","expiry":"2020-01-01T00:00:00Z"}`} {
+		e.Secret("svc", k, v)
+	}
+	grants := func() []string {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return slices.Clone(f.grants)
+	}
+	if code, out := e.Call("svc.me", map[string]any{}); code == 200 || len(grants()) != 0 {
+		t.Fatalf("a local token URL the domains do not name is not reached: %d %s %v", code, out, grants())
+	}
+	e.Must("deck.manifest_save", map[string]any{"project": "svc", "manifest": manifest(fmt.Sprintf(`, "domains": {"read": [%q]}`, strings.TrimPrefix(tokens.URL, "http://")))}, nil)
+	var me struct{ Token string }
+	e.Must("svc.me", map[string]any{}, &me)
+	if me.Token != "a1" || !slices.Equal(grants(), []string{"refresh_token"}) {
+		t.Fatalf("the token URL the domains name is reached: %+v %v", me, grants())
 	}
 }

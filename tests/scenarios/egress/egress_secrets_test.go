@@ -90,3 +90,55 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 		t.Fatalf("a failed call keeps the link out of its error and of health: %d %s %v", code, out, hs)
 	}
 }
+
+// TestAModuleReadsOnlyItsOwnSecrets: a secret set for module a is not set for module b that names it, in a header of a
+// tool, in the environment of an MCP server, which says so in the health of b, and in an oauth2 sign-in.
+func TestAModuleReadsOnlyItsOwnSecrets(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
+	e := harness.New(t)
+	e.Project("a", harness.PostManifest(svc.URL, ""))
+	for _, name := range []string{"svc", "svc_id", "svc_secret", "svc_token"} {
+		e.Secret("a", name, "of-a-"+name)
+	}
+	e.Project("b", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+    "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
+  "tools": {"http": [{"name": "post", "description": "Posts", "method": "POST", "url": "%[1]s/items", "class": "internal",
+      "headers": {"X-Key": "$secret.svc"}, "input": {"type": "object"}},
+    {"name": "me", "description": "Who am I", "method": "GET", "url": "%[1]s/me", "class": "internal",
+      "auth": {"type": "oauth2", "auth_url": "%[1]s/authorize", "token_url": "%[1]s/token", "client_id": "svc_id",
+        "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}],
+    "mcp": {"servers": {"fake": {"command": %[2]q, "env": {"DECK_FAKE_MCP": "project", "FAKE_TOKEN": "$secret.svc"}}}}}}`, svc.URL, harness.Fakes)))
+	if code, out := e.Call("b.post", map[string]any{}); code == 200 || !strings.Contains(string(out), `secret "svc" of b is not set`) {
+		t.Fatalf("a header of b gets no secret of a: %d %s", code, out)
+	}
+	if code, out := e.Call("b.me", map[string]any{}); code == 200 || !strings.Contains(string(out), "sign in") {
+		t.Fatalf("an oauth2 tool of b has no token of a: %d %s", code, out)
+	}
+	if code, out := e.Call("deck.oauth_start", map[string]any{"tool": "b.me"}); code == 200 || !strings.Contains(string(out), `secret "svc_id" of b is not set`) {
+		t.Fatalf("a sign-in of b takes no client of a: %d %s", code, out)
+	}
+	e.Start("b", "work", nil)
+	if h := e.WaitHealth("mcp:b.fake", "error"); !strings.Contains(h.Error, `secret "svc" of b is not set`) {
+		t.Fatalf("a server of b gets no secret of a and says why it did not start: %+v", h)
+	}
+	if n := len(svc.Requests()); n != 0 {
+		t.Fatalf("no secret of a left deck for b: %d requests", n)
+	}
+}
+
+// TestAServerByURLDeckRefusesIsARowOfHealth: a server whose URL is a local address the module's domains do not name
+// never starts, and the health of its module says which and why.
+func TestAServerByURLDeckRefusesIsARowOfHealth(t *testing.T) {
+	t.Parallel()
+	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusTeapot) }))
+	t.Cleanup(local.Close)
+	e := harness.New(t)
+	e.Project("far", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+    "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
+  "tools": {"mcp": {"servers": {"far": {"url": %q}}}}}`, local.URL+"/mcp")))
+	e.Start("far", "work", nil)
+	if h := e.WaitHealth("mcp:far.far", "error"); !strings.Contains(h.Error, "did not start") || !strings.Contains(h.Error, "is not in the domains of this project") {
+		t.Fatalf("a server deck refuses to reach is a red row of its module: %+v", h)
+	}
+}

@@ -82,21 +82,25 @@ func TestTheLauncherStartsDeckAndSignsTheWindowIn(t *testing.T) {
 	opens(t, &Deck{Runner: Local{Bin: built(t), Home: t.TempDir()}, Addr: freeAddr(t)})
 }
 
-// TestTheLauncherRunsTheDeckOfWSL: on Windows the same goes through wsl.exe into the distribution of deck; here a
-// wsl.exe that runs the command on this machine stands for it.
+// TestTheLauncherRunsTheDeckOfWSL: on Windows the same goes through wsl.exe into the distribution of deck, deck under
+// the login shell of its user; here a wsl.exe that runs the command on this machine stands for it.
 func TestTheLauncherRunsTheDeckOfWSL(t *testing.T) {
 	dir := t.TempDir()
 	home := filepath.Join(dir, "home")
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	profile := "[ -n \"$WSL_FAKE_LOGIN\" ] && echo login > \"$HOME/login\"\nunset WSL_FAKE_LOGIN\n"
+	if err := os.WriteFile(filepath.Join(home, ".bash_profile"), []byte(profile), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	fake := filepath.Join(dir, "wsl.exe")
 	script := `#!/bin/sh
 while [ "$1" != "--exec" ]; do shift; done; shift
 export HOME="` + home + `"
-if [ "$1" = env ]; then shift; while [ "${1#*=}" != "$1" ]; do export "$1"; shift; done; fi
 case "$1" in
-` + Bin + `) shift; echo $$ > "` + dir + `/pid"; exec "` + built(t) + `" "$@" ;;
+bash) for a; do shift; [ "$a" = ` + Bin + ` ] && a="` + built(t) + `"; set -- "$@" "$a"; done
+  echo $$ > "` + dir + `/pid"; WSL_FAKE_LOGIN=1 exec "$@" ;;
 pkill) exec kill -TERM "$(cat "` + dir + `/pid")" ;;
 *) exec "$@" ;;
 esac
@@ -105,6 +109,51 @@ esac
 		t.Fatal(err)
 	}
 	opens(t, &Deck{Runner: WSL{Exe: fake, Distro: "deck"}, Addr: freeAddr(t)})
+	if _, err := os.Stat(filepath.Join(home, "login")); err != nil {
+		t.Fatalf("deck starts under the login shell of its user, whose profile sets its PATH: %v", err)
+	}
+}
+
+// TestTheLauncherKeepsThePathOfWindowsOutOfWSL: preparing the distribution sets in wsl.conf the user deck and no
+// PATH of Windows, whose npm and node would stand for those of Linux, keeps the rest and gives the same file again.
+func TestTheLauncherKeepsThePathOfWindowsOutOfWSL(t *testing.T) {
+	dir := t.TempDir()
+	conf := filepath.Join(dir, "wsl.conf")
+	if err := os.WriteFile(conf, []byte("[boot]\nsystemd=true\n[interop]\nappendWindowsPath = true\nenabled=true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(dir, "wsl.exe")
+	script := `#!/bin/sh
+case "$*" in
+*--status*|*--terminate*) exit 0 ;;
+*"-l -q"*) echo deck; exit 0 ;;
+esac
+while [ "$1" != "--exec" ]; do shift; done; shift
+[ "$4" = /etc/wsl.conf ] && exec sh -c "$3" sh "` + conf + `"
+echo "$3" > "` + dir + `/provision"
+`
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	w := WSL{Exe: fake, Distro: "deck"}
+	var once []byte
+	for i := range 2 {
+		if err := w.Setup("deck-linux", func(string) {}); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		got, _ := os.ReadFile(conf)
+		if i == 1 && string(got) != string(once) {
+			t.Fatalf("a second setup gives the same wsl.conf:\n%s\nthen\n%s", once, got)
+		}
+		once = got
+	}
+	want := "[boot]\nsystemd=true\n[interop]\nappendWindowsPath=false\nenabled=true\n\n[user]\ndefault=deck\n"
+	if string(once) != want {
+		t.Fatalf("wsl.conf names the user deck and leaves the PATH of Windows out, the rest kept:\n%s", once)
+	}
+	if p, _ := os.ReadFile(filepath.Join(dir, "provision")); !strings.Contains(string(p), "useradd") {
+		t.Fatalf("the distribution is provisioned: %q", p)
+	}
 }
 
 // TestTheLauncherSendsTheTokenOnlyToDeck: another program on deck's port is not taken for deck, and a deck of

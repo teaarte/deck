@@ -12,13 +12,14 @@ import (
 
 	"deck2/internal/provider"
 	"deck2/internal/provider/codex"
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
 func realCodex(t *testing.T) {
 	t.Helper()
 	harness.Needs(t, "DECK_REAL_CODEX")
-	if _, err := exec.LookPath("codex"); err != nil {
+	if _, err := sandbox.Find("codex"); err != nil {
 		t.Skip("codex is not installed")
 	}
 }

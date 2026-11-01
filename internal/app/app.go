@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -44,6 +45,7 @@ import (
 	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
+	"deck2/internal/store/db"
 	"deck2/internal/tools"
 	"deck2/internal/trigger"
 )
@@ -97,9 +99,12 @@ type App struct {
 	slowRunning atomic.Bool
 }
 
-// New starts deck with its main provider p and further built-in ones.
-func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, error) {
+// New starts deck with its built-in providers, the main one first; those of providers.Build when none.
+func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	cfg.defaults()
+	if len(builtin) == 0 {
+		builtin = providers.Build(cfg.Home)
+	}
 	h, err := home.Open(cfg.Home)
 	if err != nil {
 		return nil, err
@@ -161,7 +166,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		VideoCeiling: cfg.VideoCeiling, Key: a.Secrets.Key, WriteKey: a.Secrets.WriteKey,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
-		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
+		Builtin: builtin, Ctx: a.ctx, Go: a.bg.Go}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
@@ -216,6 +221,9 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Files.Follow(a.Bus)
 	a.Health.Derive(a.ctx, 0, nil)
 	if err := a.Updates.Mark(a.ctx); err != nil {
+		return nil, err
+	}
+	if err := st.Tx(a.ctx, func(ctx context.Context, q *db.Queries) error { return health.Clear(ctx, q, health.Of{}, health.HTTPS) }); err != nil {
 		return nil, err
 	}
 	status, text := script.Runtimes().Health()
@@ -338,6 +346,15 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 			return
 		case <-t.C:
 		}
+	}
+}
+
+// Plain records that the owner reached deck at address over plain http from another machine: the browser gives
+// passkeys, the microphone and notifications only to https, so the health row says how to put https in front of deck.
+func (a *App) Plain(address string, port int) {
+	text := fmt.Sprintf("deck is opened over plain http at %s: the browser gives passkeys, the microphone and notifications only to https; on this machine run tailscale serve --bg %d and tailscale serve --bg --https=8443 %d, or put deck behind a domain with Caddy", address, port, port+1)
+	if err := health.Write(context.Background(), a.Store, health.Of{}, health.HTTPS, health.Warning, text); err != nil {
+		slog.Error("write health", "err", err)
 	}
 }
 

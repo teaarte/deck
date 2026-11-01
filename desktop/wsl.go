@@ -36,8 +36,9 @@ func (w WSL) run(user string, args ...string) *exec.Cmd {
 	return w.wsl(append(append(all, "--cd", "~", "--exec"), args...)...)
 }
 
+// Command starts deck through the login shell of the user deck, so it finds programs on the PATH their profile sets.
 func (w WSL) Command(addr string) *exec.Cmd {
-	return w.run("", "env", "DECK_LAUNCHER=1", Bin, "-addr", addr)
+	return w.run("", "bash", "-lc", `exec "$0" "$@"`, "env", "DECK_LAUNCHER=1", Bin, "-addr", addr)
 }
 
 func (w WSL) Token(ctx context.Context) (string, error) {
@@ -58,23 +59,35 @@ func (w WSL) Kill(cmd *exec.Cmd) {
 	_ = cmd.Process.Kill()
 }
 
-// provision readies the distribution for deck: bubblewrap for its sandbox, the user deck it runs as by default, the
-// rest of wsl.conf kept; then the deck that runs stops, given its time, and the new one takes its place.
+// provision readies the distribution for deck: bubblewrap for its sandbox and the user deck it runs as; then the
+// deck that runs stops, given its time, and the new one takes its place.
 const provision = `set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q bubblewrap ca-certificates curl git python3
 id deck >/dev/null 2>&1 || useradd -m -s /bin/bash deck
-touch /etc/wsl.conf
-if grep -q '^\[user\]' /etc/wsl.conf; then
-  sed -i '/^\[user\]/,/^\[/{/^default *=/d}' /etc/wsl.conf
-  sed -i 's/^\[user\]$/[user]\ndefault=deck/' /etc/wsl.conf
-else
-  printf '\n[user]\ndefault=deck\n' >> /etc/wsl.conf
-fi
 pkill -TERM -x deck || true
 for i in $(seq 60); do pgrep -x deck >/dev/null || break; sleep 1; done
 install -m 0755 "$(wslpath -u "$0")" ` + Bin
+
+// conf sets in the wsl.conf at $1 the user deck as the default and leaves the PATH of Windows out, whose npm and
+// node would stand for those of Linux; the rest of the file stays.
+const conf = `set -e
+touch "$1"
+set_key() {
+  awk -v s="[$1]" -v k="$2" -v v="$3" '
+    $0 == s { print; print k "=" v; in_s = 1; done = 1; next }
+    /^\[/ { in_s = 0 }
+    in_s && $0 ~ "^" k " *=" { next }
+    { print }
+    END { if (!done) { print ""; print s; print k "=" v } }
+  ' "$file" > "$file.new"
+  cat "$file.new" > "$file"
+  rm "$file.new"
+}
+file=$1
+set_key user default deck
+set_key interop appendWindowsPath false`
 
 // Ready says whether the distribution of deck is there with deck in it.
 func (w WSL) Ready() bool {
@@ -103,6 +116,9 @@ func (w WSL) Setup(bin string, say func(string)) error {
 	say(tr("Putting deck into the distribution."))
 	if out, err := w.run("root", "sh", "-c", provision, bin).CombinedOutput(); err != nil {
 		return fmt.Errorf("prepare the distribution: %v: %s", err, out)
+	}
+	if out, err := w.run("root", "sh", "-c", conf, "/etc/wsl.conf").CombinedOutput(); err != nil {
+		return fmt.Errorf("set wsl.conf: %v: %s", err, out)
 	}
 	_ = w.wsl("--terminate", w.Distro).Run()
 	return nil

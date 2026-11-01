@@ -17,12 +17,14 @@ import (
 
 	"deck2/internal/home"
 	"deck2/internal/provider"
+	"deck2/internal/release"
 	"deck2/internal/sandbox"
+	"deck2/internal/untrusted"
 )
 
 // Version is the version the CLI reports, such as 2.1.281.
 func (a *Adapter) Version(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, a.Binary, "--version")
+	cmd := exec.CommandContext(ctx, a.bin(), "--version")
 	cmd.Env = environ()
 	if err := sandbox.AsAgent(cmd, nil, nil); err != nil {
 		return "", err
@@ -31,7 +33,10 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%s --version: %w", a.Binary, err)
 	}
-	v, _, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
+	v := release.Semver(string(out))
+	if v == "" {
+		return "", fmt.Errorf("%s --version printed no version: %s", a.Binary, untrusted.Line(string(out), 200))
+	}
 	return v, nil
 }
 
@@ -194,7 +199,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 
 // Login is the sign-in of the CLI by a link, as the user its turns run as.
 func (a *Adapter) Login() (*exec.Cmd, error) {
-	cmd := exec.Command(a.Binary, "auth", "login")
+	cmd := exec.Command(a.bin(), "auth", "login")
 	cmd.Env = environ()
 	return cmd, sandbox.AsAgent(cmd, nil, nil)
 }

@@ -23,6 +23,8 @@ import (
 // Adapter runs the Claude Code CLI in print mode with stream-json output. See docs/spikes/claude-code.md.
 type Adapter struct {
 	Binary string
+	// CI is the version of the CLI CI tests deck with; empty compares none.
+	CI string
 	// ConfigDir holds per-turn MCP configs; it must be outside every folder the agent writes to.
 	ConfigDir string
 	// Linger is how long the CLI may stay silent after its result before its process group is killed; TaskLinger
@@ -35,15 +37,31 @@ type Adapter struct {
 // New runs the CLI for the deck whose folder is root.
 func New(root string) *Adapter {
 	h := home.Layout(root)
-	return &Adapter{Binary: "claude", ConfigDir: h.Sessions(), Linger: 90 * time.Second, TaskLinger: 30 * time.Minute}
+	return &Adapter{Binary: "claude", CI: provider.CIVersion("CLAUDE_VERSION"), ConfigDir: h.Sessions(), Linger: 90 * time.Second, TaskLinger: 30 * time.Minute}
 }
 
 func (a *Adapter) Name() string { return cmp.Or(a.name, "claude-code") }
 
-// Installed says the program of the CLI is on the PATH of deck.
+// Installed says deck finds the program of the CLI.
 func (a *Adapter) Installed() bool {
-	_, err := exec.LookPath(a.Binary)
+	_, err := sandbox.Find(a.Binary)
 	return err == nil
+}
+
+// Install is the command that installs the CLI.
+func (a *Adapter) Install() string {
+	return provider.Install("curl -fsSL https://claude.ai/install.sh | bash")
+}
+
+// TestedVersion is the version of the CLI CI tests deck with.
+func (a *Adapter) TestedVersion() string { return a.CI }
+
+// bin is the program of the CLI as deck finds it; its name when deck finds none, which fails to start.
+func (a *Adapter) bin() string {
+	if p, err := sandbox.Find(a.Binary); err == nil {
+		return p
+	}
+	return a.Binary
 }
 
 // With is the CLI on a model of deck's settings, by its name in the CLI and its effort.
@@ -159,7 +177,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	defer outR.Close()
 	defer inW.Close()
 
-	cmd := exec.Command(a.Binary, a.args(req, cfg, setFile, plugin)...)
+	cmd := exec.Command(a.bin(), a.args(req, cfg, setFile, plugin)...)
 	cmd.Dir = req.Cwd
 	cmd.Env = environ()
 	cmd.Stdin, cmd.Stdout = inR, outW

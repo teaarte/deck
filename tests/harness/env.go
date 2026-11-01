@@ -154,7 +154,7 @@ func New(t *testing.T, opts ...Option) *Env {
 		ps = append(ps, p(s.home))
 	}
 	quiet := &Fake{ProviderName: "quiet", Script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "ok"} }}
-	a, err := app.New(c, ps[0], append(ps[1:], quiet)...)
+	a, err := app.New(c, append(ps, quiet)...)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -167,6 +167,9 @@ func (s *Service) startCheck(name string, force bool) bool {
 		case res.Err != nil:
 			status, text, verdict = health.Error, fmt.Sprintf("self-check of %s failed: %s", of, res.Err), "adapter"
 		}
+		if t, ok := sc.(provider.Tested); ok && status == health.OK && provider.Untested(res.Version, t.TestedVersion()) {
+			status, text = health.Warning, fmt.Sprintf("deck is tested with version %s of this CLI, here runs %s: it works, but may differ", t.TestedVersion(), res.Version)
+		}
 		if res.Speed > 0 {
 			if text == "" {
 				text = fmt.Sprintf("the model answered at %.0f tokens/s", res.Speed)

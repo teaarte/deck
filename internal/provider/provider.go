@@ -260,9 +260,15 @@ type Modeled interface {
 	With(name, model, effort string) Provider
 }
 
-// Installed is a provider whose program may be missing from the machine.
+// Installed is a provider whose program may be missing from the machine: Install is the command that installs it.
 type Installed interface {
 	Installed() bool
+	Install() string
+}
+
+// Tested is a provider of a CLI whose version CI tests deck with; another version runs, with a warning.
+type Tested interface {
+	TestedVersion() string
 }
 
 // SelfChecker is a provider whose adapter deck checks at start, on a button and on a broken turn.

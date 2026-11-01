@@ -22,7 +22,7 @@ func (a *Adapter) Models(ctx context.Context) ([]provider.Model, error) {
 	if err := os.MkdirAll(a.ConfigDir, 0o700); err != nil {
 		return nil, err
 	}
-	cmd := exec.CommandContext(ctx, a.Binary, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+	cmd := exec.CommandContext(ctx, a.bin(), "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
 		"--strict-mcp-config", "--setting-sources", "")
 	cmd.Dir = a.ConfigDir
 	cmd.Env = environ()

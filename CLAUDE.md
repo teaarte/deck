@@ -62,7 +62,8 @@ hold; look inside a package for the rest.
   deadlines (`Due`), the hand-on of a refused or silent turn to the next model (`handon.go`, `watch.go`), what a
   process left (`left.go`); what it needs from deck is `Deps`.
 - `internal/provider` — model providers behind one interface and one `Outcome` of a turn: `claudecode`, `codex`
-  (generated protocol), `acp` (an ACP agent in deck's sandbox on a model through deck's proxy); self-checks.
+  (generated protocol), `acp` (an ACP agent in deck's sandbox on a model through deck's proxy); self-checks; the
+  version CI tests a CLI with is the ARG of `Dockerfile` (`provider.CIVersion`, embedded by the root package).
 - `internal/gateway` — one work over one call: deck's MCP server of a process (permissions, questions,
   confirmations, commands as tools), the HTTP entry of scripts and automations, `Permit` by the rules of a command.
 - `internal/egress` — the one way to the web: a name resolves once, a request dials its addresses (`Pin`,
@@ -86,7 +87,8 @@ hold; look inside a package for the rest.
 - `internal/api` — HTTP API, SSE, files and the second origin of `custom` blocks (`Sandbox`: the guard of
   `sandbox.html` stays its first script — no WebRTC, no frames).
 - `internal/sandbox` — the sandbox of scripts, MCP servers and ACP agents (`sandbox-exec` on macOS, bubblewrap on
-  Linux), `Door` the one way out (no door, no network), `Env` the one environment.
+  Linux), `Door` the one way out (no door, no network), `Env` the one environment, `Find`/`Path` the one search of
+  programs (deck's PATH, then the login shell's, then the folders of installers).
 - `internal/untrusted` — text deck did not write, shaped (`Cut`, `Line`, `Block`) before a prompt, an ask or a
   journal.
 - `internal/files` — the files a command input points to and tools answer with (the files service is `app/files`).

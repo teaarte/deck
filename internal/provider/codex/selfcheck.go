@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"strings"
 
 	"deck2/internal/provider"
+	"deck2/internal/release"
 	"deck2/internal/sandbox"
+	"deck2/internal/untrusted"
 )
 
 // Version is the version the CLI reports, such as 0.155.1.
 func (a *Adapter) Version(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, a.Binary, "--version")
+	cmd := exec.CommandContext(ctx, a.bin(), "--version")
 	cmd.Env = environ()
 	if err := sandbox.AsAgent(cmd, nil, nil); err != nil {
 		return "", err
@@ -21,11 +22,11 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%s --version: %w", a.Binary, err)
 	}
-	f := strings.Fields(string(out))
-	if len(f) == 0 {
-		return "", fmt.Errorf("%s --version printed nothing", a.Binary)
+	v := release.Semver(string(out))
+	if v == "" {
+		return "", fmt.Errorf("%s --version printed no version: %s", a.Binary, untrusted.Line(string(out), 200))
 	}
-	return f[len(f)-1], nil
+	return v, nil
 }
 
 // SelfCheck runs the shell check of deck on Codex; Codex asks deck about its own approvals.
@@ -39,7 +40,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 
 // Login is the sign-in of the CLI by a link, as the user its turns run as.
 func (a *Adapter) Login() (*exec.Cmd, error) {
-	cmd := exec.Command(a.Binary, "login", "--device-auth")
+	cmd := exec.Command(a.bin(), "login", "--device-auth")
 	cmd.Env = environ()
 	return cmd, sandbox.AsAgent(cmd, nil, nil)
 }

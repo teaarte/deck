@@ -24,8 +24,6 @@ import (
 	"deck2/internal/home"
 	deckhome "deck2/internal/home"
 	"deck2/internal/nonce"
-	"deck2/internal/provider/claudecode"
-	"deck2/internal/provider/codex"
 	"deck2/internal/release"
 	"deck2/internal/sandbox"
 	"deck2/internal/tsnet"
@@ -120,7 +118,7 @@ func run() (*release.Restart, error) {
 			default:
 			}
 		},
-	}, claudecode.New(home), codex.New(home))
+	})
 	if err != nil {
 		return nil, err
 	}

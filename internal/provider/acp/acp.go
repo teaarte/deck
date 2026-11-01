@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -148,12 +147,12 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	defer door.Close()
 
-	bin, err := exec.LookPath(a.cfg.Binary)
+	bin, err := sandbox.Find(a.cfg.Binary)
 	if err != nil {
 		return provider.Result{}, fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
 	}
 	argv, env := a.agent.Start(Launch{Binary: bin, ModelURL: door.URL() + e.modelAt, Model: a.cfg.Model, Key: "deck"})
-	cmd, err := sandbox.Confine(life, a.cfg.Sandbox, a.cfg.Home, os.Getenv("PATH"), bin, sandbox.Policy{
+	cmd, err := sandbox.Confine(life, a.cfg.Sandbox, a.cfg.Home, sandbox.Path(), bin, sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...), Dir: req.Cwd,
 		Env: append(sandbox.Env(home, filepath.Join(home, "tmp")), env...), Write: append([]string{req.Cwd, home}, req.Dirs...),
 		Read: req.Read, Door: door})

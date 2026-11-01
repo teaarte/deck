@@ -6,15 +6,18 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"deck2/internal/release"
+	"deck2/internal/sandbox"
 )
 
 // Runtime is the python and node every script of deck runs on: the first python3 of 3.10 or newer, brew's before the
-// system's, and the node of PATH.
+// system's, and the node deck finds.
 type Runtime struct {
 	Python, PythonVersion string
 	Node, NodeVersion     string
@@ -40,9 +43,9 @@ func (r Runtime) Health() (status, text string) {
 	text = fmt.Sprintf("Scripts run on %s; %s.", py, node)
 	switch {
 	case r.Python == "":
-		return "warning", fmt.Sprintf("%s Python scripts cannot run: the owner installs python 3.10 or newer (brew install python).", text)
+		return "warning", fmt.Sprintf("%s Python scripts cannot run: the owner installs python 3.10 or newer (%s).", text, installPython())
 	case r.Old:
-		return "warning", fmt.Sprintf("%s It is older than 3.10: the owner installs a newer one (brew install python).", text)
+		return "warning", fmt.Sprintf("%s It is older than 3.10: the owner installs a newer one (%s).", text, installPython())
 	}
 	return "ok", text
 }
@@ -63,10 +66,21 @@ func pathFirst(env []string) []string {
 	return append(env, "PATH="+dir)
 }
 
+// installPython is the command that installs python on this system.
+func installPython() string {
+	if runtime.GOOS == "darwin" {
+		return "brew install python"
+	}
+	if sandbox.WSL() {
+		return "wsl -d deck -u root -- apt-get install -y python3"
+	}
+	return "sudo apt-get install python3"
+}
+
 func pick() Runtime {
 	var r Runtime
 	dirs := []string{"/opt/homebrew/bin", "/usr/local/bin"}
-	for _, d := range filepath.SplitList(os.Getenv("PATH")) {
+	for _, d := range filepath.SplitList(sandbox.Path()) {
 		if d != "" && !slices.Contains(dirs, d) {
 			dirs = append(dirs, d)
 		}
@@ -88,8 +102,8 @@ func pick() Runtime {
 			r.Python, r.PythonVersion, r.Old = p, v, true
 		}
 	}
-	if p, err := exec.LookPath("node"); err == nil {
-		r.Node, r.NodeVersion = p, strings.TrimPrefix(version(p, "--version"), "v")
+	if p, err := sandbox.Find("node"); err == nil {
+		r.Node, r.NodeVersion = p, release.Semver(version(p, "--version"))
 	}
 	return r
 }
@@ -105,13 +119,8 @@ func version(prog string, args ...string) string {
 }
 
 func newEnough(v string) bool {
-	parts := strings.SplitN(v, ".", 3)
-	if len(parts) < 2 {
-		return false
-	}
-	major, err1 := strconv.Atoi(parts[0])
-	minor, err2 := strconv.Atoi(parts[1])
-	return err1 == nil && err2 == nil && (major > 3 || major == 3 && minor >= 10)
+	n := release.Numbers(v)
+	return n != nil && slices.Compare(n, []int{3, 10, 0}) >= 0
 }
 
 // python is the python3 a script runs on.

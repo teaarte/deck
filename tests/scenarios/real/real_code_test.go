@@ -12,6 +12,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -27,7 +28,7 @@ func TestRealCodeModule(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			harness.Needs(t, c.env)
-			if _, err := exec.LookPath(c.bin); err != nil {
+			if _, err := sandbox.Find(c.bin); err != nil {
 				t.Skipf("%s is not installed", c.bin)
 			}
 			rehearseCodeModule(t, c.new)

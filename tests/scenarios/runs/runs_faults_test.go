@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -226,7 +226,7 @@ func TestTheHelpersOfTheSkillRunAsScripts(t *testing.T) {
 	e := harness.New(t)
 	for _, c := range []struct{ runtime, file string }{{"python", "deck_helper.py"}, {"node", "deck_helper.mjs"}} {
 		t.Run(c.runtime, func(t *testing.T) {
-			if _, err := exec.LookPath(map[string]string{"python": "python3", "node": "node"}[c.runtime]); err != nil {
+			if _, err := sandbox.Find(map[string]string{"python": "python3", "node": "node"}[c.runtime]); err != nil {
 				t.Skip(c.runtime + " is not installed")
 			}
 			var doc struct{ Text string }

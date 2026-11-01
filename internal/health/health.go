@@ -64,6 +64,7 @@ const (
 	Scripts   = "scripts"
 	Sandbox   = "sandbox"
 	Tailscale = "tailscale"
+	HTTPS     = "https"
 	Snapshot  = "snapshot"
 	Disk      = "disk"
 	Outbox    = "outbox"

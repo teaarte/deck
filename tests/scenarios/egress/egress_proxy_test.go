@@ -6,18 +6,18 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
 func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("uv"); err != nil {
+	if _, err := sandbox.Find("uv"); err != nil {
 		t.Skip("uv is not installed")
 	}
 	whl := harness.Wheel(t, "deckfixture")
@@ -174,7 +174,7 @@ print(json.dumps({"local": fetch(inp["allowed"]), "nowhere": fetch("http://nowhe
 // host outside the domains of the project is deck's refusal, not a failed connection, and deck itself answers.
 func TestANodeScriptFetchesThroughTheProxyOfDeck(t *testing.T) {
 	t.Parallel()
-	if _, err := exec.LookPath("node"); err != nil {
+	if _, err := sandbox.Find("node"); err != nil {
 		t.Skip("node is not installed")
 	}
 	e := harness.New(t)

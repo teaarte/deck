@@ -32,7 +32,7 @@ var rules = []rule{
 		[]string{"internal/registry/"}, refusalLit},
 	{"secret", "a reference to a secret written out: take manifest.SecretRef or SecretPrefix", []string{"internal/", "cmd/"},
 		[]string{"internal/manifest/", "internal/lint/"}, secretLit},
-	{"exec", "a process started outside the sandbox: os/exec and Setpgid are internal/sandbox's", []string{"internal/", "cmd/"},
+	{"exec", "a process started or a program looked up outside the sandbox: os/exec, LookPath and Setpgid are internal/sandbox's (sandbox.Find)", []string{"internal/", "cmd/"},
 		[]string{"internal/sandbox/"}, execUse},
 	{"client", "an HTTP client or transport built outside internal/egress: take one of egress", []string{"internal/", "cmd/"},
 		[]string{"internal/egress/"}, clientLit},
@@ -202,7 +202,7 @@ func secretLit(f *ast.File, fset *token.FileSet) []int {
 	return out
 }
 
-// execUse are the lines that import os/exec or set Setpgid.
+// execUse are the lines that import os/exec, call exec.LookPath or set Setpgid.
 func execUse(f *ast.File, fset *token.FileSet) []int {
 	var out []int
 	for _, im := range f.Imports {
@@ -210,6 +210,7 @@ func execUse(f *ast.File, fset *token.FileSet) []int {
 			out = append(out, fset.Position(im.Pos()).Line)
 		}
 	}
+	out = append(out, calls(f, fset, "os/exec", "LookPath")...)
 	ast.Inspect(f, func(n ast.Node) bool {
 		if id, ok := n.(*ast.Ident); ok && id.Name == "Setpgid" {
 			out = append(out, fset.Position(id.Pos()).Line)

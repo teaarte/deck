@@ -2,10 +2,10 @@ package script
 
 import (
 	"fmt"
-	"os/exec"
 
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
+	"deck2/internal/sandbox"
 )
 
 var interpreters = map[string]string{"python": "python3", "node": "node", "bash": "bash"}
@@ -30,7 +30,7 @@ func check(s manifest.Script) error {
 		if prog.Name == "python3" && Runtimes().Python != "" {
 			continue
 		}
-		if _, err := exec.LookPath(prog.Name); err != nil {
+		if _, err := sandbox.Find(prog.Name); err != nil {
 			if prog.Install != "" {
 				return fault.New(fault.ProgramMissing, fmt.Sprintf("program %q that script %s needs is not on this machine; the owner installs it: %s", prog.Name, s.Name, prog.Install))
 			}

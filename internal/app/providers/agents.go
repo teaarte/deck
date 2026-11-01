@@ -1,10 +1,9 @@
 package providers
 
 import (
-	"cmp"
 	"context"
 	"errors"
-	"os/exec"
+	"fmt"
 
 	"deck2/internal/health"
 	"deck2/internal/provider"
@@ -26,14 +25,13 @@ type agentView struct {
 // discover keeps one health row of an ACP agent: its version, red when it gives none, none when it is not installed.
 func (s *Service) discover(ctx context.Context, name string) {
 	subject := health.Agent(name)
-	bin := cmp.Or(s.ACPBinaries[name], name)
-	if !installed(bin) {
+	if !s.installed(name) {
 		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return health.Clear(ctx, q, health.Of{}, subject)
 		})
 		return
 	}
-	a, err := acp.New(acp.Config{Agent: name, Binary: bin, Home: s.Home, Sandbox: s.Sandbox})
+	a, err := s.agent(acp.Config{Agent: name})
 	if err != nil {
 		return
 	}
@@ -69,8 +67,8 @@ func versionErr(c provider.Check) error {
 }
 
 // agents are the built-in providers with a self-check and the ACP agents deck knows; a built-in one that is not
-// installed or that the workspace turned off says so.
-func (s *Service) agents(ctx context.Context, workspace int64) []agentView {
+// installed says how to install it, one the workspace turned off says so.
+func (s *Service) agents(ctx context.Context, workspace int64, tr func(string) string) []agentView {
 	var out []agentView
 	for _, pv := range s.Builtin {
 		if _, ok := pv.(provider.SelfChecker); !ok {
@@ -83,11 +81,14 @@ func (s *Service) agents(ctx context.Context, workspace int64) []agentView {
 		if off := s.Off(ctx, workspace, pv.Name()); off != "" {
 			v.Status, v.Error = off, ""
 		}
+		if i, ok := pv.(provider.Installed); ok && v.Status == offMissing {
+			v.Error = tr(fmt.Sprintf("not installed; install it: %s", i.Install()))
+		}
 		out = append(out, v)
 	}
 	for _, name := range acp.Names() {
 		v := agentView{Name: name, Status: "missing"}
-		if installed(cmp.Or(s.ACPBinaries[name], name)) {
+		if s.installed(name) {
 			v.Status = "checking"
 		}
 		if h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Agent(name)); err == nil {
@@ -96,9 +97,4 @@ func (s *Service) agents(ctx context.Context, workspace int64) []agentView {
 		out = append(out, v)
 	}
 	return out
-}
-
-func installed(bin string) bool {
-	_, err := exec.LookPath(bin)
-	return err == nil
 }

@@ -14,7 +14,7 @@ import (
 func (a *Adapter) Models(ctx context.Context) ([]provider.Model, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.Command(a.Binary, "app-server")
+	cmd := exec.Command(a.bin(), "app-server")
 	cmd.Env = environ()
 	if err := sandbox.AsAgent(cmd, nil, nil); err != nil {
 		return nil, err

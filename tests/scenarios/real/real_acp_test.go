@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"deck2/internal/health"
 	deckhome "deck2/internal/home"
 	"deck2/internal/manifest"
+	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 )
@@ -25,7 +25,7 @@ func realACP(t *testing.T) (map[string]string, string, string) {
 	t.Helper()
 	harness.Needs(t, "DECK_REAL_ACP")
 	bins := map[string]string{}
-	if p, err := exec.LookPath("goose"); err == nil {
+	if p, err := sandbox.Find("goose"); err == nil {
 		bins["goose"] = p
 	}
 	if len(bins) == 0 {

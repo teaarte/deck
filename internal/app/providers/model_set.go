@@ -218,7 +218,7 @@ func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connecti
 		return registry.Invalid("another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
 	case cli != nil:
 		return s.checkCLI(ctx, workspace, cli, in)
-	case !installed(cmp.Or(s.ACPBinaries[in.Agent], in.Agent)):
+	case !s.installed(in.Agent):
 		return registry.Invalid("%s is not installed on this machine", in.Agent)
 	}
 	return nil

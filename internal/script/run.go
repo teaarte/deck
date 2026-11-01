@@ -77,7 +77,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd, err := sandbox.Confine(ctx, x.Sandbox, x.Home, os.Getenv("PATH"), argv[0], sandbox.Policy{Argv: argv, Dir: j.Work(),
+	cmd, err := sandbox.Confine(ctx, x.Sandbox, x.Home, sandbox.Path(), argv[0], sandbox.Policy{Argv: argv, Dir: j.Work(),
 		Env: environ(j, data, tmp), Write: []string{j.Work(), j.Results(), data}, Read: append([]string{src}, j.Read...), Door: j.Door})
 	if err != nil {
 		return nil, err
@@ -154,7 +154,7 @@ func argvOf(s *manifest.Script, file string) ([]string, error) {
 		argv[0] = py
 	}
 	if !filepath.IsAbs(argv[0]) {
-		p, err := exec.LookPath(argv[0])
+		p, err := sandbox.Find(argv[0])
 		if err != nil {
 			return nil, fault.New(fault.ProgramMissing, fmt.Sprintf("program %q of script %s is not on this machine", argv[0], s.Name))
 		}

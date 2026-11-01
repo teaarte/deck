@@ -22,12 +22,16 @@ import (
 // domains, writing only its own folder and reading of the owner's home only the runtimes on PATH and its folders.
 func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
 	if !spec.Confine || h.Sandbox == nil {
-		cmd := exec.Command(spec.Command, spec.Args...)
+		bin, err := sandbox.Find(spec.Command)
+		if err != nil {
+			return nil, err
+		}
+		cmd := exec.Command(bin, spec.Args...)
 		cmd.Env, cmd.Dir = spec.Env, spec.Dir
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		return cmd, sandbox.AsAgent(cmd, append([]string{spec.Dir}, spec.Write...), spec.Read)
 	}
-	path, err := exec.LookPath(spec.Command)
+	path, err := sandbox.Find(spec.Command)
 	if err != nil {
 		return nil, err
 	}

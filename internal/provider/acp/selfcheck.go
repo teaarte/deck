@@ -4,19 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"regexp"
 
 	"deck2/internal/provider"
+	"deck2/internal/release"
 	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
 )
 
-var semver = regexp.MustCompile(`\d+\.\d+\.\d+[0-9A-Za-z.+-]*`)
-
 // Version is the version the agent reports, such as 1.18.20; the agent runs in the sandbox of deck for it too.
 func (a *Adapter) Version(ctx context.Context) (string, error) {
-	bin, err := exec.LookPath(a.cfg.Binary)
+	bin, err := sandbox.Find(a.cfg.Binary)
 	if err != nil {
 		return "", fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
 	}
@@ -28,7 +25,7 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 		return "", err
 	}
 	defer os.RemoveAll(home)
-	cmd, err := sandbox.Confine(ctx, a.cfg.Sandbox, a.cfg.Home, os.Getenv("PATH"), bin, sandbox.Policy{Argv: []string{bin, "--version"},
+	cmd, err := sandbox.Confine(ctx, a.cfg.Sandbox, a.cfg.Home, sandbox.Path(), bin, sandbox.Policy{Argv: []string{bin, "--version"},
 		Dir: home, Env: sandbox.Env(home, home), Write: []string{home}})
 	if err != nil {
 		return "", err
@@ -37,7 +34,7 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%s --version: %w", a.cfg.Agent, err)
 	}
-	v := semver.FindString(string(out))
+	v := release.Semver(string(out))
 	if v == "" {
 		return "", fmt.Errorf("%s --version printed no version: %s", a.cfg.Agent, untrusted.Line(string(out), 200))
 	}

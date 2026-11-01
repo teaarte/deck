@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -15,7 +16,7 @@ import (
 func TestRealBrowserVideo(t *testing.T) {
 	t.Parallel()
 	harness.Needs(t, "DECK_REAL_BROWSER")
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
+	if _, err := sandbox.Find("ffmpeg"); err != nil {
 		t.Skip("ffmpeg makes the video")
 	}
 	e := harness.New(t)

@@ -1,10 +1,10 @@
 package real
 
 import (
-	"os/exec"
 	"strings"
 	"testing"
 
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -28,7 +28,7 @@ console.log(JSON.stringify({ value: leftPad("7", 3, "0") }));
 func TestRealScriptPackages(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_PACKAGES")
 	for _, prog := range []string{"uv", "npm"} {
-		if _, err := exec.LookPath(prog); err != nil {
+		if _, err := sandbox.Find(prog); err != nil {
 			t.Skipf("%s is not installed", prog)
 		}
 	}
@@ -108,7 +108,7 @@ const path = require("node:path");
 func TestRealReferenceScripts(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_PACKAGES")
 	for _, prog := range []string{"uv", "npm", "npx", "git", "ffmpeg", "curl", "unzip"} {
-		if _, err := exec.LookPath(prog); err != nil {
+		if _, err := sandbox.Find(prog); err != nil {
 			t.Skipf("%s is not installed", prog)
 		}
 	}

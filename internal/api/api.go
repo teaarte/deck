@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"deck2/internal/app"
@@ -34,6 +35,8 @@ type Server struct {
 	pairs map[int]int
 	// proxied trusts X-Forwarded-Proto of the proxy deck is reached through.
 	proxied bool
+	// plain says the owner came from another machine over plain http since deck started.
+	plain atomic.Bool
 }
 
 func New(a *app.App, token string, web fs.FS) *Server { return &Server{app: a, token: token, web: web} }
@@ -86,7 +89,9 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		act, lent := owner, false
 		if a, ok := s.app.Tokens.Lent(strings.TrimPrefix(got, "Bearer ")); ok {
 			act, lent = a, true
-		} else if s.token == "" || subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) != 1 {
+		} else if s.token != "" && subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) == 1 {
+			s.reached(r)
+		} else {
 			var err error
 			if act, err = s.app.Tokens.Automation(r.Context(), strings.TrimPrefix(got, "Bearer ")); err != nil {
 				// The challenge tells a refused token of deck from a model's refused key a command answers with.
@@ -98,6 +103,26 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), actorKey{}, act)
 		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, lentKey{}, lent)))
 	})
+}
+
+// reached tells deck the first time the owner comes from another machine over plain http; https to deck, to its
+// proxy or to a proxy on this machine such as tailscale serve is not plain.
+func (s *Server) reached(r *http.Request) {
+	name, _ := s.hostPort(r)
+	if ip, err := netip.ParseAddr(name); name == "localhost" || err == nil && ip.Unmap().IsLoopback() {
+		return
+	}
+	remote, _, _ := net.SplitHostPort(r.RemoteAddr)
+	ip, err := netip.ParseAddr(remote)
+	local := err == nil && ip.Unmap().IsLoopback()
+	if s.secure(r) || local && r.Header.Get("X-Forwarded-Proto") == "https" || !s.plain.CompareAndSwap(false, true) {
+		return
+	}
+	port := 0
+	if la, ok := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr); ok {
+		port = la.Port
+	}
+	s.app.Plain(name, port)
 }
 
 type lentKey struct{}

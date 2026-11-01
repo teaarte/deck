@@ -18,7 +18,7 @@ const module = "deck2/"
 // layers are deck's packages from the base up; a package imports only those of a layer below its own, and a domain,
 // a package of internal/app/, only internal/app imports.
 var layers = [][]string{
-	{"internal/fault", "internal/nonce", "internal/untrusted", "internal/events", "internal/release", "internal/home", "internal/words",
+	{".", "internal/fault", "internal/nonce", "internal/untrusted", "internal/events", "internal/release", "internal/home", "internal/words",
 		"internal/store/db", "internal/lint", "internal/provider/codex/gen", "master", "schemas", "skills", "starters", "web"},
 	{"internal/store", "internal/registry", "internal/theme", "internal/egress"},
 	{"internal/manifest", "internal/health", "internal/ask", "internal/files", "internal/sandbox"},

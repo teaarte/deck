@@ -8,12 +8,28 @@ import (
 
 // kept are the variables of deck every program it starts keeps, with LC_*; HOME, TMPDIR and XDG_* would lead a
 // confined one to the owner's settings, and keys never pass.
-var kept = []string{"PATH", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "LC_"}
+var kept = []string{"USER", "LOGNAME", "SHELL", "LANG", "TZ", "LC_"}
 
-// Kept is deck's environment cut to the kept variables and more; a name ending in _ keeps every variable it begins.
-func Kept(more ...string) []string {
+// environ is deck's own environment.
+func environ() []string { return os.Environ() }
+
+// lookup is a variable of deck's environment; empty when it has none.
+func lookup(name string) string {
+	for _, kv := range slices.Backward(environ()) {
+		if v, ok := strings.CutPrefix(kv, name+"="); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// Kept is deck's environment cut to the kept variables and more, its PATH Path; a name ending in _ keeps every
+// variable it begins.
+func Kept(more ...string) []string { return append(cut(more), "PATH="+Path()) }
+
+func cut(more []string) []string {
 	names := append(slices.Clone(kept), more...)
-	return slices.DeleteFunc(os.Environ(), func(kv string) bool {
+	return slices.DeleteFunc(environ(), func(kv string) bool {
 		name, _, _ := strings.Cut(kv, "=")
 		return !slices.ContainsFunc(names, func(n string) bool { return n == name || strings.HasSuffix(n, "_") && strings.HasPrefix(name, n) })
 	})

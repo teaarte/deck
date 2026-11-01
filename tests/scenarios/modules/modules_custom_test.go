@@ -88,9 +88,8 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 	}
 }
 
-// TestCustomBlockFramesComeFromTheAddressTheClientCameBy: deck on every address, as -addr 0.0.0.0:7700, names the
-// second origin by the address of the request, never by one of every interface; [::], 0.0.0.0 and [::1], which no
-// CSP names, go to localhost.
+// TestCustomBlockFramesComeFromTheAddressTheClientCameBy: deck on every address names the second origin by the
+// address of the request; [::], 0.0.0.0 and [::1], which no CSP names, go to localhost.
 func TestCustomBlockFramesComeFromTheAddressTheClientCameBy(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.OnEveryAddress)

@@ -19,9 +19,8 @@ func lanAddress() string {
 	return ""
 }
 
-// TestRealBrowserCustomBlockOpensOnEveryAddress: deck on every address, as -addr 0.0.0.0:7700, opened by [::], by
-// localhost and by its address on the network, in Chrome and WebKit: the custom block gets its data, and the console
-// has no word of the CSP or of the sandbox.
+// TestRealBrowserCustomBlockOpensOnEveryAddress: deck on every address, opened by [::], localhost or the network, in
+// Chrome and WebKit: the custom block gets its data, and the console has no word of the CSP or of the sandbox.
 func TestRealBrowserCustomBlockOpensOnEveryAddress(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()), harness.OnEveryAddress)

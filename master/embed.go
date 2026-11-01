@@ -8,7 +8,7 @@ import (
 	"text/template"
 )
 
-//go:embed manifest.json prompt.md prompts skills
+//go:embed manifest.json prompt.md prompts skills changes.md
 var FS embed.FS
 
 // Templates are deck's own texts for agents, filled with data; they are not documents of the project.

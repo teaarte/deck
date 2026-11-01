@@ -257,14 +257,19 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 			}
 		}
 		// An agent runs again after only for a call it did not hear.
-		if p, err := q.GetProcess(ctx, processID); err != nil {
+		p, err := q.GetProcess(ctx, processID)
+		if err != nil {
 			return err
-		} else if p.Kind == KindAgent && p.Again != "" && !unheardCall(ctx, q, processID) {
+		}
+		if p.Kind == KindAgent && p.Again != "" && !unheardCall(ctx, q, processID) {
 			if err := q.SetAgain(ctx, db.SetAgainParams{ID: processID}); err != nil {
 				return err
 			}
 		}
-		var err error
+		// A failure that has no result of its own leaves the one handed in.
+		if p.SubmittedAt.Valid && result == "" {
+			result = p.Result
+		}
 		n, err = q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: f.Text,
 			ErrorType: f.Type, ErrorDetails: untrusted.Cut(f.Details, detailsCap), FinishedAt: r.stamp(), ID: processID})
 		if err != nil || n == 0 {

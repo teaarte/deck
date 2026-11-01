@@ -180,11 +180,8 @@ func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
 				}
 				return harness.ChatReply{Status: tc.status, Header: http.Header{"Retry-After": {"120"}}, Body: `{"error": {"message": "no"}}`}
 			})
-			// A result handed in wins over a later refusal, so a refused key or a limit comes before any.
-			submit := `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`
-			if tc.status != 200 {
-				submit = harness.AcpModel
-			}
+			// A result handed in makes the turn done whatever its end, so none is handed in.
+			submit := harness.AcpModel
 			f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
 				submit, tc.end))
 			e := harness.New(t, harness.WithACP(f, llm))

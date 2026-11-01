@@ -284,7 +284,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		var killed *provider.Killed
 		if a.sub != nil && a.sub.Taken() {
 			// A turn that handed in a result its schema took is done, whatever came after it.
-			err, res.Outcome = nil, provider.Done
+			err, res.Outcome, res.Past, res.Refusal = nil, provider.Done, "", ""
 		}
 		if errors.As(err, &killed) && a.sub != nil && submitted(a.sub) {
 			// A turn killed after it handed in its result is done.

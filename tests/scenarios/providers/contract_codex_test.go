@@ -95,7 +95,18 @@ func TestCodexTurnSucceedsOnlyStrictly(t *testing.T) {
 		{"two_completions.jsonl", "completions of one turn"}, {"nocompletion.jsonl", "without finishing the turn"},
 	} {
 		c := harness.NewCodex(t)
-		c.Stream(1, tc.fixture)
+		raw, err := os.ReadFile(harness.Testdata("codex/" + tc.fixture))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Without a result handed in, which would make the turn done whatever its end.
+		var lines []string
+		for _, l := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+			if !strings.Contains(l, `"result_submit"`) {
+				lines = append(lines, l)
+			}
+		}
+		c.StreamText(1, strings.Join(lines, "\n"))
 		e := harness.New(t, harness.WithCodex(c))
 		p := e.Project("paint", harness.ColorManifest)
 		id := e.Run(p, "work")

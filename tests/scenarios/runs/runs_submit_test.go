@@ -132,9 +132,8 @@ func TestDeckHandsTheMasterTheIncidentsAroundAProcess(t *testing.T) {
 	}
 }
 
-// TestAResultHandedInIsTheResultWhateverTheTurnDoesAfter: a turn that ends after the step after its result is done
-// does not start that step again; one that fails after it hands in is done with it; a second result of a session
-// that goes on after a question is refused, the first one stays.
+// TestAResultHandedInIsTheResultWhateverTheTurnDoesAfter: its step after starts once, a turn failing after it is done
+// with it, and a second result of a session that goes on after a question is refused.
 func TestAResultHandedInIsTheResultWhateverTheTurnDoesAfter(t *testing.T) {
 	t.Parallel()
 	go_on := make(chan struct{})

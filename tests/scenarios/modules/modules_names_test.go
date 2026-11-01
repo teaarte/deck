@@ -55,8 +55,9 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 	e.Must("deck.document_save", map[string]any{"project": "master", "name": name, "kind": "doc",
 		"text": older + "\nThe owner's line names `notify` and deck.notify.\n"}, nil)
 	// A base an older deck left: format 14 and its names not yet applied.
-	e.SQL(`ALTER TABLE process DROP COLUMN submitted_at`)
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 54`)
+	// Nor had it the column of a result handed in, which a later migration adds again.
+	e.SQL(`ALTER TABLE process DROP COLUMN submitted_at`)
 
 	e = e.Restart()
 	var m struct{ Text string }

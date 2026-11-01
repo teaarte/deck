@@ -29,8 +29,9 @@ func TestAStoredManifestOfFormat14ReadsInFormat15(t *testing.T) {
 		e.PlantRevision(name, "manifest.json", manifest.Canonical(old(requires)))
 	}
 	// A base an older deck left: the manifests of format 14.
-	e.SQL(`ALTER TABLE process DROP COLUMN submitted_at`)
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 56`)
+	// Nor had it the column of a result handed in, which a later migration adds again.
+	e.SQL(`ALTER TABLE process DROP COLUMN submitted_at`)
 
 	e = e.Restart()
 	for name, want := range map[string][]string{"ideas": {"images"}, "notes": nil} {

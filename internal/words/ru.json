@@ -235,7 +235,7 @@
   "Text of pushes": "Текст пушей",
   "On a locked screen a push shows its text, or only the module it is of.": "На заблокированном экране пуш показывает свой текст или только модуль, из которого он пришёл.",
   "only the module": "только модуль",
-  "the text": "текст",
+  "the text": "весь текст",
   "Hide the text": "Скрыть текст",
   "Show the text": "Показывать текст",
   "New in %s": "Новое в %s",

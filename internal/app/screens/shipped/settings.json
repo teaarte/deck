@@ -154,7 +154,7 @@
         {"type": "dialog", "name": "token", "title": "Create a token", "icon": "ticket", "blocks": [
           {"type": "form", "command": "deck.token_create", "keep_open": true,
             "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}]},
-        {"type": "table", "title": "Limits", "source": {"from": "deck.settings_list", "where": "name != 'language'"},
+        {"type": "table", "title": "Limits", "source": {"from": "deck.settings_list", "where": "name != 'language' && name != 'push_text'"},
           "description": "How much deck runs at once and how long it waits for you.",
           "columns": [
             {"label": "Setting", "bind": "title"},
@@ -189,6 +189,16 @@
           ]},
         {"type": "appearance", "title": "Pushes", "icon": "bell-ringing", "part": "pushes", "span": 2,
           "description": "deck sends a push when something waits for you or a module tells you; each device turns them on for itself."},
+        {"type": "table", "title": "Text of pushes", "source": {"from": "deck.settings_list", "where": "name == 'push_text'"},
+          "description": "On a locked screen a push shows its text, or only the module it is of.",
+          "columns": [
+            {"label": "Setting", "bind": "title"},
+            {"label": "Value", "bind": "value == 'hidden' ? 'only the module' : 'the text'"}
+          ],
+          "actions": [
+            {"label": "Hide the text", "icon": "eye-off", "command": "deck.setting_set", "params": {"name": "push_text", "value": "hidden"}, "when": "value != 'hidden'"},
+            {"label": "Show the text", "icon": "eye", "command": "deck.setting_set", "params": {"name": "push_text", "value": "full"}, "when": "value == 'hidden'"}
+          ]},
         {"type": "actions", "title": "Push key", "icon": "key", "description": "A new key stops the pushes of every device until each turns them on again.",
           "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_key_reset"}]}
       ]}

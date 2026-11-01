@@ -42,6 +42,7 @@ func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 		`ALTER TABLE file DROP COLUMN thumb_id`, `ALTER TABLE file DROP COLUMN width`, `ALTER TABLE file DROP COLUMN height`,
 		`ALTER TABLE file DROP COLUMN color`,
 		`DROP INDEX process_finished`, `ALTER TABLE process DROP COLUMN allows`, `ALTER TABLE process DROP COLUMN wrote`,
+		`ALTER TABLE process DROP COLUMN submitted_at`,
 		`DROP INDEX feed_line`, `DROP INDEX feed_run`, `ALTER TABLE feed DROP COLUMN line_id`, `ALTER TABLE feed DROP COLUMN what`,
 		`DELETE FROM goose_db_version WHERE version_id >= 46`,
 	} {

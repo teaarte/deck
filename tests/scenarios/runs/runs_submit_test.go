@@ -67,8 +67,8 @@ func TestAResultHandedInStaysWhenACallComesAndTheProcessIsStopped(t *testing.T) 
 	}
 }
 
-// TestDeckHandsTheMasterTheIncidentsAroundAProcess: a result handed in by a process that still runs long after, a
-// process that handed in a result and failed, a step after that did not start, each go to master.on_incident once.
+// TestDeckHandsTheMasterTheIncidentsAroundAProcess: a result handed in by a process that still runs long after, one
+// whose files deck could not keep, a step after that did not start, each go to master.on_incident once.
 func TestDeckHandsTheMasterTheIncidentsAroundAProcess(t *testing.T) {
 	t.Parallel()
 	handed := make(chan struct{}, 1)
@@ -76,13 +76,15 @@ func TestDeckHandsTheMasterTheIncidentsAroundAProcess(t *testing.T) {
 		if c.Command() == "" || !strings.Contains(c.Req.Prompt, "Edit the clip") {
 			return provider.Result{Text: "ok"}
 		}
-		_, _ = c.Tool(ctx, "result_submit", map[string]any{"result": map[string]any{"cut": "v2"}})
-		switch {
-		case strings.Contains(c.Req.Prompt, "the crown"):
+		result := map[string]any{"cut": "v2"}
+		if strings.Contains(c.Req.Prompt, "the sky") {
+			// A result by its schema that names a file the turn never made.
+			result["files"] = []map[string]any{{"path": "cut.mp4"}}
+		}
+		_, _ = c.Tool(ctx, "result_submit", map[string]any{"result": result})
+		if strings.Contains(c.Req.Prompt, "the crown") {
 			handed <- struct{}{}
 			<-ctx.Done()
-		case strings.Contains(c.Req.Prompt, "the sky"):
-			return provider.Result{Outcome: provider.Failed, Text: "the model broke after the result"}
 		}
 		return provider.Result{Text: "Done."}
 	}}
@@ -127,5 +129,76 @@ func TestDeckHandsTheMasterTheIncidentsAroundAProcess(t *testing.T) {
 	e.Must("deck.processes_list", map[string]any{"project": "master", "command": "on_incident"}, &ps)
 	if len(ps) != 4 {
 		t.Fatalf("each incident goes to the master once: the hung, the failed, the two steps after that did not start: %d", len(ps))
+	}
+}
+
+// TestAResultHandedInIsTheResultWhateverTheTurnDoesAfter: a turn that ends after the step after its result is done
+// does not start that step again; one that fails after it hands in is done with it; a second result of a session
+// that goes on after a question is refused, the first one stays.
+func TestAResultHandedInIsTheResultWhateverTheTurnDoesAfter(t *testing.T) {
+	t.Parallel()
+	go_on := make(chan struct{})
+	var second string
+	fake := &harness.Fake{Submits: true, Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		cut := "v2"
+		if c.Req.Resume {
+			cut = "v9"
+		}
+		out, _ := c.Tool(ctx, "result_submit", map[string]any{"result": map[string]any{"cut": cut}})
+		switch {
+		case c.Req.Resume:
+			second = out
+		case strings.Contains(c.Req.Prompt, "the crown"):
+			<-go_on
+		case strings.Contains(c.Req.Prompt, "the sky"):
+			return provider.Result{Outcome: provider.Failed, Text: "the model broke after the result"}
+		case strings.Contains(c.Req.Prompt, "the sea"):
+			c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "Which shade?"}}})
+		}
+		return provider.Result{Text: "Done."}
+	}}
+	e := harness.New(t, harness.WithProvider(fake))
+	e.Project("clips", harness.ClipsModule)
+	e.SaveScript("clips", "scripts/render.py", harness.ClipsRender)
+	renders := func(parent int64) int {
+		n := 0
+		for _, r := range runsOfCommand(e, "render") {
+			if r.Parent == parent {
+				n++
+			}
+		}
+		return n
+	}
+
+	crown := e.Start("clips", "revise", map[string]any{"record": e.Clip("a"), "note": "the crown"})
+	e.Until("the render after the result handed in to end", func() bool {
+		for _, r := range runsOfCommand(e, "render") {
+			if r.Parent == crown && (r.State == "done" || r.State == "error") {
+				return true
+			}
+		}
+		return false
+	})
+	close(go_on)
+	e.WaitState(crown, "done")
+	e.Settle()
+	if n := renders(crown); n != 1 {
+		t.Fatalf("the step after a result handed in starts once, not again when the turn ends: %d", n)
+	}
+
+	sky := e.Start("clips", "revise", map[string]any{"record": e.Clip("b"), "note": "the sky"})
+	if got := e.WaitState(sky, "done", "error"); got.State != "done" || string(got.Result) != `{"cut":"v2"}` {
+		t.Fatalf("a turn that fails after it handed in its result is done with it: %+v", got)
+	}
+
+	sea := e.Start("clips", "revise", map[string]any{"record": e.Clip("c"), "note": "the sea"})
+	e.WaitState(sea, "waiting_answer")
+	e.Answer(e.WaitAsk().ID, "blue")
+	if got := e.WaitState(sea, "done", "error"); got.State != "done" || string(got.Result) != `{"cut":"v2"}` || !strings.Contains(second, "already handed in") {
+		t.Fatalf("the session that goes on keeps its first result and is refused a second: %+v %q", got, second)
+	}
+	e.Settle()
+	if n := renders(sea); n != 1 {
+		t.Fatalf("the step after starts once for the one result: %d", n)
 	}
 }

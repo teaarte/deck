@@ -313,8 +313,9 @@ UPDATE process SET start_note = ? WHERE id = ?;
 
 
 -- name: FindTriggeredChild :one
+-- The run a trigger started after a process handed in its result or finished, whichever came first.
 SELECT c.* FROM process c JOIN process p ON p.id = c.parent_id
-WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= p.finished_at ORDER BY c.id LIMIT 1;
+WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= COALESCE(p.submitted_at, p.finished_at) ORDER BY c.id LIMIT 1;
 
 -- name: CountSlotAhead :one
 SELECT count(*) FROM process p JOIN project j ON j.id = p.project_id

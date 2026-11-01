@@ -501,8 +501,20 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 		}
 	}
 	_ = json.Unmarshal(e.SettingsBlock("Limits", nil)["rows"], &rows)
-	if len(rows) != len(list)-1 {
-		t.Fatalf("the Limits of the health tab list every setting but the language of the interface: %+v", rows)
+	if len(rows) != len(list)-2 {
+		t.Fatalf("the Limits of the health tab list every setting but the language of the interface and the text of pushes: %+v", rows)
+	}
+	var push []struct {
+		ID      string
+		Cells   []any
+		Actions []struct {
+			Verb, Command, Input string
+			Params               map[string]any
+		}
+	}
+	_ = json.Unmarshal(e.SettingsBlock("Text of pushes", nil)["rows"], &push)
+	if len(push) != 1 || push[0].ID != "push_text" || len(push[0].Actions) != 1 || push[0].Actions[0].Params["value"] != "hidden" {
+		t.Fatalf("the text of pushes has its own table with the button that hides it: %+v", push)
 	}
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	for _, s := range list {
@@ -510,6 +522,13 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 			t.Fatalf("setting_set names %s: %+v", s.Name, set)
 		}
 		if s.Name == "language" {
+			continue
+		}
+		if s.Name == "push_text" {
+			if !slices.Contains(s.Options, "hidden") {
+				t.Fatalf("push_text offers its values to pick: %+v", s.Options)
+			}
+			e.Must(push[0].Actions[0].Command, push[0].Actions[0].Params, nil)
 			continue
 		}
 		r := rows[slices.IndexFunc(rows, func(r struct {
@@ -539,7 +558,7 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	}
 	e.Must("deck.settings_list", nil, &after)
 	for _, s := range after {
-		if fmt.Sprint(s.Value) != "2" && fmt.Sprint(s.Value) != "open" && fmt.Sprint(s.Value) != "ru" {
+		if fmt.Sprint(s.Value) != "2" && fmt.Sprint(s.Value) != "open" && fmt.Sprint(s.Value) != "ru" && fmt.Sprint(s.Value) != "hidden" {
 			t.Fatalf("the button set %s: %+v", s.Name, after)
 		}
 	}

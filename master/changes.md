@@ -8,7 +8,8 @@ and bring the modules in line.
   rewrote `calls` of every stored manifest and `deck.<old>` in the documents of the master; `deck.command_describe`
   gives the input of any command.
 - 2026-11-01: a secret is of its module: `$secret.x` reads only the secrets of the module that names it, the keys of
-  connections are apart; `from_block` takes only fields of the input, never `allows` or `retry_key`.
+  connections are apart; `from_block` takes only fields of the input, never the fields deck reserves (allows,
+  retry_key).
 - 2026-11-01, format 15: every foreign program — script, MCP server, ACP agent, Claude Code, Codex — runs in a box
   of its module; `no_network` and `requires.local_browser` are gone. The network of a module is its rights:
   `domains.read` are the hosts its programs reach (`"*"` every public one, never the local network); without
@@ -20,8 +21,8 @@ and bring the modules in line.
   hides the text of every push, which then says only the module it is of.
 - 2026-11-02: a result an agent hands in with `result_submit` is kept by its process at once, and the steps `after`
   its command start then, not when the session ends. A call for the same record after that starts a run of its own
-  instead of joining. A process stopped after it handed in its result ends done with it; `process_get` gives
-  `submitted_at`.
+  instead of joining. A process stopped, failed or left by its model after it handed in its result ends done with it;
+  a second result of the same process is refused; `process_get` gives `submitted_at`.
 - 2026-11-02: deck tells the master of incidents around a process — `result_running`, `result_not_done`,
   `after_not_started` — by the trigger `on: incident` of the master (`on_incident`, skill `incident-recovery`); deck
   mends none itself.

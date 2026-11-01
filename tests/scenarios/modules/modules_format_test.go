@@ -29,6 +29,7 @@ func TestAStoredManifestOfFormat14ReadsInFormat15(t *testing.T) {
 		e.PlantRevision(name, "manifest.json", manifest.Canonical(old(requires)))
 	}
 	// A base an older deck left: the manifests of format 14.
+	e.SQL(`ALTER TABLE process DROP COLUMN submitted_at`)
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 56`)
 
 	e = e.Restart()

@@ -150,6 +150,9 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		processID := t.process
 		a.sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) },
 			Accepted: func(raw json.RawMessage) { r.keep(context.WithoutCancel(ctx), processID, raw) }}
+		if p.SubmittedAt.Valid {
+			a.sub.Kept(json.RawMessage(p.Result))
+		}
 	}
 	tok, err := r.gw.Open(ctx, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
 		Question: pv.QuestionTool(), Wait: callLimit(pv), Master: proj.Builtin == 1, Commands: t.cmd.Executor.Calls,
@@ -247,9 +250,13 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		a.listen(false)
 		r.setGroup(bg, processID, 0)
 		if l := leftModel(ctx); l != nil {
-			t.asks = asks
-			r.leaveModel(bg, t, l)
-			return
+			if a.sub == nil || !a.sub.Taken() {
+				t.asks = asks
+				r.leaveModel(bg, t, l)
+				return
+			}
+			// A model that went quiet after it handed in its result ends the turn done, not on another model.
+			ctx = bg
 		}
 		if r.cut(bg, ctx, processID) {
 			return
@@ -275,6 +282,10 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		}
 		r.toolsFound(processID)
 		var killed *provider.Killed
+		if a.sub != nil && a.sub.Taken() {
+			// A turn that handed in a result its schema took is done, whatever came after it.
+			err, res.Outcome = nil, provider.Done
+		}
 		if errors.As(err, &killed) && a.sub != nil && submitted(a.sub) {
 			// A turn killed after it handed in its result is done.
 			err, res.Outcome = nil, provider.Done

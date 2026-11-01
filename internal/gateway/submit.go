@@ -20,9 +20,23 @@ type Submit struct {
 	Accepted func(json.RawMessage)
 
 	mu sync.Mutex
-	// got is the last result handed in, including one the schema refused.
-	got  json.RawMessage
-	done bool
+	// got is the last result handed in, including one the schema refused; taken says the schema took it.
+	got         json.RawMessage
+	done, taken bool
+}
+
+// Kept is the result a process already handed in before this run of its session, which a second one does not replace.
+func (s *Submit) Kept(raw json.RawMessage) {
+	s.mu.Lock()
+	s.got, s.done, s.taken = raw, true, true
+	s.mu.Unlock()
+}
+
+// Taken says the session handed in a result its schema took.
+func (s *Submit) Taken() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.taken
 }
 
 // Result is the last result the session handed in, and whether the rebuild is spent.
@@ -68,7 +82,7 @@ func (s *Submit) handle(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallT
 		s.done = true
 		return refusal("deck: the result still does not match its schema; deck keeps it marked as not by the schema. End your turn."), nil
 	}
-	s.done = true
+	s.done, s.taken = true, true
 	if s.Accepted != nil {
 		s.Accepted(s.got)
 	}

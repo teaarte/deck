@@ -16,9 +16,10 @@ the project with the record gives what ran for that record since.
 
 - **result_running** — the process handed in its result and its turn goes on. The result is kept and the steps
   after it already started. Stop the process (`process_stop`): it ends done with its result. Nothing else.
-- **result_not_done** — the process handed in a result, then closed as stopped or failed. When the result is by its
-  schema and no later run of the same command for the record is done, run the step after it the way its trigger
-  would: the command of the trigger with the record (and `process` when the step takes it).
+- **result_not_done** — the process handed in a result, then closed other than done, such as when deck could not keep
+  a file its result names. When the files are there to keep and no later run of the same command for the record is
+  done, run the command again for the record, or the step after it the way its trigger would: the command of the
+  trigger with the record (and `process` when the step takes it).
 - **after_not_started** — a step after a done process did not start; the text says why. When the cause is gone
   (a paused project resumed, a model is back), start the step as above; when it is not, offer the fix.
 - A duplicate — two runs of a command for the same record, one done: stop the one still running unless the owner's

@@ -46,7 +46,7 @@ var settingDefs = []settingDef{
 		def:   func(*Service) any { return int64(agentLimit) }},
 	{name: "language", title: "Language of the interface; auto follows the device", options: []string{"auto", "en", "ru"},
 		def: func(*Service) any { return "auto" }},
-	{name: "push_text", title: "What a push shows on a locked screen: full, or hidden — only the module it is of", options: []string{"full", "hidden"},
+	{name: "push_text", title: "What a push shows on a locked screen", options: []string{"full", "hidden"},
 		def: func(*Service) any { return "full" }},
 }
 

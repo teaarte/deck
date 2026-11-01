@@ -462,7 +462,7 @@ func (q *Queries) FindRecordProcess(ctx context.Context, arg FindRecordProcessPa
 
 const findTriggeredChild = `-- name: FindTriggeredChild :one
 SELECT c.id, c.project_id, c.command, c.kind, c.state, c.provider, c.session_id, c.input, c.result, c.not_by_schema, c.error, c.start_note, c.parent_id, c.depth, c.trigger_id, c.retry_key, c.manifest_revision, c.trial, c.folder, c.pgid, c.ceiling_ms, c.deadline_ms, c.output_ms, c.silent_since_ms, c.pause_until_ms, c.wait_message, c.wait_fresh, c.started_at, c.finished_at, c.alone, c.dismissed, c.reopened_at, c.error_type, c.error_details, c.follows_id, c.again, c.allows, c.wrote, c.submitted_at FROM process c JOIN process p ON p.id = c.parent_id
-WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= p.finished_at ORDER BY c.id LIMIT 1
+WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= COALESCE(p.submitted_at, p.finished_at) ORDER BY c.id LIMIT 1
 `
 
 type FindTriggeredChildParams struct {
@@ -470,6 +470,7 @@ type FindTriggeredChildParams struct {
 	TriggerID sql.NullInt64
 }
 
+// The run a trigger started after a process handed in its result or finished, whichever came first.
 func (q *Queries) FindTriggeredChild(ctx context.Context, arg FindTriggeredChildParams) (Process, error) {
 	row := q.db.QueryRowContext(ctx, findTriggeredChild, arg.ParentID, arg.TriggerID)
 	var i Process

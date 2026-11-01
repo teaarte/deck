@@ -184,6 +184,7 @@ func TestTheOrderOfTheMenuBecomesALayout(t *testing.T) {
 		`INSERT INTO setting (workspace_id, key, value) SELECT 1, 'menu_order', json_array((SELECT id FROM project WHERE name = 'beta'), (SELECT id FROM project WHERE name = 'alpha'))`,
 		`DROP TABLE layout`,
 		`DROP INDEX process_finished`, `ALTER TABLE process DROP COLUMN allows`, `ALTER TABLE process DROP COLUMN wrote`,
+		`ALTER TABLE process DROP COLUMN submitted_at`,
 		`DROP INDEX feed_line`, `DROP INDEX feed_run`, `ALTER TABLE feed DROP COLUMN line_id`, `ALTER TABLE feed DROP COLUMN what`,
 		`DELETE FROM goose_db_version WHERE version_id >= 50`,
 	} {

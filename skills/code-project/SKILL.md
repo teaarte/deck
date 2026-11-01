@@ -55,7 +55,8 @@ The folder is the root of the repo (where `.git` is), not a folder inside it and
   what it did not commit; then it returns to the branch the owner was on. What the owner edits in the same
   checkout while a run works lands in the run's branch: the run holds the checkout.
 - `git push` only when the owner asks for it (a `push` button or a remark). That rule is text only: the
-  agent's shell could push, and the owner accepted that.
+  agent's shell could push, and the owner accepted that. The shell reaches the remote only by `domains.read`
+  (`github.com` in the example), over https.
 - Merge: the run's branch is rebased on the base first (a conflict stops it there), then squashed into the
   base as one commit listing the tasks, and the branch is deleted after that commit. Revert reverts that
   commit. Merge, revert, push and diff are the same command with `do`, from the buttons of the Tasks screen,

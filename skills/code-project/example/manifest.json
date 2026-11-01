@@ -1,5 +1,10 @@
 {
-  "version": 14,
+  "version": 15,
+  "domains": {
+    "read": [
+      "github.com"
+    ]
+  },
   "collections": [
     {
       "name": "tasks",

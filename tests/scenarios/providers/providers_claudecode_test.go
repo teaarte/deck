@@ -16,6 +16,7 @@ import (
 
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -39,7 +40,11 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 			t.Errorf("%s reached the CLI", k)
 		}
 	}
-	for _, k := range []string{"PATH", "HOME", "LC_ALL", "NODE_OPTIONS", "MCP_TOOL_TIMEOUT"} {
+	kept := []string{"PATH", "HOME", "LC_ALL", "MCP_TOOL_TIMEOUT"}
+	if !sandbox.Homed() {
+		kept = append(kept, "NODE_OPTIONS")
+	}
+	for _, k := range kept {
 		if _, ok := call.Env[k]; !ok {
 			t.Errorf("%s must reach the CLI", k)
 		}
@@ -51,7 +56,7 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 		t.Fatal("a new process must not resume")
 	}
 	if src, ok := harness.Flag(call.Args, "--setting-sources"); !ok || src != "" {
-		t.Fatalf("a command agent must load no settings, got %q", src)
+		t.Fatalf("a command agent loads no settings of the user, those its home keeps neither: %q", src)
 	}
 	cfg, _ := harness.Flag(call.Args, "--mcp-config")
 	cwd, _ := filepath.EvalSymlinks(call.Cwd)
@@ -76,8 +81,8 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 		set.Env["CLAUDE_CODE_USE_BEDROCK"] != "" {
 		t.Fatalf("deck settings must blank out the key helper and API variables: %s %s", call.SettingsMode, call.Settings)
 	}
-	if f, _ := harness.Flag(call.Args, "--settings"); f == "" || !strings.HasPrefix(f, filepath.Join(deckhome.Layout(home).State(), "mcp")) {
-		t.Fatalf("settings must be a file of deck: %q", f)
+	if f, _ := harness.Flag(call.Args, "--settings"); f == "" || !strings.HasPrefix(f, filepath.Join(home, "agents", "claude")+string(os.PathSeparator)) {
+		t.Fatalf("settings are a file of deck in the home of the CLI: %q", f)
 	}
 }
 
@@ -274,43 +279,6 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 	e.Sweep()
 	if got := e.WaitState(id, "done", "error"); got.State != "done" || !slices.Contains(c.Call(2).Args, "--resume") {
 		t.Fatalf("after the reset the session is resumed: %+v %v", got, c.Call(2).Args)
-	}
-}
-
-// TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork: the sandbox of the CLI closes the shell of a project
-// without network; elsewhere the shell renders, binds its ports, uses the GPU and writes its caches.
-func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
-	t.Parallel()
-	c := harness.NewCLI(t)
-	c.Stream(0, "ok.jsonl")
-	e := harness.New(t, harness.WithCLI(c))
-	for i, tc := range []struct {
-		domains string
-		sandbox bool
-	}{
-		{`"domains": {"read": ["data.example.org"]}`, false},
-		{`"domains": {"read": ["*"]}`, false},
-		{`"no_network": true`, true},
-	} {
-		p := e.Project(fmt.Sprintf("ideas%d", i), harness.ManifestWith(harness.IdeasManifest, tc.domains))
-		e.WaitState(e.Run(p, "collect"), "done", "error")
-		var set struct {
-			Sandbox *struct {
-				Enabled                  bool `json:"enabled"`
-				AllowUnsandboxedCommands bool `json:"allowUnsandboxedCommands"`
-				Network                  struct {
-					AllowedDomains []string `json:"allowedDomains"`
-				} `json:"network"`
-			} `json:"sandbox"`
-		}
-		call := c.Call(c.Calls())
-		if err := json.Unmarshal([]byte(call.Settings), &set); err != nil {
-			t.Fatal(err)
-		}
-		closed := set.Sandbox != nil && set.Sandbox.Enabled && !set.Sandbox.AllowUnsandboxedCommands && len(set.Sandbox.Network.AllowedDomains) == 0
-		if closed != tc.sandbox || !tc.sandbox && set.Sandbox != nil {
-			t.Fatalf("%s: the shell runs in the sandbox of the CLI: %v, want %v: %s", tc.domains, closed, tc.sandbox, call.Settings)
-		}
 	}
 }
 

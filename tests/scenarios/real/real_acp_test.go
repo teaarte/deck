@@ -107,7 +107,7 @@ func TestRealACPAgents(t *testing.T) {
 			for _, p := range all {
 				next = max(next, p.ID+1)
 			}
-			for i, tc := range []struct{ name, extra string }{{"open", ""}, {"closed", `, "no_network": true`}} {
+			for i, tc := range []struct{ name, extra string }{{"open", `, "domains": {"read": ["*"]}`}, {"closed", ""}} {
 				data := filepath.Join(deckhome.Layout(home).Work(), "projects", harness.Itoa(next+int64(i)), "data")
 				p := e.AcpProject(tc.name, acpRealManifest(tc.name, svc.URL, tc.extra, deckhome.Layout(home).State(), data))
 				if p != next+int64(i) {

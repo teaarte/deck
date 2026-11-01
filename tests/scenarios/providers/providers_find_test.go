@@ -20,9 +20,7 @@ import (
 func TestDeckFindsACLIInTheFolderOfItsInstallerOnAShortPath(t *testing.T) {
 	owner := harness.OwnerHome(t)
 	c := harness.NewCLI(t)
-	c.Stream(1, "selfcheck.jsonl")
-	c.Stream(2, "selfcheck_resume.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	version(c, provider.CIVersion("CLAUDE_VERSION"))
 	bin := filepath.Join(owner, ".local", "bin")
 	if err := os.MkdirAll(bin, 0o755); err != nil {
@@ -84,10 +82,8 @@ func TestACLIThatIsNotInstalledSaysHowToInstallIt(t *testing.T) {
 func TestACLIOfAnotherVersionWarnsAndWorks(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
-	c.Stream(1, "selfcheck.jsonl")
-	c.Stream(2, "selfcheck_resume.jsonl")
 	c.Stream(0, "ok.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	version(c, "2.1.300")
 	dir := t.TempDir()
 	a := c.Adapter(dir)

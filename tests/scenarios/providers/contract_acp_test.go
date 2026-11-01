@@ -286,7 +286,7 @@ func TestACPTurnIsNotUndoneByARefusedCallOnTheSide(t *testing.T) {
 		harness.AcpModel, `{"model": {"model": "m", "messages": [{"role": "user", "content": "a title for this session"}]}}`,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Checked the page."}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, llm))
-	open := strings.Replace(harness.NoNetworkManifest, `"no_network": true,`, "", 1)
+	open := harness.NoNetworkManifest
 	if got := e.WaitState(e.Run(e.AcpProject("open", open), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("a turn is done though a call on its side was refused: %+v", got)
 	}

@@ -172,9 +172,7 @@ func TestResultSeenWhileDeckStopsIsNotTheOutcome(t *testing.T) {
 // at start.
 func checkedCLIEnv(t *testing.T, c *harness.FakeCLI, home string) *harness.Env {
 	t.Helper()
-	c.Stream(1, "selfcheck.jsonl")
-	c.Stream(2, "selfcheck_resume.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)))
 	e.App.Providers.Checks(context.Background(), time.Now())
 	e.WaitHealth("provider:claude-code", "ok")

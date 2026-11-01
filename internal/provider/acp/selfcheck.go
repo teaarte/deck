@@ -48,6 +48,6 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	if c.Version, c.Err = a.Version(ctx); c.Err != nil {
 		return c
 	}
-	return provider.ShellCheck{Agent: a.cfg.Agent, Dir: a.Dir, Run: a.Run, Model: true,
+	return provider.ShellCheck{Agent: a.cfg.Agent, Kind: sandbox.KindAgent, Dir: a.Dir, Run: a.Run, Model: true,
 		Done: func(session string) { _ = os.RemoveAll(a.sessionDir(session)) }}.Check(ctx, c)
 }

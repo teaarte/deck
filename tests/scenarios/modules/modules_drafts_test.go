@@ -3,7 +3,6 @@ package modules
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -295,26 +294,6 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 	_ = json.Unmarshal(e.SettingsBlock("Modules", nil)["items"], &items)
 	if !slices.ContainsFunc(items, func(it harness.ListItem) bool { return strings.Contains(it.Meta, "asks you each time: post") }) {
 		t.Fatalf("the Projects tab says it before enabling: %+v", items)
-	}
-}
-
-// TestTheProjectShowsAgentsReachTheWholeNetwork: the read domains do not hold an agent on Claude Code or Codex, so
-// the project says its agents reach the whole network, unless it has no_network or no agent.
-func TestTheProjectShowsAgentsReachTheWholeNetwork(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	e.Project("open", harness.Manifest(`{"domains": {"read": ["example.com"]}, "commands": [`)+harness.AgentCommand("work", "")+`]}`)
-	e.Project("closed", harness.Manifest(`{"no_network": true, "commands": [`)+harness.AgentCommand("work", "")+`]}`)
-	e.Project("empty", harness.Manifest(`{}`))
-	var ps []struct{ Name, Network string }
-	e.Must("deck.projects_list", map[string]any{}, &ps)
-	for _, p := range ps {
-		if open := p.Name == "open"; p.Name != "master" && open != strings.Contains(p.Network, "whole network") {
-			t.Fatalf("%s: its agents reach the whole network only with network: %q", p.Name, p.Network)
-		}
-	}
-	if meta := e.Screen("open", "settings", nil); !strings.Contains(fmt.Sprint(meta), "whole network") {
-		t.Fatalf("the settings of the project show it: %v", meta)
 	}
 }
 

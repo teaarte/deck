@@ -210,7 +210,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 		t.Fatalf("the device is listed: %+v", devices)
 	}
 	p := e.Project("work", harness.PlainManifest)
-	e.Project("private", harness.ManifestWith(harness.PlainManifest, `"no_network": true`))
+	e.Project("private", harness.PlainManifest)
 	e.Must("deck.owner_notify", map[string]any{"project": "work", "text": "The report of the week is ready"}, nil)
 	got := d.wait(e, 1)
 	if got[0]["body"] != "The report of the week is ready" || got[0]["url"] != "/#/deck/cockpit" || got[0]["badge"] != "0" ||
@@ -228,8 +228,8 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	e.MasterSaid(topic, 1)
 	e.Must("deck.owner_notify", map[string]any{"project": "private", "text": "Your blood test is in"}, nil)
 	got = d.wait(e, 3)
-	if len(got) != 3 || strings.Contains(got[2]["body"], "blood") || got[2]["body"] != "Something in deck waits for you" {
-		t.Fatalf("a failure and a reply push nothing; a project without network pushes only a generic line: %+v", got)
+	if len(got) != 3 || got[2]["body"] != "Your blood test is in" {
+		t.Fatalf("a failure and a reply push nothing; a note of a project pushes its text: %+v", got)
 	}
 	long := strings.Repeat("word ", 60)
 	e.Must("deck.owner_notify", map[string]any{"project": "work", "text": long}, nil)
@@ -242,8 +242,8 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 		t.Fatalf("a note of a screen of deck pushes that screen: %+v", got[4])
 	}
 	e.Must("deck.owner_notify", map[string]any{"project": "master", "text": "The blood test of private is in"}, nil)
-	if got = d.wait(e, 6); got[5]["body"] != "Something in deck waits for you" {
-		t.Fatalf("a line of the master, which may quote a project without network, is generic too: %+v", got[5])
+	if got = d.wait(e, 6); got[5]["body"] != "The blood test of private is in" {
+		t.Fatalf("a line of the master pushes its text too: %+v", got[5])
 	}
 	d.mu.Lock()
 	d.gone = true

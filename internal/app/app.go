@@ -42,7 +42,6 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
-	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -103,7 +102,7 @@ type App struct {
 func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	cfg.defaults()
 	if len(builtin) == 0 {
-		builtin = providers.Build(cfg.Home)
+		builtin = providers.Build(cfg.Home, cfg.Sandbox)
 	}
 	h, err := home.Open(cfg.Home)
 	if err != nil {
@@ -139,8 +138,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser}
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
-		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, FilesMu: &a.Files.Mu,
-			Hidden: func() []string { return sandbox.Agent(h) }, AgentSlots: a.Settings.AgentSlots},
+		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, FilesMu: &a.Files.Mu, AgentSlots: a.Settings.AgentSlots},
 		process.Deps{For: a.Providers.For, Next: a.Providers.Next, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
@@ -205,6 +203,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)
 	if err := a.Secrets.Move(a.ctx); err != nil {
 		return nil, err
+	}
+	// Sessions that did not move go on as new sessions with what deck tells them; deck starts all the same.
+	if err := a.Providers.MoveSessions(a.ctx); err != nil {
+		slog.Error("move sessions", "err", err)
 	}
 	if err := a.Documents.SeedSkills(a.ctx); err != nil {
 		return nil, err

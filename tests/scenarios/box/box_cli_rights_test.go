@@ -9,9 +9,11 @@ import (
 	"testing"
 
 	deckhome "deck2/internal/home"
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
+// Outside a box of its own, on macOS until deck runs in a Linux container there, rules of the CLI close deck's state.
 func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	user := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(user, ".claude", "projects", "-elsewhere"), 0o700)
@@ -26,6 +28,13 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 		t.Fatalf("want done, got %+v", got)
 	}
 	call := c.Call(1)
+	allowed, _ := harness.Flag(call.Args, "--allowedTools")
+	if !strings.Contains(allowed, "mcp__deck__notes__post") {
+		t.Fatalf("deck tools skip the permission prompt, the gateway applies classes itself: %s", allowed)
+	}
+	if sandbox.Homed() {
+		return
+	}
 	var set struct {
 		Permissions struct{ Deny []string }
 	}
@@ -50,9 +59,5 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	}
 	if slices.ContainsFunc(set.Permissions.Deny, func(d string) bool { return strings.Contains(d, "/.claude/projects") }) {
 		t.Fatalf("the sessions of the CLI, where it keeps long tool output, stay readable: %v", set.Permissions.Deny)
-	}
-	allowed, _ := harness.Flag(call.Args, "--allowedTools")
-	if !strings.Contains(allowed, "mcp__deck__notes__post") {
-		t.Fatalf("deck tools skip the permission prompt, the gateway applies classes itself: %s", allowed)
 	}
 }

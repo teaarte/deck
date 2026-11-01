@@ -10,6 +10,7 @@ import (
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
+	"deck2/internal/sandbox"
 )
 
 // FakeCLI is a folder with the fake Claude Code CLI and the streams it replays.
@@ -47,7 +48,15 @@ func (c *FakeCLI) SkipStdin() {
 }
 
 func (c *FakeCLI) Adapter(home string) *claudecode.Adapter {
-	return &claudecode.Adapter{Binary: filepath.Join(c.Dir, "claude"), ConfigDir: deckhome.Layout(home).Sessions(), Linger: 300 * time.Millisecond, TaskLinger: 10 * time.Second}
+	return &claudecode.Adapter{Binary: filepath.Join(c.Dir, "claude"), Home: deckhome.Layout(home), Sandbox: FakeBox(home, c.Dir),
+		Linger: 300 * time.Millisecond, TaskLinger: 10 * time.Second}
+}
+
+// FakeBox is the sandbox of deck's folder home for a fake program of a test, which writes what it was given in dir.
+func FakeBox(home, dir string) *sandbox.Sandbox {
+	sb := sandbox.New(deckhome.Layout(home))
+	sb.Also.Read, sb.Also.Write = []string{Fakes, Root}, []string{dir}
+	return sb
 }
 
 type cliCall struct {
@@ -113,31 +122,29 @@ func (c *FakeCLI) Models(fixture string) {
 	}
 }
 
-// ChecksPass makes every self-check of the fake CLI pass however its calls are numbered: the CLI acts as in auto
-// mode and replays the recorded self-check turn and its resume.
+// ChecksPass makes the fake CLI do every self-check of deck, the stream set for a call still its own; a file online in
+// its folder has curl get through, leak has the probe read the hidden file.
 func (c *FakeCLI) ChecksPass() {
-	c.Approving()
-	first := Testdata("claude/selfcheck.jsonl")
-	resume := Testdata("claude/selfcheck_resume.jsonl")
+	self := Fakes
+	ok := Testdata("claude/ok.jsonl")
 	b, _ := os.ReadFile(filepath.Join(c.Dir, "before"))
 	c.Before(string(b) + `
-if grep -q 'deck-check-' "$c/stdin"; then stream='` + first + `'; fi
-if grep -q 'Give the same word and answer again' "$c/stdin"; then stream='` + resume + `'; fi`)
-}
-
-// Approving makes the fake CLI act as the real one does in auto mode on the self-check: the write in its folder
-// runs without asking, only the question reaches deck's permission tool, and curl fails without network.
-func (c *FakeCLI) Approving() {
-	self := Fakes
-	offline := Testdata("claude/selfcheck_offline.jsonl")
-	c.Before(`if grep -q -- --tools "$c/args" && grep -q 'self-check of deck' "$c/stdin"; then
-  sed "s/{{session}}/$session/g" '` + offline + `'
-  exit 0
-fi
-if [ -n "$(grep -o 'deck-check-' "$c/stdin")" ] && ! grep -q -- --resume "$c/args"; then
-  echo "$word" > word.txt
+if grep -q -e 'self-check of deck' -e 'deck did not keep the result' "$c/stdin"; then
   url=$(sed -n 's/.*"url":"\([^"]*\)".*/\1/p' "$c/mcpconfig")
-  DECK_FAKE_MCP=approve '` + self + `' "$url" AskUserQuestion '{"questions":[{"question":"Which answer should the result carry?"}]}'
+  if grep -q 'net.sh' "$c/stdin"; then
+    if [ -f "$d/online" ]; then printf 200 > net.out; else sh "$(grep -o '/[^ ]*/net.sh' "$c/stdin" | head -1)"; fi
+    DECK_FAKE_MCP=call '` + self + `' "$url" result_submit '{"result":{"word":"done","answer":""}}'
+  elif grep -q -- --resume "$c/args"; then
+    DECK_FAKE_MCP=call '` + self + `' "$url" result_submit "{\"result\":{\"word\":\"$word\",\"answer\":\"$word-answered\"}}"
+  else
+    echo "$word" > word.txt
+    sh -c "$(sed -n 's/^Run exactly this shell command once: //p' "$c/plugin/skills/deck-check/SKILL.md")"
+    sh "$(grep -o '/[^ ]*/probe.sh' "$c/stdin" | head -1)"
+    if [ -f "$d/leak" ]; then echo 0 > probe.code; fi
+    [ -n "$noask" ] || DECK_FAKE_MCP=approve '` + self + `' "$url" AskUserQuestion '{"questions":[{"question":"Which answer should the result carry?"}]}'
+    DECK_FAKE_MCP=call '` + self + `' "$url" result_submit "{\"result\":{\"word\":\"$word\",\"answer\":\"$word-answered\"}}"
+  fi
+  [ -f "$d/stream.$n" ] || stream='` + ok + `'
 fi`)
 }
 

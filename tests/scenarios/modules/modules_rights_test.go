@@ -149,9 +149,6 @@ func rightsManifest(r *rand.Rand) string {
 	if ws := pick("notes.md", "data/"); len(ws) > 0 {
 		parts = append(parts, `"writes": `+list(ws))
 	}
-	if r.IntN(2) == 0 {
-		parts = append(parts, `"no_network": true`)
-	}
 	return "{" + strings.Join(parts, ", ") + "}"
 }
 

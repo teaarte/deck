@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"syscall"
 )
 
 // bridgeArg makes the deck binary, started inside the sandbox, carry a local port to deck's socket.
@@ -44,6 +45,10 @@ func bridge(args []string) int {
 	if err := cmd.Run(); err != nil {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
+			// A program a signal ended exits as a shell tells it: 128 and the signal.
+			if ws, ok := exit.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+				return 128 + int(ws.Signal())
+			}
 			return exit.ExitCode()
 		}
 		os.Stderr.WriteString("deck sandbox: " + err.Error() + "\n")

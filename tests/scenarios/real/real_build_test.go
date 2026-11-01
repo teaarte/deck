@@ -19,8 +19,8 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 	if phrase == "" {
 		phrase = "Every morning, make me a list of the three top Hacker News stories, each with one line on why it matters."
 	}
-	home := t.TempDir()
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home)), harness.WithConfig(realWaits), harness.WithWait(25*time.Minute))
+	home := realHome(t)
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil)), harness.WithConfig(realWaits), harness.WithWait(25*time.Minute))
 	topic := e.Say(0, phrase)
 	answered := map[int64]bool{}
 	var draft string

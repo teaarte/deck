@@ -36,7 +36,7 @@ const (
 )
 
 // webDomains are the sites the caller reads pages of: any public one for the owner side, the read domains in force
-// of the project for the rest; a project with no_network has no web.
+// of the project for the rest.
 func (s *Service) webDomains(ctx context.Context, act registry.Actor) ([]string, error) {
 	if act.OwnerSide() || act.ProjectID == 0 {
 		return []string{"*"}, nil
@@ -44,10 +44,6 @@ func (s *Service) webDomains(ctx context.Context, act registry.Actor) ([]string,
 	m, err := docs.For(ctx, s.St.Q, act, act.ProjectID)
 	if err != nil {
 		return nil, err
-	}
-	if m.NoNetwork {
-		p, _ := s.St.Q.GetProject(ctx, act.ProjectID)
-		return nil, registry.Refuse("project %s has no_network, so its agents have no web", p.Name)
 	}
 	return m.Domains.Read, nil
 }
@@ -211,14 +207,14 @@ func pageText(r io.Reader) (string, string) {
 	}
 }
 
-// webCommands are the web of deck for the agents that have none of their own.
+// webCommands are the web of deck's agents, whose boxes reach only their rights.
 func (s *Service) webCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("web_search", "Search the web",
-			"Searches the web through the search service of deck's settings and gives titles, addresses and snippets; for an agent without a web search of its own. Not in a project with no_network.",
+			"Searches the web through the search service of deck's settings and gives titles, addresses and snippets.",
 			registry.Everyone, s.webSearch),
 		registry.Def("web_fetch", "Read a page",
-			"Reads a web page as text: the words of an HTML page, a text or JSON one as it is; an agent of a project reads only the sites of its domains.read (\"*\" for any). Not in a project with no_network.",
+			"Reads a web page as text: the words of an HTML page, a text or JSON one as it is; an agent of a project reads only the sites of its domains.read (\"*\" for any).",
 			registry.Everyone, s.webFetch),
 	}
 }

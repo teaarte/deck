@@ -21,6 +21,8 @@ const (
 	KindMCP     = "mcp"
 	KindAgent   = "agent"
 	KindBrowser = "browser"
+	// KindCLI is the CLI of an agent with a home of its own: Claude Code, Codex.
+	KindCLI = "cli"
 )
 
 // Box is what a foreign program sees and reaches. It is data, so a node can run the same box: deck's side of its
@@ -36,11 +38,14 @@ type Box struct {
 	// Env is the program's own environment over deck's few variables; {door}, {door.addr} and {door.key} in Argv,
 	// Env and Files are the door's URL of deck, its address and its key.
 	Env []string `json:"env,omitempty"`
-	// Files are written into Home before the program starts, by their names.
+	// Files are written before the program starts, at their paths in Home or at the absolute paths deck chose.
 	Files map[string]string `json:"files,omitempty"`
 	// Read are the paths the box reads besides the system and the programs on PATH, Write those it writes.
 	Read  []string `json:"read,omitempty"`
 	Write []string `json:"write,omitempty"`
+	// Shared are files and folders of the machine the box writes at other paths, by the path in the box: the login
+	// of a CLI every home of it shares, a home where the CLI finds it. One the machine has not yet is not there.
+	Shared map[string]string `json:"shared,omitempty"`
 	// Hosts are what the door lets the box reach; nil is no network, "*" the public internet.
 	Hosts []string `json:"hosts,omitempty"`
 	// Deck is the token of deck's side of the door.
@@ -98,14 +103,18 @@ func (s *Sandbox) Run(ctx context.Context, b Box, o IO) (*Proc, error) {
 	}
 	for name, text := range b.Files {
 		if err == nil {
-			err = home.WriteFile(filepath.Join(b.Home, filepath.Base(name)), []byte(fill(text)))
+			at := filepath.Join(b.Home, filepath.Clean("/"+name))
+			if filepath.IsAbs(name) {
+				at = name
+			}
+			err = home.WriteFile(at, []byte(fill(text)))
 		}
 	}
 	if err != nil {
 		door.Close()
 		return nil, err
 	}
-	if door != nil {
+	if door != nil && !outside(b) {
 		env = append(env, door.Env()...)
 	}
 	cmd, err := s.command(ctx, b, door, env)
@@ -115,6 +124,18 @@ func (s *Sandbox) Run(ctx context.Context, b Box, o IO) (*Proc, error) {
 	}
 	return start(cmd, door, o)
 }
+
+// Leaves says what a box of kind leaves open on this machine: the files of the machine, its network.
+func Leaves(kind string) (files, network bool) {
+	if outside(Box{Kind: kind}) {
+		return true, true
+	}
+	return false, Contained()
+}
+
+// Homed says the CLI of an agent runs in a home deck keeps for its project, in a box of its own; else, on macOS until
+// deck moves into a Linux container there and in deck's container until it builds boxes, in the home of the user.
+func Homed() bool { return !outside(Box{Kind: KindCLI}) && !Contained() }
 
 // base is the environment every box starts from: deck's few variables, its PATH, the box's home and temp folder, so
 // the caches of npm, uv and pip are the box's too; the box's own and its door's go over it.

@@ -8,8 +8,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"sync/atomic"
-	"syscall"
 	"time"
 
 	"deck2/internal/manifest"
@@ -76,34 +74,21 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 			s.mu.Unlock()
 		}
 	}()
-	cmd, err := si.Login()
-	if err != nil {
-		return nil, err
-	}
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	}
-	if cmd.Dir == "" {
-		cmd.Dir = os.TempDir()
-	}
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
+	life, stop := context.WithTimeout(s.Ctx, loginCeiling)
 	out, w, err := os.Pipe()
 	if err != nil {
+		stop()
 		return nil, err
 	}
-	cmd.Stdout, cmd.Stderr = w, w
-	life, stop := context.WithTimeout(s.Ctx, loginCeiling)
-	if err := cmd.Start(); err != nil {
+	p, err := si.Login(life, sandbox.IO{Stdout: w, Stderr: func(line string) { _, _ = w.Write([]byte(line + "\n")) }})
+	if err != nil {
 		stop()
 		out.Close()
 		w.Close()
 		return nil, err
 	}
 	started = true
-	w.Close()
+	stdin := p.Stdin
 	s.mu.Lock()
 	l.stdin, l.stop = stdin, stop
 	s.mu.Unlock()
@@ -146,17 +131,10 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 			close(shown)
 		}
 	}()
-	var exited atomic.Bool
-	go func() {
-		<-life.Done()
-		if !exited.Load() {
-			_ = sandbox.Kill(cmd, syscall.SIGKILL)
-		}
-	}()
 	s.Go(func(context.Context) {
+		err := p.Wait()
+		w.Close()
 		<-read
-		err := cmd.Wait()
-		exited.Store(true)
 		out.Close()
 		stdin.Close()
 		stop()

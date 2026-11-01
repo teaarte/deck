@@ -278,7 +278,7 @@ func TestATrialOfADraftReadsWhatItsReadsList(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("source", sourceManifest)
-	e.Project("vault", strings.Replace(sourceManifest, harness.Manifest(`{`), harness.Manifest(`{"no_network": true,`), 1))
+	e.Project("vault", sourceManifest)
 	for _, p := range []string{"source", "vault"} {
 		e.Must("deck.record_upsert", map[string]any{"project": p, "collection": "items", "records": `{"name": "a"}`}, nil)
 	}

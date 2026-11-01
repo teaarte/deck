@@ -306,7 +306,7 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
 	}
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	open := strings.Replace(harness.NoNetworkManifest, `"no_network": true,`, "", 1)
+	open := harness.ManifestWith(harness.NoNetworkManifest, `"domains": {"read": ["data.example.org"]}`)
 	if got := e.WaitState(e.Run(e.AcpProject("open", open), "work"), "done"); !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("what the agent said is the result of a command without a schema: %s", got.Result)
 	}

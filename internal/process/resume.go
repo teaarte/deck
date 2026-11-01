@@ -203,6 +203,7 @@ func (r *Runner) reap(ctx context.Context) error {
 		if g.Kind == KindScript {
 			sandbox.Reap(int(g.Pgid), r.scripts.Sandbox.Mark(sandbox.KindScript, fmt.Sprint(g.ID)))
 		} else if g.SessionID != "" {
+			// The mark of an agent's box carries its session, as the command line of one an older deck started did.
 			sandbox.Reap(int(g.Pgid), g.SessionID)
 		}
 		r.setGroup(ctx, g.ID, 0)

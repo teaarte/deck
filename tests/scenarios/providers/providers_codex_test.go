@@ -15,6 +15,7 @@ import (
 
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -37,8 +38,8 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	}
 	var skillRoots []string
 	_ = json.Unmarshal(c.Call(1).Request("skills/extraRoots/set")["extraRoots"], &skillRoots)
-	if len(skillRoots) != 1 || !strings.HasPrefix(skillRoots[0], deckhome.Layout(home).Work()+string(os.PathSeparator)) {
-		t.Fatalf("the skills are outside deck's closed state: %v", skillRoots)
+	if len(skillRoots) != 1 || !strings.HasPrefix(skillRoots[0], deckhome.Layout(home).AgentTurns("codex")+string(os.PathSeparator)) {
+		t.Fatalf("the skills are a folder of the turn deck keeps: %v", skillRoots)
 	}
 	for _, name := range []string{"module-builder", "module-conventions"} {
 		text, err := os.ReadFile(filepath.Join(skillRoots[0], name, "SKILL.md"))
@@ -46,9 +47,8 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 			t.Fatalf("the turn receives the skill %s: %v", name, err)
 		}
 	}
-	permissions, _ := c.Call(1).Config("permissions.deck.filesystem")
-	if !strings.Contains(permissions, harness.QuoteTOML(skillRoots[0])+`="read"`) {
-		t.Fatalf("the skills are read-only: %s", permissions)
+	if permissions, _ := c.Call(1).Config("permissions.deck.filesystem"); !sandbox.Homed() && !strings.Contains(permissions, harness.QuoteTOML(skillRoots[0])+`="read"`) {
+		t.Fatalf("outside its box the skills are read-only: %s", permissions)
 	}
 	e.Answer(a.ID, "blue")
 	got := e.WaitState(id, "done", "error")
@@ -78,6 +78,40 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if strings.Contains(fs, harness.QuoteTOML(home)+`=`) || !strings.Contains(shell, "XDG_CACHE_HOME="+harness.QuoteTOML(filepath.Join(data, ".cache"))) {
 		t.Fatalf("deck's folder stays open above a run, so its paths resolve, and caches go to the data folder: %s %s", fs, shell)
 	}
+	start := cc.Request("thread/start")
+	var cfg struct {
+		MCPServers map[string]map[string]any `json:"mcp_servers"`
+		Skills     struct {
+			Config []map[string]any `json:"config"`
+		} `json:"skills"`
+	}
+	_ = json.Unmarshal(start["config"], &cfg)
+	deck := cfg.MCPServers["deck"]
+	if cfg.MCPServers["loom"]["enabled"] != false || !strings.Contains(deck["url"].(string), "/mcp/") || strings.HasPrefix(deck["url"].(string), e.URL) ||
+		deck["default_tools_approval_mode"] != "approve" || !slices.Contains(deck["disabled_tools"].([]any), any("approve")) {
+		t.Fatalf("the thread has the deck gateway at the door of its box and none of the owner's MCP servers: %v", cfg.MCPServers)
+	}
+	if len(cfg.Skills.Config) != 1 || cfg.Skills.Config[0]["enabled"] != false || !strings.Contains(cfg.Skills.Config[0]["path"].(string), "owner-skill") {
+		t.Fatalf("the owner's skills are off in the thread: %v", cfg.Skills.Config)
+	}
+	if string(start["approvalPolicy"]) != `"on-request"` {
+		t.Fatalf("the thread runs on-request: %s", start["approvalPolicy"])
+	}
+	for _, off := range []string{"features.plugins=false", "features.hooks=false", "features.apps=false", "agents.enabled=false", "notify=[]",
+		"features.exec_permission_approvals=false"} {
+		if !slices.Contains(cc.Args, off) {
+			t.Fatalf("the owner's %s stays out of the session: %v", off, cc.Args)
+		}
+	}
+	var calls []map[string]any
+	e.ModelCalls("", id, &calls)
+	if len(calls) != 4 || calls[0]["gen_ai.provider.name"] != "codex" || calls[0]["gen_ai.response.model"] != "gpt-5.6-sol" ||
+		calls[0]["gen_ai.usage.input_tokens"].(float64) <= 0 {
+		t.Fatalf("each model call of the turn goes to the journal with its tokens: %v", calls)
+	}
+	if sandbox.Homed() {
+		return
+	}
 	codexPrivate := cc.Env["CODEX_HOME"]
 	if runtime.GOOS == "linux" {
 		codexPrivate = filepath.Join(codexPrivate, "{[!t]*,t[!m]*,tm[!p]*,tmp?*,t,tm}")
@@ -95,31 +129,6 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if v, _ := cc.Config("permissions.deck.network.enabled"); v != "true" {
 		t.Fatalf("a project with network gets the network in its shell: %s", v)
 	}
-	for _, off := range []string{"features.plugins=false", "features.hooks=false", "features.apps=false", "agents.enabled=false", "notify=[]",
-		"features.exec_permission_approvals=false"} {
-		if !slices.Contains(cc.Args, off) {
-			t.Fatalf("the owner's %s stays out of the session: %v", off, cc.Args)
-		}
-	}
-	start := cc.Request("thread/start")
-	var cfg struct {
-		MCPServers map[string]map[string]any `json:"mcp_servers"`
-		Skills     struct {
-			Config []map[string]any `json:"config"`
-		} `json:"skills"`
-	}
-	_ = json.Unmarshal(start["config"], &cfg)
-	deck := cfg.MCPServers["deck"]
-	if cfg.MCPServers["loom"]["enabled"] != false || !strings.HasPrefix(deck["url"].(string), e.URL+"/mcp/") ||
-		deck["default_tools_approval_mode"] != "approve" || !slices.Contains(deck["disabled_tools"].([]any), any("approve")) {
-		t.Fatalf("the thread has the deck gateway and none of the owner's MCP servers: %v", cfg.MCPServers)
-	}
-	if len(cfg.Skills.Config) != 1 || cfg.Skills.Config[0]["enabled"] != false || !strings.Contains(cfg.Skills.Config[0]["path"].(string), "owner-skill") {
-		t.Fatalf("the owner's skills are off in the thread: %v", cfg.Skills.Config)
-	}
-	if string(start["approvalPolicy"]) != `"on-request"` {
-		t.Fatalf("the thread runs on-request: %s", start["approvalPolicy"])
-	}
 	turn := cc.Request("turn/start")
 	var input []struct{ Text string }
 	_ = json.Unmarshal(turn["input"], &input)
@@ -127,27 +136,28 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 		!strings.Contains(input[0].Text, "result_submit") || !strings.Contains(input[0].Text, "mcp__deck__ask") {
 		t.Fatalf("the turn runs under the profile of deck and hands its result in with result_submit: %v", turn)
 	}
-	var calls []map[string]any
-	e.ModelCalls("", id, &calls)
-	if len(calls) != 4 || calls[0]["gen_ai.provider.name"] != "codex" || calls[0]["gen_ai.response.model"] != "gpt-5.6-sol" ||
-		calls[0]["gen_ai.usage.input_tokens"].(float64) <= 0 {
-		t.Fatalf("each model call of the turn goes to the journal with its tokens: %v", calls)
-	}
 }
 
-func TestCodexProjectWithoutNetworkHasNoWebAndNoNetwork(t *testing.T) {
+// TestCodexInItsBoxHasNoSandboxNorWebOfItsOwn: in its box Codex runs without its own sandbox and web, whose search
+// would pass the door, and keeps its login in a file.
+func TestCodexInItsBoxHasNoSandboxNorWebOfItsOwn(t *testing.T) {
+	if !sandbox.Homed() {
+		t.Skip("Codex runs in a box of its own on Linux")
+	}
 	t.Parallel()
 	c := harness.NewCodex(t)
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("paint", harness.ManifestWith(harness.ColorManifest, `"no_network": true`))
-	id := e.Run(p, "work")
-	got := e.WaitState(id, "done", "error")
+	got := e.WaitState(e.Run(e.Project("paint", harness.ColorManifest), "work"), "done", "error")
 	cc := c.Call(1)
 	web, _ := cc.Config("web_search")
-	net, _ := cc.Config("permissions.deck.network.enabled")
-	if got.State != "done" || web != `"disabled"` || net != "false" {
-		t.Fatalf("no web of Codex and no network in its shell: %+v web %s network %s", got, web, net)
+	mode, _ := cc.Config("sandbox_mode")
+	store, _ := cc.Config("cli_auth_credentials_store")
+	if _, profile := cc.Config("permissions.deck.filesystem"); got.State != "done" || web != `"disabled"` || mode != `"danger-full-access"` || store != `"file"` || profile {
+		t.Fatalf("no sandbox, web or keyring of Codex in its box: %+v web %s sandbox %s store %s", got, web, mode, store)
+	}
+	if string(cc.Request("turn/start")["permissions"]) != "" {
+		t.Fatalf("a turn in its box runs under no profile of Codex: %v", cc.Request("turn/start"))
 	}
 }
 
@@ -243,14 +253,19 @@ func TestCodexSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 	for _, tc := range []struct {
 		streams []string
 		want    string
+		boxed   bool
 	}{
-		{[]string{"selfcheck_asked.jsonl"}, "asked deck about a write in its own folder"},
-		{[]string{"selfcheck_nousage.jsonl"}, "token counts"},
-		{[]string{"selfcheck_leak.jsonl"}, "read a file deck hides"},
-		{[]string{"selfcheck_noprobe.jsonl"}, "did not run"},
-		{[]string{"selfcheck.jsonl", "selfcheck_resume.jsonl", "selfcheck_online.jsonl"}, "turn without network"},
-		{[]string{"nologin.jsonl"}, "no valid login"},
+		{[]string{"selfcheck_asked.jsonl"}, "asked deck about a write in its own folder", false},
+		{[]string{"selfcheck_nousage.jsonl"}, "token counts", false},
+		{[]string{"selfcheck_leak.jsonl"}, "read a file deck hides", true},
+		{[]string{"selfcheck_noprobe.jsonl"}, "did not run", true},
+		{[]string{"selfcheck.jsonl", "selfcheck_resume.jsonl", "selfcheck_online.jsonl"}, "turn without network", true},
+		{[]string{"nologin.jsonl"}, "no valid login", false},
 	} {
+		// Outside a box of its own the files and the network of Codex are the owner's, and the check does not probe them.
+		if tc.boxed && !sandbox.Homed() {
+			continue
+		}
 		c := harness.NewCodex(t)
 		for i, s := range tc.streams {
 			c.Stream(i+1, s)
@@ -264,24 +279,6 @@ func TestCodexSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 		if h := e.WaitHealth("provider:codex", status); !strings.Contains(h.Error, tc.want) {
 			t.Fatalf("%v: the self-check is %s with %q: %+v", tc.streams, status, tc.want, h)
 		}
-	}
-}
-
-func TestCodexNetworkEscalationInAProjectWithoutNetworkIsDeclined(t *testing.T) {
-	t.Parallel()
-	c := harness.NewCodex(t)
-	c.Stream(1, "escalation_network.jsonl")
-	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("outside", harness.ManifestWith(outsideManifest, `"no_network": true`))
-	id := e.Run(p, "work")
-	got := e.WaitState(id, "done", "error")
-	cc := c.Call(1)
-	var asks []harness.Ask
-	_, out := e.Call("deck.asks_list", nil)
-	_ = json.Unmarshal(out, &asks)
-	if got.State != "done" || len(asks) != 0 || len(cc.Answers) != 1 || !strings.Contains(string(harness.MustJSON(cc.Answers[0])), `"decline"`) ||
-		!strings.Contains(string(cc.Request("turn/steer")["input"]), "no network") {
-		t.Fatalf("network for a project without network is declined without asking the owner: %+v %v %v", got, asks, cc.Answers)
 	}
 }
 
@@ -320,13 +317,15 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	}
 }
 
-// TestCodexShellHasTheNetworkOrNone: the shell of Codex has the whole network, as the owner's, so its local ports
-// work; a list of hosts went through the proxy of Codex, which closed them. A project without network has none.
-func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
+// TestCodexShellOutsideItsBoxHasTheNetwork: outside a box of its own, on macOS until deck runs in a Linux container
+// there, the shell of Codex has the whole network, as the owner's, so its local ports work.
+func TestCodexShellOutsideItsBoxHasTheNetwork(t *testing.T) {
+	if sandbox.Homed() {
+		t.Skip("in its box the network of Codex is the door's")
+	}
 	t.Parallel()
 	c := harness.NewCodex(t)
 	c.Stream(0, "ok.jsonl")
-	c.Stream(1, "ok.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
 	listed := e.Project("paint", harness.ManifestWith(harness.ColorManifest, `"domains": {"read": ["data.example.org"]}`))
 	e.WaitState(e.Run(listed, "work"), "done", "error")
@@ -336,24 +335,5 @@ func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
 	net, _ := cc.Config("permissions.deck.network.enabled")
 	if mode != "" || proxy != "" || net != "true" {
 		t.Fatalf("the shell has the whole network without the proxy of Codex: %s %s %s", mode, proxy, net)
-	}
-	closed := e.Project("closed", harness.ManifestWith(harness.ColorManifest, `"no_network": true`))
-	e.WaitState(e.Run(closed, "work"), "done", "error")
-	if net, _ := c.Call(2).Config("permissions.deck.network.enabled"); net != "false" {
-		t.Fatalf("a project without network gives the shell none: %s", net)
-	}
-}
-
-// TestCodexIsNotOfferedACommandThatNeedsALocalBrowser: a command whose shell starts a local browser does not run on
-// Codex, whose sandbox cannot, and a project without network cannot require one.
-func TestCodexIsNotOfferedACommandThatNeedsALocalBrowser(t *testing.T) {
-	c := harness.NewCodex(t)
-	t.Setenv("CODEX_HOME", t.TempDir())
-	e := harness.New(t, harness.WithCodex(c))
-	browser := strings.Replace(harness.ColorManifest, `"class": "internal",`, `"class": "internal", "requires": ["local_browser"],`, 1)
-	e.Project("paint", browser)
-	e.Refused("paint.work", map[string]any{}, 422, "local_browser")
-	if code, out := e.Call("deck.project_create", map[string]any{"name": "quiet", "manifest": harness.ManifestWith(browser, `"no_network": true`)}); code != 422 || !strings.Contains(string(out), "requires local_browser") {
-		t.Fatalf("a project without network cannot require a local browser: %d %s", code, out)
 	}
 }

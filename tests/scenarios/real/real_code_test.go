@@ -23,8 +23,8 @@ func TestRealCodeModule(t *testing.T) {
 		name, env, bin string
 		new            func(home string) provider.Provider
 	}{
-		{"claude-code", "DECK_REAL_CLI", "claude", func(home string) provider.Provider { return claudecode.New(home) }},
-		{"codex", "DECK_REAL_CODEX", "codex", func(home string) provider.Provider { return codex.New(home) }},
+		{"claude-code", "DECK_REAL_CLI", "claude", func(home string) provider.Provider { return claudecode.New(home, nil) }},
+		{"codex", "DECK_REAL_CODEX", "codex", func(home string) provider.Provider { return codex.New(home, nil) }},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			harness.Needs(t, c.env)
@@ -77,7 +77,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		t.Fatalf("the owner's work: %q", status)
 	}
 
-	home := t.TempDir()
+	home := realHome(t)
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(newProvider(home)), harness.WithConfig(realWaits))
 	e.ImportEnabled(harness.CodeModule(t, ""), "code")
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)

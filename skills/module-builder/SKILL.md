@@ -409,7 +409,34 @@ These live here, not in deck: deck stays small and you combine them.
 - **Process marker**: anything created outside deck (a draft, a job, a post) carries the id of the deck
   process that created it, so after "outcome unknown" a search finds it instead of creating a duplicate.
 
-## 4. Scripts
+## 4. The box
+
+Every program of a module — a script, an MCP server, the CLI of an agent (Claude Code, Codex, an ACP agent) and
+everything its shell starts — runs in a box of its own that sees and reaches only what the rights of the module list:
+
+- files: the system and the runtimes deck finds on `PATH` (an nvm node, a pyenv python), its own folder and
+  `$DECK_DATA` to write, the project's folders to read. The owner's home, deck's state, secrets and other projects'
+  data are not there. A file of the owner elsewhere is opened by the owner adding its folder to the project (its
+  settings, Access → "Add a folder"): ask for that, never copy the file around the box. A program names the path it
+  was refused in its stderr (`No such file or directory`, `Operation not permitted`);
+- network: only through deck's door, to `domains.read` (`"*"` opens every public host, a right the owner gives). A
+  domain is a host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`;
+  a name reaches only public addresses, so a service on the owner's machine or network is named by its IP or
+  IP:port. The shell of an agent reaches its provider and deck, and with any `domains.read` also the package
+  registries (PyPI, npm, the go proxy), GitHub and Hugging Face; without `domains` an agent reaches only its
+  provider and deck. The CLIs' own web search and fetch are off: an agent searches with deck's `web_search` and
+  reads pages of `domains.read` with `web_fetch`;
+- inside its box a program binds local ports, starts a headless browser (Chrome, a Remotion render) and keeps its
+  caches (uv, npm, Hugging Face in `$DECK_DATA/.cache`); `"gpu": true` adds the graphics card (`/dev/dri` on Linux)
+  for rendering and local models, a right too;
+- no secrets and no keys of the owner in its environment: a secret reaches a module only through what its
+  manifest names (an HTTP tool, an MCP server).
+
+On macOS, until deck runs in a Linux container there, scripts, MCP servers and ACP agents run in `sandbox-exec`
+without local ports or the GPU, and the CLIs of Claude Code and Codex run outside the box, in the owner's home and
+network, deck's state closed only by their own rules.
+
+## 5. Scripts
 
 Write scripts by the module-conventions skill: their layout, the contract of stdin and stdout, the one form of a
 failure and its types, and their style. What deck adds to a failure: `details` gets the end of stderr after it, and
@@ -419,21 +446,14 @@ last call of the script with an error takes the type of that answer — 400, 404
 `rights.denied`, 429 of a model (or its 413 past a limit per minute) `model.limit`, 5xx of a model `model.unavailable`, 429 or a 5xx past 500 of another
 command `network` — and deck adds its error answers to the failure, so a script need not catch them only to type them.
 Without a non-zero exit stdout stays the result, so a result schema may have a field `error` of its own. A script
-runs in a sandbox:
+runs in its box (section 4):
 
-- write access only to its run folder and `$DECK_DATA`; the project folders are read-only;
-- of the owner's home folder it reads only the runtimes deck finds on `PATH` (an nvm node, a pyenv python) and
-  the project folders; the system folders read as usual. A file of the owner elsewhere is opened by the owner
-  adding its folder to the project (its settings, Access): ask for that, never copy the file around the sandbox.
-  deck does not tell a script where a project folder is (no variable, and `deck.projects_list` and
+- deck does not tell a script where a project folder is (no variable, and `deck.projects_list` and
   `folders_list` are closed to scripts), so a script that walks the folder reads its path from a record of the
   module (a `settings` collection) that you write once the owner has added the folder; a command input works too.
-  A program names the path it was refused in its stderr (`Operation not permitted`), and the error of a failed
-  script ends with where the owner opens a folder; MCP servers and ACP agents of the project read the same;
-- network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY` (Node's `fetch`
-  takes it too; `$DECK_URL` answers through the proxy or without it); a domain is a
-  host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
-  reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;
+  The error of a failed script ends with where the owner opens a folder;
+- its network goes through the proxy deck sets in `HTTP(S)_PROXY` (Node's `fetch` takes it too; `$DECK_URL`
+  answers through the proxy or without it);
 - models through `$DECK_MODELS/<connection>/<API path>` with `Authorization: Bearer $DECK_TOKEN` (an OpenAI SDK
   takes it as its base URL with the token as its key): deck puts in the key and keeps the call; `deck.models_list`
   gives the connections and models of deck's settings and what is assigned to the workspace and this project. The request names
@@ -453,9 +473,6 @@ runs in a sandbox:
   keys live only in deck secrets;
 - `runtime` is `python`, `node`, `bash` or `exec` (a program that runs by itself); `timeout_minutes` is the
   ceiling of a run, 10 by default, up to 240;
-- no local port and no GPU: a script cannot serve a page to a browser (a Remotion render) or run a model on Metal
-  (MLX). That work is an agent command on Claude Code in a project with network: its shell binds ports, uses the
-  GPU and keeps its caches like the owner's own; the script readies the inputs and the agent renders;
 - a script runs alone: its folder holds only its own file, so a helper shared by scripts is repeated in each
   (or read with `document_get` into the work folder); the helpers of this skill, `helpers/deck_helper.py` and
   `helpers/deck_helper.mjs`, are the ones module-conventions names;
@@ -536,7 +553,7 @@ A tool of the manifest called from a script (`POST $DECK_URL/commands/<project>.
 file returns `{"file": "<name>", "type", "size"}`: the file is `$DECK_RESULTS/<name>`, and `results/<name>`
 hands it to another tool or a `file` field.
 
-## 5. Agent commands
+## 6. Agent commands
 
 The prompt says what to do with the input and what the result means; facts and criteria live in md
 documents it reads, and a skill carries a reusable way of working. The agent reaches deck only through the
@@ -544,19 +561,10 @@ deck MCP server and the commands of projects: deck tells every agent not to look
 environment, files or logs and not to call deck's HTTP API around its tools. Where a tool is missing (a change of
 many records at once), give the module a script or command for it; scripts reach deck's API with `$DECK_URL`. A provider with a shell (Claude Code, Codex, an ACP agent) runs it in its auto mode: the agent works in its own
 folder and in the project's data folder (the prompt names it; indexes, caches and state live there between
-runs), runs shell commands, and searches and fetches the web without asking; the provider itself refuses
-what looks risky and asks the owner only about that. The shell of Claude Code renders, binds local ports, uses the
-GPU and keeps its caches like the owner's own shell; the shells of Claude Code and Codex reach the whole network,
-whatever `domains.read` names, and the project's settings say so to the owner; the shell of Codex reads deck's
-`work` folder, writes only its run, the data folder and its caches there (`.cache`), and starts no browser; the shells of ACP agents reach only
-package registries (PyPI, npm, the go proxy), GitHub, Hugging Face and the project's `domains.read` (`"*"` opens the
-whole network, a right the owner gives); a project with `no_network` closes every shell. Secrets and deck's own state stay closed to it; on
-Claude Code with network its shell is the owner's, so another project's data is not a wall. A deck tool of class `external` outside `allowed_external` still waits for the owner. Set
-`"no_network": true` for a project with personal data (finance, health, mail): its agents get no web and no
-network of their own and reach outside only through deck tools, and its pushes carry no text of its data; its
-scripts still reach the manifest's `domains.read` and the package registries, so keep such a script's domains to
-what it must reach. Removing the flag later is a right. `"gpu": true` gives the scripts, MCP servers and ACP
-agents of the module the graphics card (`/dev/dri` on Linux), for rendering and local models; it is a right too. An agent
+runs), runs shell commands in its box (section 4) without asking; the provider itself refuses what looks risky and asks
+the owner only about that. A deck tool of class `external` outside `allowed_external` still waits for the owner.
+A project with personal data (finance, health, mail) names no `domains`: its agents reach only their provider and
+deck, and its scripts nothing. An agent
 that must work in a folder of the owner (a code repo, notes) gets `"folder": true` in `executor` (or the folder's
 name when the project has several): it works there instead of its own folder, with the repo's CLAUDE.md or
 AGENTS.md, and a second agent in the same folder waits. Only the owner adds folders (the Settings of the
@@ -566,15 +574,12 @@ from deck.
 
 The owner picks the models of each agent command in settings (`assignment_set`); the manifest only says
 what the command needs and suggests one. Every provider has deck's tools, a shell and file writes in its auto
-mode, the web and a project folder; `requires` lists only what some lack: `no_cloud` for personal data (finance,
-health) that must stay on the owner's hardware, `images` for a model that reads pictures, and `local_browser` for a
-shell that starts a local browser or listens on a port (a Remotion still or render, a headless Chrome): only Claude
-Code in a project with network has it, so Codex and ACP agents are not offered for such a command; the sandbox of
-Codex refuses to start a browser. A local model in an ACP agent has a shell and stays on the owner's hardware. An
-agent on Claude Code or Codex searches with its own web; a model in an ACP agent (a free or local one) has deck's
-`web_search` (the search service of deck's settings, SearXNG) and `web_fetch` (pages of `domains.read` as text, any
-with `"*"`). When the agent's result is wrong without its own research (changelogs or news it cannot know in
-advance), the prompt of the command names `web_search` and `web_fetch`, so a model in an ACP agent knows to use them,
+mode and a project folder; `requires` lists only what some lack: `no_cloud` for personal data (finance,
+health) that must stay on the owner's hardware, and `images` for a model that reads pictures. A local model in an
+ACP agent has a shell and stays on the owner's hardware. Every agent searches with deck's `web_search` (the search
+service of deck's settings, SearXNG) and reads pages with `web_fetch` (pages of `domains.read` as text, any with
+`"*"`). When the agent's result is wrong without its own research (changelogs or news it cannot know in
+advance), the prompt of the command names `web_search` and `web_fetch`, so the agent knows to use them,
 and `calls` lists them if the command lists its calls. Leave the web out when a script brings the pages the agent
 judges, which is cheaper. Fetching known pages belongs in a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
 runs the same way every time and works with any provider. A requirement a local model lacks keeps routine work off
@@ -592,7 +597,7 @@ model that reads and rewrites records one by one drops fields and runs out of ti
 than English is where a small model slips most (mixed languages, stray alphabets): let the script check it and
 try the command on the model it will run on before the hand-over.
 
-## 6. Confirmations
+## 7. Confirmations
 
 Each "yes" the owner gives by habit is a failure of the module. What an agent does in its own folders, in its
 shell and on the web does not wait for the owner: the provider's auto mode passes it and asks only about what
@@ -609,7 +614,7 @@ count what will wait for the owner in a normal week and remove what they would a
 
 Name each of these rights in the hand-over: the owner grants them with "enable".
 
-## 7. Build, import, try
+## 8. Build, import, try
 
 1. Write the module as a folder: `manifest.json`, `prompt.md` (its first line is the one-line description
    deck and the master choose the project by), `prompts/*.md`, `scripts/*`, `skills/<name>/SKILL.md`,
@@ -661,7 +666,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    MCP servers: a missing program or a failed server shows there with its error.
 4. A draft never runs on its schedule. Only the owner enables it.
 
-## 8. Moving modules and skills
+## 9. Moving modules and skills
 
 - **Export a module** into a new or empty folder: `documents_list` of the project, then `document_get` of every
   document of kind manifest, prompt, script, skill, custom and doc that has no `owner_kind`, written to the
@@ -677,7 +682,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
   `name: <name>` and a `description`; deck refuses skills that grant tools (`allowed-tools`, `hooks`) and path
   parts that do not start with a letter or digit (`__init__.py`) — tell the owner what did not come in and why.
 
-## 9. Rights
+## 10. Rights
 
 Ask only for what the module needs. A module asks for roles (`@text`, `@image`, `@tts`, `@stt`) for its own work,
 not for the owner's connections or model names: another owner has their own, and a module that moves works on their
@@ -690,12 +695,12 @@ manifest as it is then. An edit of the same lines, or one after which it would w
 with a note, so ask again after it. Every
 other change you make to an enabled project is listed as "done without you" with an undo.
 
-## 10. Hand over
+## 11. Hand over
 
 Tell the owner in a few plain sentences: what the module does and when, what the trial showed, and the
 rights "enable" will grant. Do not enable it yourself.
 
-## 11. Improve this skill
+## 12. Improve this skill
 
 When the owner fixes by hand a module you built, or you had to guess because this skill was silent or wrong,
 fix the section that led you there: `document_save`, kind `skill`, name `skills/module-builder/SKILL.md`, no

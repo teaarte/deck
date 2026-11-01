@@ -3,7 +3,6 @@ package acp
 import (
 	"fmt"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strings"
 	"sync"
@@ -33,10 +32,7 @@ type entry struct {
 func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == e.mcp.Path:
-		(&httputil.ReverseProxy{FlushInterval: -1, Rewrite: func(pr *httputil.ProxyRequest) {
-			pr.SetURL(&url.URL{Scheme: e.mcp.Scheme, Host: e.mcp.Host})
-			pr.Out.URL.Path, pr.Out.URL.RawPath = e.mcp.Path, ""
-		}}).ServeHTTP(w, r)
+		provider.MCP(e.mcp).ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, e.modelAt+"/"):
 		http.StripPrefix(e.modelAt, e.api).ServeHTTP(w, r)
 	default:

@@ -28,7 +28,7 @@ type codexSchema struct {
 }
 
 // codexArgs are the config keys deck may set when it starts the app-server.
-var codexArgs = []string{"features.", "sandbox_mode=", "agents.enabled=", "notify=", "web_search=", "default_permissions=", "permissions.deck.", "shell_environment_policy.set="}
+var codexArgs = []string{"features.", "sandbox_mode=", "cli_auth_credentials_store=", "agents.enabled=", "notify=", "web_search=", "default_permissions=", "permissions.deck.", "shell_environment_policy.set="}
 
 // codexThreadConfig are the keys deck may set in the config of a thread.
 var codexThreadConfig = []string{"mcp_servers", "skills"}
@@ -44,6 +44,9 @@ func serveCodex(dir string) {
 		}
 		fmt.Printf("codex-cli %s\n", strings.TrimSpace(string(v)))
 		os.Exit(0)
+	}
+	if len(args) == 4 && args[0] == "-c" && args[1] == `cli_auth_credentials_store="file"` {
+		args = args[2:]
 	}
 	if len(args) == 2 && args[0] == "login" && args[1] == "--device-auth" {
 		fmt.Print("Follow these steps to sign in with ChatGPT using device code authorization:\n\n1. Open this link in your browser and sign in to your account\n   \x1b[94mhttps://auth.openai.com/codex/device\x1b[0m\n\n2. Enter this one-time code \x1b[90m(expires in 15 minutes)\x1b[0m\n   \x1b[94mN3NL-OVDO2\x1b[0m\n")

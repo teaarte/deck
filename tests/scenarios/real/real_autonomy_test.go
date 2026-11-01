@@ -16,6 +16,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -42,8 +43,8 @@ func realWaits(c *app.Config) { c.QuestionWait, c.ConfirmWait = 4*time.Minute, 4
 // web need no confirmation, the external deck tool waits for yes; a project without network has no web.
 func TestRealClaudeCodeAutonomy(t *testing.T) {
 	realCLI(t)
-	home := t.TempDir()
-	realAutonomy(t, home, claudecode.New(home), claudeAutoPrompt)
+	home := realHome(t)
+	realAutonomy(t, home, claudecode.New(home, nil), claudeAutoPrompt)
 }
 
 // TestRealCodexAutonomy runs a command agent on the installed Codex: its file and the web need no yes, the external
@@ -51,7 +52,7 @@ func TestRealClaudeCodeAutonomy(t *testing.T) {
 func TestRealCodexAutonomy(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
-	realAutonomy(t, home, codex.New(home), codexAutoPrompt)
+	realAutonomy(t, home, codex.New(home, nil), codexAutoPrompt)
 }
 
 func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string) {
@@ -61,10 +62,11 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 	if err := os.WriteFile(harness.DeckSecretPath(home), owner, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// In its box a CLI has no web of its own, and its shell reaches only the hosts of its project's rights.
 	for _, tc := range []struct {
 		name, extra string
-		web         bool
-	}{{"open", "", true}, {"closed", `, "no_network": true`, false}} {
+		web, reach  bool
+	}{{"open", `, "domains": {"read": ["*"]}`, !sandbox.Homed(), true}, {"closed", "", !sandbox.Homed(), !sandbox.Homed()}} {
 		p := e.Project(tc.name, autoManifest(prompt, tc.name, svc.URL, tc.extra, deckhome.Layout(home).State()))
 		id := e.Run(p, "work")
 		var asks []harness.Ask
@@ -99,7 +101,7 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 		}
 		_ = json.Unmarshal(got.Result, &res)
 		if got.State != "done" || strings.TrimSpace(string(b)) != "deck-ok" || res.Web != tc.web || tc.web && res.Title == "" || confirmed != 1 ||
-			res.Token != "" || strings.Contains(string(got.Result), strings.TrimSpace(string(owner))) || !tc.web && res.Curl == "200" {
+			res.Token != "" || strings.Contains(string(got.Result), strings.TrimSpace(string(owner))) || (res.Curl == "200") != tc.reach {
 			t.Fatalf("%s: want done with the file written and web %v: %+v", tc.name, tc.web, got)
 		}
 	}

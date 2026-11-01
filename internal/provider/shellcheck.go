@@ -31,8 +31,12 @@ const checkSkill = "deck-check"
 
 // ShellCheck is what the self-check of an adapter whose agent has a shell of its own differs in.
 type ShellCheck struct {
-	// Agent names the agent in what the check says.
+	// Agent names the agent in what the check says; Kind is the kind of its box.
 	Agent string
+	Kind  string
+	// Question is the agent's own tool of a question to the owner, which reaches deck's permission tool; the ask tool
+	// of deck's MCP server when empty.
+	Question string
 	// Dir keeps the folders of the check while it runs.
 	Dir string
 	Run func(ctx context.Context, req Request) (Result, error)
@@ -45,12 +49,12 @@ type ShellCheck struct {
 }
 
 // Check runs a short session as deck runs agents: a write, a skill, a hidden file its shell cannot read, ask, result_submit,
-// token counts, a resume, then a turn whose curl has no network (not in deck's container); deck reads the probes.
+// token counts, a resume, then a turn whose curl reaches no host (not in deck's container); deck reads the probes.
 func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	c = start
 	word, secret, skilled := CheckWord(), CheckWord(), CheckWord()
 	answer := word + "-answered"
-	cs := &CheckServer{Answer: answer, Approve: s.PermissionMCP != ""}
+	cs := &CheckServer{Answer: answer, Approve: s.PermissionMCP != "", Question: s.Question}
 	url, stop, err := ServeCheck(cs.Server())
 	if err != nil {
 		c.Err = err
@@ -97,8 +101,13 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	}
 	skill := "---\nname: " + checkSkill + "\ndescription: The word of deck's self-check.\n---\n\nRun exactly this shell command once: echo " +
 		skilled + " > " + filepath.Join(work, "skill.txt") + "\n"
+	ask := "Ask the owner with the ask tool of the deck MCP server: \"Which answer should the result carry?\" and wait for the answer."
+	if s.Question != "" {
+		ask = "Ask with " + s.Question + " one question \"Which answer should the result carry?\" with the options yes and no, and wait for the answer."
+	}
 	req := Request{Cwd: work, SessionID: sessions[0], MCPURL: url, PermissionMCP: s.PermissionMCP,
-		Skills: map[string]string{checkSkill + "/SKILL.md": skill},
+		AllowedTools: []string{Qualify("ask"), Qualify("result_submit")},
+		Skills:       map[string]string{checkSkill + "/SKILL.md": skill},
 		OnEvent: func(e Event) {
 			if e.Kind != EventStderr && e.Kind != EventRateLimit {
 				Answered(ctx)
@@ -115,7 +124,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		Prompt: "This is a self-check of deck. Do these steps in order, one at a time.\n1. Run exactly this shell command once: echo " + word + " > " + filepath.Join(work, "word.txt") +
 			"\n2. Read your skill " + checkSkill + " and run the one shell command it gives." +
 			"\n3. Run exactly this shell command once: sh " + filepath.Join(work, "probe.sh") +
-			"\n4. Ask the owner with the ask tool of the deck MCP server: \"Which answer should the result carry?\" and wait for the answer." +
+			"\n4. " + ask +
 			"\n5. Only after you have the answer, hand in {\"word\": \"" + word + "\", \"answer\": <the answer you got>} with the result_submit tool of the deck MCP server, then end your turn."}
 	type out struct{ Word, Answer string }
 	// missed is set when a turn ended in words without result_submit, which a real turn is reminded of once.
@@ -185,15 +194,19 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	read, _ := os.ReadFile(filepath.Join(work, "skill.txt"))
 	code, codeErr := os.ReadFile(filepath.Join(work, "probe.code"))
 	probed, _ := os.ReadFile(filepath.Join(work, "probe.out"))
+	// The box of the agent's kind may leave the files or the network of the machine open, as it did on macOS.
+	files, network := sandbox.Leaves(s.Kind)
 	switch {
 	case strings.TrimSpace(string(written)) != word:
 		model(fmt.Errorf("auto mode: the write in its own folder did not run (word.txt: %q)", string(written)))
-	case codeErr != nil:
+	case codeErr != nil && !files:
 		model(errors.New("secrets: the probe that reads a hidden file did not run"))
-	case strings.TrimSpace(string(code)) == "0" || strings.Contains(string(probed), secret):
+	case !files && (strings.TrimSpace(string(code)) == "0" || strings.Contains(string(probed), secret)):
 		c.Err = fmt.Errorf("secrets: the shell of %s read a file deck hides", s.Agent)
 	case strings.TrimSpace(string(read)) != skilled:
 		model(fmt.Errorf("skills: the command of the skill deck gave the turn did not run: %s could not read the skill or did not follow it (skill.txt: %q)", s.Agent, string(read)))
+	case s.Question != "" && len(approved) > 0:
+		c.Err = fmt.Errorf("auto mode: %s asked deck about a command instead of running it: %s", s.Agent, strings.Join(approved, "; "))
 	case strings.Contains(strings.Join(approved, "\n"), "word.txt"):
 		c.Err = fmt.Errorf("auto mode: %s asked deck about a write in its own folder: %s", s.Agent, strings.Join(approved, "; "))
 	case asked == 0 || o.Answer != answer:
@@ -216,17 +229,17 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	if sandbox.Contained() {
 		return c
 	}
-	off := Request{Cwd: work, SessionID: sessions[1], MCPURL: req.MCPURL, PermissionMCP: req.PermissionMCP, NoNetwork: true, OnUsage: req.OnUsage,
+	off := Request{Cwd: work, SessionID: sessions[1], MCPURL: req.MCPURL, PermissionMCP: req.PermissionMCP, AllowedTools: req.AllowedTools, OnUsage: req.OnUsage,
 		Prompt: "This is a self-check of deck. Run exactly this shell command once: sh " + filepath.Join(work, "net.sh") +
 			"\nDo not ask for approval. Then hand in {\"word\": \"done\", \"answer\": \"\"} with the result_submit tool of the deck MCP server, even if the command failed."}
-	if _, _, _, ok = step("turn without network", off); !ok {
+	if _, _, _, ok = step("turn without network", off); !ok || network {
 		return c
 	}
 	switch got, err := os.ReadFile(filepath.Join(work, "net.out")); {
 	case err != nil:
 		model(fmt.Errorf("turn without network: the probe that runs curl did not run: %v", err))
 	case strings.TrimSpace(string(got)) != "000":
-		c.Err = fmt.Errorf("turn without network: curl in the sandbox of %s printed %q, want 000", s.Agent, string(got))
+		c.Err = fmt.Errorf("turn without network: curl in the box of %s printed %q for a host of no right, want 000", s.Agent, string(got))
 	}
 	return c
 }

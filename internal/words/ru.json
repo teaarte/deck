@@ -489,8 +489,6 @@
   "waiting_folder": "ждёт папку",
   "waiting_run": "ждёт прошлый запуск",
   "interrupted": "прервано перезапуском",
-  "no network": "без сети",
-  "agents on Claude Code or Codex: the whole network, whatever domains.read names": "агенты на Claude Code или Codex: вся сеть, что бы ни называл domains.read",
   "Upload a cover": "Загрузить обложку",
   "A picture for the card of the module: for one theme or for every theme, one for the light scheme, one for the dark.": "Картинка карточки модуля: для одной темы или для всех, одна для светлой схемы, одна для тёмной.",
   "Covers": "Обложки",
@@ -801,5 +799,6 @@
   "deck: %s is not a CLI agent deck signs in to": "deck: %s — не агент-CLI, в который deck входит сам",
   "deck: no sign-in of %s waits for a code; start it again": "deck: вход в %s не ждёт кода; начните вход заново",
   "deck: the code is one line": "deck: код — одна строка",
-  "deck: %s printed no sign-in link: %s": "deck: %s не дал ссылку для входа: %s"
+  "deck: %s printed no sign-in link: %s": "deck: %s не дал ссылку для входа: %s",
+  "The module %s had no_network, which manifests no longer have: the network of an agent is the rights of its module, so its agents now reach its domains.read (%s) and, with them, the package registries, GitHub and Hugging Face. Take out of domains.read what they must not reach.": "У модуля %s был no_network, которого в манифестах больше нет: сеть агента — это права его модуля, поэтому его агенты теперь ходят на его domains.read (%s), а с ними — в реестры пакетов, GitHub и Hugging Face. Уберите из domains.read то, куда им нельзя."
 }

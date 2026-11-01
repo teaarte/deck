@@ -5,35 +5,35 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
-	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"deck2/internal/fault"
+	"deck2/internal/sandbox"
 )
 
 type Request struct {
-	Cwd string
+	// Project is the project of the turn, whose home of the CLI the turn runs in.
+	Project int64
+	Cwd     string
 	// Repo means Cwd is a code repository: its own instructions load, those of the folders above do not.
 	Repo         bool
 	Prompt       string
 	ResultSchema json.RawMessage
 	// Skills are AgentSkills files by path, "<skill>/SKILL.md" and the rest of each skill folder.
 	Skills map[string]string
+	// MCPURL is deck's MCP server of the turn; the program reaches it through the door of its box.
 	MCPURL string
-	// Hidden are path patterns in the permission rule syntax the agent may not read or write, such as secrets.
-	Hidden []string
 	// Dirs are folders outside Cwd the agent also writes to, such as the data folder of the project.
 	Dirs []string
 	// Data is the data folder of the project, where a confined shell keeps the caches of its programs.
 	Data string
-	// Read are folders the agent reads where its own sandbox closes the home folder: the folders of its project.
+	// Read are folders the agent reads besides its own: the folders of its project.
 	Read []string
-	// NoNetwork takes away the provider's own web and the network of its shell.
-	NoNetwork bool
-	// Hosts are what the shell reaches: hosts with their subdomains, host:port, IPs; "*" is every one.
+	// Hosts are what the shell reaches besides the provider's own: hosts with their subdomains, host:port, IPs; "*"
+	// is every public one, none is only the provider and deck.
 	Hosts []string
 	// GPU opens the graphics card to the shell.
 	GPU           bool
@@ -157,8 +157,6 @@ const (
 	NoCloud = "no_cloud"
 	// LiveInput takes the owner's messages into a running turn.
 	LiveInput = "live"
-	// LocalBrowser is a shell that starts a local browser and listens on local ports.
-	LocalBrowser = "local_browser"
 )
 
 // Server is the name of the deck MCP server among the MCP servers of a provider session.
@@ -278,10 +276,16 @@ type SelfChecker interface {
 	SelfCheck(ctx context.Context) Check
 }
 
-// SignIn is a CLI the owner signs in to from deck: Login is its program of a sign-in by a link, which prints the
-// link and a code, or waits for the code the page of the link gives.
+// SignIn is a CLI the owner signs in to from deck: Login starts its program of a sign-in by a link, which prints the
+// link and a code, or waits on stdin for the code the page of the link gives.
 type SignIn interface {
-	Login() (*exec.Cmd, error)
+	Login(ctx context.Context, o sandbox.IO) (*sandbox.Proc, error)
+}
+
+// Mover is a CLI whose sessions live in the homes of projects: Move copies a session of deck that may go on from the
+// user's own home of the CLI into the home of its project, once; a session it finds no files of stays as it is.
+type Mover interface {
+	Move(project int64, session string) error
 }
 
 // CallLimiter is a provider whose calls of gateway tools time out: a wait for the owner ends before that and the
@@ -292,7 +296,7 @@ type CallLimiter interface {
 
 // Terminal is a provider whose session the owner can go on with in a terminal: the command, in the folder of the turn.
 type Terminal interface {
-	Terminal(session string) (string, error)
+	Terminal(project int64, session string) (string, error)
 }
 
 // Spent adds up what calls cost: the paid ones, nil when one has no price or there is none, and apart what those

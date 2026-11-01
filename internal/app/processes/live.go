@@ -27,7 +27,7 @@ func (s *Service) terminal(ctx context.Context, p db.Process) string {
 	if !ok {
 		return ""
 	}
-	cmd, err := tm.Terminal(p.SessionID)
+	cmd, err := tm.Terminal(p.ProjectID, p.SessionID)
 	if err != nil {
 		return ""
 	}

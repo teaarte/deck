@@ -77,5 +77,27 @@ func (pj *Service) CheckManifests(ctx context.Context) {
 		if err != nil {
 			slog.Error("check manifest", "project", p.Name, "err", err)
 		}
+		pj.tellWidened(ctx, p)
+	}
+}
+
+// widenedText tells the owner that the agents of a module that had no_network reach the domains of its scripts.
+const widenedText = "The module %s had no_network, which manifests no longer have: the network of an agent is the rights of its module, so its agents now reach its domains.read (%s) and, with them, the package registries, GitHub and Hugging Face. Take out of domains.read what they must not reach."
+
+// tellWidened writes once in the feed that format 15 widened the network of the agents of p, when it did.
+func (pj *Service) tellWidened(ctx context.Context, p db.Project) {
+	name := fmt.Sprintf("%s%d", store.Widened, p.ID)
+	domains, err := pj.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: name})
+	if err != nil {
+		return
+	}
+	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(pj.Now()), ProjectID: p.ID, Text: fmt.Sprintf(widenedText, p.Name, domains)}); err != nil {
+			return err
+		}
+		return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: p.WorkspaceID, Name: name})
+	})
+	if err != nil {
+		slog.Error("tell widened network", "project", p.Name, "err", err)
 	}
 }

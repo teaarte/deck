@@ -13,19 +13,11 @@ import (
 	"deck2/internal/sandbox"
 )
 
-// webTools are the CLI's own network tools; a project without network does not get them.
+// webTools are the CLI's own network tools, which a CLI in a box of its own does not get.
 var webTools = []string{"WebFetch", "WebSearch"}
 
 // freeTools run without asking: read-only and planning tools.
 var freeTools = []string{"Read", "Glob", "Grep", "TodoWrite", "StructuredOutput", "Skill"}
-
-// offlineTools are the only built-in tools of a project without network, so a network tool of a later CLI is off too.
-var offlineTools = []string{"Bash", "Read", "Glob", "Grep", "Edit", "Write", "NotebookEdit", "TodoWrite", "Skill", "Task", "AskUserQuestion"}
-
-// environ keeps only the allowlisted variables, so login and API selection variables never reach the CLI.
-func environ() []string {
-	return append(sandbox.Kept("HOME", "TMPDIR", "XDG_", "NODE_"), "MCP_TOOL_TIMEOUT=2400000")
-}
 
 // apiVariables are login and API selection variables the settings of deck blank out over those of the repo.
 var apiVariables = []string{"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL",
@@ -39,15 +31,29 @@ func apiVariable(name string) bool {
 // cliKeys are the files of the owner's Claude Code folder that hold a login or API keys.
 var cliKeys = []string{".credentials.json", "settings.json", "settings.local.json"}
 
-// settings are passed by flag, so they win over the settings of the repo.
-func settings(req provider.Request) map[string]any {
+// settings are passed by flag, so they win over the settings of the repo. Outside a box of its own the CLI gets the
+// rules that close deck's folder and the owner's keys to its tools, as it did.
+func (a *Adapter) settings(req provider.Request) map[string]any {
 	env := map[string]string{}
 	for _, name := range apiVariables {
 		env[name] = ""
 	}
 	s := map[string]any{"apiKeyHelper": "", "env": env, "autoMode": autoMode(req)}
 	var deny []string
-	hidden := slices.Clone(req.Hidden)
+	if req.Repo {
+		blank(req.Cwd, env)
+		// The settings of the owner's repo are the owner's: their hooks would run in the owner's own CLI.
+		for _, root := range home.Names(req.Cwd) {
+			for _, tool := range []string{"Edit", "Write"} {
+				deny = append(deny, tool+"(/"+filepath.Join(root, ".claude", "settings*.json")+")")
+			}
+		}
+		s["permissions"] = map[string]any{"deny": deny}
+	}
+	if sandbox.Homed() {
+		return s
+	}
+	hidden := sandbox.Agent(a.Home)
 	for _, p := range sandbox.Private() {
 		if filepath.Base(p) == ".claude" {
 			// The CLI keeps the long tool output it asks the agent to read in its own folder, so only its keys close.
@@ -66,35 +72,28 @@ func settings(req provider.Request) map[string]any {
 		}
 	}
 	s["permissions"] = map[string]any{"deny": deny}
-	// The sandbox of the CLI closes the shell of a project without network only (in it a shell binds no port and gets
-	// no GPU); in deck's container it has no namespaces, and the container is the sandbox.
-	if req.NoNetwork && !sandbox.Contained() {
-		s["sandbox"] = map[string]any{"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false,
-			"network": map[string]any{"allowedDomains": []string{}, "strictAllowlist": true}}
+	if req.Repo {
+		s["claudeMdExcludes"] = excludes(req.Cwd)
 	}
-	if !req.Repo {
-		return s
-	}
-	for _, root := range home.Names(req.Cwd) {
+	return s
+}
+
+// blank blanks out the login and API variables the settings of a repo set, so the CLI keeps the owner's login.
+func blank(repo string, env map[string]string) {
+	for _, root := range home.Names(repo) {
 		for _, f := range []string{"settings.json", "settings.local.json"} {
-			var repo struct {
+			var set struct {
 				Env map[string]any `json:"env"`
 			}
-			if b, err := os.ReadFile(filepath.Join(root, ".claude", f)); err == nil && json.Unmarshal(b, &repo) == nil {
-				for name := range repo.Env {
+			if b, err := os.ReadFile(filepath.Join(root, ".claude", f)); err == nil && json.Unmarshal(b, &set) == nil {
+				for name := range set.Env {
 					if apiVariable(name) {
 						env[name] = ""
 					}
 				}
 			}
 		}
-		for _, tool := range []string{"Edit", "Write"} {
-			deny = append(deny, tool+"(/"+filepath.Join(root, ".claude", "settings*.json")+")")
-		}
 	}
-	s["claudeMdExcludes"] = excludes(req.Cwd)
-	s["permissions"] = map[string]any{"deny": deny}
-	return s
 }
 
 // autoMode tells the classifier of auto mode the folders of the agent, where reading and searching is its work; a
@@ -118,27 +117,6 @@ func autoMode(req provider.Request) map[string]any {
 	}
 }
 
-// writeFile writes a per-turn file into ConfigDir atomically with mode 600.
-func (a *Adapter) writeFile(pattern string, data []byte) (string, error) {
-	if err := os.MkdirAll(a.ConfigDir, 0o700); err != nil {
-		return "", err
-	}
-	// Others may pass it to their own file, as the user of agents in deck's container does, but not list or write it.
-	if fi, err := os.Stat(a.ConfigDir); err != nil {
-		return "", err
-	} else if fi.Mode().Perm()&0o066 != 0 {
-		if err := os.Chmod(a.ConfigDir, fi.Mode().Perm()&^0o066); err != nil {
-			return "", err
-		}
-	}
-	f, err := os.CreateTemp(a.ConfigDir, pattern+"-*.json")
-	if err != nil {
-		return "", err
-	}
-	_ = f.Close()
-	return f.Name(), home.WriteFile(f.Name(), data)
-}
-
 // excludes lists the instruction files of every folder above the repo, by the given and the real path.
 func excludes(repo string) []string {
 	seen := map[string]bool{}
@@ -159,19 +137,13 @@ func excludes(repo string) []string {
 	return out
 }
 
-// writePlugin puts skills into a plugin folder next to the MCP config: with no setting sources the CLI reads
-// skills only from plugins, and the folder stays outside every folder the agent writes to.
-func (a *Adapter) writePlugin(skills map[string]string) (string, error) {
+// writePlugin puts skills into a plugin folder of the turn: with no setting sources the CLI reads skills only from
+// plugins.
+func writePlugin(turn string, skills map[string]string) (string, error) {
 	if len(skills) == 0 {
 		return "", nil
 	}
-	if err := os.MkdirAll(a.ConfigDir, 0o700); err != nil {
-		return "", err
-	}
-	dir, err := os.MkdirTemp(a.ConfigDir, "plugin-*")
-	if err != nil {
-		return "", err
-	}
+	dir := filepath.Join(turn, "plugin")
 	files := map[string]string{".claude-plugin/plugin.json": `{"name":"deck"}`}
 	for path, text := range skills {
 		files[filepath.Join("skills", path)] = text

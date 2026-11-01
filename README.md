@@ -77,9 +77,12 @@ For those who want to know how it holds together; the full picture is in
   journal and the undo are enforced in exactly one place.
 - **MCP-native.** Every agent process gets its own deck MCP server: the commands it may call as tools, questions and
   confirmations to the owner, nothing else. Scripts get an HTTP entry with a per-run token.
-- **Sandboxed, with one way out.** Scripts, MCP servers and ACP agents run under `sandbox-exec` (macOS) or bubblewrap
-  (Linux). The only network path is deck's proxy: a name resolves once, only public addresses are dialed, only the
-  module's declared domains are reachable. Model keys live in the proxy, never in a module.
+- **Sandboxed, with one way out.** Every program of a module — a script, an MCP server, Claude Code, Codex, an ACP
+  agent — runs in a box of its own (bubblewrap on Linux) that sees only its folders and reaches only the hosts its
+  rights name, through deck's proxy: a name resolves once, only public addresses are dialed. Model keys live in the
+  proxy, never in a module. The login of Claude Code or Codex is one for all projects, and the agent in a box can read
+  it, as the CLI does; another project's data it cannot. On macOS, until deck runs in a Linux container there,
+  scripts, MCP servers and ACP agents run under `sandbox-exec`, and Claude Code and Codex outside it, as the owner's.
 - **Screens are data.** Screens and widgets are JSON resolved on the server into [A2UI](https://github.com/google/A2UI)
   messages from a catalog of blocks (tables, boards, cards, forms, charts, media, a file manager, tabs, dialogs,
   side panels). Each read declares its topics; a committed write publishes the topic of its table, and the client

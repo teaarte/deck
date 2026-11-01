@@ -34,11 +34,6 @@ type commandRight struct {
 
 var rights = []right{
 	{func(prev, next *Manifest, add say) {
-		if prev.NoNetwork && !next.NoNetwork {
-			add("no_network removed: agents get their own web")
-		}
-	}, func(granted, m, c *Manifest) { c.NoNetwork = m.NoNetwork || granted.NoNetwork }},
-	{func(prev, next *Manifest, add say) {
 		if next.GPU && !prev.GPU {
 			add("gpu: its programs use the graphics card")
 		}

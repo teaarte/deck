@@ -92,7 +92,9 @@ func (f *Fake) Broke(what string) {
 }
 
 // Terminal is how the owner would go on with a session of the fake.
-func (f *Fake) Terminal(session string) (string, error) { return "fake --resume " + session, nil }
+func (f *Fake) Terminal(_ int64, session string) (string, error) {
+	return "fake --resume " + session, nil
+}
 
 func (f *Fake) Name() string {
 	if f.ProviderName != "" {

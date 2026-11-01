@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
+	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 
@@ -38,8 +40,8 @@ var realManifest = harness.Manifest(`{
 // TestRealClaudeCodeQuestionResume runs the stage 0 acceptance scenario on the installed Claude Code CLI.
 func TestRealClaudeCodeQuestionResume(t *testing.T) {
 	realCLI(t)
-	home := t.TempDir()
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home)), harness.WithWait(4*time.Minute))
+	home := realHome(t)
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil)), harness.WithWait(4*time.Minute))
 
 	p := e.Project("ideas", realManifest)
 	id := e.Run(p, "collect")
@@ -77,13 +79,33 @@ func realCLI(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_CLI")
 }
 
+// realHome is a folder of deck for a test of the real CLI. In a box of its own the CLI signs in once per deck, so on
+// Linux DECK_REAL_CLI names the folder of a login deck made (agents/claude/login), which every home of a test shares.
+func realHome(t *testing.T) string {
+	home := t.TempDir()
+	if !sandbox.Homed() {
+		return home
+	}
+	login := harness.Needs(t, "DECK_REAL_CLI")
+	if !filepath.IsAbs(login) {
+		t.Skip("on Linux DECK_REAL_CLI names the folder of a login of Claude Code that deck made")
+	}
+	if err := os.MkdirAll(filepath.Dir(deckhome.Layout(home).Login("claude")), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(login, deckhome.Layout(home).Login("claude")); err != nil {
+		t.Fatal(err)
+	}
+	return home
+}
+
 // TestRealClaudeCodeKeepsSubscription checks that API variables of deck's environment do not reach the CLI.
 func TestRealClaudeCodeKeepsSubscription(t *testing.T) {
 	realCLI(t)
 	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-invalid")
 	t.Setenv("ANTHROPIC_BASE_URL", "http://127.0.0.1:1")
 	sid := uuid.NewString()
-	res, err := claudecode.New(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(),
+	res, err := claudecode.New(realHome(t), nil).Run(context.Background(), provider.Request{Cwd: t.TempDir(),
 		Prompt: "Reply with just: ok", SessionID: sid, MCPURL: "http://127.0.0.1:1/mcp/none"})
 	t.Logf("result: %+v", res)
 	if err != nil || res.Outcome != provider.Done || !strings.Contains(strings.ToLower(res.Text), "ok") {
@@ -120,8 +142,8 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	}
 	prompt := "Read the file sub/notes.txt with the Read tool. Then try to create .claude/settings.local.json with the content {} using the Write tool. Then reply with only the marker words (ALL CAPS words ending in MARK) " +
 		"that appear anywhere in your instructions or context, separated by spaces. Do not guess and do not search for files."
-	home := t.TempDir()
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home)))
+	home := realHome(t)
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil)))
 	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.", "class": "internal",
 		"result":   map[string]any{"type": "object", "required": []string{"markers"}, "properties": map[string]any{"markers": map[string]any{"type": "string"}}},
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": prompt + " The result is those words in markers."}})
@@ -151,6 +173,10 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	control := exec.Command("claude", "-p", "--output-format", "text", "--setting-sources", "project", "--strict-mcp-config",
 		"--allowedTools", "Read", "--settings", `{"apiKeyHelper": "", "env": {"ANTHROPIC_API_KEY": "", "ANTHROPIC_BASE_URL": ""}}`)
 	control.Dir = repo
+	if sandbox.Homed() {
+		// The user of the machine has no login of its own; the control run takes deck's.
+		control.Env = append(os.Environ(), "CLAUDE_CONFIG_DIR="+deckhome.Layout(home).Login("claude"))
+	}
 	control.Stdin = strings.NewReader(prompt)
 	out, err := control.Output()
 	if err != nil {
@@ -168,7 +194,7 @@ func TestRealClaudeCodeSeesSkills(t *testing.T) {
 	skill := "---\nname: probe\ndescription: Knows the probe word. Use it when asked for the probe word.\n---\nThe probe word is PERSIMMON.\n"
 	prompt := "What is the probe word? Use your skills if you need to. Reply with only the word."
 	run := func(skills map[string]string) provider.Result {
-		res, err := claudecode.New(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: prompt,
+		res, err := claudecode.New(realHome(t), nil).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: prompt,
 			SessionID: uuid.NewString(), MCPURL: "http://127.0.0.1:1/mcp/none", Skills: skills, AllowedTools: []string{"Skill"}})
 		if err != nil || res.Outcome != provider.Done {
 			t.Fatalf("turn: %+v %v", res, err)
@@ -207,9 +233,103 @@ func TestRealClaudeCodeSelfCheck(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_CLI")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	c := claudecode.New(t.TempDir()).SelfCheck(ctx)
+	c := claudecode.New(realHome(t), nil).SelfCheck(ctx)
 	if c.Err != nil || c.Version == "" {
 		t.Fatalf("the self-check of the real CLI is green: %+v", c)
 	}
 	t.Logf("self-check of %s is green", c.Version)
+}
+
+// TestRealClaudeCodeProjectsRefreshTheOneLoginTogether: turns of several projects whose access ran out refresh the
+// one login at once; the lock of the refresh is one for all homes, so every turn runs and the login lives on.
+func TestRealClaudeCodeProjectsRefreshTheOneLoginTogether(t *testing.T) {
+	realCLI(t)
+	if !sandbox.Homed() {
+		t.Skip("the homes of projects share one login on Linux")
+	}
+	home := realHome(t)
+	file := filepath.Join(deckhome.Layout(home).Login("claude"), ".credentials.json")
+	expire := func() int64 {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var login map[string]map[string]any
+		if err := json.Unmarshal(raw, &login); err != nil {
+			t.Fatal(err)
+		}
+		at, _ := login["claudeAiOauth"]["expiresAt"].(float64)
+		return int64(at)
+	}
+	raw, _ := os.ReadFile(file)
+	var login map[string]map[string]any
+	_ = json.Unmarshal(raw, &login)
+	login["claudeAiOauth"]["expiresAt"] = time.Now().Add(-time.Minute).UnixMilli()
+	out, _ := json.Marshal(login)
+	// In place, as the CLI writes it: the homes see the file of the login by its inode.
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_TRUNC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.Write(out)
+	if cerr := f.Close(); err != nil || cerr != nil {
+		t.Fatal(err, cerr)
+	}
+	a := claudecode.New(home, nil).With("haiku", "haiku", "")
+	type turn struct {
+		res provider.Result
+		err error
+	}
+	results := make(chan turn, 6)
+	for project := int64(1); project <= 6; project++ {
+		go func() {
+			res, err := a.Run(context.Background(), provider.Request{Project: project, Cwd: t.TempDir(), Prompt: "Reply with just: ok",
+				SessionID: uuid.NewString(), MCPURL: "http://127.0.0.1:1/mcp/none"})
+			results <- turn{res, err}
+		}()
+	}
+	for range 6 {
+		if got := harness.Receive(t, "a turn", results); got.err != nil || got.res.Outcome != provider.Done || !strings.Contains(strings.ToLower(got.res.Text), "ok") {
+			t.Fatalf("every turn runs on the one login: %+v %v", got.res, got.err)
+		}
+	}
+	if expire() < time.Now().UnixMilli() {
+		t.Fatalf("the login is refreshed and kept: %d", expire())
+	}
+}
+
+// TestRealClaudeCodeResumesASessionStartedBeforeItsHome: a session of a turn that waits, started when the CLI kept it in
+// the owner's own home, goes on in the home of its project once deck moved it there.
+func TestRealClaudeCodeResumesASessionStartedBeforeItsHome(t *testing.T) {
+	realCLI(t)
+	if !sandbox.Homed() {
+		t.Skip("the CLI has homes of projects on Linux")
+	}
+	home := realHome(t)
+	a := claudecode.New(home, nil).With("haiku", "haiku", "")
+	work, sid, word := t.TempDir(), uuid.NewString(), "PERSIMMON-"+uuid.NewString()[:4]
+	if _, err := a.Run(context.Background(), provider.Request{Project: 9, Cwd: work, SessionID: sid, MCPURL: "http://127.0.0.1:1/mcp/none",
+		Prompt: "Remember the word " + word + ". Reply with just: ok"}); err != nil {
+		t.Fatal(err)
+	}
+	// The owner's own home of an older deck holds the session; the home of the project does not yet.
+	user := t.TempDir()
+	t.Setenv("HOME", user)
+	kept := filepath.Join(deckhome.Layout(home).Agent("claude", 9), "projects")
+	if err := os.Rename(kept, filepath.Join(user, ".claude", "projects")); err != nil {
+		if err := os.MkdirAll(filepath.Join(user, ".claude"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(kept, filepath.Join(user, ".claude", "projects")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := claudecode.New(home, nil).Move(10, sid); err != nil {
+		t.Fatal(err)
+	}
+	res, err := a.Run(context.Background(), provider.Request{Project: 10, Cwd: work, SessionID: sid, Resume: true, MCPURL: "http://127.0.0.1:1/mcp/none",
+		Prompt: "Which word did I ask you to remember? Reply with just the word."})
+	if err != nil || res.Outcome != provider.Done || !strings.Contains(res.Text, word) {
+		t.Fatalf("the moved session goes on with what it knew: %+v %v", res, err)
+	}
 }

@@ -28,7 +28,8 @@ func NewCodex(t *testing.T) *fakeCodex {
 }
 
 func (c *fakeCodex) Adapter(home string) *codex.Adapter {
-	return &codex.Adapter{Binary: filepath.Join(c.Dir, "codex"), Home: deckhome.Layout(home), Dir: deckhome.Layout(home).Codex(), Linger: 300 * time.Millisecond}
+	return &codex.Adapter{Binary: filepath.Join(c.Dir, "codex"), Home: deckhome.Layout(home), Sandbox: FakeBox(home, c.Dir),
+		Dir: deckhome.Layout(home).Codex(), Linger: 300 * time.Millisecond}
 }
 
 // WithCodex runs deck on the fake Codex app-server, on a clock a few minutes before the limit reset the recorded

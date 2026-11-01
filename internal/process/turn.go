@@ -175,20 +175,15 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 			read = append(read, f.Path)
 		}
 	}
-	noNetwork := t.m.NoNetwork
 	var box sandbox.Box
 	if now, err := docs.For(ctx, r.st.Q, registry.Actor{}, t.project); err == nil {
-		noNetwork = noNetwork || now.NoNetwork
 		box = boxes.For(sandbox.KindAgent, now, read)
-	}
-	if noNetwork {
-		box.Hosts = nil
 	}
 	processID := t.process
 	a.req = provider.Request{
-		Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
+		Project: t.project, Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(), Dirs: []string{a.data, r.cfg.Home.Results(processID)}, Data: a.data, Read: read, NoNetwork: noNetwork, Hosts: box.Hosts, GPU: box.GPU,
+		SessionID: t.session, Resume: t.resume, Dirs: []string{a.data, r.cfg.Home.Results(processID)}, Data: a.data, Read: read, Hosts: box.Hosts, GPU: box.GPU,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(ctx, proj.WorkspaceID, processID, pv, u) },

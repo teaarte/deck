@@ -407,3 +407,13 @@ ORDER BY id LIMIT 1;
 SELECT id FROM process
 WHERE project_id = ? AND command = ? AND trial = ? AND id != ? AND finished_at IS NULL
 ORDER BY id LIMIT 1;
+
+-- name: ListSessionsGoingOn :many
+-- The sessions of agents that may go on, with their projects: of a process not yet ended, of a chat topic kept.
+SELECT CAST(project_id AS INTEGER) AS project_id, session_id FROM process
+WHERE session_id != '' AND state NOT IN ('done', 'error', 'stopped', 'interrupted')
+UNION
+SELECT CAST(p.id AS INTEGER) AS project_id, s.session_id FROM chat_session s
+JOIN chat_topic t ON t.id = s.topic_id
+JOIN project p ON p.workspace_id = t.workspace_id AND p.builtin = 1
+WHERE t.archived = 0 AND t.deleted_at IS NULL;

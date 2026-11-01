@@ -59,8 +59,28 @@ func (l Layout) ACP() string       { return l.state("acp") }
 // Doors holds the sockets of the doors of boxes, a folder each.
 func (l Layout) Doors() string { return l.state("doors") }
 
-// Sessions holds the settings deck gives each session of the Claude Code CLI.
-func (l Layout) Sessions() string { return l.state("mcp") }
+// Agent is the home of the CLI of an agent for a project, its sessions and settings; project 0 is deck's own, of
+// self-checks and the lists of models.
+func (l Layout) Agent(provider string, project int64) string {
+	return filepath.Join(string(l), "agents", provider, fmt.Sprint(project))
+}
+
+// Login is the folder of the one sign-in of the CLI of an agent, whose file every home of the CLI shares; no box
+// writes it but through that file.
+func (l Layout) Login(provider string) string {
+	return filepath.Join(string(l), "agents", provider, "login")
+}
+
+// AgentLock is the folder every box of the CLI of an agent writes, its home inside: a lock the CLI takes beside its
+// home, as of a refresh of the login, is one for all homes.
+func (l Layout) AgentLock(provider string) string {
+	return filepath.Join(string(l), "agents", provider, "lock")
+}
+
+// AgentTurns holds a folder a turn of the CLI of an agent, of what deck gives it: settings, MCP config, skills.
+func (l Layout) AgentTurns(provider string) string {
+	return filepath.Join(string(l), "agents", provider, "turns")
+}
 
 // PushKey is the key pair deck signs the pushes of a workspace with, apart from the secrets of the workspace.
 func (l Layout) PushKey(workspace int64) string {

@@ -72,8 +72,8 @@ func replySession(e *harness.Env, topic int64, n int) (string, string) {
 // chat message, then answer a second message in the same session.
 func TestRealMasterTopicOnClaudeCode(t *testing.T) {
 	realCLI(t)
-	home := t.TempDir()
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
+	home := realHome(t)
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
 	e.Must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list of the household.\n", "manifest": harness.TasksManifest}, nil)
 	e.Must("deck.project_create", map[string]any{"name": "garden", "prompt": "# Garden: work in the garden and its tools.\n"}, nil)
 	topic := e.Say(0, "We are out of oat milk, put it on the list.")
@@ -102,8 +102,8 @@ func TestRealMasterTopicOnClaudeCode(t *testing.T) {
 func TestRealMasterSwitchesProvider(t *testing.T) {
 	realCLI(t)
 	realCodex(t)
-	home := t.TempDir()
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home), codex.New(home)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
+	home := realHome(t)
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil), codex.New(home, nil)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
 	topic := e.Say(0, "Remember: the code word of this conversation is PELICAN. Reply with OK only.")
 	masterReplies(e, topic, 1)
 	e.UseModels("master.reply", "codex")

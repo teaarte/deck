@@ -21,7 +21,6 @@ import (
 	"github.com/SherClockHolmes/webpush-go"
 
 	"deck2/internal/access"
-	"deck2/internal/docs"
 	"deck2/internal/egress"
 	"deck2/internal/health"
 	"deck2/internal/home"
@@ -33,7 +32,7 @@ import (
 
 const (
 	pushLength = 100
-	// generic is what a push of a project without network says instead of its text.
+	// generic is what a push of a project deck cannot read says instead of its text.
 	generic = "Something in deck waits for you"
 )
 
@@ -217,9 +216,8 @@ type pushSource struct {
 	after func(ctx context.Context, workspace int64, cursor string) []pushItem
 }
 
-// pushSources are what waits for the owner and the notes of the feed, pushed while no client is open; private
-// says whether a project of the workspace keeps its data off the network.
-func (dv *Service) pushSources(private func() bool) []pushSource {
+// pushSources are what waits for the owner and the notes of the feed, pushed while no client is open.
+func (dv *Service) pushSources() []pushSource {
 	id := func(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }
 	return []pushSource{
 		{"ask", func(ctx context.Context, ws int64) string { n, _ := dv.St.Q.MaxAskID(ctx, ws); return fmt.Sprint(n) },
@@ -227,7 +225,7 @@ func (dv *Service) pushSources(private func() bool) []pushSource {
 				asks, _ := dv.St.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: ws, ID: id(cursor)})
 				var items []pushItem
 				for _, q := range asks {
-					items = append(items, pushItem{dv.pushText(ctx, private, q.ProjectID.Int64, "Waiting for you", strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
+					items = append(items, pushItem{dv.pushText(ctx, q.ProjectID.Int64, "Waiting for you", strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
 						fmt.Sprint(q.ID)})
 				}
 				return items
@@ -250,7 +248,7 @@ func (dv *Service) pushSources(private func() bool) []pushSource {
 					if n.Screen != "" && n.RecordID.Valid {
 						url += fmt.Sprintf("/%d", n.RecordID.Int64)
 					}
-					items = append(items, pushItem{dv.pushText(ctx, private, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
+					items = append(items, pushItem{dv.pushText(ctx, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
 				}
 				return items
 			}},
@@ -285,10 +283,9 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 		}
 		return n
 	})
-	private := sync.OnceValue(func() bool { return dv.anyPrivate(ctx, workspace) })
 	for _, s := range subs {
 	sources:
-		for _, src := range dv.pushSources(private) {
+		for _, src := range dv.pushSources() {
 			name := fmt.Sprintf("push:%d:%s", s.ID, src.key)
 			cursor, err := dv.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: name})
 			if err != nil {
@@ -351,29 +348,10 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	}
 }
 
-// anyPrivate reports whether a project of the workspace keeps its data off the network; then what the master
-// writes, which may speak of it, pushes only a generic line.
-func (dv *Service) anyPrivate(ctx context.Context, workspace int64) bool {
-	ps, err := dv.St.Q.ListWorkspaceProjects(ctx, workspace)
-	if err != nil {
-		return true
-	}
-	for _, p := range ps {
-		if m, err := docs.For(ctx, dv.St.Q, registry.Actor{}, p.ID); err != nil || m.NoNetwork {
-			return true
-		}
-	}
-	return false
-}
-
-// pushText is a push about something of a project: its text cut short, or only a generic line for a project
-// whose data stays off the network, the master while any project's does, or a project deck cannot read.
-func (dv *Service) pushText(ctx context.Context, private func() bool, projectID int64, title, text, url string) pushMessage {
-	p, err := dv.St.Q.GetProject(ctx, projectID)
-	if err != nil || p.Builtin == 1 && private() {
-		return pushMessage{Title: "deck", Body: generic, URL: url}
-	}
-	if m, err := docs.For(ctx, dv.St.Q, registry.Actor{}, p.ID); err != nil || m.NoNetwork {
+// pushText is a push about something of a project: its text cut short, or only a generic line for a project deck
+// cannot read.
+func (dv *Service) pushText(ctx context.Context, projectID int64, title, text, url string) pushMessage {
+	if _, err := dv.St.Q.GetProject(ctx, projectID); err != nil {
 		return pushMessage{Title: "deck", Body: generic, URL: url}
 	}
 	return pushMessage{Title: untrusted.Cut(title, 60), Body: untrusted.Cut(oneLine(text), pushLength), URL: url}

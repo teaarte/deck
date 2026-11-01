@@ -9,16 +9,12 @@ import (
 )
 
 // serve answers a request of the app-server. What Codex would ask a person goes to deck as a confirmation of
-// the call; "yes" allows exactly that call, and the profile still bounds it.
+// the call; "yes" allows exactly that call, and the box still bounds it.
 func (t *turn) serve(ctx context.Context, m message) {
 	switch m.Method {
 	case "item/commandExecution/requestApproval":
 		var p CommandExecutionRequestApprovalParams
 		_ = json.Unmarshal(m.Params, &p)
-		if t.req.NoNetwork && (p.NetworkApprovalContext != nil || p.AdditionalPermissions != nil && p.AdditionalPermissions.Network != nil) {
-			t.refuse(m.ID, p.ThreadID, p.TurnID, "deck: this project has no network; the call was not made.")
-			return
-		}
 		input := map[string]any{"command": p.Command, "cwd": string(p.Cwd)}
 		if p.Kind != "" && p.Kind != "command" {
 			input["kind"] = p.Kind

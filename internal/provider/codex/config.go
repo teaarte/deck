@@ -2,7 +2,7 @@ package codex
 
 import (
 	"encoding/json"
-	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,10 +13,6 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 )
-
-// environ keeps only the allowlisted variables, so API keys and provider selection never reach Codex;
-// CODEX_HOME stays, since it is where the owner's shared login lives.
-func environ() []string { return sandbox.Kept("HOME", "TMPDIR", "CODEX_HOME", "XDG_") }
 
 // caches are the variables that put the caches of the programs of its shell in the data folder of the project, as
 // those of scripts; Codex sets them in its shell itself.
@@ -52,9 +48,34 @@ var quiet = []string{"item/agentMessage/delta", "item/plan/delta", "item/reasoni
 // profile is the name of the permission profile a turn of deck runs under.
 const profile = "deck"
 
-// args start the app-server without the owner's plugins and hooks, with the profile of the turn: the shell reads all
-// but what deck shuts from agents and the owner's Codex folder, and writes its own; the deepest path wins.
+// args start the app-server without the owner's plugins and hooks; in a box of its own its sandbox is off and its
+// login a file, outside one the profile of the turn bounds it, as it did.
 func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
+	var perms []string
+	switch {
+	case sandbox.Homed():
+		perms = []string{"sandbox_mode=" + quote("danger-full-access"), "cli_auth_credentials_store=" + quote("file")}
+	case sandbox.Contained():
+		// In deck's container its user of agents is the sandbox; Codex's own needs namespaces the container has not.
+		perms = []string{"sandbox_mode=" + quote("danger-full-access")}
+	default:
+		perms = a.profile(req, skills)
+	}
+	web := "live"
+	if sandbox.Homed() {
+		// The search of Codex runs on the provider's side, past the door of the box.
+		web = "disabled"
+	}
+	args := []string{"app-server"}
+	for _, kv := range slices.Concat(off, []string{"web_search=" + quote(web)}, perms, []string{"shell_environment_policy.set=" + caches(req.Data)}) {
+		args = append(args, "-c", kv)
+	}
+	return args, nil
+}
+
+// profile is the permission profile of a turn outside a box of its own: the shell reads all but what deck shuts from
+// agents and the owner's Codex folder, and writes its own; the deepest path wins.
+func (a *Adapter) profile(req provider.Request, skills string) []string {
 	fs := map[string]string{":root": "read", ":tmpdir": "write", ":slash_tmp": "write"}
 	for _, d := range slices.Concat(sandbox.Shut(a.Home), []string{codexHome()}, sandbox.Private()) {
 		for _, p := range home.Names(d) {
@@ -66,11 +87,6 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 		for _, p := range home.Names(codexHome()) {
 			delete(fs, p)
 			fs[filepath.Join(p, "{[!t]*,t[!m]*,tm[!p]*,tmp?*,t,tm}")] = "deny"
-		}
-	}
-	for _, h := range req.Hidden {
-		if !home.Under(h, string(a.Home)) {
-			return nil, fmt.Errorf("codex: hidden path %s is outside deck's folder, which is all the profile hides", h)
 		}
 	}
 	writes := append([]string{req.Cwd}, req.Dirs...)
@@ -96,23 +112,29 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	for _, k := range keys {
 		table = append(table, quote(k)+"="+quote(fs[k]))
 	}
-	web := "live"
-	if req.NoNetwork {
-		web = "disabled"
-	}
-	perms := []string{"default_permissions=" + quote(":read-only"),
+	return []string{"default_permissions=" + quote(":read-only"),
 		"permissions." + profile + ".description=" + quote("deck session "+req.SessionID),
 		"permissions." + profile + ".filesystem={" + strings.Join(table, ",") + "}",
-		fmt.Sprintf("permissions.%s.network.enabled=%t", profile, !req.NoNetwork)}
-	if sandbox.Contained() {
-		// In deck's container its user of agents is the sandbox; Codex's own needs namespaces the container has not.
-		perms = []string{"sandbox_mode=" + quote("danger-full-access")}
+		"permissions." + profile + ".network.enabled=true"}
+}
+
+// modelHosts are the hosts of the model providers a config of Codex names by base_url.
+func modelHosts(cfg string) []string {
+	var out []string
+	for _, line := range strings.Split(cfg, "\n") {
+		k, v, ok := strings.Cut(line, "=")
+		if !ok || strings.TrimSpace(k) != "base_url" {
+			continue
+		}
+		var raw string
+		if json.Unmarshal([]byte(strings.TrimSpace(v)), &raw) != nil {
+			raw = strings.Trim(strings.TrimSpace(v), `'"`)
+		}
+		if u, err := url.Parse(raw); err == nil && u.Host != "" {
+			out = append(out, u.Host)
+		}
 	}
-	args := []string{"app-server"}
-	for _, kv := range slices.Concat(off, []string{"web_search=" + quote(web)}, perms, []string{"shell_environment_policy.set=" + caches(req.Data)}) {
-		args = append(args, "-c", kv)
-	}
-	return args, nil
+	return out
 }
 
 // gitDirs is the .git folder of a repo, which Codex may keep read-only in a folder it writes. A .git file or link
@@ -131,14 +153,14 @@ func quote(s string) string {
 	return string(b)
 }
 
-// threadConfig turns the owner's MCP servers and skills off for the thread and adds the deck gateway, whose
-// class rules decide about its tools, so Codex does not ask about them itself.
-func threadConfig(req provider.Request, servers []string, skillsOff []string) map[string]any {
+// threadConfig turns the owner's MCP servers and skills off for the thread and adds the deck gateway at the door of
+// the box, whose class rules decide about its tools, so Codex does not ask about them itself.
+func threadConfig(req provider.Request, door string, servers []string, skillsOff []string) map[string]any {
 	mcp := map[string]any{}
 	for _, s := range servers {
 		mcp[s] = map[string]any{"enabled": false}
 	}
-	mcp[server] = map[string]any{"url": req.MCPURL, "default_tools_approval_mode": "approve",
+	mcp[server] = map[string]any{"url": door, "default_tools_approval_mode": "approve",
 		"disabled_tools": []string{approveTool(req)}, "tool_timeout_sec": 2400}
 	cfg := map[string]any{"mcp_servers": mcp}
 	if len(skillsOff) > 0 {

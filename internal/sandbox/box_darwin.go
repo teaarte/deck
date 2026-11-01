@@ -37,13 +37,20 @@ func (s *Sandbox) listen(dir string) (net.Listener, string, error) {
 
 func (s *Sandbox) addr(ln net.Listener) string { return platform().Addr(ln) }
 
+// outside is the CLI of an agent, which runs outside sandbox-exec as it did, in the owner's home and network.
+func outside(b Box) bool { return b.Kind == KindCLI }
+
 // command is the box as sandbox-exec has run programs: deck's folder and the owner's home closed but for the
-// runtimes on PATH and the folder of the program; deck's browsers run outside it, as they did.
+// runtimes on PATH and the folder of the program; deck's browsers and the CLIs of agents run outside it, as they did.
 func (s *Sandbox) command(ctx context.Context, b Box, door *Door, env []string) (*exec.Cmd, error) {
 	argv := marked(b)
-	if b.Kind == KindBrowser {
+	if b.Kind == KindBrowser || outside(b) {
+		own := []string{"HOME", "TMPDIR", "XDG_"}
+		if outside(b) {
+			own = append(own, "NODE_", "CODEX_HOME")
+		}
 		cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-		cmd.Dir, cmd.Env = b.Dir, merged(append(Kept("HOME", "TMPDIR", "XDG_"), env...))
+		cmd.Dir, cmd.Env = b.Dir, merged(append(Kept(own...), env...))
 		return group(cmd), nil
 	}
 	env = merged(append(base(b), env...))

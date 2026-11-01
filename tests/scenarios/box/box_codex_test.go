@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/provider/codex"
 	"deck2/internal/sandbox"
@@ -25,14 +26,27 @@ func TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest(t *testing.T) {
 	m := harness.NewResponses(t)
 	codexHome := m.CodexHome(t)
 	t.Setenv("CODEX_HOME", codexHome)
+	home := harness.HomeTemp(t)
+	// In its box Codex takes the config of the folder of its login, which deck keeps.
+	cfg, err := os.ReadFile(filepath.Join(codexHome, "config.toml"))
+	if err == nil {
+		err = os.MkdirAll(deckhome.Layout(home).Login("codex"), 0o700)
+	}
+	if err == nil {
+		err = os.WriteFile(filepath.Join(deckhome.Layout(home).Login("codex"), "config.toml"), cfg, 0o600)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	a := codex.New(harness.HomeTemp(t))
+	a := codex.New(home, nil)
 	c := a.SelfCheck(ctx)
 	if c.Err != nil || c.Outcome != provider.Done {
 		t.Fatalf("codex %s self-check: %+v\nthe model did:\n%s", c.Version, c, m.Log())
 	}
-	if sandbox.Contained() {
+	// In its box the agent sees the one login of the CLI, as the CLI does; outside one its profile closes it.
+	if sandbox.Contained() || sandbox.Homed() {
 		return
 	}
 	// The login of the owner's Codex stays closed to its shell, though Codex runs its helpers from its folder.

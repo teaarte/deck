@@ -37,13 +37,13 @@ func realLive(t *testing.T, pv provider.Provider, home string) {
 // TestRealClaudeCodeLiveMessage tells the installed Claude Code a code word on stdin while its turn runs.
 func TestRealClaudeCodeLiveMessage(t *testing.T) {
 	realCLI(t)
-	home := t.TempDir()
-	realLive(t, claudecode.New(home), home)
+	home := realHome(t)
+	realLive(t, claudecode.New(home, nil), home)
 }
 
 // TestRealCodexSteer tells the installed Codex a code word by turn/steer while its turn runs.
 func TestRealCodexSteer(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
-	realLive(t, codex.New(home), home)
+	realLive(t, codex.New(home, nil), home)
 }

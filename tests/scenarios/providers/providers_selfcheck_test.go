@@ -34,7 +34,7 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
 	h := e.WaitHealth("provider:claude-code", "error")
-	if h.Version != "2.1.281" || !strings.Contains(h.Error, "self-check of 2.1.281 failed") || !strings.Contains(h.Error, "output by schema") {
+	if h.Version != "2.1.281" || !strings.Contains(h.Error, "self-check of 2.1.281 failed") || !strings.Contains(h.Error, "first turn") {
 		t.Fatalf("a failed self-check is red with the version and the reason: %+v", h)
 	}
 	p := e.Project("plain", harness.PlainManifest)
@@ -45,7 +45,7 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	}
 	c.Stream(2, "selfcheck.jsonl")
 	c.Stream(3, "selfcheck_resume.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
 	e.Settle()
 	if n := c.Calls(); n != 1 {
@@ -68,7 +68,7 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 		t.Fatalf("a new version of the CLI alone runs no self-check: %d CLI calls", n)
 	}
 	c.Stream(6, "foreign_session.jsonl")
-	c.Stream(7, "ok.jsonl")
+	c.Stream(7, "error.jsonl")
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "error" {
 		t.Fatalf("the broken turn fails: %+v", got)
 	}
@@ -160,7 +160,7 @@ func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
 	c.Stream(1, "ratelimit_rejected.jsonl")
 	c.Stream(2, "selfcheck.jsonl")
 	c.Stream(3, "selfcheck_resume.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "paused"); h.Version != "" {
@@ -175,16 +175,14 @@ func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
 func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
-	c.Stream(1, "selfcheck.jsonl")
-	c.Stream(2, "selfcheck_resume.jsonl")
 	self := harness.Fakes
-	c.Approving()
+	c.ChecksPass()
 	c.Before(readFile(t, filepath.Join(c.Dir, "before")) + fmt.Sprintf(`
 [ -n "$url" ] && DECK_FAKE_MCP=approve '%s' "$url" Bash '{"command":"cat ~/.ssh/id_rsa"}'
 `, self))
 	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "Bash instead of passing a write") {
+	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "asked deck about a command") || !strings.Contains(h.Error, "id_rsa") {
 		t.Fatalf("a question about any other command makes the self-check red: %+v", h)
 	}
 }
@@ -193,7 +191,7 @@ func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
 	c.Stream(1, "selfcheck_nousage.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "token counts") {
@@ -206,7 +204,7 @@ func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(1, "selfcheck.jsonl")
 	c.Stream(2, "selfcheck_resume_nousage.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "resume: token counts") {
@@ -289,14 +287,12 @@ func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
-	c.Stream(1, "selfcheck.jsonl")
-	c.Stream(2, "selfcheck_resume.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	e.WaitHealth("provider:claude-code", "ok")
 	c.Stream(4, "error.jsonl")
-	c.Stream(5, "ok.jsonl")
+	c.Stream(5, "error.jsonl")
 	e.Clock.Add(31 * time.Minute)
 	if got := e.WaitState(e.Run(e.Project("plain", harness.PlainManifest), "work"), "done", "error"); got.State != "error" {
 		t.Fatalf("the turn fails: %+v", got)
@@ -326,9 +322,7 @@ func TestAnAgentStartedBeforeDecksMCPWaitsAndRunsOnceItIsUp(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
 	c.Stream(0, "ok.jsonl")
-	c.Stream(1, "selfcheck.jsonl")
-	c.Stream(2, "selfcheck_resume.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	c.Before(readFile(t, filepath.Join(c.Dir, "before")) + `
 if [ -f "$d/nomcp" ]; then
   echo "Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none" >&2
@@ -397,9 +391,9 @@ func TestAnAgentThatNeverGetsDecksToolsFails(t *testing.T) {
 		c.Stream(n, "selfcheck.jsonl")
 		c.Stream(n+1, "selfcheck_resume.jsonl")
 	}
-	c.Approving()
+	c.ChecksPass()
 	c.Before(readFile(t, filepath.Join(c.Dir, "before")) + `
-if [ -f "$d/nomcp" ] && ! grep -q 'deck-check-' "$c/stdin" && ! grep -q -- --resume "$c/args" && ! grep -q -- --tools "$c/args"; then
+if [ -f "$d/nomcp" ] && ! grep -q -e 'self-check of deck' -e 'deck did not keep the result' "$c/stdin"; then
   echo "Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none" >&2
   exit 1
 fi`)

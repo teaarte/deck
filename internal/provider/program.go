@@ -5,84 +5,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"syscall"
-	"time"
-
-	"deck2/internal/sandbox"
-	"deck2/internal/untrusted"
 )
-
-// Child is the program of a turn: a process group of its own, its stderr kept in a file until Close.
-type Child struct {
-	Cmd    *exec.Cmd
-	stderr *os.File
-}
-
-// Start runs cmd in a process group of its own, unless it has one already, with its stderr in a file of dir;
-// onStart gets its pid.
-func Start(cmd *exec.Cmd, dir string, onStart func(pid int)) (*Child, error) {
-	stderr, err := os.CreateTemp(dir, "stderr-*")
-	if err != nil {
-		return nil, err
-	}
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	}
-	cmd.Stderr = stderr
-	if err := cmd.Start(); err != nil {
-		stderr.Close()
-		os.Remove(stderr.Name())
-		return nil, err
-	}
-	if onStart != nil {
-		onStart(cmd.Process.Pid)
-	}
-	return &Child{Cmd: cmd, stderr: stderr}, nil
-}
-
-// Signal sends sig to the whole group of the program.
-func (c *Child) Signal(sig syscall.Signal) { _ = sandbox.Kill(c.Cmd, sig) }
-
-// Stderr is the end of what the program wrote to stderr, where its error is.
-func (c *Child) Stderr() string {
-	b, _ := os.ReadFile(c.stderr.Name())
-	return untrusted.Tail(strings.TrimSpace(string(b)), 2000)
-}
-
-// End waits for the program to exit once its protocol is over, its output read to the end first: up to linger, then a
-// TERM, 5 seconds and a KILL of its group; the error is that of its exit.
-func (c *Child) End(read <-chan struct{}, linger time.Duration) error {
-	exited := make(chan error, 1)
-	go func() {
-		<-read
-		exited <- c.Cmd.Wait()
-	}()
-	for _, step := range []struct {
-		wait time.Duration
-		sig  syscall.Signal
-	}{{linger, syscall.SIGTERM}, {5 * time.Second, syscall.SIGKILL}, {5 * time.Second, 0}} {
-		select {
-		case err := <-exited:
-			return err
-		case <-time.After(step.wait):
-		}
-		if step.sig == 0 {
-			return errors.New("the program did not end after its group was killed")
-		}
-		c.Signal(step.sig)
-	}
-	return nil
-}
-
-// Close kills what is left of the group and removes the stderr file.
-func (c *Child) Close() {
-	c.Signal(syscall.SIGKILL)
-	c.stderr.Close()
-	os.Remove(c.stderr.Name())
-}
 
 // Killed is a program of a turn a signal ended that deck did not send: not a stop, the ceiling or a restart.
 type Killed struct {
@@ -102,7 +28,7 @@ func (k *Killed) Error() string {
 // KilledBy is the signal that ended a program by its exit error: a death by the signal, or the exit 128+n of a
 // program that caught signal n and exited, as Claude Code does.
 func KilledBy(err error) (syscall.Signal, bool) {
-	var exit *exec.ExitError
+	var exit interface{ Sys() any }
 	if !errors.As(err, &exit) {
 		return 0, false
 	}

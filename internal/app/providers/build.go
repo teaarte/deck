@@ -8,9 +8,9 @@ import (
 	"deck2/internal/sandbox"
 )
 
-// Build are the built-in providers of the deck whose folder is home: Claude Code first, then Codex.
-func Build(home string) []provider.Provider {
-	return []provider.Provider{claudecode.New(home), codex.New(home)}
+// Build are the built-in providers of the deck whose folder is home, in the boxes of sb: Claude Code first, then Codex.
+func Build(home string, sb *sandbox.Sandbox) []provider.Provider {
+	return []provider.Provider{claudecode.New(home, sb), codex.New(home, sb)}
 }
 
 // agent is an ACP agent on the program deck was given for it or finds by its name, in deck's folder and sandbox.

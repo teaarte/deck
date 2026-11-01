@@ -3,7 +3,6 @@ package codex
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"time"
 
 	"deck2/internal/provider"
@@ -14,28 +13,18 @@ import (
 func (a *Adapter) Models(ctx context.Context) ([]provider.Model, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.Command(a.bin(), "app-server")
-	cmd.Env = environ()
-	if err := sandbox.AsAgent(cmd, nil, nil); err != nil {
-		return nil, err
-	}
-	in, err := cmd.StdinPipe()
+	args, err := a.args(provider.Request{}, "")
 	if err != nil {
 		return nil, err
 	}
-	out, err := cmd.StdoutPipe()
+	b := a.box(0, append([]string{a.Binary}, args...), nil)
+	b.Dir = b.Home
+	p, err := a.Sandbox.Run(ctx, b, sandbox.IO{})
 	if err != nil {
-		return nil, err
-	}
-	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", a.Binary, err)
 	}
-	defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }()
-	t := &turn{a: a, c: newConn(in, out)}
-	go func() {
-		<-ctx.Done()
-		_ = cmd.Process.Kill()
-	}()
+	defer p.Kill()
+	t := &turn{a: a, c: newConn(p.Stdin, p.Stdout)}
 	if err := t.call(ctx, "initialize", InitializeParams{ClientInfo: ClientInfo{Name: "deck", Title: "deck", Version: "0"}}, nil); err != nil {
 		return nil, err
 	}

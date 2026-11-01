@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"deck2/internal/egress"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,6 +31,7 @@ func NewResponses(t *testing.T) *fakeResponses {
 	f := &fakeResponses{t: t, seen: map[string]bool{}}
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
+	egress.AsPublic(srv.Listener.Addr().String())
 	f.URL = srv.URL + "/v1"
 	return f
 }

@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -19,24 +17,20 @@ import (
 func (a *Adapter) Models(ctx context.Context) ([]provider.Model, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if err := os.MkdirAll(a.ConfigDir, 0o700); err != nil {
-		return nil, err
+	argv := []string{a.Binary, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--strict-mcp-config",
+		"--setting-sources", ""}
+	b := a.box(0, argv, nil)
+	b.Dir = b.Home
+	var out, stderr bytes.Buffer
+	p, err := a.Sandbox.Run(ctx, b, sandbox.IO{Stdin: strings.NewReader(`{"type":"control_request","request_id":"deck-models","request":{"subtype":"initialize"}}` + "\n"),
+		Stdout: &out, Stderr: func(line string) { stderr.WriteString(line + "\n") }})
+	if err == nil {
+		err = p.Wait()
 	}
-	cmd := exec.CommandContext(ctx, a.bin(), "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
-		"--strict-mcp-config", "--setting-sources", "")
-	cmd.Dir = a.ConfigDir
-	cmd.Env = environ()
-	if err := sandbox.AsAgent(cmd, nil, nil); err != nil {
-		return nil, err
-	}
-	cmd.Stdin = strings.NewReader(`{"type":"control_request","request_id":"deck-models","request":{"subtype":"initialize"}}` + "\n")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("%s lists no models: %w: %s", a.Binary, err, strings.TrimSpace(stderr.String()))
 	}
-	for line := range bytes.Lines(out) {
+	for line := range bytes.Lines(out.Bytes()) {
 		var l struct {
 			Response struct {
 				RequestID string `json:"request_id"`

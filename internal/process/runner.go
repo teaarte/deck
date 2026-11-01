@@ -71,8 +71,6 @@ type Config struct {
 	Now     func() time.Time
 	// FilesMu keeps a snapshot from copying the base between the row of a kept file and its blob.
 	FilesMu *sync.RWMutex
-	// Hidden gives the path patterns an agent may not read or write.
-	Hidden func() []string
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
 	AgentSlots func(ctx context.Context, workspace int64) int
 }

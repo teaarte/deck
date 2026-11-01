@@ -38,7 +38,7 @@ func useSearch(e *harness.Env, name, url string) {
 }
 
 // TestAgentsSearchAndReadPagesThroughDeck: an agent searches the web through the search service of deck's settings
-// and reads pages of its domains as text; a project with no_network has neither.
+// and reads pages of its domains as text; a project without domains searches and reads no page.
 func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 	t.Parallel()
 	var failing atomic.Int32
@@ -73,7 +73,7 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
 	open := harness.Manifest(`{"domains": {"read": ["127.0.0.1"]}, "commands": [`) + harness.AgentCommand("look", "") + `]}`
 	e.WaitState(e.Run(e.Project("open", open), "look"), "done")
-	closed := harness.Manifest(`{"no_network": true, "commands": [`) + harness.AgentCommand("hide", "") + `]}`
+	closed := harness.Manifest(`{"commands": [`) + harness.AgentCommand("hide", "") + `]}`
 	e.WaitState(e.Run(e.Project("closed", closed), "hide"), "done")
 
 	mu.Lock()
@@ -90,13 +90,11 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 	if !strings.HasPrefix(look[2], "true ") || !strings.Contains(look[2], "domains") || len(page.Requests()) != 1 {
 		t.Fatalf("a page outside its domains is refused unread: %v, %d requests", look[2], len(page.Requests()))
 	}
-	for i, h := range hide {
-		if !strings.HasPrefix(h, "true ") || !strings.Contains(h, "no_network") {
-			t.Fatalf("a project with no_network has no web (%d): %v", i, hide)
-		}
+	if len(hide) != 3 || !strings.HasPrefix(hide[0], "false ") || !strings.HasPrefix(hide[1], "true ") || !strings.HasPrefix(hide[2], "true ") {
+		t.Fatalf("a project without domains searches and reads no page: %v", hide)
 	}
-	if n := len(search.Requests()); n != 1 {
-		t.Fatalf("only the open project searched: %d", n)
+	if n := len(search.Requests()); n != 2 || len(page.Requests()) != 1 {
+		t.Fatalf("both projects searched, only the open one read: %d searches, %d pages", n, len(page.Requests()))
 	}
 
 	failing.Store(http.StatusInternalServerError)

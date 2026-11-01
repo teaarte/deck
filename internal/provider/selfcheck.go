@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -53,10 +54,11 @@ func ServeCheck(srv *mcp.Server) (string, func(), error) {
 }
 
 // CheckServer is the deck MCP server of a self-check: ask answers, result_submit keeps, approve (when set)
-// allows and records.
+// allows and records, and answers the agent's own question tool, Question.
 type CheckServer struct {
-	Answer  string
-	Approve bool
+	Answer   string
+	Approve  bool
+	Question string
 
 	mu       sync.Mutex
 	approved []string
@@ -74,10 +76,31 @@ func (s *CheckServer) Server() *mcp.Server {
 	if s.Approve {
 		srv.AddTool(&mcp.Tool{Name: "approve", Description: "Permission prompt handler of the deck self-check.", InputSchema: obj},
 			func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				var in struct {
+					ToolName string         `json:"tool_name"`
+					Input    map[string]any `json:"input"`
+				}
+				_ = json.Unmarshal(req.Params.Arguments, &in)
 				s.mu.Lock()
-				s.approved = append(s.approved, string(req.Params.Arguments))
-				s.mu.Unlock()
-				return text(`{"behavior":"allow"}`), nil
+				defer s.mu.Unlock()
+				if s.Question == "" || in.ToolName != s.Question {
+					s.approved = append(s.approved, string(req.Params.Arguments))
+					return text(`{"behavior":"allow"}`), nil
+				}
+				s.asked++
+				answers := map[string]string{}
+				qs, _ := in.Input["questions"].([]any)
+				for _, q := range qs {
+					if m, ok := q.(map[string]any); ok {
+						answers[fmt.Sprint(m["question"])] = s.Answer
+					}
+				}
+				if in.Input == nil {
+					in.Input = map[string]any{}
+				}
+				in.Input["answers"] = answers
+				out, _ := json.Marshal(map[string]any{"behavior": "allow", "updatedInput": in.Input})
+				return text(string(out)), nil
 			})
 	}
 	srv.AddTool(&mcp.Tool{Name: "ask", Description: "Asks the owner a question and waits for the answer.",

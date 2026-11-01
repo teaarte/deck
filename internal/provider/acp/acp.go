@@ -103,11 +103,6 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if req.SessionID == "" {
 		return provider.Result{}, errors.New("acp: the session id must be assigned by deck")
 	}
-	for _, h := range req.Hidden {
-		if !home.Under(h, string(a.cfg.Home)) {
-			return provider.Result{}, fmt.Errorf("acp: hidden path %s is outside deck's folder, which is all the sandbox hides", h)
-		}
-	}
 	dir := a.sessionDir(req.SessionID)
 	agentSession := ""
 	if req.Resume {
@@ -144,9 +139,6 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	box := sandbox.Box{Kind: sandbox.KindAgent, Mark: a.cfg.Sandbox.Mark(sandbox.KindAgent, req.SessionID), Argv: argv,
 		Dir: req.Cwd, Home: home, Env: env, Read: req.Read, Write: append([]string{req.Cwd}, req.Dirs...), Hosts: req.Hosts,
 		Deck: side, GPU: req.GPU}
-	if req.NoNetwork {
-		box.Hosts = nil
-	}
 	tail := untrusted.NewTail(2000)
 	child, err := a.cfg.Sandbox.Run(life, box, sandbox.IO{Stderr: func(line string) { _, _ = tail.Write([]byte(line + "\n")) }})
 	if err != nil {

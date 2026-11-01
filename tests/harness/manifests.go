@@ -10,7 +10,8 @@ import (
 	"deck2/internal/manifest"
 )
 
-var NoNetworkManifest = Manifest(`{"no_network": true,
+// NoNetworkManifest is a module that names no domains: its agents reach only their provider and deck.
+var NoNetworkManifest = Manifest(`{
   "commands": [{"name": "work", "title": "Work", "description": "Does work", "class": "internal",
     "executor": {"type": "agent", "prompt": "Do the work."}}]}`)
 

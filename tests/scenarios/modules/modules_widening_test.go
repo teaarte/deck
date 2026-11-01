@@ -233,7 +233,7 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 		}
 	}
 	wide := strings.Replace(internal, `"Publish."}`, `"Publish."}, "callers": ["owner", "agent"], "provider": "codex"`, 1)
-	wide = strings.Replace(wide, `"runtime": "python"}]`, `"runtime": "python"}], "domains": {"read": ["example.com"]}, "models": ["openrouter"], "no_network": false,
+	wide = strings.Replace(wide, `"runtime": "python"}]`, `"runtime": "python"}], "domains": {"read": ["example.com"]}, "models": ["openrouter"],
   "tools": {"mcp": {"servers": {"svc": {"command": "/bin/cat", "env": {"KEY": "$secret.svc"}}, "open": {"command": "/bin/cat", "classes": {"x": "internal"}}}}}`, 1)
 	if code, raw = e.As(tok).Call("deck.manifest_save", map[string]any{"project": "draft", "manifest": wide}); code != 200 {
 		t.Fatalf("save: %d %s", code, raw)

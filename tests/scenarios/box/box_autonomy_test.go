@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 
 	deckhome "deck2/internal/home"
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -44,7 +46,9 @@ type cliSettings struct {
 	}
 }
 
-func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
+// On Linux Claude Code runs in a box of its own, without its web, which passes the door; on macOS, until deck runs in a
+// Linux container there, outside one with its web and with rules that close deck's state.
+func TestCommandAgentRunsInAutoModeInItsFolders(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
 	c.Stream(0, "ok.jsonl")
@@ -68,8 +72,8 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	if mode, _ := harness.Flag(call.Args, "--permission-mode"); mode != "auto" {
 		t.Fatalf("the agent runs in the auto mode of the CLI: %v", call.Args)
 	}
-	if slices.Contains(call.Args, "--disallowedTools") {
-		t.Fatalf("the agent keeps the web of the CLI: %v", call.Args)
+	if off, _ := harness.Flag(call.Args, "--disallowedTools"); sandbox.Homed() != (off == "WebFetch,WebSearch") {
+		t.Fatalf("the agent has the web of the CLI only outside a box of its own: %v", call.Args)
 	}
 	if dir, _ := harness.Flag(call.Args, "--add-dir"); dir != data || !strings.Contains(call.Stdin, data) {
 		t.Fatalf("the agent writes the data folder of its project and knows where it is: %v", call.Args)
@@ -88,7 +92,13 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 		t.Fatal(err)
 	}
 	if set.Sandbox != nil {
-		t.Fatalf("a project with network has no sandbox of the CLI: %s", call.Settings)
+		t.Fatalf("the sandbox of the CLI is off: %s", call.Settings)
+	}
+	if sandbox.Homed() {
+		if len(set.Permissions.Deny) > 0 || call.Env["CLAUDE_CONFIG_DIR"] == "" {
+			t.Fatalf("in its box the CLI has its home of the project and no rules of deck's: %v %v", call.Args, set.Permissions.Deny)
+		}
+		return
 	}
 	real, _ := filepath.EvalSymlinks(home)
 	for _, h := range []string{home, real} {
@@ -114,63 +124,18 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	}
 }
 
-func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
-	t.Parallel()
+// selfCheckWith runs the self-check on the fake CLI, its first turn changed by before and its folder given the files.
+func selfCheckWith(t *testing.T, before string, files []string, status string) string {
 	c := harness.NewCLI(t)
-	c.Stream(0, "ok.jsonl")
-	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("health", harness.NoNetworkManifest)
-	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
-		t.Fatalf("want done, got %+v", got)
-	}
-	call := c.Call(1)
-	if off, _ := harness.Flag(call.Args, "--disallowedTools"); off != "WebFetch,WebSearch" {
-		t.Fatalf("an agent of a project without network has no web tools: %v", call.Args)
-	}
-	if tools, _ := harness.Flag(call.Args, "--tools"); !slices.Contains(strings.Split(tools, ","), "Bash") || strings.Contains(tools, "Web") {
-		t.Fatalf("it gets only the listed offline tools, so a network tool of a later CLI is off too: %v", call.Args)
-	}
-	var set cliSettings
-	if err := json.Unmarshal([]byte(call.Settings), &set); err != nil {
-		t.Fatal(err)
-	}
-	if s := set.Sandbox; s == nil || !s.Enabled || !s.FailIfUnavailable || s.AllowUnsandboxedCommands == nil || *s.AllowUnsandboxedCommands ||
-		!s.Network.StrictAllowlist || s.Network.AllowedDomains == nil || len(s.Network.AllowedDomains) != 0 {
-		t.Fatalf("its shell runs in the sandbox of the CLI with no domain: %s", call.Settings)
-	}
-
-	_, tok := e.Token("terminal", "deck.*")
-	open := strings.Replace(harness.NoNetworkManifest, `"no_network": true,`, "", 1)
-	var w struct {
-		Waiting int64
-		Widens  []string
-	}
-	code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "health", "manifest": open})
-	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Equal(w.Widens, []string{"no_network removed: agents get their own web"}) {
-		t.Fatalf("removing no_network waits for the owner's button: %d %s", code, out)
-	}
-	if rev := e.ManifestRevision("health"); rev != 1 {
-		t.Fatalf("the project stays without network until the owner allows: revision %d", rev)
-	}
-	e.Must("deck.manifest_save", map[string]any{"project": "health", "manifest": open}, nil)
-	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "health", "manifest": harness.NoNetworkManifest}); code != 200 || strings.Contains(string(out), "waiting") {
-		t.Fatalf("setting no_network narrows rights and applies at once: %d %s", code, out)
-	}
-}
-
-// selfCheckWith runs the self-check on the fake CLI whose before script is given.
-func selfCheckWith(t *testing.T, fixture, before, offline, status string) string {
-	c := harness.NewCLI(t)
-	c.Stream(1, fixture)
-	c.Stream(2, "selfcheck_resume.jsonl")
-	c.Approving()
+	c.ChecksPass()
 	if before != "" {
 		b, _ := os.ReadFile(filepath.Join(c.Dir, "before"))
 		c.Before(strings.Replace(string(b), `echo "$word" > word.txt`, before, 1))
 	}
-	if offline != "" {
-		b, _ := os.ReadFile(filepath.Join(c.Dir, "before"))
-		c.Before(strings.Replace(string(b), "selfcheck_offline.jsonl", offline, 1))
+	for _, f := range files {
+		if err := os.WriteFile(filepath.Join(c.Dir, f), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
@@ -180,41 +145,36 @@ func selfCheckWith(t *testing.T, fixture, before, offline, status string) string
 func TestSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 	t.Parallel()
 	self := harness.Fakes
-	for _, tc := range []struct{ name, fixture, before, want, offline string }{
-		{"green", "selfcheck.jsonl", "", "", ""},
-		{"asks about a write in its folder", "selfcheck.jsonl", `echo "$word" > word.txt; DECK_FAKE_MCP=approve '` + self + `' "$(sed -n 's/.*"url":"\([^"]*\)".*/\1/p' "$c/mcpconfig")" Bash '{"command":"echo"}'`, "auto mode: the CLI asked deck about", ""},
-		{"write did not run", "selfcheck.jsonl", ":", "auto mode: the write in its own folder did not run", ""},
-		{"no question", "selfcheck.jsonl", `echo "$word" > word.txt; return 0`, "permission prompt: the question did not reach", ""},
-		{"hidden file read", "selfcheck_nodenial.jsonl", "", "secrets: the CLI did not refuse", ""},
-		{"network in a project without it", "selfcheck.jsonl", "", "turn without network: curl in the sandbox of the CLI printed", "selfcheck_online.jsonl"},
-		{"secret leaked", "selfcheck.jsonl", `echo "$word" > word.txt; word=$(cat "$(grep -o '/[^ ]*/secrets/key.txt' "$c/stdin")")`, "the agent read a file deck hides", ""},
+	boxed := runtime.GOOS == "linux"
+	for _, tc := range []struct {
+		name, before string
+		files        []string
+		want         string
+		boxed        bool
+	}{
+		{"green", "", nil, "", false},
+		{"asks about a write in its folder", `echo "$word" > word.txt; DECK_FAKE_MCP=approve '` + self + `' "$url" Bash '{"command":"echo x > word.txt"}'`, nil, "auto mode: claude-code asked deck about a command", false},
+		{"write did not run", ":", nil, "auto mode: the write in its own folder did not run", false},
+		{"no question", `echo "$word" > word.txt; noask=1`, nil, "question: the answer through the ask tool did not reach", false},
+		{"hidden file read", "", []string{"leak"}, "secrets: the shell of claude-code read a file deck hides", true},
+		{"a host of no right", "", []string{"online"}, "turn without network: curl in the box of claude-code printed", true},
+		{"secret leaked", `echo "$word" > word.txt; word=$(cat "$(dirname "$(grep -o '/[^ ]*/probe.sh' "$c/stdin" | head -1)")/../secrets/key.txt")`, nil, "the agent read a file deck hides", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.boxed && !boxed {
+				t.Skip("Claude Code runs in a box of its own only on Linux")
+			}
+			if tc.name == "secret leaked" && boxed {
+				t.Skip("in its box the CLI has no hidden file to read")
+			}
 			status := "error"
 			if tc.want == "" {
 				status = "ok"
 			}
-			got := selfCheckWith(t, tc.fixture, tc.before, tc.offline, status)
+			got := selfCheckWith(t, tc.before, tc.files, status)
 			if tc.want == "" && got != "" || !strings.Contains(got, tc.want) {
 				t.Fatalf("self-check error %q, want %q", got, tc.want)
 			}
 		})
-	}
-}
-
-func TestNoNetworkReachesAProcessStartedBeforeIt(t *testing.T) {
-	t.Parallel()
-	c := harness.NewCLI(t)
-	c.Stream(0, "ok.jsonl")
-	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("notes", harness.PlainManifest)
-	id := e.Run(p, "work")
-	e.WaitState(id, "done")
-	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "no_network": true`, 1)}, nil)
-	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
-	e.WaitState(id, "done", "error")
-	harness.Until(t, "the CLI to start 2 times", func() bool { return c.Calls() >= 2 })
-	if call := c.Call(2); !slices.Contains(call.Args, "--resume") || !slices.Contains(call.Args, "--tools") {
-		t.Fatalf("a resumed session of a process started before no_network is without network too: %v", call.Args)
 	}
 }

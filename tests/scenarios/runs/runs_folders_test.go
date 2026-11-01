@@ -16,6 +16,7 @@ import (
 
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -238,9 +239,16 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	fs, _ := cc.Config("permissions.deck.filesystem")
 	var cwd string
 	_ = json.Unmarshal(cc.Request("thread/start")["cwd"], &cwd)
+	if cc.Cwd != repo || cwd != repo {
+		t.Fatalf("the turn runs in the repo: cwd %s thread %s", cc.Cwd, cwd)
+	}
+	if sandbox.Homed() {
+		// In its box the folder of the repo, .git with it, is the box's to write; no profile of Codex lists it.
+		return
+	}
 	for _, want := range []string{harness.QuoteTOML(repo) + `="write"`, harness.QuoteTOML(filepath.Join(repo, ".git")) + `="write"`} {
-		if !strings.Contains(fs, want) || cc.Cwd != repo || cwd != repo {
-			t.Fatalf("the turn runs in the repo and writes %s: cwd %s thread %s, %s", want, cc.Cwd, cwd, fs)
+		if !strings.Contains(fs, want) {
+			t.Fatalf("the turn writes %s: %s", want, fs)
 		}
 	}
 

@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["version"],
   "properties": {
-    "version": {"const": 14, "description": "Manifest format version."},
+    "version": {"const": 15, "description": "Manifest format version."},
     "collections": {"type": "array", "items": {"$ref": "#/$defs/collection"}},
     "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
     "scripts": {"type": "array", "items": {"$ref": "#/$defs/script"}},
@@ -33,9 +33,7 @@
     "writes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"},
       "description": "Documents of this project its agents and scripts write besides artifacts and memory, such as its own code: a document name, or a folder ending in / for every document under it. Never manifest.json. A new one is granted by the owner."},
     "gpu": {"type": "boolean", "default": false,
-      "description": "The scripts, MCP servers and ACP agents of this project use the graphics card (/dev/dri on Linux), for rendering and local models. A right the owner gives."},
-    "no_network": {"type": "boolean", "default": false,
-      "description": "The agents of this project have no web and no network of their own; they reach outside only through deck tools, and its pushes carry no text of its data. Its scripts still reach the domains of the manifest and the package registries. For personal data. Only the owner removes it."}
+      "description": "The programs of this project use the graphics card (/dev/dri on Linux): rendering, local models. A right the owner gives."}
   },
   "$defs": {
     "name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,39}$"},
@@ -75,8 +73,8 @@
         "input": {"$ref": "#/$defs/schema", "description": "Flat object schema; parameters are string, number, integer, boolean, date, choice, file or a reference."},
         "result": {"$ref": "#/$defs/schema", "description": "Schema of the result; null means nothing to do, and the agent may give it only where the schema takes null (type [\"object\", \"null\"])."},
         "callers": {"type": "array", "items": {"enum": ["owner", "master", "agent", "trigger"]}, "uniqueItems": true, "minItems": 1},
-        "requires": {"type": "array", "uniqueItems": true, "items": {"enum": ["images", "no_cloud", "local_browser"]},
-          "description": "Provider capabilities beyond what every provider has: images is a model that reads pictures; no_cloud is a model on the owner's hardware; local_browser is a shell that starts a local browser (Chrome, a headless render) and listens on local ports."},
+        "requires": {"type": "array", "uniqueItems": true, "items": {"enum": ["images", "no_cloud"]},
+          "description": "Provider capabilities beyond what every provider has: images is a model that reads pictures; no_cloud is a model on the owner's hardware."},
         "provider": {"type": "string", "description": "Suggested provider; the owner picks the real one in settings."},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 240},
         "runs": {"enum": ["one"], "description": "one: one run at a time; a call while a run goes on waits as a run of its own and starts once the runs before it have ended. For a command whose runs share files of $DECK_DATA, an install or a browser."},
@@ -134,7 +132,7 @@
     },
     "script": {
       "type": "object",
-      "description": "A script runs in deck's sandbox: it writes its run folder and $DECK_DATA (caches of uv, npm and Hugging Face live in $DECK_DATA/.cache), reads the project folders, of the owner's home only the runtimes on PATH, and reaches the network only through deck's proxy to domains.read (Node's fetch too). It opens no local port and has no GPU: rendering in a browser (Remotion) or a local model on Metal is an agent command, whose shell on Claude Code in a project with network has ports, the GPU and caches.",
+      "description": "A script runs in its box: it writes its run folder and $DECK_DATA, reads the project folders and reaches domains.read through deck's door (the box: module-builder).",
       "additionalProperties": false,
       "required": ["name", "file", "runtime"],
       "properties": {
@@ -222,7 +220,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "read": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Hosts to read; also the network allowlist of scripts."},
+        "read": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Hosts the programs of this project reach: its scripts, MCP servers and the shells of its agents; without any its agents reach only their provider and deck."},
         "act": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Hosts where the browser may click, type and submit."}
       }
     },

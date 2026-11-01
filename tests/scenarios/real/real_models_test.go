@@ -67,8 +67,8 @@ func checked(e *harness.Env, subject string) harness.HealthRow {
 // passes its self-check and works, and its session resumes on Opus.
 func TestRealClaudeCodeModels(t *testing.T) {
 	realCLI(t)
-	home := t.TempDir()
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home)), harness.WithConfig(realWaits), harness.WithWait(10*time.Minute))
+	home := realHome(t)
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil)), harness.WithConfig(realWaits), harness.WithWait(10*time.Minute))
 	e.Refused("deck.model_set", map[string]any{"connection": "claude-code", "model": "haiku", "name": "cc-haiku"}, 422, "no auto mode")
 	first, second := realModelResume(t, e, "claude-code", "cc-live", "sonnet", "opus")
 	if !strings.Contains(first, "sonnet") || !strings.Contains(second, "opus") {
@@ -81,7 +81,7 @@ func TestRealClaudeCodeModels(t *testing.T) {
 func TestRealCodexModels(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
-	var pv provider.Provider = codex.New(home)
+	var pv provider.Provider = codex.New(home, nil)
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(pv), harness.WithConfig(realWaits), harness.WithWait(10*time.Minute))
 	e.Refused("deck.model_set", map[string]any{"connection": "codex", "model": "gpt-6-luna", "name": "cx-x", "options": `{"effort": "minimal"}`}, 422, "takes effort")
 	first, second := realModelResume(t, e, "codex", "cx-live", "gpt-6-luna", "gpt-6-sol")

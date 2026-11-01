@@ -61,6 +61,11 @@ func Serve() bool {
 			fakeFailed(fmt.Errorf("approve takes url, tool and input, got %q", os.Args[1:]))
 		}
 		askApprove(os.Args[1], os.Args[2], os.Args[3])
+	case "call":
+		if len(os.Args) != 4 {
+			fakeFailed(fmt.Errorf("call takes url, tool and arguments, got %q", os.Args[1:]))
+		}
+		callDeck(os.Args[1], os.Args[2], os.Args[3])
 	default:
 		return false
 	}
@@ -115,6 +120,23 @@ func askApprove(url, tool, input string) {
 	}
 	if _, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: "approve",
 		Arguments: map[string]any{"tool_name": tool, "input": in, "tool_use_id": "t1"}}); err != nil {
+		fakeFailed(err)
+	}
+	os.Exit(0)
+}
+
+// callDeck calls a tool of the deck MCP server at url as an agent does.
+func callDeck(url, tool, args string) {
+	ctx := context.Background()
+	sess, err := mcp.NewClient(&mcp.Implementation{Name: "fake-cli", Version: "0"}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: url}, nil)
+	if err != nil {
+		fakeFailed(err)
+	}
+	var in map[string]any
+	if err := json.Unmarshal([]byte(args), &in); err != nil {
+		fakeFailed(err)
+	}
+	if _, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: in}); err != nil {
 		fakeFailed(err)
 	}
 	os.Exit(0)

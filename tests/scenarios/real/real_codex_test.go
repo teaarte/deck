@@ -30,7 +30,7 @@ func TestRealCodexSelfCheck(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
 	start := time.Now()
-	c := codex.New(t.TempDir()).SelfCheck(ctx)
+	c := codex.New(t.TempDir(), nil).SelfCheck(ctx)
 	t.Logf("codex %s: self-check in %s", c.Version, time.Since(start).Round(time.Second))
 	if c.Err != nil || c.Outcome != provider.Done {
 		t.Fatalf("self-check: %+v", c)
@@ -42,7 +42,7 @@ func TestRealCodexSelfCheck(t *testing.T) {
 func TestRealCodexQuestion(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(codex.New(home)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(codex.New(home, nil)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
 	p := e.Project("ask", harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Asks the owner", "class": "internal",
     "result": {"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Ask the owner which color the report should use, with the options red and blue. The result is the color the owner picked."}}]}`))
@@ -99,7 +99,7 @@ func TestRealCodexCommitsInTheFolder(t *testing.T) {
 	git("add", "-A")
 	git("commit", "-q", "-m", "start")
 	home := t.TempDir()
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(codex.New(home)), harness.WithConfig(realWaits))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(codex.New(home, nil)), harness.WithConfig(realWaits))
 	cmd, _ := json.Marshal(map[string]any{"name": "work", "title": "Work", "description": "Commits a file.", "class": "internal",
 		"result": map[string]any{"type": "object", "required": []string{"markers", "commit"},
 			"properties": map[string]any{"markers": map[string]any{"type": "string"}, "commit": map[string]any{"type": "string"}}},
@@ -135,7 +135,7 @@ func TestRealCodexResolvesItsRunAndKeepsCaches(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(home) })
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(codex.New(home)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(codex.New(home, nil)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
 	secret := filepath.Join(home, "state", "probe")
 	if err := os.WriteFile(secret, []byte("closed"), 0o600); err != nil {
 		t.Fatal(err)

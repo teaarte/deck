@@ -123,7 +123,7 @@
   "cli": "0.155.1",
   "date": "2026-09-27",
   "kind": "synthetic",
-  "note": "selfcheck.jsonl where the probe really reads the hidden key, as with no sandbox"
+  "note": "selfcheck.jsonl where the probe read the hidden key, as with no box"
  },
  "selfcheck_noprobe.jsonl": {
   "cli": "0.155.1",

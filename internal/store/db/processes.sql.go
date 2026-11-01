@@ -1486,6 +1486,45 @@ func (q *Queries) ListRunningDecisions(ctx context.Context) ([]ListRunningDecisi
 	return items, nil
 }
 
+const listSessionsGoingOn = `-- name: ListSessionsGoingOn :many
+SELECT CAST(project_id AS INTEGER) AS project_id, session_id FROM process
+WHERE session_id != '' AND state NOT IN ('done', 'error', 'stopped', 'interrupted')
+UNION
+SELECT CAST(p.id AS INTEGER) AS project_id, s.session_id FROM chat_session s
+JOIN chat_topic t ON t.id = s.topic_id
+JOIN project p ON p.workspace_id = t.workspace_id AND p.builtin = 1
+WHERE t.archived = 0 AND t.deleted_at IS NULL
+`
+
+type ListSessionsGoingOnRow struct {
+	ProjectID int64
+	SessionID string
+}
+
+// The sessions of agents that may go on, with their projects: of a process not yet ended, of a chat topic kept.
+func (q *Queries) ListSessionsGoingOn(ctx context.Context) ([]ListSessionsGoingOnRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionsGoingOn)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSessionsGoingOnRow
+	for rows.Next() {
+		var i ListSessionsGoingOnRow
+		if err := rows.Scan(&i.ProjectID, &i.SessionID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listToolCalls = `-- name: ListToolCalls :many
 SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call WHERE process_id = ? ORDER BY id
 `

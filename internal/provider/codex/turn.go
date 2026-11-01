@@ -18,9 +18,11 @@ import (
 
 // turn is one app-server session: it sets the thread up, runs one turn and collects what the turn reported.
 type turn struct {
-	a      *Adapter
-	req    provider.Request
-	c      *conn
+	a   *Adapter
+	req provider.Request
+	c   *conn
+	// door is deck's MCP server of the turn at the door of the box.
+	door   string
 	thread string
 	turnID string
 	model  string
@@ -91,7 +93,7 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 			}
 		}
 	}
-	config := threadConfig(t.req, servers, skillsOff)
+	config := threadConfig(t.req, t.door, servers, skillsOff)
 	policy := json.RawMessage(`"on-request"`)
 	if t.thread == "" {
 		var r ThreadStartResponse
@@ -121,9 +123,9 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 	}
 	text, _ := json.Marshal(TextUserInput{Type: "text", Text: t.req.Prompt})
 	var started TurnStartResponse
-	perms := profile
-	if sandbox.Contained() {
-		perms = ""
+	perms := ""
+	if !sandbox.Homed() && !sandbox.Contained() {
+		perms = profile
 	}
 	if err := t.call(ctx, "turn/start", TurnStartParams{ThreadID: t.thread, Input: []UserInput{text}, Permissions: perms,
 		Model: t.a.model, Effort: ReasoningEffort(t.a.effort)}, &started); err != nil {

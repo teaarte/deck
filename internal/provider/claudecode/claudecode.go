@@ -4,20 +4,22 @@ import (
 	"bufio"
 	"cmp"
 	"context"
-	"deck2/internal/home"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
 	"time"
 
+	"deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
+	"deck2/internal/untrusted"
 )
 
 // Adapter runs the Claude Code CLI in print mode with stream-json output. See docs/spikes/claude-code.md.
@@ -25,8 +27,9 @@ type Adapter struct {
 	Binary string
 	// CI is the version of the CLI CI tests deck with; empty compares none.
 	CI string
-	// ConfigDir holds per-turn MCP configs; it must be outside every folder the agent writes to.
-	ConfigDir string
+	// Home is deck's folder, which holds the homes of the CLI.
+	Home    home.Layout
+	Sandbox *sandbox.Sandbox
 	// Linger is how long the CLI may stay silent after its result before its process group is killed; TaskLinger
 	// is that time while a task it started has not reported.
 	Linger, TaskLinger time.Duration
@@ -34,10 +37,22 @@ type Adapter struct {
 	name, model, effort string
 }
 
-// New runs the CLI for the deck whose folder is root.
-func New(root string) *Adapter {
-	h := home.Layout(root)
-	return &Adapter{Binary: "claude", CI: provider.CIVersion("CLAUDE_VERSION"), ConfigDir: h.Sessions(), Linger: 90 * time.Second, TaskLinger: 30 * time.Minute}
+// cli is the name of the CLI's homes in deck's folder.
+const cli = "claude"
+
+// login is the file of the CLI's sign-in in its home.
+const login = ".credentials.json"
+
+// hosts are what the CLI itself reaches: its API and the refresh of its sign-in.
+var hosts = []string{"api.anthropic.com", "platform.claude.com"}
+
+// New runs the CLI for the deck whose folder is root, in the boxes of sb, those of root when nil.
+func New(root string, sb *sandbox.Sandbox) *Adapter {
+	if sb == nil {
+		sb = sandbox.New(home.Layout(root))
+	}
+	return &Adapter{Binary: "claude", CI: provider.CIVersion("CLAUDE_VERSION"), Home: home.Layout(root), Sandbox: sb,
+		Linger: 90 * time.Second, TaskLinger: 30 * time.Minute}
 }
 
 func (a *Adapter) Name() string { return cmp.Or(a.name, "claude-code") }
@@ -56,14 +71,6 @@ func (a *Adapter) Install() string {
 // TestedVersion is the version of the CLI CI tests deck with.
 func (a *Adapter) TestedVersion() string { return a.CI }
 
-// bin is the program of the CLI as deck finds it; its name when deck finds none, which fails to start.
-func (a *Adapter) bin() string {
-	if p, err := sandbox.Find(a.Binary); err == nil {
-		return p
-	}
-	return a.Binary
-}
-
 // With is the CLI on a model of deck's settings, by its name in the CLI and its effort.
 func (a *Adapter) With(name, model, effort string) provider.Provider {
 	c := *a
@@ -76,13 +83,30 @@ func (a *Adapter) OnSubscription() {}
 
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
-// Terminal goes on with a session of deck in the owner's own Claude Code, in the folder of the turn.
-func (a *Adapter) Terminal(session string) (string, error) {
+// Terminal goes on with a session of deck in the owner's own Claude Code, in the folder of the turn; a session in
+// the home of its project, whose login is deck's, has none.
+func (a *Adapter) Terminal(_ int64, session string) (string, error) {
+	if sandbox.Homed() {
+		return "", errors.New("claude-code: a session in the home of its project goes on only in deck")
+	}
 	return "claude --resume " + provider.Quote(session), nil
 }
 
 func (a *Adapter) Caps() provider.Caps {
-	return provider.Caps{provider.Images, provider.StructuredOutput, provider.LiveInput, provider.LocalBrowser}
+	return provider.Caps{provider.Images, provider.StructuredOutput, provider.LiveInput}
+}
+
+// box is the box of a program of the CLI for project: its home, the one login, the hosts of the CLI and of project;
+// outside a box of its own the CLI keeps the home of the user, as it did.
+func (a *Adapter) box(project int64, argv []string, hostsOf []string) sandbox.Box {
+	b := sandbox.Box{Kind: sandbox.KindCLI, Argv: argv, Home: a.Home.Agent(cli, project), Hosts: provider.Hosts(hostsOf, hosts...)}
+	if sandbox.Homed() {
+		at := provider.Homed(&b, a.Home, cli, project, login)
+		b.Env = []string{"CLAUDE_CONFIG_DIR=" + at, "DISABLE_AUTOUPDATER=1"}
+	} else if own, err := os.UserHomeDir(); err == nil {
+		b.Env = []string{"HOME=" + own}
+	}
+	return b
 }
 
 func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []string {
@@ -94,8 +118,9 @@ func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []str
 	if a.effort != "" {
 		args = append(args, "--effort", a.effort)
 	}
-	if req.NoNetwork {
-		args = append(args, "--tools", strings.Join(offlineTools, ","), "--disallowedTools", strings.Join(webTools, ","))
+	if sandbox.Homed() {
+		// The web tools of the CLI search and fetch on the provider's side, past the door of the box.
+		args = append(args, "--disallowedTools", strings.Join(webTools, ","))
 	}
 	for _, d := range req.Dirs {
 		args = append(args, "--add-dir", d)
@@ -103,6 +128,7 @@ func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []str
 	if plugin != "" {
 		args = append(args, "--plugin-dir", plugin)
 	}
+	// The settings of the user, in a box those of the home its agent writes, stay out; a repo brings its own.
 	if req.Repo {
 		args = append(args, "--setting-sources", "project")
 	} else {
@@ -145,55 +171,46 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if req.SessionID == "" {
 		return provider.Result{}, errors.New("claude-code: the session id must be assigned by deck")
 	}
-	mcp, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{provider.Server: map[string]any{"type": "http", "url": req.MCPURL}}})
-	cfg, err := a.writeFile("mcp", mcp)
+	gw, err := url.Parse(req.MCPURL)
 	if err != nil {
 		return provider.Result{}, err
 	}
-	defer os.Remove(cfg)
-	set, _ := json.Marshal(settings(req))
-	setFile, err := a.writeFile("settings", set)
+	b := a.box(req.Project, nil, req.Hosts)
+	dir, drop, err := provider.Turn(a.Home, cli)
 	if err != nil {
 		return provider.Result{}, err
 	}
-	defer os.Remove(setFile)
-	plugin, err := a.writePlugin(req.Skills)
+	defer drop()
+	set, _ := json.Marshal(a.settings(req))
+	setFile := filepath.Join(dir, "settings.json")
+	if err := home.WriteFile(setFile, set); err != nil {
+		return provider.Result{}, err
+	}
+	plugin, err := writePlugin(dir, req.Skills)
 	if err != nil {
 		return provider.Result{}, err
 	}
-	if plugin != "" {
-		defer os.RemoveAll(plugin)
-	}
-	inR, inW, err := os.Pipe()
+	side, end := a.Sandbox.Side(provider.MCP(gw))
+	defer end()
+	mcp, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{provider.Server: map[string]any{"type": "http", "url": "{door}" + gw.Path}}})
+	b.Files = map[string]string{filepath.Join(dir, "mcp.json"): string(mcp)}
+	b.Argv = append([]string{a.Binary}, a.args(req, filepath.Join(dir, "mcp.json"), setFile, plugin)...)
+	b.Mark, b.Dir, b.Deck, b.GPU = a.Sandbox.Mark(sandbox.KindAgent, req.SessionID), req.Cwd, side, req.GPU
+	b.Env = append(b.Env, "MCP_TOOL_TIMEOUT=2400000")
+	b.Read, b.Write = append(append(slices.Clone(req.Read), dir), b.Read...), append(append([]string{req.Cwd}, req.Dirs...), b.Write...)
+	tail := untrusted.NewTail(2000)
+	// The turn ends the program itself, with a SIGINT first when ctx ends.
+	p, err := a.Sandbox.Run(context.WithoutCancel(ctx), b, sandbox.IO{Stderr: func(line string) { _, _ = tail.Write([]byte(line + "\n")) }})
 	if err != nil {
-		return provider.Result{}, err
-	}
-	outR, outW, err := os.Pipe()
-	if err != nil {
-		inR.Close()
-		inW.Close()
-		return provider.Result{}, err
-	}
-	defer outR.Close()
-	defer inW.Close()
-
-	cmd := exec.Command(a.bin(), a.args(req, cfg, setFile, plugin)...)
-	cmd.Dir = req.Cwd
-	cmd.Env = environ()
-	cmd.Stdin, cmd.Stdout = inR, outW
-	err = sandbox.AsAgent(cmd, append([]string{req.Cwd}, req.Dirs...), append([]string{cfg, setFile, plugin}, req.Read...))
-	var child *provider.Child
-	if err == nil {
-		child, err = provider.Start(cmd, a.ConfigDir, req.OnStart)
-	}
-	inR.Close()
-	outW.Close()
-	if err != nil {
-		inW.Close()
 		return provider.Result{}, fmt.Errorf("start %s: %w", a.Binary, err)
 	}
-	defer child.Close()
-	group := child.Signal
+	defer p.Kill()
+	if req.OnStart != nil {
+		req.OnStart(p.Pid())
+	}
+	inW, outR := p.Stdin, p.Stdout
+	defer outR.Close()
+	defer inW.Close()
 
 	// stdin stays open for live messages until the first result; they go out in order, then EOF.
 	stdin := provider.NewWriter(inW)
@@ -223,7 +240,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		close(lines)
 	}()
 	exited := make(chan error, 1)
-	go func() { exited <- cmd.Wait() }()
+	go func() { exited <- p.Wait() }()
 
 	t := &turn{req: req}
 	var promptErr, waitErr error
@@ -272,20 +289,19 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 			}
 		case waitErr = <-exited:
 			done, exited = true, nil
-			group(syscall.SIGKILL)
 			drainC = time.After(5 * time.Second)
 		case <-drainC:
 			outR.Close()
 		case <-lingerC:
 			lingerC = nil
-			group(syscall.SIGTERM)
+			p.Signal(syscall.SIGTERM)
 			killC = time.After(5 * time.Second)
 		case <-killC:
 			killC = nil
-			group(syscall.SIGKILL)
+			p.Signal(syscall.SIGKILL)
 		case <-cancelled:
 			cancelled = nil
-			group(syscall.SIGINT)
+			p.Signal(syscall.SIGINT)
 			killC = time.After(15 * time.Second)
 		}
 	}
@@ -305,5 +321,26 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if scanErr != nil && !errors.Is(scanErr, os.ErrClosed) {
 		return t.res, fmt.Errorf("read %s output: %w", a.Binary, scanErr)
 	}
-	return t.finish(waitErr, child.Stderr(), promptErr)
+	return t.finish(waitErr, strings.TrimSpace(tail.String()), promptErr)
+}
+
+// Move copies a session of deck that may go on, and the folder the CLI keeps beside it, from the user's own Claude
+// Code into the home of its project, under the folder of the same working directory.
+func (a *Adapter) Move(project int64, session string) error {
+	own, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	found, _ := filepath.Glob(filepath.Join(own, ".claude", "projects", "*", session+".jsonl"))
+	for _, f := range found {
+		to := filepath.Join(a.Home.Agent(cli, project), "projects", filepath.Base(filepath.Dir(f)))
+		for _, p := range []string{f, strings.TrimSuffix(f, ".jsonl")} {
+			if _, err := os.Stat(p); err == nil {
+				if err := provider.Copy(p, filepath.Join(to, filepath.Base(p))); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }

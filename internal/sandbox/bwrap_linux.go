@@ -40,6 +40,8 @@ const Fix = "deck's compose.yaml gives its container three lines, security_opt: 
 	"systempaths=unconfined, apparmor=deck-box; on Ubuntu and Debian the host loads the profile once: " +
 	"sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box"
 
+func outside(Box) bool { return false }
+
 func (s *Sandbox) Name() string {
 	if Contained() {
 		return "container"
@@ -176,11 +178,11 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
 	if b.GPU {
 		args = append(args, "--dev-bind-try", "/dev/dri", "/dev/dri")
 	}
-	type mount struct{ flag, path string }
+	type mount struct{ flag, from, path string }
 	var mounts []mount
 	add := func(flag, p string) {
 		if filepath.IsAbs(p) {
-			mounts = append(mounts, mount{flag, p})
+			mounts = append(mounts, mount{flag, real(p), p})
 		}
 	}
 	path := ""
@@ -201,6 +203,12 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
 	for _, w := range b.Write {
 		add("--bind-try", w)
 	}
+	for at, p := range b.Shared {
+		// What is shared is deck's own and never a link a program put there.
+		if fi, err := os.Lstat(p); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) && filepath.IsAbs(at) {
+			mounts = append(mounts, mount{"--bind", real(p), at})
+		}
+	}
 	// The links along the paths come first, then the paths, shallow before deep, so a path inside another keeps its
 	// own mode.
 	made := map[string]bool{}
@@ -211,7 +219,7 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
 		return strings.Count(real(a.path), "/") - strings.Count(real(b.path), "/")
 	})
 	for _, m := range mounts {
-		args = append(args, m.flag, real(m.path), real(m.path))
+		args = append(args, m.flag, m.from, real(m.path))
 	}
 	var private []string
 	for _, p := range Private() {

@@ -17,6 +17,7 @@ import (
 	"deck2/internal/app/providers"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/store"
 	"deck2/tests/harness"
 )
 
@@ -417,8 +418,8 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 	for _, q := range []string{
 		`INSERT INTO health (workspace_id, subject, status, error) VALUES (1, 'model:m-text', 'ok', 'the model answered at 142 tokens/s')`,
 		`INSERT INTO health (workspace_id, subject, status, error) VALUES (1, 'model:m-image', 'warning', 'the model did not finish the self-check of goose 1.53.0 within 2m0s: first turn: not one model call finished within the ceiling: the model may be slow to start (a cold start, the queue of a free tier), or its url or model id may be wrong')`,
-		fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at) VALUES (%d, 'work', 'script', 'running', '2026-10-25T08:00:00.000Z')`, p),
-		fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at) VALUES (%d, 'work', 'agent', 'running', '2026-10-25T08:01:00.000Z')`, p),
+		fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at) VALUES (%d, 'work', 'script', 'running', '%s')`, p, store.Time(time.Now().Add(-2*time.Hour))),
+		fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at) VALUES (%d, 'work', 'agent', 'running', '%s')`, p, store.Time(time.Now().Add(-time.Hour))),
 		fmt.Sprintf(`INSERT INTO feed (workspace_id, project_id, kind, author, text) VALUES (1, %d, 'change', 'master', 'master changed the manifest of notes')`, p),
 	} {
 		// Checks of models, running processes and a change of the master, as deck leaves them, without running any.

@@ -41,7 +41,7 @@ func (r *Runner) Cancel(ctx context.Context, processID int64, reason string, own
 
 // end closes a process that has not finished in state with failure f, as Stop does; drop closes its frozen calls too.
 func (r *Runner) end(ctx context.Context, processID int64, state string, f *fault.F, drop bool) error {
-	var n int64
+	var n, done int64
 	var closedCalls []db.Ask
 	if !r.own(processID) {
 		if p, err := r.st.Q.GetProcess(ctx, processID); err == nil && p.FinishedAt.Valid {
@@ -50,10 +50,16 @@ func (r *Runner) end(ctx context.Context, processID int64, state string, f *faul
 		return registry.Conflict("process %d is closing", processID)
 	}
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		// A process that handed in its result ends done with it, however it was stopped.
 		var err error
-		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{State: state, Error: f.Text, ErrorType: f.Type,
-			ErrorDetails: untrusted.Cut(f.Details, detailsCap), FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
+		if done, err = q.StopSubmittedProcess(ctx, db.StopSubmittedProcessParams{FinishedAt: r.stamp(), ID: processID}); err != nil {
 			return err
+		}
+		if n = done; n == 0 {
+			if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{State: state, Error: f.Text, ErrorType: f.Type,
+				ErrorDetails: untrusted.Cut(f.Details, detailsCap), FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
+				return err
+			}
 		}
 		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: store.Bool(drop)})
 		return err
@@ -68,6 +74,9 @@ func (r *Runner) end(ctx context.Context, processID int64, state string, f *faul
 	delete(r.lost, processID)
 	r.mu.Unlock()
 	after := func(ctx context.Context) {
+		if done == 1 {
+			r.keepSubmitted(ctx, processID)
+		}
 		r.dropped(ctx, closedCalls)
 		r.closed(ctx, processID)
 		r.disown(processID)

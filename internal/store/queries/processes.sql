@@ -54,11 +54,12 @@ ORDER BY id DESC LIMIT 1;
 
 
 -- name: FindRecordProcess :one
--- The newest process of a command for a record that is open, or closed with a run after it still to start.
+-- The newest process of a command for a record that is open without a result handed in, or closed with a run after
+-- it still to start.
 SELECT * FROM process p
 WHERE p.project_id = ? AND p.command = ? AND p.trial = ?
   AND json_extract(p.input, '$.record') = CAST(sqlc.arg(record) AS INTEGER)
-  AND (p.finished_at IS NULL OR p.again != '' AND p.state != 'stopped' AND NOT EXISTS (SELECT 1 FROM process f WHERE f.follows_id = p.id))
+  AND (p.finished_at IS NULL AND p.submitted_at IS NULL OR p.again != '' AND p.state != 'stopped' AND NOT EXISTS (SELECT 1 FROM process f WHERE f.follows_id = p.id))
 ORDER BY p.id DESC LIMIT 1;
 
 
@@ -93,6 +94,25 @@ SET state = ?, result = ?, not_by_schema = ?, error = ?, error_type = ?, error_d
 WHERE id = ? AND state = 'running';
 
 
+-- name: SubmitResult :execrows
+UPDATE process SET result = ?, submitted_at = ? WHERE id = ? AND finished_at IS NULL;
+
+
+-- name: SetProcessResult :exec
+UPDATE process SET result = ? WHERE id = ?;
+
+
+-- name: StopSubmittedProcess :execrows
+-- A process stopped after it handed in its result ends done with that result.
+UPDATE process SET state = 'done', not_by_schema = 0, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
+WHERE id = ? AND finished_at IS NULL AND submitted_at IS NOT NULL;
+
+
+-- name: ListSubmittedRunning :many
+-- The open processes that handed in their result before a time and still run.
+SELECT * FROM process WHERE finished_at IS NULL AND submitted_at IS NOT NULL AND submitted_at < ? ORDER BY id;
+
+
 -- name: StopParkedProcess :execrows
 UPDATE process SET state = ?, error = ?, error_type = ?, error_details = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = ? AND finished_at IS NULL;
@@ -100,7 +120,7 @@ WHERE id = ? AND finished_at IS NULL;
 
 -- name: ReopenProcess :execrows
 UPDATE process
-SET state = 'running', error = '', error_type = '', error_details = '', result = '', not_by_schema = 0, dismissed = 0, finished_at = NULL, ceiling_ms = ?,
+SET state = 'running', error = '', error_type = '', error_details = '', result = '', submitted_at = NULL, not_by_schema = 0, dismissed = 0, finished_at = NULL, ceiling_ms = ?,
     deadline_ms = NULL, silent_since_ms = NULL, start_note = ?, pause_until_ms = NULL, reopened_at = ?
 WHERE id = ? AND finished_at IS NOT NULL AND session_id != '';
 

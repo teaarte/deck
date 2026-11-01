@@ -60,6 +60,8 @@ func (h Hook) Closed(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.ch.t
 
 func (h Hook) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.ch.tell(ctx, p) }
 
+func (h Hook) Submitted(context.Context, db.Process) {}
+
 func (h Hook) goOn(ctx context.Context, p db.Process) {
 	if topic := h.ch.replyOf(ctx, p); topic != 0 {
 		h.ch.pump(context.WithoutCancel(ctx), topic)

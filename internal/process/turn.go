@@ -147,7 +147,9 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	}
 	r.deps.Servers(ctx, t.project)
 	if len(t.cmd.Result) > 0 && !slices.Contains(pv.Caps(), provider.StructuredOutput) {
-		a.sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
+		processID := t.process
+		a.sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) },
+			Accepted: func(raw json.RawMessage) { r.keep(context.WithoutCancel(ctx), processID, raw) }}
 	}
 	tok, err := r.gw.Open(ctx, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
 		Question: pv.QuestionTool(), Wait: callLimit(pv), Master: proj.Builtin == 1, Commands: t.cmd.Executor.Calls,

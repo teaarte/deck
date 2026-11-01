@@ -80,7 +80,7 @@ func TriggerInput(t Trigger, ref int64) map[string]any {
 		in[k] = v
 	}
 	switch {
-	case t.After != "" || t.On == OnFailure:
+	case t.After != "" || t.On == OnFailure || t.On == OnIncident:
 		in["process"] = ref
 	case t.On == OnMessage:
 		in["topic"] = ref

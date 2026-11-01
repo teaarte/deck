@@ -201,17 +201,18 @@ type Trigger struct {
 	Command string `json:"command"`
 	Cron    string `json:"cron,omitempty"`
 	After   string `json:"after,omitempty"`
-	// On is an event of deck only the built-in project answers: OnMessage or OnFailure.
+	// On is an event of deck only the built-in project answers: OnMessage, OnFailure or OnIncident.
 	On         string         `json:"on,omitempty"`
 	Params     map[string]any `json:"params,omitempty"`
 	SkipMissed bool           `json:"skip_missed,omitempty"`
 }
 
 // Events of deck a trigger of the built-in project answers: the owner wrote in a chat topic, a process of another
-// project failed.
+// project failed, deck noticed an incident around a process of another project.
 const (
-	OnMessage = "message"
-	OnFailure = "failure"
+	OnMessage  = "message"
+	OnFailure  = "failure"
+	OnIncident = "incident"
 )
 
 type Tools struct {

@@ -31,7 +31,12 @@
       "The block and its error": "Блок и его ошибка",
       "The type of the failure of the process, such as script.failed or program.missing": "Тип сбоя процесса, например script.failed или program.missing",
       "Whose the failure is: module, environment or owner": "Чей это сбой: модуля, окружения или владельца",
-      "The master: takes the owner's tasks, puts them into the right projects, works with modules and builds new ones.": "Мастер: принимает задачи владельца, раскладывает их по нужным модулям, работает с модулями и собирает новые."
+      "The master: takes the owner's tasks, puts them into the right projects, works with modules and builds new ones.": "Мастер: принимает задачи владельца, раскладывает их по нужным модулям, работает с модулями и собирает новые.",
+      "Mend an incident": "Разобрать инцидент",
+      "Mends what deck noticed went wrong around a process of a project, such as a result handed in that no step after took, by the incident-recovery skill, and tells the owner in the feed.": "Чинит то, что deck заметил вокруг процесса модуля, например сданный результат, который не прошёл дальше, по навыку incident-recovery, и пишет владельцу в ленту.",
+      "The process of the incident": "Процесс инцидента",
+      "What deck noticed: result_running, result_not_done or after_not_started": "Что заметил deck: result_running, result_not_done или after_not_started",
+      "What deck saw, in its words": "Что видел deck, его словами"
     }
   },
   "commands": [
@@ -221,6 +226,45 @@
           "deck.owner_notify"
         ]
       }
+    },
+    {
+      "name": "on_incident",
+      "title": "Mend an incident",
+      "description": "Mends what deck noticed went wrong around a process of a project, such as a result handed in that no step after took, by the incident-recovery skill, and tells the owner in the feed.",
+      "class": "internal",
+      "callers": [
+        "owner",
+        "trigger"
+      ],
+      "provider": "claude-code",
+      "input": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "integer",
+            "format": "process",
+            "description": "The process of the incident"
+          },
+          "incident": {
+            "type": "string",
+            "description": "What deck noticed: result_running, result_not_done or after_not_started"
+          },
+          "text": {
+            "type": "string",
+            "description": "What deck saw, in its words"
+          }
+        },
+        "required": [
+          "process"
+        ]
+      },
+      "executor": {
+        "type": "agent",
+        "prompt_file": "prompts/on_incident.md",
+        "skills": [
+          "incident-recovery"
+        ]
+      }
     }
   ],
   "triggers": [
@@ -231,6 +275,10 @@
     {
       "command": "on_error",
       "on": "failure"
+    },
+    {
+      "command": "on_incident",
+      "on": "incident"
     },
     {
       "command": "memory",

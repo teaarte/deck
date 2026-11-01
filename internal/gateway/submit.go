@@ -16,6 +16,8 @@ type Submit struct {
 	Validate func(json.RawMessage) error
 	// Retried is set once the one request to rebuild the result is spent in this run of the session.
 	Retried bool
+	// Accepted keeps a result by the schema before the agent hears it was accepted.
+	Accepted func(json.RawMessage)
 
 	mu sync.Mutex
 	// got is the last result handed in, including one the schema refused.
@@ -67,6 +69,9 @@ func (s *Submit) handle(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallT
 		return refusal("deck: the result still does not match its schema; deck keeps it marked as not by the schema. End your turn."), nil
 	}
 	s.done = true
+	if s.Accepted != nil {
+		s.Accepted(s.got)
+	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deck: result accepted. End your turn."}}}, nil
 }
 

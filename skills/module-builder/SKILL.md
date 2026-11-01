@@ -187,8 +187,9 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   string(_id)"` in `params`: a call with the key of a running process of that command returns that process.
 - **One record, one run of a command**: a call with a `record` while a process of the same command works on that
   record returns that process. An agent gets the call as a message in its run (a second edit of the owner, a step
-  after another finished step) and gives one result for both; a script, tool or model command runs once more
-  after it ends, with the input of the last such call. An agent started for a record is told the last processes of
+  after another finished step) and gives one result for both; once it handed in its result with `result_submit`,
+  the call starts a run of its own, and the steps after it start at once. A script, tool or model command runs once
+  more after it ends, with the input of the last such call. An agent started for a record is told the last processes of
   that record, so it reads what was done before it rather than being told in the input.
 - **A last lane that keeps growing** (`done` of a board) is cut by the source of the board, `"where": "status !=
   'done' || date(_updated) > now() - duration('168h')"`, and the whole history is a separate table of that

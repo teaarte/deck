@@ -4,7 +4,8 @@ Look over deck once a day and tell the owner what is worth doing; do not do it y
    project, newest first: stop at the first that started before then), the documents its modules keep as summaries
    (`documents_list`; a module names its summary in its md), and what is waiting for the owner (`asks_list`); then
    `health_list`: what is red or paused, such as a model out of credits, pushes that stopped, an error that outlived its
-   cause.
+   cause. A process of the day that handed in its result (`submitted_at`) with no record or step after to show for it
+   is a finding too.
 2. `changes.md` of project master: the lines after the one your memory says you read last are what changed in deck
    for modules; a module that needs a change by them is a finding. Then remember the last line in your memory.
 3. What the owner's memory says they turned down, you do not bring up again.

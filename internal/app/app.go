@@ -152,7 +152,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Journal = journal.Service{St: st, Now: cfg.Now, Groups: a.Providers.Groups}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
 	a.Themes = themes.Service{St: st, Now: cfg.Now, Invoke: a.Registry.Invoke, Language: a.Settings.Language}
-	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Providers.Works,
+	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Providers.Works, Incident: a.Failures.Incident,
 		IsFailure: func(ctx context.Context, act registry.Actor, id int64) (bool, error) {
 			return a.Processes.IsFailure(ctx, act, id)
 		}}
@@ -303,12 +303,13 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.slow(ctx, now)
 }
 
-// deadlines are what is due by now: expired confirmations and those deck need not ask about, ceilings, pauses on a
-// usage limit, silent processes, empty results kept long enough, files whose rows are gone, the disk.
+// deadlines are what is due by now: confirmations, ceilings, pauses, silent processes, results handed in by processes
+// that still run, empty results kept long enough, files whose rows are gone, the disk.
 func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Answers.ExpireConfirms(ctx, now)
 	a.Answers.Settle(ctx)
 	a.Runner.Due(ctx, now)
+	a.Failures.Due(ctx, now)
 	a.Files.Drain(ctx)
 	a.Snapshots.CheckDisk(ctx, now)
 }

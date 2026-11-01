@@ -18,3 +18,10 @@ and bring the modules in line.
   form in the browser still waits for the owner.
 - 2026-11-01: pushes are never private by a module any more; the owner's setting `push_text` (`full`, `hidden`)
   hides the text of every push, which then says only the module it is of.
+- 2026-11-02: a result an agent hands in with `result_submit` is kept by its process at once, and the steps `after`
+  its command start then, not when the session ends. A call for the same record after that starts a run of its own
+  instead of joining. A process stopped after it handed in its result ends done with it; `process_get` gives
+  `submitted_at`.
+- 2026-11-02: deck tells the master of incidents around a process — `result_running`, `result_not_done`,
+  `after_not_started` — by the trigger `on: incident` of the master (`on_incident`, skill `incident-recovery`); deck
+  mends none itself.

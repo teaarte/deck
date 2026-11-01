@@ -40,7 +40,8 @@ func (s *Service) Start(ctx context.Context, t db.Trigger, input map[string]any,
 	return started.Process, nil
 }
 
-// After fires the triggers that follow a command which finished done with a result by its schema.
+// After fires the triggers that follow a command which handed in a result by its schema, or finished done with one;
+// each starts once for its process.
 type After struct {
 	process.NoHook
 	S *Service
@@ -48,6 +49,12 @@ type After struct {
 
 func (h After) Closed(ctx context.Context, p db.Process) {
 	if p.State == process.StateDone && p.NotBySchema == 0 && p.Result != process.Empty && p.Alone == 0 {
+		h.S.after(ctx, p)
+	}
+}
+
+func (h After) Submitted(ctx context.Context, p db.Process) {
+	if p.Result != process.Empty && p.Alone == 0 {
 		h.S.after(ctx, p)
 	}
 }
@@ -87,6 +94,7 @@ func (s *Service) after(ctx context.Context, done db.Process) {
 			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 				return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text})
 			})
+			s.Incident(ctx, done, process.IncidentAfter, text)
 		}
 	}
 }

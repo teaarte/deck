@@ -299,6 +299,7 @@ type Process struct {
 	Again            string
 	Allows           string
 	Wrote            int64
+	SubmittedAt      sql.NullString
 }
 
 type ProcessRemark struct {

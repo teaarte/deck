@@ -13,6 +13,8 @@ type Hook interface {
 	// Closed runs after a process reached a final state, whatever it is; after a crash it may run again, so it acts
 	// once however often it runs.
 	Closed(ctx context.Context, p db.Process)
+	// Submitted runs after a running process handed in a result by its schema, which it keeps.
+	Submitted(ctx context.Context, p db.Process)
 	// Parked runs after a process parked to wait for the owner.
 	Parked(ctx context.Context, p db.Process)
 	// Turn gets the final text of an agent turn that ends the process done or parks it for the owner.
@@ -23,6 +25,7 @@ type Hook interface {
 type NoHook struct{}
 
 func (NoHook) Closed(context.Context, db.Process)       {}
+func (NoHook) Submitted(context.Context, db.Process)    {}
 func (NoHook) Parked(context.Context, db.Process)       {}
 func (NoHook) Turn(context.Context, db.Process, string) {}
 

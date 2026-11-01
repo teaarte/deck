@@ -70,10 +70,12 @@ type processView struct {
 	Repeats    int64  `json:"repeats,omitempty"`
 	StartedAt  string `json:"started_at"`
 	FinishedAt string `json:"finished_at,omitempty"`
-	Parent     int64  `json:"parent,omitempty"`
-	Depth      int64  `json:"depth"`
-	Trigger    int64  `json:"trigger,omitempty"`
-	RetryKey   string `json:"retry_key,omitempty"`
+	// SubmittedAt is when the agent handed in the result, which the process keeps whatever comes after.
+	SubmittedAt string `json:"submitted_at,omitempty"`
+	Parent      int64  `json:"parent,omitempty"`
+	Depth       int64  `json:"depth"`
+	Trigger     int64  `json:"trigger,omitempty"`
+	RetryKey    string `json:"retry_key,omitempty"`
 	// Empty marks a process that had nothing to do; it shows collapsed in the history.
 	Empty       bool   `json:"empty,omitempty"`
 	SilentSince string `json:"silent_since,omitempty"`
@@ -125,7 +127,7 @@ func msTime(v sql.NullInt64) string {
 
 func procView(p db.Process, project string) processView {
 	v := processView{ID: p.ID, Project: project, Command: p.Command, Kind: p.Kind, State: p.State, NotBySchema: p.NotBySchema == 1, Trial: p.Trial == 1,
-		Error: p.Error, ErrorType: p.ErrorType, Whose: fault.Whose(p.ErrorType), Follows: p.FollowsID.Int64, StartedAt: p.StartedAt, FinishedAt: p.FinishedAt.String, Parent: p.ParentID.Int64, Depth: p.Depth,
+		Error: p.Error, ErrorType: p.ErrorType, Whose: fault.Whose(p.ErrorType), Follows: p.FollowsID.Int64, StartedAt: p.StartedAt, FinishedAt: p.FinishedAt.String, SubmittedAt: p.SubmittedAt.String, Parent: p.ParentID.Int64, Depth: p.Depth,
 		Trigger: p.TriggerID.Int64, RetryKey: p.RetryKey, Empty: p.State == process.StateDone && p.Result == process.Empty && p.NotBySchema == 0,
 		SilentSince: msTime(p.SilentSinceMs), SessionID: p.SessionID, Silent: p.SilentSinceMs.Valid, Folder: p.Folder, Deadline: msTime(p.DeadlineMs), Provider: p.Provider}
 	if p.State == process.StateRateLimited {
@@ -389,6 +391,9 @@ func (s *Service) processStop(ctx context.Context, act registry.Actor, in proces
 	if err := s.Runner.Stop(ctx, in.Process, "stopped by "+act.Kind, act.Kind == registry.Owner); err != nil {
 		return nil, err
 	}
+	if p, err := s.St.Q.GetProcess(ctx, in.Process); err == nil && p.SubmittedAt.Valid && p.State == process.StateDone {
+		return map[string]any{"ok": true, "state": p.State, "text": "the process had handed in its result, so it ends done with it"}, nil
+	}
 	return map[string]any{"ok": true}, nil
 }
 
@@ -503,7 +508,7 @@ func (s *Service) processCommands() []*registry.Command {
 			"Takes a failed process, or with all every one, off the cockpit; each stays in the history.",
 			registry.OwnerOnly, s.processDismiss),
 		registry.Def("process_stop", "Stop process",
-			"Stops a process; a running agent is killed and what it did so far stays.",
+			"Stops a process; a running agent is killed and what it did so far stays; one that handed in its result ends done with it.",
 			registry.OwnerSide, s.processStop),
 		registry.Def("process_rework", "Send back for rework",
 			"Sends a finished agent process back to the same session with a remark, or one that failed or was stopped on where it stopped; changed artifacts get new revisions.",

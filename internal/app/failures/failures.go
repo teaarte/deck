@@ -23,10 +23,11 @@ import (
 )
 
 // masterErrorPrefix keys the day a failed command of a project last went to the master; screenErrorPrefix, a
-// block of a screen that failed on a revision of its manifest.
+// block of a screen that failed on a revision of its manifest; incidentPrefix, an incident of a process.
 const (
 	masterErrorPrefix = "master_error:"
 	screenErrorPrefix = "screen_error:"
+	incidentPrefix    = "incident:"
 )
 
 // Service hands the failures of projects to the master.
@@ -42,7 +43,37 @@ type Hook struct {
 	S *Service
 }
 
-func (h Hook) Closed(ctx context.Context, p db.Process) { h.S.toMaster(ctx, p) }
+func (h Hook) Closed(ctx context.Context, p db.Process) {
+	h.S.toMaster(ctx, p)
+	if p.SubmittedAt.Valid && p.State != process.StateDone {
+		h.S.Incident(ctx, p, process.IncidentNotDone, fmt.Sprintf("process #%d of %s handed in its result, then closed as %s: %s",
+			p.ID, p.Command, p.State, untrusted.Cut(p.Error, 300)))
+	}
+}
+
+// Incident hands what deck noticed went wrong around a process of a project to the master, once a process and kind;
+// deck mends none itself.
+func (s *Service) Incident(ctx context.Context, p db.Process, kind, text string) {
+	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
+	if err != nil || p.Trial == 1 || proj.Builtin == 1 {
+		return
+	}
+	s.handOver(ctx, proj, manifest.OnIncident, fmt.Sprintf("%s%d.%s", incidentPrefix, p.ID, kind), 0,
+		map[string]any{"process": p.ID, "incident": kind, "text": text}, nil)
+}
+
+// Due hands the master the processes that handed in their result and still run long after.
+func (s *Service) Due(ctx context.Context, now time.Time) {
+	ps, err := s.St.Q.ListSubmittedRunning(ctx, sql.NullString{String: store.Time(now.Add(-process.SubmittedLinger)), Valid: true})
+	if err != nil {
+		slog.Error("processes running with their result in", "err", err)
+		return
+	}
+	for _, p := range ps {
+		s.Incident(ctx, p, process.IncidentRunning, fmt.Sprintf("process #%d of %s handed in its result at %s and still runs",
+			p.ID, p.Command, p.SubmittedAt.String))
+	}
+}
 
 // toMaster hands a failed process of a project to the master with the type of its failure, once a day per command
 // and type: a script only on its third failure in a row, never a process of the master.
@@ -68,7 +99,7 @@ func (s *Service) toMaster(ctx context.Context, p db.Process) {
 	key := fmt.Sprintf("%s%d.%s.%s", masterErrorPrefix, proj.ID, p.Command, p.ErrorType)
 	input := map[string]any{"process": p.ID, "type": p.ErrorType, "whose": fault.Whose(p.ErrorType)}
 	// The master's own failure goes to the owner's feed instead.
-	s.handOver(ctx, proj, key, 24*time.Hour, input, func(ctx context.Context, q *db.Queries) error {
+	s.handOver(ctx, proj, manifest.OnFailure, key, 24*time.Hour, input, func(ctx context.Context, q *db.Queries) error {
 		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ProjectID,
 			Text: fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500))})
 	})
@@ -104,7 +135,7 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 		if !s.firstTime(ctx, p, screenErrorPrefix+key) {
 			continue
 		}
-		s.handOver(ctx, p, masterErrorPrefix+key, 0, map[string]any{"project": p.Name, "screen": name, "error": e}, nil)
+		s.handOver(ctx, p, manifest.OnFailure, masterErrorPrefix+key, 0, map[string]any{"project": p.Name, "screen": name, "error": e}, nil)
 	}
 }
 
@@ -139,7 +170,7 @@ func (s *Service) firstTime(ctx context.Context, p db.Project, key string) bool 
 
 // handOver gives an error of a project to the on_error command of the master, at most once in every while under
 // key, forever when every is zero; an error of the master itself goes to own instead.
-func (s *Service) handOver(ctx context.Context, proj db.Project, key string, every time.Duration, input map[string]any,
+func (s *Service) handOver(ctx context.Context, proj db.Project, on, key string, every time.Duration, input map[string]any,
 	own func(context.Context, *db.Queries) error) {
 	isOwn := proj.Builtin == 1
 	if _, err := docs.Manifest(ctx, s.St.Q, proj); err != nil {
@@ -152,7 +183,7 @@ func (s *Service) handOver(ctx context.Context, proj db.Project, key string, eve
 		if mp, err = access.Master(ctx, s.St.Q, proj.WorkspaceID); err != nil {
 			return
 		}
-		if mm, err = docs.Manifest(ctx, s.St.Q, mp); err != nil || mm.Command(mm.EventCommand(manifest.OnFailure)) == nil || mp.Paused == 1 {
+		if mm, err = docs.Manifest(ctx, s.St.Q, mp); err != nil || mm.Command(mm.EventCommand(on)) == nil || mp.Paused == 1 {
 			return
 		}
 	}
@@ -176,7 +207,7 @@ func (s *Service) handOver(ctx context.Context, proj db.Project, key string, eve
 	}
 	// The mark follows the start, so a crash between them may hand the error over twice but never loses it; the key
 	// keeps two failures at once to one run.
-	if _, err := s.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(manifest.OnFailure), input, process.Origin{Key: key}); err != nil {
+	if _, err := s.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(on), input, process.Origin{Key: key}); err != nil {
 		slog.Error("hand an error to the master", "project", proj.Name, "input", input, "err", err)
 		return
 	}

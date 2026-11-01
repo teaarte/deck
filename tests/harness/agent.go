@@ -79,6 +79,8 @@ type Fake struct {
 	ProviderName string
 	// Live is a provider that takes the owner's messages into a running turn on Req.Live.
 	Live bool
+	// Submits is a provider without output by schema, whose agents hand in results with result_submit.
+	Submits bool
 	// Progress counts the progress notifications deck sent its calls.
 	Progress atomic.Int64
 	// broken are the calls of the harness that failed inside a turn, where the test cannot fail at once.
@@ -104,7 +106,10 @@ func (f *Fake) Name() string {
 }
 
 func (f *Fake) Caps() provider.Caps {
-	c := provider.Caps{provider.Images, provider.StructuredOutput}
+	c := provider.Caps{provider.Images}
+	if !f.Submits {
+		c = append(c, provider.StructuredOutput)
+	}
 	if f.Live {
 		c = append(c, provider.LiveInput)
 	}

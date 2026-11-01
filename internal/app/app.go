@@ -175,7 +175,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
 	a.Devices = devices.Service{St: st, Now: cfg.Now,
-		Home: h, Invoke: a.Registry.Invoke, Waiting: a.Answers.Waiting}
+		Home: h, Invoke: a.Registry.Invoke, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Settings.Language}
 	a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup}
 	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch, Missing: a.Providers.Missing,

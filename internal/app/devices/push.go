@@ -3,6 +3,7 @@
 package devices
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -28,6 +29,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
+	"deck2/internal/words"
 )
 
 const (
@@ -216,8 +218,9 @@ type pushSource struct {
 	after func(ctx context.Context, workspace int64, cursor string) []pushItem
 }
 
-// pushSources are what waits for the owner and the notes of the feed, pushed while no client is open.
-func (dv *Service) pushSources() []pushSource {
+// pushSources are what waits for the owner and the notes of the feed, pushed while no client is open, in the words
+// say, only the module each is of when hidden.
+func (dv *Service) pushSources(say map[string]string, hidden bool) []pushSource {
 	id := func(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }
 	return []pushSource{
 		{"ask", func(ctx context.Context, ws int64) string { n, _ := dv.St.Q.MaxAskID(ctx, ws); return fmt.Sprint(n) },
@@ -225,7 +228,7 @@ func (dv *Service) pushSources() []pushSource {
 				asks, _ := dv.St.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: ws, ID: id(cursor)})
 				var items []pushItem
 				for _, q := range asks {
-					items = append(items, pushItem{dv.pushText(ctx, q.ProjectID.Int64, "Waiting for you", strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
+					items = append(items, pushItem{dv.pushText(ctx, say, hidden, q.ProjectID.Int64, tr(say, "Waiting for you"), strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
 						fmt.Sprint(q.ID)})
 				}
 				return items
@@ -248,7 +251,7 @@ func (dv *Service) pushSources() []pushSource {
 					if n.Screen != "" && n.RecordID.Valid {
 						url += fmt.Sprintf("/%d", n.RecordID.Int64)
 					}
-					items = append(items, pushItem{dv.pushText(ctx, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
+					items = append(items, pushItem{dv.pushText(ctx, say, hidden, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
 				}
 				return items
 			}},
@@ -283,9 +286,10 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 		}
 		return n
 	})
+	say, hidden := words.In(dv.Lang(ctx, workspace)), dv.Hidden(ctx, workspace)
 	for _, s := range subs {
 	sources:
-		for _, src := range dv.pushSources() {
+		for _, src := range dv.pushSources(say, hidden) {
 			name := fmt.Sprintf("push:%d:%s", s.ID, src.key)
 			cursor, err := dv.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: name})
 			if err != nil {
@@ -348,14 +352,21 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	}
 }
 
-// pushText is a push about something of a project: its text cut short, or only a generic line for a project deck
-// cannot read.
-func (dv *Service) pushText(ctx context.Context, projectID int64, title, text, url string) pushMessage {
-	if _, err := dv.St.Q.GetProject(ctx, projectID); err != nil {
-		return pushMessage{Title: "deck", Body: generic, URL: url}
+// pushText is a push about something of a project: its text cut short, only the module when hidden, or a generic
+// line for a project deck cannot read.
+func (dv *Service) pushText(ctx context.Context, say map[string]string, hidden bool, projectID int64, title, text, url string) pushMessage {
+	p, err := dv.St.Q.GetProject(ctx, projectID)
+	switch {
+	case err != nil:
+		return pushMessage{Title: "deck", Body: tr(say, generic), URL: url}
+	case hidden:
+		return pushMessage{Title: "deck", Body: fmt.Sprintf(tr(say, "New in %s"), p.Name), URL: url}
 	}
 	return pushMessage{Title: untrusted.Cut(title, 60), Body: untrusted.Cut(oneLine(text), pushLength), URL: url}
 }
+
+// tr is a phrase of deck in the words say, as it is without one.
+func tr(say map[string]string, phrase string) string { return cmp.Or(say[phrase], phrase) }
 
 // What a push to a device came to: taken or refused for good, to be sent again, or the device is gone.
 const (

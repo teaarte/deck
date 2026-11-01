@@ -257,6 +257,36 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	})
 }
 
+// TestPushesHiddenByTheOwnerSayOnlyTheirModule: with push_text hidden, a note and a question push only the module
+// they are of, in the language the owner picked; full shows the text again.
+func TestPushesHiddenByTheOwnerSayOnlyTheirModule(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "Which clinic?"}}})
+		return provider.Result{Text: "ok"}
+	}))
+	d, srv := newPushDevice(t)
+	d.subscribe(e, srv, "iPhone")
+	p := e.Project("health", harness.PlainManifest)
+	e.Must("deck.setting_set", map[string]any{"name": "push_text", "value": "hidden"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "health", "text": "Your blood test is in"}, nil)
+	if got := d.wait(e, 1); got[0]["title"] != "deck" || got[0]["body"] != "New in health" {
+		t.Fatalf("a hidden note pushes only its module: %+v", got[0])
+	}
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	id := e.Run(p, "work")
+	if got := d.wait(e, 2); got[1]["title"] != "deck" || got[1]["body"] != "Новое в health" || strings.Contains(got[1]["body"], "clinic") {
+		t.Fatalf("a hidden question pushes only its module, in the owner's language: %+v", got[1])
+	}
+	e.Answer(e.WaitAsk().ID, "the first")
+	e.WaitState(id, "done")
+	e.Must("deck.setting_set", map[string]any{"name": "push_text", "value": "full"}, nil)
+	e.Must("deck.owner_notify", map[string]any{"project": "health", "text": "The results are fine"}, nil)
+	if got := d.wait(e, 3); got[2]["body"] != "The results are fine" {
+		t.Fatalf("full pushes the text again: %+v", got[2])
+	}
+}
+
 func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {

@@ -46,6 +46,8 @@ var settingDefs = []settingDef{
 		def:   func(*Service) any { return int64(agentLimit) }},
 	{name: "language", title: "Language of the interface; auto follows the device", options: []string{"auto", "en", "ru"},
 		def: func(*Service) any { return "auto" }},
+	{name: "push_text", title: "What a push shows on a locked screen: full, or hidden — only the module it is of", options: []string{"full", "hidden"},
+		def: func(*Service) any { return "full" }},
 }
 
 // setting is the value of a setting of a workspace, its default when the owner set none.
@@ -67,6 +69,11 @@ func (s *Service) setting(ctx context.Context, workspace int64, name string) any
 // Language is the language of the interface the workspace picked: auto, en or ru.
 func (s *Service) Language(ctx context.Context, workspace int64) string {
 	return fmt.Sprint(s.setting(ctx, workspace, "language"))
+}
+
+// PushHidden says the pushes of the workspace show only the module they are of, not their text.
+func (s *Service) PushHidden(ctx context.Context, workspace int64) bool {
+	return s.setting(ctx, workspace, "push_text") == "hidden"
 }
 
 // AgentSlots is how many agent turns the workspace runs at once.

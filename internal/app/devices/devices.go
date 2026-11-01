@@ -23,6 +23,9 @@ type Service struct {
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
+	// Hidden says the owner's pushes show only the module they are of; Lang is the language the owner picked.
+	Hidden func(ctx context.Context, workspace int64) bool
+	Lang   func(ctx context.Context, workspace int64) string
 	// Tailnet is the https address of deck on the owner's tailnet, empty while it is not on one.
 	Tailnet atomic.Pointer[string]
 

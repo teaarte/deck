@@ -15,11 +15,10 @@ import (
 	"deck2/internal/nonce"
 )
 
-// Door is the one way out of a confined program: a proxy with a key of its own to its domains, and deck's own
-// handler at its address.
+// Door is the one way out of a box: a proxy with a key of its own to its domains, and deck's side at its address.
 type Door struct {
 	ln        net.Listener
-	dir       string
+	dirs      []string
 	self, key string
 	srv       *http.Server
 	cut       context.CancelFunc
@@ -28,23 +27,23 @@ type Door struct {
 	refused   []string
 }
 
-// Open opens a door of sb: a request to another host that carries the key goes through egress to domains, none
-// goes without domains; deck serves a path under the key, and nil answers 404; a request without the key gets 407.
-func Open(sb Sandbox, domains []string, deck http.Handler) (*Door, error) {
-	dir, err := os.MkdirTemp("", "deck-")
+// open opens a door in the folder of doors: a request to another host that carries the key goes through egress to
+// domains, none goes without domains; deck serves a path under the key; a request without the key gets 407.
+func (s *Sandbox) open(domains []string, deck http.Handler) (*Door, error) {
+	if err := os.MkdirAll(s.home.Doors(), 0o700); err != nil {
+		return nil, err
+	}
+	dir, err := os.MkdirTemp(s.home.Doors(), "")
 	if err != nil {
 		return nil, err
 	}
-	ln, err := sb.Listen(dir)
+	ln, short, err := s.listen(dir)
 	if err != nil {
 		_ = os.RemoveAll(dir)
 		return nil, err
 	}
-	if deck == nil {
-		deck = http.NotFoundHandler()
-	}
 	life, cut := context.WithCancel(context.Background())
-	d := &Door{ln: ln, dir: dir, self: sb.Addr(ln), key: nonce.Hex(16), cut: cut}
+	d := &Door{ln: ln, dirs: []string{dir, short}, self: s.addr(ln), key: nonce.Hex(16), cut: cut}
 	d.srv = &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodConnect && (!r.URL.IsAbs() || r.URL.Host == d.self) {
 			if r, ok := d.under(w, r); ok {
@@ -68,14 +67,17 @@ func Open(sb Sandbox, domains []string, deck http.Handler) (*Door, error) {
 	return d, nil
 }
 
-// URL is the address the confined program reaches deck at, the key its first part.
+// URL is the address the boxed program reaches deck at, the key its first part.
 func (d *Door) URL() string { return "http://" + d.self + "/" + d.key }
 
 // Env sends the web of the program through the door, deck reached directly; it goes last, over the program's own.
 func (d *Door) Env() []string { return Proxy("http://deck:"+d.key+"@"+d.self, d.self) }
 
-// Close ends the door and the tunnels through it; a second call does nothing.
+// Close ends the door and the tunnels through it; a second call, or one without a door, does nothing.
 func (d *Door) Close() {
+	if d == nil {
+		return
+	}
 	d.once.Do(func() {
 		d.cut()
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -83,7 +85,11 @@ func (d *Door) Close() {
 		if d.srv.Shutdown(ctx) != nil {
 			_ = d.srv.Close()
 		}
-		_ = os.RemoveAll(d.dir)
+		for _, dir := range d.dirs {
+			if dir != "" {
+				_ = os.RemoveAll(dir)
+			}
+		}
 	})
 }
 
@@ -119,12 +125,9 @@ func (d *Door) under(w http.ResponseWriter, r *http.Request) (*http.Request, boo
 }
 
 // authorized reports whether a proxy request carries the key as its password, and answers 407 when not.
-func (d *Door) authorized(w http.ResponseWriter, r *http.Request) bool { return Keyed(w, r, d.key) }
-
-// Keyed reports whether a proxy request carries key as its password, and answers 407 when not.
-func Keyed(w http.ResponseWriter, r *http.Request, key string) bool {
+func (d *Door) authorized(w http.ResponseWriter, r *http.Request) bool {
 	_, pass, _ := (&http.Request{Header: http.Header{"Authorization": r.Header.Values("Proxy-Authorization")}}).BasicAuth()
-	if subtle.ConstantTimeCompare([]byte(pass), []byte(key)) == 1 {
+	if subtle.ConstantTimeCompare([]byte(pass), []byte(d.key)) == 1 {
 		return true
 	}
 	deny(w)

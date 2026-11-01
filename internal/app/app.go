@@ -109,6 +109,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	cfg.Sandbox.Reap()
 	st, err := store.Open(h.DB())
 	if err != nil {
 		return nil, err
@@ -134,9 +135,9 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		return files.Resolve(ctx, h, a.Store.Q, project, process, ref)
 	}
 	a.Host = mcphost.New(a.Signins.ServerStatus)
-	a.Host.Now, a.Host.Sandbox, a.Host.Home = cfg.Now, cfg.Sandbox, h
+	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
-	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser, Ctx: a.ctx}
+	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser}
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
 		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, FilesMu: &a.Files.Mu,
 			Hidden: func() []string { return sandbox.Agent(h) }, AgentSlots: a.Settings.AgentSlots},
@@ -228,6 +229,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	}
 	status, text := script.Runtimes().Health()
 	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Scripts, status, text); err != nil {
+		return nil, err
+	}
+	status, text = a.Documents.Box()
+	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Sandbox, status, text); err != nil {
 		return nil, err
 	}
 	return a, nil

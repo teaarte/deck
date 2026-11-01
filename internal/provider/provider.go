@@ -34,7 +34,9 @@ type Request struct {
 	// NoNetwork takes away the provider's own web and the network of its shell.
 	NoNetwork bool
 	// Hosts are what the shell reaches: hosts with their subdomains, host:port, IPs; "*" is every one.
-	Hosts         []string
+	Hosts []string
+	// GPU opens the graphics card to the shell.
+	GPU           bool
 	AllowedTools  []string
 	PermissionMCP string
 	// SessionID is assigned by deck; Resume continues it instead of starting it.

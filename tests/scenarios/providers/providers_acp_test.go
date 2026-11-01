@@ -15,7 +15,6 @@ import (
 	"deck2/internal/app"
 	"deck2/internal/health"
 	deckhome "deck2/internal/home"
-	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 )
@@ -521,7 +520,7 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 	llm := harness.AcpLLM(t)
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 	}))
 
 	e.MustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose"})
@@ -550,7 +549,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 	llm := harness.AcpLLM(t)
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 	}))
 
 	p := e.Project("paint", harness.ColorManifest)
@@ -582,7 +581,7 @@ func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
 	llm := harness.NewLLM(t, func(int, harness.ChatRequest) harness.ChatReply { return harness.TextReply("ok") })
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 		c.ACPCallLimit = 2 * time.Second
 		c.SelfCheckCeiling = time.Second
 	}))
@@ -654,7 +653,7 @@ func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
 	f := harness.NewACP(t)
 	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 		c.ACPCallLimit = 2 * time.Second
 	}))
 

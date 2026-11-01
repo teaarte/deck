@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os/exec"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,22 +16,15 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"deck2/internal/home"
 	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
 )
 
-// Spec is how to reach a server: a program on stdio, or a URL.
+// Spec is how to reach a server: a program on stdio in its box, or a URL.
 type Spec struct {
-	Command string
-	Args    []string
-	Env     []string
-	Dir     string
-	URL     string
-	// Read are folders of the owner a confined program reads, Write those it writes beside Dir.
-	Read, Write []string
-	// Confine runs a program in the sandbox; Domains are what it reaches through deck's proxy, its only network.
-	Confine bool
+	Box sandbox.Box
+	URL string
+	// Domains are what a server by URL is reached at.
 	Domains []string
 	// Secrets are the secret values in Env; what the server writes to stderr shows without them.
 	Secrets []string `json:"-"`
@@ -56,9 +48,8 @@ type Host struct {
 	Pause  time.Duration
 	Now    func() time.Time
 	Status Status
-	// Sandbox confines programs of specs that ask for it; they never read Home, deck's folder, but for their own.
-	Sandbox sandbox.Sandbox
-	Home    home.Layout
+	// Sandbox runs the programs of servers in their boxes.
+	Sandbox *sandbox.Sandbox
 
 	mu      sync.Mutex
 	servers map[string]*server
@@ -73,8 +64,7 @@ type server struct {
 	mu      sync.Mutex
 	spec    string
 	sess    *mcp.ClientSession
-	cmd     *exec.Cmd
-	door    *sandbox.Door
+	proc    *sandbox.Proc
 	stderr  *untrusted.TailWriter
 	secrets []string
 	started time.Time

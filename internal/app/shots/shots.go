@@ -51,7 +51,9 @@ func (s *Service) spec(device string) mcphost.Spec {
 	} else {
 		args = append(args, "--viewport-size", "1280x820")
 	}
-	return mcphost.Spec{Command: s.Argv[0], Args: args, Env: sandbox.Kept("HOME", "TMPDIR", "XDG_"), Dir: s.dir("work"), Write: []string{s.dir("out")}}
+	// The browser of shots opens only deck's own pages, at deck's address on this machine.
+	return mcphost.Spec{Box: sandbox.Box{Kind: sandbox.KindBrowser, Mark: s.Host.Sandbox.Mark(sandbox.KindBrowser, Key(device)),
+		Argv: append([]string{s.Argv[0]}, args...), Dir: s.dir("work"), Home: s.dir("home"), Write: []string{s.dir("out")}, HostNet: true}}
 }
 
 type shotIn struct {

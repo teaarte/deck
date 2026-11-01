@@ -11,7 +11,6 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/health"
-	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -24,7 +23,7 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	}
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 	}))
 
 	e.App.Providers.Checks(t.Context(), time.Now())
@@ -68,7 +67,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	llm := harness.AcpLLM(t)
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 	}))
 
 	e.App.Providers.Checks(t.Context(), time.Now())
@@ -134,7 +133,7 @@ func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 	}
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 	}))
 
 	e.App.Providers.Checks(t.Context(), time.Now())
@@ -169,7 +168,7 @@ func TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls(t *testing.T) {
 	llm := harness.AcpLLM(t)
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 	}))
 
 	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)

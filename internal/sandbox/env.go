@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -35,9 +36,20 @@ func cut(more []string) []string {
 	})
 }
 
-// Env is the environment of a program deck confines: the kept variables, its home and temp folder; a door adds its
-// own.
-func Env(home, tmp string) []string { return append(Kept(), "HOME="+home, "TMPDIR="+tmp) }
+// Display is the environment and the sockets a box with a window takes of the owner's screen: X11 or Wayland.
+func Display() (env, read []string) {
+	env = cut([]string{"DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR"})
+	if lookup("DISPLAY") != "" {
+		read = append(read, "/tmp/.X11-unix")
+	}
+	if x := lookup("XAUTHORITY"); x != "" {
+		read = append(read, x)
+	}
+	if run, w := lookup("XDG_RUNTIME_DIR"), lookup("WAYLAND_DISPLAY"); run != "" && w != "" {
+		read = append(read, filepath.Join(run, w))
+	}
+	return env, read
+}
 
 // Proxy is the environment that sends the web of a confined program through deck's proxy, self reached directly.
 func Proxy(proxy, self string) []string {

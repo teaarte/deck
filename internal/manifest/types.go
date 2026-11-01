@@ -31,6 +31,8 @@ type Manifest struct {
 	I18n      map[string]map[string]string `json:"i18n,omitempty"`
 	Reads     []Read                       `json:"reads,omitempty"`
 	NoNetwork bool                         `json:"no_network,omitempty"`
+	// GPU opens the graphics card to the programs of the project, a right the owner gives.
+	GPU bool `json:"gpu,omitempty"`
 	// Models are the connections, models and @roles the project calls models through, besides its commands of
 	// type model.
 	Models []string `json:"models,omitempty"`

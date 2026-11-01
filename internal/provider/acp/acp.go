@@ -22,6 +22,7 @@ import (
 	"deck2/internal/nonce"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
+	"deck2/internal/untrusted"
 )
 
 // Config is one provider of the owner: an ACP agent on the model of an OpenAI-compatible API.
@@ -35,7 +36,7 @@ type Config struct {
 	NoCloud bool
 	// Home is deck's folder, hidden from the agent but for the folders of its turn.
 	Home    home.Layout
-	Sandbox sandbox.Sandbox
+	Sandbox *sandbox.Sandbox
 	// CallLimit is how long a call of a gateway tool may wait for the owner; 45 s, under the 60 s of the agents, when zero.
 	CallLimit time.Duration
 	// Now is the deck clock, for the reset time of a usage limit.
@@ -94,9 +95,6 @@ func (a *Adapter) CallLimit() time.Duration {
 	return 45 * time.Second
 }
 
-// marker is in the command line of every process of a session, so deck finds the group a crash left running.
-func marker(session string) string { return "deck session " + session }
-
 func (a *Adapter) sessionDir(session string) string {
 	return filepath.Join(a.Dir, "sessions", filepath.Base(session))
 }
@@ -137,54 +135,46 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	defer stop()
 	e := &entry{mcp: mcp, modelAt: "/model/" + nonce.Hex(16), now: a.now, answered: func() { provider.Answered(ctx) }}
 	e.api = a.cfg.API(provider.ModelHooks{Usage: req.OnUsage, Answer: e.heard})
-	var domains []string
-	if !req.NoNetwork {
-		domains = req.Hosts
-	}
-	door, err := sandbox.Open(a.cfg.Sandbox, domains, e)
-	if err != nil {
-		return provider.Result{}, err
-	}
-	defer door.Close()
-
-	bin, err := sandbox.Find(a.cfg.Binary)
-	if err != nil {
+	if _, err := sandbox.Find(a.cfg.Binary); err != nil {
 		return provider.Result{}, fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
 	}
-	argv, env := a.agent.Start(Launch{Binary: bin, ModelURL: door.URL() + e.modelAt, Model: a.cfg.Model, Key: "deck"})
-	cmd, err := sandbox.Confine(life, a.cfg.Sandbox, a.cfg.Home, sandbox.Path(), bin, sandbox.Policy{
-		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...), Dir: req.Cwd,
-		Env: append(sandbox.Env(home, filepath.Join(home, "tmp")), env...), Write: append([]string{req.Cwd, home}, req.Dirs...),
-		Read: req.Read, Door: door})
-	if err != nil {
-		return provider.Result{}, err
+	side, end := a.cfg.Sandbox.Side(e)
+	defer end()
+	argv, env := a.agent.Start(Launch{Binary: a.cfg.Binary, ModelURL: "{door}" + e.modelAt, Model: a.cfg.Model, Key: "deck"})
+	box := sandbox.Box{Kind: sandbox.KindAgent, Mark: a.cfg.Sandbox.Mark(sandbox.KindAgent, req.SessionID), Argv: argv,
+		Dir: req.Cwd, Home: home, Env: env, Read: req.Read, Write: append([]string{req.Cwd}, req.Dirs...), Hosts: req.Hosts,
+		Deck: side, GPU: req.GPU}
+	if req.NoNetwork {
+		box.Hosts = nil
 	}
-	in, err := cmd.StdinPipe()
-	if err != nil {
-		return provider.Result{}, err
-	}
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		return provider.Result{}, err
-	}
-	child, err := provider.Start(cmd, dir, req.OnStart)
+	tail := untrusted.NewTail(2000)
+	child, err := a.cfg.Sandbox.Run(life, box, sandbox.IO{Stderr: func(line string) { _, _ = tail.Write([]byte(line + "\n")) }})
 	if err != nil {
 		return provider.Result{}, fmt.Errorf("start %s: %w", a.cfg.Agent, err)
 	}
-	defer child.Close()
+	defer child.Kill()
+	if req.OnStart != nil {
+		req.OnStart(child.Pid())
+	}
+	in, out := child.Stdin, child.Stdout
 	c := &client{onEvent: req.OnEvent}
 	conn := sdk.NewClientSideConnection(c, in, out)
 	conn.SetLogger(slog.New(slog.DiscardHandler))
-	t := &turn{a: a, req: req, c: c, conn: conn, dir: dir, session: agentSession, mcp: door.URL() + mcp.Path, e: e}
+	t := &turn{a: a, req: req, c: c, conn: conn, dir: dir, session: agentSession, mcp: child.URL() + mcp.Path, e: e}
 	res, runErr := t.run(ctx)
 	_ = in.Close()
-	// Wait closes stdout, so it runs only once the connection has read all of it.
-	waitErr := child.End(conn.Done(), a.Linger)
+	waitErr := child.End(a.Linger)
+	// A program the agent left past its box may hold its output; the turn does not wait for it.
+	select {
+	case <-conn.Done():
+	case <-time.After(5 * time.Second):
+	}
+	_ = out.Close()
 	if err := ctx.Err(); err != nil {
 		return res, err
 	}
 	if runErr != nil {
-		if tail := child.Stderr(); tail != "" {
+		if tail := strings.TrimSpace(tail.String()); tail != "" {
 			runErr = fmt.Errorf("%w (exit: %v): %s", runErr, waitErr, tail)
 		}
 	}

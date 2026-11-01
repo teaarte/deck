@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
-	"syscall"
 	"time"
 
 	"deck2/internal/egress"
@@ -18,68 +15,21 @@ import (
 	"deck2/internal/sandbox"
 )
 
-// command is the program of a stdio server; a confined one runs in the sandbox, its web through deck's proxy to its
-// domains, writing only its own folder and reading of the owner's home only the runtimes on PATH and its folders.
-func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
-	if !spec.Confine || h.Sandbox == nil {
-		bin, err := sandbox.Find(spec.Command)
-		if err != nil {
-			return nil, err
-		}
-		cmd := exec.Command(bin, spec.Args...)
-		cmd.Env, cmd.Dir = spec.Env, spec.Dir
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		return cmd, sandbox.AsAgent(cmd, append([]string{spec.Dir}, spec.Write...), spec.Read)
-	}
-	path, err := sandbox.Find(spec.Command)
-	if err != nil {
-		return nil, err
-	}
-	door, err := sandbox.Open(h.Sandbox, spec.Domains, nil)
-	if err != nil {
-		return nil, err
-	}
-	s.door = door
-	cmd, err := sandbox.Confine(context.Background(), h.Sandbox, h.Home, env(spec.Env, "PATH"), path, sandbox.Policy{
-		Argv: append([]string{path}, spec.Args...), Dir: spec.Dir, Env: spec.Env, Write: append([]string{spec.Dir}, spec.Write...), Read: spec.Read, Door: door})
-	if err != nil {
-		s.close()
-		return nil, err
-	}
-	return cmd, nil
-}
-
-// env is the value of the variable name in kv.
-func env(kv []string, name string) string {
-	for _, e := range kv {
-		if v, ok := strings.CutPrefix(e, name+"="); ok {
-			return v
-		}
-	}
-	return ""
-}
-
 func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) error {
 	client := mcp.NewClient(&mcp.Implementation{Name: "deck", Version: "0"}, &mcp.ClientOptions{
 		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) { s.stale.Store(true) }})
 	var transport mcp.Transport
-	s.cmd = nil
+	s.proc = nil
 	if spec.URL != "" {
 		transport = &mcp.StreamableClientTransport{Endpoint: spec.URL, HTTPClient: egress.Client(egress.With(spec.Domains, spec.URL), 0)}
 	} else {
-		for _, d := range append([]string{spec.Dir}, spec.Write...) {
-			if err := os.MkdirAll(d, 0o700); d != "" && err != nil {
-				return err
-			}
-		}
-		cmd, err := h.command(spec, s)
+		stderr := untrusted.NewTail(2048)
+		p, err := h.Sandbox.Run(context.Background(), spec.Box, sandbox.IO{Stderr: func(line string) { _, _ = stderr.Write([]byte(line + "\n")) }})
 		if err != nil {
 			return fmt.Errorf("MCP server %s did not start: %v", key, err)
 		}
-		s.stderr, s.secrets = untrusted.NewTail(2048), spec.Secrets
-		cmd.Stderr = s.stderr
-		s.cmd = cmd
-		transport = &mcp.CommandTransport{Command: cmd, TerminateDuration: 2 * time.Second}
+		s.stderr, s.secrets, s.proc = stderr, spec.Secrets, p
+		transport = &mcp.IOTransport{Reader: p.Stdout, Writer: p.Stdin}
 	}
 	sess, err := client.Connect(ctx, transport, nil)
 	if err != nil {
@@ -147,26 +97,24 @@ func (s *server) last() string {
 	return ""
 }
 
+// stop closes the session, which closes the stdin of a stdio server, and gives it 2 seconds to exit.
 func (s *server) stop() {
 	sess := s.sess
 	s.sess = nil
 	if sess != nil {
 		_ = sess.Close()
 	}
-	s.kill()
-}
-
-// kill ends the process group of a stdio server, with the programs it started.
-func (s *server) kill() {
-	sandbox.End(s.cmd)
-	s.cmd = nil
-	s.close()
-}
-
-// close ends the door of a confined server with the tunnels it holds.
-func (s *server) close() {
-	if s.door != nil {
-		s.door.Close()
+	if s.proc != nil {
+		_ = s.proc.End(2 * time.Second)
 	}
-	s.door = nil
+	s.proc = nil
+}
+
+// kill ends the box of a stdio server, with the programs it started and the tunnels of its door.
+func (s *server) kill() {
+	if s.proc != nil {
+		s.proc.Kill()
+		<-s.proc.Done()
+	}
+	s.proc = nil
 }

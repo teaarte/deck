@@ -56,6 +56,9 @@ func (l Layout) Tailscale() string { return l.state("tailscale") }
 func (l Layout) Codex() string     { return l.state("codex") }
 func (l Layout) ACP() string       { return l.state("acp") }
 
+// Doors holds the sockets of the doors of boxes, a folder each.
+func (l Layout) Doors() string { return l.state("doors") }
+
 // Sessions holds the settings deck gives each session of the Claude Code CLI.
 func (l Layout) Sessions() string { return l.state("mcp") }
 

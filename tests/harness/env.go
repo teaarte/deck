@@ -16,6 +16,7 @@ import (
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
 	"deck2/web"
 )
 
@@ -146,6 +147,8 @@ func New(t *testing.T, opts ...Option) *Env {
 		Browser: []string{"env", "DECK_FAKE_MCP=browser", "DECK_FAKE_DIR=" + browser, self}}
 	probes := &atomic.Int64{}
 	c.Commands = []*registry.Command{probe(probes)}
+	c.Sandbox = sandbox.New(deckhome.Layout(s.home))
+	c.Sandbox.Also.Read, c.Sandbox.Also.Write = []string{self}, []string{browser}
 	for _, f := range s.cfg {
 		f(&c)
 	}

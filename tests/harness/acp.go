@@ -1,7 +1,6 @@
 package harness
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -14,7 +13,6 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/health"
-	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 )
 
@@ -101,26 +99,13 @@ func (c acpCall) Request(method string) json.RawMessage {
 	return nil
 }
 
-// FakeDirSandbox is the sandbox of this machine that also lets the fake agent, the test binary, run and write its records.
-type FakeDirSandbox struct {
-	sandbox.Sandbox
-	Dir  string
-	More []string
-}
-
-func (s FakeDirSandbox) Command(ctx context.Context, p sandbox.Policy) (*exec.Cmd, error) {
-	self := Fakes
-	p.Write, p.Read = append(append(p.Write, s.Dir), s.More...), append(p.Read, self)
-	return s.Sandbox.Command(ctx, p)
-}
-
 // WithACP runs deck with the fake agent as goose; with llm it adds a model "acp" the agent runs on over llm, after
 // its green self-check.
 func WithACP(f *fakeACP, llm *FakeLLM) Option {
 	return func(s *setup) {
 		s.cfg = append(s.cfg, func(c *app.Config) {
 			c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-			c.Sandbox = FakeDirSandbox{sandbox.New(), f.Dir, nil}
+			c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 			c.ACPCallLimit = 2 * time.Second
 		})
 		if llm != nil {
@@ -194,7 +179,7 @@ func WithACPPair(first, second *fakeACP) Option {
 		}
 		s.cfg = append(s.cfg, func(c *app.Config) {
 			c.ACPBinaries = map[string]string{"goose": run}
-			c.Sandbox = FakeDirSandbox{sandbox.New(), first.Dir, []string{second.Dir}}
+			c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, first.Dir, second.Dir)
 			c.ACPCallLimit = 2 * time.Second
 		})
 	}

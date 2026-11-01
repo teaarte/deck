@@ -22,7 +22,7 @@ var layers = [][]string{
 		"internal/store/db", "internal/lint", "internal/provider/codex/gen", "master", "schemas", "skills", "starters", "web"},
 	{"internal/store", "internal/registry", "internal/theme", "internal/egress"},
 	{"internal/manifest", "internal/health", "internal/ask", "internal/files", "internal/sandbox"},
-	{"internal/docs", "internal/script", "internal/trigger", "internal/provider", "internal/mcphost"},
+	{"internal/docs", "internal/boxes", "internal/script", "internal/trigger", "internal/provider", "internal/mcphost"},
 	{"internal/gateway", "internal/models", "internal/provider/acp", "internal/provider/claudecode", "internal/provider/codex",
 		"internal/screen", "internal/access"},
 	{"internal/process", "internal/tools"},

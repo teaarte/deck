@@ -21,7 +21,6 @@ import (
 	"deck2/internal/health"
 	deckhome "deck2/internal/home"
 	"deck2/internal/registry"
-	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -258,7 +257,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	f := harness.NewACP(t)
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 	}))
 
 	stream := e.Events(t.Context())

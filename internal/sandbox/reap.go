@@ -25,15 +25,31 @@ func Reap(pgid int, marker string) {
 }
 
 func holds(pgid int, marker string) bool {
-	out, err := exec.Command("ps", "-A", "-o", "pgid=,args=").Output()
-	if err != nil {
-		return false
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		id, args, _ := strings.Cut(strings.TrimSpace(line), " ")
-		if id == strconv.Itoa(pgid) && strings.Contains(args, marker) {
-			return true
+	_, ok := groups(marker)[pgid]
+	return ok
+}
+
+// reapMarked kills every process group one of whose members has marker in its command line.
+func reapMarked(marker string) {
+	for pgid := range groups(marker) {
+		if pgid > 1 && pgid != syscall.Getpgrp() {
+			Reap(pgid, marker)
 		}
 	}
-	return false
+}
+
+// groups are the process groups with a member that has marker in its command line.
+func groups(marker string) map[int]bool {
+	out, err := exec.Command("ps", "-A", "-ww", "-o", "pgid=,args=").Output()
+	if err != nil {
+		return nil
+	}
+	found := map[int]bool{}
+	for _, line := range strings.Split(string(out), "\n") {
+		id, args, _ := strings.Cut(strings.TrimSpace(line), " ")
+		if n, err := strconv.Atoi(id); err == nil && strings.Contains(args, marker) {
+			found[n] = true
+		}
+	}
+	return found
 }

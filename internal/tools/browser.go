@@ -1,30 +1,27 @@
 package tools
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/boxes"
 	"deck2/internal/docs"
 	"deck2/internal/egress"
 	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
-	"deck2/internal/nonce"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/store"
@@ -56,11 +53,6 @@ type Browser struct {
 	Home  home.Layout
 	// Argv starts the server; deck adds the profile, the output folder and headless mode.
 	Argv []string
-	// Ctx ends the proxy the browser without sign-ins goes through.
-	Ctx context.Context
-
-	proxyOnce         sync.Once
-	proxyAt, proxyKey string
 
 	mu     sync.Mutex
 	headed bool
@@ -71,24 +63,30 @@ type Browser struct {
 func (b *Browser) dir(name string) string { return filepath.Join(b.Home.Browser(), name) }
 
 func (b *Browser) spec(open bool) mcphost.Spec {
+	box, key := boxes.For(sandbox.KindBrowser, nil, nil), BrowserKey
+	box.Home = b.dir("home")
 	args := append(slices.Clone(b.Argv[1:]), "--user-data-dir", b.dir("profile"), "--output-dir", b.dir("out"))
-	write, read := []string{b.dir("profile"), b.dir("out")}, []string(nil)
+	box.Write = []string{b.dir("profile"), b.dir("out")}
 	if open {
-		script, config := b.noWebRTC(), b.proxyConfig()
-		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"), "--init-script", script,
-			"--config", config)
-		write, read = []string{b.dir("open-out")}, []string{script, config}
+		key, box.Home, box.Read = OpenBrowserKey, b.dir("open-home"), []string{b.noWebRTC()}
+		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"), "--init-script", box.Read[0])
+		box.Write = []string{b.dir("open-out")}
 	}
+	args = append(args, "--config", filepath.Join(box.Home, "config.json"))
 	if !b.headed || open {
 		args = append(args, "--headless")
+	} else {
+		env, read := sandbox.Display()
+		box.Env, box.Read = append(box.Env, env...), append(box.Read, read...)
 	}
-	env := sandbox.Kept("HOME", "TMPDIR", "XDG_")
-	return mcphost.Spec{Command: b.Argv[0], Args: args, Env: env, Dir: b.dir("work"), Write: write, Read: read}
+	box.Argv, box.Dir, box.Files = append([]string{b.Argv[0]}, args...), b.dir("work"), map[string]string{"config.json": proxyConfig}
+	box.Mark = b.Host.Sandbox.Mark(sandbox.KindBrowser, key)
+	return mcphost.Spec{Box: box}
 }
 
-// openWeb is all the browser without sign-ins reaches: the public internet. Its tabs outlive a call and are
-// shared by the projects that read any site, so no project's local addresses are open to them.
-var openWeb = []string{"*"}
+// proxyConfig is the config of Playwright MCP that sends the browser through the door of its box with its key; the
+// door reaches the public internet only, so a name cannot turn into a local address after the check.
+const proxyConfig = `{"browser": {"launchOptions": {"proxy": {"server": "http://{door.addr}", "bypass": "<-loopback>", "username": "deck", "password": "{door.key}"}}}}`
 
 // noWebRTC is a script run in every page of the browser without sign-ins before the page's own: WebRTC sends
 // UDP past the proxy, and Chrome ignores the switch that would stop it.
@@ -104,39 +102,6 @@ const noWebRTC = `for (const k of ['RTCPeerConnection', 'webkitRTCPeerConnection
   try { delete window[k]; } catch {}
   try { Object.defineProperty(window, k, { value: undefined, configurable: false, writable: false }); } catch {}
 }`
-
-// proxyConfig is the config of Playwright MCP that sends the browser without sign-ins through deck's proxy with its key.
-func (b *Browser) proxyConfig() string {
-	at, key := b.proxy()
-	conf, _ := json.Marshal(map[string]any{"browser": map[string]any{"launchOptions": map[string]any{"proxy": map[string]any{
-		"server": "http://" + cmp.Or(at, "127.0.0.1:1"), "bypass": "<-loopback>", "username": "deck", "password": key}}}})
-	path := b.dir("open-config.json")
-	if os.MkdirAll(b.dir(""), 0o700) != nil || home.WriteFile(path, conf) != nil {
-		slog.Error("browser config", "path", path)
-	}
-	return path
-}
-
-// proxy is where the browser without sign-ins reaches the web, under a key of its own: a host is dialled at the
-// public address deck resolved, so a name cannot turn into a local address after the check.
-func (b *Browser) proxy() (string, string) {
-	b.proxyOnce.Do(func() {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			slog.Error("browser proxy", "err", err)
-			return
-		}
-		b.proxyAt, b.proxyKey = ln.Addr().String(), nonce.Hex(16)
-		srv := &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if sandbox.Keyed(w, r, b.proxyKey) {
-				_ = egress.Proxy(b.Ctx, w, r, openWeb)
-			}
-		})}
-		go func() { <-b.Ctx.Done(); _ = srv.Close() }()
-		go func() { _ = srv.Serve(ln) }()
-	})
-	return b.proxyAt, b.proxyKey
-}
 
 // Load reads the tools the server listed last time, so agents see them before the browser starts.
 func (b *Browser) Load() {

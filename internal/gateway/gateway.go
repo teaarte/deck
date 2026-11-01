@@ -148,9 +148,16 @@ func (g *Gateway) renew(ctx context.Context) {
 	}
 }
 
-// Register issues a token for a process; the token is part of the MCP URL the provider connects to.
-func (g *Gateway) Register(ctx context.Context, s *Session) (string, error) {
+// Open issues the token of a session: an agent's is part of the MCP URL its provider connects to, a script's opens
+// Handler.
+func (g *Gateway) Open(ctx context.Context, s *Session) (string, error) {
 	tok := nonce.Hex(16)
+	if s.Run != "" {
+		g.mu.Lock()
+		g.sessions[tok] = &entry{session: s}
+		g.mu.Unlock()
+		return tok, nil
+	}
 	srv, allowed, tools, err := g.newServer(ctx, tok, s)
 	if err != nil {
 		return "", err
@@ -162,7 +169,8 @@ func (g *Gateway) Register(ctx context.Context, s *Session) (string, error) {
 	return tok, nil
 }
 
-func (g *Gateway) Unregister(tok string) {
+// Close ends the session of tok.
+func (g *Gateway) Close(tok string) {
 	g.mu.Lock()
 	delete(g.sessions, tok)
 	g.mu.Unlock()

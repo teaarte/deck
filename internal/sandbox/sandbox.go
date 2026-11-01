@@ -1,54 +1,79 @@
-// Package sandbox confines scripts with the mechanism of the operating system behind one interface.
+// Package sandbox runs every foreign program in a box: it sees only what its box lists and reaches only through its
+// door. bubblewrap on Linux; on macOS the frozen sandbox-exec until deck moves into a Linux container there.
 package sandbox
 
 import (
-	"context"
-	"fmt"
-	"net"
-	"os"
+	"net/http"
 	"os/exec"
-	"path/filepath"
-	"slices"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"deck2/internal/home"
+	"deck2/internal/nonce"
 )
 
-// Policy is what a confined program may touch: everything is readable except Hide, Read reopens paths
-// inside Hide, Private closes paths inside Read again; only Write is writable, and it opens all of them.
-type Policy struct {
-	Argv    []string
-	Dir     string
-	Env     []string
-	Write   []string
-	Read    []string
-	Hide    []string
-	Private []string
-	// Door is the way out of the program; without it the program has no network.
-	Door *Door
+// Sandbox starts boxes for one deck: their doors live in its folder, their marks name it.
+type Sandbox struct {
+	home home.Layout
+	// Program is the program of the box on Linux; bwrap found on deck's PATH when empty.
+	Program string
+	// Also are paths every box reads and writes besides its own: the fakes of the tests.
+	Also struct{ Read, Write []string }
+
+	once  sync.Once
+	err   error
+	mu    sync.Mutex
+	sides map[string]http.Handler
 }
 
-type Sandbox interface {
-	Name() string
-	// Check reports whether the mechanism works on this machine.
-	Check() error
-	// Listen opens in dir the listener of a door.
-	Listen(dir string) (net.Listener, error)
-	// Addr is the host:port the confined program dials to reach ln.
-	Addr(ln net.Listener) string
-	// Command builds the confined command; it runs in its own process group, killed as a whole on cancel.
-	Command(ctx context.Context, p Policy) (*exec.Cmd, error)
+// New is the sandbox of the deck whose folder is h.
+func New(h home.Layout) *Sandbox { return &Sandbox{home: h, sides: map[string]http.Handler{}} }
+
+// Check reports whether a box can be built on this machine, with what to fix when not; it is asked once.
+func (s *Sandbox) Check() error {
+	s.once.Do(func() { s.err = s.check() })
+	return s.err
 }
 
-// New returns the sandbox of this operating system, or deck's container when deck runs agents as a user of their own
-// there without its own sandbox (DECK_SANDBOX=bwrap keeps it).
-func New() Sandbox {
-	if Contained() {
-		return container{}
+// Side gives deck's side of a door a token a box names in Deck; end takes it back.
+func (s *Sandbox) Side(h http.Handler) (tok string, end func()) {
+	tok = nonce.Hex(16)
+	s.mu.Lock()
+	s.sides[tok] = h
+	s.mu.Unlock()
+	return tok, func() {
+		s.mu.Lock()
+		delete(s.sides, tok)
+		s.mu.Unlock()
 	}
-	return platform()
 }
+
+func (s *Sandbox) side(tok string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		h := s.sides[tok]
+		s.mu.Unlock()
+		if h == nil {
+			http.Error(w, "deck: this program has no way to deck", http.StatusNotFound)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+// marked begins the mark of every box of this deck.
+func (s *Sandbox) marked() string { return "deck-box " + string(s.home) + " " }
+
+// Mark is the mark of a box of kind for id: every box carries it in its command line, so a deck that starts again
+// finds what one before it left running.
+func (s *Sandbox) Mark(kind, id string) string {
+	return s.marked() + kind + "=" + strings.ReplaceAll(id, " ", "_") + ";"
+}
+
+// Reap kills the boxes a deck before this one left running in its folder, found by their marks.
+func (s *Sandbox) Reap() { reapMarked(s.marked()) }
 
 // End kills what is left of the process group of a command.
 func End(cmd *exec.Cmd) {
@@ -69,28 +94,3 @@ func group(cmd *exec.Cmd) *exec.Cmd {
 
 // real is the path the kernel sees, which the rules of a sandbox match.
 var real = home.Real
-
-// Confine builds the command of a program in the sandbox as deck confines every one: the sandbox checked, deck's
-// folder and the owner's home closed but for the runtimes on path and the folder of bin, the door's environment last.
-func Confine(ctx context.Context, sb Sandbox, layout home.Layout, path, bin string, p Policy) (*exec.Cmd, error) {
-	if err := sb.Check(); err != nil {
-		return nil, fmt.Errorf("sandbox %s: %w", sb.Name(), err)
-	}
-	c := Close(layout, path+string(os.PathListSeparator)+filepath.Dir(bin))
-	p.Hide, p.Read, p.Private = c.Hide, append(slices.Clone(p.Read), c.Read...), c.Private
-	if p.Door != nil {
-		p.Env = append(slices.Clone(p.Env), p.Door.Env()...)
-	}
-	cmd, err := sb.Command(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	write := slices.Clone(p.Write)
-	if p.Door != nil {
-		write = append(write, p.Door.dir)
-	}
-	if err := AsAgent(cmd, write, p.Read); err != nil {
-		return nil, err
-	}
-	return cmd, nil
-}

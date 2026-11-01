@@ -15,6 +15,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/boxes"
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/home"
@@ -53,18 +54,12 @@ func SpecID(s manifest.MCPServer) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// reached are the domains a server of a manifest reaches through deck's proxy: those it reads and acts on.
-func reached(m *manifest.Manifest) []string {
-	return m.Domains.All()
-}
-
-func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MCPServer, domains []string) (mcphost.Spec, error) {
+func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MCPServer, m *manifest.Manifest) (mcphost.Spec, error) {
 	if s.URL != "" {
-		return mcphost.Spec{URL: s.URL, Domains: domains}, nil
+		return mcphost.Spec{URL: s.URL, Domains: m.Domains.All()}, nil
 	}
 	dir := x.Home.MCP(p.ID, name)
-	env := sandbox.Env(dir, dir)
-	var secrets []string
+	var env, secrets []string
 	for _, k := range slices.Sorted(maps.Keys(s.Env)) {
 		v, used, err := x.expand(p, s.Env[k])
 		if err != nil {
@@ -76,11 +71,14 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	if err != nil {
 		return mcphost.Spec{}, err
 	}
-	var read []string
+	var paths []string
 	for _, f := range folders {
-		read = append(read, f.Path)
+		paths = append(paths, f.Path)
 	}
-	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Confine: true, Domains: domains, Secrets: secrets}, nil
+	b := boxes.For(sandbox.KindMCP, m, paths)
+	b.Mark = x.Host.Sandbox.Mark(sandbox.KindMCP, ServerKey(p.ID, name))
+	b.Argv, b.Dir, b.Home, b.Env, b.Write = append([]string{s.Command}, s.Args...), dir, dir, env, []string{dir}
+	return mcphost.Spec{Box: b, Secrets: secrets}, nil
 }
 
 func (x *MCP) expand(p db.Project, v string) (string, []string, error) {
@@ -109,7 +107,7 @@ func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
 	}
 	for _, name := range slices.Sorted(maps.Keys(m.Tools.MCP.Servers)) {
 		s := m.Tools.MCP.Servers[name]
-		spec, err := x.spec(ctx, p, name, s, reached(m))
+		spec, err := x.spec(ctx, p, name, s, m)
 		if err != nil {
 			if x.Host.Status != nil {
 				x.Host.Status(ServerKey(p.ID, name), nil, fmt.Errorf("MCP server %s did not start: %w", name, err))
@@ -179,7 +177,7 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		}
 		print := r.Spec + "/" + r.Fingerprint
 		c := registry.Loose(p.Name+"."+r.Server+"."+r.Name, cmp.Or(r.Title, r.Name), cmp.Or(r.Description, r.Name), class, registry.Everyone, json.RawMessage(r.Input),
-			x.handler(p, r.Server, s, reached(m), r.Name, class, r.Fingerprint)).Foreign()
+			x.handler(p, r.Server, s, m, r.Name, class, r.Fingerprint)).Foreign()
 		c.ProjectID = p.ID
 		c.Gate = registry.Gate{Journals: class == registry.External,
 			Fingerprint: func(context.Context, int64, int64, json.RawMessage) string { return print },
@@ -192,7 +190,7 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 	return out, nil
 }
 
-func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, domains []string, tool, class, print string) registry.Handler {
+func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, m *manifest.Manifest, tool, class, print string) registry.Handler {
 	name := p.Name + "." + server + "." + tool
 	frozen := SpecID(s) + "/" + print
 	same := func(list []*mcp.Tool) error {
@@ -208,7 +206,7 @@ func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, domains
 	}
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		external := class == registry.External
-		spec, err := x.spec(ctx, p, server, s, domains)
+		spec, err := x.spec(ctx, p, server, s, m)
 		if err == nil && external {
 			var intent int64
 			if intent, err = x.GW.Intent(ctx, act, p.ID, name, raw); err == nil {

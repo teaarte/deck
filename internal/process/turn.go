@@ -11,12 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/boxes"
 	"deck2/internal/docs"
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 	"deck2/master"
@@ -147,7 +149,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	if len(t.cmd.Result) > 0 && !slices.Contains(pv.Caps(), provider.StructuredOutput) {
 		a.sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
 	}
-	tok, err := r.gw.Register(ctx, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
+	tok, err := r.gw.Open(ctx, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
 		Question: pv.QuestionTool(), Wait: callLimit(pv), Master: proj.Builtin == 1, Commands: t.cmd.Executor.Calls,
 		Heard: func() { r.answered(t.process) }})
 	if err != nil {
@@ -157,36 +159,36 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	a.tools = r.gw.Tools(tok)
 	stream, err := os.OpenFile(r.cfg.Home.Stream(t.process), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		r.gw.Unregister(tok)
+		r.gw.Close(tok)
 		fail(fault.Of(err))
 		return nil, false
 	}
-	a.cleanup = func() { stream.Close(); r.gw.Unregister(tok) }
+	a.cleanup = func() { stream.Close(); r.gw.Close(tok) }
 	if err := r.startCeiling(ctx, t.process); err != nil {
 		a.cleanup()
 		fail(fault.Wrap("start the ceiling", err))
 		return nil, false
 	}
-	noNetwork := t.m.NoNetwork
-	var hosts []string
-	if now, err := docs.For(ctx, r.st.Q, registry.Actor{}, t.project); err == nil {
-		noNetwork = noNetwork || now.NoNetwork
-		hosts = manifest.ShellHosts(now)
-	}
-	if noNetwork {
-		hosts = nil
-	}
-	processID := t.process
 	var read []string
 	if folders, err := r.st.Q.ListProjectFolders(ctx, t.project); err == nil {
 		for _, f := range folders {
 			read = append(read, f.Path)
 		}
 	}
+	noNetwork := t.m.NoNetwork
+	var box sandbox.Box
+	if now, err := docs.For(ctx, r.st.Q, registry.Actor{}, t.project); err == nil {
+		noNetwork = noNetwork || now.NoNetwork
+		box = boxes.For(sandbox.KindAgent, now, read)
+	}
+	if noNetwork {
+		box.Hosts = nil
+	}
+	processID := t.process
 	a.req = provider.Request{
 		Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(), Dirs: []string{a.data, r.cfg.Home.Results(processID)}, Data: a.data, Read: read, NoNetwork: noNetwork, Hosts: hosts,
+		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(), Dirs: []string{a.data, r.cfg.Home.Results(processID)}, Data: a.data, Read: read, NoNetwork: noNetwork, Hosts: box.Hosts, GPU: box.GPU,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(ctx, proj.WorkspaceID, processID, pv, u) },

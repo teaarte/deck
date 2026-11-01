@@ -76,13 +76,7 @@ func (dc *Service) Programs(ctx context.Context, projectID int64) error {
 		return err
 	}
 	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		status, text := "ok", ""
-		switch {
-		case sbErr != nil:
-			status, text = "error", dc.Sandbox.Name()+": "+sbErr.Error()
-		case sandbox.Contained():
-			text = containerText
-		}
+		status, text := dc.Box()
 		if _, err := health.Set(ctx, q, health.Of{}, health.Sandbox, status, text); err != nil {
 			return err
 		}
@@ -109,6 +103,17 @@ func (dc *Service) Programs(ctx context.Context, projectID int64) error {
 		return nil
 	})
 	return err
+}
+
+// Box is the row of health of the box of foreign programs: what to fix on the machine when deck cannot build one.
+func (dc *Service) Box() (status, text string) {
+	switch err := dc.Sandbox.Check(); {
+	case err != nil:
+		return "error", dc.Sandbox.Name() + ": " + err.Error()
+	case sandbox.Contained():
+		return "ok", containerText
+	}
+	return "ok", ""
 }
 
 func scriptHealth(c *manifest.Command, problems map[string]error, sbErr error) (string, string) {

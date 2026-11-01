@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"deck2/internal/app/updates"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/release"
 	"deck2/internal/sandbox"
@@ -19,8 +20,8 @@ type Config struct {
 	ConfirmTTL time.Duration
 	// Now is the deck clock; every deadline is written and checked by it.
 	Now func() time.Time
-	// Sandbox confines scripts and ACP agents; the one of this operating system when nil.
-	Sandbox sandbox.Sandbox
+	// Sandbox runs every foreign program in its box; the one of this machine when nil.
+	Sandbox *sandbox.Sandbox
 	// ACPBinaries are the programs of ACP agents by agent name; an agent missing here is looked up in PATH.
 	ACPBinaries map[string]string
 	// ACPCallLimit is how long a call of an ACP agent may wait for the owner before its turn stops; zero keeps 45 s.
@@ -55,7 +56,7 @@ func (c *Config) defaults() {
 		c.Now = time.Now
 	}
 	if c.Sandbox == nil {
-		c.Sandbox = sandbox.New()
+		c.Sandbox = sandbox.New(home.Layout(c.Home))
 	}
 	if c.SelfCheckCeiling <= 0 {
 		c.SelfCheckCeiling = 2 * time.Minute

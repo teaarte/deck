@@ -8,21 +8,12 @@ import (
 	"strings"
 
 	"deck2/internal/fault"
-	"deck2/internal/nonce"
 	"deck2/internal/registry"
 )
 
-// Grant issues a token for a process that reaches the gateway over HTTP rather than MCP.
-func (g *Gateway) Grant(s *Session) string {
-	tok := nonce.Hex(16)
-	g.mu.Lock()
-	g.sessions[tok] = &entry{session: s}
-	g.mu.Unlock()
-	return tok
-}
-
-// ScriptHandler serves one script run: registry commands and models under the token of its process.
-func (g *Gateway) ScriptHandler(tok string) http.Handler {
+// Handler is deck's side of the door of a session that reaches deck over HTTP: registry commands and models under
+// the token of its process.
+func (g *Gateway) Handler(tok string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /commands/{name}", func(w http.ResponseWriter, r *http.Request) {
 		body, err := registry.ReadBody(w, r)

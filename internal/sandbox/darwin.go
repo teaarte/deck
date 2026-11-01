@@ -16,7 +16,7 @@ import (
 
 type seatbelt struct{}
 
-func platform() Sandbox { return &seatbelt{} }
+func platform() *seatbelt { return &seatbelt{} }
 
 func (*seatbelt) Name() string { return "sandbox-exec" }
 

@@ -12,11 +12,11 @@ import (
 // Reach connects to the MCP server of deck at base as an agent turn does and checks that it lists the permission
 // tool; the session it opens may call no command.
 func (g *Gateway) Reach(ctx context.Context, base string) error {
-	tok, err := g.Register(ctx, &Session{Commands: []string{}})
+	tok, err := g.Open(ctx, &Session{Commands: []string{}})
 	if err != nil {
 		return err
 	}
-	defer g.Unregister(tok)
+	defer g.Close(tok)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	url := base + "/mcp/" + tok

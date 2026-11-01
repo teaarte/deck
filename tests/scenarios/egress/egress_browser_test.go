@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -304,7 +303,7 @@ func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 	ag := &harness.SeqAgent{}
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("research", harness.BrowserManifest(`{"read": ["*"]}`))
-	e.WaitState(e.Start("research", "browse", harness.Steps(harness.Nav("https://198.51.100.4/a"))), "done")
+	e.WaitState(e.Start("research", "browse", harness.Steps(harness.Nav("http://198.51.100.4/a"))), "done")
 	var config struct {
 		Browser struct {
 			LaunchOptions struct {
@@ -319,33 +318,19 @@ func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 		}
 	}
 	proxy := config.Browser.LaunchOptions.Proxy
-	u, err := url.Parse(proxy.Server)
-	if err != nil || proxy.Server == "" || proxy.Password == "" {
+	if proxy.Server == "" || proxy.Password == "" {
 		t.Fatalf("the browser without sign-ins starts with deck's proxy and its key: %v %+v", harness.FakeLog(e.Browser), proxy)
 	}
-	bare := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(u)}}
-	keyed := *u
-	keyed.User = url.UserPassword(proxy.Username, proxy.Password)
-	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(&keyed)}}
-	get := func() int {
-		res, err := client.Get(local.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		res.Body.Close()
-		return res.StatusCode
-	}
-	if res, err := bare.Get("http://198.51.100.4/"); err != nil || res.StatusCode != http.StatusProxyAuthRequired {
-		t.Fatalf("deck's proxy of the browser turns away a request without its key: %v %v", res, err)
-	}
-	if code := get(); code != http.StatusForbidden || hits.Load() != 0 {
-		t.Fatalf("a page of any site does not reach a local address: %d, %d hits", code, hits.Load())
+	// The fake browser loads a page by an address through its proxy, with the key and without.
+	log := harness.FakeLog(e.Browser)
+	if !slices.Contains(log, "bare:407") {
+		t.Fatalf("deck's proxy of the browser turns away a request without its key: %v", log)
 	}
 	host := strings.TrimPrefix(local.URL, "http://")
 	e.Project("home", harness.BrowserManifest(`{"read": ["*", "`+host+`"]}`))
 	e.WaitState(e.Start("home", "browse", harness.Steps(harness.Nav(local.URL))), "done")
-	if code := get(); code != http.StatusForbidden || hits.Load() != 0 {
-		t.Fatalf("a local address the project names is not open to the shared browser either: %d, %d hits", code, hits.Load())
+	if log := harness.FakeLog(e.Browser); !slices.Contains(log, "fetch:403") || hits.Load() != 0 {
+		t.Fatalf("a local address the project names is not open to the shared browser either: %v, %d hits", log, hits.Load())
 	}
 	script := ""
 	for _, a := range harness.FakeLog(e.Browser) {

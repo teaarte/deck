@@ -39,6 +39,11 @@ var rights = []right{
 		}
 	}, func(granted, m, c *Manifest) { c.NoNetwork = m.NoNetwork || granted.NoNetwork }},
 	{func(prev, next *Manifest, add say) {
+		if next.GPU && !prev.GPU {
+			add("gpu: its programs use the graphics card")
+		}
+	}, func(granted, m, c *Manifest) { c.GPU = m.GPU && granted.GPU }},
+	{func(prev, next *Manifest, add say) {
 		for _, n := range added(prev.AllowedExternal, next.AllowedExternal) {
 			add("allowed external: %s", n)
 		}

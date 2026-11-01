@@ -12,6 +12,7 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/untrusted"
 
+	"deck2/internal/boxes"
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
@@ -58,14 +59,14 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	defer stream.Close()
 	r.deps.Servers(bg, t.project)
 	_ = r.deps.Programs(bg, t.project)
-	tok := r.gw.Grant(&gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Run: KindScript})
-	defer r.gw.Unregister(tok)
-	door, err := sandbox.Open(r.scripts.Sandbox, granted.Domains.Read, r.gw.ScriptHandler(tok))
+	tok, err := r.gw.Open(bg, &gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Run: KindScript})
 	if err != nil {
 		fail(err)
 		return
 	}
-	defer door.Close()
+	defer r.gw.Close(tok)
+	side, end := r.scripts.Sandbox.Side(r.gw.Handler(tok))
+	defer end()
 	_ = r.startCeiling(bg, id)
 	input, inDir, err := r.inputFiles(bg, t.cmd, t.project, id, t.input, false)
 	if err != nil {
@@ -77,12 +78,14 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		fail(err)
 		return
 	}
-	read := []string{inDir}
+	var paths []string
 	for _, f := range folders {
-		read = append(read, f.Path)
+		paths = append(paths, f.Path)
 	}
+	box := boxes.For(sandbox.KindScript, granted, paths)
+	box.Mark, box.Deck = r.scripts.Sandbox.Mark(sandbox.KindScript, fmt.Sprint(id)), side
 	job := script.Job{Project: t.project, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
-		Stdin: []byte(input), Door: door, Token: tok, Read: read,
+		Stdin: []byte(input), Box: box, Token: tok, Read: []string{inDir},
 		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}
@@ -114,7 +117,6 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		r.warn(bg, id, fmt.Sprintf("The result of %s.%s does not match its schema, so nothing acts on it: %v", proj.Name, t.cmd.Name, verr))
 		return
 	}
-	door.Close()
 	kept := filepath.Join(dir, "kept")
 	if err := os.Rename(job.Results(), kept); err != nil {
 		fail(err)

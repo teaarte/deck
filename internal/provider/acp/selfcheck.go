@@ -1,9 +1,11 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"deck2/internal/provider"
 	"deck2/internal/release"
@@ -13,8 +15,7 @@ import (
 
 // Version is the version the agent reports, such as 1.18.20; the agent runs in the sandbox of deck for it too.
 func (a *Adapter) Version(ctx context.Context) (string, error) {
-	bin, err := sandbox.Find(a.cfg.Binary)
-	if err != nil {
+	if _, err := sandbox.Find(a.cfg.Binary); err != nil {
 		return "", fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
 	}
 	if err := os.MkdirAll(a.Dir, 0o700); err != nil {
@@ -25,18 +26,18 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 		return "", err
 	}
 	defer os.RemoveAll(home)
-	cmd, err := sandbox.Confine(ctx, a.cfg.Sandbox, a.cfg.Home, sandbox.Path(), bin, sandbox.Policy{Argv: []string{bin, "--version"},
-		Dir: home, Env: sandbox.Env(home, home), Write: []string{home}})
+	var out bytes.Buffer
+	p, err := a.cfg.Sandbox.Run(ctx, sandbox.Box{Kind: sandbox.KindAgent, Argv: []string{a.cfg.Binary, "--version"}, Dir: home, Home: home},
+		sandbox.IO{Stdin: strings.NewReader(""), Stdout: &out})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("acp: %s: %w", a.cfg.Agent, err)
 	}
-	out, err := cmd.Output()
-	if err != nil {
+	if err := p.Wait(); err != nil {
 		return "", fmt.Errorf("%s --version: %w", a.cfg.Agent, err)
 	}
-	v := release.Semver(string(out))
+	v := release.Semver(out.String())
 	if v == "" {
-		return "", fmt.Errorf("%s --version printed no version: %s", a.cfg.Agent, untrusted.Line(string(out), 200))
+		return "", fmt.Errorf("%s --version printed no version: %s", a.cfg.Agent, untrusted.Line(out.String(), 200))
 	}
 	return a.cfg.Agent + " " + v, nil
 }

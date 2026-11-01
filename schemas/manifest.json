@@ -32,6 +32,8 @@
       "description": "What scripts and agents of the project call models through (DECK_MODELS, deck.model_call): connections the owner added, models by name, or @text, @image, @tts, @stt for the models the owner assigned; commands of type model add theirs. A new one is granted by the owner."},
     "writes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"},
       "description": "Documents of this project its agents and scripts write besides artifacts and memory, such as its own code: a document name, or a folder ending in / for every document under it. Never manifest.json. A new one is granted by the owner."},
+    "gpu": {"type": "boolean", "default": false,
+      "description": "The scripts, MCP servers and ACP agents of this project use the graphics card (/dev/dri on Linux), for rendering and local models. A right the owner gives."},
     "no_network": {"type": "boolean", "default": false,
       "description": "The agents of this project have no web and no network of their own; they reach outside only through deck tools, and its pushes carry no text of its data. Its scripts still reach the domains of the manifest and the package registries. For personal data. Only the owner removes it."}
   },

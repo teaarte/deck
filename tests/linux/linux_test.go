@@ -17,7 +17,10 @@ var linuxTests = []string{"TestScriptCommandRunsInTheSandbox", "TestScriptKeepsA
 	"TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject", "TestAScriptReadsNoFolderOfAnotherProject",
 	"TestAScriptSeesNoOtherProcess", "TestAnMCPServerReachesOnlyTheDomainsOfItsProject", "TestTheTunnelOfAStoppedMCPServerCloses",
 	"TestMCPCallLostWithItsServerIsAnUnknownOutcome", "TestProjectDeleteStopsTheMCPServersOfTheProject", "TestAFileThatWillNotGoIsInHealthUntilItGoes",
-	"TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest", "TestCodexCommandAgentWorksThroughTheGateway"}
+	"TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest", "TestCodexCommandAgentWorksThroughTheGateway",
+	"TestABoxSeesOnlyWhatItLists", "TestASecretOfAServerIsNotInTheCommandLineNorSeenByAnotherBox",
+	"TestTheBoxesACrashedDeckLeftAreKilledByTheirMarks", "TestWithoutABoxDeckStartsNoForeignProgramAndSaysWhatToFix",
+	"TestTheBrowserWithoutSignInsReachesNoLocalAddress"}
 
 // containerTests are the scenario tests that must pass in deck's image: deck as one user, agents and scripts as
 // another, under Docker's own confinement with nothing loosened.

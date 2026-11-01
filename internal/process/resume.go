@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"deck2/internal/ask"
@@ -202,7 +201,7 @@ func (r *Runner) reap(ctx context.Context) error {
 	}
 	for _, g := range groups {
 		if g.Kind == KindScript {
-			sandbox.Reap(int(g.Pgid), r.runDir(g.ID)+string(filepath.Separator))
+			sandbox.Reap(int(g.Pgid), r.scripts.Sandbox.Mark(sandbox.KindScript, fmt.Sprint(g.ID)))
 		} else if g.SessionID != "" {
 			sandbox.Reap(int(g.Pgid), g.SessionID)
 		}

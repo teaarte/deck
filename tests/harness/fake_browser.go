@@ -1,7 +1,11 @@
 package harness
 
 import (
+	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -28,6 +32,7 @@ func browserTools(dir string) []fakeTool {
 		}
 	}
 	page := "about:blank"
+	proxy := proxyOf()
 	str := map[string]any{"type": "string"}
 	obj := func(props map[string]any) map[string]any {
 		return map[string]any{"type": "object", "properties": props}
@@ -50,6 +55,12 @@ func browserTools(dir string) []fakeTool {
 		{name: "browser_navigate", desc: "Navigate to a URL", input: obj(map[string]any{"url": str}), run: func(a map[string]any) *mcp.CallToolResult {
 			page = fmt.Sprint(a["url"])
 			note(dir, "navigate:"+page)
+			if u, err := url.Parse(page); err == nil && proxy != nil && u.Scheme == "http" && net.ParseIP(u.Hostname()) != nil {
+				bare := *proxy
+				bare.User = nil
+				note(dir, "fetch:"+fetch(proxy, page))
+				note(dir, "bare:"+fetch(&bare, page))
+			}
 			return Text("### Page\n- Page URL: " + page)
 		}},
 		{name: "browser_tabs", desc: "List tabs", input: obj(map[string]any{"action": str, "url": str}), run: func(a map[string]any) *mcp.CallToolResult {
@@ -91,4 +102,41 @@ func browserTools(dir string) []fakeTool {
 			return Text("ran")
 		}},
 	}
+}
+
+// proxyOf is the proxy the config of the fake browser names, with its key.
+func proxyOf() *url.URL {
+	i := slices.Index(os.Args, "--config")
+	if i < 0 || i+1 >= len(os.Args) {
+		return nil
+	}
+	var c struct {
+		Browser struct {
+			LaunchOptions struct {
+				Proxy struct{ Server, Username, Password string }
+			}
+		}
+	}
+	raw, _ := os.ReadFile(os.Args[i+1])
+	if json.Unmarshal(raw, &c) != nil || c.Browser.LaunchOptions.Proxy.Server == "" {
+		return nil
+	}
+	p := c.Browser.LaunchOptions.Proxy
+	u, err := url.Parse(p.Server)
+	if err != nil {
+		return nil
+	}
+	u.User = url.UserPassword(p.Username, p.Password)
+	return u
+}
+
+// fetch is the status of a page through proxy, as a browser would load it.
+func fetch(proxy *url.URL, page string) string {
+	c := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: http.ProxyURL(proxy)}}
+	res, err := c.Get(page)
+	if err != nil {
+		return "error"
+	}
+	res.Body.Close()
+	return fmt.Sprint(res.StatusCode)
 }

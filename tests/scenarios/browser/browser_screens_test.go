@@ -21,7 +21,6 @@ import (
 	"deck2/internal/events"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
-	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -113,7 +112,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()), harness.WithConfig(func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
-		c.Sandbox = harness.FakeDirSandbox{Sandbox: sandbox.New(), Dir: f.Dir, More: nil}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
 	}))
 
 	e.App.Providers.Checks(t.Context(), time.Now())

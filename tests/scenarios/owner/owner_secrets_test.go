@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -22,8 +23,8 @@ func keyManifest(url, auth string) string {
     {"name": "signed", "description": "Signs", "method": "GET", "url": "%[1]s/signed", "class": "internal", "auth": {"type": "secret", "secret": %[2]q}}]}}`, url, auth))
 }
 
-// TestTheSecretsOfBeforeMoveToTheirModulesOnce: on start an old secret goes to each module that names it, a key of a
-// connection only to deck's keys, one no module names stays apart; both modules work, a second start moves nothing.
+// TestTheSecretsOfBeforeMoveToTheirModulesOnce: an old secret goes to each module naming it, a key of a connection
+// to keys, one nobody names to keys by its name or apart; all wait while a manifest does not read.
 func TestTheSecretsOfBeforeMoveToTheirModulesOnce(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
@@ -32,9 +33,12 @@ func TestTheSecretsOfBeforeMoveToTheirModulesOnce(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": svc.URL + "/v1"}, nil)
 	e.Project("films", keyManifest(svc.URL, "own"))
 	e.Project("notes", keyManifest(svc.URL, "openrouter"))
+	e.Project("broken", harness.PlainManifest)
+	// A manifest a deck before left that no longer reads.
+	e.PlantRevision("broken", "manifest.json", harness.Manifest(`{"commands": [{"name": 1}]}`))
 	h := deckhome.Layout(home)
 	old := h.Secrets(1)
-	for name, value := range map[string]string{"svc": "shared-value", "own": "films-own", "openrouter": "sk-or-old", "left": "no-one's"} {
+	for name, value := range map[string]string{"svc": "shared-value", "own": "films-own", "openrouter": "sk-or-old", "left": "no-one's", "mail_key": "kept"} {
 		if err := os.MkdirAll(old, 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -47,7 +51,6 @@ func TestTheSecretsOfBeforeMoveToTheirModulesOnce(t *testing.T) {
 	// And the move is not done yet.
 	e.SQL(`DELETE FROM mark WHERE name = 'moved:secrets'`)
 	e = e.Restart()
-
 	read := func(path string) string {
 		b, err := os.ReadFile(path)
 		if err != nil {
@@ -55,10 +58,17 @@ func TestTheSecretsOfBeforeMoveToTheirModulesOnce(t *testing.T) {
 		}
 		return strings.TrimSpace(string(b))
 	}
+	if read(filepath.Join(old, "~before", "left")) != "no-one's" || read(filepath.Join(old, "~before", "svc")) != "shared-value" {
+		t.Fatal("while a manifest does not read, no old secret goes")
+	}
+	e.Must("deck.manifest_save", map[string]any{"project": "broken", "manifest": harness.PlainManifest}, nil)
+	e = e.Restart()
+
 	for path, want := range map[string]string{
 		filepath.Join(old, "films", "svc"): "shared-value", filepath.Join(old, "notes", "svc"): "shared-value",
 		filepath.Join(old, "films", "own"): "films-own", filepath.Join(old, "notes", "openrouter"): "-",
-		filepath.Join(h.Keys(1), "openrouter"): "sk-or-old", filepath.Join(old, "~before", "left"): "no-one's",
+		filepath.Join(h.Keys(1), "openrouter"): "sk-or-old", filepath.Join(h.Keys(1), "left"): "no-one's",
+		filepath.Join(old, "~before", "left"): "-", filepath.Join(old, "~before", "mail_key"): "kept",
 		filepath.Join(old, "svc"): "-", filepath.Join(old, "own"): "-", filepath.Join(old, "openrouter"): "-",
 	} {
 		if got := read(path); got != want {
@@ -81,7 +91,7 @@ func TestTheSecretsOfBeforeMoveToTheirModulesOnce(t *testing.T) {
 
 	e.Secret("films", "svc", "films-new")
 	e = e.Restart()
-	if read(filepath.Join(old, "films", "svc")) != "films-new" || read(filepath.Join(old, "~before", "left")) != "no-one's" {
+	if read(filepath.Join(old, "films", "svc")) != "films-new" {
 		t.Fatal("a second start moves nothing again")
 	}
 }
@@ -142,5 +152,21 @@ func TestASnapshotHoldsNoSecretOrKey(t *testing.T) {
 	}
 	if len(names) == 0 || !strings.HasSuffix(names[0], "deck.db") {
 		t.Fatalf("the snapshot holds the base: %v", names)
+	}
+}
+
+// TestAKeyOutlivesItsConnection: a connection removed and made again by its name has its key back, so a key of a
+// provider is never lost with the connection; a model call through it sends it.
+func TestAKeyOutlivesItsConnection(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": "https://api.example/v1", "key": "gsk-kept"}, nil)
+	e.Must("deck.connection_delete", map[string]any{"name": "groq"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": "https://api.example/v1"}, nil)
+	var out harness.ModelsOut
+	e.Must("deck.models_list", nil, &out)
+	i := slices.IndexFunc(out.Connections, func(c harness.ModelsOutConnection) bool { return c.Name == "groq" })
+	if i < 0 || out.Connections[i].Key != "set" {
+		t.Fatalf("the connection made again has its key: %+v", out.Connections)
 	}
 }

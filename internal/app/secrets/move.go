@@ -13,6 +13,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/home"
 	"deck2/internal/store/db"
+	"deck2/schemas"
 )
 
 // moved is the mark of a workspace whose secrets lie by module and whose keys of connections lie apart.
@@ -22,7 +23,7 @@ const moved = "moved:secrets"
 const staged = "~before"
 
 // Move lays the old secrets of each workspace out once: a key of a connection to keys, a secret to each module that
-// names it, the rest left in ~before; an old file goes only after its new ones are written.
+// names it, one neither names to keys under its name or kept in ~before; while a manifest does not read, all wait.
 func (s *Service) Move(ctx context.Context) error {
 	spaces, err := s.St.Q.ListWorkspaces(ctx)
 	if err != nil {
@@ -32,8 +33,12 @@ func (s *Service) Move(ctx context.Context) error {
 		if _, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: ws, Name: moved}); err == nil {
 			continue
 		}
-		if err := s.move(ctx, ws); err != nil {
+		done, err := s.move(ctx, ws)
+		if err != nil {
 			return fmt.Errorf("deck: moving the secrets of workspace %d: %w", ws, err)
+		}
+		if !done {
+			continue
 		}
 		if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: ws, Name: moved, Value: "1"})
@@ -44,73 +49,83 @@ func (s *Service) Move(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) move(ctx context.Context, ws int64) error {
+// move says whether it is done: not while a manifest does not read.
+func (s *Service) move(ctx context.Context, ws int64) (bool, error) {
 	dir := s.Home.Secrets(ws)
 	wait := filepath.Join(dir, staged)
 	es, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+		return true, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	for _, e := range es {
 		if e.Type().IsRegular() {
 			if err := os.MkdirAll(wait, 0o700); err != nil {
-				return err
+				return false, err
 			}
 			b, err := os.ReadFile(filepath.Join(dir, e.Name()))
 			if err != nil {
-				return err
+				return false, err
 			}
 			if err := home.WriteFile(filepath.Join(wait, e.Name()), b); err != nil {
-				return err
+				return false, err
 			}
 			if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
-				return err
+				return false, err
 			}
 		}
 	}
 	old, err := os.ReadDir(wait)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+		return true, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	to, unread, err := s.targets(ctx, ws)
 	if err != nil {
-		return err
+		return false, err
 	}
 	for _, e := range old {
 		name := e.Name()
-		if len(to[name]) == 0 {
-			slog.Warn("a secret no module names and no connection holds stays apart", "workspace", ws, "secret", name, "folder", wait)
-			continue
+		if len(to[name]) == 0 && !unread {
+			if !schemas.ProjectName.MatchString(name) {
+				slog.Warn("a secret no module names and no connection holds stays apart", "workspace", ws, "secret", name, "folder", wait)
+				continue
+			}
+			to[name] = []string{filepath.Join(s.Home.Keys(ws), name)}
 		}
 		b, err := os.ReadFile(filepath.Join(wait, name))
 		if err != nil {
-			return err
+			return false, err
 		}
 		for _, path := range to[name] {
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-				return err
+				return false, err
+			}
+			if _, err := os.Stat(path); err == nil {
+				continue
 			}
 			if err := home.WriteFile(path, b); err != nil {
-				return err
+				return false, err
 			}
 		}
 		if unread {
 			continue
 		}
 		if err := os.Remove(filepath.Join(wait, name)); err != nil {
-			return err
+			return false, err
 		}
 	}
-	if left, _ := os.ReadDir(wait); len(left) == 0 {
-		return os.Remove(wait)
+	if unread {
+		return false, nil
 	}
-	return nil
+	if left, _ := os.ReadDir(wait); len(left) == 0 {
+		return true, os.Remove(wait)
+	}
+	return true, nil
 }
 
 // targets are where each old secret of a workspace goes: the key of a connection only to the keys of the connections

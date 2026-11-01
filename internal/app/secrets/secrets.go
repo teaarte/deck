@@ -121,7 +121,7 @@ func (s *Service) Key(workspace int64, connection string) string {
 	return strings.TrimSpace(string(b))
 }
 
-// WriteKey keeps the API key of a connection; an empty one removes it.
+// WriteKey keeps the API key of a connection; it outlives the connection, for one made again by its name.
 func (s *Service) WriteKey(workspace int64, connection, key string) error {
 	if !schemas.ProjectName.MatchString(connection) {
 		return registry.Invalid("bad connection name %q", connection)
@@ -129,12 +129,6 @@ func (s *Service) WriteKey(workspace int64, connection, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	path := filepath.Join(s.Home.Keys(workspace), connection)
-	if key == "" {
-		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-		return nil
-	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}

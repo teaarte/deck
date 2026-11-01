@@ -88,8 +88,5 @@ func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in c
 	if n == 0 {
 		return nil, registry.NotFound("no connection %q", in.Name)
 	}
-	if err := s.WriteKey(act.Workspace, in.Name, ""); err != nil {
-		return nil, err
-	}
 	return map[string]any{"removed": in.Name}, nil
 }

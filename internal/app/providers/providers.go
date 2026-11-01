@@ -38,7 +38,7 @@ type Service struct {
 	SelfCheckCeiling time.Duration
 	// VideoPoll is how often a job of a video model is asked after, VideoCeiling how long deck waits for it.
 	VideoPoll, VideoCeiling time.Duration
-	// Key is the API key of a connection, "" for none; WriteKey keeps one, an empty one removes it.
+	// Key is the API key of a connection, "" for none; WriteKey keeps one.
 	Key      func(workspace int64, connection string) string
 	WriteKey func(workspace int64, connection, key string) error
 	Wake     func(ctx context.Context)

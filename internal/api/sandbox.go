@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -68,7 +69,7 @@ func (s *Server) Sandbox() http.Handler {
 func (s *Server) framesOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		src := "'self'"
-		if name, port := s.hostPort(r); s.pairs[port] != 0 {
+		if name, port := s.hostPort(r); s.pairs[port] != 0 && named(name) {
 			src += " " + s.origin(r, name, s.pairs[port])
 		}
 		w.Header().Set("Content-Security-Policy", "frame-src "+src+" blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'")
@@ -84,7 +85,31 @@ func (s *Server) custom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "deck: custom blocks need the second port", http.StatusNotFound)
 		return
 	}
+	if !named(name) {
+		http.Error(w, "deck: custom blocks need an address a CSP names, such as localhost or an IPv4 one", http.StatusNotFound)
+		return
+	}
 	http.Redirect(w, r, s.origin(r, name, sb)+"/sandbox.html", http.StatusFound)
+}
+
+// local sends a client that came by an address of every interface ([::], 0.0.0.0) or by the IPv6 loopback to
+// localhost: a CSP names no IPv6 address, and the second origin of custom blocks must be named.
+func (s *Server) local(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name, port := s.hostPort(r)
+		ip, err := netip.ParseAddr(strings.Trim(name, "[]"))
+		if err != nil || !ip.IsUnspecified() && !(ip.Is6() && ip.IsLoopback()) || r.Method != http.MethodGet && r.Method != http.MethodHead {
+			next.ServeHTTP(w, r)
+			return
+		}
+		http.Redirect(w, r, s.origin(r, "localhost", port)+r.URL.RequestURI(), http.StatusFound)
+	})
+}
+
+// named says a CSP can name a host: a name or an IPv4 address, not an IPv6 one.
+func named(host string) bool {
+	ip, err := netip.ParseAddr(strings.Trim(host, "[]"))
+	return err != nil || ip.Is4()
 }
 
 // Proxied says deck is reached through a proxy of HTTPS, such as Caddy of deck's compose, which names the scheme

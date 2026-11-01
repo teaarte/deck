@@ -34,7 +34,7 @@ export function Custom({ value }: { value: CustomValue }) {
   return (
     <>
       {failed && <Text size="sm" c="red" data-custom-error>{t('custom.failed', { why: failed })}</Text>}
-      <iframe ref={frame} title="custom" data-custom data-full={full || undefined} data-awaits={!ready && !failed || undefined} sandbox="allow-scripts allow-same-origin allow-forms"
+      <iframe ref={frame} title="custom" data-custom data-full={full || undefined} data-awaits={!ready && !failed || undefined} sandbox="allow-scripts allow-forms"
         style={full ? { position: 'fixed', inset: 0, width: '100vw', height: '100dvh', border: 0, zIndex: 190, background: 'var(--mantine-color-body)' }
           : { width: '100%', height, border: 0, display: 'block' }} />
       {full && (

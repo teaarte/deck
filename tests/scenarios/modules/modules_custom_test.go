@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -84,6 +85,50 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 	r.Body.Close()
 	if r.StatusCode != 200 || !strings.Contains(r.Header.Get("Content-Type"), "javascript") {
 		t.Fatalf("the second origin serves the MCP Apps library to blocks: %d", r.StatusCode)
+	}
+}
+
+// TestCustomBlockFramesComeFromTheAddressTheClientCameBy: deck on every address, as -addr 0.0.0.0:7700, names the
+// second origin by the address of the request, never by one of every interface; [::], 0.0.0.0 and [::1], which no
+// CSP names, go to localhost.
+func TestCustomBlockFramesComeFromTheAddressTheClientCameBy(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.OnEveryAddress)
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(e.URL, "http://"))
+	_, side, _ := net.SplitHostPort(strings.TrimPrefix(e.Side, "http://"))
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	get := func(url, host string) *http.Response {
+		req, _ := http.NewRequest(http.MethodGet, url, nil)
+		req.Host = host
+		r, err := noFollow.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Body.Close()
+		return r
+	}
+	for _, host := range []string{"[::]", "0.0.0.0", "[::1]"} {
+		for _, path := range []string{"/?token=x#/p/web", "/custom"} {
+			r := get(e.URL+path, host+":"+port)
+			if want := "http://localhost:" + port + strings.Split(path, "#")[0]; r.StatusCode != http.StatusFound || r.Header.Get("Location") != want {
+				t.Fatalf("%s%s goes to %s: %d %q", host, path, want, r.StatusCode, r.Header.Get("Location"))
+			}
+		}
+	}
+	for _, host := range []string{"localhost", "192.168.0.157", "deck.lan"} {
+		main, sb := "http://"+host+":"+port, "http://"+host+":"+side
+		if got := get(e.URL+"/", host+":"+port).Header.Get("Content-Security-Policy"); !strings.HasPrefix(got, "frame-src 'self' "+sb+" blob:;") {
+			t.Fatalf("the client by %s frames the second origin by the same name: %q", host, got)
+		}
+		if r := get(e.URL+"/custom", host+":"+port); r.Header.Get("Location") != sb+"/sandbox.html" {
+			t.Fatalf("the frame by %s goes to %s: %q", host, sb, r.Header.Get("Location"))
+		}
+		if got := get(e.Side+"/sandbox.html", host+":"+side).Header.Get("Content-Security-Policy"); !strings.HasSuffix(got, "frame-ancestors "+main) {
+			t.Fatalf("the proxy page by %s is framed only by the client by %s: %q", host, main, got)
+		}
+	}
+	if got := get(e.URL+"/", "[fd00::1]:"+port).Header.Get("Content-Security-Policy"); strings.Contains(got, "[") {
+		t.Fatalf("an IPv6 address, which no CSP names, stays out of it: %q", got)
 	}
 }
 

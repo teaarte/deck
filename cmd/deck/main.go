@@ -192,7 +192,7 @@ func run() (*release.Restart, error) {
 		os.Remove(p.Old)
 		os.Remove(a.Home.Update())
 	}
-	url := fmt.Sprintf("http://%s/?token=%s", ln.Addr(), token)
+	url := fmt.Sprintf("http://%s/?token=%s", opened(ln.Addr().(*net.TCPAddr)), token)
 	if *public != "" {
 		url = strings.TrimSuffix(*public, "/") + "/?token=" + token
 	}
@@ -289,6 +289,14 @@ func mcpBase(a *net.TCPAddr) string {
 		return "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(a.Port))
 	}
 	return "http://" + a.String()
+}
+
+// opened is the address a browser opens deck by: localhost when deck listens on every address.
+func opened(a *net.TCPAddr) string {
+	if a.IP.IsUnspecified() {
+		return net.JoinHostPort("localhost", strconv.Itoa(a.Port))
+	}
+	return a.String()
 }
 
 // listenPair listens on addr and on the next port, the second origin of custom blocks; with any port it tries pairs

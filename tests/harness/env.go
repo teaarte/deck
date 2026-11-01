@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -74,6 +75,7 @@ type setup struct {
 	cfg       []func(*app.Config)
 	after     []func(*Env)
 	wait      time.Duration
+	every     bool
 }
 
 // WithAgent runs the turns of agents on the fake agent script; without a provider deck runs on one that says ok.
@@ -126,6 +128,9 @@ func WithWait(d time.Duration) Option {
 	return func(s *setup) { s.wait = d }
 }
 
+// OnEveryAddress serves deck on every address of the machine, as -addr 0.0.0.0:7700 does; Env.URL stays loopback.
+func OnEveryAddress(s *setup) { s.every = true }
+
 // New starts deck for a test: its API on a local port, the master paused and on a quiet provider of its own.
 func New(t *testing.T, opts ...Option) *Env {
 	t.Helper()
@@ -139,8 +144,11 @@ func New(t *testing.T, opts ...Option) *Env {
 	if len(s.providers) == 0 {
 		WithAgent(nil)(s)
 	}
-	ts := httptest.NewUnstartedServer(nil)
-	base := "http://" + ts.Listener.Addr().String()
+	ts, side := httptest.NewUnstartedServer(nil), httptest.NewUnstartedServer(nil)
+	if s.every {
+		listenEvery(t, ts, side)
+	}
+	base := "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(ts.Listener.Addr().(*net.TCPAddr).Port))
 	browser := t.TempDir()
 	self := Fakes
 	c := app.Config{Home: s.home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second,
@@ -163,11 +171,12 @@ func New(t *testing.T, opts ...Option) *Env {
 	}
 	a.Asks.Poll = 20 * time.Millisecond
 	srv := api.New(a, ownerToken, web.FS())
-	side := httptest.NewServer(srv.Sandbox())
+	side.Config.Handler = srv.Sandbox()
+	side.Start()
 	srv.Pair(ts.Listener.Addr().(*net.TCPAddr).Port, side.Listener.Addr().(*net.TCPAddr).Port)
 	ts.Config.Handler = srv.Handler()
 	ts.Start()
-	e := &Env{T: t, App: a, URL: base, Side: side.URL, Home: s.home, Fake: s.fake, Clock: s.clock, Names: map[int64]string{},
+	e := &Env{T: t, App: a, URL: base, Side: "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(side.Listener.Addr().(*net.TCPAddr).Port)), Home: s.home, Fake: s.fake, Clock: s.clock, Names: map[int64]string{},
 		Browser: browser, Probes: probes, opts: opts, wait: s.wait}
 	var once sync.Once
 	e.stop = func(wait bool) {
@@ -287,3 +296,15 @@ func DeckSecretPath(home string) string {
 
 // DeckSecretPath is the file of the secret of this deck.
 func (e *Env) DeckSecretPath() string { return DeckSecretPath(e.Home) }
+
+// listenEvery moves both servers onto every address, on ports of the system.
+func listenEvery(t *testing.T, servers ...*httptest.Server) {
+	for _, ts := range servers {
+		ln, err := net.Listen("tcp", ":0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = ts.Listener.Close()
+		ts.Listener = ln
+	}
+}

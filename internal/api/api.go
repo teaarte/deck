@@ -45,8 +45,8 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/mcp/", loopbackOnly(s.app.Gateway))
 	mux.HandleFunc("/mcp", s.app.Gateway.ServeAutomation)
-	mux.Handle("/", s.framesOnly(http.FileServerFS(s.web)))
-	mux.HandleFunc("GET /custom", s.custom)
+	mux.Handle("/", s.local(s.framesOnly(http.FileServerFS(s.web))))
+	mux.Handle("GET /custom", s.local(http.HandlerFunc(s.custom)))
 
 	api := http.NewServeMux()
 	api.HandleFunc("POST /api/commands/{name}", s.invoke)

@@ -63,7 +63,9 @@ func TestACLIThatIsNotInstalledSaysHowToInstallIt(t *testing.T) {
 	main := &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result { return provider.Result{Text: "ok"} }}
 	e := harness.New(t, harness.WithHome(dir), harness.WithProvider(main, missing))
 	for lang, want := range map[string]string{"": "not installed; install it: ", "ru": "не установлено; установите: "} {
-		var v struct{ Agents []struct{ Name, Status, Error string } }
+		var v struct {
+			Agents []struct{ Name, Status, Error string }
+		}
 		e.Must("deck.models_list", map[string]any{"lang": lang}, &v)
 		var got string
 		for _, a := range v.Agents {

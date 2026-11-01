@@ -209,29 +209,28 @@ func TestTheTokenURLGoesByTheDomainsOfTheModule(t *testing.T) {
 	api := harness.NewService(t, f.handler)
 	tokens := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { f.handler(w, r, 0) }))
 	t.Cleanup(tokens.Close)
-	manifest := func(domains string) string {
+	manifest := func(at, domains string) string {
 		return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
     {"name": "me", "description": "Who am I", "method": "GET", "url": "%s/me", "class": "internal",
      "auth": {"type": "oauth2", "auth_url": "%[2]s/authorize", "token_url": "%[2]s/token", "client_id": "svc_id",
-       "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}]}%s}`, api.URL, tokens.URL, domains))
+       "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}]}%s}`, api.URL, at, domains))
 	}
 	e := harness.New(t)
-	e.Project("svc", manifest(""))
-	for k, v := range map[string]string{"svc_id": "c", "svc_secret": "s", "svc_token": `{"access_token":"gone","refresh_token":"r0","expiry":"2020-01-01T00:00:00Z"}`} {
-		e.Secret("svc", k, v)
+	e.Project("closed", manifest("https://10.0.0.1:9", ""))
+	e.Project("svc", manifest(tokens.URL, fmt.Sprintf(`, "domains": {"read": [%q]}`, strings.TrimPrefix(tokens.URL, "http://"))))
+	for _, p := range []string{"closed", "svc"} {
+		for k, v := range map[string]string{"svc_id": "c", "svc_secret": "s", "svc_token": `{"access_token":"gone","refresh_token":"r0","expiry":"2020-01-01T00:00:00Z"}`} {
+			e.Secret(p, k, v)
+		}
 	}
-	grants := func() []string {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		return slices.Clone(f.grants)
+	if code, out := e.Call("closed.me", map[string]any{}); code == 200 || !strings.Contains(string(out), "is not in the domains of this project") {
+		t.Fatalf("a local token URL the domains do not name is not reached: %d %s", code, out)
 	}
-	if code, out := e.Call("svc.me", map[string]any{}); code == 200 || len(grants()) != 0 {
-		t.Fatalf("a local token URL the domains do not name is not reached: %d %s %v", code, out, grants())
-	}
-	e.Must("deck.manifest_save", map[string]any{"project": "svc", "manifest": manifest(fmt.Sprintf(`, "domains": {"read": [%q]}`, strings.TrimPrefix(tokens.URL, "http://")))}, nil)
 	var me struct{ Token string }
 	e.Must("svc.me", map[string]any{}, &me)
-	if me.Token != "a1" || !slices.Equal(grants(), []string{"refresh_token"}) {
-		t.Fatalf("the token URL the domains name is reached: %+v %v", me, grants())
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if me.Token != "a1" || !slices.Equal(f.grants, []string{"refresh_token"}) {
+		t.Fatalf("the token URL the domains name is reached: %+v %v", me, f.grants)
 	}
 }

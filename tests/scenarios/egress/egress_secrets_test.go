@@ -131,12 +131,10 @@ func TestAModuleReadsOnlyItsOwnSecrets(t *testing.T) {
 // never starts, and the health of its module says which and why.
 func TestAServerByURLDeckRefusesIsARowOfHealth(t *testing.T) {
 	t.Parallel()
-	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusTeapot) }))
-	t.Cleanup(local.Close)
 	e := harness.New(t)
 	e.Project("far", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
-  "tools": {"mcp": {"servers": {"far": {"url": %q}}}}}`, local.URL+"/mcp")))
+  "tools": {"mcp": {"servers": {"far": {"url": %q}}}}}`, "http://10.0.0.1:9/mcp")))
 	e.Start("far", "work", nil)
 	if h := e.WaitHealth("mcp:far.far", "error"); !strings.Contains(h.Error, "did not start") || !strings.Contains(h.Error, "is not in the domains of this project") {
 		t.Fatalf("a server deck refuses to reach is a red row of its module: %+v", h)

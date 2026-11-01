@@ -163,8 +163,11 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err := ctx.Err(); err != nil {
 		return res, err
 	}
-	if runErr != nil {
-		if tail := strings.TrimSpace(tail.String()); tail != "" && t.completed == 0 {
+	if runErr != nil && t.completed == 0 {
+		if k := provider.Cut("codex", waitErr, p.Killed(), tail.String()); k != nil {
+			return res, k
+		}
+		if tail := strings.TrimSpace(tail.String()); tail != "" {
 			runErr = fmt.Errorf("%w (exit: %v): %s", runErr, waitErr, tail)
 		}
 	}

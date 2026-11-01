@@ -303,3 +303,49 @@ func TestTheFinalAnswerOfCodexIsTheTextOfItsTurn(t *testing.T) {
 		t.Fatalf("the final answer of a Codex turn is its text: %+v", said)
 	}
 }
+
+// codexKilled is a turn of Codex that starts its thread and a signal from outside kills mid-turn.
+func codexKilled(t *testing.T) string {
+	raw, err := os.ReadFile(harness.Testdata("codex/nocompletion.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	return strings.Join(append(lines[:7], `{"shell": "kill -TERM $PPID; sleep 5"}`), "\n")
+}
+
+// TestCodexKilledFromOutsideGoesOnInItsThread: an app-server a signal deck did not send killed mid-turn goes on once
+// in the same thread, told its turn was killed.
+func TestCodexKilledFromOutsideGoesOnInItsThread(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCodex(t)
+	c.StreamText(1, codexKilled(t))
+	c.Stream(2, "resume.jsonl")
+	e := harness.New(t, harness.WithCodex(c))
+	id := e.Run(e.Project("paint", harness.ColorManifest), "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+		t.Fatalf("the killed turn goes on in its thread: %+v", got)
+	}
+	if string(c.Call(2).Request("thread/resume")["threadId"]) != `"01a0e033-872e-7e12-ad56-5fb4f01528ec"` {
+		t.Fatal("the second start resumes the thread")
+	}
+	if input := string(c.Call(2).Request("turn/start")["input"]); !strings.Contains(input, "signal") {
+		t.Fatalf("Codex is told its turn was killed: %s", input)
+	}
+}
+
+// TestCodexKilledTwiceSaysWhoKilledIt: an app-server killed again after it went on fails, naming the signal and that
+// deck did not send it.
+func TestCodexKilledTwiceSaysWhoKilledIt(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCodex(t)
+	c.StreamText(1, codexKilled(t))
+	raw, _ := os.ReadFile(harness.Testdata("codex/resume.jsonl"))
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	c.StreamText(2, strings.Join(append(lines[:7], `{"shell": "kill -TERM $PPID; sleep 5"}`), "\n"))
+	e := harness.New(t, harness.WithCodex(c))
+	got := e.WaitState(e.Run(e.Project("paint", harness.ColorManifest), "work"), "done", "error")
+	if got.State != "error" || c.Calls() != 2 || !strings.Contains(got.Error, "SIGTERM") || !strings.Contains(got.Error, "not deck") {
+		t.Fatalf("a turn killed twice fails once, naming the signal and that it came from outside deck: %d calls, %+v", c.Calls(), got)
+	}
+}

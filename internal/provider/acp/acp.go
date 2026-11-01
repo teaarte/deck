@@ -166,6 +166,9 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return res, err
 	}
 	if runErr != nil {
+		if k := provider.Cut(a.cfg.Agent, waitErr, child.Killed(), tail.String()); k != nil {
+			return res, k
+		}
 		if tail := strings.TrimSpace(tail.String()); tail != "" {
 			runErr = fmt.Errorf("%w (exit: %v): %s", runErr, waitErr, tail)
 		}

@@ -336,3 +336,45 @@ func TestACPCountsTokensOfCompressedReplies(t *testing.T) {
 		t.Fatalf("the tokens of a compressed reply are counted: %v", calls)
 	}
 }
+
+// acpKilled is a turn of an ACP agent a signal from outside kills mid-turn, after the session line given.
+func acpKilled(session string) string {
+	return harness.AcpStream(harness.AcpInit, session, `{"reply": "session/prompt"}`, harness.AcpModel, `{"shell": "kill -TERM $PPID; sleep 5"}`)
+}
+
+// TestACPAgentKilledFromOutsideGoesOnInItsSession: an agent a signal deck did not send killed mid-turn goes on once in
+// the same session, told its turn was killed.
+func TestACPAgentKilledFromOutsideGoesOnInItsSession(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	f.StreamText(4, acpKilled(`{"reply": "session/new", "result": {"sessionId": "s-1"}}`))
+	f.StreamText(5, harness.AcpStream(harness.AcpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
+	got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error")
+	var resume struct {
+		SessionID string
+		Prompt    []struct{ Text string }
+	}
+	if f.Calls() == 5 {
+		_ = json.Unmarshal(f.Call(5).Request("session/resume"), &resume)
+		_ = json.Unmarshal(f.Call(5).Request("session/prompt"), &resume)
+	}
+	if got.State != "done" || resume.SessionID != "s-1" || len(resume.Prompt) == 0 || !strings.Contains(resume.Prompt[0].Text, "signal") {
+		t.Fatalf("the killed turn goes on in its session, told why: %+v, %d calls, %+v", got, f.Calls(), resume)
+	}
+}
+
+// TestACPAgentKilledTwiceSaysWhoKilledIt: an agent killed again after it went on fails, naming the signal and that
+// deck did not send it.
+func TestACPAgentKilledTwiceSaysWhoKilledIt(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	f.StreamText(4, acpKilled(`{"reply": "session/new", "result": {"sessionId": "s-1"}}`))
+	f.StreamText(5, acpKilled(`{"reply": "session/resume", "result": {}}`))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
+	got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error")
+	if got.State != "error" || f.Calls() != 5 || !strings.Contains(got.Error, "SIGTERM") || !strings.Contains(got.Error, "not deck") {
+		t.Fatalf("a turn killed twice fails once, naming the signal and that it came from outside deck: %d calls, %+v", f.Calls(), got)
+	}
+}

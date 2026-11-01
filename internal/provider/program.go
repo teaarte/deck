@@ -44,6 +44,14 @@ func KilledBy(err error) (syscall.Signal, bool) {
 	return 0, false
 }
 
+// Cut is the Killed of a program that exited before finishing its turn by a signal deck did not send; nil otherwise.
+func Cut(program string, waitErr error, byDeck bool, stderr string) *Killed {
+	if sig, ok := KilledBy(waitErr); ok && !byDeck {
+		return &Killed{Program: program, Signal: sig, Stderr: stderr}
+	}
+	return nil
+}
+
 // SignalName is the name of a signal, such as SIGTERM.
 func SignalName(sig syscall.Signal) string {
 	switch sig {

@@ -35,7 +35,7 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 		Name, Model string
 		Choices     []string
 	}
-	e.Must("deck.commands_list", map[string]any{"project": "notes"}, &list)
+	e.Must("deck.commands_list", map[string]any{"project": "notes", "fields": []string{"name", "model", "choices"}}, &list)
 	if list[0].Name != "notes.collect" || list[0].Model != "local" || !slices.Equal(list[0].Choices, []string{"local"}) {
 		t.Fatalf("only the provider on own hardware fits: %+v", list)
 	}
@@ -88,7 +88,7 @@ func TestProviderIsSwitchedWithoutARestart(t *testing.T) {
 		t.Fatalf("the setting takes effect at the next start: %+v", got)
 	}
 	var list []struct{ Name, Model string }
-	e.Must("deck.commands_list", map[string]any{"project": "plain"}, &list)
+	e.Must("deck.commands_list", map[string]any{"project": "plain", "fields": []string{"name", "model"}}, &list)
 	e.UseModels("plain.work")
 	if got := e.WaitState(e.Run(p, "work"), "done"); list[0].Model != "api" || string(got.Result) != `"from the main provider"` {
 		t.Fatalf("an empty setting goes back to the default: %+v %+v", list, got)
@@ -201,7 +201,7 @@ func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
 		Model   string   `json:"model"`
 		Choices []string `json:"choices"`
 	}
-	e.Must("deck.commands_list", map[string]any{"project": "notes"}, &rows)
+	e.Must("deck.commands_list", map[string]any{"project": "notes", "fields": []string{"name", "model", "choices"}}, &rows)
 	for _, r := range rows {
 		if r.Name == "notes.collect" {
 			if r.Model != "local" || !slices.Equal(r.Choices, []string{"local"}) {
@@ -220,7 +220,7 @@ func TestAPickedModelKeepsTheOneTheCommandRanOnAsItsFallback(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("plain", harness.PlainManifest)
 	var list []struct{ Name, Model string }
-	e.Must("deck.commands_list", map[string]any{"project": "plain"}, &list)
+	e.Must("deck.commands_list", map[string]any{"project": "plain", "fields": []string{"name", "model"}}, &list)
 	if len(list) != 1 || list[0].Model == "" || list[0].Model == "quiet" {
 		t.Fatalf("the command runs on a model deck picks: %+v", list)
 	}
@@ -242,4 +242,38 @@ func TestAPickedModelKeepsTheOneTheCommandRanOnAsItsFallback(t *testing.T) {
 	if got != "[quiet "+ran+"]" {
 		t.Fatalf("the picked model goes first and the one it ran on stays its fallback: %+v", m.Assignments)
 	}
+}
+
+// TestTheListOfCommandsIsBriefAndTheModelsOfOneAreAskedFor: commands_list gives what picks a command, the models of
+// its work only by fields; command_describe gives them whole; a field no row has is refused with the fields there are.
+func TestTheListOfCommandsIsBriefAndTheModelsOfOneAreAskedFor(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
+	var brief []map[string]any
+	e.Must("deck.commands_list", map[string]any{"project": "plain"}, &brief)
+	if len(brief) != 1 || brief[0]["name"] != "plain.work" || brief[0]["executor"] != "agent" || brief[0]["choices"] != nil || brief[0]["model"] != nil {
+		t.Fatalf("the list names the command and what runs it, not its models: %+v", brief)
+	}
+	var asked []struct {
+		Name    string
+		Choices []string
+	}
+	e.Must("deck.commands_list", map[string]any{"project": "plain", "fields": []string{"name", "choices"}}, &asked)
+	if len(asked) != 1 || len(asked[0].Choices) == 0 {
+		t.Fatalf("the models of a command come when asked for: %+v", asked)
+	}
+	var spec struct {
+		Executor, Model string
+		Choices         []string
+	}
+	e.Must("deck.command_describe", map[string]any{"command": "plain.work"}, &spec)
+	if spec.Executor != "agent" || spec.Model == "" || !slices.Equal(spec.Choices, asked[0].Choices) {
+		t.Fatalf("the description of a command gives its models whole: %+v", spec)
+	}
+	e.Refused("deck.commands_list", map[string]any{"project": "plain", "fields": []string{"name", "started", "lines"}}, 422,
+		"has no field started, lines; its fields are")
+	e.Must("deck.processes_list", map[string]any{"fields": []string{"nope"}}, nil)
+	e.Start("plain", "work", nil)
+	e.Refused("deck.processes_list", map[string]any{"fields": []string{"state", "nope"}}, 422, "has no field nope")
 }

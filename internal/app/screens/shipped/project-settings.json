@@ -33,7 +33,7 @@
             "actions": [
               {"verb": "delete", "confirm": true, "command": "deck.project_cover_set", "params": {"project": "=project", "theme": "=theme", "scheme": "=scheme", "remove": "true"}}
             ]},
-          {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
+          {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "input": {"fields": ["name", "title", "executor", "tool", "cron", "trigger", "own_paused"]}, "where": "tool == ''", "sort": "name"},
             "description": "What the module can do and when it runs by itself.",
             "columns": [
               {"label": "Command", "bind": "title"},

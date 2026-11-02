@@ -42,6 +42,8 @@ type commandDescribeIn struct {
 	Command string `desc:"Command name, such as deck.model_set or project.command"`
 }
 
+// commandSpecView is what a command takes and gives; of an agent or a model command also the model of its work with the
+// models it could take.
 type commandSpecView struct {
 	Name        string          `json:"name"`
 	Title       string          `json:"title"`
@@ -50,6 +52,8 @@ type commandSpecView struct {
 	Callers     []string        `json:"callers"`
 	Input       json.RawMessage `json:"input"`
 	Result      json.RawMessage `json:"result,omitempty"`
+	Executor    string          `json:"executor,omitempty"`
+	provider.Work
 }
 
 // commandDescribe tells what a command takes whoever may call it, so the master can say what to fill in.
@@ -58,8 +62,23 @@ func (s *Service) commandDescribe(ctx context.Context, act registry.Actor, in co
 	if err != nil {
 		return commandSpecView{}, err
 	}
-	return commandSpecView{Name: c.Name, Title: c.Title, Description: c.Description, Class: c.Class, Callers: c.Callers,
-		Input: c.Input, Result: c.Result}, nil
+	out := commandSpecView{Name: c.Name, Title: c.Title, Description: c.Description, Class: c.Class, Callers: c.Callers,
+		Input: c.Input, Result: c.Result}
+	if c.ProjectID == 0 {
+		return out, nil
+	}
+	p, err := s.St.Q.GetProject(ctx, c.ProjectID)
+	if err != nil {
+		return out, nil
+	}
+	short := strings.TrimPrefix(c.Name, p.Name+".")
+	if m, _ := docs.Manifest(ctx, s.St.Q, p); m != nil && m.Command(short) != nil {
+		out.Executor = m.Command(short).Executor.Type
+		if out.Executor == "agent" || out.Executor == "model" {
+			out.Work = s.Works(ctx, act.Workspace, "")(c.ProjectID, short)
+		}
+	}
+	return out, nil
 }
 
 type commandsListIn struct {
@@ -200,10 +219,11 @@ func formOf(command, project string, m *manifest.Manifest) (string, []string) {
 func (s *Service) commandsListCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("commands_list", "Commands",
-			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. project deck selects built-in commands; omit project for all commands. command_describe gives a description.",
-			registry.OwnerSide, s.commandsList).On("projects", "tools", "assignments", "models", "triggers", "health", "documents"),
+			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. project deck selects built-in commands; omit project for all commands. The model of a command, its choices and price, and its schedule only by fields (model, models, choices, choice_groups, price, why, role, cron, trigger, own_paused); command_describe gives its input.",
+			registry.OwnerSide, s.commandsList).On("projects", "tools", "assignments", "models", "triggers", "health", "documents").
+			Brief("name", "title", "description", "project", "files", "executor", "tool", "owner_only", "form", "form_params"),
 		registry.Read("command_describe", "Describe command",
-			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers.",
-			registry.OwnerSide, s.commandDescribe).On(registry.Static),
+			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers; of an agent or a model command also the model of its work, the models it could take (choices, choice_groups) and the price.",
+			registry.OwnerSide, s.commandDescribe).On("projects", "documents", "assignments", "models", "health"),
 	}
 }

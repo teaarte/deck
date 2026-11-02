@@ -36,3 +36,10 @@ and bring the modules in line.
   side by side before, so nothing slowed; every other command without `runs` is one at a time now. Check each such
   command of the modules (skill module-conventions): `many` only where runs write nothing in common, must answer at
   once while another runs, or call themselves.
+- 2026-11-02: `commands_list` is brief: name, title, description, project, files, executor, tool, owner_only, form,
+  form_params; the model of a command, its `choices`, price and schedule come from `command_describe` or by `fields`.
+  A name in `fields` that no field of the result has is refused with the fields there are, of every tool with
+  `fields`.
+- 2026-11-02: `domains.read` is network, not only reading: deck's door sees the host, not the method, so a program
+  may send to a host it may read. Acting on a site without the owner is only `domains.act` in the browser. A
+  service on the owner's machine or network is named by IP:port, never by a name (Codex on a local model too).

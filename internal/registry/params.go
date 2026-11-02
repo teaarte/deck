@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
+	"strings"
 )
 
 // Def declares a builtin command of class internal; its input schema is the fields of In in order: json name,
@@ -21,6 +22,12 @@ const Static = "static"
 // On names the event topics after which a read gives another result, so a screen reads it again.
 func (c *Command) On(topics ...string) *Command {
 	c.Topics = topics
+	return c
+}
+
+// Brief makes a read give only these fields of each row unless the call asks for fields, the rest of them too.
+func (c *Command) Brief(fields ...string) *Command {
+	c.brief = fields
 	return c
 }
 
@@ -76,10 +83,23 @@ func Read[In, Out any](name, title, desc string, callers []string, h func(ctx co
 	c.Handler = func(ctx context.Context, a Actor, in json.RawMessage) (any, error) {
 		out, err := whole(ctx, a, in)
 		var f struct{ Fields []string }
-		if err != nil || json.Unmarshal(in, &f) != nil || len(f.Fields) == 0 {
+		if err != nil || json.Unmarshal(in, &f) != nil {
 			return out, err
 		}
-		return cut(out, sh.fields(f.Fields))
+		if len(f.Fields) == 0 {
+			if len(c.brief) == 0 {
+				return out, nil
+			}
+			f.Fields = c.brief
+		}
+		v, err := plain(out)
+		if err != nil {
+			return nil, err
+		}
+		if bad, names := sh.unknown(v, f.Fields); len(bad) > 0 {
+			return nil, Invalid("%s has no field %s; its fields are %s", c.Name, strings.Join(bad, ", "), strings.Join(names, ", "))
+		}
+		return cut(v, sh.fields(f.Fields)), nil
 	}
 	return c
 }

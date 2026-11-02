@@ -120,7 +120,7 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 		Name    string
 		Choices []string
 	}
-	e.Must("deck.commands_list", map[string]any{"project": "plain"}, &cmds)
+	e.Must("deck.commands_list", map[string]any{"project": "plain", "fields": []string{"name", "choices"}}, &cmds)
 	if i := slices.IndexFunc(cmds, func(c struct {
 		Name    string
 		Choices []string

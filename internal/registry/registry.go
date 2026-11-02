@@ -86,6 +86,8 @@ type Command struct {
 	// params are the parameters Def read from the input struct; json the fields of the input that hold a JSON text.
 	params []Param
 	json   []string
+	// brief are the fields of each row a read gives when the call asks for none.
+	brief []string
 	// foreign marks an input schema from elsewhere, not held to App Intents types; retries one that takes a retry key;
 	// untokened one no automation token calls.
 	foreign, retries, keyed, untokened bool

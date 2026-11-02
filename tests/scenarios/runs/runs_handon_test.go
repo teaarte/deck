@@ -194,7 +194,7 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	var cmds []struct {
 		Name, Model, Why string
 	}
-	e.Must("deck.commands_list", nil, &cmds)
+	e.Must("deck.commands_list", map[string]any{"fields": []string{"name", "model", "why"}}, &cmds)
 	if i := slices.IndexFunc(cmds, func(c struct{ Name, Model, Why string }) bool { return c.Name == "plain.work" }); i < 0 ||
 		cmds[i].Model != "backup" || !strings.HasPrefix(cmds[i].Why, "fake: usage limit reached") {
 		t.Fatalf("the command says why its first model does not do its work: %+v", cmds)

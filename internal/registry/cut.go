@@ -14,11 +14,18 @@ import (
 type shape struct {
 	rows     string
 	top, row []string
+	// names are the fields of the result's type: of a row of a list, else of the object, with its list and its rows.
+	names []string
 }
 
 func shapeOf(t reflect.Type) shape {
-	s, _ := resultSchema(t)["properties"].(map[string]any)
-	var sh shape
+	sch := resultSchema(t)
+	if items, _ := sch["items"].(map[string]any); items != nil {
+		props, _ := items["properties"].(map[string]any)
+		return shape{names: slices.Collect(maps.Keys(props))}
+	}
+	s, _ := sch["properties"].(map[string]any)
+	sh := shape{names: slices.Collect(maps.Keys(s))}
 	lists := 0
 	for name, p := range s {
 		if items, _ := p.(map[string]any)["items"].(map[string]any); items["type"] == "object" {
@@ -31,9 +38,44 @@ func shapeOf(t reflect.Type) shape {
 		}
 	}
 	if lists != 1 {
-		return shape{}
+		return shape{names: sh.names}
 	}
+	sh.names = append(sh.names, sh.row...)
 	return sh
+}
+
+// unknown are the fields asked whose first name no field of the result's type has nor any row of the result v, with
+// the names there are; none when the result has no rows to tell by.
+func (sh shape) unknown(v any, asked []string) (bad, names []string) {
+	rows := []any{v}
+	if l, ok := v.([]any); ok {
+		rows = l
+	} else if m, ok := v.(map[string]any); ok && sh.rows != "" {
+		l, _ := m[sh.rows].([]any)
+		rows = append(rows, l...)
+	}
+	known := map[string]bool{}
+	for _, n := range sh.names {
+		known[n] = true
+	}
+	objects := false
+	for _, r := range rows {
+		if m, ok := r.(map[string]any); ok {
+			objects = true
+			for k := range m {
+				known[k] = true
+			}
+		}
+	}
+	if !objects {
+		return nil, nil
+	}
+	for _, f := range asked {
+		if name, _, _ := strings.Cut(f, "."); !known[name] && !slices.Contains(bad, name) {
+			bad = append(bad, name)
+		}
+	}
+	return bad, slices.Sorted(maps.Keys(known))
 }
 
 // fields are those asked of the rows of an object with one list, the rest of it kept, unless every one asked is
@@ -58,8 +100,8 @@ func (sh shape) fields(fields []string) []string {
 	return out
 }
 
-// cut keeps only the named fields of a result, of every object of a list.
-func cut(out any, fields []string) (any, error) {
+// plain is a result as JSON values.
+func plain(out any) (any, error) {
 	b, err := json.Marshal(out)
 	if err != nil {
 		return nil, err
@@ -67,9 +109,12 @@ func cut(out any, fields []string) (any, error) {
 	d := json.NewDecoder(bytes.NewReader(b))
 	d.UseNumber()
 	var v any
-	if err := d.Decode(&v); err != nil {
-		return nil, err
-	}
+	err = d.Decode(&v)
+	return v, err
+}
+
+// cut keeps only the named fields of a result v, of every object of a list.
+func cut(v any, fields []string) any {
 	keep := tree{}
 	for _, f := range fields {
 		t := keep
@@ -80,7 +125,7 @@ func cut(out any, fields []string) (any, error) {
 			t = t[name]
 		}
 	}
-	return keep.cut(v), nil
+	return keep.cut(v)
 }
 
 type tree map[string]tree

@@ -591,8 +591,8 @@ advance), the prompt of the command names `web_search` and `web_fetch`, so the a
 and `calls` lists them if the command lists its calls. Leave the web out when a script brings the pages the agent
 judges, which is cheaper. Fetching known pages belongs in a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
 runs the same way every time and works with any provider. A requirement a local model lacks keeps routine work off
-it. `commands_list` gives each agent command the
-providers that fit it. `provider` suggests a provider by
+it. `command_describe` gives an agent command the
+models that fit it (`choices`; `commands_list` only when `fields` asks for them). `provider` suggests a provider by
 name — routine judgement suits a local model in an ACP agent (the name the owner gave it, from
 `models_list`), heavy reasoning Claude Code or Codex. Write the
 prompt so it works on a small model too: say which deck tool to call for what, and that the result is handed in

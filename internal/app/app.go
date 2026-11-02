@@ -125,24 +125,23 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.mods.a = a
 	a.Registry = registry.New(a.mods.commands)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
-		Models: func(act registry.Actor) http.Handler { return a.Providers.Proxy(act, a.Gateway.Permit) }, Progress: cfg.Progress, Go: a.bg.Go}, st, a.Asks, a.Bus, a.Registry)
-	a.Gateway.SetAutomation(a.Tokens.Automation)
+		Models: func(act registry.Actor) http.Handler { return a.Providers.Proxy(act, a.Gateway.Permit) }, Progress: cfg.Progress, Go: a.bg.Go},
+		gateway.Deps{Store: st, Asks: a.Asks, Bus: a.Bus, Registry: a.Registry, Automation: a.Tokens.Automation})
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}
-	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Read, h)
-	a.Tools.OAuth, a.Tools.Health, a.Tools.SignIn = oauth, a.Signins.ToolHealth, a.Signins.ToolSignIn
-	a.Tools.Resolve = func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
-		return files.Resolve(ctx, h, a.Store.Q, project, process, ref)
-	}
-	a.Host = mcphost.New(a.Signins.ServerStatus)
-	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
+	a.Tools = &tools.HTTP{GW: a.Gateway, Secrets: a.Secrets.Read, Home: h, OAuth: oauth, Health: a.Signins.ToolHealth, SignIn: a.Signins.ToolSignIn,
+		Resolve: func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
+			return files.Resolve(ctx, h, a.Store.Q, project, process, ref)
+		}}
+	a.Host = mcphost.New(mcphost.Config{Now: cfg.Now}, mcphost.Deps{Status: a.Signins.ServerStatus, Sandbox: cfg.Sandbox})
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser}
-	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
+	a.Runner = process.New(
 		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, Hold: a.Files.Hold, AgentSlots: a.Settings.AgentSlots},
-		process.Deps{For: a.Providers.For, Next: a.Providers.Next, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
+		process.Deps{Store: st, Gateway: a.Gateway, Bus: a.Bus, Scripts: a.Scripts,
+			Hooks: []process.Hook{a.Chats.Hook(), a.Processes.Hook(), a.Triggers.Hook(), a.Answers.Hook()},
+			For:   a.Providers.For, Next: a.Providers.Next, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
-	a.Runner.Hooks = []process.Hook{a.Chats.Hook(), a.Processes.Hook(), a.Triggers.Hook(), a.Answers.Hook()}
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
 	a.Secrets = secrets.Service{St: st, Emit: a.Bus.Emit, Home: h}

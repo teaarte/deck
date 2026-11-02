@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/egress"
 	"deck2/internal/fault"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
@@ -35,17 +34,12 @@ type HTTP struct {
 	GW      *gateway.Gateway
 	Secrets func(workspace int64, project, name string) (string, error)
 	Home    home.Layout
-	Client  *http.Client
 	OAuth   *OAuth
 	// Resolve finds a file an input points to for a process of a project.
 	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 	// Health records the health of a tool; SignIn asks the owner to sign in to a tool's service again.
 	Health func(ctx context.Context, p db.Project, tool, status, text string)
 	SignIn func(ctx context.Context, p db.Project, tool, why string)
-}
-
-func NewHTTP(gw *gateway.Gateway, secrets func(int64, string, string) (string, error), h home.Layout) *HTTP {
-	return &HTTP{GW: gw, Secrets: secrets, Home: h, Client: egress.Pinned}
 }
 
 // Command is the registry command of an HTTP tool of project p; it reaches its own host when public and the domains of p, a

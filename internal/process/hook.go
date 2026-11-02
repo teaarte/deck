@@ -30,7 +30,7 @@ func (NoHook) Parked(context.Context, db.Process)       {}
 func (NoHook) Turn(context.Context, db.Process, string) {}
 
 func (r *Runner) hear(ctx context.Context, processID int64, f func(Hook, db.Process)) error {
-	if len(r.Hooks) == 0 {
+	if len(r.deps.Hooks) == 0 {
 		return nil
 	}
 	p, err := r.st.Q.GetProcess(ctx, processID)
@@ -40,7 +40,7 @@ func (r *Runner) hear(ctx context.Context, processID int64, f func(Hook, db.Proc
 	if err != nil {
 		return err
 	}
-	for _, h := range r.Hooks {
+	for _, h := range r.deps.Hooks {
 		f(h, p)
 	}
 	return nil

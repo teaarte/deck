@@ -84,8 +84,6 @@ type Runner struct {
 	scripts *script.Exec
 	cfg     Config
 	deps    Deps
-	// Hooks hear of processes that close, park or end a turn, in this order.
-	Hooks []Hook
 	// lost counts the turns of a process that started without deck's tools; past lostTries it fails.
 	lost map[int64]int
 	// tails keeps the lines Tail read of a log while the log stays as it was.
@@ -145,6 +143,12 @@ type liveTurn struct {
 
 // Deps are what the runner takes from the rest of deck.
 type Deps struct {
+	Store   *store.Store
+	Gateway *gateway.Gateway
+	Bus     *events.Bus
+	Scripts *script.Exec
+	// Hooks hear of processes that close, park or end a turn, in this order.
+	Hooks []Hook
 	// For picks the provider a command starts on.
 	For func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
 	// Next is the provider of a command's assignment after the one that refused its turn; empty for none.
@@ -175,9 +179,9 @@ type Deps struct {
 	Programs func(ctx context.Context, projectID int64) error
 }
 
-func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, scripts *script.Exec, cfg Config, deps Deps) *Runner {
+func New(cfg Config, deps Deps) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Runner{st: st, gw: gw, bus: bus, scripts: scripts, cfg: cfg, deps: deps, ctx: ctx, cancel: cancel,
+	return &Runner{st: deps.Store, gw: deps.Gateway, bus: deps.Bus, scripts: deps.Scripts, cfg: cfg, deps: deps, ctx: ctx, cancel: cancel,
 		live: map[int64]*liveTurn{}, marked: map[int64]time.Time{}, warned: map[int64]int64{},
 		slots: map[int64]int{}, of: map[int64]events.Event{}, hearing: map[int64]bool{}}
 }

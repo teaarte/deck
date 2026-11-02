@@ -3,6 +3,7 @@
 package mcphost
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -39,25 +40,38 @@ func (s Spec) hash() string {
 // Status is what the host tells about a server after it started with its tools, failed to start or exited.
 type Status func(key string, tools []*mcp.Tool, err error)
 
-type Host struct {
+// Config are the bounds of the servers a host runs, zero for the defaults, and the clock of deck.
+type Config struct {
 	// StartTimeout bounds starting a server and listing its tools.
 	StartTimeout time.Duration
 	// CallTimeout bounds one tool call; a server that does not answer in time is stopped.
 	CallTimeout time.Duration
 	// Pause is how long a server that keeps crashing right after its start is not started again.
-	Pause  time.Duration
-	Now    func() time.Time
+	Pause time.Duration
+	Now   func() time.Time
+}
+
+// Deps are what a host works with.
+type Deps struct {
 	Status Status
 	// Sandbox runs the programs of servers in their boxes.
 	Sandbox *sandbox.Sandbox
+}
+
+type Host struct {
+	Config
+	Deps
 
 	mu      sync.Mutex
 	servers map[string]*server
 	closed  bool
 }
 
-func New(status Status) *Host {
-	return &Host{StartTimeout: 2 * time.Minute, CallTimeout: 2 * time.Minute, Pause: time.Minute, Now: time.Now, Status: status, servers: map[string]*server{}}
+func New(cfg Config, deps Deps) *Host {
+	cfg.StartTimeout = cmp.Or(cfg.StartTimeout, 2*time.Minute)
+	cfg.CallTimeout = cmp.Or(cfg.CallTimeout, 2*time.Minute)
+	cfg.Pause = cmp.Or(cfg.Pause, time.Minute)
+	return &Host{Config: cfg, Deps: deps, servers: map[string]*server{}}
 }
 
 type server struct {

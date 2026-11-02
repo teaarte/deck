@@ -28,9 +28,6 @@ type automationEntry struct {
 	tools   []string
 }
 
-// SetAutomation enables the MCP entry for automation tokens at /mcp.
-func (g *Gateway) SetAutomation(f Automation) { g.automation = f }
-
 // ServeAutomation serves the MCP entry of automation tokens: the token comes as a bearer token on every
 // request, so a revoked token is refused at once; a new session sees the commands of the moment.
 func (g *Gateway) ServeAutomation(w http.ResponseWriter, r *http.Request) {

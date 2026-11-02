@@ -79,6 +79,16 @@ type Config struct {
 	Go func(func(context.Context)) bool
 }
 
+// Deps are what the gateway works with.
+type Deps struct {
+	Store    *store.Store
+	Asks     *ask.Broker
+	Bus      *events.Bus
+	Registry *registry.Registry
+	// Automation enables the MCP entry for automation tokens at /mcp.
+	Automation Automation
+}
+
 type Gateway struct {
 	cfg  Config
 	st   *store.Store
@@ -107,8 +117,10 @@ type entry struct {
 	lastOK bool
 }
 
-func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
-	g := &Gateway{cfg: cfg, st: st, asks: asks, reg: reg, clear: reg.Clearance(), sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
+func New(cfg Config, deps Deps) *Gateway {
+	g := &Gateway{cfg: cfg, st: deps.Store, asks: deps.Asks, reg: deps.Registry, clear: deps.Registry.Clearance(), automation: deps.Automation,
+		sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
+	bus := deps.Bus
 	g.handler = stateful(g.serverFor)
 	bus.Follow(cfg.Go, []string{"projects", "tools"}, func(ctx context.Context, _ int64, _ []string) { g.renew(ctx) })
 	return g

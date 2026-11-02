@@ -178,7 +178,7 @@ func (h *HTTP) send(ctx context.Context, p db.Project, domains []string, o *outg
 			r.Header.Set("Authorization", "Bearer "+token)
 			o.secrets = append(o.secrets, token)
 		}
-		resp, err := h.Client.Do(r)
+		resp, err := egress.Pinned.Do(r)
 		if err != nil {
 			return nil, !egress.Unsent(err), err
 		}

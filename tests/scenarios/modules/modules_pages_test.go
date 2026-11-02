@@ -111,15 +111,15 @@ func TestATabNotShownIsReadWhenShown(t *testing.T) {
 		t.Fatalf("a read of the block of a tab gives its blocks: %v", got)
 	}
 	var tabs int
-	all := harness.DataOf(t, e.ScreenMessages("", "spend", nil))
-	whole := e.Screen("", "spend", nil)
+	all := harness.DataOf(t, e.ScreenMessages("", "settings", nil))
+	whole := e.Screen("", "settings", nil)
 	for id := range whole {
-		if strings.HasPrefix(id, "b2-") {
+		if strings.HasPrefix(id, "b0-") {
 			tabs++
 		}
 	}
 	if len(whole)-len(all) < 3 || tabs == 0 {
-		t.Fatalf("Spend reads its stats and the tab shown, not the other tabs: %d of %d", len(all), len(whole))
+		t.Fatalf("Settings reads the tab shown, not the other tabs: %d of %d", len(all), len(whole))
 	}
 }
 

@@ -90,8 +90,7 @@
           "label": "Paid",
           "y": "cost_usd"
         }
-      ],
-      "when": "param.period != 'Today'"
+      ]
     },
     {
       "type": "table",

@@ -98,6 +98,7 @@ type Proc struct {
 	Project     string          `json:"project"`
 	Command     string          `json:"command"`
 	Parent      int64           `json:"parent"`
+	Follows     int64           `json:"follows"`
 	Depth       int64           `json:"depth"`
 	Trigger     int64           `json:"trigger"`
 	Empty       bool            `json:"empty"`

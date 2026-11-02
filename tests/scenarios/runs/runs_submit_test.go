@@ -55,15 +55,28 @@ func TestAResultHandedInStaysWhenACallComesAndTheProcessIsStopped(t *testing.T) 
 	if got := e.WaitState(first, "done", "stopped", "error"); got.State != "done" || string(got.Result) != `{"cut":"v2"}` {
 		t.Fatalf("a process stopped after it handed in its result is done with it: %+v", got)
 	}
-	e.Until("a render after each revise", func() bool { return len(runsOfCommand(e, "render")) == 2 })
+	// A render the second revise starts while the first renders the clip joins it and runs once more after it.
+	e.Until("every render to end", func() bool {
+		rs := runsOfCommand(e, "render")
+		for _, r := range rs {
+			if r.State != "done" && r.State != "error" {
+				return false
+			}
+		}
+		return len(rs) >= 2
+	})
+	e.Settle()
+	of := 0
 	for _, r := range runsOfCommand(e, "render") {
-		if got := e.WaitState(r.ID, "done", "error"); got.State != "done" || harness.ProcessInput(t, e, r.ID)["record"] != float64(a) {
-			t.Fatalf("each render goes on with the clip: %+v", got)
+		if r.State != "done" || harness.ProcessInput(t, e, r.ID)["record"] != float64(a) {
+			t.Fatalf("each render goes on with the clip: %+v", r)
+		}
+		if r.Parent == first && r.Follows == 0 {
+			of++
 		}
 	}
-	e.Settle()
-	if n := len(runsOfCommand(e, "render")); n != 2 {
-		t.Fatalf("the step after a result handed in starts once, not again when the process closes: %d renders", n)
+	if of != 1 {
+		t.Fatalf("the step after a result handed in starts once, not again when the process closes: %d", of)
 	}
 }
 

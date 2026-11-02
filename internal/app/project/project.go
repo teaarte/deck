@@ -6,39 +6,33 @@ import (
 	"context"
 	"io"
 	"slices"
-	"sync"
 	"time"
 
-	"deck2/internal/ask"
 	"deck2/internal/events"
 	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
-	"deck2/internal/mcphost"
-	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/tools"
 	"deck2/internal/trigger"
 )
 
 // Service keeps projects: their lifecycle, and their manifests with the checks, migrations and grants of a save.
 type Service struct {
-	St        *store.Store
-	Bus       *events.Bus
+	St *store.Store
+	// Emit tells deck's observers of a change no write of the store tells.
+	Emit      func(events.Event)
 	Now       func() time.Time
 	Home      home.Layout
 	Registry  *registry.Registry
 	Gateway   *gateway.Gateway
-	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
-	Broker    *ask.Broker
 	Scripts   *script.Exec
-	Tools     *tools.HTTP
-	MCP       *tools.MCP
-	Host      *mcphost.Host
+	// LogPath is the log of a process; StopServer stops a running MCP server by its key.
+	LogPath    func(id int64) string
+	StopServer func(key string)
 	// Snapshot writes a snapshot before a delete.
 	Snapshot func(ctx context.Context, project int64) (string, error)
 	// Keep stores a file a command made for the owner to download.
@@ -56,10 +50,6 @@ type Service struct {
 	DropSecrets func(workspace int64, project string) error
 	// Theme is the theme a workspace wears.
 	Theme func(ctx context.Context, workspace int64) string
-
-	// preparedCmds are the registry commands of each manifest revision.
-	preparedMu   sync.Mutex
-	preparedCmds map[preparedKey][]*registry.Command
 }
 
 // Commands are the commands of projects.

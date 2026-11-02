@@ -94,6 +94,7 @@ type App struct {
 	stopOnce sync.Once
 	// slowRunning is set while the loop pushes and takes the daily snapshot.
 	slowRunning atomic.Bool
+	mods        modules
 }
 
 // New starts deck with its built-in providers, the main one first; those of providers.Build when none.
@@ -121,7 +122,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
 	a.Asks = ask.NewBroker(st, cfg.Now, a.bg.Go)
-	a.Registry = registry.New(a.Projects.ProjectCommands)
+	a.mods.a = a
+	a.Registry = registry.New(a.mods.commands)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
 		Models: func(act registry.Actor) http.Handler { return a.Providers.Proxy(act, a.Gateway.Permit) }, Progress: cfg.Progress, Go: a.bg.Go}, st, a.Asks, a.Bus, a.Registry)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
@@ -188,15 +190,13 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Updates = &updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher, Image: cfg.Image,
 		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: a.bg.Go,
 		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
-	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
-		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
-		MCP: a.MCP, Host: a.Host, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
+	a.Projects = project.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Home: h, Registry: a.Registry,
+		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, LogPath: a.Runner.LogPath, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Noted: a.Feed.Noted, CheckScreens: a.Screens.CheckScreens,
 		Unassigned: a.Providers.Unassigned, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
 		Theme: func(ctx context.Context, ws int64) string { return a.Themes.Current(ctx, ws) }}
 	a.addBuiltins()
 	a.Browser.Load()
-	a.Registry.SetExtra(a.Browser.Commands)
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)
 	if err := a.Secrets.Move(a.ctx); err != nil {
 		return nil, err

@@ -69,11 +69,11 @@ func (s *Service) projectDelete(ctx context.Context, act registry.Actor, in proj
 	}
 	// The outbox takes deck's folder of the project; the folders of its runs go here, else in the daily cleanup.
 	for _, id := range runs {
-		_ = os.RemoveAll(filepath.Dir(s.Runner.LogPath(id)))
+		_ = os.RemoveAll(filepath.Dir(s.LogPath(id)))
 	}
 	if m != nil {
 		for name := range m.Tools.MCP.Servers {
-			s.Host.Stop(tools.ServerKey(p.ID, name))
+			s.StopServer(tools.ServerKey(p.ID, name))
 		}
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})

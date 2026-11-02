@@ -148,28 +148,18 @@ type Gate struct {
 	Spends bool
 }
 
-// Projects yields the commands declared by project manifests of a workspace; project "" means every project.
-type Projects func(ctx context.Context, workspace int64, project string) ([]*Command, error)
+// Modules yields the commands of a workspace not written in Go: those of module manifests, and deck's tools whose
+// descriptions come from a running server under Builtin; project "" means all of them.
+type Modules func(ctx context.Context, workspace int64, project string) ([]*Command, error)
 
 type Registry struct {
 	builtins map[string]*Command
-	projects Projects
-	extra    func(ctx context.Context) []*Command
+	modules  Modules
 	issued   bool
 }
 
-// SetExtra adds builtin tools whose descriptions come from a running server rather than from Go.
-func (r *Registry) SetExtra(f func(ctx context.Context) []*Command) { r.extra = f }
-
-func (r *Registry) extras(ctx context.Context) []*Command {
-	if r.extra == nil {
-		return nil
-	}
-	return r.extra(ctx)
-}
-
-func New(projects Projects) *Registry {
-	return &Registry{builtins: map[string]*Command{}, projects: projects}
+func New(modules Modules) *Registry {
+	return &Registry{builtins: map[string]*Command{}, modules: modules}
 }
 
 // Add registers a builtin command; it panics on a malformed description.
@@ -314,11 +304,11 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 			out = append(out, c)
 		}
 	}
-	pcs, err := r.projects(ctx, a.Workspace, "")
+	pcs, err := r.modules(ctx, a.Workspace, "")
 	if err != nil {
 		return nil, err
 	}
-	for _, c := range append(r.extras(ctx), pcs...) {
+	for _, c := range pcs {
 		if r.reachable(a, c) == nil {
 			out = append(out, c)
 		}
@@ -342,14 +332,9 @@ func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*C
 	if c := r.builtins[name]; c != nil {
 		return c, nil
 	}
-	for _, c := range r.extras(ctx) {
-		if c.Name == name {
-			return c, nil
-		}
-	}
 	project, _, ok := strings.Cut(name, ".")
-	if ok && project != Builtin {
-		pcs, err := r.projects(ctx, workspace, project)
+	if ok {
+		pcs, err := r.modules(ctx, workspace, project)
 		if err != nil {
 			return nil, err
 		}

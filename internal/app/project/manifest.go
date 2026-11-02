@@ -303,7 +303,7 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 		s.Gateway.Record(ctx, a, "expired", "the manifest changed after this request")
 	}
 	if changed {
-		s.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
+		s.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
 		s.PrepareLater(p.ID)
 	}
 	saved.Screens = s.CheckScreens(ctx, act, p, pm.m)

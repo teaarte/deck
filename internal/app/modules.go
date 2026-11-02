@@ -1,4 +1,4 @@
-package project
+package app
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"sync"
 
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
@@ -15,17 +16,29 @@ import (
 	"deck2/internal/store/db"
 )
 
-// ProjectCommands turns the commands of workspace manifests into registry commands.
-func (s *Service) ProjectCommands(ctx context.Context, workspace int64, name string) ([]*registry.Command, error) {
+// modules collects the commands not written in Go: those of module manifests with their HTTP and MCP tools, and
+// deck's tools a running server describes; each manifest revision and grant is compiled once.
+type modules struct {
+	a        *App
+	mu       sync.Mutex
+	prepared map[preparedKey][]*registry.Command
+}
+
+// commands are the commands of the module name of a workspace, of every one when name is empty; deck's are the tools
+// of its browser.
+func (s *modules) commands(ctx context.Context, workspace int64, name string) ([]*registry.Command, error) {
+	if name == registry.Builtin {
+		return s.a.Browser.Commands(ctx), nil
+	}
 	var ps []db.Project
 	if name == "" {
-		all, err := s.St.Q.ListWorkspaceProjects(ctx, workspace)
+		all, err := s.a.Store.Q.ListWorkspaceProjects(ctx, workspace)
 		if err != nil {
 			return nil, err
 		}
 		ps = all
 	} else {
-		p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
+		p, err := s.a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -35,20 +48,23 @@ func (s *Service) ProjectCommands(ctx context.Context, workspace int64, name str
 		ps = []db.Project{p}
 	}
 	var out []*registry.Command
-	ms, failed := docs.All(ctx, s.St.Q, ps)
+	if name == "" {
+		out = s.a.Browser.Commands(ctx)
+	}
+	ms, failed := docs.All(ctx, s.a.Store.Q, ps)
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {
 			slog.Error("project manifest", "project", p.Name, "err", failed[p.ID])
 			continue
 		}
-		granted, err := docs.InForce(ctx, s.St.Q, p, m)
+		granted, err := docs.InForce(ctx, s.a.Store.Q, p, m)
 		if err != nil {
 			slog.Error("project rights", "project", p.Name, "err", err)
 			continue
 		}
-		out = append(out, s.prepared(ctx, p, m, granted)...)
-		mcpCmds, err := s.MCP.Commands(ctx, s.St.Q, p, granted)
+		out = append(out, s.compiled(p, m, granted)...)
+		mcpCmds, err := s.a.MCP.Commands(ctx, s.a.Store.Q, p, granted)
 		if err != nil {
 			return nil, err
 		}
@@ -63,13 +79,13 @@ func (s *Service) ProjectCommands(ctx context.Context, workspace int64, name str
 	return out, nil
 }
 
-// prepared are the commands and HTTP tools of a manifest as registry commands, compiled once per revision and
+// compiled are the commands and HTTP tools of a manifest as registry commands, compiled once per revision and
 // grant, with the rights the owner gave: those of granted, m in force.
-func (s *Service) prepared(ctx context.Context, p db.Project, m, granted *manifest.Manifest) []*registry.Command {
+func (s *modules) compiled(p db.Project, m, granted *manifest.Manifest) []*registry.Command {
 	key := preparedKey{p.ID, m, p.GrantedRevision.Int64}
-	s.preparedMu.Lock()
-	cmds, ok := s.preparedCmds[key]
-	s.preparedMu.Unlock()
+	s.mu.Lock()
+	cmds, ok := s.prepared[key]
+	s.mu.Unlock()
 	if ok {
 		return cmds
 	}
@@ -85,19 +101,19 @@ func (s *Service) prepared(ctx context.Context, p db.Project, m, granted *manife
 	}
 	domains := granted.Domains.All()
 	for _, t := range granted.Tools.HTTP {
-		cmd := s.Tools.Command(p, t, domains)
+		cmd := s.a.Tools.Command(p, t, domains)
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project tool", "tool", cmd.Name, "err", err)
 			continue
 		}
 		cmds = append(cmds, cmd)
 	}
-	s.preparedMu.Lock()
-	if s.preparedCmds == nil || len(s.preparedCmds) >= 256 {
-		s.preparedCmds = map[preparedKey][]*registry.Command{}
+	s.mu.Lock()
+	if s.prepared == nil || len(s.prepared) >= 256 {
+		s.prepared = map[preparedKey][]*registry.Command{}
 	}
-	s.preparedCmds[key] = cmds
-	s.preparedMu.Unlock()
+	s.prepared[key] = cmds
+	s.mu.Unlock()
 	return cmds
 }
 
@@ -109,7 +125,7 @@ type preparedKey struct {
 
 // startHandler runs a command of the manifest the registry checked the call against; the calling process
 // or the finished process of a trigger becomes its parent.
-func (s *Service) startHandler(projectID int64, m *manifest.Manifest, command string) registry.Handler {
+func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command string) registry.Handler {
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		input, err := manifest.DecodeObject(raw)
 		if err != nil {
@@ -124,6 +140,6 @@ func (s *Service) startHandler(projectID int64, m *manifest.Manifest, command st
 			}
 			o.Allows = gateway.Allows(as)
 		}
-		return s.Runner.Begin(ctx, projectID, m, command, input, o)
+		return s.a.Runner.Begin(ctx, projectID, m, command, input, o)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
@@ -68,9 +69,9 @@ func TestAModelThatDoesNotAnswerHandsOnButAFailedTaskDoesNot(t *testing.T) {
 	t.Parallel()
 	e, backup, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, `"n": 2`) || strings.Contains(c.Req.Prompt, `"n":2`) {
-			return provider.Result{Outcome: provider.Failed, Text: "the file to edit is not there"}
+			return provider.Fail(fault.TaskFailed, "the file to edit is not there")
 		}
-		return provider.Result{Outcome: provider.Unavailable, Text: "API Error: Can't reach the API server (ENOTFOUND)"}
+		return provider.Fail(fault.ModelUnavailable, "API Error: Can't reach the API server (ENOTFOUND)")
 	}, func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
@@ -122,7 +123,7 @@ func TestTheNextModelHearsWhatTheOwnerAnswered(t *testing.T) {
 // silent is a model that takes the call and gives no sign until the turn is taken from it.
 func silent(ctx context.Context, c *harness.Call) provider.Result {
 	<-ctx.Done()
-	return provider.Result{Outcome: provider.Unavailable, Text: "cut"}
+	return provider.Fail(fault.ModelUnavailable, "cut")
 }
 
 // TestAModelThatGivesNoSignHandsTheTurnOnLongBeforeTheCeiling: a model that took the turn and gave no event for five

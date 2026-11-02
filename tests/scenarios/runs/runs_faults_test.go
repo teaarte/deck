@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 	"deck2/tests/harness"
@@ -136,7 +137,7 @@ func TestTheMasterGetsTheTypeOfAFailure(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "work" {
-			return provider.Result{Outcome: provider.Unavailable, Text: "API Error: 529 overloaded"}
+			return provider.Fail(fault.ModelUnavailable, "API Error: 529 overloaded")
 		}
 		return harness.MasterScript(ctx, c)
 	}), harness.WithClock())

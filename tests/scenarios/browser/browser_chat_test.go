@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 )
@@ -640,7 +641,7 @@ func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
 		case c.Command() != "work":
 			return harness.HandOver(ctx, c, &from)
 		case works.Add(1) == 1:
-			return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
+			return provider.Fail(fault.TaskFailed, "the site is down")
 		}
 		return provider.Result{Text: "a second fresh run"}
 	}))

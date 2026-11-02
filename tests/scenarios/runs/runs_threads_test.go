@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/tests/harness"
@@ -39,7 +40,7 @@ func TestAStepAfterACommandGoesOnWithItsRecord(t *testing.T) {
 	e := harness.ClipsEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "new" {
 			if out, bad := c.Tool(ctx, "record_upsert", map[string]any{"project": "clips", "collection": "clips", "records": `{"slug": "made"}`}); bad {
-				return provider.Result{Outcome: provider.Failed, Text: out}
+				return provider.Fail(fault.TaskFailed, out)
 			}
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
@@ -331,7 +332,7 @@ func TestTheMasterSeesTheProcessesOfItsTopic(t *testing.T) {
 	script := func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "make a clip") && !strings.Contains(c.Req.Prompt, "did not see the earlier part") {
 			if out, bad := c.Tool(ctx, "clips__revise", map[string]any{"record": 1, "note": "from the chat"}); bad {
-				return provider.Result{Outcome: provider.Failed, Text: out}
+				return provider.Fail(fault.TaskFailed, out)
 			}
 		}
 		if c.Command() == "revise" {
@@ -482,7 +483,7 @@ func TestACallAFailedAgentDidNotHearRunsOnceAfter(t *testing.T) {
 		if strings.Contains(c.Req.Prompt, "the crown") {
 			started <- struct{}{}
 			<-release
-			return provider.Result{Outcome: provider.Failed, Text: "the job broke"}
+			return provider.Fail(fault.TaskFailed, "the job broke")
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
@@ -556,7 +557,7 @@ func TestAHelperCallingBackForTheRecordDoesNotJoinItsCaller(t *testing.T) {
 		switch {
 		case c.Command() == "revise" && strings.Contains(c.Req.Prompt, "the crown"):
 			if out, bad := c.Tool(ctx, "clips__tally", map[string]any{}); bad {
-				return provider.Result{Outcome: provider.Failed, Text: out}
+				return provider.Fail(fault.TaskFailed, out)
 			}
 			<-helped
 		case c.Command() == "tally":

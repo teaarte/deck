@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 )
@@ -85,14 +86,14 @@ func TestAStoppedReplySaysHowFarItGotAndGoesOnOnItsOwnModel(t *testing.T) {
 			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "projects_list", Text: "{}"})
 			close(stepped)
 			<-ctx.Done()
-			return provider.Result{Outcome: provider.Failed, Text: "stopped"}
+			return provider.Fail(fault.TaskFailed, "stopped")
 		case 2:
 			if !strings.Contains(c.Req.Prompt, "This continues process") {
 				return provider.Result{Text: "not told"}
 			}
 			return provider.Result{Text: "went on"}
 		}
-		return provider.Result{Outcome: provider.Failed, Text: "it broke"}
+		return provider.Fail(fault.TaskFailed, "it broke")
 	}))
 
 	topic := e.Say(0, "read the notes")

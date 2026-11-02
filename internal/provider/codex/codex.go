@@ -106,7 +106,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		id, missing, err := provider.ReadSession(a.sessionFile(req.SessionID))
 		if missing || err != nil {
 			if missing {
-				return provider.Result{Outcome: provider.SessionMissing}, nil
+				return provider.Result{SessionMissing: true}, nil
 			}
 			return provider.Result{}, err
 		}

@@ -31,7 +31,7 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 		switch {
 		case err != nil && !checked:
 			return ProviderHealth(ctx, q, pv.Name(), health.Error, err.Error())
-		case err != nil || res.Held() != provider.Done:
+		case err != nil || res.Held() != "":
 			return nil
 		case checked:
 			return q.MarkHealthy(ctx, subject)

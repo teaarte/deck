@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 	"deck2/tests/harness"
@@ -27,7 +28,7 @@ func TestRateLimitWarningDoesNotPause(t *testing.T) {
 		t.Fatalf("a warning about the limit must not stop the turn, got %+v", got)
 	}
 	res, err := c.Adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
-	if err != nil || res.Outcome != provider.Done {
+	if err != nil || res.Fault != nil {
 		t.Fatalf("allowed_warning and a rejected overage are not a limit: %+v %v", res, err)
 	}
 }
@@ -43,11 +44,11 @@ func TestRateLimitIsOnlyAnExplicitRefusal(t *testing.T) {
 	c.StreamText(2, strings.Join([]string{ls[0], ls[1], ok[1], ok[3]}, "\n")+"\n")
 	a := c.Adapter(t.TempDir())
 	res, err := a.Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
-	if err != nil || res.Outcome != provider.Limited || res.ResetsAt != 1790379000 {
+	if err != nil || !res.Is(fault.ModelLimit) || res.ResetsAt != 1790379000 {
 		t.Fatalf("a rejected rate limit event is a limit: %+v %v", res, err)
 	}
 	res, err = a.Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
-	if err != nil || res.Outcome == provider.Limited {
+	if err != nil || res.Is(fault.ModelLimit) {
 		t.Fatalf("a later model answer lifts the refusal: %+v %v", res, err)
 	}
 }
@@ -169,7 +170,7 @@ func TestTheAnswerOfAClaudeCodeTurnIsTheLastResultOfItsSession(t *testing.T) {
 		c := harness.NewCLI(t)
 		c.Stream(0, fixture)
 		res, err := c.Adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
-		if err != nil || res.Outcome != provider.Done || res.Text != want {
+		if err != nil || res.Fault != nil || res.Text != want {
 			t.Fatalf("%s: background agents wake the session for more results, and the last one is the answer: %+v %v", fixture, res, err)
 		}
 	}

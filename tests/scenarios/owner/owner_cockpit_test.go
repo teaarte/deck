@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/tests/harness"
@@ -46,7 +47,7 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 	fail.Store(true)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if fail.Load() {
-			return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
+			return provider.Fail(fault.TaskFailed, "the voice server is down")
 		}
 		return provider.Result{Text: "voiced"}
 	}))
@@ -142,7 +143,7 @@ func TestARunSentBackCountsFromThenAndFailsAnew(t *testing.T) {
 		if c.N > 1 {
 			<-release
 		}
-		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
+		return provider.Fail(fault.TaskFailed, "the voice server is down")
 	}}), harness.WithClock(clock))
 
 	e.Project("films", jobsModule)
@@ -175,7 +176,7 @@ func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithProvider(&harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N > usualRunsForTest {
-			return provider.Result{Outcome: provider.Limited, ResetsAt: harness.T0.Add(time.Hour).Unix()}
+			return provider.Result{Fault: fault.New(fault.ModelLimit, ""), ResetsAt: harness.T0.Add(time.Hour).Unix()}
 		}
 		clock.Add(time.Second)
 		return provider.Result{Text: "voiced"}
@@ -212,7 +213,7 @@ func TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks(t *testing.T) {
 	fail.Store(true)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if fail.Load() {
-			return provider.Result{Outcome: provider.Failed, Text: "the cutter is down"}
+			return provider.Fail(fault.TaskFailed, "the cutter is down")
 		}
 		return provider.Result{Text: "cut"}
 	}))
@@ -281,7 +282,7 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		return provider.Result{Outcome: provider.Failed, Text: fmt.Sprintf("down %d", c.N)}
+		return provider.Fail(fault.TaskFailed, fmt.Sprintf("down %d", c.N))
 	}))
 
 	e.Project("clips", cutModule)
@@ -303,7 +304,7 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 	t.Cleanup(func() { close(release) })
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 1 {
-			return provider.Result{Outcome: provider.Failed, Text: "down"}
+			return provider.Fail(fault.TaskFailed, "down")
 		}
 		select {
 		case <-release:
@@ -333,7 +334,7 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		return provider.Result{Outcome: provider.Failed, Text: "down"}
+		return provider.Fail(fault.TaskFailed, "down")
 	}))
 
 	e.Project("clips", cutModule)
@@ -350,7 +351,7 @@ func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 func TestFailedRunsStayInTheHistoryOfTheSchedule(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
+		return provider.Fail(fault.TaskFailed, "the voice server is down")
 	}))
 
 	e.Project("films", jobsModule)
@@ -381,7 +382,7 @@ func today(e *harness.Env, lang string) harness.TodayPulse {
 func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
+		return provider.Fail(fault.TaskFailed, "the voice server is down")
 	}))
 
 	if h := today(e, ""); h.State != "calm" || !strings.HasPrefix(h.Line, "Tell Deki what to do") {
@@ -421,7 +422,7 @@ func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 func TestTheFeedOfTodayHoldsWhatHappenedAndFailed(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		return provider.Result{Outcome: provider.Failed, Text: "the voice server is down"}
+		return provider.Fail(fault.TaskFailed, "the voice server is down")
 	}))
 
 	e.Project("films", jobsModule)
@@ -484,7 +485,7 @@ func TestTheOpenFailuresAreThoseNotClosedNorMadeGood(t *testing.T) {
 	var calls atomic.Int64
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if n := calls.Add(1); c.Command() != "voice" || n <= 3 {
-			return provider.Result{Outcome: provider.Failed, Text: fmt.Sprintf("the voice server is down (%d)", n)}
+			return provider.Fail(fault.TaskFailed, fmt.Sprintf("the voice server is down (%d)", n))
 		}
 		return provider.Result{Text: "voiced"}
 	}))

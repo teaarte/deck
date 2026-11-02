@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 )
@@ -163,7 +164,7 @@ func TestAResultHandedInIsTheResultWhateverTheTurnDoesAfter(t *testing.T) {
 		case strings.Contains(c.Req.Prompt, "the crown"):
 			<-go_on
 		case strings.Contains(c.Req.Prompt, "the sky"):
-			return provider.Result{Outcome: provider.Failed, Text: "the model broke after the result"}
+			return provider.Fail(fault.TaskFailed, "the model broke after the result")
 		case strings.Contains(c.Req.Prompt, "the sea"):
 			c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "Which shade?"}}})
 		}

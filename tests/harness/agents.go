@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 )
 
@@ -119,7 +120,7 @@ func MasterScript(ctx context.Context, c *Call) provider.Result {
 	case "on_error":
 		return provider.Result{Text: "looked"}
 	case "work":
-		return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
+		return provider.Fail(fault.TaskFailed, "the site is down")
 	}
 	return provider.Result{Text: "ok"}
 }

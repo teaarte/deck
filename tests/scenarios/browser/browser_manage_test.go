@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 )
@@ -13,7 +14,7 @@ import (
 func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		return provider.Result{Outcome: provider.Failed, Text: "the model is down"}
+		return provider.Fail(fault.TaskFailed, "the model is down")
 	}))
 
 	e.Project("digest", harness.TestManifest([]string{harness.AgentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))

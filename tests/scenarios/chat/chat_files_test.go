@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
@@ -289,7 +290,7 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		results := c.Req.Dirs[len(c.Req.Dirs)-1]
 		if err := os.WriteFile(filepath.Join(results, "voice-1.wav"), []byte("RIFF"), 0o600); err != nil {
-			return provider.Result{Outcome: provider.Failed, Text: err.Error()}
+			return provider.Fail(fault.TaskFailed, err.Error())
 		}
 		return provider.Result{Text: fmt.Sprintf("Here it is, and [the old one](#/file/%d).", linked)}
 	}))

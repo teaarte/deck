@@ -21,7 +21,7 @@ var exceptions = map[string][]string{
 		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:50", "cmd/deck/main.go:228",
 		"internal/app/snapshots/snapshot.go:101", "internal/app/updates/updates.go:286",
 		"internal/provider/codex/gen/main.go:93", "internal/provider/codex/gen/main.go:104",
-		"internal/provider/shellcheck.go:78", "internal/provider/shellcheck.go:79", "internal/script/run.go:70",
+		"internal/provider/shellcheck.go:79", "internal/provider/shellcheck.go:80", "internal/script/run.go:70",
 	},
 	"env": {
 		"cmd/deck-release/main.go:33", "internal/provider/codex/config.go:30",

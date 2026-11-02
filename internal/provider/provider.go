@@ -88,30 +88,15 @@ func ToolStatus(ok bool) string {
 	return "failed"
 }
 
-// Outcome is how a turn ended, of a closed set; Done is a turn that ended well.
-type Outcome string
-
-const (
-	Done Outcome = ""
-	// Failed is a turn the agent or its CLI ended with an error.
-	Failed Outcome = "failed"
-	// Login is a turn that failed because the provider's login is missing, expired or refused.
-	Login Outcome = "login"
-	// Limited is a refusal on a usage limit; Result.ResetsAt is when it ends.
-	Limited Outcome = "limited"
-	// Unavailable is a model or its API that did not answer: the network, a 5xx, an overloaded model.
-	Unavailable Outcome = "unavailable"
-	// SessionMissing is a resume that found no stored session, so the session starts over.
-	SessionMissing Outcome = "session_missing"
-	// NoTools is an agent that stopped before its first model call because deck's MCP tools did not reach it.
-	NoTools Outcome = "no_tools"
-)
-
 type Result struct {
 	// Structured is the result by the schema; JSON null means there was nothing to do.
 	Structured json.RawMessage
 	Text       string
-	Outcome    Outcome
+	// Fault is how a turn failed, nil when it ended well: task.failed, model.login, model.limit, model.unavailable, or
+	// deck.tools for an agent that stopped before its first model call because deck's tools did not reach it.
+	Fault *fault.F
+	// SessionMissing is a resume that found no stored session, so the session starts over.
+	SessionMissing bool
 	// ResetsAt is when a usage limit ends, in unix seconds.
 	ResetsAt int64
 	// Denied are the tools the provider refused by its own rules or auto mode, one entry per refused call.
@@ -122,13 +107,23 @@ type Result struct {
 	Past string
 }
 
-// Held is what of the outcome holds the provider and not only the turn: a usage limit or a lost login, else Done.
-func (r Result) Held() Outcome {
-	if r.Outcome == Limited || r.Outcome == Login {
-		return r.Outcome
+// Is reports whether the turn failed with type t.
+func (r Result) Is(t string) bool { return r.Fault != nil && r.Fault.Type == t }
+
+// Held is the type of a failure that holds the provider and not only the turn: a usage limit or a lost login, else
+// empty.
+func (r Result) Held() string {
+	if r.Is(fault.ModelLimit) || r.Is(fault.ModelLogin) {
+		return r.Fault.Type
 	}
-	return Done
+	return ""
 }
+
+// Fail is a result of a turn that failed with type t and text, its words too.
+func Fail(t, text string) Result { return Result{Fault: fault.New(t, text), Text: text} }
+
+// Fail marks the result failed with type t in its words.
+func (r *Result) Fail(t string) { r.Fault = fault.New(t, r.Text) }
 
 // Usage is one model call; the counts come from the final event of a turn or call, not from summed messages.
 type Usage struct {
@@ -185,16 +180,16 @@ const PastLimit = "X-Deck-Past-Limit"
 func Refused(res *Result, status int, retryAfter string, now time.Time) bool {
 	switch fault.OfStatus(status, true) {
 	case fault.ModelLimit:
-		res.Outcome = Limited
+		res.Fail(fault.ModelLimit)
 		if s, err := strconv.Atoi(retryAfter); err == nil && s > 0 {
 			res.ResetsAt = now.Add(time.Duration(s) * time.Second).Unix()
 		} else if t, err := http.ParseTime(retryAfter); err == nil {
 			res.ResetsAt = t.Unix()
 		}
 	case fault.ModelLogin:
-		res.Outcome = Login
+		res.Fail(fault.ModelLogin)
 	case fault.ModelUnavailable:
-		res.Outcome = Unavailable
+		res.Fail(fault.ModelUnavailable)
 	default:
 		return false
 	}
@@ -230,8 +225,8 @@ type Provider interface {
 type Check struct {
 	Version string
 	Err     error
-	// Outcome is Limited or Login when the check hit a usage limit or found no valid login.
-	Outcome Outcome
+	// Held is model.limit or model.login when the check hit a usage limit or found no valid login.
+	Held string
 	// ModelFailed is set when Err is the model not doing the steps of the check, not a fault of the adapter.
 	ModelFailed bool
 	// Slow is set when the model ran out of time rather than failed a step.

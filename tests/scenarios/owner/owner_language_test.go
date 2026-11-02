@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"deck2/internal/app/providers"
+	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/store"
@@ -555,7 +556,7 @@ func TestATranslationOfAnEnumValueIsUsed(t *testing.T) {
 func TestDecksOwnSentencesSpeakTheLanguageOfTheScreen(t *testing.T) {
 	t.Parallel()
 	e, _, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
-		return provider.Result{Outcome: provider.Unavailable, Text: "API Error: overloaded"}
+		return provider.Fail(fault.ModelUnavailable, "API Error: overloaded")
 	}, harness.Ok)
 	id := e.StartWork(1)
 	e.WaitState(e.Following(id), "done")

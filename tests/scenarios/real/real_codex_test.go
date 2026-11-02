@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"deck2/internal/provider"
 	"deck2/internal/provider/codex"
 	"deck2/internal/sandbox"
 	"deck2/tests/harness"
@@ -32,7 +31,7 @@ func TestRealCodexSelfCheck(t *testing.T) {
 	start := time.Now()
 	c := codex.New(t.TempDir(), nil).SelfCheck(ctx)
 	t.Logf("codex %s: self-check in %s", c.Version, time.Since(start).Round(time.Second))
-	if c.Err != nil || c.Outcome != provider.Done {
+	if c.Err != nil || c.Held != "" {
 		t.Fatalf("self-check: %+v", c)
 	}
 }

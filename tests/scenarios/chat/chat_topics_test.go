@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/tests/harness"
@@ -105,7 +106,7 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 			if write {
 				if out, bad := c.Tool(ctx, "document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%d/summary.md", id),
 					"kind": "doc", "text": "Goal: groceries. SUMMARY-MARK"}); bad {
-					return provider.Result{Outcome: provider.Failed, Text: out}
+					return provider.Fail(fault.TaskFailed, out)
 				}
 			}
 			return provider.Result{Text: fmt.Sprintf("%s says %d", name, c.N)}
@@ -170,7 +171,7 @@ func TestALostSessionStartsAgainWithTheRetelling(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 2 {
-			return provider.Result{Outcome: provider.SessionMissing}
+			return provider.Result{SessionMissing: true}
 		}
 		return provider.Result{Text: fmt.Sprintf("reply %d", c.N)}
 	}))
@@ -338,7 +339,7 @@ func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
 			}
 			return provider.Result{Text: "Sending it needs your yes."}
 		case 2:
-			return provider.Result{Outcome: provider.SessionMissing}
+			return provider.Result{SessionMissing: true}
 		}
 		return provider.Result{Text: "Put it on the market list."}
 	}))
@@ -372,7 +373,7 @@ func TestMessagesOfAFailedReplyReachTheNextTurn(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 2 {
-			return provider.Result{Outcome: provider.Failed, Text: "the model is overloaded"}
+			return provider.Fail(fault.TaskFailed, "the model is overloaded")
 		}
 		return provider.Result{Text: fmt.Sprintf("reply %d", c.N)}
 	}))
@@ -629,7 +630,7 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 	main := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		if turns.Add(1) == 1 {
 			c.Tool(ctx, "record_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "half a ta", "score": 1}`})
-			return provider.Result{Outcome: provider.Failed, Text: "the turn was stopped mid-way"}
+			return provider.Fail(fault.TaskFailed, "the turn was stopped mid-way")
 		}
 		return provider.Result{Text: "main again"}
 	}}
@@ -686,7 +687,7 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "job" {
 			if jobs.Add(1) == 2 {
-				return provider.Result{Outcome: provider.Failed, Text: "the job broke"}
+				return provider.Fail(fault.TaskFailed, "the job broke")
 			}
 			return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 		}

@@ -252,7 +252,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		if r.cut(bg, ctx, processID) {
 			return
 		}
-		if err == nil && res.Outcome == provider.SessionMissing {
+		if err == nil && res.SessionMissing {
 			// The owner's messages go with the fresh session; the asks stay undelivered, so it parks for them.
 			asks = told{Remarks: asks.Remarks}
 			req.Resume = false
@@ -263,7 +263,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			req.Prompt += r.remarksText(bg, processID, asks.Remarks)
 			continue
 		}
-		if err != nil && res.Outcome == provider.NoTools {
+		if err != nil && res.Is(fault.DeckTools) {
 			t.asks, t.resume = asks, req.Resume
 			if req.Resume {
 				t.message = req.Prompt
@@ -275,20 +275,20 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		var killed *provider.Killed
 		if a.sub != nil && a.sub.Taken() {
 			// A turn that handed in a result its schema took is done, whatever came after it.
-			err, res.Outcome, res.Past, res.Refusal = nil, provider.Done, "", ""
+			err, res.Fault, res.Past, res.Refusal = nil, nil, "", ""
 		}
 		if errors.As(err, &killed) && a.sub != nil && submitted(a.sub) {
 			// A turn killed after it handed in its result is done.
-			err, res.Outcome = nil, provider.Done
+			err, res.Fault = nil, nil
 		}
-		if a.sub != nil && err == nil && res.Outcome != provider.Failed && submitted(a.sub) {
+		if a.sub != nil && err == nil && !res.Is(fault.TaskFailed) && submitted(a.sub) {
 			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
-			res.Outcome = provider.Done
+			res.Fault = nil
 		}
 		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q) })
 		asks = told{}
 		r.providerHealth(bg, pv, res, err)
-		settled := err == nil && res.Outcome == provider.Done
+		settled := err == nil && res.Fault == nil
 		if a.sub != nil && settled {
 			var spent bool
 			res.Structured, spent = a.sub.Result()
@@ -300,7 +300,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			verr = validate(t.cmd, res.Structured)
 		}
 		switch {
-		case (err != nil || res.Outcome != provider.Done) && r.questioned(bg, processID):
+		case (err != nil || res.Fault != nil) && r.questioned(bg, processID):
 			r.park(bg, processID)
 		case errors.As(err, &killed) && !revived && req.SessionID != "":
 			// A signal from outside cut the turn once: it goes on in its session, which keeps what it did.
@@ -320,22 +320,25 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			if !r.handOn(bg, *t, pv, f) {
 				r.finish(bg, processID, StateError, "", false, f)
 			}
-		case res.Outcome == provider.Unavailable:
-			f := fault.With(fault.ModelUnavailable, fmt.Sprintf("%s did not answer: %s", pv.Name(), untrusted.Flat(res.Text, 200)), res.Text)
+		case res.Is(fault.ModelUnavailable):
+			text := res.Fault.Text
+			f := fault.With(fault.ModelUnavailable, fmt.Sprintf("%s did not answer: %s", pv.Name(), untrusted.Flat(text, 200)), text)
 			if !r.handOn(bg, *t, pv, f) {
-				r.finish(bg, processID, StateError, res.Text, false, f)
+				r.finish(bg, processID, StateError, text, false, f)
 			}
 			r.deps.Broke(bg, pv.Name())
-		case res.Outcome == provider.Limited:
-			if r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, fmt.Sprintf("%s reached its usage limit", pv.Name()), res.Text)) {
-				r.limited(bg, pv, res.ResetsAt, res.Text)
+		case res.Is(fault.ModelLimit):
+			text := res.Fault.Text
+			if r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, fmt.Sprintf("%s reached its usage limit", pv.Name()), text)) {
+				r.limited(bg, pv, res.ResetsAt, text)
 			} else {
-				r.pause(bg, pv, processID, res.ResetsAt, res.Text)
+				r.pause(bg, pv, processID, res.ResetsAt, text)
 			}
-		case res.Outcome == provider.Login:
-			r.needLogin(bg, pv, processID, res.Text)
-		case res.Outcome == provider.Failed:
-			r.finish(bg, processID, StateError, res.Text, false, fault.With(fault.TaskFailed, fmt.Sprintf("the agent reported an error: %s", untrusted.Flat(res.Text, 200)), res.Text))
+		case res.Is(fault.ModelLogin):
+			r.needLogin(bg, pv, processID, res.Fault.Text)
+		case res.Fault != nil:
+			text := res.Fault.Text
+			r.finish(bg, processID, StateError, text, false, fault.With(fault.TaskFailed, fmt.Sprintf("the agent reported an error: %s", untrusted.Flat(text, 200)), text))
 			r.deps.Broke(bg, pv.Name())
 		case !blocked && verr != nil && res.Refusal != "":
 			f := fault.With(fault.ModelUnavailable, fmt.Sprintf("%s refused a call of the turn: %s", pv.Name(), untrusted.Flat(res.Refusal, 200)), res.Refusal)

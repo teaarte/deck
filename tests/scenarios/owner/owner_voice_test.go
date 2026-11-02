@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/hkdf"
 
 	"deck2/internal/egress"
+	"deck2/internal/fault"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
@@ -197,7 +198,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 			return provider.Result{Text: "Put it into groceries, as card 1."}
 		}
 		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "Which site?\nThe first one is down."}}})
-		return provider.Result{Outcome: provider.Failed, Text: "the site is down"}
+		return provider.Fail(fault.TaskFailed, "the site is down")
 	}))
 
 	var key struct{ Key string }

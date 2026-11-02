@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/health"
 	"deck2/internal/process"
 	"deck2/internal/provider"
@@ -156,9 +157,9 @@ func (s *Service) startCheck(name string, force bool) bool {
 			status, text = health.Checking, "deck stopped during the self-check"
 		case unreached != nil:
 			status, text, verdict = health.Error, fmt.Sprintf("agents do not reach deck's MCP server, so they would start without deck's tools: %s", unreached), "adapter"
-		case res.Outcome == provider.Limited:
+		case res.Held == fault.ModelLimit:
 			status, text = health.Paused, fmt.Sprintf("the self-check hit the usage limit; %s", errText(res.Err))
-		case res.Outcome == provider.Login:
+		case res.Held == fault.ModelLogin:
 			status, text = health.NeedsLogin, fmt.Sprintf("the self-check found no valid login; %s", errText(res.Err))
 		case res.Err != nil && res.Slow:
 			status, text, verdict = health.Warning, fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", of, ceiling, res.Err), "model"

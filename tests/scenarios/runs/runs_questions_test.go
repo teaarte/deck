@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
@@ -26,7 +27,7 @@ func TestQuestionAnsweredLive(t *testing.T) {
 		answers, _ := in["answers"].(map[string]any)
 		topic, ok := answers["Which topic?"].(string)
 		if !ok {
-			return provider.Result{Outcome: provider.Failed, Text: "no answer"}
+			return provider.Fail(fault.TaskFailed, "no answer")
 		}
 		harness.WriteIdeas(ctx, c, topic)
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
@@ -130,7 +131,7 @@ func TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks(t *testing.T) {
 			defer cancel()
 			c.Tool(dropped, "approve", map[string]any{"tool_name": "AskUserQuestion", "tool_use_id": "t1", "input": map[string]any{"questions": []map[string]any{
 				{"question": "Which topic?", "options": []map[string]any{{"label": "go"}, {"label": "rust"}}}}}})
-			return provider.Result{Outcome: provider.Failed, Text: `MCP server "deck" transport dropped mid-call`}
+			return provider.Fail(fault.TaskFailed, `MCP server "deck" transport dropped mid-call`)
 		}
 		harness.WriteIdeas(ctx, c, map[bool]string{true: "rust", false: "?"}[strings.Contains(c.Req.Prompt, "rust")])
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}

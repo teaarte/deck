@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/untrusted"
 )
@@ -57,7 +58,8 @@ func (e *entry) refused(res provider.Result) provider.Result {
 	status, after, words, past := e.last, e.retryAfter, e.refusal, e.past
 	e.mu.Unlock()
 	if past {
-		res.Outcome, res.Past = provider.Failed, untrusted.Line(words, 500)
+		res.Past = untrusted.Line(words, 500)
+		res.Fail(fault.TaskFailed)
 		return res
 	}
 	if !provider.Refused(&res, status, after, e.now()) && status >= 400 {

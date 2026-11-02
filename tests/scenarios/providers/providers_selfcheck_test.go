@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 )
@@ -436,7 +437,7 @@ type lossyFake struct {
 
 func (l *lossyFake) Run(ctx context.Context, req provider.Request) (provider.Result, error) {
 	if l.lose.Add(-1) >= 0 {
-		return provider.Result{Outcome: provider.NoTools}, errors.New("the MCP tool of deck was not found")
+		return provider.Result{Fault: fault.New(fault.DeckTools, "")}, errors.New("the MCP tool of deck was not found")
 	}
 	l.lose.Store(0)
 	return l.checkedFake.Run(ctx, req)
@@ -494,7 +495,7 @@ func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
 	g := &gatedFake{lossyFake: &lossyFake{checkedFake: &checkedFake{Fake: &harness.Fake{}}}, entered: make(chan struct{}), gate: make(chan struct{})}
 	g.Script = func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 1 {
-			return provider.Result{Outcome: provider.Failed, Text: "boom"}
+			return provider.Fail(fault.TaskFailed, "boom")
 		}
 		return provider.Result{Text: "ok"}
 	}
@@ -535,8 +536,8 @@ func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T)
 		res    provider.Result
 		after  time.Duration
 	}{
-		{"paused", provider.Result{Outcome: provider.Limited, ResetsAt: harness.T0.Add(2 * time.Hour).Unix(), Text: "limit"}, 2*time.Hour + time.Minute},
-		{"needs_login", provider.Result{Outcome: provider.Login, Text: "Not logged in"}, 0},
+		{"paused", provider.Result{Fault: fault.New(fault.ModelLimit, "limit"), ResetsAt: harness.T0.Add(2 * time.Hour).Unix(), Text: "limit"}, 2*time.Hour + time.Minute},
+		{"needs_login", provider.Fail(fault.ModelLogin, "Not logged in"), 0},
 	} {
 		t.Run(c.status, func(t *testing.T) {
 			cf := &checkedFake{Fake: &harness.Fake{}}
@@ -572,7 +573,7 @@ func TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext(t *testing.
 	var limited atomic.Bool
 	main := &checkedFake{Fake: &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result {
 		if limited.Load() {
-			return provider.Result{Outcome: provider.Limited, ResetsAt: harness.T0.Add(2 * time.Hour).Unix(), Text: "limit"}
+			return provider.Result{Fault: fault.New(fault.ModelLimit, "limit"), ResetsAt: harness.T0.Add(2 * time.Hour).Unix(), Text: "limit"}
 		}
 		return provider.Result{Text: "ok"}
 	}}}

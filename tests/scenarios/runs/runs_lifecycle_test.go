@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
@@ -98,7 +99,7 @@ func TestProviderErrorMarksProcessError(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Fake.Script = func(ctx context.Context, c *harness.Call) provider.Result {
-		return provider.Result{Outcome: provider.Failed, Text: "boom"}
+		return provider.Fail(fault.TaskFailed, "boom")
 	}
 	p := e.Project("ideas", harness.IdeasManifest)
 	got := e.WaitState(e.Run(p, "collect"), "error", "done")

@@ -9,6 +9,7 @@ import (
 
 	sdk "github.com/coder/acp-go-sdk"
 
+	"deck2/internal/fault"
 	"deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/untrusted"
@@ -52,7 +53,7 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 		}
 	} else if err := t.resume(ctx, caps, servers); err != nil {
 		if ctx.Err() == nil && !t.listed(ctx) {
-			return provider.Result{Outcome: provider.SessionMissing}, nil
+			return provider.Result{SessionMissing: true}, nil
 		}
 		return provider.Result{}, err
 	}
@@ -91,9 +92,9 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 		// An agent may end its turn on an error of the model API, so the last answer of the API tells.
 		res = t.e.refused(res)
 	case sdk.StopReasonCancelled:
-		res = t.e.refused(provider.Result{Outcome: provider.Failed, Text: "acp: the turn was interrupted"})
+		res = t.e.refused(provider.Fail(fault.TaskFailed, "acp: the turn was interrupted"))
 	default:
-		res = t.e.refused(provider.Result{Outcome: provider.Failed, Text: "acp: the turn ended as " + string(got.r.StopReason)})
+		res = t.e.refused(provider.Fail(fault.TaskFailed, "acp: the turn ended as "+string(got.r.StopReason)))
 	}
 	return res, nil
 }
@@ -141,5 +142,5 @@ func (e *entry) failed(err error) provider.Result {
 	if errors.As(err, &re) && re.Data != nil {
 		text = fmt.Sprintf("%s: %v", re.Message, re.Data)
 	}
-	return e.refused(provider.Result{Outcome: provider.Failed, Text: "acp: " + untrusted.Cut(text, 2000)})
+	return e.refused(provider.Fail(fault.TaskFailed, "acp: "+untrusted.Cut(text, 2000)))
 }

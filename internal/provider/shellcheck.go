@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"deck2/internal/fault"
 	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
 )
@@ -135,7 +136,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		tokens = 0
 		mu.Unlock()
 		res, err := s.Run(ctx, r)
-		c.Outcome = res.Held()
+		c.Held = res.Held()
 		raw, approved, asked := cs.Take()
 		var o out
 		_ = json.Unmarshal(raw, &o)
@@ -143,9 +144,9 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		counted := tokens
 		mu.Unlock()
 		switch {
-		case ctx.Err() != nil && res.Outcome == Login:
+		case ctx.Err() != nil && res.Is(fault.ModelLogin):
 			c.Err = fmt.Errorf("%s: the model API refused the key (401 or 403); check the key of the connection and the url", what)
-		case ctx.Err() != nil && res.Outcome == Limited:
+		case ctx.Err() != nil && res.Is(fault.ModelLimit):
 			c.Err = fmt.Errorf("%s: the model API answered with a usage limit (429) until the ceiling", what)
 		case ctx.Err() != nil && counted == 0:
 			c.Slow = true
@@ -163,7 +164,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			c.Err = fmt.Errorf("%s: the model API refused a call with tools (%s): it may not take tool calls for this model; pick a model or a connection that does", what, res.Refusal)
 		case res.Refusal != "" && raw == nil:
 			c.Err = fmt.Errorf("%s: the model API refused what %s sent (%s): %s and this connection do not fit; pick another agent or connection for the model", what, s.Agent, res.Refusal, s.Agent)
-		case res.Outcome != Done:
+		case res.Fault != nil:
 			c.Err = fmt.Errorf("%s: %s", what, res.Text)
 		case raw == nil && asked == 0 && !wrote(work, word):
 			model(fmt.Errorf("%s: the model made no tool call and answered in words: the API may not pass tools to it, or it does not use them (%s)", what, said(res.Text)))

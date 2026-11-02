@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -193,7 +194,7 @@ func Heard(ctx context.Context, c *Call) string {
 }
 
 func Limited(resetsAt time.Time) provider.Result {
-	r := provider.Result{Outcome: provider.Limited, Text: "You've hit your limit"}
+	r := provider.Fail(fault.ModelLimit, "You've hit your limit")
 	if !resetsAt.IsZero() {
 		r.ResetsAt = resetsAt.Unix()
 	}

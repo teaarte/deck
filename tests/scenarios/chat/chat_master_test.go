@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 )
@@ -301,7 +302,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		return provider.Result{Outcome: provider.Failed, Text: "the model is overloaded"}
+		return provider.Fail(fault.TaskFailed, "the model is overloaded")
 	}))
 
 	e.MasterAwake()

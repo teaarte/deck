@@ -42,7 +42,7 @@ func TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest(t *testing.T) {
 	defer cancel()
 	a := codex.New(home, nil)
 	c := a.SelfCheck(ctx)
-	if c.Err != nil || c.Outcome != provider.Done {
+	if c.Err != nil || c.Held != "" {
 		t.Fatalf("codex %s self-check: %+v\nthe model did:\n%s", c.Version, c, m.Log())
 	}
 	// In its box the agent sees the one login of the CLI, as the CLI does; outside one its profile closes it.

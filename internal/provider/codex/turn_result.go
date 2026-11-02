@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 )
 
@@ -16,35 +17,39 @@ func (t *turn) finish() (provider.Result, error) {
 	}
 	res.Text = t.final
 	if t.limitHit != "" && t.last.Status != "completed" {
-		res.Outcome, res.ResetsAt, res.Text = provider.Limited, t.resetsAt(), "codex: usage limit reached: "+t.limitHit
+		res.ResetsAt, res.Text = t.resetsAt(), "codex: usage limit reached: "+t.limitHit
+		res.Fail(fault.ModelLimit)
 		return res, nil
 	}
 	switch t.last.Status {
 	case "completed":
 		return res, nil
 	case "interrupted":
-		res.Outcome, res.Text = provider.Failed, "codex: the turn was interrupted"
+		res.Text = "codex: the turn was interrupted"
+		res.Fail(fault.TaskFailed)
 		return res, nil
 	}
-	res.Outcome = provider.Failed
 	e := t.failure
 	if t.last.Error != nil {
 		e = t.last.Error
 	}
 	if e == nil {
 		res.Text = "codex: the turn ended as " + string(t.last.Status)
+		res.Fail(fault.TaskFailed)
 		return res, nil
 	}
 	res.Text = e.Message
+	res.Fail(fault.TaskFailed)
 	var info string
 	_ = json.Unmarshal(e.CodexErrorInfo, &info)
 	switch {
 	case info == "usageLimitExceeded":
-		res.Outcome, res.ResetsAt = provider.Limited, t.resetsAt()
+		res.ResetsAt = t.resetsAt()
+		res.Fail(fault.ModelLimit)
 	case info == "unauthorized" || strings.Contains(string(e.CodexErrorInfo), `"httpStatusCode":401`) || strings.Contains(e.Message, "401 Unauthorized"):
-		res.Outcome = provider.Login
+		res.Fail(fault.ModelLogin)
 	case unavailable(info, e.CodexErrorInfo):
-		res.Outcome = provider.Unavailable
+		res.Fail(fault.ModelUnavailable)
 	}
 	return res, nil
 }

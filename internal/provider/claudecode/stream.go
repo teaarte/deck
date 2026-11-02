@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 )
 
@@ -166,7 +167,7 @@ func (t *turn) line(raw []byte) {
 		}
 		for _, e := range l.Errors {
 			if t.req.Resume && l.Subtype == "error_during_execution" && strings.Contains(e, "No conversation found") {
-				t.res.Outcome = provider.SessionMissing
+				t.res.SessionMissing = true
 			}
 		}
 	}
@@ -208,14 +209,14 @@ func (t *turn) usage(l line) {
 func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.Result, error) {
 	res := t.res
 	switch {
-	case res.Outcome == provider.SessionMissing:
+	case res.SessionMissing:
 		return res, nil
 	case t.results == 0:
 		if !t.started && strings.Contains(stderr, "(passed via --permission-prompt-tool) not found") {
-			res.Outcome = provider.NoTools
+			res.Fail(fault.DeckTools)
 		}
 		// Deck signals claude only once it has a result or the turn was cancelled, so a signal now came from outside.
-		if sig, ok := provider.KilledBy(waitErr); ok && res.Outcome != provider.NoTools {
+		if sig, ok := provider.KilledBy(waitErr); ok && !res.Is(fault.DeckTools) {
 			return res, &provider.Killed{Program: "claude", Signal: sig, Stderr: stderr}
 		}
 		return res, fmt.Errorf("claude exited without a result: %v: %s", waitErr, stderr)
@@ -226,13 +227,13 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 	}
 	switch {
 	case t.limited:
-		res.Outcome = provider.Limited
+		res.Fail(fault.ModelLimit)
 	case t.failed && !t.authFailed && (t.serverError || apiDown.MatchString(res.Text)):
-		res.Outcome = provider.Unavailable
+		res.Fail(fault.ModelUnavailable)
 	case t.failed && t.authFailed:
-		res.Outcome = provider.Login
+		res.Fail(fault.ModelLogin)
 	case t.failed:
-		res.Outcome = provider.Failed
+		res.Fail(fault.TaskFailed)
 	}
 	return res, nil
 }

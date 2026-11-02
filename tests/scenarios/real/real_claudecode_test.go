@@ -108,7 +108,7 @@ func TestRealClaudeCodeKeepsSubscription(t *testing.T) {
 	res, err := claudecode.New(realHome(t), nil).Run(context.Background(), provider.Request{Cwd: t.TempDir(),
 		Prompt: "Reply with just: ok", SessionID: sid, MCPURL: "http://127.0.0.1:1/mcp/none"})
 	t.Logf("result: %+v", res)
-	if err != nil || res.Outcome != provider.Done || !strings.Contains(strings.ToLower(res.Text), "ok") {
+	if err != nil || res.Fault != nil || !strings.Contains(strings.ToLower(res.Text), "ok") {
 		t.Fatalf("want a successful turn of session %s on the subscription: %+v %v", sid, res, err)
 	}
 }
@@ -196,7 +196,7 @@ func TestRealClaudeCodeSeesSkills(t *testing.T) {
 	run := func(skills map[string]string) provider.Result {
 		res, err := claudecode.New(realHome(t), nil).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: prompt,
 			SessionID: uuid.NewString(), MCPURL: "http://127.0.0.1:1/mcp/none", Skills: skills, AllowedTools: []string{"Skill"}})
-		if err != nil || res.Outcome != provider.Done {
+		if err != nil || res.Fault != nil {
 			t.Fatalf("turn: %+v %v", res, err)
 		}
 		return res
@@ -289,7 +289,7 @@ func TestRealClaudeCodeProjectsRefreshTheOneLoginTogether(t *testing.T) {
 		}()
 	}
 	for range 6 {
-		if got := harness.Receive(t, "a turn", results); got.err != nil || got.res.Outcome != provider.Done || !strings.Contains(strings.ToLower(got.res.Text), "ok") {
+		if got := harness.Receive(t, "a turn", results); got.err != nil || got.res.Fault != nil || !strings.Contains(strings.ToLower(got.res.Text), "ok") {
 			t.Fatalf("every turn runs on the one login: %+v %v", got.res, got.err)
 		}
 	}
@@ -329,7 +329,7 @@ func TestRealClaudeCodeResumesASessionStartedBeforeItsHome(t *testing.T) {
 	}
 	res, err := a.Run(context.Background(), provider.Request{Project: 10, Cwd: work, SessionID: sid, Resume: true, MCPURL: "http://127.0.0.1:1/mcp/none",
 		Prompt: "Which word did I ask you to remember? Reply with just the word."})
-	if err != nil || res.Outcome != provider.Done || !strings.Contains(res.Text, word) {
+	if err != nil || res.Fault != nil || !strings.Contains(res.Text, word) {
 		t.Fatalf("the moved session goes on with what it knew: %+v %v", res, err)
 	}
 }

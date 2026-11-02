@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/events"
+	"deck2/internal/fault"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -645,7 +646,7 @@ func TestAScheduleThatFailedIsFixedByALaterRunOfTheSameWork(t *testing.T) {
 	fail.Store(true)
 	e := harness.New(t, harness.WithAgent(func(context.Context, *harness.Call) provider.Result {
 		if fail.Load() {
-			return provider.Result{Outcome: provider.Failed, Text: "down"}
+			return provider.Fail(fault.TaskFailed, "down")
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}), harness.WithClock())

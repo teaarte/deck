@@ -1,7 +1,6 @@
 package screen
 
 import (
-	"maps"
 	"slices"
 	"strings"
 
@@ -40,25 +39,10 @@ func readsProject(b manifest.Block, deck bool, own, project string) bool {
 
 // topicsOf are the event topics after which the block is read again: those of the reads it makes.
 func topicsOf(b manifest.Block, deck bool) []string {
-	switch {
-	case b.Type == "appearance", b.Type == "actions" && deck:
-		return nil
-	case b.Type == "document":
-		return readTopics(documentRead)
-	case b.Type == "custom" && b.Source != nil:
-		return union(readTopics(documentRead), sourceTopics(*b.Source))
-	case b.Type == "custom":
-		return readTopics(documentRead)
-	case b.Source == nil:
-		return readTopics(pageRead(deck && b.Type != "form", ""))
-	case b.Type == "chat":
-		out := sourceTopics(*b.Source)
-		for _, part := range slices.Sorted(maps.Values(manifest.ChatParts)) {
-			out = union(out, readTopics(part))
-		}
-		return out
+	if k := kindOf(b.Type); k.topics != nil {
+		return k.topics(b, deck)
 	}
-	return sourceTopics(*b.Source)
+	return pageOrSource(b, deck)
 }
 
 // sourceTopics are the topics of the read of a source; a collection is read by records_list.

@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "catalogId": "https://deck2.local/catalog/v1",
   "final_states": ["done", "error", "interrupted", "stopped"],
+  "widget": {"description": "A widget is laid in thirds of a line, the server and the client alike: a card of h rows of cells holds row × h − head under its head; a line of a list takes line, the title of a block title, a stat stat, a chart at least chart.", "row": 9, "head": 3, "title": 1, "line": 3, "stat": 3, "chart": 3},
   "topics": ["collection", "asks", "processes", "feed", "health", "log", "triggers", "secrets", "tokens", "settings", "documents", "files", "snapshots", "chat", "calls", "usage", "projects", "models", "folders", "assignments", "tools"],
   "description": "The catalog of deck screens: the basic catalog of A2UI and the blocks of deck as components of their own. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}. block is the form a manifest stores the block in; its refs are the $defs of the manifest schema.",
   "basic": {"catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json", "components": ["Row", "Column", "Tabs", "Modal", "Button", "Text"],
@@ -217,7 +218,7 @@
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
         "part": {"enum": ["look", "pushes"]},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "the client keeps the look; the data is only its state"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "the client keeps the look; actions: the buttons of the block"}
       }
     },
     "document": {

@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -18,19 +19,24 @@ type blockForm struct {
 // catalog is the screen catalog: each component with a block form is a block type, and so is each container block
 // a standard component draws.
 var catalog = func() (c struct {
-	Components map[string]blockForm `json:"components"`
+	Components map[string]blockForm
+	Widget     struct{ Row, Head, Title, Line, Stat, Chart int }
 }) {
 	var raw struct {
 		Components map[string]blockForm `json:"components"`
 		Blocks     map[string]blockForm `json:"blocks"`
+		Widget     struct{ Row, Head, Title, Line, Stat, Chart int }
 	}
 	if err := json.Unmarshal(schemas.Catalog, &raw); err != nil {
 		panic(err)
 	}
-	c.Components = raw.Components
+	c.Components, c.Widget = raw.Components, raw.Widget
 	maps.Copy(c.Components, raw.Blocks)
 	return c
 }()
+
+// Thirds are the thirds of a line a widget is laid in, the server and the client alike (catalog.json widget).
+var Thirds = catalog.Widget
 
 // Blocks are the block types of the screen catalog.
 var Blocks = func() []string {
@@ -124,6 +130,10 @@ func format() []byte {
 	}
 	block := defs["block"].(map[string]any)
 	block["type"], block["required"], block["allOf"] = "object", []string{"type"}, branches
+	w := m["properties"].(map[string]any)["widgets"].(map[string]any)
+	n := Thirds
+	w["description"] = fmt.Sprintf("%s A view is laid in thirds of a line: a card of h rows holds %d×h−%d under its head; a stat takes %d, a line of a list %d, the title of a block %d, a chart at least %d.",
+		w["description"], n.Row, n.Head, n.Stat, n.Line, n.Title, n.Chart)
 	block["properties"] = map[string]any{"type": map[string]any{"enum": Blocks}}
 	out, err := json.Marshal(m)
 	if err != nil {

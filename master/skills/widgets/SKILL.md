@@ -11,12 +11,13 @@ size it fits, columns by rows of cells, and `blocks` are one to four `stat`, `li
 screen (sources, `where`, `sort`, expressions, buttons). A press on the card opens the module; a button inside
 presses as on a screen.
 
-A view never runs out of its card: deck lays it in thirds of a line, `9 × rows − 3` under the card's head, block by
-block from the top. A `stat` takes 3, a `list` 3 a line and 1 for its title, a `chart` at least 3 and 1 for its
-title, and the chart grows over the room the others leave; a list shows the lines left (at most its `limit`). A block
-that does not fit the card on the device is left out, and the card says so in its head (`+1`). Each line of a list
-is its title and one line of `since`, `text` and `meta`, cut at the end, with its first button beside them; a
-number stays on one line. So put first what matters most, and keep titles short.
+A view never runs out of its card: deck lays it in thirds of a line under the card's head, block by block from the top
+— what a card of its rows holds and what a `stat`, a line and the title of a `list` and a `chart` take, deck says in
+the description of `widgets` in `deck.manifest_format_get` — and the chart grows over the room the others leave; a
+list shows the lines left (at most its `limit`). A block that does not fit the card on the device is left out, and the
+card says so in its head (`+1`). Each line of a list is its title and one line of `since`, `text` and `meta`, cut at
+the end, with its first button beside them; a number stays on one line. So put first what matters most, and keep
+titles short.
 
 ## What to show on what size
 

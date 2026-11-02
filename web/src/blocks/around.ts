@@ -1,4 +1,5 @@
 import { createContext } from 'react';
+import catalogSchema from '../lib/catalogSchema';
 
 // Around is the title of the tab or the dialog a block is in, which the title of the block does not say again.
 export const Around = createContext<string | undefined>(undefined);
@@ -10,5 +11,5 @@ export const Small = createContext(false);
 // line one row of words, so nothing goes out of the card.
 export const Fit = createContext(false);
 
-// thirds is what a card of h rows of cells holds under its head, as the server counts it.
-export const thirds = (h: number) => 9 * h - 3;
+// thirds is what a card of h rows of cells holds under its head, by the numbers of the catalog the server counts by.
+export const thirds = (h: number) => catalogSchema.widget.row * h - catalogSchema.widget.head;

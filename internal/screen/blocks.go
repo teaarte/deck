@@ -63,9 +63,9 @@ const maxPages = 100
 func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) ([]map[string]any, []map[string]any, int, error) {
 	src := *b.Source
 	switch {
-	case r.fitting && b.Type == "list":
+	case r.fitting && kindOf(b.Type).lined:
 		// A list of a widget shows the lines its card has room left for, at most its limit.
-		if n := max(1, (r.left-titled(b))/thirdsLine); src.Limit == 0 || src.Limit > n {
+		if n := max(1, (r.left-titled(b))/widget.Line); src.Limit == 0 || src.Limit > n {
 			src.Limit = n
 		}
 	case src.Limit == 0 && b.Paged():
@@ -176,25 +176,12 @@ func (r *renderer) block(id string, b manifest.Block) {
 	comp := static(b)
 	comp["id"], comp["component"], comp["span"] = id, b.Type, span(b)
 	r.comps = append(r.comps, comp)
-	switch b.Type {
-	case "table":
-		cols := make([]map[string]any, 0, len(b.Columns))
-		for _, c := range b.Columns {
-			col := shown(map[string]any{"label": c.Label}, c.Format, c.Currency)
-			if c.Pick != "" {
-				col["pick"] = c.Pick
-			}
-			cols = append(cols, col)
-		}
-		comp["columns"] = cols
-	case "stat":
-		shown(comp, b.Format, b.Currency)
-	case "chart":
-		shown(comp, b.Format, b.Currency)
-		comp["kind"] = cmp.Or(b.Kind, "line")
+	k := kindOf(b.Type)
+	if k.props != nil {
+		k.props(b, comp)
 	}
 	comp["data"] = map[string]any{"path": "/" + id}
-	if b.Type == "chat" {
+	if k.parted {
 		for part := range manifest.ChatParts {
 			comp[part] = map[string]any{"path": "/" + id + "-" + part}
 		}
@@ -202,7 +189,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 	if r.req.Topic != "" && (!follows(b, r.deck(), r.req.Topic) || !r.reads(b, r.req.Changed)) || !r.wanted(id) {
 		return
 	}
-	if b.Type == "chat" {
+	if k.parted {
 		r.chat(id, b)
 		return
 	}

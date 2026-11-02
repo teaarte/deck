@@ -108,7 +108,7 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 		old = old[1:]
 	}
 	s.fit(dir, path)
-	s.Bus.Emit(events.Event{Topic: "snapshots"})
+	s.Emit(events.Event{Topic: "snapshots"})
 	return path, left, nil
 }
 

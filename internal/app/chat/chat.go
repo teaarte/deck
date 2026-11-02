@@ -40,8 +40,9 @@ const (
 
 // Service keeps the chat. For is the provider a command runs on; Runner starts and goes on with the replies.
 type Service struct {
-	St     *store.Store
-	Bus    *events.Bus
+	St *store.Store
+	// Emit tells deck's observers of a change no write of the store tells.
+	Emit   func(events.Event)
 	Now    func() time.Time
 	Asks   *ask.Broker
 	Runner *process.Runner
@@ -73,8 +74,8 @@ type Service struct {
 	start sync.Mutex
 }
 
-// NewHook is the hook of the runner that keeps the master's replies in their topics.
-func (s *Service) NewHook() Hook { return Hook{ch: s} }
+// Hook keeps the master's replies in their topics.
+func (s *Service) Hook() process.Hook { return replies{s: s} }
 
 // summaryName is the document of project master with the summary of a topic.
 func summaryName(topic int64) string { return fmt.Sprintf("topics/%d/summary.md", topic) }

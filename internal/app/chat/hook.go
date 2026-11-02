@@ -28,17 +28,17 @@ func (s *Service) replyOf(ctx context.Context, p db.Process) int64 {
 }
 
 // Turn keeps the final text of a reply turn as the master's message in its topic.
-func (h Hook) Turn(ctx context.Context, p db.Process, text string) {
-	ch := h.ch
-	topic := ch.replyOf(ctx, p)
+func (h replies) Turn(ctx context.Context, p db.Process, text string) {
+	s := h.s
+	topic := s.replyOf(ctx, p)
 	if topic == 0 || strings.TrimSpace(text) == "" {
 		return
 	}
-	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(ch.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID}); err != nil {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID}); err != nil {
 			return err
 		}
-		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(ch.Now()), ID: topic}); err != nil {
+		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: topic}); err != nil {
 			return err
 		}
 		seen, err := q.TurnSeen(ctx, db.TurnSeenParams{TopicID: topic, ProcessID: p.ID})
@@ -52,19 +52,19 @@ func (h Hook) Turn(ctx context.Context, p db.Process, text string) {
 	}
 }
 
-// Hook keeps the master's replies in their topics and goes on with the messages a topic got while its
+// replies keeps the master's replies in their topics and goes on with the messages a topic got while its
 // reply ran, once the reply closes or parks.
-type Hook struct{ ch *Service }
+type replies struct{ s *Service }
 
-func (h Hook) Closed(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.ch.tell(ctx, p) }
+func (h replies) Closed(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.s.tell(ctx, p) }
 
-func (h Hook) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.ch.tell(ctx, p) }
+func (h replies) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.s.tell(ctx, p) }
 
-func (h Hook) Submitted(context.Context, db.Process) {}
+func (h replies) Submitted(context.Context, db.Process) {}
 
-func (h Hook) goOn(ctx context.Context, p db.Process) {
-	if topic := h.ch.replyOf(ctx, p); topic != 0 {
-		h.ch.pump(context.WithoutCancel(ctx), topic)
+func (h replies) goOn(ctx context.Context, p db.Process) {
+	if topic := h.s.replyOf(ctx, p); topic != 0 {
+		h.s.pump(context.WithoutCancel(ctx), topic)
 	}
 }
 

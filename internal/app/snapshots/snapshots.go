@@ -16,8 +16,9 @@ import (
 // Service takes the snapshots and runs the cleanup; Still holds the writes of the stored files while a snapshot
 // copies them, until the func it gives.
 type Service struct {
-	St    *store.Store
-	Bus   *events.Bus
+	St *store.Store
+	// Emit tells deck's observers of a change no write of the store tells.
+	Emit  func(events.Event)
 	Home  home.Layout
 	Now   func() time.Time
 	Still func() func()

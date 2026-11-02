@@ -40,22 +40,24 @@ func (s *Service) Start(ctx context.Context, t db.Trigger, input map[string]any,
 	return started.Process, nil
 }
 
-// After fires the triggers that follow a command which handed in a result by its schema, or finished done with one;
+// Hook fires the triggers that follow a command which handed in a result by its schema, or finished done with one;
 // each starts once for its process.
-type After struct {
+func (s *Service) Hook() process.Hook { return following{s: s} }
+
+type following struct {
 	process.NoHook
-	S *Service
+	s *Service
 }
 
-func (h After) Closed(ctx context.Context, p db.Process) {
+func (h following) Closed(ctx context.Context, p db.Process) {
 	if p.State == process.StateDone && p.NotBySchema == 0 && p.Result != process.Empty && p.Alone == 0 {
-		h.S.after(ctx, p)
+		h.s.after(ctx, p)
 	}
 }
 
-func (h After) Submitted(ctx context.Context, p db.Process) {
+func (h following) Submitted(ctx context.Context, p db.Process) {
 	if p.Result != process.Empty && p.Alone == 0 {
-		h.S.after(ctx, p)
+		h.s.after(ctx, p)
 	}
 }
 

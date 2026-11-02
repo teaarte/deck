@@ -71,7 +71,7 @@ func (s *Service) unstart(topic int64, err error, live bool) {
 	now := s.unstarted[topic]
 	s.mu.Unlock()
 	if t, err := s.St.Q.GetTopic(context.Background(), topic); was != now && err == nil {
-		s.Bus.Emit(events.Event{Workspace: t.WorkspaceID, Topic: "chat"})
+		s.Emit(events.Event{Workspace: t.WorkspaceID, Topic: "chat"})
 	}
 }
 

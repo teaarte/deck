@@ -11,8 +11,8 @@ import (
 
 	"deck2/internal/app/asks"
 	"deck2/internal/app/chat"
-	"deck2/internal/app/feed"
 	"deck2/internal/app/documents"
+	"deck2/internal/app/feed"
 	appfiles "deck2/internal/app/files"
 	"deck2/internal/app/folders"
 	apphealth "deck2/internal/app/health"
@@ -84,8 +84,8 @@ type App struct {
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
 	Browser   *tools.Browser
-	Shots     *shots.Service
-	Updates   *updates.Service
+	Shots     shots.Service
+	Updates   updates.Service
 	Host      *mcphost.Host
 
 	ctx      context.Context
@@ -142,10 +142,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		process.Deps{For: a.Providers.For, Next: a.Providers.Next, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
-	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), a.Processes.Hook(), triggers.After{S: &a.Triggers}, asks.Unheard{S: &a.Answers}}
+	a.Runner.Hooks = []process.Hook{a.Chats.Hook(), a.Processes.Hook(), a.Triggers.Hook(), a.Answers.Hook()}
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
-	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Home: h}
+	a.Secrets = secrets.Service{St: st, Emit: a.Bus.Emit, Home: h}
 	a.Folders = folders.Service{St: st, Home: h}
 	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Invoke: a.Registry.Invoke}
 	a.Journal = journal.Service{St: st, Now: cfg.Now, Groups: a.Providers.Groups}
@@ -158,7 +158,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		}}
 	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted}
-	a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
+	a.Snapshots = snapshots.Service{St: st, Emit: a.Bus.Emit, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
 		Expire: a.Records.Expire}
 	a.Providers = providers.Service{St: st, Changed: func(topic string) { a.Bus.Emit(events.Event{Topic: topic}) }, Now: cfg.Now, Home: h, Hold: a.Files.Hold, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
@@ -169,7 +169,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
-	a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
+	a.Chats = chat.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
 		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, Prices: a.Providers.Prices, Go: a.bg.Go, Language: a.Settings.Language, Lookup: a.Registry.Lookup,
 		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
@@ -185,9 +185,9 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
 	a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
-	a.Shots = &shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Tokens.Lend, Return: a.Tokens.Return,
+	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Tokens.Lend, Return: a.Tokens.Return,
 		Themed: a.Themes.Exists}
-	a.Updates = &updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher, Image: cfg.Image,
+	a.Updates = updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher, Image: cfg.Image,
 		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: a.bg.Go,
 		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
 	a.Projects = project.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Home: h, Registry: a.Registry,

@@ -16,22 +16,24 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// Unheard hands the master an answer of the owner that its process did not act on: the process asked last, got
+// Hook hands the master an answer of the owner that its process did not act on: the process asked last, got
 // the answer or not, and ended with nothing; the owner's feed says so.
-type Unheard struct {
+func (s *Service) Hook() process.Hook { return answers{s: s} }
+
+type answers struct {
 	process.NoHook
-	S *Service
+	s *Service
 }
 
-func (h Unheard) Closed(ctx context.Context, p db.Process) {
+func (h answers) Closed(ctx context.Context, p db.Process) {
 	if p.State != process.StateDone || p.Result != process.Empty || p.Kind != process.KindAgent {
 		return
 	}
-	last, err := h.S.St.Q.LastAskOfProcess(ctx, store.ID(p.ID))
+	last, err := h.s.St.Q.LastAskOfProcess(ctx, store.ID(p.ID))
 	if err != nil || last.Kind != ask.KindQuestion || last.State != ask.StateAnswered {
 		return
 	}
-	h.S.unheard(ctx, p, last, "it ended without doing anything after it")
+	h.s.unheard(ctx, p, last, "it ended without doing anything after it")
 }
 
 // unheard tells the master on its next turn an answer of the owner p did not act on, and the owner's feed that the

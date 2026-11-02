@@ -22,8 +22,9 @@ import (
 
 // Service keeps the secrets and the keys of connections.
 type Service struct {
-	St   *store.Store
-	Bus  *events.Bus
+	St *store.Store
+	// Emit tells deck's observers of a change no write of the store tells.
+	Emit func(events.Event)
 	Home home.Layout
 	mu   sync.Mutex
 }
@@ -97,7 +98,7 @@ func (s *Service) write(workspace int64, path, value string) error {
 	}
 	err := home.WriteFile(path, []byte(value))
 	if err == nil {
-		s.Bus.Emit(events.Event{Workspace: workspace, Topic: "secrets"})
+		s.Emit(events.Event{Workspace: workspace, Topic: "secrets"})
 	}
 	return err
 }
@@ -180,7 +181,7 @@ func (s *Service) secretDelete(ctx context.Context, act registry.Actor, in secre
 	if err != nil {
 		return nil, err
 	}
-	s.Bus.Emit(events.Event{Workspace: act.Workspace, Topic: "secrets"})
+	s.Emit(events.Event{Workspace: act.Workspace, Topic: "secrets"})
 	return map[string]any{"deleted": in.Name}, nil
 }
 

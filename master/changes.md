@@ -51,3 +51,6 @@ and bring the modules in line.
   `result` of a run once done; `theme_use` answers with the theme's `accent`; `push_key_get` is a read.
 - 2026-11-02: `secrets_list` gives `project`, `named` and `changed_at` of each secret, and also the secrets set that
   the manifest does not name (yet), `named: false`; without `project` it lists every module's. Values never.
+- 2026-11-02: the thirds of a line a widget is laid in are said once, in the description of `widgets` in
+  `deck.manifest_format_get`; the widgets skill names it instead of numbers. A read of deck answers in the language
+  of the call (its `lang`, else the client's); nested reads need no `lang` of their own.

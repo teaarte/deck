@@ -58,24 +58,16 @@ type commandSpecView struct {
 
 // commandDescribe tells what a command takes whoever may call it, so the master can say what to fill in.
 func (s *Service) commandDescribe(ctx context.Context, act registry.Actor, in commandDescribeIn) (commandSpecView, error) {
-	c, err := s.Registry.Lookup(ctx, act.Workspace, in.Command)
+	c, err := s.lookup(ctx, act.Workspace, in.Command)
 	if err != nil {
 		return commandSpecView{}, err
 	}
 	out := commandSpecView{Name: c.Name, Title: c.Title, Description: c.Description, Class: c.Class, Callers: c.Callers,
 		Input: c.Input, Result: c.Result}
-	if c.ProjectID == 0 {
-		return out, nil
-	}
-	p, err := s.St.Q.GetProject(ctx, c.ProjectID)
-	if err != nil {
-		return out, nil
-	}
-	short := strings.TrimPrefix(c.Name, p.Name+".")
-	if m, _ := docs.Manifest(ctx, s.St.Q, p); m != nil && m.Command(short) != nil {
-		out.Executor = m.Command(short).Executor.Type
+	if c.of != nil {
+		out.Executor = c.of.Executor.Type
 		if out.Executor == "agent" || out.Executor == "model" {
-			out.Work = s.Works(ctx, act.Workspace, "")(c.ProjectID, short)
+			out.Work = s.Works(ctx, act.Workspace, "")(c.ProjectID, c.short)
 		}
 	}
 	return out, nil

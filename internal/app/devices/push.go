@@ -59,10 +59,10 @@ type vapid struct {
 }
 
 // vapidKeys are the keys of the workspace, made on first use.
-func (dv *Service) vapidKeys(workspace int64) (vapid, error) {
-	dv.keyMu.Lock()
-	defer dv.keyMu.Unlock()
-	path := dv.Home.PushKey(workspace)
+func (s *Service) vapidKeys(workspace int64) (vapid, error) {
+	s.keyMu.Lock()
+	defer s.keyMu.Unlock()
+	path := s.Home.PushKey(workspace)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return vapid{}, err
 	}
@@ -84,7 +84,7 @@ func (dv *Service) vapidKeys(workspace int64) (vapid, error) {
 		return k, err
 	}
 	// Subscriptions made with the old key would fail now; their devices subscribe again.
-	return k, dv.St.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+	return k, s.St.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return q.DeleteWorkspacePushSubscriptions(ctx, workspace)
 	})
 }
@@ -95,8 +95,8 @@ func validVAPID(k vapid) bool {
 	return err1 == nil && err2 == nil && len(pub) == 65 && len(priv) == 32
 }
 
-func (dv *Service) pushKey(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
-	k, err := dv.vapidKeys(act.Workspace)
+func (s *Service) pushKey(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+	k, err := s.vapidKeys(act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ type pushSubscribeIn struct {
 	Device   string `opt:"" desc:"Name of the device"`
 }
 
-func (dv *Service) pushSubscribe(ctx context.Context, act registry.Actor, in pushSubscribeIn) (any, error) {
+func (s *Service) pushSubscribe(ctx context.Context, act registry.Actor, in pushSubscribeIn) (any, error) {
 	switch {
 	case !strings.HasPrefix(in.Endpoint, "https://") && !strings.HasPrefix(in.Endpoint, "http://"):
 		return nil, registry.Invalid("a push endpoint is an http or https url")
@@ -122,7 +122,7 @@ func (dv *Service) pushSubscribe(ctx context.Context, act registry.Actor, in pus
 		device = "a device"
 	}
 	var row db.PushSubscription
-	err := dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		before, err := q.ListPushSubscriptions(ctx, act.Workspace)
 		if err != nil {
 			return err
@@ -140,7 +140,7 @@ func (dv *Service) pushSubscribe(ctx context.Context, act registry.Actor, in pus
 	if err != nil {
 		return nil, err
 	}
-	dv.PushNew(ctx, act.Workspace)
+	s.PushNew(ctx, act.Workspace)
 	return map[string]any{"device": row.ID, "name": row.Device}, nil
 }
 
@@ -149,9 +149,9 @@ type pushUnsubscribeIn struct {
 	Device   int64  `opt:"" desc:"Device id"`
 }
 
-func (dv *Service) pushUnsubscribe(ctx context.Context, act registry.Actor, in pushUnsubscribeIn) (any, error) {
+func (s *Service) pushUnsubscribe(ctx context.Context, act registry.Actor, in pushUnsubscribeIn) (any, error) {
 	var n int64
-	err := dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
 		n, err = q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: act.Workspace, Endpoint: in.Endpoint, ID: in.Device})
 		return err
@@ -166,14 +166,14 @@ func (dv *Service) pushUnsubscribe(ctx context.Context, act registry.Actor, in p
 }
 
 // pushReset makes a new key for pushes on the next use; the devices subscribed with the old one subscribe again.
-func (dv *Service) pushReset(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
-	dv.keyMu.Lock()
-	err := os.Remove(dv.Home.PushKey(act.Workspace))
-	dv.keyMu.Unlock()
+func (s *Service) pushReset(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+	s.keyMu.Lock()
+	err := os.Remove(s.Home.PushKey(act.Workspace))
+	s.keyMu.Unlock()
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
-	err = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.DeleteWorkspacePushSubscriptions(ctx, act.Workspace)
 	})
 	if err != nil {
@@ -189,8 +189,8 @@ type pushDeviceView struct {
 	CreatedAt string `json:"created_at"`
 }
 
-func (dv *Service) pushDevices(ctx context.Context, act registry.Actor, _ struct{}) ([]pushDeviceView, error) {
-	rows, err := dv.St.Q.ListPushSubscriptions(ctx, act.Workspace)
+func (s *Service) pushDevices(ctx context.Context, act registry.Actor, _ struct{}) ([]pushDeviceView, error) {
+	rows, err := s.St.Q.ListPushSubscriptions(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -220,25 +220,25 @@ type pushSource struct {
 
 // pushSources are what waits for the owner and the notes of the feed, pushed while no client is open, in the words
 // say, only the module each is of when hidden.
-func (dv *Service) pushSources(say map[string]string, hidden bool) []pushSource {
-	id := func(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }
+func (s *Service) pushSources(say map[string]string, hidden bool) []pushSource {
+	id := func(str string) int64 { n, _ := strconv.ParseInt(str, 10, 64); return n }
 	return []pushSource{
-		{"ask", func(ctx context.Context, ws int64) string { n, _ := dv.St.Q.MaxAskID(ctx, ws); return fmt.Sprint(n) },
+		{"ask", func(ctx context.Context, ws int64) string { n, _ := s.St.Q.MaxAskID(ctx, ws); return fmt.Sprint(n) },
 			func(ctx context.Context, ws int64, cursor string) []pushItem {
-				asks, _ := dv.St.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: ws, ID: id(cursor)})
+				asks, _ := s.St.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: ws, ID: id(cursor)})
 				var items []pushItem
 				for _, q := range asks {
-					items = append(items, pushItem{dv.pushText(ctx, say, hidden, q.ProjectID.Int64, tr(say, "Waiting for you"), strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
+					items = append(items, pushItem{s.pushText(ctx, say, hidden, q.ProjectID.Int64, tr(say, "Waiting for you"), strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
 						fmt.Sprint(q.ID)})
 				}
 				return items
 			}},
 		{"notify", func(ctx context.Context, ws int64) string {
-			n, _ := dv.St.Q.MaxNoteID(ctx, ws)
+			n, _ := s.St.Q.MaxNoteID(ctx, ws)
 			return fmt.Sprint(n)
 		},
 			func(ctx context.Context, ws int64, cursor string) []pushItem {
-				ns, _ := dv.St.Q.ListNotesAfter(ctx, db.ListNotesAfterParams{WorkspaceID: ws, ID: id(cursor)})
+				ns, _ := s.St.Q.ListNotesAfter(ctx, db.ListNotesAfterParams{WorkspaceID: ws, ID: id(cursor)})
 				var items []pushItem
 				for _, row := range ns {
 					n := row.Feed
@@ -251,7 +251,7 @@ func (dv *Service) pushSources(say map[string]string, hidden bool) []pushSource 
 					if n.Screen != "" && n.RecordID.Valid {
 						url += fmt.Sprintf("/%d", n.RecordID.Int64)
 					}
-					items = append(items, pushItem{dv.pushText(ctx, say, hidden, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
+					items = append(items, pushItem{s.pushText(ctx, say, hidden, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
 				}
 				return items
 			}},
@@ -260,16 +260,16 @@ func (dv *Service) pushSources(say map[string]string, hidden bool) []pushSource 
 
 // PushNew pushes to each device what came since the last push it took of each source; a cursor moves only past
 // what the device took or refused for good.
-func (dv *Service) PushNew(ctx context.Context, workspace int64) {
-	dv.pushMu.Lock()
-	defer dv.pushMu.Unlock()
-	subs, err := dv.St.Q.ListPushSubscriptions(ctx, workspace)
+func (s *Service) PushNew(ctx context.Context, workspace int64) {
+	s.pushMu.Lock()
+	defer s.pushMu.Unlock()
+	subs, err := s.St.Q.ListPushSubscriptions(ctx, workspace)
 	if err != nil {
 		return
 	}
-	_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteStalePushMarks(ctx, workspace) })
+	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteStalePushMarks(ctx, workspace) })
 	set := func(name, v string) {
-		_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: workspace, Name: name, Value: v})
 		})
 	}
@@ -279,19 +279,19 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	// The badge is counted once the first push is read, so it counts every ask that push names.
 	badge := sync.OnceValue(func() int64 {
 		n := int64(0)
-		if waiting, err := dv.Waiting(ctx, registry.Actor{Kind: registry.Owner, Workspace: workspace}); err == nil {
+		if waiting, err := s.Waiting(ctx, registry.Actor{Kind: registry.Owner, Workspace: workspace}); err == nil {
 			for _, w := range waiting {
 				n += w
 			}
 		}
 		return n
 	})
-	say, hidden := words.In(dv.Lang(ctx, workspace)), dv.Hidden(ctx, workspace)
-	for _, s := range subs {
+	say, hidden := words.In(s.Lang(ctx, workspace)), s.Hidden(ctx, workspace)
+	for _, sub := range subs {
 	sources:
-		for _, src := range dv.pushSources(say, hidden) {
-			name := fmt.Sprintf("push:%d:%s", s.ID, src.key)
-			cursor, err := dv.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: name})
+		for _, src := range s.pushSources(say, hidden) {
+			name := fmt.Sprintf("push:%d:%s", sub.ID, src.key)
+			cursor, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: name})
 			if err != nil {
 				set(name, src.start(ctx, workspace))
 				continue
@@ -302,16 +302,16 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 			}
 			for _, it := range items {
 				if k.Public == "" {
-					if k, err = dv.vapidKeys(workspace); err != nil {
+					if k, err = s.vapidKeys(workspace); err != nil {
 						slog.Error("push keys", "err", err)
 						return
 					}
 				}
 				tried = true
 				it.msg.Badge = badge()
-				res, why := dv.deliver(ctx, workspace, k, s, it.msg)
+				res, why := s.deliver(ctx, workspace, k, sub, it.msg)
 				if why != "" {
-					failed = append(failed, s.Device+": "+why)
+					failed = append(failed, sub.Device+": "+why)
 					lasting = lasting || res != pushRetry
 				}
 				if res != pushDone {
@@ -327,7 +327,7 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 			status = "error"
 		}
 		stopped := false
-		err := dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		err := s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 			prev, err := health.Get(ctx, q, health.Of{Workspace: workspace}, health.Push)
 			stopped = lasting && (err != nil || prev.Status != health.Error)
 			_, err = health.Set(ctx, q, health.Of{Workspace: workspace}, health.Push, status, text)
@@ -339,12 +339,12 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 		if !stopped {
 			return
 		}
-		err = dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		err = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 			mp, err := access.Master(ctx, q, workspace)
 			if err != nil {
 				return err
 			}
-			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(dv.Now()), ProjectID: mp.ID, Text: "Pushes stopped: " + untrusted.Cut(text, 300), Cause: health.Push})
+			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: mp.ID, Text: "Pushes stopped: " + untrusted.Cut(text, 300), Cause: health.Push})
 		})
 		if err != nil {
 			slog.Error("note of stopped pushes", "err", err)
@@ -354,8 +354,8 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 
 // pushText is a push about something of a project: its text cut short, only the module when hidden, or a generic
 // line for a project deck cannot read.
-func (dv *Service) pushText(ctx context.Context, say map[string]string, hidden bool, projectID int64, title, text, url string) pushMessage {
-	p, err := dv.St.Q.GetProject(ctx, projectID)
+func (s *Service) pushText(ctx context.Context, say map[string]string, hidden bool, projectID int64, title, text, url string) pushMessage {
+	p, err := s.St.Q.GetProject(ctx, projectID)
 	switch {
 	case err != nil:
 		return pushMessage{Title: "deck", Body: tr(say, generic), URL: url}
@@ -377,13 +377,13 @@ const (
 
 // deliver sends one push to a device and says why it failed, if it did; a device the service no longer knows
 // goes away, one that refuses the push for good is only logged.
-func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.PushSubscription, m pushMessage) (int, string) {
+func (s *Service) deliver(ctx context.Context, workspace int64, k vapid, sub db.PushSubscription, m pushMessage) (int, string) {
 	payload, _ := json.Marshal(m)
-	resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: s.Endpoint,
-		Keys: webpush.Keys{P256dh: s.P256dh, Auth: s.Auth}}, &webpush.Options{HTTPClient: egress.Push, Subscriber: "deck@example.com",
+	resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: sub.Endpoint,
+		Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}}, &webpush.Options{HTTPClient: egress.Push, Subscriber: "deck@example.com",
 		VAPIDPublicKey: k.Public, VAPIDPrivateKey: k.Private, TTL: 3600, Urgency: webpush.UrgencyHigh})
 	if err != nil {
-		slog.Error("push", "device", s.Device, "err", err)
+		slog.Error("push", "device", sub.Device, "err", err)
 		return pushRetry, err.Error()
 	}
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
@@ -394,8 +394,8 @@ func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.P
 		status += " (" + untrusted.Cut(why, 200) + ")"
 	}
 	gone := func() {
-		_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			_, err := q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: workspace, Endpoint: s.Endpoint})
+		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			_, err := q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: workspace, Endpoint: sub.Endpoint})
 			return err
 		})
 	}
@@ -407,13 +407,13 @@ func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.P
 		return pushGone, ""
 	case (code == http.StatusBadRequest || code == http.StatusForbidden) && otherKey(string(body)):
 		// The device subscribed with another key of deck: the subscription goes, and the device subscribes again.
-		slog.Error("push refused", "device", s.Device, "status", status)
+		slog.Error("push refused", "device", sub.Device, "status", status)
 		gone()
 		return pushGone, "the push service refused the subscription: " + status + "; deck forgot it, turn pushes on again on this device in Settings → Advanced"
 	case code == http.StatusTooManyRequests || code >= 500:
 		return pushRetry, status
 	default:
-		slog.Error("push refused", "device", s.Device, "status", status)
+		slog.Error("push refused", "device", sub.Device, "status", status)
 		return pushDone, "the push service refused it: " + status + "; turn pushes off and on again on this device in Settings → Advanced"
 	}
 }
@@ -426,22 +426,22 @@ func otherKey(body string) bool {
 	return strings.Contains(body, "VapidPkHashMismatch") || strings.Contains(body, "different sender")
 }
 
-func (dv *Service) pushCommands() []*registry.Command {
+func (s *Service) pushCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("push_key_get", "Push key",
 			"Returns the public key a device subscribes to the pushes of deck with.",
-			registry.OwnerOnly, dv.pushKey),
+			registry.OwnerOnly, s.pushKey),
 		registry.Def("push_subscribe", "Get pushes",
 			"Subscribes a device to pushes: what waits for the owner and the notes of the feed when no client is open.",
-			registry.OwnerOnly, dv.pushSubscribe),
+			registry.OwnerOnly, s.pushSubscribe),
 		registry.Def("push_unsubscribe", "Stop pushes",
 			"Stops pushes to a device.",
-			registry.OwnerOnly, dv.pushUnsubscribe),
+			registry.OwnerOnly, s.pushUnsubscribe),
 		registry.Def("push_key_reset", "Reset the push key",
 			"Makes a new key for pushes; every device subscribed with the old one has to subscribe again.",
-			registry.OwnerOnly, dv.pushReset),
+			registry.OwnerOnly, s.pushReset),
 		registry.Read("push_devices_list", "Devices",
 			"Lists the devices that get pushes.",
-			registry.OwnerOnly, dv.pushDevices).On("settings"),
+			registry.OwnerOnly, s.pushDevices).On("settings"),
 	}
 }

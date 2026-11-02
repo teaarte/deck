@@ -33,7 +33,7 @@ type screenGetIn struct {
 }
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
-func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenGetIn) (any, error) {
+func (s *Service) screenGet(ctx context.Context, act registry.Actor, in screenGetIn) (any, error) {
 	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Brief: act.Kind != registry.Owner && !act.Looks && in.Block == "", Dialog: in.Dialog, Tab: in.Tab, Sub: in.Sub, Block: in.Block}
 	if strings.TrimSpace(in.Pages) != "" {
 		if err := json.Unmarshal([]byte(in.Pages), &req.Pages); err != nil {
@@ -72,11 +72,11 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 			req.Screen = &untitled
 		}
 	} else {
-		p, err := access.Project(ctx, ss.St.Q, act, in.Project)
+		p, err := access.Project(ctx, s.St.Q, act, in.Project)
 		if err != nil {
 			return nil, err
 		}
-		m, err := docs.For(ctx, ss.St.Q, act, p.ID)
+		m, err := docs.For(ctx, s.St.Q, act, p.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +92,7 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 		return nil, registry.NotFound("no screen %q", in.Screen)
 	}
 	req.Words, req.Lang = wordsOf(in.Lang, req.Manifest), in.Lang
-	drawn, err := screen.Render(ctx, ss.sources(act), req)
+	drawn, err := screen.Render(ctx, s.sources(act), req)
 	out, errs := drawn.Messages, drawn.Errors
 	if err != nil {
 		return nil, registry.NotFound("%v", err)
@@ -102,18 +102,18 @@ func (ss *Service) screenGet(ctx context.Context, act registry.Actor, in screenG
 	whole := len(out) > 0 && out[0]["createSurface"] != nil
 	switch own := req.Manifest != nil && req.Manifest.Screen(in.Screen) != nil && (whole || in.Block != ""); {
 	case own && len(errs) > 0:
-		ss.ScreenFailed(ctx, req.Project, req.Manifest.Revision, in.Screen, errs)
+		s.ScreenFailed(ctx, req.Project, req.Manifest.Revision, in.Screen, errs)
 	case own && drawn.Every:
-		ss.ScreenDrawn(ctx, req.Project, in.Screen, nil)
+		s.ScreenDrawn(ctx, req.Project, in.Screen, nil)
 	case own:
-		ss.ScreenDrawn(ctx, req.Project, in.Screen, drawn.Good)
+		s.ScreenDrawn(ctx, req.Project, in.Screen, drawn.Good)
 	}
 	return out, nil
 }
 
 // CheckScreens resolves each screen of a manifest as act on the data there is now, a record page on the newest
 // record, and names the blocks that fail.
-func (ss *Service) CheckScreens(ctx context.Context, act registry.Actor, p db.Project, m *manifest.Manifest) []string {
+func (s *Service) CheckScreens(ctx context.Context, act registry.Actor, p db.Project, m *manifest.Manifest) []string {
 	var out []string
 	for i := range m.Screens {
 		sc := &m.Screens[i]
@@ -123,13 +123,13 @@ func (ss *Service) CheckScreens(ctx context.Context, act registry.Actor, p db.Pr
 		case manifest.DocumentRecord:
 			continue
 		default:
-			rec, err := ss.St.Q.NewestRecord(ctx, db.NewestRecordParams{ProjectID: p.ID, Collection: sc.Record})
+			rec, err := s.St.Q.NewestRecord(ctx, db.NewestRecordParams{ProjectID: p.ID, Collection: sc.Record})
 			if err != nil {
 				continue
 			}
 			req.Record = rec.ID
 		}
-		errs, err := screen.Check(ctx, ss.sources(act), req)
+		errs, err := screen.Check(ctx, s.sources(act), req)
 		if err != nil {
 			errs = []string{err.Error()}
 		}
@@ -147,8 +147,8 @@ type screenSources struct {
 	act registry.Actor
 }
 
-func (ss *Service) sources(act registry.Actor) screenSources {
-	return screenSources{Sources: Sources{Store: ss.St, Registry: ss.Registry}, ss: ss, act: act}
+func (s *Service) sources(act registry.Actor) screenSources {
+	return screenSources{Sources: Sources{Store: s.St, Registry: s.Registry}, ss: s, act: act}
 }
 
 // File is a file a media block of the project shows.

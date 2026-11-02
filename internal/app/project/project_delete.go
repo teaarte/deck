@@ -26,27 +26,27 @@ type projectDeleteIn struct {
 
 // projectDelete removes a project from deck after a snapshot of it: records, documents, files, triggers,
 // processes and their journals, asks, settings and deck's folders of it; no folder of the owner is touched.
-func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in projectDeleteIn) (any, error) {
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
+func (s *Service) projectDelete(ctx context.Context, act registry.Actor, in projectDeleteIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	if err := pj.deletable(ctx, pj.St.Q, act, p); err != nil {
+	if err := s.deletable(ctx, s.St.Q, act, p); err != nil {
 		return nil, err
 	}
-	m, _ := docs.Manifest(ctx, pj.St.Q, p)
-	snapshot, err := pj.Snapshot(ctx, p.ID)
+	m, _ := docs.Manifest(ctx, s.St.Q, p)
+	snapshot, err := s.Snapshot(ctx, p.ID)
 	if err != nil {
 		return nil, fmt.Errorf("deck: the snapshot before deleting %s failed, nothing was deleted: %w", p.Name, err)
 	}
 	var runs []int64
 	left := ""
-	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := pj.deletable(ctx, q, act, p); err != nil {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := s.deletable(ctx, q, act, p); err != nil {
 			return err
 		}
 		var err error
-		if left, err = pj.leftInMaster(ctx, q, act, p); err != nil {
+		if left, err = s.leftInMaster(ctx, q, act, p); err != nil {
 			return err
 		}
 		if err = q.DeleteProjectFiles(ctx, p.ID); err != nil {
@@ -64,20 +64,20 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 	if err != nil {
 		return nil, err
 	}
-	if err := pj.DropSecrets(p.WorkspaceID, p.Name); err != nil {
+	if err := s.DropSecrets(p.WorkspaceID, p.Name); err != nil {
 		slog.Error("delete the secrets of a project", "project", p.Name, "err", err)
 	}
 	// The outbox takes deck's folder of the project; the folders of its runs go here, else in the daily cleanup.
 	for _, id := range runs {
-		_ = os.RemoveAll(filepath.Dir(pj.Runner.LogPath(id)))
+		_ = os.RemoveAll(filepath.Dir(s.Runner.LogPath(id)))
 	}
 	if m != nil {
 		for name := range m.Tools.MCP.Servers {
-			pj.Host.Stop(tools.ServerKey(p.ID, name))
+			s.Host.Stop(tools.ServerKey(p.ID, name))
 		}
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
-	pj.Gateway.Journal(ctx, act, 0, registry.Deck("project_delete"), registry.External, "done", string(params))
+	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_delete"), registry.External, "done", string(params))
 	out := map[string]any{"deleted": p.Name, "snapshot": snapshot}
 	if left != "" {
 		out["folder"] = left
@@ -87,7 +87,7 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 
 // leftInMaster is the folder in the data of the master a draft was imported from, which deck leaves; when
 // someone else deletes the draft, the master hears of it on its next turn.
-func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) (string, error) {
+func (s *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) (string, error) {
 	dir := p.ImportedFrom
 	if dir == "" || p.Status != store.ProjectDraft {
 		return "", nil
@@ -96,19 +96,19 @@ func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry
 	if err != nil {
 		return "", err
 	}
-	if !home.Within(pj.Home.Data(mp.ID), dir) {
+	if !home.Within(s.Home.Data(mp.ID), dir) {
 		return "", nil
 	}
 	if act.Kind == registry.Master {
 		return dir, nil
 	}
 	line := fmt.Sprintf("draft %s, imported from %s, was deleted; deck left its folder", p.Name, dir)
-	return dir, q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(pj.Now()), WorkspaceID: p.WorkspaceID, ProjectID: mp.ID, Text: line})
+	return dir, q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: mp.ID, Text: line})
 }
 
 // deletable refuses to delete a project that still has open processes or that another project reads; the master
 // deletes only drafts.
-func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) error {
+func (s *Service) deletable(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) error {
 	if p.Builtin == 1 {
 		return registry.Invalid("%s is built into deck; it cannot be deleted", p.Name)
 	}
@@ -159,16 +159,16 @@ func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Ac
 	return nil
 }
 
-func (pj *Service) projectDeleteCommands() []*registry.Command {
+func (s *Service) projectDeleteCommands() []*registry.Command {
 	del := registry.Def("project_delete", "Delete project",
 		"Deletes a project after a snapshot of it (the master deletes only drafts): its records, documents, files, triggers, processes and settings; folders on disk stay.",
-		registry.OwnerSide, pj.projectDelete).As(registry.External)
-	del.Gate.Allowed = pj.draftOfMaster
+		registry.OwnerSide, s.projectDelete).As(registry.External)
+	del.Gate.Allowed = s.draftOfMaster
 	return []*registry.Command{del}
 }
 
 // draftOfMaster lets the master delete a draft without the owner and refuses it any other project.
-func (pj *Service) draftOfMaster(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
+func (s *Service) draftOfMaster(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
 	if act.Kind != registry.Master {
 		return false, registry.Refuse("only the owner and the master delete a project")
 	}
@@ -176,7 +176,7 @@ func (pj *Service) draftOfMaster(ctx context.Context, act registry.Actor, input 
 	if err := json.Unmarshal(input, &in); err != nil {
 		return false, err
 	}
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return false, err
 	}

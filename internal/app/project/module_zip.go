@@ -25,23 +25,23 @@ const maxZipEntries = 2000
 
 // readUpload reads the text files of an uploaded .zip of a module folder, with the name of its folder; one
 // folder around them all is that folder. An entry that leaves the folder refuses the whole file.
-func (pj *Service) readUpload(ctx context.Context, act registry.Actor, ref string) (files []folderFile, skipped []string, name string, err error) {
+func (s *Service) readUpload(ctx context.Context, act registry.Actor, ref string) (files []folderFile, skipped []string, name string, err error) {
 	missing := registry.NotFound("no uploaded file %s", ref)
 	id, err := strconv.ParseInt(ref, 10, 64)
 	if err != nil {
 		return nil, nil, "", missing
 	}
-	f, err := pj.St.Q.GetFile(ctx, id)
+	f, err := s.St.Q.GetFile(ctx, id)
 	if err != nil {
 		return nil, nil, "", missing
 	}
-	if _, err := access.Of(ctx, pj.St.Q, act, f.ProjectID, missing); err != nil {
+	if _, err := access.Of(ctx, s.St.Q, act, f.ProjectID, missing); err != nil {
 		return nil, nil, "", err
 	}
 	if f.Size > maxFolder {
 		return nil, nil, "", registry.Invalid("%s is larger than 32 MB", f.Name)
 	}
-	file, err := os.Open(pj.Home.File(f.ID))
+	file, err := os.Open(s.Home.File(f.ID))
 	if err != nil {
 		return nil, nil, "", missing
 	}
@@ -139,15 +139,15 @@ type projectExportIn struct {
 
 // projectExport keeps a .zip of the documents of a module as a file to download; its artifacts, memory, records,
 // data and secrets stay with deck.
-func (pj *Service) projectExport(ctx context.Context, act registry.Actor, in projectExportIn) (any, error) {
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
+func (s *Service) projectExport(ctx context.Context, act registry.Actor, in projectExportIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	if p.Builtin == 1 {
 		return nil, registry.Invalid("%s is built into deck; it is not exported", p.Name)
 	}
-	ds, err := pj.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
+	ds, err := s.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (pj *Service) projectExport(ctx context.Context, act registry.Actor, in pro
 		if d.RecordID.Valid || !slices.Contains(moduleKinds, d.Kind) {
 			continue
 		}
-		text, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), d.Kind, d.Name)
+		text, err := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), d.Kind, d.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +174,7 @@ func (pj *Service) projectExport(ctx context.Context, act registry.Actor, in pro
 	if err := zw.Close(); err != nil {
 		return nil, err
 	}
-	id, err := pj.Keep(ctx, act, p.Name, p.Name+".zip", "application/zip", &buf)
+	id, err := s.Keep(ctx, act, p.Name, p.Name+".zip", "application/zip", &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -188,16 +188,16 @@ type rightRow struct {
 }
 
 // projectRights lists what enabling a draft grants and what will wait for the owner on each call, one row each.
-func (pj *Service) projectRights(ctx context.Context, act registry.Actor, in projectExportIn) ([]rightRow, error) {
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
+func (s *Service) projectRights(ctx context.Context, act registry.Actor, in projectExportIn) ([]rightRow, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	ms, failed := docs.All(ctx, pj.St.Q, []db.Project{p})
+	ms, failed := docs.All(ctx, s.St.Q, []db.Project{p})
 	if err := failed[p.ID]; err != nil {
 		return nil, registry.Invalid("the manifest of %s does not load: %v", p.Name, err)
 	}
-	v := pj.viewProject(ctx, p, ms[p.ID], nil, "")
+	v := s.viewProject(ctx, p, ms[p.ID], nil, "")
 	out := []rightRow{}
 	for _, r := range v.Rights {
 		what, detail, _ := strings.Cut(r, ": ")

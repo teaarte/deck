@@ -56,9 +56,9 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 }
 
 // unassigned are the warnings of the model commands of a manifest that no model of the settings takes.
-func (pj *Service) unassigned(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
+func (s *Service) unassigned(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
 	var out []string
-	for name, text := range pj.Unassigned(ctx, p.WorkspaceID, p.ID, m) {
+	for name, text := range s.Unassigned(ctx, p.WorkspaceID, p.ID, m) {
 		out = append(out, "command "+name+": "+text)
 	}
 	slices.Sort(out)
@@ -67,8 +67,8 @@ func (pj *Service) unassigned(ctx context.Context, p db.Project, m *manifest.Man
 
 // unpaged are the blocks without a limit on a collection that holds more records than a page: each shows a page and
 // more by a button.
-func (pj *Service) unpaged(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
-	counts, err := pj.St.Q.CountRecords(ctx, p.ID)
+func (s *Service) unpaged(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
+	counts, err := s.St.Q.CountRecords(ctx, p.ID)
 	if err != nil {
 		return nil
 	}
@@ -87,7 +87,7 @@ func (pj *Service) unpaged(ctx context.Context, p db.Project, m *manifest.Manife
 
 // checkToolFit checks tool commands whose tool is a builtin or an MCP tool deck has listed: the command
 // input must go to the tool as it is. An MCP tool deck has not seen yet is checked when the command runs.
-func (pj *Service) checkToolFit(ctx context.Context, q *db.Queries, workspace, projectID int64, m *manifest.Manifest) error {
+func (s *Service) checkToolFit(ctx context.Context, q *db.Queries, workspace, projectID int64, m *manifest.Manifest) error {
 	var listed []db.McpTool
 	if projectID != 0 {
 		var err error
@@ -102,15 +102,15 @@ func (pj *Service) checkToolFit(ctx context.Context, q *db.Queries, workspace, p
 		name := c.Executor.Tool
 		var input json.RawMessage
 		if registry.IsBuiltin(name) {
-			t, err := pj.Registry.Lookup(ctx, workspace, name)
+			t, err := s.Registry.Lookup(ctx, workspace, name)
 			if err != nil {
 				return registry.Invalid("command %q: no builtin tool %q", c.Name, name)
 			}
 			input = t.Input
 		} else if server, tool, ok := strings.Cut(name, "."); ok {
-			s := m.Tools.MCP.Servers[server]
+			srv := m.Tools.MCP.Servers[server]
 			i := slices.IndexFunc(listed, func(r db.McpTool) bool {
-				return r.Server == server && r.Name == tool && r.Listed == 1 && r.Spec == tools.SpecID(s)
+				return r.Server == server && r.Name == tool && r.Listed == 1 && r.Spec == tools.SpecID(srv)
 			})
 			if i < 0 {
 				continue

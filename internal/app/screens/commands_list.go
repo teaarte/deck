@@ -53,8 +53,8 @@ type commandSpec struct {
 }
 
 // commandDescribe tells what a command takes whoever may call it, so the master can say what to fill in.
-func (ss *Service) commandDescribe(ctx context.Context, act registry.Actor, in commandDescribeIn) (commandSpec, error) {
-	c, err := ss.Registry.Lookup(ctx, act.Workspace, in.Command)
+func (s *Service) commandDescribe(ctx context.Context, act registry.Actor, in commandDescribeIn) (commandSpec, error) {
+	c, err := s.Registry.Lookup(ctx, act.Workspace, in.Command)
 	if err != nil {
 		return commandSpec{}, err
 	}
@@ -68,24 +68,24 @@ type commandsListIn struct {
 }
 
 // commandsList is what the caller may call: deck's commands and those of the projects it reaches.
-func (ss *Service) commandsList(ctx context.Context, act registry.Actor, in commandsListIn) ([]commandRow, error) {
+func (s *Service) commandsList(ctx context.Context, act registry.Actor, in commandsListIn) ([]commandRow, error) {
 	builtin := in.Project == registry.Builtin
 	project := in.Project
 	if builtin {
 		project = ""
 	}
-	pid, err := access.Filter(ctx, ss.St.Q, act, project)
+	pid, err := access.Filter(ctx, s.St.Q, act, project)
 	if err != nil {
 		return nil, err
 	}
-	cmds, err := ss.Registry.List(ctx, act)
+	cmds, err := s.Registry.List(ctx, act)
 	if err != nil {
 		return nil, err
 	}
 	master := act.Kind == registry.Master
 	var ownerOnly map[string]bool
 	if master {
-		owner, err := ss.Registry.List(ctx, registry.Actor{Kind: registry.Owner, Workspace: act.Workspace})
+		owner, err := s.Registry.List(ctx, registry.Actor{Kind: registry.Owner, Workspace: act.Workspace})
 		if err != nil {
 			return nil, err
 		}
@@ -98,15 +98,15 @@ func (ss *Service) commandsList(ctx context.Context, act registry.Actor, in comm
 		}
 		slices.SortFunc(cmds, func(x, y *registry.Command) int { return strings.Compare(x.Name, y.Name) })
 	}
-	names, err := access.Names(ctx, ss.St.Q, act.Workspace)
+	names, err := access.Names(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	ts, err := ss.St.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace, ProjectID: pid})
+	ts, err := s.St.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace, ProjectID: pid})
 	if err != nil {
 		return nil, err
 	}
-	work := ss.Works(ctx, act.Workspace, in.Lang)
+	work := s.Works(ctx, act.Workspace, in.Lang)
 	manifests := map[int64]*manifest.Manifest{}
 	out := []commandRow{}
 	for _, c := range cmds {
@@ -121,8 +121,8 @@ func (ss *Service) commandsList(ctx context.Context, act registry.Actor, in comm
 		if c.ProjectID != 0 {
 			var ok bool
 			if m, ok = manifests[c.ProjectID]; !ok {
-				if p, err := ss.St.Q.GetProject(ctx, c.ProjectID); err == nil {
-					m, _ = docs.Manifest(ctx, ss.St.Q, p)
+				if p, err := s.St.Q.GetProject(ctx, c.ProjectID); err == nil {
+					m, _ = docs.Manifest(ctx, s.St.Q, p)
 				}
 				manifests[c.ProjectID] = m
 			}

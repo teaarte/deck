@@ -18,7 +18,7 @@ import (
 
 // docChanged lists a change made without the owner of a script, or of a document an agent writes by the writes of its
 // manifest, undone by returning to the revision before n.
-func (dc *Service) docChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
+func (s *Service) docChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
 	byWrites := act.Kind == registry.Agent && d.Kind != docs.KindArtifact && d.Kind != docs.KindMemory
 	if d.Kind != docs.KindScript && !byWrites || !d.ProjectID.Valid || d.RecordID.Valid {
 		return nil
@@ -28,13 +28,13 @@ func (dc *Service) docChanged(ctx context.Context, q *db.Queries, act registry.A
 	if d.Kind == docs.KindScript {
 		what = "script"
 	}
-	return dc.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed %s %s", act.Author(), what, d.Name), fmt.Sprintf("changed %s %s", what, d.Name), reason)
+	return s.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed %s %s", act.Author(), what, d.Name), fmt.Sprintf("changed %s %s", what, d.Name), reason)
 }
 
 // PrepareLater records the health of the script commands of a project in the background.
-func (dc *Service) PrepareLater(projectID int64) {
-	dc.Go(func(ctx context.Context) {
-		if err := dc.Programs(ctx, projectID); err != nil && ctx.Err() == nil {
+func (s *Service) PrepareLater(projectID int64) {
+	s.Go(func(ctx context.Context) {
+		if err := s.Programs(ctx, projectID); err != nil && ctx.Err() == nil {
 			slog.Error("prepare scripts", "project", projectID, "err", err)
 		}
 	})
@@ -44,35 +44,35 @@ type programsCheckIn struct {
 	Project string `type:"project" desc:"Project name"`
 }
 
-func (dc *Service) programsCheck(ctx context.Context, act registry.Actor, in programsCheckIn) (any, error) {
-	p, err := access.Project(ctx, dc.St.Q, act, in.Project)
+func (s *Service) programsCheck(ctx context.Context, act registry.Actor, in programsCheckIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	if err := dc.Programs(ctx, p.ID); err != nil {
+	if err := s.Programs(ctx, p.ID); err != nil {
 		return nil, err
 	}
 	return map[string]any{"project": p.Name, "checked": true}, nil
 }
 
 // Programs looks for the programs of the scripts of a project and writes the health of its script commands.
-func (dc *Service) Programs(ctx context.Context, projectID int64) error {
-	p, err := dc.St.Q.GetProject(ctx, projectID)
+func (s *Service) Programs(ctx context.Context, projectID int64) error {
+	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return err
 	}
-	m, err := docs.Manifest(ctx, dc.St.Q, p)
+	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
 		return err
 	}
 	problems := script.Check(m)
-	sbErr := dc.Sandbox.Check()
-	known, err := dc.St.Q.ListHealth(ctx, store.ID(p.WorkspaceID))
+	sbErr := s.Sandbox.Check()
+	known, err := s.St.Q.ListHealth(ctx, store.ID(p.WorkspaceID))
 	if err != nil {
 		return err
 	}
-	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		status, text := dc.Box()
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		status, text := s.Box()
 		if _, err := health.Set(ctx, q, health.Of{}, health.Sandbox, status, text); err != nil {
 			return err
 		}
@@ -102,9 +102,9 @@ func (dc *Service) Programs(ctx context.Context, projectID int64) error {
 }
 
 // Box is the row of health of the box of foreign programs: what to fix on the machine when deck cannot build one.
-func (dc *Service) Box() (status, text string) {
-	if err := dc.Sandbox.Check(); err != nil {
-		return "error", dc.Sandbox.Name() + ": " + err.Error()
+func (s *Service) Box() (status, text string) {
+	if err := s.Sandbox.Check(); err != nil {
+		return "error", s.Sandbox.Name() + ": " + err.Error()
 	}
 	return "ok", ""
 }

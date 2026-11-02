@@ -33,6 +33,6 @@ type Service struct {
 }
 
 // Commands are the commands of the feed, notes, pushes and speech to text.
-func (dv *Service) Commands() []*registry.Command {
-	return slices.Concat(dv.feedCommands(), dv.notifyCommands(), dv.pushCommands(), dv.voiceCommands())
+func (s *Service) Commands() []*registry.Command {
+	return slices.Concat(s.feedCommands(), s.notifyCommands(), s.pushCommands(), s.voiceCommands())
 }

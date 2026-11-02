@@ -19,7 +19,7 @@ import (
 )
 
 // widens lists what a change by the actor would grant an enabled project; the owner and drafts are not asked.
-func (pj *Service) widens(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, next *manifest.Manifest) ([]string, error) {
+func (s *Service) widens(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, next *manifest.Manifest) ([]string, error) {
 	if act.Kind == registry.Owner {
 		return nil, nil
 	}
@@ -36,7 +36,7 @@ func (pj *Service) widens(ctx context.Context, q *db.Queries, act registry.Actor
 
 // ask holds a change that widens rights until the owner allows it: the manifest proposed on top of the current
 // revision, which the owner's yes merges into the manifest as it is then; a revert applies only to its revision.
-func (pj *Service) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, cur db.Document, revertTo int64, widens []string, reason string, proposed []byte) (Saved, error) {
+func (s *Service) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, cur db.Document, revertTo int64, widens []string, reason string, proposed []byte) (Saved, error) {
 	command, input := "manifest_save", map[string]any{"project": p.Name, "manifest": string(proposed), "reason": reason, "if_revision": cur.Current}
 	if revertTo > 0 {
 		own := strings.TrimPrefix(strings.TrimPrefix(reason, docs.RevertReason(revertTo, "")), ": ")
@@ -46,7 +46,7 @@ func (pj *Service) ask(ctx context.Context, q *db.Queries, act registry.Actor, p
 	f := gateway.Freeze(act, registry.Deck(command), raw)
 	f.As, f.Reason, f.Widens = gateway.AsOwner, reason, widens
 	text := fmt.Sprintf("%s asks to widen the rights of %s: %s", act.Author(), p.Name, strings.Join(widens, "; "))
-	row, err := gateway.Hold(ctx, q, act, p.ID, 0, ask.KindGrant, registry.Internal, text, f, time.Time{}, pj.Now())
+	row, err := gateway.Hold(ctx, q, act, p.ID, 0, ask.KindGrant, registry.Internal, text, f, time.Time{}, s.Now())
 	return Saved{Waiting: row.ID, Widens: widens}, err
 }
 
@@ -115,12 +115,12 @@ func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string,
 
 // MergeGrant is an allowed grant with its change merged into the current manifest, and the revision it merged into;
 // zero for a grant on the current revision.
-func (pj *Service) MergeGrant(ctx context.Context, q db.Ask) (db.Ask, int64, error) {
-	p, err := pj.St.Q.GetProject(ctx, q.ProjectID.Int64)
+func (s *Service) MergeGrant(ctx context.Context, q db.Ask) (db.Ask, int64, error) {
+	p, err := s.St.Q.GetProject(ctx, q.ProjectID.Int64)
 	if err != nil {
 		return q, 0, err
 	}
-	text, rev, err := merged(ctx, pj.St.Q, p, q)
+	text, rev, err := merged(ctx, s.St.Q, p, q)
 	switch {
 	case errors.Is(err, errFrozen):
 		return q, 0, nil

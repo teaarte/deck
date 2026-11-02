@@ -21,13 +21,13 @@ type projectEnableIn struct {
 
 // projectEnable turns a draft on at the manifest revision the owner saw: its triggers start from now, and
 // the rights of that revision count as allowed.
-func (pj *Service) projectEnable(ctx context.Context, act registry.Actor, in projectEnableIn) (any, error) {
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
+func (s *Service) projectEnable(ctx context.Context, act registry.Actor, in projectEnableIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	var m *manifest.Manifest
-	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if m, err = docs.Manifest(ctx, q, p); err != nil {
 			return registry.Invalid("the manifest of %s does not load: %v", p.Name, err)
 		}
@@ -49,7 +49,7 @@ func (pj *Service) projectEnable(ctx context.Context, act registry.Actor, in pro
 			return err
 		}
 		for _, t := range rows {
-			if err := pj.Scheduler.Rewind(ctx, q, t); err != nil {
+			if err := s.Scheduler.Rewind(ctx, q, t); err != nil {
 				return err
 			}
 			if err := health.Clear(ctx, q, health.Project(p), health.Trigger(p.Name, t.Command)); err != nil {
@@ -81,10 +81,10 @@ type commandTryIn struct {
 
 // commandTry starts a trial run of a project command: a call that is not internal is declined or, for a tool,
 // waits for the owner; a token that may try runs any project command this way, though not one closed to it.
-func (pj *Service) commandTry(ctx context.Context, act registry.Actor, in commandTryIn) (any, error) {
+func (s *Service) commandTry(ctx context.Context, act registry.Actor, in commandTryIn) (any, error) {
 	probe := act
 	probe.Kind, probe.Token, probe.Commands = act.As(), 0, nil
-	c, input, err := pj.Registry.Resolve(ctx, probe, in.Command, json.RawMessage(in.Input))
+	c, input, err := s.Registry.Resolve(ctx, probe, in.Command, json.RawMessage(in.Input))
 	switch {
 	case err != nil:
 		return nil, err
@@ -93,7 +93,7 @@ func (pj *Service) commandTry(ctx context.Context, act registry.Actor, in comman
 	case c.Gate.Fingerprint != nil:
 		return nil, registry.Invalid("%s is a tool, the call itself; only commands have trial runs", c.Name)
 	}
-	if err := pj.liveTrial(ctx, c, in.Live); err != nil {
+	if err := s.liveTrial(ctx, c, in.Live); err != nil {
 		return nil, err
 	}
 	act.Trial, act.Alone = true, in.Only
@@ -101,8 +101,8 @@ func (pj *Service) commandTry(ctx context.Context, act registry.Actor, in comman
 }
 
 // liveTrial lets a trial into an enabled project only when asked for, and never beside a real run of the command.
-func (pj *Service) liveTrial(ctx context.Context, c *registry.Command, live bool) error {
-	p, err := pj.St.Q.GetProject(ctx, c.ProjectID)
+func (s *Service) liveTrial(ctx context.Context, c *registry.Command, live bool) error {
+	p, err := s.St.Q.GetProject(ctx, c.ProjectID)
 	if err != nil || p.Status == store.ProjectDraft {
 		return err
 	}
@@ -110,7 +110,7 @@ func (pj *Service) liveTrial(ctx context.Context, c *registry.Command, live bool
 		return registry.Invalid("%s is enabled: a trial writes into its real records and may run beside its own runs; "+
 			"try the change in a draft copy (project_import of its folder under another name), or pass live to try it here", p.Name)
 	}
-	open, err := pj.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
+	open, err := s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
 	if err != nil {
 		return err
 	}
@@ -122,13 +122,13 @@ func (pj *Service) liveTrial(ctx context.Context, c *registry.Command, live bool
 	return nil
 }
 
-func (pj *Service) draftsCommands() []*registry.Command {
+func (s *Service) draftsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_enable", "Enable project",
 			"Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.",
-			registry.OwnerOnly, pj.projectEnable),
+			registry.OwnerOnly, s.projectEnable),
 		registry.Def("command_try", "Try a command",
 			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls of commands that are not internal are declined; a call of a tool, or of a model that is neither free nor local, waits for the owner's yes on that call, internal or not.",
-			registry.OwnerSide, pj.commandTry),
+			registry.OwnerSide, s.commandTry),
 	}
 }

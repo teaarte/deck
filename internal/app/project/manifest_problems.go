@@ -16,8 +16,8 @@ import (
 )
 
 // problems are what the checks of a save refuse in the current manifest of p, which a read only warns of.
-func (pj *Service) problems(ctx context.Context, p db.Project) []string {
-	text, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
+func (s *Service) problems(ctx context.Context, p db.Project) []string {
+	text, err := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
 	if err != nil {
 		return []string{fmt.Sprintf("the manifest does not load: %v", err)}
 	}
@@ -27,8 +27,8 @@ func (pj *Service) problems(ctx context.Context, p db.Project) []string {
 	}
 	var out []string
 	for _, err := range []error{
-		checkReads(ctx, pj.St.Q, p.WorkspaceID, p.Name, pm.m),
-		pj.checkToolFit(ctx, pj.St.Q, p.WorkspaceID, p.ID, pm.m),
+		checkReads(ctx, s.St.Q, p.WorkspaceID, p.Name, pm.m),
+		s.checkToolFit(ctx, s.St.Q, p.WorkspaceID, p.ID, pm.m),
 	} {
 		out = append(out, refusals(err)...)
 	}
@@ -45,17 +45,17 @@ func refusals(err error) []string {
 
 // CheckManifests puts a note of deck in the feed of each project whose current manifest the checks of this deck
 // refuse, once for the same problems: a newer deck may refuse what an older one saved.
-func (pj *Service) CheckManifests(ctx context.Context) {
-	ps, err := pj.St.Q.ListProjects(ctx)
+func (s *Service) CheckManifests(ctx context.Context) {
+	ps, err := s.St.Q.ListProjects(ctx)
 	if err != nil {
 		slog.Error("check manifests", "err", err)
 		return
 	}
 	for _, p := range ps {
-		problems := pj.problems(ctx, p)
+		problems := s.problems(ctx, p)
 		name := fmt.Sprintf("manifest_problems:%d", p.ID)
 		sum := sha256.Sum256([]byte(strings.Join(problems, "\n")))
-		err := pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			if len(problems) == 0 {
 				return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: p.WorkspaceID, Name: name})
 			}
@@ -69,7 +69,7 @@ func (pj *Service) CheckManifests(ctx context.Context) {
 			text := fmt.Sprintf("The manifest of %s no longer passes the checks of this deck. It works as before, but its next save "+
 				"is refused until these are fixed in it (manifest_get lists them too; the master fixes them when asked):\n- %s",
 				p.Name, strings.Join(problems, "\n- "))
-			if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(pj.Now()), ProjectID: p.ID, Text: text}); err != nil {
+			if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text}); err != nil {
 				return err
 			}
 			return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: name, Value: hex.EncodeToString(sum[:])})
@@ -77,7 +77,7 @@ func (pj *Service) CheckManifests(ctx context.Context) {
 		if err != nil {
 			slog.Error("check manifest", "project", p.Name, "err", err)
 		}
-		pj.tellWidened(ctx, p)
+		s.tellWidened(ctx, p)
 	}
 }
 
@@ -85,14 +85,14 @@ func (pj *Service) CheckManifests(ctx context.Context) {
 const widenedText = "The module %s had no_network, which manifests no longer have: the network of an agent is the rights of its module, so its agents now reach its domains.read (%s) and, with them, the package registries, GitHub and Hugging Face. Take out of domains.read what they must not reach."
 
 // tellWidened writes once in the feed that format 15 widened the network of the agents of p, when it did.
-func (pj *Service) tellWidened(ctx context.Context, p db.Project) {
+func (s *Service) tellWidened(ctx context.Context, p db.Project) {
 	name := fmt.Sprintf("%s%d", store.Widened, p.ID)
-	domains, err := pj.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: name})
+	domains, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: name})
 	if err != nil {
 		return
 	}
-	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(pj.Now()), ProjectID: p.ID, Text: fmt.Sprintf(widenedText, p.Name, domains)}); err != nil {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: fmt.Sprintf(widenedText, p.Name, domains)}); err != nil {
 			return err
 		}
 		return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: p.WorkspaceID, Name: name})

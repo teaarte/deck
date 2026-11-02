@@ -30,91 +30,91 @@ type chatQueue struct {
 }
 
 // pump starts the reply to the owner's messages of a topic that no reply took yet.
-func (ch *Service) pump(ctx context.Context, topic int64) {
-	ch.mu.Lock()
-	if ch.queue.due == nil {
-		ch.queue.busy, ch.queue.due = map[int64]bool{}, map[int64]bool{}
+func (s *Service) pump(ctx context.Context, topic int64) {
+	s.mu.Lock()
+	if s.queue.due == nil {
+		s.queue.busy, s.queue.due = map[int64]bool{}, map[int64]bool{}
 	}
-	ch.queue.due[topic] = true
-	if ch.queue.busy[topic] {
-		ch.mu.Unlock()
+	s.queue.due[topic] = true
+	if s.queue.busy[topic] {
+		s.mu.Unlock()
 		return
 	}
-	ch.queue.busy[topic] = true
-	for ch.queue.due[topic] {
-		delete(ch.queue.due, topic)
-		ch.mu.Unlock()
-		err := ch.reply(ctx, topic)
+	s.queue.busy[topic] = true
+	for s.queue.due[topic] {
+		delete(s.queue.due, topic)
+		s.mu.Unlock()
+		err := s.reply(ctx, topic)
 		if err != nil && ctx.Err() == nil {
 			slog.Error("chat reply", "topic", topic, "err", err)
 		}
-		ch.unstart(topic, err, ctx.Err() == nil)
-		ch.mu.Lock()
+		s.unstart(topic, err, ctx.Err() == nil)
+		s.mu.Lock()
 	}
-	delete(ch.queue.busy, topic)
-	ch.mu.Unlock()
+	delete(s.queue.busy, topic)
+	s.mu.Unlock()
 }
 
 // unstart keeps why the reply of a topic did not start, so its messages show it, and forgets it once one does.
-func (ch *Service) unstart(topic int64, err error, live bool) {
-	ch.mu.Lock()
-	was := ch.unstarted[topic]
+func (s *Service) unstart(topic int64, err error, live bool) {
+	s.mu.Lock()
+	was := s.unstarted[topic]
 	switch {
 	case err == nil:
-		delete(ch.unstarted, topic)
+		delete(s.unstarted, topic)
 	case live:
-		if ch.unstarted == nil {
-			ch.unstarted = map[int64]string{}
+		if s.unstarted == nil {
+			s.unstarted = map[int64]string{}
 		}
-		ch.unstarted[topic] = err.Error()
+		s.unstarted[topic] = err.Error()
 	}
-	now := ch.unstarted[topic]
-	ch.mu.Unlock()
-	if t, err := ch.St.Q.GetTopic(context.Background(), topic); was != now && err == nil {
-		ch.Bus.Emit(events.Event{Workspace: t.WorkspaceID, Topic: "chat"})
+	now := s.unstarted[topic]
+	s.mu.Unlock()
+	if t, err := s.St.Q.GetTopic(context.Background(), topic); was != now && err == nil {
+		s.Bus.Emit(events.Event{Workspace: t.WorkspaceID, Topic: "chat"})
 	}
 }
 
 // PumpChats starts the replies to messages that a stop of deck left without one.
-func (ch *Service) PumpChats(ctx context.Context) {
-	ids, err := ch.St.Q.ListTopicsWithPending(ctx)
+func (s *Service) PumpChats(ctx context.Context) {
+	ids, err := s.St.Q.ListTopicsWithPending(ctx)
 	if err != nil {
 		slog.Error("chat topics with messages", "err", err)
 		return
 	}
 	for _, id := range ids {
-		ch.pump(ctx, id)
+		s.pump(ctx, id)
 	}
 }
 
 // reply hands the waiting messages of a topic to the master: into its parked reply, or a new reply process
 // that resumes the topic's session of its provider or starts one with a retelling.
-func (ch *Service) reply(ctx context.Context, topicID int64) error {
-	ch.start.Lock()
-	defer ch.start.Unlock()
-	t, err := ch.St.Q.GetTopic(ctx, topicID)
+func (s *Service) reply(ctx context.Context, topicID int64) error {
+	s.start.Lock()
+	defer s.start.Unlock()
+	t, err := s.St.Q.GetTopic(ctx, topicID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	pending, err := ch.St.Q.ListPendingMessages(ctx, topicID)
+	pending, err := s.St.Q.ListPendingMessages(ctx, topicID)
 	if err != nil || len(pending) == 0 {
 		return err
 	}
 	first, last := pending[0].ID, pending[len(pending)-1].ID
 	files := attached(pending)
-	notes, told := ch.masterNotes(ctx, t.WorkspaceID)
-	open, err := ch.St.Q.OpenTopicProcess(ctx, topicID)
+	notes, told := s.masterNotes(ctx, t.WorkspaceID)
+	open, err := s.St.Q.OpenTopicProcess(ctx, topicID)
 	if err == nil {
 		given := ""
 		if len(files) > 0 {
-			if given, err = ch.Runner.Give(ctx, open.ID, files); err != nil {
+			if given, err = s.Runner.Give(ctx, open.ID, files); err != nil {
 				return err
 			}
 		}
-		if q := ch.openQuestion(ctx, open.ID); q != 0 {
+		if q := s.openQuestion(ctx, open.ID); q != 0 {
 			texts := make([]string, 0, len(pending)+1)
 			for _, m := range pending {
 				texts = append(texts, strings.TrimSpace(m.Text))
@@ -122,37 +122,37 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 			if given != "" {
 				texts = append(texts, given)
 			}
-			if err := ch.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
-				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", 0, last)
+			if err := s.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
+				return s.takeMessages(ctx, t, open.ID, open.SessionID, "", 0, last)
 			}
 		}
 		if open.State == process.StateRunning {
-			news, _, err := ch.chatPrompt(ctx, t, pending, "", "", notes, false)
-			if err != nil || ch.Runner.Say(ctx, open.ID, strings.TrimSpace("deck: the owner wrote while you work.\n"+news+"\n"+given)) == process.Refused {
+			news, _, err := s.chatPrompt(ctx, t, pending, "", "", notes, false)
+			if err != nil || s.Runner.Say(ctx, open.ID, strings.TrimSpace("deck: the owner wrote while you work.\n"+news+"\n"+given)) == process.Refused {
 				return err
 			}
-			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", told, last)
+			return s.takeMessages(ctx, t, open.ID, open.SessionID, "", told, last)
 		}
 		if open.State != process.StateWaitingAnswer {
 			return nil
 		}
-		msg, sign, err := ch.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, notes, true)
+		msg, sign, err := s.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, notes, true)
 		if err != nil {
 			return err
 		}
-		if err := ch.Runner.Remark(ctx, open.ID, strings.TrimSpace(msg+"\n\n"+given)); err != nil {
+		if err := s.Runner.Remark(ctx, open.ID, strings.TrimSpace(msg+"\n\n"+given)); err != nil {
 			return err
 		}
-		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, told, last)
+		return s.takeMessages(ctx, t, open.ID, open.SessionID, sign, told, last)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	p, err := access.Master(ctx, ch.St.Q, t.WorkspaceID)
+	p, err := access.Master(ctx, s.St.Q, t.WorkspaceID)
 	if err != nil {
 		return err
 	}
-	m, err := docs.Manifest(ctx, ch.St.Q, p)
+	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
 		return err
 	}
@@ -161,36 +161,36 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if cmd == nil {
 		return registry.Invalid("project master has no trigger on %s", manifest.OnMessage)
 	}
-	next := ch.againOf(topicID)
+	next := s.againOf(topicID)
 	if next.provider == "" && t.Model != "" {
-		if !slices.Contains(ch.Able(ctx, p.WorkspaceID, cmd), t.Model) {
+		if !slices.Contains(s.Able(ctx, p.WorkspaceID, cmd), t.Model) {
 			return fmt.Errorf("the model %s of this topic does not run the master's replies now; pick another one at the top of the chat", t.Model)
 		}
 		next.provider = t.Model
 	}
-	pv, err := ch.For(ctx, p.ID, cmd)
+	pv, err := s.For(ctx, p.ID, cmd)
 	if next.provider != "" {
-		pv, err = ch.Named(ctx, p.ID, next.provider)
+		pv, err = s.Named(ctx, p.ID, next.provider)
 	}
 	if err != nil {
 		return err
 	}
 	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true, Provider: next.provider, Follows: next.follows}
 	sign := ""
-	s, err := ch.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
+	sess, err := s.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
 	switch {
 	case err == nil:
-		o.Session, o.Resume = s.SessionID, true
-		if o.Message, sign, err = ch.chatPrompt(ctx, t, pending, s.SessionID, pv.Name(), notes, true); err != nil {
+		o.Session, o.Resume = sess.SessionID, true
+		if o.Message, sign, err = s.chatPrompt(ctx, t, pending, sess.SessionID, pv.Name(), notes, true); err != nil {
 			return err
 		}
 		o.Message = strings.TrimSpace(next.note + "\n\n" + o.Message)
 	case errors.Is(err, sql.ErrNoRows):
 		// A new session is told everything before the first waiting message, and the memory of now.
-		if _, sign, err = ch.masterMemory(ctx, p, topicID); err != nil {
+		if _, sign, err = s.masterMemory(ctx, p, topicID); err != nil {
 			return err
 		}
-		err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.SetChatSession(ctx, db.SetChatSessionParams{TopicID: topicID, Provider: pv.Name(), SessionID: o.Session,
 				Seen: first - 1, Memory: sign})
 		})
@@ -200,30 +200,30 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	default:
 		return err
 	}
-	retell, err := ch.retelling(ctx, t, first)
+	retell, err := s.retelling(ctx, t, first)
 	if err != nil {
 		return err
 	}
-	news, _, err := ch.chatPrompt(ctx, t, pending, "", "", notes, false)
+	news, _, err := s.chatPrompt(ctx, t, pending, "", "", notes, false)
 	if err != nil {
 		return err
 	}
 	o.Note = strings.TrimSpace(retell + "\n\n" + next.note + "\n\n" + news)
-	id, err := ch.Runner.Start(ctx, p.ID, m, reply, map[string]any{"topic": topicID}, o)
+	id, err := s.Runner.Start(ctx, p.ID, m, reply, map[string]any{"topic": topicID}, o)
 	if err != nil {
 		if id != 0 {
 			// The failed reply takes the messages, so its error shows and the topic does not start again.
-			_ = ch.takeMessages(ctx, t, id, o.Session, sign, 0, last)
+			_ = s.takeMessages(ctx, t, id, o.Session, sign, 0, last)
 		}
 		return err
 	}
-	return ch.takeMessages(ctx, t, id, o.Session, sign, told, last)
+	return s.takeMessages(ctx, t, id, o.Session, sign, told, last)
 }
 
 // takeMessages gives the waiting messages up to through to the reply process, keeps the sign of the memory its
 // session was given, when it was given one, and drops the notes of deck the turn was told, up to told.
-func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, told, through int64) error {
-	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+func (s *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, told, through int64) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if told > 0 {
 			if err := q.DeleteMasterNotes(ctx, db.DeleteMasterNotesParams{WorkspaceID: t.WorkspaceID, Through: told}); err != nil {
 				return err
@@ -238,8 +238,8 @@ func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID i
 }
 
 // masterNotes are the notes deck tells the master on its next turn, one a line, and the last of them.
-func (ch *Service) masterNotes(ctx context.Context, workspace int64) (string, int64) {
-	rows, _ := ch.St.Q.ListMasterNotes(ctx, workspace)
+func (s *Service) masterNotes(ctx context.Context, workspace int64) (string, int64) {
+	rows, _ := s.St.Q.ListMasterNotes(ctx, workspace)
 	lines := make([]string, 0, len(rows))
 	last := int64(0)
 	for _, r := range rows {
@@ -250,7 +250,7 @@ func (ch *Service) masterNotes(ctx context.Context, workspace int64) (string, in
 
 // chatPrompt is what a reply turn gets: on resume the messages its session missed, then the owner's new
 // messages with their screens and where the summary of the topic is.
-func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider, notes string, resume bool) (string, string, error) {
+func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider, notes string, resume bool) (string, string, error) {
 	type message struct{ Where, Text string }
 	v := struct {
 		MemoryChanged          bool
@@ -267,31 +267,31 @@ func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.
 	}
 	sign := ""
 	if resume {
-		s, err := ch.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: t.ID, Provider: provider})
-		if err == nil && s.SessionID == session {
-			mp, err := access.Master(ctx, ch.St.Q, t.WorkspaceID)
+		sess, err := s.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: t.ID, Provider: provider})
+		if err == nil && sess.SessionID == session {
+			mp, err := access.Master(ctx, s.St.Q, t.WorkspaceID)
 			if err != nil {
 				return "", "", err
 			}
-			mem, now, err := ch.masterMemory(ctx, mp, t.ID)
+			mem, now, err := s.masterMemory(ctx, mp, t.ID)
 			if err != nil {
 				return "", "", err
 			}
 			sign = now
-			v.MemoryChanged, v.Memory = now != s.Memory, mem
-			missed, err := ch.St.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: s.Seen})
+			v.MemoryChanged, v.Memory = now != sess.Memory, mem
+			missed, err := s.St.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: sess.Seen})
 			if err != nil {
 				return "", "", err
 			}
 			var lines []db.ChatMessage
 			for _, m := range missed {
-				if m.ID < pending[0].ID && !ch.knows(ctx, m, session) {
+				if m.ID < pending[0].ID && !s.knows(ctx, m, session) {
 					lines = append(lines, m)
 				}
 			}
 			switch {
 			case len(lines) > retellTail:
-				if v.Retold, err = ch.retelling(ctx, t, pending[0].ID); err != nil {
+				if v.Retold, err = s.retelling(ctx, t, pending[0].ID); err != nil {
 					return "", "", err
 				}
 			case len(lines) > 0:
@@ -302,11 +302,11 @@ func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.
 	for _, m := range pending {
 		v.Pending = append(v.Pending, message{Where: screenText(m.Context), Text: strings.TrimSpace(m.Text)})
 	}
-	grown, err := ch.sinceSummary(ctx, t)
+	grown, err := s.sinceSummary(ctx, t)
 	if err != nil {
 		return "", "", err
 	}
-	since, _, err := ch.summary(ctx, t)
+	since, _, err := s.summary(ctx, t)
 	if err != nil {
 		return "", "", err
 	}
@@ -318,39 +318,39 @@ func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.
 }
 
 // sinceSummary counts the messages of a topic after the current revision of its summary.
-func (ch *Service) sinceSummary(ctx context.Context, t db.ChatTopic) (int64, error) {
-	since, _, err := ch.summary(ctx, t)
+func (s *Service) sinceSummary(ctx context.Context, t db.ChatTopic) (int64, error) {
+	since, _, err := s.summary(ctx, t)
 	if err != nil {
 		return 0, err
 	}
-	return ch.St.Q.CountMessagesAfter(ctx, db.CountMessagesAfterParams{TopicID: t.ID, Since: since})
+	return s.St.Q.CountMessagesAfter(ctx, db.CountMessagesAfterParams{TopicID: t.ID, Since: since})
 }
 
 // summary is the current summary of a topic and when it was written; empty when the master wrote none.
-func (ch *Service) summary(ctx context.Context, t db.ChatTopic) (since, text string, err error) {
-	p, err := access.Master(ctx, ch.St.Q, t.WorkspaceID)
+func (s *Service) summary(ctx context.Context, t db.ChatTopic) (since, text string, err error) {
+	p, err := access.Master(ctx, s.St.Q, t.WorkspaceID)
 	if err != nil {
 		return "", "", err
 	}
-	d, err := docs.Find(ctx, ch.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: summaryName(t.ID)})
+	d, err := docs.Find(ctx, s.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: summaryName(t.ID)})
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}
 	if err != nil {
 		return "", "", err
 	}
-	r, err := docs.Revision(ctx, ch.St.Q, d, 0)
+	r, err := docs.Revision(ctx, s.St.Q, d, 0)
 	return r.CreatedAt, r.Text, err
 }
 
 // retelling is the start of a topic for a session that did not see it: the summary and the messages after it,
 // at most retellTail, before the message before.
-func (ch *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) (string, error) {
-	since, text, err := ch.summary(ctx, t)
+func (s *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) (string, error) {
+	since, text, err := s.summary(ctx, t)
 	if err != nil {
 		return "", err
 	}
-	tail, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: before, Lim: retellTail})
+	tail, err := s.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: before, Lim: retellTail})
 	if err != nil {
 		return "", err
 	}
@@ -360,7 +360,7 @@ func (ch *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) 
 			after = append(after, m)
 		}
 	}
-	procs := ch.topicProcesses(ctx, t)
+	procs := s.topicProcesses(ctx, t)
 	if strings.TrimSpace(text) == "" && len(after) == 0 && procs == "" {
 		return "", nil
 	}
@@ -378,12 +378,12 @@ func (ch *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) 
 const topicLinks = 10
 
 // topicProcesses are the processes the replies of a topic started, newest first, one a line.
-func (ch *Service) topicProcesses(ctx context.Context, t db.ChatTopic) string {
-	m, err := access.Master(ctx, ch.St.Q, t.WorkspaceID)
+func (s *Service) topicProcesses(ctx context.Context, t db.ChatTopic) string {
+	m, err := access.Master(ctx, s.St.Q, t.WorkspaceID)
 	if err != nil {
 		return ""
 	}
-	rows, err := ch.St.Q.ListTopicProcesses(ctx, db.ListTopicProcessesParams{MasterID: m.ID, Topic: t.ID, Lim: topicLinks})
+	rows, err := s.St.Q.ListTopicProcesses(ctx, db.ListTopicProcessesParams{MasterID: m.ID, Topic: t.ID, Lim: topicLinks})
 	if err != nil || len(rows) == 0 {
 		return ""
 	}
@@ -422,11 +422,11 @@ func attached(ms []db.ChatMessage) []int64 {
 
 // knows reports whether a session already has a message: its own reply, or one of the owner a turn of it took and
 // answered; what deck wrote meanwhile and what a failed turn took it has not.
-func (ch *Service) knows(ctx context.Context, m db.ChatMessage, session string) bool {
+func (s *Service) knows(ctx context.Context, m db.ChatMessage, session string) bool {
 	if m.ProcessID == 0 {
 		return false
 	}
-	p, err := ch.St.Q.GetProcess(ctx, m.ProcessID)
+	p, err := s.St.Q.GetProcess(ctx, m.ProcessID)
 	if err != nil || p.SessionID != session {
 		return false
 	}

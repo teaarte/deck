@@ -16,16 +16,16 @@ import (
 )
 
 // ProjectCommands turns the commands of workspace manifests into registry commands.
-func (pj *Service) ProjectCommands(ctx context.Context, workspace int64, name string) ([]*registry.Command, error) {
+func (s *Service) ProjectCommands(ctx context.Context, workspace int64, name string) ([]*registry.Command, error) {
 	var ps []db.Project
 	if name == "" {
-		all, err := pj.St.Q.ListWorkspaceProjects(ctx, workspace)
+		all, err := s.St.Q.ListWorkspaceProjects(ctx, workspace)
 		if err != nil {
 			return nil, err
 		}
 		ps = all
 	} else {
-		p, err := pj.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
+		p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -35,20 +35,20 @@ func (pj *Service) ProjectCommands(ctx context.Context, workspace int64, name st
 		ps = []db.Project{p}
 	}
 	var out []*registry.Command
-	ms, failed := docs.All(ctx, pj.St.Q, ps)
+	ms, failed := docs.All(ctx, s.St.Q, ps)
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {
 			slog.Error("project manifest", "project", p.Name, "err", failed[p.ID])
 			continue
 		}
-		granted, err := docs.InForce(ctx, pj.St.Q, p, m)
+		granted, err := docs.InForce(ctx, s.St.Q, p, m)
 		if err != nil {
 			slog.Error("project rights", "project", p.Name, "err", err)
 			continue
 		}
-		out = append(out, pj.prepared(ctx, p, m, granted)...)
-		mcpCmds, err := pj.MCP.Commands(ctx, pj.St.Q, p, granted)
+		out = append(out, s.prepared(ctx, p, m, granted)...)
+		mcpCmds, err := s.MCP.Commands(ctx, s.St.Q, p, granted)
 		if err != nil {
 			return nil, err
 		}
@@ -65,17 +65,17 @@ func (pj *Service) ProjectCommands(ctx context.Context, workspace int64, name st
 
 // prepared are the commands and HTTP tools of a manifest as registry commands, compiled once per revision and
 // grant, with the rights the owner gave: those of granted, m in force.
-func (pj *Service) prepared(ctx context.Context, p db.Project, m, granted *manifest.Manifest) []*registry.Command {
+func (s *Service) prepared(ctx context.Context, p db.Project, m, granted *manifest.Manifest) []*registry.Command {
 	key := preparedKey{p.ID, m, p.GrantedRevision.Int64}
-	pj.preparedMu.Lock()
-	cmds, ok := pj.preparedCmds[key]
-	pj.preparedMu.Unlock()
+	s.preparedMu.Lock()
+	cmds, ok := s.preparedCmds[key]
+	s.preparedMu.Unlock()
 	if ok {
 		return cmds
 	}
 	for _, c := range granted.Commands {
 		cmd := registry.Loose(p.Name+"."+c.Name, c.Title, c.Description, c.Class, c.Callable(), c.InputSchema(),
-			pj.startHandler(p.ID, m, c.Name)).Retried()
+			s.startHandler(p.ID, m, c.Name)).Retried()
 		cmd.Result, cmd.ProjectID, cmd.Words = c.Result, p.ID, m.I18n
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project command", "command", cmd.Name, "err", err)
@@ -85,19 +85,19 @@ func (pj *Service) prepared(ctx context.Context, p db.Project, m, granted *manif
 	}
 	domains := granted.Domains.All()
 	for _, t := range granted.Tools.HTTP {
-		cmd := pj.Tools.Command(p, t, domains)
+		cmd := s.Tools.Command(p, t, domains)
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project tool", "tool", cmd.Name, "err", err)
 			continue
 		}
 		cmds = append(cmds, cmd)
 	}
-	pj.preparedMu.Lock()
-	if pj.preparedCmds == nil || len(pj.preparedCmds) >= 256 {
-		pj.preparedCmds = map[preparedKey][]*registry.Command{}
+	s.preparedMu.Lock()
+	if s.preparedCmds == nil || len(s.preparedCmds) >= 256 {
+		s.preparedCmds = map[preparedKey][]*registry.Command{}
 	}
-	pj.preparedCmds[key] = cmds
-	pj.preparedMu.Unlock()
+	s.preparedCmds[key] = cmds
+	s.preparedMu.Unlock()
 	return cmds
 }
 
@@ -109,7 +109,7 @@ type preparedKey struct {
 
 // startHandler runs a command of the manifest the registry checked the call against; the calling process
 // or the finished process of a trigger becomes its parent.
-func (pj *Service) startHandler(projectID int64, m *manifest.Manifest, command string) registry.Handler {
+func (s *Service) startHandler(projectID int64, m *manifest.Manifest, command string) registry.Handler {
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		input, err := manifest.DecodeObject(raw)
 		if err != nil {
@@ -124,6 +124,6 @@ func (pj *Service) startHandler(projectID int64, m *manifest.Manifest, command s
 			}
 			o.Allows = gateway.Allows(as)
 		}
-		return pj.Runner.Begin(ctx, projectID, m, command, input, o)
+		return s.Runner.Begin(ctx, projectID, m, command, input, o)
 	}
 }

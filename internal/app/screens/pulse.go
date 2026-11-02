@@ -27,11 +27,11 @@ type pulse struct {
 
 // pulse counts what waits for the owner, runs and fails in the workspace, by project too, and writes the first line
 // of Today from it.
-func (ss *Service) pulse(ctx context.Context, act registry.Actor, lang string) (p pulse, asks, running, failing map[string]int64) {
-	asks, running, failing = ss.count(ctx, "asks", act, ss.Waiting), ss.count(ctx, "running", act, ss.Open),
-		ss.count(ctx, "failing", act, ss.Failing)
+func (s *Service) pulse(ctx context.Context, act registry.Actor, lang string) (p pulse, asks, running, failing map[string]int64) {
+	asks, running, failing = s.count(ctx, "asks", act, s.Waiting), s.count(ctx, "running", act, s.Open),
+		s.count(ctx, "failing", act, s.Failing)
 	p = pulse{Asks: total(asks), Running: total(running), Errors: total(failing),
-		Failed: ss.number(ctx, "failed", act, ss.Failed), Notes: ss.number(ctx, "notes", act, ss.Unread)}
+		Failed: s.number(ctx, "failed", act, s.Failed), Notes: s.number(ctx, "notes", act, s.Unread)}
 	switch {
 	case p.Asks > 0:
 		p.State = "asks"
@@ -49,7 +49,7 @@ func (ss *Service) pulse(ctx context.Context, act registry.Actor, lang string) (
 }
 
 // count is one count of the menu by project; one that fails is none, so the menu still shows the way.
-func (ss *Service) count(ctx context.Context, what string, act registry.Actor, f func(context.Context, registry.Actor) (map[string]int64, error)) map[string]int64 {
+func (s *Service) count(ctx context.Context, what string, act registry.Actor, f func(context.Context, registry.Actor) (map[string]int64, error)) map[string]int64 {
 	by, err := f(ctx, act)
 	if err != nil {
 		slog.Error("menu: count", "what", what, "err", err)
@@ -59,7 +59,7 @@ func (ss *Service) count(ctx context.Context, what string, act registry.Actor, f
 }
 
 // number is a count of the workspace; nothing when it cannot be read, which the log keeps.
-func (ss *Service) number(ctx context.Context, what string, act registry.Actor, f func(context.Context, registry.Actor) (int64, error)) int64 {
+func (s *Service) number(ctx context.Context, what string, act registry.Actor, f func(context.Context, registry.Actor) (int64, error)) int64 {
 	n, err := f(ctx, act)
 	if err != nil {
 		slog.Error("menu: count", "what", what, "err", err)

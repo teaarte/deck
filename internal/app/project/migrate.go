@@ -64,8 +64,8 @@ func parseEnvelopes(jsonl string) ([]envelope, error) {
 
 // migrate prepares, outside any transaction, the collections whose schema or key changes: from the snapshot
 // a revert returns to, or by the migration script when the records no longer fit; a check runs no script.
-func (pj *Service) migrate(ctx context.Context, p db.Project, next *manifest.Manifest, revertTo int64, check bool) (map[string]*migration, error) {
-	old, err := docs.Manifest(ctx, pj.St.Q, p)
+func (s *Service) migrate(ctx context.Context, p db.Project, next *manifest.Manifest, revertTo int64, check bool) (map[string]*migration, error) {
+	old, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
 		return nil, nil
 	}
@@ -75,13 +75,13 @@ func (pj *Service) migrate(ctx context.Context, p db.Project, next *manifest.Man
 		if oc := old.Collection(c.Name); oc == nil || sameShape(oc, c) {
 			continue
 		}
-		recs, err := pj.St.Q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: c.Name})
+		recs, err := s.St.Q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: c.Name})
 		if err != nil {
 			return nil, err
 		}
 		input := envelopes(recs)
 		if revertTo > 0 {
-			snap, err := pj.St.Q.FindRecordSnapshot(ctx, db.FindRecordSnapshotParams{ProjectID: p.ID, Collection: c.Name, Revision: revertTo})
+			snap, err := s.St.Q.FindRecordSnapshot(ctx, db.FindRecordSnapshotParams{ProjectID: p.ID, Collection: c.Name, Revision: revertTo})
 			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}
@@ -102,7 +102,7 @@ func (pj *Service) migrate(ctx context.Context, p db.Project, next *manifest.Man
 			out[c.Name] = &migration{input: input, checked: true}
 			continue
 		}
-		stdout, err := pj.runMigration(ctx, p, next, c, input)
+		stdout, err := s.runMigration(ctx, p, next, c, input)
 		if err != nil {
 			return nil, registry.Invalid("migration script %s of collection %q failed: %v", c.Migration, c.Name, err)
 		}
@@ -126,26 +126,26 @@ func (pj *Service) migrate(ctx context.Context, p db.Project, next *manifest.Man
 }
 
 // runMigration runs a migration script on a copy of the records, without network and deck tools.
-func (pj *Service) runMigration(ctx context.Context, p db.Project, m *manifest.Manifest, c *manifest.Collection, input string) ([]byte, error) {
-	s := m.Script(c.Migration)
-	src, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindScript, s.File)
+func (s *Service) runMigration(ctx context.Context, p db.Project, m *manifest.Manifest, c *manifest.Collection, input string) ([]byte, error) {
+	sc := m.Script(c.Migration)
+	src, err := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), docs.KindScript, sc.File)
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(src) == "" {
-		return nil, fmt.Errorf("script file %q is missing or empty", s.File)
+		return nil, fmt.Errorf("sc file %q is missing or empty", sc.File)
 	}
 	limit := process.ScriptCeiling
-	if s.TimeoutMinutes > 0 {
-		limit = time.Duration(s.TimeoutMinutes) * time.Minute
+	if sc.TimeoutMinutes > 0 {
+		limit = time.Duration(sc.TimeoutMinutes) * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
-	dir := filepath.Join(pj.Home.Runs(), "migration-"+uuid.NewString())
+	dir := filepath.Join(s.Home.Runs(), "migration-"+uuid.NewString())
 	defer os.RemoveAll(dir)
-	out, err := pj.Scripts.Run(ctx, script.Job{Project: p.ID, Script: s, Source: src, Dir: dir, Stdin: []byte(input)})
+	out, err := s.Scripts.Run(ctx, script.Job{Project: p.ID, Script: sc, Source: src, Dir: dir, Stdin: []byte(input)})
 	if ctx.Err() != nil {
-		return nil, fmt.Errorf("it ran longer than %s", limit)
+		return nil, fmt.Errorf("script ran longer than %s", limit)
 	}
 	return out, err
 }

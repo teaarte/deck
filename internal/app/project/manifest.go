@@ -32,24 +32,24 @@ type manifestView struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-func (pj *Service) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (manifestView, error) {
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
+func (s *Service) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (manifestView, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return manifestView{}, err
 	}
 	ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-	d, err := docs.Find(ctx, pj.St.Q, ref)
+	d, err := docs.Find(ctx, s.St.Q, ref)
 	if err != nil {
 		return manifestView{}, err
 	}
-	r, err := docs.Revision(ctx, pj.St.Q, d, 0)
+	r, err := docs.Revision(ctx, s.St.Q, d, 0)
 	if err != nil {
 		return manifestView{}, err
 	}
 	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}
-	v.Warnings = append(v.Warnings, pj.problems(ctx, p)...)
-	if m, err := docs.ManifestAt(ctx, pj.St.Q, p.ID, d.Current); err == nil {
-		v.Warnings = append(v.Warnings, pj.unassigned(ctx, p, m)...)
+	v.Warnings = append(v.Warnings, s.problems(ctx, p)...)
+	if m, err := docs.ManifestAt(ctx, s.St.Q, p.ID, d.Current); err == nil {
+		v.Warnings = append(v.Warnings, s.unassigned(ctx, p, m)...)
 	}
 	return v, nil
 }
@@ -63,32 +63,32 @@ type manifestSaveIn struct {
 	IfRevision int64    `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 }
 
-func (pj *Service) manifestSave(ctx context.Context, act registry.Actor, in manifestSaveIn) (any, error) {
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
+func (s *Service) manifestSave(ctx context.Context, act registry.Actor, in manifestSaveIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	if err := pj.edited(ctx, p, &in); err != nil {
+	if err := s.edited(ctx, p, &in); err != nil {
 		return nil, err
 	}
-	return pj.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
+	return s.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
 }
 
 // edited puts the whole manifest a save gives in in.Manifest: as it came, or the current one with its old parts
 // replaced by the new, pinned to the revision it was read at.
-func (pj *Service) edited(ctx context.Context, p db.Project, in *manifestSaveIn) error {
+func (s *Service) edited(ctx context.Context, p db.Project, in *manifestSaveIn) error {
 	if len(in.Old) > 0 || len(in.New) > 0 {
 		if in.Manifest != "" {
 			return registry.Invalid("give the whole manifest or old and new parts, not both")
 		}
-		d, err := docs.Find(ctx, pj.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
+		d, err := docs.Find(ctx, s.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
 		if err != nil {
 			return err
 		}
 		if in.IfRevision != 0 && d.Current != in.IfRevision {
 			return registry.Conflict("the manifest of %s is at revision %d now, not %d", p.Name, d.Current, in.IfRevision)
 		}
-		r, err := docs.Revision(ctx, pj.St.Q, d, 0)
+		r, err := docs.Revision(ctx, s.St.Q, d, 0)
 		if err != nil {
 			return err
 		}
@@ -104,17 +104,17 @@ func (pj *Service) edited(ctx context.Context, p db.Project, in *manifestSaveIn)
 }
 
 // Commands are the commands of manifests.
-func (pj *Service) manifestCommands() []*registry.Command {
+func (s *Service) manifestCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("manifest_get", "Get manifest",
 			"Returns the current manifest of a project as text; with fields such as manifest.writes, manifest.commands.<name> or manifest.screens.<name>, only that part of it, as text in the same form.",
-			registry.Everyone, pj.manifestGet).On("projects"),
+			registry.Everyone, s.manifestGet).On("projects"),
 		registry.Def("manifest_save", "Save manifest",
 			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current one replaced with new ones.",
-			registry.OwnerSide, pj.manifestSave),
+			registry.OwnerSide, s.manifestSave),
 		registry.Read("manifest_check", "Check manifest",
 			"Checks a manifest without saving it, as a save would: what a save refuses, what it warns of, what it widens and whether that waits for the owner, the screens that fail on the data there is now and the texts without a translation; of a project, or alone, such as one from an old .zip.",
-			registry.OwnerSide, pj.check).On(registry.Static),
+			registry.OwnerSide, s.check).On(registry.Static),
 	}
 }
 
@@ -143,16 +143,16 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 
 // CreateProject validates the manifest, stores it and the prompt as first revisions and registers triggers.
 // The owner's project is enabled; anyone else's is a draft.
-func (pj *Service) CreateProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt string) (db.Project, error) {
+func (s *Service) CreateProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt string) (db.Project, error) {
 	status := store.ProjectDraft
 	if act.Kind == registry.Owner {
 		status = store.ProjectEnabled
 	}
-	return pj.createProject(ctx, act, name, raw, prompt, status, nil)
+	return s.createProject(ctx, act, name, raw, prompt, status, nil)
 }
 
 // createProject stores a new project; more stores further documents in the same transaction before the checks.
-func (pj *Service) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
+func (s *Service) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
 	more func(ctx context.Context, q *db.Queries, p db.Project) error) (db.Project, error) {
 	if !schemas.ProjectName.MatchString(name) || name == registry.Builtin {
 		return db.Project{}, registry.Invalid("project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
@@ -162,14 +162,14 @@ func (pj *Service) createProject(ctx context.Context, act registry.Actor, name s
 		return db.Project{}, err
 	}
 	var p db.Project
-	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
 			return registry.Invalid("project %q already exists", name)
 		}
 		if err := checkReads(ctx, q, act.Workspace, name, pm.m); err != nil {
 			return err
 		}
-		if err := pj.checkToolFit(ctx, q, act.Workspace, 0, pm.m); err != nil {
+		if err := s.checkToolFit(ctx, q, act.Workspace, 0, pm.m); err != nil {
 			return err
 		}
 		if p, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: act.Workspace, Name: name, Status: status}); err != nil {
@@ -194,12 +194,12 @@ func (pj *Service) createProject(ctx context.Context, act registry.Actor, name s
 				return err
 			}
 		}
-		return pj.Scheduler.Sync(ctx, q, p.ID, pm.m)
+		return s.Scheduler.Sync(ctx, q, p.ID, pm.m)
 	})
 	if err != nil {
 		return db.Project{}, err
 	}
-	pj.PrepareLater(p.ID)
+	s.PrepareLater(p.ID)
 	return p, nil
 }
 
@@ -219,32 +219,32 @@ type Saved struct {
 
 // SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
 // change that widens rights waits for the owner; nonzero ifRevision must still be current.
-func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (Saved, error) {
+func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (Saved, error) {
 	pm, err := parseManifest(raw, p.Builtin == 1)
 	if err != nil {
 		return Saved{}, err
 	}
-	plan, err := pj.migrate(ctx, p, pm.m, revertTo, false)
+	plan, err := s.migrate(ctx, p, pm.m, revertTo, false)
 	if err != nil {
 		return Saved{}, err
 	}
 	// The records are checked against the new schemas outside the writer; the writer checks again only when they
 	// changed meanwhile.
-	seen, err := pj.St.Q.RecordsMark(ctx, p.ID)
+	seen, err := s.St.Q.RecordsMark(ctx, p.ID)
 	if err != nil {
 		return Saved{}, err
 	}
-	if err := checkRecords(ctx, pj.St.Q, p, pm.m, plan); err != nil {
+	if err := checkRecords(ctx, s.St.Q, p, pm.m, plan); err != nil {
 		return Saved{}, err
 	}
 	var saved Saved
 	changed := false
 	var outdated []db.Ask
-	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
 			return err
 		}
-		if err := pj.checkToolFit(ctx, q, p.WorkspaceID, p.ID, pm.m); err != nil {
+		if err := s.checkToolFit(ctx, q, p.WorkspaceID, p.ID, pm.m); err != nil {
 			return err
 		}
 		if now, err := q.RecordsMark(ctx, p.ID); err != nil || now != seen {
@@ -263,10 +263,10 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 		if ifRevision != 0 && cur.Current != ifRevision {
 			return registry.Conflict("the manifest of %s is at revision %d now, not %d", p.Name, cur.Current, ifRevision)
 		}
-		w, err := pj.widens(ctx, q, act, p.ID, pm.m)
+		w, err := s.widens(ctx, q, act, p.ID, pm.m)
 		if err != nil || len(w) > 0 {
 			if err == nil {
-				saved, err = pj.ask(ctx, q, act, p, cur, revertTo, w, reason, pm.text)
+				saved, err = s.ask(ctx, q, act, p, cur, revertTo, w, reason, pm.text)
 			}
 			return err
 		}
@@ -280,35 +280,35 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 		if err := grant(ctx, q, p, n, pm.m); err != nil {
 			return err
 		}
-		if outdated, err = outdate(ctx, q, p, n, pj.Now()); err != nil {
+		if outdated, err = outdate(ctx, q, p, n, s.Now()); err != nil {
 			return err
 		}
 		if err := q.DeleteScreenHealth(ctx, store.ID(p.ID)); err != nil {
 			return err
 		}
 		for name, mg := range plan {
-			if err := applyMigration(ctx, q, store.Time(pj.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
+			if err := applyMigration(ctx, q, store.Time(s.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
 				return err
 			}
 		}
-		if err = pj.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), fmt.Sprintf("changed the manifest of %s", p.Name), reason); err != nil {
+		if err = s.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), fmt.Sprintf("changed the manifest of %s", p.Name), reason); err != nil {
 			return err
 		}
-		return pj.Scheduler.Sync(ctx, q, p.ID, pm.m)
+		return s.Scheduler.Sync(ctx, q, p.ID, pm.m)
 	})
 	if err != nil || saved.Waiting != 0 {
 		return saved, err
 	}
 	for _, a := range outdated {
-		pj.Gateway.Record(ctx, a, "expired", "the manifest changed after this request")
+		s.Gateway.Record(ctx, a, "expired", "the manifest changed after this request")
 	}
 	if changed {
-		pj.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
-		pj.PrepareLater(p.ID)
+		s.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
+		s.PrepareLater(p.ID)
 	}
-	saved.Screens = pj.CheckScreens(ctx, act, p, pm.m)
-	saved.Unused, saved.Untranslated = pj.words(ctx, p, pm.m)
-	saved.Warnings = append(pj.unassigned(ctx, p, pm.m), pj.unpaged(ctx, p, pm.m)...)
+	saved.Screens = s.CheckScreens(ctx, act, p, pm.m)
+	saved.Unused, saved.Untranslated = s.words(ctx, p, pm.m)
+	saved.Warnings = append(s.unassigned(ctx, p, pm.m), s.unpaged(ctx, p, pm.m)...)
 	return saved, nil
 }
 
@@ -334,39 +334,39 @@ func grant(ctx context.Context, q *db.Queries, p db.Project, n int64, next *mani
 }
 
 // Reconcile brings stored triggers in line with the current manifests; run it on start.
-func (pj *Service) Reconcile(ctx context.Context) error {
-	ps, err := pj.St.Q.ListProjects(ctx)
+func (s *Service) Reconcile(ctx context.Context) error {
+	ps, err := s.St.Q.ListProjects(ctx)
 	if err != nil {
 		return err
 	}
 	for _, p := range ps {
-		err := pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			m, err := docs.Manifest(ctx, q, p)
 			if err != nil {
 				return err
 			}
-			return pj.Scheduler.Sync(ctx, q, p.ID, m)
+			return s.Scheduler.Sync(ctx, q, p.ID, m)
 		})
 		if err != nil {
 			slog.Error("reconcile triggers", "project", p.Name, "err", err)
 		}
-		pj.PrepareLater(p.ID)
+		s.PrepareLater(p.ID)
 	}
 	return nil
 }
 
 // Save is SaveManifest for a service that takes any result.
-func (pj *Service) Save(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error) {
-	return pj.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision)
+func (s *Service) Save(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error) {
+	return s.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision)
 }
 
 // words are the keys of the i18n of a manifest of p that nothing uses and the texts it does not translate; data
 // wants no translation.
-func (pj *Service) words(ctx context.Context, p db.Project, m *manifest.Manifest) (unused, untranslated []string) {
+func (s *Service) words(ctx context.Context, p db.Project, m *manifest.Manifest) (unused, untranslated []string) {
 	var also, values []string
 	if p.ID != 0 {
-		prompt, _ := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
-		also, values = []string{docs.Description(prompt)}, pj.filterValues(ctx, p.ID, m)
+		prompt, _ := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
+		also, values = []string{docs.Description(prompt)}, s.filterValues(ctx, p.ID, m)
 	}
 	unused = m.UnusedWords(also, values)
 	untranslated = m.Untranslated(func(lang, text string) bool { return words.In(lang)[text] != "" }, also...)
@@ -375,11 +375,11 @@ func (pj *Service) words(ctx context.Context, p db.Project, m *manifest.Manifest
 
 // filterValues are the values the records of a project hold in the fields its screens filter by, which a filter
 // shows in the words of the manifest where it has them.
-func (pj *Service) filterValues(ctx context.Context, project int64, m *manifest.Manifest) []string {
+func (s *Service) filterValues(ctx context.Context, project int64, m *manifest.Manifest) []string {
 	var out []string
 	for col, fields := range m.Filtered() {
 		for _, f := range fields {
-			vs, err := pj.St.Q.FieldValues(ctx, db.FieldValuesParams{Path: `$."` + f + `"`, ProjectID: project, Collection: col, Lim: 100})
+			vs, err := s.St.Q.FieldValues(ctx, db.FieldValuesParams{Path: `$."` + f + `"`, ProjectID: project, Collection: col, Lim: 100})
 			if err == nil {
 				out = append(out, vs...)
 			}

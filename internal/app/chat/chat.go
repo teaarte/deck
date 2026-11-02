@@ -74,7 +74,7 @@ type Service struct {
 }
 
 // NewHook is the hook of the runner that keeps the master's replies in their topics.
-func (ch *Service) NewHook() Hook { return Hook{ch: ch} }
+func (s *Service) NewHook() Hook { return Hook{ch: s} }
 
 // summaryName is the document of project master with the summary of a topic.
 func summaryName(topic int64) string { return fmt.Sprintf("topics/%d/summary.md", topic) }
@@ -83,7 +83,7 @@ func summaryName(topic int64) string { return fmt.Sprintf("topics/%d/summary.md"
 const maxChatText = 20000
 
 // ownTopic is a topic of the actor's workspace.
-func (ch *Service) ownTopic(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.ChatTopic, error) {
+func (s *Service) ownTopic(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.ChatTopic, error) {
 	t, err := q.GetTopic(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && t.WorkspaceID != act.Workspace {
 		return t, registry.NotFound("no chat topic %d", id)
@@ -110,7 +110,7 @@ type chatSendIn struct {
 	Model    string   `opt:"" desc:"The model the replies of the topic go on from now; the master's model when omitted on a new topic"`
 }
 
-func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (any, error) {
+func (s *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (any, error) {
 	text := strings.TrimSpace(in.Text)
 	switch {
 	case text == "":
@@ -118,40 +118,40 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 	case len(text) > maxChatText:
 		return nil, registry.Invalid("a message is at most %d bytes", maxChatText)
 	}
-	var s screenContext
+	var it screenContext
 	if strings.TrimSpace(in.Screen) != "" {
-		if err := json.Unmarshal([]byte(in.Screen), &s); err != nil {
+		if err := json.Unmarshal([]byte(in.Screen), &it); err != nil {
 			return nil, registry.Invalid("screen is a JSON object: %v", err)
 		}
 	}
 	if in.RetryKey != "" {
-		if old, err := ch.St.Q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: act.Workspace, RetryKey: in.RetryKey}); err == nil {
-			return ch.sent(ctx, old), nil
+		if old, err := s.St.Q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: act.Workspace, RetryKey: in.RetryKey}); err == nil {
+			return s.sent(ctx, old), nil
 		}
 	}
-	s.Files = nil
+	it.Files = nil
 	for _, f := range in.Files {
 		id, err := strconv.ParseInt(f, 10, 64)
 		if err != nil {
 			return nil, registry.Invalid("a file is the id of an upload: %q", f)
 		}
-		s.Files = append(s.Files, id)
+		it.Files = append(it.Files, id)
 	}
 	screen := ""
-	if b, _ := json.Marshal(s); string(b) != "{}" {
+	if b, _ := json.Marshal(it); string(b) != "{}" {
 		screen = string(b)
 	}
-	master, err := access.Master(ctx, ch.St.Q, act.Workspace)
+	master, err := access.Master(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
 	if in.Model != "" {
-		if err := ch.topicModel(ctx, master, in.Model); err != nil {
+		if err := s.topicModel(ctx, master, in.Model); err != nil {
 			return nil, err
 		}
 	}
 	var msg db.ChatMessage
-	err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if in.RetryKey != "" {
 			old, err := q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: act.Workspace, RetryKey: in.RetryKey})
 			if err == nil {
@@ -165,7 +165,7 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 		var t db.ChatTopic
 		var err error
 		if in.Topic != 0 {
-			if t, err = ch.ownTopic(ctx, q, act, in.Topic); err != nil {
+			if t, err = s.ownTopic(ctx, q, act, in.Topic); err != nil {
 				return err
 			}
 		} else if t, err = q.CreateTopic(ctx, db.CreateTopicParams{WorkspaceID: act.Workspace, Title: topicTitle(text)}); err != nil {
@@ -176,10 +176,10 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 				return err
 			}
 		}
-		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(ch.Now()), TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
+		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
 			return err
 		}
-		for _, id := range s.Files {
+		for _, id := range it.Files {
 			n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: FileOwner, OwnerID: msg.ID, ID: id, ProjectID: master.ID, FromKind: "upload", FromID: 0})
 			if err != nil {
 				return err
@@ -188,31 +188,31 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 				return registry.NotFound("no upload %d of project master", id)
 			}
 		}
-		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(ch.Now()), ID: t.ID})
+		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: t.ID})
 	})
 	if err != nil {
 		return nil, err
 	}
-	return ch.sent(ctx, msg), nil
+	return s.sent(ctx, msg), nil
 }
 
 // sent wakes the master for a message of the owner and says where it went.
-func (ch *Service) sent(ctx context.Context, msg db.ChatMessage) map[string]any {
-	ch.pump(context.WithoutCancel(ctx), msg.TopicID)
+func (s *Service) sent(ctx context.Context, msg db.ChatMessage) map[string]any {
+	s.pump(context.WithoutCancel(ctx), msg.TopicID)
 	out := map[string]any{"topic": msg.TopicID, "message": msg.ID}
-	if m, err := ch.St.Q.GetMessage(ctx, msg.ID); err == nil && m.ProcessID != 0 {
+	if m, err := s.St.Q.GetMessage(ctx, msg.ID); err == nil && m.ProcessID != 0 {
 		out["process"] = m.ProcessID
 	}
 	return out
 }
 
 // topicModel refuses a model the master's replies cannot run on.
-func (ch *Service) topicModel(ctx context.Context, master db.Project, model string) error {
-	cmd, err := ch.replyCommand(ctx, master.ID)
+func (s *Service) topicModel(ctx context.Context, master db.Project, model string) error {
+	cmd, err := s.replyCommand(ctx, master.ID)
 	if err != nil {
 		return err
 	}
-	if able := ch.Able(ctx, master.WorkspaceID, cmd); !slices.Contains(able, model) {
+	if able := s.Able(ctx, master.WorkspaceID, cmd); !slices.Contains(able, model) {
 		return registry.Invalid("the master's replies do not run on %q; one of: %s", model, strings.Join(able, ", "))
 	}
 	return nil
@@ -224,18 +224,18 @@ type chatTopicModelIn struct {
 }
 
 // chatTopicModel sets the model a topic keeps; a reply going on keeps its own.
-func (ch *Service) chatTopicModel(ctx context.Context, act registry.Actor, in chatTopicModelIn) (any, error) {
-	master, err := access.Master(ctx, ch.St.Q, act.Workspace)
+func (s *Service) chatTopicModel(ctx context.Context, act registry.Actor, in chatTopicModelIn) (any, error) {
+	master, err := access.Master(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
 	if in.Model != "" {
-		if err := ch.topicModel(ctx, master, in.Model); err != nil {
+		if err := s.topicModel(ctx, master, in.Model); err != nil {
 			return nil, err
 		}
 	}
-	err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := ch.ownTopic(ctx, q, act, in.Topic); err != nil {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if _, err := s.ownTopic(ctx, q, act, in.Topic); err != nil {
 			return err
 		}
 		return q.SetTopicModel(ctx, db.SetTopicModelParams{Model: in.Model, ID: in.Topic})
@@ -251,9 +251,9 @@ type chatTopicArchiveIn struct {
 	Archived bool  `desc:"Archive when true, bring back when false"`
 }
 
-func (ch *Service) chatTopicArchive(ctx context.Context, act registry.Actor, in chatTopicArchiveIn) (any, error) {
-	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := ch.ownTopic(ctx, q, act, in.Topic); err != nil {
+func (s *Service) chatTopicArchive(ctx context.Context, act registry.Actor, in chatTopicArchiveIn) (any, error) {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if _, err := s.ownTopic(ctx, q, act, in.Topic); err != nil {
 			return err
 		}
 		_, err := q.ArchiveTopic(ctx, db.ArchiveTopicParams{Archived: store.Bool(in.Archived), ID: in.Topic})
@@ -269,22 +269,22 @@ type chatTopicDeleteIn struct {
 	Topic int64 `desc:"Chat topic"`
 }
 
-func (ch *Service) chatTopicDelete(ctx context.Context, act registry.Actor, in chatTopicDeleteIn) (any, error) {
-	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := ch.ownTopic(ctx, q, act, in.Topic); err != nil {
+func (s *Service) chatTopicDelete(ctx context.Context, act registry.Actor, in chatTopicDeleteIn) (any, error) {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if _, err := s.ownTopic(ctx, q, act, in.Topic); err != nil {
 			return err
 		}
-		_, err := q.DeleteTopic(ctx, db.DeleteTopicParams{DeletedAt: sql.NullString{String: store.Time(ch.Now()), Valid: true}, ID: in.Topic})
+		_, err := q.DeleteTopic(ctx, db.DeleteTopicParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: in.Topic})
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	ch.start.Lock()
-	p, err := ch.St.Q.OpenTopicProcess(ctx, in.Topic)
-	ch.start.Unlock()
+	s.start.Lock()
+	p, err := s.St.Q.OpenTopicProcess(ctx, in.Topic)
+	s.start.Unlock()
 	if err == nil {
-		_ = ch.Runner.Cancel(ctx, p.ID, "deck: the owner deleted the chat topic", act.Kind == registry.Owner)
+		_ = s.Runner.Cancel(ctx, p.ID, "deck: the owner deleted the chat topic", act.Kind == registry.Owner)
 	}
 	return map[string]any{"topic": in.Topic, "deleted": true}, nil
 }
@@ -294,10 +294,10 @@ type chatMessageDeleteIn struct {
 }
 
 // chatMessageDelete deletes a message of the owner with its files while no turn of the master has it.
-func (ch *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in chatMessageDeleteIn) (any, error) {
-	ch.start.Lock()
-	defer ch.start.Unlock()
-	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+func (s *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in chatMessageDeleteIn) (any, error) {
+	s.start.Lock()
+	defer s.start.Unlock()
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		m, err := q.GetMessage(ctx, in.Message)
 		if errors.Is(err, sql.ErrNoRows) {
 			return registry.NotFound("no message %d", in.Message)
@@ -305,7 +305,7 @@ func (ch *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in
 		if err != nil {
 			return err
 		}
-		if _, err := ch.ownTopic(ctx, q, act, m.TopicID); err != nil {
+		if _, err := s.ownTopic(ctx, q, act, m.TopicID); err != nil {
 			return registry.NotFound("no message %d", in.Message)
 		}
 		switch {
@@ -326,34 +326,34 @@ func (ch *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in
 }
 
 // Commands are the commands of the chat.
-func (ch *Service) Commands() []*registry.Command {
+func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("chat_send", "Tell the master",
 			"Sends the owner's message to the master in a chat topic, a new one when none is given; the master's reply comes into the same topic.",
-			registry.OwnerOnly, ch.chatSend),
+			registry.OwnerOnly, s.chatSend),
 		registry.Read("chat_get", "Chat",
 			"Gives the topic picked of the chat with the master as a chat block shows it: its messages, the replies they got and how they went, and its buttons; a topic without messages suggests what to ask.",
-			registry.OwnerOnly, ch.chat).On("chat", "processes", "feed", "collection", "models"),
+			registry.OwnerOnly, s.chat).On("chat", "processes", "feed", "collection", "models"),
 		registry.Read("chat_topics_list", "Chat topics",
 			"Gives the topics of the chat with the master, the archived apart, with the models its replies may go on.",
-			registry.OwnerOnly, ch.chatTopics).On("chat", "processes", "models", "assignments", "health"),
+			registry.OwnerOnly, s.chatTopics).On("chat", "processes", "models", "assignments", "health"),
 		registry.Read("chat_turn_get", "Chat turn",
 			"Gives the turn going on in a topic of the chat with the master: the lines of its log, the processes it started, its questions and what it waits for the owner to decide.",
-			registry.OwnerOnly, ch.chatTurn).On("log", "asks", "processes"),
+			registry.OwnerOnly, s.chatTurn).On("log", "asks", "processes"),
 		registry.Def("chat_topic_archive", "Archive topic",
 			"Archives a chat topic or brings it back; a new message brings it back too.",
-			registry.OwnerOnly, ch.chatTopicArchive),
+			registry.OwnerOnly, s.chatTopicArchive),
 		registry.Def("chat_message_delete", "Delete message",
 			"Deletes a message of the owner with its files while the master has not taken it; a message a turn took stays.",
-			registry.OwnerOnly, ch.chatMessageDelete),
+			registry.OwnerOnly, s.chatMessageDelete),
 		registry.Def("chat_retry", "Answer again on another provider",
 			"Answers the messages of a reply that broke off once more, on another provider the master may use, for this reply only.",
-			registry.OwnerOnly, ch.chatRetry),
+			registry.OwnerOnly, s.chatRetry),
 		registry.Def("chat_topic_model_set", "Pick the model of a topic",
 			"Sets the model the master's replies in a chat topic go on from the next one; empty brings back the master's own model.",
-			registry.OwnerOnly, ch.chatTopicModel),
+			registry.OwnerOnly, s.chatTopicModel),
 		registry.Def("chat_topic_delete", "Delete topic",
 			"Deletes a chat topic with its messages and stops its reply if one is going.",
-			registry.OwnerOnly, ch.chatTopicDelete),
+			registry.OwnerOnly, s.chatTopicDelete),
 	}
 }

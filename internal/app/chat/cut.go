@@ -48,12 +48,12 @@ func stopped(p db.Process) bool {
 }
 
 // cut is what a broken or stopped reply left and how it can go again; nil for one that ended by itself.
-func (ch *Service) cut(ctx context.Context, p db.Process, message int64, tr func(string) string) *cutView {
+func (s *Service) cut(ctx context.Context, p db.Process, message int64, tr func(string) string) *cutView {
 	if !broke(p) && !stopped(p) {
 		return nil
 	}
-	tools, _ := ch.Runner.Tail(p.ID, workLines, "tool")
-	v := &cutView{Stopped: stopped(p), Steps: len(tools), Said: ch.Runner.Said(p.ID), Did: process.Did(ctx, ch.St.Q, p.ID),
+	tools, _ := s.Runner.Tail(p.ID, workLines, "tool")
+	v := &cutView{Stopped: stopped(p), Steps: len(tools), Said: s.Runner.Said(p.ID), Did: process.Did(ctx, s.St.Q, p.ID),
 		Retry: []action{}}
 	why := p.ErrorType
 	if p.State == process.StateInterrupted {
@@ -62,12 +62,12 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64, tr func
 	if why = fault.Said(why); why != "" && !v.Stopped {
 		v.Reason = tr(why)
 	}
-	v.Undo = ch.undos(ctx, p.ID)
+	v.Undo = s.undos(ctx, p.ID)
 	if v.Stopped {
 		v.Retry = append(v.Retry, chatAction("continue", registry.Deck("chat_retry"), map[string]any{"message": message, "provider": p.Provider}))
 		return v
 	}
-	for _, name := range ch.others(ctx, p) {
+	for _, name := range s.others(ctx, p) {
 		a := chatAction("retry", registry.Deck("chat_retry"), map[string]any{"message": message, "provider": name})
 		a["label"] = name
 		v.Retry = append(v.Retry, a)
@@ -76,9 +76,9 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64, tr func
 }
 
 // undos are what a process left that the owner can take back, each with its button.
-func (ch *Service) undos(ctx context.Context, processID int64) []undoView {
+func (s *Service) undos(ctx context.Context, processID int64) []undoView {
 	out := []undoView{}
-	left, err := process.LeftBy(ctx, ch.St.Q, processID)
+	left, err := process.LeftBy(ctx, s.St.Q, processID)
 	if err != nil {
 		slog.Error("what a process left", "process", processID, "err", err)
 	}
@@ -102,21 +102,21 @@ func (ch *Service) undos(ctx context.Context, processID int64) []undoView {
 }
 
 // others are the providers the master's reply may go again on, but the one it broke on.
-func (ch *Service) others(ctx context.Context, p db.Process) []string {
-	cmd, err := ch.replyCommand(ctx, p.ProjectID)
+func (s *Service) others(ctx context.Context, p db.Process) []string {
+	cmd, err := s.replyCommand(ctx, p.ProjectID)
 	if err != nil {
 		return nil
 	}
-	return slices.DeleteFunc(ch.Fits(ctx, p.ProjectID, cmd), func(n string) bool { return n == p.Provider })
+	return slices.DeleteFunc(s.Fits(ctx, p.ProjectID, cmd), func(n string) bool { return n == p.Provider })
 }
 
 // replyCommand is the command of the master that answers the owner.
-func (ch *Service) replyCommand(ctx context.Context, masterID int64) (*manifest.Command, error) {
-	p, err := ch.St.Q.GetProject(ctx, masterID)
+func (s *Service) replyCommand(ctx context.Context, masterID int64) (*manifest.Command, error) {
+	p, err := s.St.Q.GetProject(ctx, masterID)
 	if err != nil {
 		return nil, err
 	}
-	m, err := docs.Manifest(ctx, ch.St.Q, p)
+	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
 		return nil, err
 	}
@@ -138,34 +138,34 @@ type chatRetryIn struct {
 }
 
 // chatRetry answers the messages of a broken reply again on another provider; the topic keeps its own after it.
-func (ch *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRetryIn) (any, error) {
-	m, err := ch.St.Q.GetMessage(ctx, in.Message)
+func (s *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRetryIn) (any, error) {
+	m, err := s.St.Q.GetMessage(ctx, in.Message)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && m.ProcessID == 0 {
 		return nil, registry.NotFound("no reply of message %d", in.Message)
 	}
 	if err != nil {
 		return nil, err
 	}
-	t, err := ch.ownTopic(ctx, ch.St.Q, act, m.TopicID)
+	t, err := s.ownTopic(ctx, s.St.Q, act, m.TopicID)
 	if err != nil {
 		return nil, registry.NotFound("no message %d", in.Message)
 	}
-	p, err := ch.St.Q.GetProcess(ctx, m.ProcessID)
+	p, err := s.St.Q.GetProcess(ctx, m.ProcessID)
 	if err != nil {
 		return nil, err
 	}
-	if mp, err := access.Master(ctx, ch.St.Q, t.WorkspaceID); err != nil || mp.ID != p.ProjectID || !broke(p) && !stopped(p) {
+	if mp, err := access.Master(ctx, s.St.Q, t.WorkspaceID); err != nil || mp.ID != p.ProjectID || !broke(p) && !stopped(p) {
 		return nil, registry.Conflict("the reply of message %d did not break off and was not stopped", in.Message)
 	}
 	switch {
 	case stopped(p) && in.Provider != p.Provider:
 		return nil, registry.Invalid("a stopped reply goes on on its own provider %s", p.Provider)
-	case broke(p) && !slices.Contains(ch.others(ctx, p), in.Provider):
+	case broke(p) && !slices.Contains(s.others(ctx, p), in.Provider):
 		return nil, registry.Invalid("%s is not another provider the master may answer on now", in.Provider)
 	}
-	note := ch.Runner.HandOnNote(ctx, p, p.Provider, untrusted.Line(p.Error, 300))
-	ch.start.Lock()
-	err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	note := s.Runner.HandOnNote(ctx, p, p.Provider, untrusted.Line(p.Error, 300))
+	s.start.Lock()
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		n, err := q.ReleaseMessages(ctx, db.ReleaseMessagesParams{TopicID: t.ID, ProcessID: p.ID})
 		if err == nil && n == 0 {
 			err = registry.Conflict("the messages of this reply went to another one already")
@@ -173,26 +173,26 @@ func (ch *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRet
 		return err
 	})
 	if err == nil {
-		ch.mu.Lock()
-		if ch.again == nil {
-			ch.again = map[int64]again{}
+		s.mu.Lock()
+		if s.again == nil {
+			s.again = map[int64]again{}
 		}
-		ch.again[t.ID] = again{provider: in.Provider, note: strings.TrimSpace(note), follows: p.ID}
-		ch.mu.Unlock()
+		s.again[t.ID] = again{provider: in.Provider, note: strings.TrimSpace(note), follows: p.ID}
+		s.mu.Unlock()
 	}
-	ch.start.Unlock()
+	s.start.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	ch.Go(func(context.Context) { ch.pump(context.WithoutCancel(ctx), t.ID) })
+	s.Go(func(context.Context) { s.pump(context.WithoutCancel(ctx), t.ID) })
 	return map[string]any{"topic": t.ID, "provider": in.Provider}, nil
 }
 
 // againOf takes the provider and note a topic's next reply goes with, once.
-func (ch *Service) againOf(topic int64) again {
-	ch.mu.Lock()
-	defer ch.mu.Unlock()
-	a := ch.again[topic]
-	delete(ch.again, topic)
+func (s *Service) againOf(topic int64) again {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a := s.again[topic]
+	delete(s.again, topic)
 	return a
 }

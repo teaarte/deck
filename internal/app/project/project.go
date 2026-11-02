@@ -63,6 +63,6 @@ type Service struct {
 }
 
 // Commands are the commands of projects.
-func (pj *Service) Commands() []*registry.Command {
-	return slices.Concat(pj.projectsCommands(), pj.importCommands(), pj.startersCommands(), pj.draftsCommands(), pj.projectDeleteCommands(), pj.manifestCommands())
+func (s *Service) Commands() []*registry.Command {
+	return slices.Concat(s.projectsCommands(), s.importCommands(), s.startersCommands(), s.draftsCommands(), s.projectDeleteCommands(), s.manifestCommands())
 }

@@ -16,22 +16,22 @@ import (
 
 // Skills returns the files of the named skills by path under the skill folder; a project skill hides a
 // workspace skill of the same name.
-func (dc *Service) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error) {
+func (s *Service) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
-	p, err := dc.St.Q.GetProject(ctx, projectID)
+	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := dc.St.Q.ListSkillFiles(ctx, db.ListSkillFilesParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
+	rows, err := s.St.Q.ListSkillFiles(ctx, db.ListSkillFilesParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
 	if err != nil {
 		return nil, err
 	}
 	has := map[string]bool{}
 	for _, r := range rows {
-		if s := docs.SkillOf(r.Name); s != "" && r.Name == docs.SkillsDir+s+"/SKILL.md" {
-			has[fmt.Sprint(r.ProjectID, "/", s)] = true
+		if str := docs.SkillOf(r.Name); str != "" && r.Name == docs.SkillsDir+str+"/SKILL.md" {
+			has[fmt.Sprint(r.ProjectID, "/", str)] = true
 		}
 	}
 	out := map[string]string{}
@@ -53,19 +53,19 @@ func (dc *Service) Skills(ctx context.Context, projectID int64, names []string) 
 
 // SeedSkills ships the skills built into deck as skills of every workspace with docs.Ship; the master gets a note of
 // each edit deck could not carry whole.
-func (dc *Service) SeedSkills(ctx context.Context) error {
+func (s *Service) SeedSkills(ctx context.Context) error {
 	files, err := docs.Files(skills.FS, docs.SkillsDir, func(string) string { return docs.KindSkill })
 	if err != nil {
 		return err
 	}
 	files = slices.DeleteFunc(files, func(f docs.File) bool { return docs.SkillOf(f.Name) == "" })
-	ws, err := dc.St.Q.ListWorkspaces(ctx)
+	ws, err := s.St.Q.ListWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
 	for _, w := range ws {
-		err := dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			done, err := docs.Ship(ctx, q, docs.Scope{Workspace: w}, docs.SkillsDir, files, dc.Now())
+		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			done, err := docs.Ship(ctx, q, docs.Scope{Workspace: w}, docs.SkillsDir, files, s.Now())
 			if err != nil || len(done.Notes) == 0 {
 				return err
 			}
@@ -74,7 +74,7 @@ func (dc *Service) SeedSkills(ctx context.Context) error {
 				return err
 			}
 			for _, n := range done.Notes {
-				if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(dc.Now()), WorkspaceID: w, ProjectID: mp.ID, Text: n}); err != nil {
+				if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: w, ProjectID: mp.ID, Text: n}); err != nil {
 					return err
 				}
 			}

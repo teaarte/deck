@@ -14,12 +14,12 @@ import (
 )
 
 // replyOf is the topic of a reply process of the built-in master, or 0 for any other process.
-func (ch *Service) replyOf(ctx context.Context, p db.Process) int64 {
-	proj, err := ch.St.Q.GetProject(ctx, p.ProjectID)
+func (s *Service) replyOf(ctx context.Context, p db.Process) int64 {
+	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil || proj.Builtin == 0 {
 		return 0
 	}
-	if m, err := docs.Manifest(ctx, ch.St.Q, proj); err != nil || p.Command != m.EventCommand(manifest.OnMessage) {
+	if m, err := docs.Manifest(ctx, s.St.Q, proj); err != nil || p.Command != m.EventCommand(manifest.OnMessage) {
 		return 0
 	}
 	var in struct{ Topic int64 }
@@ -69,8 +69,8 @@ func (h Hook) goOn(ctx context.Context, p db.Process) {
 }
 
 // openQuestion is a question of the owner that the process waits on; a message of the topic answers it.
-func (ch *Service) openQuestion(ctx context.Context, processID int64) int64 {
-	asks, err := ch.St.Q.ListOpenAsksOfProcess(ctx, processID)
+func (s *Service) openQuestion(ctx context.Context, processID int64) int64 {
+	asks, err := s.St.Q.ListOpenAsksOfProcess(ctx, processID)
 	if err != nil {
 		return 0
 	}

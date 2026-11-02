@@ -31,12 +31,12 @@ type todayLine struct {
 }
 
 // today are the lines of the card of Today, read by the reads of deck as the caller.
-func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]todayLine, error) {
+func (s *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]todayLine, error) {
 	ws := words.In(in.Lang)
-	tr := func(s string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, s), a...) }
+	tr := func(str string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, str), a...) }
 	out := []todayLine{}
 	var asks []struct{ What, Allow string }
-	if err := ss.read(ctx, act, "asks_list", map[string]any{"lang": in.Lang}, &asks); err != nil {
+	if err := s.read(ctx, act, "asks_list", map[string]any{"lang": in.Lang}, &asks); err != nil {
 		return nil, err
 	}
 	if n := len(asks); n > 0 {
@@ -50,7 +50,7 @@ func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([
 		Text      string
 		CreatedAt string `json:"created_at"`
 	}
-	if err := ss.read(ctx, act, "feed_list", map[string]any{"kind": "failure", "lang": in.Lang}, &fails); err != nil {
+	if err := s.read(ctx, act, "feed_list", map[string]any{"kind": "failure", "lang": in.Lang}, &fails); err != nil {
 		return nil, err
 	}
 	if n := len(fails); n > 0 {
@@ -65,7 +65,7 @@ func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([
 		Title, Command     string
 		Topic, Since, Word string
 	}
-	if err := ss.read(ctx, act, "processes_list", map[string]any{"open": true, "lang": in.Lang}, &running); err != nil {
+	if err := s.read(ctx, act, "processes_list", map[string]any{"open": true, "lang": in.Lang}, &running); err != nil {
 		return nil, err
 	}
 	for i, p := range running {
@@ -79,8 +79,8 @@ func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([
 		out = append(out, todayLine{ID: "calm", Kind: "calm", Title: tr("All is well: nothing to decide, no failures."), Icon: "check", Tone: "ok"})
 	}
 	// The day is the owner's, by the clock of their machine, as the schedule and the spend count it.
-	y, m, d := ss.Now().Local().Date()
-	done, err := ss.St.Q.CountDoneSince(ctx, db.CountDoneSinceParams{Since: store.Time(time.Date(y, m, d, 0, 0, 0, 0, time.Local)), WorkspaceID: act.Workspace})
+	y, m, d := s.Now().Local().Date()
+	done, err := s.St.Q.CountDoneSince(ctx, db.CountDoneSinceParams{Since: store.Time(time.Date(y, m, d, 0, 0, 0, 0, time.Local)), WorkspaceID: act.Workspace})
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([
 	var spent []struct {
 		CostUSD float64 `json:"cost_usd"`
 	}
-	if err := ss.read(ctx, act, "spend_days_list", map[string]any{"days": 1}, &spent); err == nil {
+	if err := s.read(ctx, act, "spend_days_list", map[string]any{"days": 1}, &spent); err == nil {
 		var sum float64
 		for _, d := range spent {
 			sum += d.CostUSD
@@ -101,7 +101,7 @@ func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([
 		NextAt       string `json:"next_at"`
 		Paused       bool
 	}
-	if err := ss.read(ctx, act, "triggers_list", map[string]any{"lang": in.Lang}, &ts); err != nil {
+	if err := s.read(ctx, act, "triggers_list", map[string]any{"lang": in.Lang}, &ts); err != nil {
 		return nil, err
 	}
 	next := -1
@@ -118,9 +118,9 @@ func (ss *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([
 }
 
 // read calls a read of deck as the caller and takes its result.
-func (ss *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
+func (s *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
 	raw, _ := json.Marshal(input)
-	got, err := ss.Registry.Invoke(ctx, act, registry.Deck(name), raw)
+	got, err := s.Registry.Invoke(ctx, act, registry.Deck(name), raw)
 	if err != nil {
 		return err
 	}

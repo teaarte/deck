@@ -20,7 +20,7 @@ import (
 
 // Changed lists a change of a document by someone other than the owner in an enabled project, with its undo; what is
 // the text without who made it, as a line of the changes of a run counts it.
-func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error {
+func (s *Service) Changed(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error {
 	if act.Kind == registry.Owner {
 		return nil
 	}
@@ -31,7 +31,7 @@ func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Acto
 	if reason != "" {
 		text += ": " + reason
 	}
-	row := db.AddFeedParams{CreatedAt: store.Time(dv.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(), Text: text, Actions: "[]",
+	row := db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(), Text: text, Actions: "[]",
 		Params: "{}", DocumentID: store.ID(prev.ID), Revision: n, ProcessID: store.ID(act.ProcessID), What: what}
 	if prev.Current != 0 {
 		params, _ := json.Marshal(map[string]any{"document": prev.ID, "revision": prev.Current, "if_revision": n,
@@ -137,13 +137,13 @@ func (r *feedRow) parts(f db.Feed, names map[int64]string, ws map[string]string)
 	}
 }
 
-func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
-	pid, err := access.Filter(ctx, dv.St.Q, act, in.Project)
+func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
+	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	if in.Kind == FeedFailure {
-		fails, err := dv.failures(ctx, act, in)
+		fails, err := s.failures(ctx, act, in)
 		slices.SortStableFunc(fails, func(a, b feedRow) int { return strings.Compare(b.CreatedAt, a.CreatedAt) })
 		return append([]feedRow{}, fails...), err
 	}
@@ -151,12 +151,12 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 	if in.Unread {
 		unread = 1
 	}
-	rows, err := dv.St.Q.ListFeed(ctx, db.ListFeedParams{WorkspaceID: act.Workspace, ProjectID: pid, Kind: in.Kind,
+	rows, err := s.St.Q.ListFeed(ctx, db.ListFeedParams{WorkspaceID: act.Workspace, ProjectID: pid, Kind: in.Kind,
 		Unread: unread, Lim: registry.Limit(in.Limit, 50, 500)})
 	if err != nil {
 		return nil, err
 	}
-	names, err := access.Names(ctx, dv.St.Q, act.Workspace)
+	names, err := access.Names(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 			r.parts(f, names, ws)
 		}
 		if f.Kind == FeedChange && f.Repeats > 1 {
-			parts, undo, err := store.Line(ctx, dv.St.Q, f)
+			parts, undo, err := store.Line(ctx, s.St.Q, f)
 			if err != nil {
 				return nil, err
 			}
@@ -205,7 +205,7 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 		out = append(out, r)
 	}
 	if in.Failures {
-		fails, err := dv.failures(ctx, act, in)
+		fails, err := s.failures(ctx, act, in)
 		if err != nil {
 			return nil, err
 		}
@@ -220,7 +220,7 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 
 // failures are the open failures as lines of the feed: the failed runs as the schedule lists them and the failing
 // checks of health not read.
-func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
+func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
 	var runs []struct {
 		ID          int64  `json:"id"`
 		Project     string `json:"project"`
@@ -233,7 +233,7 @@ func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedList
 		Retry       bool   `json:"retry"`
 		Repeats     int64  `json:"repeats"`
 	}
-	if err := dv.read(ctx, act, "processes_list", map[string]any{"project": in.Project, "failed": true, "brief": true, "lang": in.Lang}, &runs); err != nil {
+	if err := s.read(ctx, act, "processes_list", map[string]any{"project": in.Project, "failed": true, "brief": true, "lang": in.Lang}, &runs); err != nil {
 		return nil, err
 	}
 	var checks []struct {
@@ -252,7 +252,7 @@ func (dv *Service) failures(ctx context.Context, act registry.Actor, in feedList
 		Groups    []string `json:"choice_groups"`
 		Trigger   int64    `json:"trigger"`
 	}
-	if err := dv.read(ctx, act, "health_list", map[string]any{"project": in.Project, "lang": in.Lang}, &checks); err != nil {
+	if err := s.read(ctx, act, "health_list", map[string]any{"project": in.Project, "lang": in.Lang}, &checks); err != nil {
 		return nil, err
 	}
 	var out []feedRow
@@ -300,9 +300,9 @@ func failingCheck(kind, subject string) string {
 }
 
 // read calls a read of deck as the caller and takes its rows.
-func (dv *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
+func (s *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
 	raw, _ := json.Marshal(input)
-	got, err := dv.Invoke(ctx, act, registry.Deck(name), raw)
+	got, err := s.Invoke(ctx, act, registry.Deck(name), raw)
 	if err != nil {
 		return err
 	}
@@ -319,12 +319,12 @@ type feedUndoIn struct {
 
 // feedUndo runs the undo of a line of changes as the owner, the last change first, unless a document has changed
 // since; a document changed more than once in the line goes back once, to before the first change.
-func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoIn) (any, error) {
-	r, err := dv.St.Q.GetFeed(ctx, in.Entry)
+func (s *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoIn) (any, error) {
+	r, err := s.St.Q.GetFeed(ctx, in.Entry)
 	if err != nil || r.WorkspaceID != act.Workspace || r.Kind != FeedChange || r.LineID.Valid {
 		return nil, registry.NotFound("no change %d", in.Entry)
 	}
-	_, undoable, err := store.Line(ctx, dv.St.Q, r)
+	_, undoable, err := store.Line(ctx, s.St.Q, r)
 	switch {
 	case err != nil:
 		return nil, err
@@ -333,7 +333,7 @@ func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndo
 	case !undoable:
 		return nil, registry.Invalid("this change has no earlier version to return to")
 	}
-	line, err := dv.St.Q.ListChangeLine(ctx, r.ID)
+	line, err := s.St.Q.ListChangeLine(ctx, r.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -369,7 +369,7 @@ func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndo
 		if !u.call.DocumentID.Valid {
 			continue
 		}
-		d, err := docs.Get(ctx, dv.St.Q, u.call.DocumentID.Int64)
+		d, err := docs.Get(ctx, s.St.Q, u.call.DocumentID.Int64)
 		if err != nil {
 			return nil, err
 		}
@@ -383,10 +383,10 @@ func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndo
 		if u.params != nil {
 			params, _ = json.Marshal(u.params)
 		}
-		if out, err = dv.Invoke(ctx, act, u.call.Command, params); err != nil {
+		if out, err = s.Invoke(ctx, act, u.call.Command, params); err != nil {
 			return nil, err
 		}
-		if err := dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			for _, id := range u.ids {
 				if _, err := q.MarkFeedUndone(ctx, id); err != nil {
 					return err
@@ -397,7 +397,7 @@ func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndo
 			return nil, err
 		}
 	}
-	err = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.MarkFeedUndone(ctx, r.ID)
 		return err
 	})
@@ -410,11 +410,11 @@ type feedReadIn struct {
 }
 
 // feedRead marks a note of the feed read, or every unread one.
-func (dv *Service) feedRead(ctx context.Context, act registry.Actor, in feedReadIn) (any, error) {
+func (s *Service) feedRead(ctx context.Context, act registry.Actor, in feedReadIn) (any, error) {
 	if in.All == (in.Entry != 0) {
 		return nil, registry.Invalid("give the entry of one note, or all")
 	}
-	n, err := store.TxGet(dv.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		if in.All {
 			return q.MarkAllFeedRead(ctx, act.Workspace)
 		}
@@ -430,20 +430,20 @@ func (dv *Service) feedRead(ctx context.Context, act registry.Actor, in feedRead
 }
 
 // Unread is how many notes of the feed the owner has not read.
-func (dv *Service) Unread(ctx context.Context, act registry.Actor) (int64, error) {
-	return dv.St.Q.CountUnreadNotes(ctx, act.Workspace)
+func (s *Service) Unread(ctx context.Context, act registry.Actor) (int64, error) {
+	return s.St.Q.CountUnreadNotes(ctx, act.Workspace)
 }
 
-func (dv *Service) feedCommands() []*registry.Command {
+func (s *Service) feedCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("feed_list", "Feed",
 			"Lists the owner's feed, newest first: notes written with owner_notify, with the screen each opens and its buttons, changes made without the owner, with whether they can be undone, and with failures the open failures.",
-			registry.OwnerSide, dv.feedList).On("feed", "processes", "asks", "projects", "documents", "health", "secrets", "models", "assignments", "triggers"),
+			registry.OwnerSide, s.feedList).On("feed", "processes", "asks", "projects", "documents", "health", "secrets", "models", "assignments", "triggers"),
 		registry.Def("feed_undo", "Undo",
 			"Undoes a change made without the owner, unless the document changed since.",
-			registry.OwnerOnly, dv.feedUndo),
+			registry.OwnerOnly, s.feedUndo),
 		registry.Def("feed_mark_read", "Mark read",
 			"Marks a note of the feed read, or with all every unread one.",
-			registry.OwnerOnly, dv.feedRead),
+			registry.OwnerOnly, s.feedRead),
 	}
 }

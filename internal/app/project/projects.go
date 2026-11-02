@@ -53,20 +53,20 @@ type projectsListIn struct {
 	Lang    string `opt:"" desc:"Language of the titles and words, such as ru; English without one"`
 }
 
-func (pj *Service) projectsList(ctx context.Context, act registry.Actor, in projectsListIn) ([]projectView, error) {
-	ps, err := pj.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
+func (s *Service) projectsList(ctx context.Context, act registry.Actor, in projectsListIn) ([]projectView, error) {
+	ps, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
 	if in.Project != "" {
 		ps = slices.DeleteFunc(ps, func(p db.Project) bool { return p.Name != in.Project })
 	}
-	ms, failed := docs.All(ctx, pj.St.Q, ps)
-	pics, _ := pj.St.Q.ListWorkspacePictures(ctx, db.ListWorkspacePicturesParams{WorkspaceID: act.Workspace, Slot: files.CoverSlot})
-	theme := pj.Theme(ctx, act.Workspace)
+	ms, failed := docs.All(ctx, s.St.Q, ps)
+	pics, _ := s.St.Q.ListWorkspacePictures(ctx, db.ListWorkspacePicturesParams{WorkspaceID: act.Workspace, Slot: files.CoverSlot})
+	theme := s.Theme(ctx, act.Workspace)
 	out := make([]projectView, 0, len(ps))
 	for _, p := range ps {
-		v := pj.viewProject(ctx, p, ms[p.ID], failed[p.ID], in.Lang)
+		v := s.viewProject(ctx, p, ms[p.ID], failed[p.ID], in.Lang)
 		v.Cover = files.CoverOf(pics, p.ID, theme)
 		out = append(out, v)
 	}
@@ -74,21 +74,21 @@ func (pj *Service) projectsList(ctx context.Context, act registry.Actor, in proj
 }
 
 // viewProject is a project as the owner sees it, with its manifest when that loads.
-func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error, lang string) projectView {
+func (s *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error, lang string) projectView {
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []manifest.ScreenLink{},
 		Rights: []string{}, Asks: []string{}, Models: []string{}}
-	fs, _ := pj.St.Q.ListProjectFolders(ctx, p.ID)
+	fs, _ := s.St.Q.ListProjectFolders(ctx, p.ID)
 	v.Folders = make([]folderView, 0, len(fs))
 	for _, f := range fs {
 		v.Folders = append(v.Folders, folderView{Name: f.Name, Path: f.Path})
 	}
-	if prompt, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
+	if prompt, err := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}
 	ws := maps.Clone(words.In(lang))
 	if err != nil {
 		v.ManifestError = err.Error()
-		v.Meta = pj.meta(words.In(lang), v)
+		v.Meta = s.meta(words.In(lang), v)
 		return v
 	}
 	if lang != "" {
@@ -103,16 +103,16 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	if p.Status == store.ProjectDraft {
 		v.Rights, v.Asks = append(v.Rights, rights(m)...), append(v.Asks, m.AskEachTime()...)
 	}
-	if f, err := docs.For(ctx, pj.St.Q, registry.Actor{}, p.ID); err == nil {
+	if f, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID); err == nil {
 		v.Models = append(v.Models, f.Uses()...)
 	}
-	v.Meta = pj.meta(words.In(lang), v)
+	v.Meta = s.meta(words.In(lang), v)
 	return v
 }
 
 // meta is the line of a project under its title in deck's words alone: its state, its network, its folders and what
 // enabling a draft grants and asks.
-func (pj *Service) meta(ws map[string]string, v projectView) string {
+func (s *Service) meta(ws map[string]string, v projectView) string {
 	say := func(phrase string, a ...any) string { return fmt.Sprintf(manifest.Tr(ws, phrase), a...) }
 	parts := []string{manifest.Tr(ws, v.Status)}
 	if v.Paused {
@@ -143,24 +143,24 @@ type projectCreateIn struct {
 	Prompt   string `type:"text" opt:"" desc:"Project md prompt"`
 }
 
-func (pj *Service) projectCreate(ctx context.Context, act registry.Actor, in projectCreateIn) (any, error) {
+func (s *Service) projectCreate(ctx context.Context, act registry.Actor, in projectCreateIn) (any, error) {
 	if strings.TrimSpace(in.Manifest) == "" {
 		in.Manifest = fmt.Sprintf(emptyManifest, manifest.FormatVersion)
 	}
-	p, err := pj.CreateProject(ctx, act, in.Name, []byte(in.Manifest), in.Prompt)
+	p, err := s.CreateProject(ctx, act, in.Name, []byte(in.Manifest), in.Prompt)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"id": p.ID, "name": p.Name}, nil
 }
 
-func (pj *Service) projectsCommands() []*registry.Command {
+func (s *Service) projectsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("projects_list", "List projects",
 			"Lists projects with their description (the first line of the md prompt), screens, folders and what enabling a draft grants.",
-			registry.OwnerSide, pj.projectsList).On("projects", "folders", "documents", "files", "settings"),
+			registry.OwnerSide, s.projectsList).On("projects", "folders", "documents", "files", "settings"),
 		registry.Def("project_create", "Create module",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it is empty.",
-			registry.OwnerSide, pj.projectCreate),
+			registry.OwnerSide, s.projectCreate),
 	}
 }

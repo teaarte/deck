@@ -16,8 +16,8 @@ type revisionView struct {
 	Current   bool   `json:"current"`
 }
 
-func (dc *Service) revisions(ctx context.Context, d db.Document) ([]revisionView, error) {
-	rs, err := dc.St.Q.ListRevisions(ctx, d.ID)
+func (s *Service) revisions(ctx context.Context, d db.Document) ([]revisionView, error) {
+	rs, err := s.St.Q.ListRevisions(ctx, d.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -35,25 +35,25 @@ type documentRevertIn struct {
 	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 }
 
-func (dc *Service) documentRevert(ctx context.Context, act registry.Actor, in documentRevertIn) (any, error) {
-	d, err := dc.readableDocument(ctx, dc.St.Q, act, in.Document)
+func (s *Service) documentRevert(ctx context.Context, act registry.Actor, in documentRevertIn) (any, error) {
+	d, err := s.readableDocument(ctx, s.St.Q, act, in.Document)
 	if err != nil {
 		return nil, err
 	}
-	r, err := docs.Revision(ctx, dc.St.Q, d, in.Revision)
+	r, err := docs.Revision(ctx, s.St.Q, d, in.Revision)
 	if err != nil {
 		return nil, err
 	}
 	reason := docs.RevertReason(r.N, in.Reason)
 	if d.Kind == docs.KindManifest {
-		p, err := dc.St.Q.GetProject(ctx, d.ProjectID.Int64)
+		p, err := s.St.Q.GetProject(ctx, d.ProjectID.Int64)
 		if err != nil {
 			return nil, err
 		}
-		return dc.SaveManifest(ctx, act, p, []byte(r.Text), reason, r.N, in.IfRevision)
+		return s.SaveManifest(ctx, act, p, []byte(r.Text), reason, r.N, in.IfRevision)
 	}
 	var n int64
-	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := docs.RefOf(d)
 		if cur, err := q.GetDocument(ctx, d.ID); err != nil || cur.DeletedAt.Valid || in.IfRevision != 0 && cur.Current != in.IfRevision {
 			switch {
@@ -68,7 +68,7 @@ func (dc *Service) documentRevert(ctx context.Context, act registry.Actor, in do
 		if _, n, changed, err = docs.Save(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil || !changed {
 			return err
 		}
-		return dc.docChanged(ctx, q, act, d, n, reason)
+		return s.docChanged(ctx, q, act, d, n, reason)
 	})
 	if err != nil {
 		return nil, err

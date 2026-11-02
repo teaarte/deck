@@ -32,7 +32,7 @@ var (
 )
 
 // doing is what a call of a turn does in the owner's words and the kind of work it is: read, search, draw or work.
-func (ch *Service) doing(ctx context.Context, workspace int64, title string, tr func(string) string) (string, string) {
+func (s *Service) doing(ctx context.Context, workspace int64, title string, tr func(string) string) (string, string) {
 	tool := strings.TrimPrefix(title, provider.Qualify(""))
 	if t, ok := agentTools[tool]; ok {
 		return tr(t[0]), t[1]
@@ -51,7 +51,7 @@ func (ch *Service) doing(ctx context.Context, workspace int64, title string, tr 
 	if name == "" {
 		return title, act
 	}
-	c, err := ch.Lookup(ctx, workspace, name)
+	c, err := s.Lookup(ctx, workspace, name)
 	if err != nil {
 		return title, act
 	}

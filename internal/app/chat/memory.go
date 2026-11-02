@@ -17,18 +17,18 @@ import (
 
 // Memory is what a fresh session of a process gets of the memory: the index of its own project, as data; an
 // agent of the master gets the owner's index and, in a topic about a project, the index of that project.
-func (ch *Service) Memory(ctx context.Context, p db.Process) (string, error) {
-	proj, err := ch.St.Q.GetProject(ctx, p.ProjectID)
+func (s *Service) Memory(ctx context.Context, p db.Process) (string, error) {
+	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {
 		return "", err
 	}
 	if proj.Builtin == 1 {
 		var in struct{ Topic int64 }
 		_ = json.Unmarshal([]byte(p.Input), &in)
-		text, _, err := ch.masterMemory(ctx, proj, in.Topic)
+		text, _, err := s.masterMemory(ctx, proj, in.Topic)
 		return text, err
 	}
-	own, _, err := ch.memoryIndex(ctx, proj, "Memory index of project "+proj.Name)
+	own, _, err := s.memoryIndex(ctx, proj, "Memory index of project "+proj.Name)
 	if err != nil || own == "" {
 		return "", err
 	}
@@ -39,15 +39,15 @@ func (ch *Service) Memory(ctx context.Context, p db.Process) (string, error) {
 var languages = map[string]string{"en": "English", "ru": "Russian"}
 
 // masterMemory is the memory an agent of the master gets, with a sign that changes when the memory does.
-func (ch *Service) masterMemory(ctx context.Context, mp db.Project, topic int64) (string, string, error) {
-	own, rev, err := ch.memoryIndex(ctx, mp, "Memory index of the owner")
+func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64) (string, string, error) {
+	own, rev, err := s.memoryIndex(ctx, mp, "Memory index of the owner")
 	if err != nil {
 		return "", "", err
 	}
-	v := struct{ Own, Project, Language string }{Own: own, Language: languages[ch.Language(ctx, mp.WorkspaceID)]}
+	v := struct{ Own, Project, Language string }{Own: own, Language: languages[s.Language(ctx, mp.WorkspaceID)]}
 	sign := fmt.Sprint(rev) + v.Language
-	if cp, ok := ch.topicProject(ctx, topic); ok && cp.ID != mp.ID {
-		idx, crev, err := ch.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", which this topic is about (document_get with project "+cp.Name+")")
+	if cp, ok := s.topicProject(ctx, topic); ok && cp.ID != mp.ID {
+		idx, crev, err := s.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", which this topic is about (document_get with project "+cp.Name+")")
 		if err != nil {
 			return "", "", err
 		}
@@ -59,26 +59,26 @@ func (ch *Service) masterMemory(ctx context.Context, mp db.Project, topic int64)
 
 // topicProject is the project a topic is about, as the list of topics names it: that of the screen of its first
 // message.
-func (ch *Service) topicProject(ctx context.Context, topic int64) (db.Project, bool) {
+func (s *Service) topicProject(ctx context.Context, topic int64) (db.Project, bool) {
 	if topic == 0 {
 		return db.Project{}, false
 	}
-	t, err := ch.St.Q.GetTopic(ctx, topic)
+	t, err := s.St.Q.GetTopic(ctx, topic)
 	if err != nil {
 		return db.Project{}, false
 	}
-	ts, err := ch.topics(ctx, t.WorkspaceID, false, topic, 1, func(s string) string { return s })
+	ts, err := s.topics(ctx, t.WorkspaceID, false, topic, 1, func(str string) string { return str })
 	if err != nil || len(ts) == 0 || ts[0].Project == "" {
 		return db.Project{}, false
 	}
-	p, err := ch.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: t.WorkspaceID, Name: ts[0].Project})
+	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: t.WorkspaceID, Name: ts[0].Project})
 	return p, err == nil
 }
 
 // memoryIndex is the start of the memory index of a project as a block of data with what was cut after it, and
 // its revision; empty without an index.
-func (ch *Service) memoryIndex(ctx context.Context, p db.Project, label string) (string, int64, error) {
-	row, err := ch.St.Q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: docs.MemoryIndex, Kind: docs.KindMemory})
+func (s *Service) memoryIndex(ctx context.Context, p db.Project, label string) (string, int64, error) {
+	row, err := s.St.Q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: docs.MemoryIndex, Kind: docs.KindMemory})
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", 0, nil
 	}

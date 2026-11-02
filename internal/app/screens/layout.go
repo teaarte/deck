@@ -48,13 +48,13 @@ type layoutView struct {
 
 // layout is the layout of a device for its columns: its own, else its own of the nearest wider grid, then of the
 // nearest narrower one, else the newest of any device for the columns, else the order of its own or the newest.
-func (ss *Service) layout(ctx context.Context, act registry.Actor, in layoutIn) (layoutView, error) {
+func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutIn) (layoutView, error) {
 	out := layoutView{Cards: []card{}}
-	ls, err := ss.St.Q.ListLayouts(ctx, act.Workspace)
+	ls, err := s.St.Q.ListLayouts(ctx, act.Workspace)
 	if err != nil {
 		return out, err
 	}
-	names, err := ss.projectNames(ctx, act.Workspace)
+	names, err := s.projectNames(ctx, act.Workspace)
 	if err != nil {
 		return out, err
 	}
@@ -115,7 +115,7 @@ type layoutSetIn struct {
 }
 
 // layoutSet keeps where the cards of a device stand for its columns; a card of no project is dropped.
-func (ss *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutSetIn) (any, error) {
+func (s *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutSetIn) (any, error) {
 	var cards []card
 	if err := json.Unmarshal([]byte(in.Cards), &cards); err != nil {
 		return nil, registry.Invalid("cards are a JSON list of {id, x, y, w, h}: %v", err)
@@ -123,7 +123,7 @@ func (ss *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutS
 	if in.Device == "" || in.Columns < 1 || in.Columns > 24 {
 		return nil, registry.Invalid("a layout is of a device and of 1 to 24 columns")
 	}
-	names, err := ss.projectNames(ctx, act.Workspace)
+	names, err := s.projectNames(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (ss *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutS
 	for id, name := range names {
 		ids[name] = id
 	}
-	paused, err := ss.pausedCards(ctx, act.Workspace, in.Device, in.Columns, cards)
+	paused, err := s.pausedCards(ctx, act.Workspace, in.Device, in.Columns, cards)
 	if err != nil {
 		return nil, err
 	}
@@ -158,9 +158,9 @@ func (ss *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutS
 		}
 	}
 	raw, _ := json.Marshal(keep)
-	err = ss.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.SetLayout(ctx, db.SetLayoutParams{WorkspaceID: act.Workspace, Device: in.Device, Columns: in.Columns, Cards: string(raw),
-			UpdatedAt: store.Time(ss.Now())})
+			UpdatedAt: store.Time(s.Now())})
 	})
 	if err != nil {
 		return nil, err
@@ -169,8 +169,8 @@ func (ss *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutS
 }
 
 // projectNames are the names of the projects of a workspace a card stands for by id, Today under 0.
-func (ss *Service) projectNames(ctx context.Context, workspace int64) (map[int64]string, error) {
-	ps, err := ss.St.Q.ListWorkspaceProjects(ctx, workspace)
+func (s *Service) projectNames(ctx context.Context, workspace int64) (map[int64]string, error) {
+	ps, err := s.St.Q.ListWorkspaceProjects(ctx, workspace)
 	out := map[int64]string{0: Today}
 	for _, p := range ps {
 		if p.Builtin == 0 {
@@ -181,7 +181,7 @@ func (ss *Service) projectNames(ctx context.Context, workspace int64) (map[int64
 }
 
 // order is the order of the projects by the newest layout of any device, in reading order; none without one.
-func (ss *Service) order(ctx context.Context, q *db.Queries, workspace int64) []int64 {
+func (s *Service) order(ctx context.Context, q *db.Queries, workspace int64) []int64 {
 	ls, err := q.ListLayouts(ctx, workspace)
 	if err != nil || len(ls) == 0 {
 		return nil
@@ -205,12 +205,12 @@ func stored(raw string) []storedCard {
 
 // pausedCards are the cards of paused projects the layout of a device kept, which the tiles do not show and a save
 // leaves where they stood for their resume.
-func (ss *Service) pausedCards(ctx context.Context, workspace int64, device string, columns int64, given []card) ([]storedCard, error) {
-	ps, err := ss.St.Q.ListWorkspaceProjects(ctx, workspace)
+func (s *Service) pausedCards(ctx context.Context, workspace int64, device string, columns int64, given []card) ([]storedCard, error) {
+	ps, err := s.St.Q.ListWorkspaceProjects(ctx, workspace)
 	if err != nil {
 		return nil, err
 	}
-	ls, err := ss.St.Q.ListLayouts(ctx, workspace)
+	ls, err := s.St.Q.ListLayouts(ctx, workspace)
 	if err != nil {
 		return nil, err
 	}

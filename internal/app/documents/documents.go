@@ -48,8 +48,8 @@ type documentView struct {
 	Revisions []revisionView `json:"revisions,omitempty"`
 }
 
-func (dc *Service) docView(ctx context.Context, d db.Document) documentView {
-	return view(d, access.Name(ctx, dc.St.Q, d.ProjectID.Int64))
+func (s *Service) docView(ctx context.Context, d db.Document) documentView {
+	return view(d, access.Name(ctx, s.St.Q, d.ProjectID.Int64))
 }
 
 // view is a document as the lists show it, in its project.
@@ -67,13 +67,13 @@ type documentsListIn struct {
 	Record      int64  `type:"record" opt:"" desc:"Only the documents of this record"`
 }
 
-func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in documentsListIn) ([]documentView, error) {
-	var s docs.Scope
+func (s *Service) documentsList(ctx context.Context, act registry.Actor, in documentsListIn) ([]documentView, error) {
+	var sc docs.Scope
 	var err error
 	if in.Project == "" && in.Kind == docs.KindMemory {
-		s, err = dc.memoryScope(ctx, act, "", docs.MemoryIndex)
+		sc, err = s.memoryScope(ctx, act, "", docs.MemoryIndex)
 	} else {
-		s, err = dc.readDocScope(ctx, act, in.Project, "")
+		sc, err = s.readDocScope(ctx, act, in.Project, "")
 	}
 	if err != nil {
 		return nil, err
@@ -84,24 +84,24 @@ func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in doc
 	in.WithDeleted = in.WithDeleted && act.Kind == registry.Owner
 	var ds []db.Document
 	if !in.Deleted {
-		if ds, err = dc.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Kind: in.Kind, RecordID: in.Record}); err != nil {
+		if ds, err = s.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: sc.Workspace, ProjectID: store.ID(sc.Project), Kind: in.Kind, RecordID: in.Record}); err != nil {
 			return nil, err
 		}
 	}
 	if in.Deleted || in.WithDeleted {
-		gone, err := dc.St.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project)})
+		gone, err := s.St.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: sc.Workspace, ProjectID: store.ID(sc.Project)})
 		if err != nil {
 			return nil, err
 		}
 		ds = append(ds, gone...)
 	}
-	out, project := make([]documentView, 0, len(ds)), access.Name(ctx, dc.St.Q, s.Project)
+	out, project := make([]documentView, 0, len(ds)), access.Name(ctx, s.St.Q, sc.Project)
 	for _, d := range ds {
 		if in.Record != 0 && d.RecordID.Int64 != in.Record {
 			continue
 		}
 		p := db.Project{ID: d.ProjectID.Int64, Name: in.Project}
-		if d.ProjectID.Valid && access.MayRead(ctx, dc.St.Q, act, p, "", d.Name) != nil {
+		if d.ProjectID.Valid && access.MayRead(ctx, s.St.Q, act, p, "", d.Name) != nil {
 			continue
 		}
 		out = append(out, view(d, project))
@@ -110,17 +110,17 @@ func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in doc
 }
 
 // readDocScope is where a document read works; another project only as far as reads allow.
-func (dc *Service) readDocScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
+func (s *Service) readDocScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
 	if project == "" {
-		return access.DocScope(ctx, dc.St.Q, act, project)
+		return access.DocScope(ctx, s.St.Q, act, project)
 	}
-	p, err := access.ReadProject(ctx, dc.St.Q, act, project, "", name)
+	p, err := access.ReadProject(ctx, s.St.Q, act, project, "", name)
 	return docs.ProjectScope(p), err
 }
 
 // readableDocument loads a document the actor may read: its own project's, its workspace's, or one that reads
 // in its manifest names.
-func (dc *Service) readableDocument(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.Document, error) {
+func (s *Service) readableDocument(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.Document, error) {
 	d, err := docs.Get(ctx, q, id)
 	if err != nil {
 		return d, err
@@ -148,41 +148,41 @@ type documentGetIn struct {
 }
 
 // withoutProject is the hint of a name missing in a project that the caller finds among the documents of the workspace.
-func (dc *Service) withoutProject(ctx context.Context, act registry.Actor, in documentGetIn) string {
+func (s *Service) withoutProject(ctx context.Context, act registry.Actor, in documentGetIn) string {
 	if in.Project == "" || in.Record != 0 {
 		return ""
 	}
-	s, err := dc.memoryScope(ctx, act, "", in.Name)
-	if err != nil || s.Project != 0 {
+	sc, err := s.memoryScope(ctx, act, "", in.Name)
+	if err != nil || sc.Project != 0 {
 		return ""
 	}
-	if _, err := docs.Find(ctx, dc.St.Q, docs.Ref{Scope: s, Name: in.Name}); err != nil {
+	if _, err := docs.Find(ctx, s.St.Q, docs.Ref{Scope: sc, Name: in.Name}); err != nil {
 		return ""
 	}
 	return fmt.Sprintf(" in project %s; it is a document of the workspace: leave out project", in.Project)
 }
 
-func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (documentView, error) {
+func (s *Service) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (documentView, error) {
 	var d db.Document
 	var err error
 	switch {
 	case in.Document != 0:
-		d, err = dc.readableDocument(ctx, dc.St.Q, act, in.Document)
+		d, err = s.readableDocument(ctx, s.St.Q, act, in.Document)
 	case in.Name != "":
-		var s docs.Scope
+		var sc docs.Scope
 		if in.Project == "" {
-			s, err = dc.memoryScope(ctx, act, "", in.Name)
+			sc, err = s.memoryScope(ctx, act, "", in.Name)
 		} else {
-			s, err = dc.readDocScope(ctx, act, in.Project, in.Name)
+			sc, err = s.readDocScope(ctx, act, in.Project, in.Name)
 		}
-		ref := docs.Ref{Scope: s, Name: in.Name}
+		ref := docs.Ref{Scope: sc, Name: in.Name}
 		if in.Record != 0 {
 			ref.OwnerKind, ref.OwnerID = docs.OwnerRecord, in.Record
 		}
 		if err == nil {
-			d, err = docs.Find(ctx, dc.St.Q, ref)
+			d, err = docs.Find(ctx, s.St.Q, ref)
 			if errors.Is(err, sql.ErrNoRows) {
-				err = registry.NotFound("no document %q%s", in.Name, dc.withoutProject(ctx, act, in))
+				err = registry.NotFound("no document %q%s", in.Name, s.withoutProject(ctx, act, in))
 			}
 		}
 	default:
@@ -191,14 +191,14 @@ func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in docum
 	if err != nil {
 		return documentView{}, err
 	}
-	r, err := docs.Revision(ctx, dc.St.Q, d, in.Revision)
+	r, err := docs.Revision(ctx, s.St.Q, d, in.Revision)
 	if err != nil {
 		return documentView{}, err
 	}
-	v := dc.docView(ctx, d)
+	v := s.docView(ctx, d)
 	v.Revision, v.Text = r.N, r.Text
 	if in.History {
-		v.Revisions, err = dc.revisions(ctx, d)
+		v.Revisions, err = s.revisions(ctx, d)
 	}
 	return v, err
 }
@@ -215,20 +215,20 @@ type documentSaveIn struct {
 	Reason     string   `opt:"" desc:"Why it changed"`
 }
 
-func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in documentSaveIn) (any, error) {
+func (s *Service) documentSave(ctx context.Context, act registry.Actor, in documentSaveIn) (any, error) {
 	if err := ownSave(in.Kind); err != nil {
 		return nil, err
 	}
-	s, err := dc.memoryScope(ctx, act, in.Project, in.Name)
+	sc, err := s.memoryScope(ctx, act, in.Project, in.Name)
 	if err != nil {
 		return nil, err
 	}
 	var d db.Document
-	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		ref := docs.Ref{Scope: s, Name: in.Name}
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		ref := docs.Ref{Scope: sc, Name: in.Name}
 		if in.Record != 0 {
 			rec, err := q.GetRecord(ctx, in.Record)
-			if errors.Is(err, sql.ErrNoRows) || err == nil && (s.Project == 0 || rec.ProjectID != s.Project) {
+			if errors.Is(err, sql.ErrNoRows) || err == nil && (sc.Project == 0 || rec.ProjectID != sc.Project) {
 				return registry.NotFound("no record %d in this project", in.Record)
 			}
 			if err != nil {
@@ -249,7 +249,7 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 		if err := ownSave(in.Kind); err != nil {
 			return err
 		}
-		if err := mayWrite(ctx, q, act, s, in.Kind, in.Name); err != nil {
+		if err := mayWrite(ctx, q, act, sc, in.Kind, in.Name); err != nil {
 			return err
 		}
 		if err := editText(ctx, q, ref, &in); err != nil {
@@ -260,12 +260,12 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 		if d, n, changed, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil || !changed {
 			return err
 		}
-		return dc.docChanged(ctx, q, act, d, n, in.Reason)
+		return s.docChanged(ctx, q, act, d, n, in.Reason)
 	})
 	if err != nil {
 		return nil, err
 	}
-	v := dc.docView(ctx, d)
+	v := s.docView(ctx, d)
 	if kind, _ := docs.Owner(d); d.Name == docs.MemoryIndex && kind == "" {
 		if n := docs.IndexLines(in.Text); n > docs.IndexLimit {
 			v.Warning = fmt.Sprintf("the index has %d lines; only the first %d reach prompts: merge or drop lines, the most important first", n, docs.IndexLimit)
@@ -339,12 +339,12 @@ func editText(ctx context.Context, q *db.Queries, ref docs.Ref, in *documentSave
 }
 
 // memoryScope is access.DocScope, except that memory of no project is the memory of the owner, in project master.
-func (dc *Service) memoryScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
-	s, err := access.DocScope(ctx, dc.St.Q, act, project)
-	if err != nil || s.Project != 0 || !strings.HasPrefix(name, docs.MemoryDir) {
-		return s, err
+func (s *Service) memoryScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
+	sc, err := access.DocScope(ctx, s.St.Q, act, project)
+	if err != nil || sc.Project != 0 || !strings.HasPrefix(name, docs.MemoryDir) {
+		return sc, err
 	}
-	p, err := access.Master(ctx, dc.St.Q, act.Workspace)
+	p, err := access.Master(ctx, s.St.Q, act.Workspace)
 	return docs.ProjectScope(p), err
 }
 
@@ -355,16 +355,16 @@ type documentDeleteIn struct {
 }
 
 // documentDelete hides a document with its revisions; agents delete only the memory of their project.
-func (dc *Service) documentDelete(ctx context.Context, act registry.Actor, in documentDeleteIn) (any, error) {
+func (s *Service) documentDelete(ctx context.Context, act registry.Actor, in documentDeleteIn) (any, error) {
 	var d db.Document
 	var err error
 	switch {
 	case in.Document != 0:
-		d, err = dc.readableDocument(ctx, dc.St.Q, act, in.Document)
+		d, err = s.readableDocument(ctx, s.St.Q, act, in.Document)
 	case in.Name != "":
-		var s docs.Scope
-		if s, err = dc.memoryScope(ctx, act, in.Project, in.Name); err == nil {
-			d, err = docs.Find(ctx, dc.St.Q, docs.Ref{Scope: s, Name: in.Name})
+		var sc docs.Scope
+		if sc, err = s.memoryScope(ctx, act, in.Project, in.Name); err == nil {
+			d, err = docs.Find(ctx, s.St.Q, docs.Ref{Scope: sc, Name: in.Name})
 			if errors.Is(err, sql.ErrNoRows) {
 				err = registry.NotFound("no document %q", in.Name)
 			}
@@ -381,8 +381,8 @@ func (dc *Service) documentDelete(ctx context.Context, act registry.Actor, in do
 	case act.Kind == registry.Agent && (d.Kind != docs.KindMemory || d.ProjectID.Int64 != act.ProjectID):
 		return nil, registry.Refuse("agents delete only the memory of their project")
 	}
-	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(dc.Now()), Valid: true}, ID: d.ID})
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: d.ID})
 		return err
 	})
 	if err != nil {
@@ -396,8 +396,8 @@ type documentRestoreIn struct {
 }
 
 // documentRestore brings a deleted document back as it was.
-func (dc *Service) documentRestore(ctx context.Context, act registry.Actor, in documentRestoreIn) (any, error) {
-	d, err := dc.St.Q.GetDocument(ctx, in.Document)
+func (s *Service) documentRestore(ctx context.Context, act registry.Actor, in documentRestoreIn) (any, error) {
+	d, err := s.St.Q.GetDocument(ctx, in.Document)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && d.WorkspaceID != act.Workspace {
 		return nil, registry.NotFound("no document %d", in.Document)
 	}
@@ -405,7 +405,7 @@ func (dc *Service) documentRestore(ctx context.Context, act registry.Actor, in d
 		return nil, err
 	}
 	var n int64
-	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := docs.Find(ctx, q, docs.RefOf(d)); err == nil {
 			return nil
 		}
@@ -423,28 +423,28 @@ func (dc *Service) documentRestore(ctx context.Context, act registry.Actor, in d
 }
 
 // Commands are the commands of documents.
-func (dc *Service) Commands() []*registry.Command {
+func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("documents_list", "List documents",
 			"Lists documents of a project, or workspace documents when no project is given; deleted ones for the owner when asked.",
-			registry.Everyone, dc.documentsList).Enum("kind", docs.Kinds...).On("documents"),
+			registry.Everyone, s.documentsList).Enum("kind", docs.Kinds...).On("documents"),
 		registry.Read("document_get", "Get document",
 			"Returns a document by id, or by project and name; the current revision unless one is given.",
-			registry.Everyone, dc.documentGet).On("documents"),
+			registry.Everyone, s.documentGet).On("documents"),
 		registry.Def("document_save", "Save document",
 			"Writes a new revision of a document, creating it on first save.",
-			registry.Everyone, dc.documentSave).Enum("kind", docs.Kinds...),
+			registry.Everyone, s.documentSave).Enum("kind", docs.Kinds...),
 		registry.Def("document_delete", "Delete document",
 			"Deletes a document; its revisions stay and the owner can bring it back. Agents delete only the memory of their project.",
-			registry.Everyone, dc.documentDelete),
+			registry.Everyone, s.documentDelete),
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
-			registry.OwnerOnly, dc.documentRestore),
+			registry.OwnerOnly, s.documentRestore),
 		registry.Def("document_revert", "Revert document",
 			"Makes an earlier revision current again as a new revision.",
-			registry.OwnerSide, dc.documentRevert),
+			registry.OwnerSide, s.documentRevert),
 		registry.Def("program_check", "Check programs",
 			"Looks again for the programs the scripts of a project need, after the owner installed one, and updates the health of its commands.",
-			registry.OwnerSide, dc.programsCheck),
+			registry.OwnerSide, s.programsCheck),
 	}
 }

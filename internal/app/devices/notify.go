@@ -39,37 +39,37 @@ type notifyIn struct {
 }
 
 // notify writes a line to the feed of the cockpit; push comes with stage 3. The caller decides whether it is worth it.
-func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) (any, error) {
-	p, err := access.Project(ctx, dv.St.Q, act, in.Project)
+func (s *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(in.Text) == "" {
 		return nil, registry.Invalid("owner_notify needs text")
 	}
-	m, err := docs.Manifest(ctx, dv.St.Q, p)
+	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
 		return nil, err
 	}
 	if name, ok := strings.CutPrefix(in.Screen, DeckPrefix); ok {
-		s := manifest.DeckScreen(name)
+		sc := manifest.DeckScreen(name)
 		switch {
-		case s == nil:
+		case sc == nil:
 			return nil, registry.Invalid("deck has no screen %q", name)
-		case s.Record != "" && in.Record == 0:
-			return nil, registry.Invalid("screen %q of deck shows a %s; give record", name, s.Record)
+		case sc.Record != "" && in.Record == 0:
+			return nil, registry.Invalid("screen %q of deck shows a %s; give record", name, sc.Record)
 		}
 	} else if in.Screen != "" {
-		s := m.Screen(in.Screen)
+		sc := m.Screen(in.Screen)
 		switch {
-		case s == nil:
+		case sc == nil:
 			return nil, registry.Invalid("%s has no screen %q", p.Name, in.Screen)
-		case s.Record != "" && in.Record == 0:
-			return nil, registry.Invalid("screen %q shows a record of %s; give record", in.Screen, s.Record)
-		case s.Record != "":
-			rec, err := dv.St.Q.GetRecord(ctx, in.Record)
-			if err != nil || rec.ProjectID != p.ID || rec.Collection != s.Record {
-				return nil, registry.Invalid("no %s record %d", s.Record, in.Record)
+		case sc.Record != "" && in.Record == 0:
+			return nil, registry.Invalid("screen %q shows a record of %s; give record", in.Screen, sc.Record)
+		case sc.Record != "":
+			rec, err := s.St.Q.GetRecord(ctx, in.Record)
+			if err != nil || rec.ProjectID != p.ID || rec.Collection != sc.Record {
+				return nil, registry.Invalid("no %s record %d", sc.Record, in.Record)
 			}
 		}
 	}
@@ -93,8 +93,8 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 	}
 	raw, _ := json.Marshal(buttons)
 	var id int64
-	at := store.Time(dv.Now())
-	err = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	at := store.Time(s.Now())
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		n, err := q.AddFeed(ctx, db.AddFeedParams{CreatedAt: at, WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedNote, Author: act.Author(),
 			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw), Params: "{}", Cause: strings.TrimSpace(in.Cause),
 			ProcessID: store.ID(act.ProcessID)})
@@ -112,10 +112,10 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 	return map[string]any{"notification": id}, nil
 }
 
-func (dv *Service) notifyCommands() []*registry.Command {
+func (s *Service) notifyCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("owner_notify", "Notify the owner",
 			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
-			registry.Everyone, dv.notify),
+			registry.Everyone, s.notify),
 	}
 }

@@ -91,9 +91,9 @@ func viewFile(f db.File) fileView {
 }
 
 // made are the files a reply and the processes it started kept, in order.
-func (ch *Service) made(ctx context.Context, p db.Process) []fileView {
+func (s *Service) made(ctx context.Context, p db.Process) []fileView {
 	var out []fileView
-	fs, _ := ch.St.Q.ListMadeFiles(ctx, p.ID)
+	fs, _ := s.St.Q.ListMadeFiles(ctx, p.ID)
 	for _, f := range fs {
 		out = append(out, viewFile(f))
 	}
@@ -183,8 +183,8 @@ func viewTopic(t db.ListTopicSummariesRow, tr func(string) string) topicView {
 }
 
 // topics are the summaries of the topics of a workspace, newest first; with topic, that one alone.
-func (ch *Service) topics(ctx context.Context, workspace int64, archived bool, topic, lim int64, tr func(string) string) ([]topicView, error) {
-	rows, err := ch.St.Q.ListTopicSummaries(ctx, db.ListTopicSummariesParams{WorkspaceID: workspace, Archived: store.Bool(archived), Topic: topic, Lim: lim})
+func (s *Service) topics(ctx context.Context, workspace int64, archived bool, topic, lim int64, tr func(string) string) ([]topicView, error) {
+	rows, err := s.St.Q.ListTopicSummaries(ctx, db.ListTopicSummariesParams{WorkspaceID: workspace, Archived: store.Bool(archived), Topic: topic, Lim: lim})
 	if err != nil {
 		return nil, err
 	}
@@ -196,29 +196,29 @@ func (ch *Service) topics(ctx context.Context, workspace int64, archived bool, t
 }
 
 // messages are messages of a topic with the reply each message of the owner got and the files it has.
-func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMessage, ws map[string]string, tr func(string) string) []messageView {
+func (s *Service) messages(ctx context.Context, topic int64, rows []db.ChatMessage, ws map[string]string, tr func(string) string) []messageView {
 	replies := map[int64]*replyView{}
 	files := map[int64][]fileView{}
-	if fs, err := ch.St.Q.ListMessageFiles(ctx, topic); err == nil {
+	if fs, err := s.St.Q.ListMessageFiles(ctx, topic); err == nil {
 		for _, f := range fs {
 			files[f.OwnerID] = append(files[f.OwnerID], viewFile(f))
 		}
 	}
-	ch.mu.Lock()
-	unstarted := ch.unstarted[topic]
-	ch.mu.Unlock()
+	s.mu.Lock()
+	unstarted := s.unstarted[topic]
+	s.mu.Unlock()
 	last := lastOf(rows)
 	out := make([]messageView, 0, len(rows))
 	for _, r := range rows {
 		m := viewMessage(r)
 		if last[r.ProcessID] == r.ID && r.Role == roleMaster {
-			if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
-				m.Work = ch.work(ctx, p, tr)
-				files[r.ID] = append(files[r.ID], ch.made(ctx, p)...)
+			if p, err := s.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
+				m.Work = s.work(ctx, p, tr)
+				files[r.ID] = append(files[r.ID], s.made(ctx, p)...)
 			}
 		}
 		if r.Role == roleDeck {
-			m.Told = ch.told(ctx, r, ws, tr)
+			m.Told = s.told(ctx, r, ws, tr)
 		}
 		m.Files = files[r.ID]
 		if r.Role == roleOwner && r.ProcessID == 0 && unstarted != "" {
@@ -228,9 +228,9 @@ func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMess
 		if r.Role == roleOwner && r.ProcessID != 0 {
 			if _, seen := replies[r.ProcessID]; !seen {
 				replies[r.ProcessID] = nil
-				if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
+				if p, err := s.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
 					replies[r.ProcessID] = viewReply(p, tr)
-					replies[r.ProcessID].Cut = ch.cut(ctx, p, r.ID, tr)
+					replies[r.ProcessID].Cut = s.cut(ctx, p, r.ID, tr)
 				}
 			}
 			m.Reply = replies[r.ProcessID]
@@ -247,13 +247,13 @@ type chatIn struct {
 }
 
 // words put the phrases of the chat in the owner's language.
-func (ch *Service) words(lang string) func(string) string {
+func (s *Service) words(lang string) func(string) string {
 	ws := words.In(lang)
 	return func(phrase string) string { return manifest.Tr(ws, phrase) }
 }
 
 // picked is the topic a read of the chat is of: the one named, none for new, else the newest.
-func (ch *Service) picked(ctx context.Context, workspace int64, topic string, tr func(string) string) (*topicView, error) {
+func (s *Service) picked(ctx context.Context, workspace int64, topic string, tr func(string) string) (*topicView, error) {
 	var id int64
 	switch {
 	case topic == "new":
@@ -265,7 +265,7 @@ func (ch *Service) picked(ctx context.Context, workspace int64, topic string, tr
 		}
 		id = n
 	}
-	ts, err := ch.topics(ctx, workspace, false, id, 1, tr)
+	ts, err := s.topics(ctx, workspace, false, id, 1, tr)
 	if err != nil || len(ts) == 0 {
 		return nil, err
 	}
@@ -273,10 +273,10 @@ func (ch *Service) picked(ctx context.Context, workspace int64, topic string, tr
 }
 
 // chat is the topic picked with its messages as a chat block shows it.
-func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
+func (s *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
 	v := chatView{Messages: []messageView{}, Suggest: []suggestView{}, Send: chatAction("send", registry.Deck("chat_send"), map[string]any{})}
-	tr := ch.words(in.Lang)
-	t, err := ch.picked(ctx, act.Workspace, in.Topic, tr)
+	tr := s.words(in.Lang)
+	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
 	if err != nil {
 		return v, err
 	}
@@ -291,14 +291,14 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 		v.Choose["input"] = "model"
 		v.Delete = chatAction("delete", registry.Deck("chat_topic_delete"), map[string]any{"topic": t.ID})
 		v.Delete["confirm"] = true
-		rows, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 100})
+		rows, err := s.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 100})
 		if err != nil {
 			return v, err
 		}
-		v.Messages = ch.messages(ctx, t.ID, rows, words.In(in.Lang), tr)
+		v.Messages = s.messages(ctx, t.ID, rows, words.In(in.Lang), tr)
 	}
 	if len(v.Messages) == 0 {
-		v.Suggest = ch.suggest(ctx, act.Workspace, in.Project, in.Lang)
+		v.Suggest = s.suggest(ctx, act.Workspace, in.Project, in.Lang)
 	}
 	return v, nil
 }
@@ -308,18 +308,18 @@ type chatTopicsIn struct {
 }
 
 // chatTopics are the topics of the chat with the models of the master.
-func (ch *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) (topicsView, error) {
+func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) (topicsView, error) {
 	var v topicsView
 	var err error
-	tr := ch.words(in.Lang)
-	if v.Topics, err = ch.topics(ctx, act.Workspace, false, 0, 50, tr); err != nil {
+	tr := s.words(in.Lang)
+	if v.Topics, err = s.topics(ctx, act.Workspace, false, 0, 50, tr); err != nil {
 		return v, err
 	}
-	if v.Archived, err = ch.topics(ctx, act.Workspace, true, 0, 20, tr); err != nil {
+	if v.Archived, err = s.topics(ctx, act.Workspace, true, 0, 20, tr); err != nil {
 		return v, err
 	}
-	v.Models, v.Model = ch.models(ctx, act.Workspace)
-	price := ch.Prices(ctx, act.Workspace, in.Lang)
+	v.Models, v.Model = s.models(ctx, act.Workspace)
+	price := s.Prices(ctx, act.Workspace, in.Lang)
 	v.Prices = map[string]string{}
 	for _, m := range append([]string{v.Model}, v.Models...) {
 		if p := price(m); m != "" && p != "" {
@@ -330,28 +330,28 @@ func (ch *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTo
 }
 
 // chatTurn is the turn going on in the topic picked.
-func (ch *Service) chatTurn(ctx context.Context, act registry.Actor, in chatIn) (turnPart, error) {
+func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatIn) (turnPart, error) {
 	v := turnPart{Questions: []questionView{}, Asks: []any{}}
-	tr := ch.words(in.Lang)
-	t, err := ch.picked(ctx, act.Workspace, in.Topic, tr)
+	tr := s.words(in.Lang)
+	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
 	if err != nil || t == nil || t.Reply == nil {
 		return v, err
 	}
 	open := t.Reply
-	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: ch.children(ctx, open.Process, false, tr),
-		Lines: ch.turnLines(ctx, act.Workspace, open.Process, tr), Stop: chatAction("stop", registry.Deck("process_stop"), map[string]any{"process": open.Process}),
+	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: s.children(ctx, open.Process, false, tr),
+		Lines: s.turnLines(ctx, act.Workspace, open.Process, tr), Stop: chatAction("stop", registry.Deck("process_stop"), map[string]any{"process": open.Process}),
 		Open: openProcess(open.Process), Shown: open.Shown}
-	if p, err := ch.St.Q.GetProcess(ctx, open.Process); err == nil {
+	if p, err := s.St.Q.GetProcess(ctx, open.Process); err == nil {
 		v.Turn.StartedAt = cmp.Or(p.ReopenedAt.String, p.StartedAt)
 	}
 	turn := []int64{open.Process}
 	for _, c := range v.Turn.Processes {
 		turn = append(turn, c.ID)
 	}
-	if v.Asks, err = ch.Decisions(ctx, act, turn, in.Lang); err != nil {
+	if v.Asks, err = s.Decisions(ctx, act, turn, in.Lang); err != nil {
 		return v, err
 	}
-	asks, err := ch.St.Q.ListOpenAsksOfProcess(ctx, open.Process)
+	asks, err := s.St.Q.ListOpenAsksOfProcess(ctx, open.Process)
 	if err != nil {
 		return v, err
 	}
@@ -381,26 +381,26 @@ func (ch *Service) chatTurn(ctx context.Context, act registry.Actor, in chatIn) 
 }
 
 // models are the models the master's replies may go on and the one they go on without a model of the topic.
-func (ch *Service) models(ctx context.Context, workspace int64) ([]string, string) {
-	m, err := access.Master(ctx, ch.St.Q, workspace)
+func (s *Service) models(ctx context.Context, workspace int64) ([]string, string) {
+	m, err := access.Master(ctx, s.St.Q, workspace)
 	if err != nil {
 		return []string{}, ""
 	}
-	cmd, err := ch.replyCommand(ctx, m.ID)
+	cmd, err := s.replyCommand(ctx, m.ID)
 	if err != nil {
 		return []string{}, ""
 	}
 	own := ""
-	if pv, err := ch.For(ctx, m.ID, cmd); err == nil {
+	if pv, err := s.For(ctx, m.ID, cmd); err == nil {
 		own = pv.Name()
 	}
-	return ch.Able(ctx, workspace, cmd), own
+	return s.Able(ctx, workspace, cmd), own
 }
 
 // turnLines are the last calls and messages in the log of a process still open, each call with what it does.
-func (ch *Service) turnLines(ctx context.Context, workspace, processID int64, tr func(string) string) []map[string]any {
+func (s *Service) turnLines(ctx context.Context, workspace, processID int64, tr func(string) string) []map[string]any {
 	out := []map[string]any{}
-	lines, _ := ch.Runner.Tail(processID, chatLines, "tool", "tool_update", "message")
+	lines, _ := s.Runner.Tail(processID, chatLines, "tool", "tool_update", "message")
 	said := map[string][2]string{}
 	for _, raw := range lines {
 		var l map[string]any
@@ -411,7 +411,7 @@ func (ch *Service) turnLines(ctx context.Context, workspace, processID int64, tr
 		if title, _ := l["title"].(string); l["kind"] == "tool" && title != "" {
 			d, ok := said[title]
 			if !ok {
-				d[0], d[1] = ch.doing(ctx, workspace, title, tr)
+				d[0], d[1] = s.doing(ctx, workspace, title, tr)
 				said[title] = d
 			}
 			l["doing"], l["act"] = d[0], d[1]
@@ -426,16 +426,16 @@ const suggestions = 3
 
 // suggest are the commands of a module the owner may give without input, its agents' first, by their titles in the
 // owner's language; none without a module.
-func (ch *Service) suggest(ctx context.Context, workspace int64, project, lang string) []suggestView {
+func (s *Service) suggest(ctx context.Context, workspace int64, project, lang string) []suggestView {
 	out := []suggestView{}
 	if project == "" {
 		return out
 	}
-	p, err := ch.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: project})
+	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: project})
 	if err != nil {
 		return out
 	}
-	m, err := docs.Manifest(ctx, ch.St.Q, p)
+	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
 		return out
 	}
@@ -448,12 +448,12 @@ func (ch *Service) suggest(ctx context.Context, workspace int64, project, lang s
 		if c.Title == "" || len(in.Required) > 0 || !slices.Contains(c.Callable(), "owner") {
 			continue
 		}
-		s := suggestView{Icon: "player-play", Text: manifest.Tr(manifest.Words(nil, m, lang), c.Title)}
+		it := suggestView{Icon: "player-play", Text: manifest.Tr(manifest.Words(nil, m, lang), c.Title)}
 		if c.Executor.Type == "agent" {
-			s.Icon = "sparkles"
-			agents = append(agents, s)
+			it.Icon = "sparkles"
+			agents = append(agents, it)
 		} else {
-			rest = append(rest, s)
+			rest = append(rest, it)
 		}
 	}
 	out = append(append(out, agents...), rest...)

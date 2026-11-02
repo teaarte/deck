@@ -18,7 +18,7 @@ import (
 
 // SeedMaster ships the built-in project master into every workspace with docs.Ship; the master gets a note of
 // each edit deck could not carry whole.
-func (pj *Service) SeedMaster(ctx context.Context) error {
+func (s *Service) SeedMaster(ctx context.Context) error {
 	raw, err := fs.ReadFile(master.FS, docs.ManifestName)
 	if err != nil {
 		return err
@@ -31,20 +31,20 @@ func (pj *Service) SeedMaster(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ws, err := pj.St.Q.ListWorkspaces(ctx)
+	ws, err := s.St.Q.ListWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
 	for _, w := range ws {
-		if err := pj.seedMaster(ctx, w, files); err != nil {
+		if err := s.seedMaster(ctx, w, files); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (pj *Service) seedMaster(ctx context.Context, workspace int64, files []docs.File) error {
-	return pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+func (s *Service) seedMaster(ctx context.Context, workspace int64, files []docs.File) error {
+	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -65,12 +65,12 @@ func (pj *Service) seedMaster(ctx context.Context, workspace int64, files []docs
 		if err := health.Clear(ctx, q, health.Of{Workspace: workspace}, health.Master); err != nil {
 			return err
 		}
-		done, err := docs.Ship(ctx, q, docs.ProjectScope(p), "", files, pj.Now())
+		done, err := docs.Ship(ctx, q, docs.ProjectScope(p), "", files, s.Now())
 		if err != nil {
 			return err
 		}
 		for _, n := range done.Notes {
-			if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(pj.Now()), WorkspaceID: workspace, ProjectID: p.ID, Text: n}); err != nil {
+			if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: workspace, ProjectID: p.ID, Text: n}); err != nil {
 				return err
 			}
 		}
@@ -81,6 +81,6 @@ func (pj *Service) seedMaster(ctx context.Context, workspace int64, files []docs
 		if err != nil {
 			return err
 		}
-		return pj.Scheduler.Sync(ctx, q, p.ID, cur)
+		return s.Scheduler.Sync(ctx, q, p.ID, cur)
 	})
 }

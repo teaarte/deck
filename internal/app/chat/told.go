@@ -32,16 +32,16 @@ type toldState struct {
 
 // workTopic is the topic a process of the built-in master other than a reply was started from, or 0; only the
 // master's topic is a topic of the chat.
-func (ch *Service) workTopic(ctx context.Context, p db.Process) (int64, int64) {
+func (s *Service) workTopic(ctx context.Context, p db.Process) (int64, int64) {
 	var in struct{ Topic int64 }
-	if json.Unmarshal([]byte(p.Input), &in) != nil || in.Topic == 0 || ch.replyOf(ctx, p) != 0 {
+	if json.Unmarshal([]byte(p.Input), &in) != nil || in.Topic == 0 || s.replyOf(ctx, p) != 0 {
 		return 0, 0
 	}
-	proj, err := ch.St.Q.GetProject(ctx, p.ProjectID)
+	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil || proj.Builtin == 0 {
 		return 0, 0
 	}
-	t, err := ch.St.Q.GetTopic(ctx, in.Topic)
+	t, err := s.St.Q.GetTopic(ctx, in.Topic)
 	if err != nil || t.WorkspaceID != proj.WorkspaceID {
 		return 0, 0
 	}
@@ -50,8 +50,8 @@ func (ch *Service) workTopic(ctx context.Context, p db.Process) (int64, int64) {
 
 // tell writes once into the topic a work was started from how it ended or what it waits for; the notes the work
 // wrote itself are read then, so the owner is not called twice for one thing.
-func (ch *Service) tell(ctx context.Context, p db.Process) {
-	topic, ws := ch.workTopic(ctx, p)
+func (s *Service) tell(ctx context.Context, p db.Process) {
+	topic, ws := s.workTopic(ctx, p)
 	if topic == 0 {
 		return
 	}
@@ -63,7 +63,7 @@ func (ch *Service) tell(ctx context.Context, p db.Process) {
 	case p.State == process.StateError || p.State == process.StateInterrupted:
 		text = p.Error
 	case !p.FinishedAt.Valid:
-		asks, _ := ch.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
+		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
 		if len(asks) == 0 {
 			return
 		}
@@ -74,15 +74,15 @@ func (ch *Service) tell(ctx context.Context, p db.Process) {
 		}
 	}
 	state, _ := json.Marshal(toldState{State: p.State, ErrorType: p.ErrorType})
-	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: ws, RetryKey: key}); !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(ch.Now()), TopicID: topic, Role: roleDeck,
+		if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: topic, Role: roleDeck,
 			Text: strings.TrimSpace(text), Context: string(state), ProcessID: p.ID, RetryKey: key}); err != nil {
 			return err
 		}
-		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(ch.Now()), ID: topic}); err != nil {
+		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: topic}); err != nil {
 			return err
 		}
 		if !p.FinishedAt.Valid {
@@ -112,26 +112,26 @@ type toldView struct {
 }
 
 // told is the view of a message of deck: the state it was written at, the work it tells of and why that failed.
-func (ch *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]string, tr func(string) string) *toldView {
-	p, err := ch.St.Q.GetProcess(ctx, m.ProcessID)
+func (s *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]string, tr func(string) string) *toldView {
+	p, err := s.St.Q.GetProcess(ctx, m.ProcessID)
 	if err != nil {
 		return nil
 	}
-	var s toldState
-	_ = json.Unmarshal([]byte(m.Context), &s)
+	var it toldState
+	_ = json.Unmarshal([]byte(m.Context), &it)
 	at := p
-	at.State = cmp.Or(s.State, p.State)
+	at.State = cmp.Or(it.State, p.State)
 	question := ""
 	if !slices.Contains(process.Final, at.State) {
 		at.FinishedAt, question = sql.NullString{}, m.Text
 	} else {
 		at.FinishedAt = sql.NullString{String: cmp.Or(p.FinishedAt.String, m.CreatedAt), Valid: true}
 	}
-	proj, _ := ch.St.Q.GetProject(ctx, p.ProjectID)
+	proj, _ := s.St.Q.GetProject(ctx, p.ProjectID)
 	v := &toldView{procView: procView{ID: p.ID, Project: proj.Name, Command: p.Command, State: at.State, Open: openProcess(p.ID),
 		Shown: process.Show(at, question, false, tr)}}
 	if at.State == process.StateError || at.State == process.StateInterrupted {
-		why := s.ErrorType
+		why := it.ErrorType
 		if at.State == process.StateInterrupted {
 			why = cmp.Or(why, fault.DeckRestart)
 		}
@@ -139,13 +139,13 @@ func (ch *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]str
 			v.Reason = tr(why)
 		}
 		v.Error = m.Text
-		if !(p.Kind == process.KindScript && slices.Contains(fault.ByScript, s.ErrorType)) {
+		if !(p.Kind == process.KindScript && slices.Contains(fault.ByScript, it.ErrorType)) {
 			v.Error = manifest.TrText(ws, m.Text)
 		}
 		// Only the message of how the work stands now offers to go on.
-		fs, _ := ch.St.Q.ListFollowers(ctx, store.ID(p.ID))
+		fs, _ := s.St.Q.ListFollowers(ctx, store.ID(p.ID))
 		if m.RetryKey == endKey(p) && p.FinishedAt.Valid && p.State == at.State && len(fs) == 0 {
-			v.Left = ch.undos(ctx, p.ID)
+			v.Left = s.undos(ctx, p.ID)
 			if p.Kind == process.KindAgent && p.SessionID != "" {
 				v.Go = chatAction("continue", registry.Deck("process_rework"), map[string]any{"process": p.ID})
 			}

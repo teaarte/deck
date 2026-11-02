@@ -39,9 +39,9 @@ const workLines = 1000
 
 // children are the processes a reply started, in order; with owed only those that failed or still wait, since one
 // done or stopped by the owner needs nothing of the owner.
-func (ch *Service) children(ctx context.Context, processID int64, owed bool, tr func(string) string) []procView {
+func (s *Service) children(ctx context.Context, processID int64, owed bool, tr func(string) string) []procView {
 	out := []procView{}
-	rows, err := ch.St.Q.ListChildProcesses(ctx, store.ID(processID))
+	rows, err := s.St.Q.ListChildProcesses(ctx, store.ID(processID))
 	if err != nil {
 		return out
 	}
@@ -56,12 +56,12 @@ func (ch *Service) children(ctx context.Context, processID int64, owed bool, tr 
 }
 
 // work is how a finished reply went.
-func (ch *Service) work(ctx context.Context, p db.Process, tr func(string) string) *workView {
+func (s *Service) work(ctx context.Context, p db.Process, tr func(string) string) *workView {
 	if !p.FinishedAt.Valid {
 		return nil
 	}
-	v := &workView{Provider: p.Provider, Processes: ch.children(ctx, p.ID, true, tr)}
-	if calls, err := ch.St.Q.ListTurnCalls(ctx, store.ID(p.ID)); err == nil && len(calls) > 0 {
+	v := &workView{Provider: p.Provider, Processes: s.children(ctx, p.ID, true, tr)}
+	if calls, err := s.St.Q.ListTurnCalls(ctx, store.ID(p.ID)); err == nil && len(calls) > 0 {
 		for _, c := range calls {
 			if c.GenAiResponseModel != "" {
 				v.Model = c.GenAiResponseModel
@@ -76,7 +76,7 @@ func (ch *Service) work(ctx context.Context, p db.Process, tr func(string) strin
 			v.Seconds = int64(to.Sub(from).Round(time.Second) / time.Second)
 		}
 	}
-	tools, _ := ch.Runner.Tail(p.ID, workLines, "tool")
+	tools, _ := s.Runner.Tail(p.ID, workLines, "tool")
 	v.Steps = int64(len(tools))
 	return v
 }

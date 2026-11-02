@@ -90,30 +90,30 @@ type menuIn struct {
 	Lang string `opt:"" desc:"Language of the titles, such as ru; as written without one"`
 }
 
-func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any, error) {
+func (s *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any, error) {
 	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{}, Topics: menuTopics(),
-		Language: ss.Language(ctx, act.Workspace)}
+		Language: s.Language(ctx, act.Workspace)}
 	deckWords := wordsOf(in.Lang, nil)
 	for _, name := range shipped().Menu {
-		s := manifest.DeckScreen(name)
-		out.Deck.Screens = append(out.Deck.Screens, manifest.ScreenLink{Name: name, Title: manifest.Tr(deckWords, s.Title), Icon: s.Icon})
+		sc := manifest.DeckScreen(name)
+		out.Deck.Screens = append(out.Deck.Screens, manifest.ScreenLink{Name: name, Title: manifest.Tr(deckWords, sc.Title), Icon: sc.Icon})
 	}
-	ps, err := ss.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
+	ps, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
 	var asks, running, failing map[string]int64
-	out.Pulse, asks, running, failing = ss.pulse(ctx, act, in.Lang)
+	out.Pulse, asks, running, failing = s.pulse(ctx, act, in.Lang)
 	if out.Pulse.State == "calm" && !slices.ContainsFunc(ps, func(p db.Project) bool { return p.Builtin == 0 }) {
 		out.Pulse.Line = manifest.Tr(deckWords, "Tell Deki what to do: say a task in the chat and Deki builds a module for it, or start with a module below.")
 	}
-	order := ss.order(ctx, ss.St.Q, act.Workspace)
+	order := s.order(ctx, s.St.Q, act.Workspace)
 	slices.SortStableFunc(ps, func(x, y db.Project) int { return rank(order, x.ID) - rank(order, y.ID) })
-	ms, _ := docs.All(ctx, ss.St.Q, ps)
-	pics, _ := ss.St.Q.ListWorkspacePictures(ctx, db.ListWorkspacePicturesParams{WorkspaceID: act.Workspace, Slot: files.CoverSlot})
-	open, _ := ss.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace})
-	triggers, _ := ss.St.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace})
-	theme := ss.Theme(ctx, act.Workspace)
+	ms, _ := docs.All(ctx, s.St.Q, ps)
+	pics, _ := s.St.Q.ListWorkspacePictures(ctx, db.ListWorkspacePicturesParams{WorkspaceID: act.Workspace, Slot: files.CoverSlot})
+	open, _ := s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace})
+	triggers, _ := s.St.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace})
+	theme := s.Theme(ctx, act.Workspace)
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {
@@ -129,9 +129,9 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 			e.Widgets = append(e.Widgets, w.Min)
 		}
 		e.Title, e.Icon, e.Screens = manifest.Nav(p.Name, m, ws)
-		for _, s := range shipped().Project {
-			if s.Record == "" && m.Screen(s.Name) == nil {
-				e.Extra = append(e.Extra, manifest.ScreenLink{Name: s.Name, Title: manifest.Tr(ws, s.Title), Icon: s.Icon})
+		for _, sc := range shipped().Project {
+			if sc.Record == "" && m.Screen(sc.Name) == nil {
+				e.Extra = append(e.Extra, manifest.ScreenLink{Name: sc.Name, Title: manifest.Tr(ws, sc.Title), Icon: sc.Icon})
 			}
 		}
 		if p.Builtin == 1 {
@@ -146,7 +146,7 @@ func (ss *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any
 		}
 		out.Projects = append(out.Projects, e)
 	}
-	out.System = ss.foot(out, in.Lang)
+	out.System = s.foot(out, in.Lang)
 	return out, nil
 }
 
@@ -181,22 +181,22 @@ func rank(order []int64, id int64) int {
 
 // foot are the groups at the foot of the menu: deck's work, the master's screens but its documents, which are a
 // folder of Files, and deck's look and settings; an empty group is left out.
-func (ss *Service) foot(m menuOut, lang string) []menuGroup {
+func (s *Service) foot(m menuOut, lang string) []menuGroup {
 	work := menuGroup{Key: "work", Title: manifest.Tr(words.In(lang), "Work")}
 	settings := menuGroup{Key: "settings"}
-	for _, s := range m.Deck.Screens {
-		if s.Name == "settings" || s.Name == "look" {
-			settings.Links = append(settings.Links, menuLink{ScreenLink: s})
+	for _, link := range m.Deck.Screens {
+		if link.Name == "settings" || link.Name == "look" {
+			settings.Links = append(settings.Links, menuLink{ScreenLink: link})
 		} else {
-			work.Links = append(work.Links, menuLink{ScreenLink: s})
+			work.Links = append(work.Links, menuLink{ScreenLink: link})
 		}
 	}
 	groups := []menuGroup{work}
 	if e := m.Master; e != nil {
 		own := menuGroup{Key: "master", Title: e.Title}
-		for _, s := range append(append([]manifest.ScreenLink{}, e.Screens...), e.Extra...) {
-			if s.Name != "documents" {
-				own.Links = append(own.Links, menuLink{Project: e.Project, ScreenLink: s})
+		for _, link := range append(append([]manifest.ScreenLink{}, e.Screens...), e.Extra...) {
+			if link.Name != "documents" {
+				own.Links = append(own.Links, menuLink{Project: e.Project, ScreenLink: link})
 			}
 		}
 		groups = append(groups, own)

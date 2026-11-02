@@ -3,14 +3,11 @@ package gateway
 import (
 	"context"
 	"net/http"
-	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 )
@@ -50,7 +47,13 @@ func (g *Gateway) ServeAutomation(w http.ResponseWriter, r *http.Request) {
 	s := &Session{Workspace: act.Workspace, Token: act.Token, Commands: act.Commands}
 	e := g.automationEntry(act.Token)
 	if r.Method == http.MethodPost && r.Header.Get("Mcp-Session-Id") == "" {
-		if err := g.refresh(r.Context(), e, s); err != nil {
+		e.mu.Lock()
+		_, tools, err := g.retool(r.Context(), e.server, s, e.tools)
+		if err == nil {
+			e.tools = tools
+		}
+		e.mu.Unlock()
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -66,29 +69,9 @@ func (g *Gateway) automationEntry(token int64) *automationEntry {
 	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: ServerName, Version: "0"}, &mcp.ServerOptions{Instructions: automationInstructions})
 	e := &automationEntry{server: srv}
-	e.handler = provider.Stateful(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
+	e.handler = stateful(func(*http.Request) *mcp.Server { return srv })
 	g.tokens[token] = e
 	return e
-}
-
-// refresh makes the tools of a token's server the commands it may call now; a tool that stays is replaced in
-// place, so live sessions never miss it.
-func (g *Gateway) refresh(ctx context.Context, e *automationEntry, s *Session) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	_, tools, err := g.addCommands(ctx, e.server, s)
-	if err != nil {
-		return err
-	}
-	var gone []string
-	for _, t := range e.tools {
-		if !slices.Contains(tools, t) {
-			gone = append(gone, t)
-		}
-	}
-	e.server.RemoveTools(gone...)
-	e.tools = tools
-	return nil
 }
 
 // CallAs runs a registry command for an automation token, a trigger or a process, with the class rules and the

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"deck2/internal/process"
-	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -69,7 +68,7 @@ func (s *Service) work(ctx context.Context, p db.Process, tr func(string) string
 				v.Model = c.GenAiRequestModel
 			}
 		}
-		v.CostUSD, v.SubscriptionUSD = provider.Spent(calls, func(c db.ListTurnCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
+		v.CostUSD, v.SubscriptionUSD = process.Spent(calls, func(c db.ListTurnCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
 	}
 	if from, err := time.Parse(time.RFC3339Nano, p.StartedAt); err == nil {
 		if to, err := time.Parse(time.RFC3339Nano, p.FinishedAt.String); err == nil {

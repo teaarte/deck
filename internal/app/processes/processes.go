@@ -342,7 +342,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		return processView{}, err
 	}
 	v.Models = modelsOf(calls)
-	v.CostUSD, v.SubscriptionUSD = provider.Spent(calls, func(c db.ListProcessModelCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
+	v.CostUSD, v.SubscriptionUSD = process.Spent(calls, func(c db.ListProcessModelCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
 	if p.Trial != 0 {
 		if v.Left, err = process.LeftBy(ctx, s.St.Q, p.ID); err != nil {
 			return processView{}, err

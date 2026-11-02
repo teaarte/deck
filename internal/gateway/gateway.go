@@ -109,9 +109,14 @@ type entry struct {
 
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
 	g := &Gateway{cfg: cfg, st: st, asks: asks, reg: reg, clear: reg.Clearance(), sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
-	g.handler = provider.Stateful(mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
+	g.handler = stateful(g.serverFor)
 	bus.Follow(cfg.Go, []string{"projects", "tools"}, func(ctx context.Context, _ int64, _ []string) { g.renew(ctx) })
 	return g
+}
+
+// stateful serves the MCP servers of serverFor, whose sessions live an hour.
+func stateful(serverFor func(*http.Request) *mcp.Server) http.Handler {
+	return provider.Stateful(mcp.NewStreamableHTTPHandler(serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
 }
 
 // renew gives every live session with an MCP server the commands it may call now, after a project changed: a new
@@ -128,24 +133,37 @@ func (g *Gateway) renew(ctx context.Context) {
 		if err != nil || commandsOf(cmds) == e.commands {
 			continue
 		}
-		allowed, tools, err := g.addCommands(ctx, e.server, e.session)
+		g.mu.Lock()
+		old := e.tools
+		g.mu.Unlock()
+		allowed, tools, err := g.retool(ctx, e.server, e.session, old)
 		if err != nil {
 			continue
 		}
 		g.mu.Lock()
-		var gone []string
-		for _, t := range e.tools {
-			switch {
-			case t == AskTool || t == SubmitTool:
-				tools, allowed = append(tools, t), append(allowed, provider.Qualify(t))
-			case !slices.Contains(tools, t):
-				gone = append(gone, t)
-			}
-		}
 		e.tools, e.allowed, e.commands = tools, allowed, commandsOf(cmds)
 		g.mu.Unlock()
-		e.server.RemoveTools(gone...)
 	}
+}
+
+// retool makes the tools of srv the commands s may call now, after old: a tool that stays is replaced in place, so
+// live sessions never miss it, one taken out is gone; ask and result_submit stay whatever the commands.
+func (g *Gateway) retool(ctx context.Context, srv *mcp.Server, s *Session, old []string) (allowed, tools []string, err error) {
+	allowed, tools, err = g.addCommands(ctx, srv, s)
+	if err != nil {
+		return nil, nil, err
+	}
+	var gone []string
+	for _, t := range old {
+		switch {
+		case t == AskTool || t == SubmitTool:
+			tools, allowed = append(tools, t), append(allowed, provider.Qualify(t))
+		case !slices.Contains(tools, t):
+			gone = append(gone, t)
+		}
+	}
+	srv.RemoveTools(gone...)
+	return allowed, tools, nil
 }
 
 // Open issues the token of a session: an agent's is part of the MCP URL its provider connects to, a script's opens

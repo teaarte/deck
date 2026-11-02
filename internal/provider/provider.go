@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"slices"
@@ -292,28 +291,6 @@ type CallLimiter interface {
 // Terminal is a provider whose session the owner can go on with in a terminal: the command, in the folder of the turn.
 type Terminal interface {
 	Terminal(project int64, session string) (string, error)
-}
-
-// Spent adds up what calls cost: the paid ones, nil when one has no price or there is none, and apart what those
-// on a subscription would cost, nil when there is none with a price.
-func Spent[T any](calls []T, of func(T) (cost sql.NullFloat64, subscription bool)) (paid, subscribed *float64) {
-	sum, sub, priced, n, m := 0.0, 0.0, true, 0, 0
-	for _, c := range calls {
-		cost, s := of(c)
-		switch {
-		case s && cost.Valid:
-			sub, m = sub+cost.Float64, m+1
-		case !s:
-			sum, priced, n = sum+cost.Float64, priced && cost.Valid, n+1
-		}
-	}
-	if n > 0 && priced {
-		paid = &sum
-	}
-	if m > 0 {
-		subscribed = &sub
-	}
-	return paid, subscribed
 }
 
 // Answer is what deck's proxy of a model answered a call of a turn: the status, its Retry-After, Past for deck's

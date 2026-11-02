@@ -1,4 +1,5 @@
-package devices
+// Package feed reaches the owner: the feed, notes and pushes.
+package feed
 
 import (
 	"cmp"
@@ -8,9 +9,13 @@ import (
 	"hash/fnv"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -18,9 +23,33 @@ import (
 	"deck2/internal/words"
 )
 
-// Changed lists a change of a document by someone other than the owner in an enabled project, with its undo; what is
+// Service reaches the owner. The secrets it keeps are the key of pushes and the one of speech to text; Files are
+// where recordings come in.
+type Service struct {
+	St   *store.Store
+	Now  func() time.Time
+	Home home.Layout
+	// Invoke calls a command, as the undo of a change does.
+	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
+	// Waiting are how many things wait for the owner, by project, as the menu counts them.
+	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
+	// Hidden says the owner's pushes show only the module they are of; Lang is the language the owner picked.
+	Hidden func(ctx context.Context, workspace int64) bool
+	Lang   func(ctx context.Context, workspace int64) string
+	// Tailnet is the https address of deck on the owner's tailnet, empty while it is not on one.
+	Tailnet atomic.Pointer[string]
+
+	pushMu, keyMu sync.Mutex
+}
+
+// Commands are the commands of the feed, notes, pushes and speech to text.
+func (s *Service) Commands() []*registry.Command {
+	return slices.Concat(s.feedCommands(), s.notifyCommands(), s.pushCommands(), s.voiceCommands())
+}
+
+// Noted lists a change of a document by someone other than the owner in an enabled project, with its undo; what is
 // the text without who made it, as a line of the changes of a run counts it.
-func (s *Service) Changed(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error {
+func (s *Service) Noted(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error {
 	if act.Kind == registry.Owner {
 		return nil
 	}

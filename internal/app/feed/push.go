@@ -1,6 +1,6 @@
 // Package devices reaches the owner outside the open client: the feed lines of notify, pushes to devices, and
 // speech turned into text.
-package devices
+package feed
 
 import (
 	"cmp"

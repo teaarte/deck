@@ -24,7 +24,7 @@ func (a *App) addBuiltins() {
 func (a *App) builtins() []*registry.Command {
 	var out []*registry.Command
 	for _, cs := range [][]*registry.Command{a.Answers.Commands(), a.Health.Commands(), a.Signins.Commands(), a.Chats.Commands(),
-		a.Documents.Commands(), a.Devices.Commands(), a.Folders.Commands(), a.Projects.Commands(),
+		a.Documents.Commands(), a.Feed.Commands(), a.Folders.Commands(), a.Projects.Commands(),
 		a.Journal.Commands(),
 		a.Processes.Commands(), a.Providers.Commands(), a.Records.Commands(),
 		a.Screens.Commands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(), a.Themes.Commands(),

@@ -11,7 +11,7 @@ import (
 
 	"deck2/internal/app/asks"
 	"deck2/internal/app/chat"
-	"deck2/internal/app/devices"
+	"deck2/internal/app/feed"
 	"deck2/internal/app/documents"
 	appfiles "deck2/internal/app/files"
 	"deck2/internal/app/folders"
@@ -60,7 +60,7 @@ type App struct {
 	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
 	Providers providers.Service
-	Devices   devices.Service
+	Feed      feed.Service
 	Chats     chat.Service
 	Tokens    tokens.Service
 	Secrets   secrets.Service
@@ -155,7 +155,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Processes.IsFailure(ctx, act, id)
 		}}
 	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Go: a.bg.Go,
-		SaveManifest: a.Projects.Save, Changed: a.Devices.Changed}
+		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted}
 	a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		Expire: a.Records.Expire}
 	a.Providers = providers.Service{St: st, Changed: func(topic string) { a.Bus.Emit(events.Event{Topic: topic}) }, Now: cfg.Now, Home: h, FilesMu: &a.Files.Mu, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
@@ -172,13 +172,13 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
-	a.Devices = devices.Service{St: st, Now: cfg.Now,
+	a.Feed = feed.Service{St: st, Now: cfg.Now,
 		Home: h, Invoke: a.Registry.Invoke, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Settings.Language}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup}
 	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch, Missing: a.Providers.Missing,
 		Works: a.Providers.Works, Places: a.Providers.Places, Go: a.bg.Go}
 	a.Screens = screens.Service{St: st, Now: cfg.Now, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
-		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Devices.Unread, Works: a.Providers.Works,
+		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Feed.Unread, Works: a.Providers.Works,
 		ScreenFailed: a.Processes.Screen, ScreenDrawn: a.Processes.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
@@ -191,7 +191,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, Host: a.Host, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
-		PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.Screens.CheckScreens,
+		PrepareLater: a.Documents.PrepareLater, Noted: a.Feed.Noted, CheckScreens: a.Screens.CheckScreens,
 		Unassigned: a.Providers.Unassigned, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
 		Theme: func(ctx context.Context, ws int64) string { return a.Themes.Current(ctx, ws) }}
 	a.addBuiltins()
@@ -317,7 +317,7 @@ func (a *App) slow(ctx context.Context, now time.Time) {
 	pctx, cancel := context.WithTimeout(ctx, pushTimeout)
 	if spaces, err := a.Store.Q.ListWorkspaces(pctx); err == nil {
 		for _, ws := range spaces {
-			a.Devices.PushNew(pctx, ws)
+			a.Feed.PushNew(pctx, ws)
 		}
 	}
 	cancel()
@@ -367,7 +367,7 @@ func (a *App) Plain(address string, port int) {
 // TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one, its https
 // address once it is on it.
 func (a *App) TailnetHealth(status, text, address string) {
-	a.Devices.Tailnet.Store(&address)
+	a.Feed.Tailnet.Store(&address)
 	if err := health.Write(context.Background(), a.Store, health.Of{}, health.Tailscale, status, text); err != nil {
 		slog.Error("write health", "err", err)
 	}

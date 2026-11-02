@@ -28,7 +28,7 @@ func (s *Service) docChanged(ctx context.Context, q *db.Queries, act registry.Ac
 	if d.Kind == docs.KindScript {
 		what = "script"
 	}
-	return s.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed %s %s", act.Author(), what, d.Name), fmt.Sprintf("changed %s %s", what, d.Name), reason)
+	return s.Noted(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed %s %s", act.Author(), what, d.Name), fmt.Sprintf("changed %s %s", what, d.Name), reason)
 }
 
 // PrepareLater records the health of the script commands of a project in the background.

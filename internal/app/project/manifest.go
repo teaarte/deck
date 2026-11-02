@@ -291,7 +291,7 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 				return err
 			}
 		}
-		if err = s.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), fmt.Sprintf("changed the manifest of %s", p.Name), reason); err != nil {
+		if err = s.Noted(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), fmt.Sprintf("changed the manifest of %s", p.Name), reason); err != nil {
 			return err
 		}
 		return s.Scheduler.Sync(ctx, q, p.ID, pm.m)

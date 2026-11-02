@@ -105,12 +105,12 @@ func (d settingDef) value(text string) (string, error) {
 	return strconv.FormatInt(n, 10), nil
 }
 
-type settingsSetIn struct {
+type settingSetIn struct {
 	Name  string `desc:"The setting to change"`
 	Value string `desc:"Its new value"`
 }
 
-func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settingsSetIn) (any, error) {
+func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settingSetIn) (any, error) {
 	i := slices.IndexFunc(settingDefs, func(d settingDef) bool { return d.name == in.Name })
 	if i < 0 {
 		return nil, registry.Invalid("no setting %q; deck.settings_list names them", in.Name)
@@ -135,7 +135,7 @@ func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settin
 }
 
 // settingRow is a setting of the workspace with its value and its default.
-type settingRow struct {
+type settingView struct {
 	Name    string `json:"name"`
 	Title   string `json:"title"`
 	Value   any    `json:"value"`
@@ -148,11 +148,11 @@ type settingsListIn struct {
 	Lang string `opt:"" desc:"Language of the titles, such as ru; English without one"`
 }
 
-func (s *Service) settingsList(ctx context.Context, act registry.Actor, in settingsListIn) ([]settingRow, error) {
-	out := make([]settingRow, 0, len(settingDefs))
+func (s *Service) settingsList(ctx context.Context, act registry.Actor, in settingsListIn) ([]settingView, error) {
+	out := make([]settingView, 0, len(settingDefs))
 	ws := words.In(in.Lang)
 	for _, d := range settingDefs {
-		out = append(out, settingRow{Name: d.name, Title: cmp.Or(ws[d.title], d.title), Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: append(d.options, d.steps...)})
+		out = append(out, settingView{Name: d.name, Title: cmp.Or(ws[d.title], d.title), Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: append(d.options, d.steps...)})
 	}
 	return out, nil
 }

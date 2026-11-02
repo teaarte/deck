@@ -84,7 +84,7 @@ func (s *Service) tokenCreate(ctx context.Context, act registry.Actor, in tokenC
 }
 
 // tokenRow is an automation token with the commands it may call.
-type tokenRow struct {
+type tokenView struct {
 	ID        int64    `json:"id"`
 	Name      string   `json:"name"`
 	Commands  []string `json:"commands"`
@@ -96,14 +96,14 @@ type tokensListIn struct {
 	Project string `type:"project" opt:"" desc:"Only the tokens that may call a command of this project"`
 }
 
-func (s *Service) tokensList(ctx context.Context, act registry.Actor, in tokensListIn) ([]tokenRow, error) {
+func (s *Service) tokensList(ctx context.Context, act registry.Actor, in tokensListIn) ([]tokenView, error) {
 	ts, err := s.St.Q.ListTokens(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]tokenRow, 0, len(ts))
+	out := make([]tokenView, 0, len(ts))
 	for _, t := range ts {
-		r := tokenRow{ID: t.ID, Name: t.Name, Commands: []string{}, CreatedAt: t.CreatedAt, Revoked: t.RevokedAt.Valid}
+		r := tokenView{ID: t.ID, Name: t.Name, Commands: []string{}, CreatedAt: t.CreatedAt, Revoked: t.RevokedAt.Valid}
 		_ = json.Unmarshal([]byte(t.Commands), &r.Commands)
 		if in.Project != "" && !slices.ContainsFunc(r.Commands, func(c string) bool { return c == "*" || strings.HasPrefix(c, in.Project+".") }) {
 			continue

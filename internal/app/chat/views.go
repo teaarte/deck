@@ -145,7 +145,7 @@ type topicsView struct {
 
 // turnPart is the turn going on in the topic picked: its lines, the questions of its reply and what it and the
 // processes it started wait for the owner to decide.
-type turnPart struct {
+type turnPartView struct {
 	Turn      *turnView      `json:"turn,omitempty"`
 	Questions []questionView `json:"questions"`
 	Asks      any            `json:"asks"`
@@ -240,7 +240,7 @@ func (s *Service) messages(ctx context.Context, topic int64, rows []db.ChatMessa
 	return out
 }
 
-type chatIn struct {
+type chatGetIn struct {
 	Topic   string `opt:"" desc:"Topic id; new for none, the newest without one"`
 	Project string `opt:"" desc:"The module of the screen the owner is on, whose commands a new topic suggests"`
 	Lang    string `opt:"" desc:"Language of the words of the states of replies, such as ru; English without one"`
@@ -273,7 +273,7 @@ func (s *Service) picked(ctx context.Context, workspace int64, topic string, tr 
 }
 
 // chat is the topic picked with its messages as a chat block shows it.
-func (s *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
+func (s *Service) chat(ctx context.Context, act registry.Actor, in chatGetIn) (chatView, error) {
 	v := chatView{Messages: []messageView{}, Suggest: []suggestView{}, Send: chatAction("send", registry.Deck("chat_send"), map[string]any{})}
 	tr := s.words(in.Lang)
 	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
@@ -303,12 +303,12 @@ func (s *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (chat
 	return v, nil
 }
 
-type chatTopicsIn struct {
+type chatTopicsListIn struct {
 	Lang string `opt:"" desc:"Language of the words of the states of replies, such as ru; English without one"`
 }
 
 // chatTopics are the topics of the chat with the models of the master.
-func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) (topicsView, error) {
+func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsListIn) (topicsView, error) {
 	var v topicsView
 	var err error
 	tr := s.words(in.Lang)
@@ -330,8 +330,8 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 }
 
 // chatTurn is the turn going on in the topic picked.
-func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatIn) (turnPart, error) {
-	v := turnPart{Questions: []questionView{}, Asks: []any{}}
+func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatGetIn) (turnPartView, error) {
+	v := turnPartView{Questions: []questionView{}, Asks: []any{}}
 	tr := s.words(in.Lang)
 	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
 	if err != nil || t == nil || t.Reply == nil {

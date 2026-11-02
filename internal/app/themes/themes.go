@@ -129,19 +129,19 @@ func (s *Service) images(ctx context.Context, ws int64, name string) map[string]
 	return out
 }
 
-type themeIn struct {
+type themeGetIn struct {
 	Name string `opt:"" desc:"The theme; the one in use without it"`
 	Lang string `opt:"" desc:"Language of the title, such as ru"`
 }
 
-type lookOut struct {
+type lookView struct {
 	theme.Look
 	Current bool `json:"current"`
 	// Text is the JSON of the theme to start a change from.
 	Text string `json:"text"`
 }
 
-func (s *Service) theme(ctx context.Context, act registry.Actor, in themeIn) (lookOut, error) {
+func (s *Service) theme(ctx context.Context, act registry.Actor, in themeGetIn) (lookView, error) {
 	cur := s.Current(ctx, act.Workspace)
 	name := in.Name
 	if name == "" {
@@ -153,10 +153,10 @@ func (s *Service) theme(ctx context.Context, act registry.Actor, in themeIn) (lo
 		l, err = s.look(ctx, act.Workspace, name, in.Lang)
 	}
 	raw, _, _ := s.text(ctx, s.St.Q, act.Workspace, name)
-	return lookOut{Look: l, Current: name == cur, Text: string(raw)}, err
+	return lookView{Look: l, Current: name == cur, Text: string(raw)}, err
 }
 
-type themeRow struct {
+type themeView struct {
 	Name    string `json:"name"`
 	Title   string `json:"title"`
 	Mood    string `json:"mood"`
@@ -168,11 +168,11 @@ type themeRow struct {
 	Problems []string `json:"problems,omitempty"`
 }
 
-type listIn struct {
+type themesListIn struct {
 	Lang string `opt:"" desc:"Language of the titles, such as ru"`
 }
 
-func (s *Service) list(ctx context.Context, act registry.Actor, in listIn) ([]themeRow, error) {
+func (s *Service) list(ctx context.Context, act registry.Actor, in themesListIn) ([]themeView, error) {
 	ds, err := s.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: act.Workspace, Kind: docs.KindTheme})
 	if err != nil {
 		return nil, err
@@ -184,13 +184,13 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in listIn) ([]th
 		}
 	}
 	cur := s.Current(ctx, act.Workspace)
-	var out []themeRow
+	var out []themeView
 	for _, n := range names {
 		raw, own, err := s.text(ctx, s.St.Q, act.Workspace, n)
 		if err != nil {
 			return nil, err
 		}
-		row := themeRow{Name: n, Title: n, Current: n == cur, Builtin: theme.Builtin(n) != nil, Own: own}
+		row := themeView{Name: n, Title: n, Current: n == cur, Builtin: theme.Builtin(n) != nil, Own: own}
 		if t, err := theme.Parse(raw); err != nil {
 			row.Problems = []string{err.Error()}
 		} else {
@@ -202,7 +202,7 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in listIn) ([]th
 	return out, nil
 }
 
-type checkIn struct {
+type themeCheckIn struct {
 	Name string `opt:"" desc:"A saved theme to check"`
 	Text string `type:"text" opt:"" desc:"The JSON text of a theme to check without saving it"`
 }
@@ -227,7 +227,7 @@ func check(name string, raw []byte) []string {
 	return t.Wear(name, "").Problems
 }
 
-func (s *Service) check(ctx context.Context, act registry.Actor, in checkIn) (any, error) {
+func (s *Service) check(ctx context.Context, act registry.Actor, in themeCheckIn) (any, error) {
 	raw := []byte(in.Text)
 	if in.Text == "" {
 		if in.Name == "" {
@@ -255,14 +255,14 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in checkIn) (an
 	return out, nil
 }
 
-type saveIn struct {
+type themeSaveIn struct {
 	Name       string `desc:"The theme: lowercase letters, digits and -; a shipped theme's name puts the owner's over it"`
 	Text       string `type:"text" desc:"The whole JSON text of the theme by deck.theme_format_get"`
 	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 	Reason     string `opt:"" desc:"Why it changed"`
 }
 
-func (s *Service) save(ctx context.Context, act registry.Actor, in saveIn) (any, error) {
+func (s *Service) save(ctx context.Context, act registry.Actor, in themeSaveIn) (any, error) {
 	if err := theme.CheckName(in.Name); err != nil {
 		return nil, registry.Invalid("%v", err)
 	}
@@ -291,11 +291,11 @@ func (s *Service) save(ctx context.Context, act registry.Actor, in saveIn) (any,
 	return map[string]any{"name": in.Name, "revision": n, "preview": preview(in.Name)}, nil
 }
 
-type nameIn struct {
+type themeNameIn struct {
 	Name string `desc:"Theme"`
 }
 
-func (s *Service) remove(ctx context.Context, act registry.Actor, in nameIn) (any, error) {
+func (s *Service) remove(ctx context.Context, act registry.Actor, in themeNameIn) (any, error) {
 	var builtin bool
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		d, err := docs.Find(ctx, q, docs.Ref{Scope: scope(act), Name: theme.DocName(in.Name)})
@@ -325,7 +325,7 @@ func (s *Service) remove(ctx context.Context, act registry.Actor, in nameIn) (an
 	return out, nil
 }
 
-func (s *Service) use(ctx context.Context, act registry.Actor, in nameIn) (any, error) {
+func (s *Service) use(ctx context.Context, act registry.Actor, in themeNameIn) (any, error) {
 	raw, _, err := s.text(ctx, s.St.Q, act.Workspace, in.Name)
 	if err != nil {
 		return nil, err

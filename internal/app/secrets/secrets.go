@@ -186,7 +186,7 @@ func (s *Service) secretDelete(ctx context.Context, act registry.Actor, in secre
 }
 
 // secretRow is a secret by name, and whether it is set; its value never leaves deck.
-type secretRow struct {
+type secretView struct {
 	Name string `json:"name"`
 	Set  bool   `json:"set"`
 }
@@ -196,7 +196,7 @@ type secretsListIn struct {
 }
 
 // secretsList are the secrets a module's manifest names, each with whether it is set.
-func (s *Service) secretsList(ctx context.Context, act registry.Actor, in secretsListIn) ([]secretRow, error) {
+func (s *Service) secretsList(ctx context.Context, act registry.Actor, in secretsListIn) ([]secretView, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -205,9 +205,9 @@ func (s *Service) secretsList(ctx context.Context, act registry.Actor, in secret
 	if err != nil {
 		return nil, err
 	}
-	out := []secretRow{}
+	out := []secretView{}
 	for _, n := range m.Secrets() {
-		out = append(out, secretRow{Name: n, Set: s.Has(act.Workspace, p.Name, n)})
+		out = append(out, secretView{Name: n, Set: s.Has(act.Workspace, p.Name, n)})
 	}
 	return out, nil
 }

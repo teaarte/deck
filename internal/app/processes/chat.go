@@ -22,13 +22,13 @@ type processChatView struct {
 	Say   map[string]any   `json:"say,omitempty"`
 }
 
-type processChatIn struct {
+type processChatGetIn struct {
 	Process int64 `type:"process" desc:"Process id"`
 }
 
 // processChat is the log of a process with the owner's messages among its lines, newest first; a message the
 // agent has not taken yet carries the button that deletes it.
-func (s *Service) processChat(ctx context.Context, act registry.Actor, in processChatIn) (processChatView, error) {
+func (s *Service) processChat(ctx context.Context, act registry.Actor, in processChatGetIn) (processChatView, error) {
 	p, err := s.ownProcess(ctx, act, in.Process)
 	if err != nil {
 		return processChatView{}, err

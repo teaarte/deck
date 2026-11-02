@@ -39,7 +39,7 @@ type healthRow struct {
 
 // shownRow is a row of health with the work it stands for: the model of the command of a row of a command or of its
 // schedule, with Trigger its cron trigger; Places the work of the projects the model of a row does.
-type shownRow struct {
+type healthView struct {
 	healthRow
 	Command string `json:"command,omitempty"`
 	provider.Work
@@ -56,7 +56,7 @@ type healthListIn struct {
 }
 
 // shown is the health of the workspace with the model of each command and schedule and the work of each model.
-func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn) ([]shownRow, error) {
+func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn) ([]healthView, error) {
 	rows, err := s.list(ctx, act, in)
 	if err != nil {
 		return nil, err
@@ -75,10 +75,10 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn
 	}
 	works, places := s.Works(ctx, act.Workspace, in.Lang), s.Places(ctx, act.Workspace)
 	ws := words.In(in.Lang)
-	out := make([]shownRow, 0, len(rows))
+	out := make([]healthView, 0, len(rows))
 	for _, r := range rows {
 		r.Error = manifest.TrText(ws, r.Error)
-		v := shownRow{healthRow: r}
+		v := healthView{healthRow: r}
 		name := strings.TrimPrefix(r.Subject, r.Kind+":")
 		switch r.Kind {
 		case "command", "trigger":
@@ -198,13 +198,13 @@ func (s *Service) Commands() []*registry.Command {
 	}
 }
 
-type seenIn struct {
+type healthMarkSeenIn struct {
 	Subject string `desc:"Subject of a failing health row, such as tool:web.fetch"`
 	Project string `type:"project" opt:"" desc:"Project of the row; none for the machine and the workspace"`
 }
 
 // seen marks a failing check read until its status or error changes.
-func (s *Service) seen(ctx context.Context, act registry.Actor, in seenIn) (any, error) {
+func (s *Service) seen(ctx context.Context, act registry.Actor, in healthMarkSeenIn) (any, error) {
 	var project int64
 	if in.Project != "" {
 		p, err := access.ByName(ctx, s.St.Q, act, in.Project)

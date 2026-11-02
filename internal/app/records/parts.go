@@ -27,7 +27,7 @@ import (
 
 // part is a thing deleting a record takes with it: a record, a file, a folder of the data folder or an open process
 // it stops.
-type part struct {
+type partView struct {
 	Kind string `json:"kind"`
 	Name string `json:"name"`
 	ID   int64  `json:"id,omitempty"`
@@ -189,29 +189,29 @@ func unheld(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manife
 }
 
 // parts are the plan as the owner reads it before saying yes.
-func (pl plan) parts(m *manifest.Manifest) []part {
-	out := []part{}
+func (pl plan) parts(m *manifest.Manifest) []partView {
+	out := []partView{}
 	for _, r := range pl.records {
-		out = append(out, part{Kind: "record", Name: r.Collection + ": " + ViewOf(r, m.Collection(r.Collection)).Name(), ID: r.ID})
+		out = append(out, partView{Kind: "record", Name: r.Collection + ": " + ViewOf(r, m.Collection(r.Collection)).Name(), ID: r.ID})
 	}
 	for _, f := range pl.files {
-		out = append(out, part{Kind: "file", Name: f.Name, ID: f.ID})
+		out = append(out, partView{Kind: "file", Name: f.Name, ID: f.ID})
 	}
 	for _, f := range pl.folders {
-		out = append(out, part{Kind: "folder", Name: f + "/"})
+		out = append(out, partView{Kind: "folder", Name: f + "/"})
 	}
 	for _, pr := range pl.open {
-		out = append(out, part{Kind: "process", Name: pr.Command + ", " + pr.State, ID: pr.ID})
+		out = append(out, partView{Kind: "process", Name: pr.Command + ", " + pr.State, ID: pr.ID})
 	}
 	return out
 }
 
-type recordPartsIn struct {
+type recordPartsListIn struct {
 	Record int64 `type:"record" desc:"Record id"`
 }
 
 // recordParts lists what deleting a record takes with it.
-func (s *Service) recordParts(ctx context.Context, act registry.Actor, in recordPartsIn) ([]part, error) {
+func (s *Service) recordParts(ctx context.Context, act registry.Actor, in recordPartsListIn) ([]partView, error) {
 	rec, p, err := s.recordOf(ctx, act, in.Record)
 	if err != nil {
 		return nil, err

@@ -82,7 +82,7 @@ type feedListIn struct {
 
 // feedRow is a line of the owner's feed: a note with the screen it opens and its buttons, whose commands carry
 // the name of the project, or a change made without the owner, which can be undone once when it has an undo.
-type feedRow struct {
+type feedView struct {
 	ID      int64  `json:"id"`
 	Kind    string `json:"kind"`
 	Project string `json:"project"`
@@ -148,7 +148,7 @@ type notePart struct {
 }
 
 // parts fills in the notes of the cause of f, its own first, and their projects.
-func (r *feedRow) parts(f db.Feed, names map[int64]string, ws map[string]string) {
+func (r *feedView) parts(f db.Feed, names map[int64]string, ws map[string]string) {
 	var more []struct {
 		ProjectID int64  `json:"project_id"`
 		Author    string `json:"author"`
@@ -166,15 +166,15 @@ func (r *feedRow) parts(f db.Feed, names map[int64]string, ws map[string]string)
 	}
 }
 
-func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
+func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListIn) ([]feedView, error) {
 	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	if in.Kind == FeedFailure {
 		fails, err := s.failures(ctx, act, in)
-		slices.SortStableFunc(fails, func(a, b feedRow) int { return strings.Compare(b.CreatedAt, a.CreatedAt) })
-		return append([]feedRow{}, fails...), err
+		slices.SortStableFunc(fails, func(a, b feedView) int { return strings.Compare(b.CreatedAt, a.CreatedAt) })
+		return append([]feedView{}, fails...), err
 	}
 	unread := int64(0)
 	if in.Unread {
@@ -190,9 +190,9 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 		return nil, err
 	}
 	ws := words.In(in.Lang)
-	out := make([]feedRow, 0, len(rows))
+	out := make([]feedView, 0, len(rows))
 	for _, f := range rows {
-		r := feedRow{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: deckText(ws, f.Kind, f.Author, f.Text), Screen: f.Screen,
+		r := feedView{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: deckText(ws, f.Kind, f.Author, f.Text), Screen: f.Screen,
 			Record: f.RecordID.Int64, Buttons: []Button{}, CanUndo: f.Command != "" && !f.UndoneAt.Valid, Undone: f.UndoneAt.Valid,
 			Read: f.ReadAt.Valid, CanRead: f.Kind == FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt, Repeats: f.Repeats}
 		if f.Cause != "" {
@@ -239,7 +239,7 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 			return nil, err
 		}
 		out = append(out, fails...)
-		slices.SortStableFunc(out, func(a, b feedRow) int { return strings.Compare(b.CreatedAt, a.CreatedAt) })
+		slices.SortStableFunc(out, func(a, b feedView) int { return strings.Compare(b.CreatedAt, a.CreatedAt) })
 		if lim := int(registry.Limit(in.Limit, 50, 500)); len(out) > lim {
 			out = out[:lim]
 		}
@@ -249,7 +249,7 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 
 // failures are the open failures as lines of the feed: the failed runs as the schedule lists them and the failing
 // checks of health not read.
-func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
+func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListIn) ([]feedView, error) {
 	var runs []struct {
 		ID          int64  `json:"id"`
 		Project     string `json:"project"`
@@ -284,13 +284,13 @@ func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListI
 	if err := s.read(ctx, act, "health_list", map[string]any{"project": in.Project, "lang": in.Lang}, &checks); err != nil {
 		return nil, err
 	}
-	var out []feedRow
+	var out []feedView
 	for _, p := range runs {
 		text := cmp.Or(p.Title, p.Command)
 		if p.RecordTitle != "" {
 			text += " · " + p.RecordTitle
 		}
-		out = append(out, feedRow{ID: -p.ID, Kind: FeedFailure, Project: p.Project, Author: "deck", Text: text, Buttons: []Button{},
+		out = append(out, feedView{ID: -p.ID, Kind: FeedFailure, Project: p.Project, Author: "deck", Text: text, Buttons: []Button{},
 			CreatedAt: p.FinishedAt, Process: p.ID, Error: p.Error, ErrorType: p.ErrorType, Retry: p.Retry, Repeats: p.Repeats,
 			Open: map[string]any{"verb": "open", "screen": "process", "record": p.ID}})
 	}
@@ -301,7 +301,7 @@ func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListI
 		}
 		h := fnv.New32a()
 		h.Write([]byte(c.Project + "\x00" + c.Subject))
-		out = append(out, feedRow{ID: -(int64(1)<<40 + int64(h.Sum32())), Kind: FeedFailure, Project: c.Project, Author: "deck",
+		out = append(out, feedView{ID: -(int64(1)<<40 + int64(h.Sum32())), Kind: FeedFailure, Project: c.Project, Author: "deck",
 			Text: manifest.TrText(ws, failingCheck(c.Kind, c.Subject)), Buttons: []Button{}, CreatedAt: c.UpdatedAt,
 			Error: c.Error, Check: c.Subject, DeckScreen: true, SelfCheck: c.SelfCheck, Role: c.Role, Command: c.Command,
 			Model: c.Model, Choices: c.Choices, ChoiceGroups: c.Groups, Trigger: c.Trigger,
@@ -433,13 +433,13 @@ func (s *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoI
 	return out, err
 }
 
-type feedReadIn struct {
+type feedMarkReadIn struct {
 	Entry int64 `opt:"" desc:"Id of a note in the feed"`
 	All   bool  `opt:"" desc:"Every unread note instead of one; read notes stay in the feed"`
 }
 
 // feedRead marks a note of the feed read, or every unread one.
-func (s *Service) feedRead(ctx context.Context, act registry.Actor, in feedReadIn) (any, error) {
+func (s *Service) feedRead(ctx context.Context, act registry.Actor, in feedMarkReadIn) (any, error) {
 	if in.All == (in.Entry != 0) {
 		return nil, registry.Invalid("give the entry of one note, or all")
 	}

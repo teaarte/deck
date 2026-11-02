@@ -29,7 +29,7 @@ type Button struct {
 	Input   string `json:"input,omitempty"`
 }
 
-type notifyIn struct {
+type ownerNotifyIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
 	Text    string `type:"text" desc:"What happened, in a sentence"`
 	Screen  string `opt:"" desc:"Screen of the project the line opens, or deck/<screen> for a screen of deck such as deck/schedule"`
@@ -39,7 +39,7 @@ type notifyIn struct {
 }
 
 // notify writes a line to the feed of the cockpit; push comes with stage 3. The caller decides whether it is worth it.
-func (s *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) (any, error) {
+func (s *Service) notify(ctx context.Context, act registry.Actor, in ownerNotifyIn) (any, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err

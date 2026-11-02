@@ -182,13 +182,13 @@ func (s *Service) projectExport(ctx context.Context, act registry.Actor, in proj
 }
 
 // rightRow is one thing enabling a draft lets it do beyond its internal actions.
-type rightRow struct {
+type rightView struct {
 	What   string `json:"what"`
 	Detail string `json:"detail"`
 }
 
 // projectRights lists what enabling a draft grants and what will wait for the owner on each call, one row each.
-func (s *Service) projectRights(ctx context.Context, act registry.Actor, in projectExportIn) ([]rightRow, error) {
+func (s *Service) projectRights(ctx context.Context, act registry.Actor, in projectExportIn) ([]rightView, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -198,13 +198,13 @@ func (s *Service) projectRights(ctx context.Context, act registry.Actor, in proj
 		return nil, registry.Invalid("the manifest of %s does not load: %v", p.Name, err)
 	}
 	v := s.viewProject(ctx, p, ms[p.ID], nil, "")
-	out := []rightRow{}
+	out := []rightView{}
 	for _, r := range v.Rights {
 		what, detail, _ := strings.Cut(r, ": ")
-		out = append(out, rightRow{What: what, Detail: detail})
+		out = append(out, rightView{What: what, Detail: detail})
 	}
 	for _, a := range v.Asks {
-		out = append(out, rightRow{What: "asks you each time", Detail: a})
+		out = append(out, rightView{What: "asks you each time", Detail: a})
 	}
 	return out, nil
 }

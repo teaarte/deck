@@ -20,7 +20,7 @@ const (
 	partData      = "data"
 )
 
-type filesFolderIn struct {
+type filesFolderListIn struct {
 	Project string `type:"project" opt:"" desc:"A module whose folder is the root, its paths then inside it"`
 	Path    string `opt:"" desc:"The folder: empty for the modules, <module> for its folders, <module>/files, <module>/documents or <module>/data/<path>"`
 	Lang    string `opt:"" desc:"Language of the names of the folders, such as ru; English without one"`
@@ -49,13 +49,13 @@ type folderEntry struct {
 }
 
 // folder is a folder of the file manager with the names of the steps of its path.
-type folder struct {
+type folderView struct {
 	Entries []folderEntry     `json:"entries"`
 	Names   map[string]string `json:"names"`
 }
 
 // filesFolder is one folder of the file manager of deck, or of the folder of a module, its paths then inside it.
-func (s *Service) filesFolder(ctx context.Context, act registry.Actor, in filesFolderIn) (folder, error) {
+func (s *Service) filesFolder(ctx context.Context, act registry.Actor, in filesFolderListIn) (folderView, error) {
 	if in.Project == "" {
 		return s.folder(ctx, act, in)
 	}
@@ -79,7 +79,7 @@ func (s *Service) filesFolder(ctx context.Context, act registry.Actor, in filesF
 }
 
 // folder is one folder of the file manager of deck, read by the reads of its parts as the caller.
-func (s *Service) folder(ctx context.Context, act registry.Actor, in filesFolderIn) (folder, error) {
+func (s *Service) folder(ctx context.Context, act registry.Actor, in filesFolderListIn) (folderView, error) {
 	ws := words.In(in.Lang)
 	tr := func(t string) string { return manifest.Tr(ws, t) }
 	var projects []struct {
@@ -90,9 +90,9 @@ func (s *Service) folder(ctx context.Context, act registry.Actor, in filesFolder
 		Cover   *files.Cover
 	}
 	if err := s.read(ctx, act, "projects_list", map[string]any{"lang": in.Lang}, &projects); err != nil {
-		return folder{}, err
+		return folderView{}, err
 	}
-	out := folder{Entries: []folderEntry{}, Names: map[string]string{}}
+	out := folderView{Entries: []folderEntry{}, Names: map[string]string{}}
 	parts := strings.Split(strings.Trim(in.Path, "/"), "/")
 	name, part, rest := parts[0], "", ""
 	if len(parts) > 1 {
@@ -174,7 +174,7 @@ func (s *Service) folder(ctx context.Context, act registry.Actor, in filesFolder
 				Project: name, ID: d.ID, DocKind: d.Kind, Deleted: d.Deleted, OwnerKind: d.OwnerKind, Icon: docIcon(d.Kind, d.Deleted)})
 		}
 	case partData:
-		var got dataRead
+		var got dataView
 		if err := s.read(ctx, act, "data_read", map[string]any{"project": name, "path": rest}, &got); err != nil {
 			return out, err
 		}

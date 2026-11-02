@@ -165,7 +165,7 @@ func (s *Service) importFiles(ctx context.Context, act registry.Actor, name, fro
 	if w := s.unassigned(ctx, p, pm.m); len(w) > 0 {
 		out["warnings"] = w
 	}
-	out["needs"] = slices.DeleteFunc(s.needs(ctx, p, pm.m, nil, nil), func(n needRow) bool { return n.Done })
+	out["needs"] = slices.DeleteFunc(s.needs(ctx, p, pm.m, nil, nil), func(n needView) bool { return n.Done })
 	return out, nil
 }
 

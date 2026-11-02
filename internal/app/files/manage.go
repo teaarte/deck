@@ -14,7 +14,7 @@ import (
 	"deck2/internal/untrusted"
 )
 
-type fileIn struct {
+type fileDeleteIn struct {
 	File int64 `desc:"Stored file id"`
 }
 
@@ -37,7 +37,7 @@ func (s *Service) rebind(ctx context.Context, f db.File, fromKind string, fromID
 
 // fileDelete puts a stored file into the files.TrashKind, from where file_restore brings it back for a day. A process deletes
 // only a file its own run made, and the owner sees that among what was done without them, with its undo.
-func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileIn) (any, error) {
+func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileDeleteIn) (any, error) {
 	f, p, err := s.own(ctx, act, in.File)
 	if err != nil {
 		return nil, err

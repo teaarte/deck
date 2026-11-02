@@ -33,7 +33,7 @@ type callsListIn struct {
 }
 
 // callRow is a call of the gateway: who called what, of which class, and how it ended.
-type callRow struct {
+type callView struct {
 	ID         int64  `json:"id"`
 	Tool       string `json:"tool"`
 	Actor      string `json:"actor"`
@@ -48,7 +48,7 @@ type callRow struct {
 }
 
 // callsList is the journal of gateway calls of the workspace, newest first: who called what and how it ended.
-func (s *Service) callsList(ctx context.Context, act registry.Actor, in callsListIn) ([]callRow, error) {
+func (s *Service) callsList(ctx context.Context, act registry.Actor, in callsListIn) ([]callView, error) {
 	project, err := access.Filter(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -62,16 +62,16 @@ func (s *Service) callsList(ctx context.Context, act registry.Actor, in callsLis
 	if err != nil {
 		return nil, err
 	}
-	out := make([]callRow, 0, len(rows))
+	out := make([]callView, 0, len(rows))
 	for _, c := range rows {
-		out = append(out, callRow{ID: c.ID, Tool: c.Tool, Actor: c.Actor, Project: names[c.ProjectID.Int64], Process: c.ProcessID.Int64,
+		out = append(out, callView{ID: c.ID, Tool: c.Tool, Actor: c.Actor, Project: names[c.ProjectID.Int64], Process: c.ProcessID.Int64,
 			Class: c.Class, Outcome: c.Outcome, ExternalID: c.ExternalID, Error: c.Error, Params: c.Params, CreatedAt: c.CreatedAt})
 	}
 	return out, nil
 }
 
 // spendRow is what model calls of a command on a provider and model used up.
-type spendRow struct {
+type spendView struct {
 	Project         string  `json:"project"`
 	Command         string  `json:"command"`
 	Provider        string  `json:"provider"`
@@ -93,7 +93,7 @@ type spendListIn struct {
 }
 
 // spendList is the tokens and cost of model calls by project, command, provider and model, the largest first.
-func (s *Service) spendList(ctx context.Context, act registry.Actor, in spendListIn) ([]spendRow, error) {
+func (s *Service) spendList(ctx context.Context, act registry.Actor, in spendListIn) ([]spendView, error) {
 	rows, err := s.St.Q.SpendByCommand(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -102,26 +102,26 @@ func (s *Service) spendList(ctx context.Context, act registry.Actor, in spendLis
 	if err != nil {
 		return nil, err
 	}
-	out := make([]spendRow, 0, len(rows))
+	out := make([]spendView, 0, len(rows))
 	for _, r := range rows {
 		if in.Project != "" && names[r.ProjectID] != in.Project {
 			continue
 		}
-		out = append(out, spendRow{Project: names[r.ProjectID], Command: r.Command, Provider: r.Provider, Model: r.Model, Calls: r.Calls,
+		out = append(out, spendView{Project: names[r.ProjectID], Command: r.Command, Provider: r.Provider, Model: r.Model, Calls: r.Calls,
 			InputTokens: r.InputTokens, OutputTokens: r.OutputTokens, CacheReadTokens: r.CacheReadTokens, CostUSD: r.CostUsd,
 			SubscriptionUSD: r.SubscriptionUsd, Subscription: r.Subscription != 0, LastAt: r.LastAt})
 	}
 	return out, nil
 }
 
-type spendDailyIn struct {
+type spendDaysListIn struct {
 	Days int64  `opt:"" desc:"Days back from today, 1 to 366; 30 by default"`
 	By   string `opt:"" enum:"day|provider|project|project_provider" desc:"day: a row for every day, the empty ones too; provider, project or each provider of each project: their totals over the days"`
 	Lang string `opt:"" desc:"Language of the titles of the projects, such as ru; English without one"`
 }
 
 // spendDailyRow is the model calls of a day, a provider or a project; Age is how many days back the day is.
-type spendDailyRow struct {
+type spendDayView struct {
 	Day      string `json:"day,omitempty"`
 	Age      int64  `json:"age"`
 	Provider string `json:"provider,omitempty"`
@@ -169,15 +169,15 @@ func day(minute string) string {
 }
 
 // spendDaily is the tokens and cost of model calls of the last days by day, provider, project or both.
-func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDailyIn) ([]spendDailyRow, error) {
+func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDaysListIn) ([]spendDayView, error) {
 	since, days := s.window(in.Days)
 	rows, err := s.St.Q.SpendSince(ctx, db.SpendSinceParams{WorkspaceID: act.Workspace, Since: since})
 	if err != nil {
 		return nil, err
 	}
-	by := map[string]*spendDailyRow{}
+	by := map[string]*spendDayView{}
 	var order []string
-	add := func(key string, r db.SpendSinceRow, base spendDailyRow) {
+	add := func(key string, r db.SpendSinceRow, base spendDayView) {
 		row, ok := by[key]
 		if !ok {
 			row = &base
@@ -194,7 +194,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 	}
 	if in.By == "" || in.By == "day" {
 		for i, d := range days {
-			by[d] = &spendDailyRow{Day: d, Age: int64(len(days) - 1 - i)}
+			by[d] = &spendDayView{Day: d, Age: int64(len(days) - 1 - i)}
 		}
 		order = days
 	}
@@ -203,14 +203,14 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		total += r.InputTokens + r.OutputTokens
 		switch in.By {
 		case "provider":
-			add(r.Provider, r, spendDailyRow{Provider: r.Provider})
+			add(r.Provider, r, spendDayView{Provider: r.Provider})
 		case "project":
-			add(r.Project, r, spendDailyRow{Project: r.Project})
+			add(r.Project, r, spendDayView{Project: r.Project})
 		case "project_provider":
-			add(r.Project+"\x00"+r.Provider, r, spendDailyRow{Project: r.Project, Provider: r.Provider})
+			add(r.Project+"\x00"+r.Provider, r, spendDayView{Project: r.Project, Provider: r.Provider})
 		default:
 			if d := day(r.Minute); by[d] != nil {
-				add(d, r, spendDailyRow{})
+				add(d, r, spendDayView{})
 			}
 		}
 	}
@@ -225,7 +225,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 			}
 			row, ok := by[r.Provider]
 			if !ok {
-				row = &spendDailyRow{Provider: r.Provider}
+				row = &spendDayView{Provider: r.Provider}
 				by[r.Provider] = row
 				order = append(order, r.Provider)
 			}
@@ -238,7 +238,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		group = s.Groups(ctx, act.Workspace, in.Lang)
 	}
 	place := map[string]int{}
-	out := make([]spendDailyRow, 0, len(order))
+	out := make([]spendDayView, 0, len(order))
 	for _, k := range order {
 		row := *by[k]
 		row.Group, place[row.Provider] = group(row.Provider)
@@ -251,12 +251,12 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		out = append(out, row)
 	}
 	if in.By != "" && in.By != "day" {
-		slices.SortFunc(out, func(x, y spendDailyRow) int {
+		slices.SortFunc(out, func(x, y spendDayView) int {
 			return cmp.Or(cmp.Compare(y.Tokens, x.Tokens), cmp.Compare(y.Runs, x.Runs))
 		})
 		// By model, the models of a provider stand together, the dearest first.
 		if in.By == "provider" {
-			slices.SortStableFunc(out, func(x, y spendDailyRow) int {
+			slices.SortStableFunc(out, func(x, y spendDayView) int {
 				return cmp.Or(cmp.Compare(place[x.Provider], place[y.Provider]), cmp.Compare(y.CostUSD, x.CostUSD))
 			})
 		}
@@ -265,7 +265,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 }
 
 // titles give the title of a project by its name in the owner's words; deck's own work is Deki and deck.
-func (s *Service) titles(ctx context.Context, act registry.Actor, in spendDailyIn) func(string) string {
+func (s *Service) titles(ctx context.Context, act registry.Actor, in spendDaysListIn) func(string) string {
 	ws := words.In(in.Lang)
 	seen := map[string]string{}
 	return func(name string) string {

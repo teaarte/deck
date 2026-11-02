@@ -34,7 +34,7 @@ type dataEntry struct {
 	File     string `json:"file,omitempty"`
 }
 
-type dataRead struct {
+type dataView struct {
 	Path    string      `json:"path"`
 	Entries []dataEntry `json:"entries"`
 	Text    string      `json:"text,omitempty"`
@@ -46,36 +46,36 @@ type dataRead struct {
 // dataLimit is the most of a file data_read gives.
 const dataLimit = 64 << 10
 
-func (s *Service) dataRead(ctx context.Context, act registry.Actor, in dataReadIn) (dataRead, error) {
+func (s *Service) dataRead(ctx context.Context, act registry.Actor, in dataReadIn) (dataView, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
-		return dataRead{}, err
+		return dataView{}, err
 	}
 	root, err := os.OpenRoot(s.Home.Data(p.ID))
 	if err != nil && strings.Trim(in.Path, "/.") == "" {
-		return dataRead{Entries: []dataEntry{}}, nil
+		return dataView{Entries: []dataEntry{}}, nil
 	}
 	if err != nil {
-		return dataRead{}, registry.NotFound("%s has no data folder yet", p.Name)
+		return dataView{}, registry.NotFound("%s has no data folder yet", p.Name)
 	}
 	defer root.Close()
 	path := strings.TrimPrefix(filepath.Clean("/"+in.Path), "/")
 	missing := registry.NotFound("no %q in the data folder of %s", in.Path, p.Name)
 	f, err := root.OpenFile(cmp.Or(path, "."), os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
-		return dataRead{}, missing
+		return dataView{}, missing
 	}
 	defer f.Close()
 	fi, err := f.Stat()
 	if err != nil {
-		return dataRead{}, missing
+		return dataView{}, missing
 	}
-	out := dataRead{Path: path, Entries: []dataEntry{}}
+	out := dataView{Path: path, Entries: []dataEntry{}}
 	switch {
 	case fi.IsDir():
 		es, err := f.ReadDir(1001)
 		if err != nil && !errors.Is(err, io.EOF) {
-			return dataRead{}, missing
+			return dataView{}, missing
 		}
 		if out.Cut = len(es) > 1000; out.Cut {
 			es = es[:1000]
@@ -104,7 +104,7 @@ func (s *Service) dataRead(ctx context.Context, act registry.Actor, in dataReadI
 			out.Text = untrusted.Block("file "+path+" of the data folder of "+p.Name, string(b))
 		}
 	default:
-		return dataRead{}, missing
+		return dataView{}, missing
 	}
 	return out, nil
 }

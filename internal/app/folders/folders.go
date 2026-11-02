@@ -106,12 +106,12 @@ func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAd
 	return map[string]any{"project": p.Name, "name": f.Name, "path": f.Path}, nil
 }
 
-type folderRemoveIn struct {
+type folderDeleteIn struct {
 	Project string `type:"project" desc:"Project name"`
 	Name    string `desc:"Folder name in the project"`
 }
 
-func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folderRemoveIn) (any, error) {
+func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folderDeleteIn) (any, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err

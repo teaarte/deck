@@ -26,7 +26,7 @@ type asksListIn struct {
 }
 
 // askRow is what waits for the owner, with who asks, what and where in words.
-type askRow struct {
+type askView struct {
 	ID      int64  `json:"id"`
 	Kind    string `json:"kind"`
 	Project string `json:"project"`
@@ -59,7 +59,7 @@ type askRow struct {
 const answerLink = "#/deck/cockpit"
 
 // asksList is what waits for the owner, oldest first: open asks and confirmations that expired.
-func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListIn) ([]askRow, error) {
+func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListIn) ([]askView, error) {
 	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 }
 
 // rows are the open asks and expired confirmations keep holds for, oldest first, in the owner's words.
-func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, keep func(db.Ask) bool) ([]askRow, error) {
+func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, keep func(db.Ask) bool) ([]askView, error) {
 	open, err := s.St.Q.ListWorkspaceOpenAsks(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 	slices.SortFunc(all, func(x, y db.Ask) int { return cmp.Compare(x.ID, y.ID) })
 	ws := words.In(lang)
 	tr := func(text string) string { return manifest.TrText(ws, text) }
-	out := make([]askRow, 0, len(all))
+	out := make([]askView, 0, len(all))
 	for _, q := range all {
 		if !keep(q) {
 			continue
@@ -120,8 +120,8 @@ func (s *Service) Waiting(ctx context.Context, act registry.Actor) (map[string]i
 	return out, err
 }
 
-func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, lang string) askRow {
-	r := askRow{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID.Int64], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
+func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, lang string) askView {
+	r := askView{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID.Int64], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
 		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired, Link: answerLink}
 	if q.ProcessID.Valid {
 		r.Who, r.By = s.processWho(ctx, q.ProcessID.Int64), s.processName(ctx, q.ProcessID.Int64)

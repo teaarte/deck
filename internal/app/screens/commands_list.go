@@ -17,7 +17,7 @@ import (
 
 // commandRow is a command the caller may call, with its project, its file fields and what runs it: an executor
 // of a command of the manifest with the model of its work, or the kind of a tool, http or mcp.
-type commandRow struct {
+type commandView struct {
 	Name        string   `json:"name"`
 	Title       string   `json:"title"`
 	Description string   `json:"description,omitempty"`
@@ -42,7 +42,7 @@ type commandDescribeIn struct {
 	Command string `desc:"Command name, such as deck.model_set or project.command"`
 }
 
-type commandSpec struct {
+type commandSpecView struct {
 	Name        string          `json:"name"`
 	Title       string          `json:"title"`
 	Description string          `json:"description"`
@@ -53,12 +53,12 @@ type commandSpec struct {
 }
 
 // commandDescribe tells what a command takes whoever may call it, so the master can say what to fill in.
-func (s *Service) commandDescribe(ctx context.Context, act registry.Actor, in commandDescribeIn) (commandSpec, error) {
+func (s *Service) commandDescribe(ctx context.Context, act registry.Actor, in commandDescribeIn) (commandSpecView, error) {
 	c, err := s.Registry.Lookup(ctx, act.Workspace, in.Command)
 	if err != nil {
-		return commandSpec{}, err
+		return commandSpecView{}, err
 	}
-	return commandSpec{Name: c.Name, Title: c.Title, Description: c.Description, Class: c.Class, Callers: c.Callers,
+	return commandSpecView{Name: c.Name, Title: c.Title, Description: c.Description, Class: c.Class, Callers: c.Callers,
 		Input: c.Input, Result: c.Result}, nil
 }
 
@@ -68,7 +68,7 @@ type commandsListIn struct {
 }
 
 // commandsList is what the caller may call: deck's commands and those of the projects it reaches.
-func (s *Service) commandsList(ctx context.Context, act registry.Actor, in commandsListIn) ([]commandRow, error) {
+func (s *Service) commandsList(ctx context.Context, act registry.Actor, in commandsListIn) ([]commandView, error) {
 	builtin := in.Project == registry.Builtin
 	project := in.Project
 	if builtin {
@@ -108,12 +108,12 @@ func (s *Service) commandsList(ctx context.Context, act registry.Actor, in comma
 	}
 	work := s.Works(ctx, act.Workspace, in.Lang)
 	manifests := map[int64]*manifest.Manifest{}
-	out := []commandRow{}
+	out := []commandView{}
 	for _, c := range cmds {
 		if builtin && c.ProjectID != 0 || pid != 0 && c.ProjectID != pid {
 			continue
 		}
-		r := commandRow{Name: c.Name, Title: c.Title, Project: names[c.ProjectID], Files: append([]string{}, manifest.FileFields(c.Input)...)}
+		r := commandView{Name: c.Name, Title: c.Title, Project: names[c.ProjectID], Files: append([]string{}, manifest.FileFields(c.Input)...)}
 		if !master {
 			r.Description = c.Description
 		}

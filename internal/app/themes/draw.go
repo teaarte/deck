@@ -14,14 +14,14 @@ import (
 	"deck2/internal/words"
 )
 
-type drawIn struct {
+type coverDrawIn struct {
 	Project string `type:"project" opt:"" desc:"The module; every module without a cover of the theme in use without it"`
 	Wish    string `type:"text" opt:"" desc:"What the owner wishes to see in the picture"`
 	Model   string `opt:"" desc:"The image model; a free one of deck without it"`
 }
 
 // draw tells the master to draw covers in the mood of the theme in use, for its schemes; deck draws nothing itself.
-func (s *Service) draw(ctx context.Context, act registry.Actor, in drawIn) (any, error) {
+func (s *Service) draw(ctx context.Context, act registry.Actor, in coverDrawIn) (any, error) {
 	ws := words.In(s.Language(ctx, act.Workspace))
 	cur := s.Current(ctx, act.Workspace)
 	l, err := s.look(ctx, act.Workspace, cur, s.Language(ctx, act.Workspace))
@@ -103,14 +103,14 @@ func (s *Service) freeImageModel(ctx context.Context, act registry.Actor) string
 	return free
 }
 
-type drawPicturesIn struct {
+type themeDrawIn struct {
 	Wish  string `type:"text" opt:"" desc:"What the owner wishes to see in the pictures"`
 	Model string `opt:"" desc:"The image model; a free one of deck without it"`
 }
 
 // drawPictures tells the master to draw the pictures of the theme in use: the scene of Today and what is behind the
 // page; deck draws nothing itself.
-func (s *Service) drawPictures(ctx context.Context, act registry.Actor, in drawPicturesIn) (any, error) {
+func (s *Service) drawPictures(ctx context.Context, act registry.Actor, in themeDrawIn) (any, error) {
 	lang := s.Language(ctx, act.Workspace)
 	ws := words.In(lang)
 	cur := s.Current(ctx, act.Workspace)

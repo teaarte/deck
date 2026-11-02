@@ -219,13 +219,13 @@ func (s *Service) topicModel(ctx context.Context, master db.Project, model strin
 	return nil
 }
 
-type chatTopicModelIn struct {
+type chatTopicModelSetIn struct {
 	Topic int64  `desc:"Chat topic"`
 	Model string `opt:"" desc:"The model its replies go on from the next one; the master's model when empty"`
 }
 
 // chatTopicModel sets the model a topic keeps; a reply going on keeps its own.
-func (s *Service) chatTopicModel(ctx context.Context, act registry.Actor, in chatTopicModelIn) (any, error) {
+func (s *Service) chatTopicModel(ctx context.Context, act registry.Actor, in chatTopicModelSetIn) (any, error) {
 	master, err := access.Master(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err

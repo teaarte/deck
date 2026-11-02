@@ -40,11 +40,11 @@ func (s *Service) PrepareLater(projectID int64) {
 	})
 }
 
-type programsCheckIn struct {
+type programCheckIn struct {
 	Project string `type:"project" desc:"Project name"`
 }
 
-func (s *Service) programsCheck(ctx context.Context, act registry.Actor, in programsCheckIn) (any, error) {
+func (s *Service) programsCheck(ctx context.Context, act registry.Actor, in programCheckIn) (any, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err

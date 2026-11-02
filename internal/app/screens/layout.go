@@ -33,7 +33,7 @@ type storedCard struct {
 	H  int64 `json:"h"`
 }
 
-type layoutIn struct {
+type layoutGetIn struct {
 	Device  string `desc:"The device, as it names itself"`
 	Columns int64  `desc:"How many columns of cells the grid has now"`
 }
@@ -48,7 +48,7 @@ type layoutView struct {
 
 // layout is the layout of a device for its columns: its own, else its own of the nearest wider grid, then of the
 // nearest narrower one, else the newest of any device for the columns, else the order of its own or the newest.
-func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutIn) (layoutView, error) {
+func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutGetIn) (layoutView, error) {
 	out := layoutView{Cards: []card{}}
 	ls, err := s.St.Q.ListLayouts(ctx, act.Workspace)
 	if err != nil {

@@ -14,13 +14,13 @@ import (
 	"deck2/internal/words"
 )
 
-type todayIn struct {
+type todayGetIn struct {
 	Lang string `opt:"" desc:"Language of the lines, such as ru; English without one"`
 }
 
 // todayLine is a line of the card of Today, the most pressing first: what waits, what failed, what runs, what the day
 // did and cost and what runs next; a calm day says so first.
-type todayLine struct {
+type todayLineView struct {
 	ID    string `json:"id"`
 	Kind  string `json:"kind" enum:"asks|failures|running|calm|day|spent|next"`
 	Title string `json:"title"`
@@ -31,10 +31,10 @@ type todayLine struct {
 }
 
 // today are the lines of the card of Today, read by the reads of deck as the caller.
-func (s *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]todayLine, error) {
+func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) ([]todayLineView, error) {
 	ws := words.In(in.Lang)
 	tr := func(str string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, str), a...) }
-	out := []todayLine{}
+	out := []todayLineView{}
 	var asks []struct{ What, Allow string }
 	if err := s.read(ctx, act, "asks_list", map[string]any{"lang": in.Lang}, &asks); err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]
 		if n > 1 {
 			title = tr("Decisions wait: %d", n)
 		}
-		out = append(out, todayLine{ID: "asks", Kind: "asks", Title: title, Text: cmp.Or(asks[0].Allow, asks[0].What), Icon: "hand-finger", Tone: "warn"})
+		out = append(out, todayLineView{ID: "asks", Kind: "asks", Title: title, Text: cmp.Or(asks[0].Allow, asks[0].What), Icon: "hand-finger", Tone: "warn"})
 	}
 	var fails []struct {
 		Text      string
@@ -58,7 +58,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]
 		if n > 1 {
 			title = tr("Failures: %d", n)
 		}
-		out = append(out, todayLine{ID: "failures", Kind: "failures", Title: title, Text: fails[0].Text, Icon: "alert-circle", Tone: "error", Since: fails[0].CreatedAt})
+		out = append(out, todayLineView{ID: "failures", Kind: "failures", Title: title, Text: fails[0].Text, Icon: "alert-circle", Tone: "error", Since: fails[0].CreatedAt})
 	}
 	var running []struct {
 		ID                 int64
@@ -72,11 +72,11 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]
 		if i == 2 {
 			break
 		}
-		out = append(out, todayLine{ID: fmt.Sprint("running-", p.ID), Kind: "running", Title: cmp.Or(p.Topic, p.Title, p.Command), Text: p.Word,
+		out = append(out, todayLineView{ID: fmt.Sprint("running-", p.ID), Kind: "running", Title: cmp.Or(p.Topic, p.Title, p.Command), Text: p.Word,
 			Icon: "activity", Since: p.Since})
 	}
 	if len(out) == 0 {
-		out = append(out, todayLine{ID: "calm", Kind: "calm", Title: tr("All is well: nothing to decide, no failures."), Icon: "check", Tone: "ok"})
+		out = append(out, todayLineView{ID: "calm", Kind: "calm", Title: tr("All is well: nothing to decide, no failures."), Icon: "check", Tone: "ok"})
 	}
 	// The day is the owner's, by the clock of their machine, as the schedule and the spend count it.
 	y, m, d := s.Now().Local().Date()
@@ -84,7 +84,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]
 	if err != nil {
 		return nil, err
 	}
-	out = append(out, todayLine{ID: "day", Kind: "day", Title: tr("Done today: %d", done), Icon: "checks"})
+	out = append(out, todayLineView{ID: "day", Kind: "day", Title: tr("Done today: %d", done), Icon: "checks"})
 	var spent []struct {
 		CostUSD float64 `json:"cost_usd"`
 	}
@@ -93,7 +93,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]
 		for _, d := range spent {
 			sum += d.CostUSD
 		}
-		out = append(out, todayLine{ID: "spent", Kind: "spent", Title: tr("Spent today: $%.2f", sum), Icon: "coin"})
+		out = append(out, todayLineView{ID: "spent", Kind: "spent", Title: tr("Spent today: $%.2f", sum), Icon: "coin"})
 	}
 	var ts []struct {
 		Title        string
@@ -111,7 +111,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayIn) ([]
 		}
 	}
 	if next >= 0 {
-		out = append(out, todayLine{ID: "next", Kind: "next", Title: tr("Next: %s", ts[next].Title), Text: ts[next].ProjectTitle, Icon: "clock",
+		out = append(out, todayLineView{ID: "next", Kind: "next", Title: tr("Next: %s", ts[next].Title), Text: ts[next].ProjectTitle, Icon: "clock",
 			Since: ts[next].NextAt})
 	}
 	return out, nil

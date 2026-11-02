@@ -17,7 +17,7 @@ import (
 	"deck2/internal/words"
 )
 
-type projectCoverIn struct {
+type projectCoverSetIn struct {
 	Project string `type:"project" desc:"Project name"`
 	File    string `type:"file" opt:"" desc:"The picture: an upload, a stored file of the project or the master, or results/<name> of the calling process"`
 	Scheme  string `opt:"" enum:"light|dark" desc:"The color scheme the picture is for: light by default; a card shows the one of its scheme, or the other"`
@@ -27,7 +27,7 @@ type projectCoverIn struct {
 
 // projectCover sets the picture of a project's card for a theme and scheme from a file, with its light copy and main
 // color, or takes it off.
-func (s *Service) projectCover(ctx context.Context, act registry.Actor, in projectCoverIn) (any, error) {
+func (s *Service) projectCover(ctx context.Context, act registry.Actor, in projectCoverSetIn) (any, error) {
 	p, err := access.Project(ctx, s.St.Q, registry.Actor{Kind: registry.Owner, Workspace: act.Workspace}, in.Project)
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func (s *Service) putPicture(ctx context.Context, act registry.Actor, p db.Proje
 	return id, nil
 }
 
-type themeImageIn struct {
+type themeImageSetIn struct {
 	Theme  string `desc:"The theme, by name"`
 	Slot   string `enum:"cockpit|backdrop|pattern" desc:"cockpit: the scene of the card of Today under its words; backdrop: the page behind everything, wide; pattern: a seamless tile repeated behind"`
 	File   string `type:"file" opt:"" desc:"The picture: an upload, a stored file of the master, or results/<name> of the calling process"`
@@ -124,7 +124,7 @@ type themeImageIn struct {
 
 // themeImage sets a picture of a theme in a slot from a file, kept by the master's project with its light copy and
 // main color, or takes it off; the one it replaces goes to the trash.
-func (s *Service) themeImage(ctx context.Context, act registry.Actor, in themeImageIn) (any, error) {
+func (s *Service) themeImage(ctx context.Context, act registry.Actor, in themeImageSetIn) (any, error) {
 	if !s.Exists(ctx, act.Workspace, in.Theme) {
 		return nil, registry.NotFound("no theme %q", in.Theme)
 	}
@@ -213,14 +213,14 @@ func (s *Service) Thumbs(ctx context.Context) {
 	}
 }
 
-type coversIn struct {
+type projectCoversListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; the caller's own without one"`
 	Lang    string `opt:"" desc:"Language of the titles, such as ru"`
 }
 
 // coverRow is a cover of a module: the theme it is for, empty for every theme, with its title, the scheme, the
 // picture, and whether the card shows it now.
-type coverRow struct {
+type coverView struct {
 	Project string `json:"project"`
 	Theme   string `json:"theme"`
 	Title   string `json:"title"`
@@ -229,7 +229,7 @@ type coverRow struct {
 	Shown   bool   `json:"shown"`
 }
 
-func (s *Service) covers(ctx context.Context, act registry.Actor, in coversIn) ([]coverRow, error) {
+func (s *Service) covers(ctx context.Context, act registry.Actor, in projectCoversListIn) ([]coverView, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -245,7 +245,7 @@ func (s *Service) covers(ctx context.Context, act registry.Actor, in coversIn) (
 			shown[x.ID] = true
 		}
 	}
-	out := []coverRow{}
+	out := []coverView{}
 	for _, x := range pics {
 		title := manifest.Tr(words.In(in.Lang), "Every theme")
 		if x.Theme != "" {
@@ -254,9 +254,9 @@ func (s *Service) covers(ctx context.Context, act registry.Actor, in coversIn) (
 				title = l.Title
 			}
 		}
-		out = append(out, coverRow{Project: p.Name, Theme: x.Theme, Title: title, Scheme: x.Scheme, File: files.Shown(x), Shown: shown[x.ID]})
+		out = append(out, coverView{Project: p.Name, Theme: x.Theme, Title: title, Scheme: x.Scheme, File: files.Shown(x), Shown: shown[x.ID]})
 	}
-	slices.SortStableFunc(out, func(a, b coverRow) int {
+	slices.SortStableFunc(out, func(a, b coverView) int {
 		return boolRank(b.Theme == cur) - boolRank(a.Theme == cur)
 	})
 	return out, nil

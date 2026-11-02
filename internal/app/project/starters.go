@@ -38,7 +38,7 @@ func starter(name string) ([]folderFile, error) {
 }
 
 // starterRow is a module deck offers on its first run; Status and Revision are of its draft once it is imported.
-type starterRow struct {
+type starterView struct {
 	Name        string `json:"name"`
 	Title       string `json:"title"`
 	Icon        string `json:"icon"`
@@ -47,13 +47,13 @@ type starterRow struct {
 	Revision    int64  `json:"revision"`
 }
 
-type startersIn struct {
+type startersListIn struct {
 	Lang string `opt:"" desc:"Language of the titles, such as ru; English without one"`
 }
 
 // startersList offers the starter modules while deck has no module of the owner's, and keeps one that is a draft
 // until the owner enables it.
-func (s *Service) startersList(ctx context.Context, act registry.Actor, in startersIn) ([]starterRow, error) {
+func (s *Service) startersList(ctx context.Context, act registry.Actor, in startersListIn) ([]starterView, error) {
 	ps, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -72,13 +72,13 @@ func (s *Service) startersList(ctx context.Context, act registry.Actor, in start
 			own = true
 		}
 	}
-	var out []starterRow
+	var out []starterView
 	for _, e := range es {
 		name := e.Name()
 		if !e.IsDir() {
 			continue
 		}
-		row := starterRow{Name: name, Title: name}
+		row := starterView{Name: name, Title: name}
 		p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name})
 		switch {
 		case err == nil && p.Status != "draft", err != nil && !errors.Is(err, sql.ErrNoRows), errors.Is(err, sql.ErrNoRows) && own:
@@ -112,7 +112,7 @@ func (s *Service) startersList(ctx context.Context, act registry.Actor, in start
 }
 
 // needRow is one thing a module needs to work: a right enabling grants, a secret, a program or a model.
-type needRow struct {
+type needView struct {
 	Kind   string `json:"kind" enum:"right|secret|program|model"`
 	What   string `json:"what"`
 	Detail string `json:"detail"`
@@ -123,12 +123,12 @@ type needRow struct {
 
 // projectNeeds sums up what a module needs to work: the rights enabling grants, the secrets it names, the programs
 // its scripts miss with how to install them, and its work no model takes.
-type needsIn struct {
+type projectReadinessGetIn struct {
 	Project string `type:"project" desc:"Project name"`
 	Lang    string `opt:"" desc:"Language of the words, such as ru; English without one"`
 }
 
-func (s *Service) projectNeeds(ctx context.Context, act registry.Actor, in needsIn) ([]needRow, error) {
+func (s *Service) projectNeeds(ctx context.Context, act registry.Actor, in projectReadinessGetIn) ([]needView, error) {
 	rights, err := s.projectRights(ctx, act, projectExportIn{Project: in.Project})
 	if err != nil {
 		return nil, err
@@ -141,25 +141,25 @@ func (s *Service) projectNeeds(ctx context.Context, act registry.Actor, in needs
 	return s.needs(ctx, p, ms[p.ID], rights, words.In(in.Lang)), nil
 }
 
-func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest, rights []rightRow, ws map[string]string) []needRow {
-	out := []needRow{}
+func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest, rights []rightView, ws map[string]string) []needView {
+	out := []needView{}
 	for _, r := range rights {
-		out = append(out, needRow{Kind: "right", What: r.What, Detail: r.Detail, Done: p.Status != "draft"})
+		out = append(out, needView{Kind: "right", What: r.What, Detail: r.Detail, Done: p.Status != "draft"})
 	}
 	if m == nil {
 		return out
 	}
 	for _, str := range m.Secrets() {
-		out = append(out, needRow{Kind: "secret", What: str, Done: s.Secret(p.WorkspaceID, p.Name, str)})
+		out = append(out, needView{Kind: "secret", What: str, Done: s.Secret(p.WorkspaceID, p.Name, str)})
 	}
 	missing := script.Check(m)
 	for _, name := range slices.Sorted(maps.Keys(missing)) {
-		out = append(out, needRow{Kind: "program", What: name, Detail: missing[name].Error()})
+		out = append(out, needView{Kind: "program", What: name, Detail: missing[name].Error()})
 	}
 	out = append(out, s.missingModels(ctx, p.WorkspaceID, m, ws)...)
 	work := s.Unassigned(ctx, p.WorkspaceID, p.ID, m)
 	for _, name := range slices.Sorted(maps.Keys(work)) {
-		out = append(out, needRow{Kind: "model", What: name, Detail: work[name]})
+		out = append(out, needView{Kind: "model", What: name, Detail: work[name]})
 	}
 	return out
 }
@@ -177,7 +177,7 @@ func (s *Service) startersCommands() []*registry.Command {
 
 // missingModels are the connections, models and @roles a module calls models through that deck lacks: a role it needs,
 // a connection or a model it works without, as another owner has their own.
-func (s *Service) missingModels(ctx context.Context, workspace int64, m *manifest.Manifest, ws map[string]string) []needRow {
+func (s *Service) missingModels(ctx context.Context, workspace int64, m *manifest.Manifest, ws map[string]string) []needView {
 	have := map[string]bool{}
 	if cs, err := s.St.Q.ListConnections(ctx, workspace); err == nil {
 		for _, c := range cs {
@@ -194,15 +194,15 @@ func (s *Service) missingModels(ctx context.Context, workspace int64, m *manifes
 			have["@"+a.Role] = a.Models != "" && a.Models != "[]"
 		}
 	}
-	var out []needRow
+	var out []needView
 	for _, u := range m.Models {
 		conn, _, _ := strings.Cut(u, "/")
 		switch {
 		case have[u] || have[conn] && !strings.HasPrefix(u, "@"):
 		case strings.HasPrefix(u, "@"):
-			out = append(out, needRow{Kind: "model", What: u, Detail: manifest.Tr(ws, "Assign a model to the role in Settings → Models.")})
+			out = append(out, needView{Kind: "model", What: u, Detail: manifest.Tr(ws, "Assign a model to the role in Settings → Models.")})
 		default:
-			out = append(out, needRow{Kind: "model", What: u, Detail: fmt.Sprintf(cmp.Or(ws[addConnection], addConnection), conn), Optional: true})
+			out = append(out, needView{Kind: "model", What: u, Detail: fmt.Sprintf(cmp.Or(ws[addConnection], addConnection), conn), Optional: true})
 		}
 	}
 	return out

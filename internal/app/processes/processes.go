@@ -352,12 +352,12 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	return v, nil
 }
 
-type processLeftIn struct {
+type processLeftListIn struct {
 	Process int64 `type:"process" desc:"Process id"`
 }
 
 // processLeft is what a process and the processes it started left, for its page.
-func (s *Service) processLeft(ctx context.Context, act registry.Actor, in processLeftIn) ([]process.Left, error) {
+func (s *Service) processLeft(ctx context.Context, act registry.Actor, in processLeftListIn) ([]process.Left, error) {
 	p, err := s.ownProcess(ctx, act, in.Process)
 	if err != nil {
 		return nil, err
@@ -412,7 +412,7 @@ func (s *Service) processRework(ctx context.Context, act registry.Actor, in proc
 	return process.Started{Process: in.Process}, nil
 }
 
-type processLogIn struct {
+type processLogGetIn struct {
 	Process int64  `type:"process" desc:"Process id"`
 	Limit   int64  `opt:"" desc:"At most this many events, 50 by default"`
 	Before  int64  `opt:"" desc:"Only the events before the one of this number n: the page before one read"`
@@ -421,7 +421,7 @@ type processLogIn struct {
 }
 
 // logEvent is an event of the log of a process with its number in the log.
-type logEvent struct {
+type logEventView struct {
 	N      int64  `json:"n"`
 	At     string `json:"at"`
 	Kind   string `json:"kind"`
@@ -435,7 +435,7 @@ type logEvent struct {
 const logText = 1000
 
 // processLog is a page of the events of a process, oldest first; deck clears the logs of old runs.
-func (s *Service) processLog(ctx context.Context, act registry.Actor, in processLogIn) ([]logEvent, error) {
+func (s *Service) processLog(ctx context.Context, act registry.Actor, in processLogGetIn) ([]logEventView, error) {
 	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
@@ -443,10 +443,10 @@ func (s *Service) processLog(ctx context.Context, act registry.Actor, in process
 	if err != nil {
 		return nil, err
 	}
-	all := make([]logEvent, 0, len(raw))
+	all := make([]logEventView, 0, len(raw))
 	failed := map[string]bool{}
 	for i, r := range raw {
-		var e logEvent
+		var e logEventView
 		_ = json.Unmarshal(r, &e)
 		e.N = int64(i + 1)
 		if e.Kind == provider.EventToolUpdate && e.Status == "failed" {
@@ -454,7 +454,7 @@ func (s *Service) processLog(ctx context.Context, act registry.Actor, in process
 		}
 		all = append(all, e)
 	}
-	var page []logEvent
+	var page []logEventView
 	for _, e := range all {
 		if (in.Before == 0 || e.N < in.Before) && (in.After == nil || e.N > *in.After) && logKind(e, in.Only, failed) {
 			page = append(page, e)
@@ -477,7 +477,7 @@ func (s *Service) processLog(ctx context.Context, act registry.Actor, in process
 }
 
 // logKind reports whether an event is of the kind asked: errors, tools or messages; every one for none.
-func logKind(e logEvent, only string, failed map[string]bool) bool {
+func logKind(e logEventView, only string, failed map[string]bool) bool {
 	switch only {
 	case "errors":
 		return e.Kind == provider.EventStderr || e.Kind == provider.EventDenied || failed[e.ID] && e.ID != "" ||

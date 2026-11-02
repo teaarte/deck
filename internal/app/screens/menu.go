@@ -86,11 +86,11 @@ var menuTopics = sync.OnceValue(func() []string {
 	return out
 })
 
-type menuIn struct {
+type menuGetIn struct {
 	Lang string `opt:"" desc:"Language of the titles, such as ru; as written without one"`
 }
 
-func (s *Service) menu(ctx context.Context, act registry.Actor, in menuIn) (any, error) {
+func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (any, error) {
 	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{}, Topics: menuTopics(),
 		Language: s.Language(ctx, act.Workspace)}
 	deckWords := wordsOf(in.Lang, nil)

@@ -56,7 +56,7 @@ func (s *Service) spec(device string) mcphost.Spec {
 		Argv: append([]string{s.Argv[0]}, args...), Dir: s.dir("work"), Home: s.dir("home"), Write: []string{s.dir("out")}, HostNet: true}}
 }
 
-type shotIn struct {
+type screenCaptureIn struct {
 	Address string `desc:"The address of the screen in deck's client, such as #/p/notes/main?tab=Ideas or #/deck/settings?dialog=connections; #/ is the tiles"`
 	Scheme  string `enum:"light|dark" opt:"" desc:"The scheme; the device's own when left out"`
 	Theme   string `opt:"" desc:"A theme to wear for the shot, as a preview; the theme in use when left out"`
@@ -76,7 +76,7 @@ const ready = `() => {
 var address = regexp.MustCompile(`^#/[^\s]*$`)
 
 // shot opens the address under the caller's rights, waits for the screen to be drawn and keeps its picture.
-func (s *Service) shot(ctx context.Context, act registry.Actor, in shotIn) (any, error) {
+func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCaptureIn) (any, error) {
 	if !address.MatchString(in.Address) {
 		return nil, registry.Invalid("the address of a screen begins with #/, such as #/deck/settings")
 	}

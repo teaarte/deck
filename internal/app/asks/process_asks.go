@@ -17,7 +17,7 @@ import (
 	"deck2/internal/words"
 )
 
-type processAsksIn struct {
+type processAsksListIn struct {
 	Process int64  `desc:"The process a button of the owner started"`
 	Lang    string `opt:"" desc:"Language of the sentences of deck, such as ru; English without one"`
 }
@@ -39,7 +39,7 @@ type pressRun struct {
 
 // processAsks is the run of a press once it ends or asks no more, a few seconds at most, an agent not waited: the calls
 // it waits to make or names in its result as {"waiting": <ask>}, to answer at the button, and where it stands.
-func (s *Service) processAsks(ctx context.Context, act registry.Actor, in processAsksIn) (any, error) {
+func (s *Service) processAsks(ctx context.Context, act registry.Actor, in processAsksListIn) (any, error) {
 	asks, err := s.pressAsks(ctx, act, in)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (s *Service) processAsks(ctx context.Context, act registry.Actor, in proces
 	return out, nil
 }
 
-func (s *Service) pressAsks(ctx context.Context, act registry.Actor, in processAsksIn) ([]pressAsk, error) {
+func (s *Service) pressAsks(ctx context.Context, act registry.Actor, in processAsksListIn) ([]pressAsk, error) {
 	p, err := s.St.Q.GetProcess(ctx, in.Process)
 	if err == nil {
 		var pr db.Project
@@ -94,7 +94,7 @@ func (s *Service) pressAsks(ctx context.Context, act registry.Actor, in processA
 
 // pressAsk is a call a pressed button's run waits to make, with the buttons that allow and deny it.
 type pressAsk struct {
-	askRow
+	askView
 	Allow map[string]any `json:"allow"`
 	Deny  map[string]any `json:"deny"`
 }
@@ -130,7 +130,7 @@ func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project in
 		if q.Kind == ask.KindCall && q.ProjectID.Int64 == project && (q.ProcessID.Int64 == id || slices.Contains(named, q.ID)) {
 			r := s.askRow(ctx, q, names, lang)
 			r.Who = manifest.TrText(words.In(lang), r.Who)
-			out = append(out, pressAsk{askRow: r, Allow: answer(q.ID, "allow"), Deny: answer(q.ID, "deny")})
+			out = append(out, pressAsk{askView: r, Allow: answer(q.ID, "allow"), Deny: answer(q.ID, "deny")})
 		}
 	}
 	return out, p.FinishedAt.Valid, nil

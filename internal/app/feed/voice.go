@@ -61,16 +61,16 @@ func (s *Service) transcribe(ctx context.Context, act registry.Actor, in transcr
 	return map[string]any{"text": strings.TrimSpace(heard.Text)}, nil
 }
 
-type secureAddress struct {
+type secureAddressView struct {
 	HTTPS string `json:"https,omitempty"`
 }
 
 // secureAddress is the https address of deck on the owner's tailnet once deck is on it.
-func (s *Service) secureAddress(ctx context.Context, act registry.Actor, _ struct{}) (secureAddress, error) {
+func (s *Service) secureAddress(ctx context.Context, act registry.Actor, _ struct{}) (secureAddressView, error) {
 	if a := s.Tailnet.Load(); a != nil {
-		return secureAddress{HTTPS: *a}, nil
+		return secureAddressView{HTTPS: *a}, nil
 	}
-	return secureAddress{}, nil
+	return secureAddressView{}, nil
 }
 
 func (s *Service) voiceCommands() []*registry.Command {

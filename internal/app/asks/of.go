@@ -11,7 +11,7 @@ import (
 )
 
 // Decision is what a process waits for the owner to decide, as asks_list gives it, with the buttons that decide it.
-type Decision = askRow
+type Decision = askView
 
 // Of are what the processes wait for the owner to decide but their questions, oldest first, each with its buttons;
 // an answer the owner may take back holds a few seconds, as on Today.
@@ -22,7 +22,7 @@ func (s *Service) Of(ctx context.Context, act registry.Actor, processes []int64,
 }
 
 // buttons are those of a decision by its kind, the one place they are said for Today and the chat.
-func buttons(r askRow) []map[string]any {
+func buttons(r askView) []map[string]any {
 	held := func(verb, answer string) map[string]any {
 		a := button(r.ID, verb, answer)
 		a["hold"] = true

@@ -22,8 +22,10 @@ jobs:
     steps:
       - name: Jobs no runner took
         run: |
-          untaken=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/attempts/$ATTEMPT/jobs" --paginate \
-            --jq '.jobs[] | select((.conclusion == "cancelled" or .conclusion == "failure") and (.steps | length) == 0) | .name')
-          if [ -z "$untaken" ]; then echo "every job ran on a runner"; exit 0; fi
-          echo "no runner took:"; echo "$untaken"
+          jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/attempts/$ATTEMPT/jobs" --paginate \
+            --jq '.jobs[] | select(.conclusion == "cancelled" or .conclusion == "failure") | "\(.steps | length) \(.name)"')
+          if [ -z "$jobs" ] || ! grep -q '^0 ' <<<"$jobs"; then echo "every job ran on a runner"; exit 0; fi
+          # A job that failed on its runner keeps the run red: a rerun would hide it.
+          if grep -qv '^0 ' <<<"$jobs"; then echo "failed on a runner:"; grep -v '^0 ' <<<"$jobs"; exit 0; fi
+          echo "no runner took:"; echo "$jobs"
           gh run rerun "$RUN" --failed --repo "$GITHUB_REPOSITORY"

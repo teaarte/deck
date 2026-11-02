@@ -19,18 +19,18 @@ export function Pushes({ subscribe, unsubscribe }: { subscribe?: Action; unsubsc
   const devices = useLiveRead<Device[]>('deck.push_devices_list', {}, []);
   const { key } = useLiveRead<{ key: string }>('deck.push_key_get', {}, { key: '' }, !pushSupported());
   const device = navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.platform || 'a browser';
-  // tell presses a button with the subscription of this device; a refusal throws.
-  const tell = (act: Action | undefined) => async (sub: Subscription) => {
+  // tell presses a button with the subscription of this device, and its name when it subscribes; a refusal throws.
+  const tell = (act: Action | undefined, named = false) => async (sub: Subscription) => {
     if (!act) return;
-    const r = await press(ctx, act, { ...sub, device });
+    const r = await press(ctx, act, named ? { ...sub, device } : { ...sub });
     if (r.error) throw new Error(r.error);
   };
-  useEffect(() => { void reconcilePush(tell(subscribe)).then(setOn, () => setOn(false)); }, []);
+  useEffect(() => { void reconcilePush(tell(subscribe, true)).then(setOn, () => setOn(false)); }, []);
   const toggle = async () => {
     setBusy(true);
     try {
       if (on) await unsubscribePush(tell(unsubscribe));
-      else await subscribePush(key, tell(subscribe));
+      else await subscribePush(key, tell(subscribe, true));
       setOn(!on);
     } catch (e) {
       notifyError(e, t('Pushes on this device'));

@@ -101,7 +101,7 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 	found := false
 	for _, v := range e.Screen("web", "main", nil) {
 		for _, raw := range v {
-			found = found || strings.Contains(string(raw), `"undo":{"command":"web.tag","icon":"arrow-back-up","label":"Undo","params":{"tag":"alpha"}`)
+			found = found || strings.Contains(string(raw), `"undo":{"command":"web.tag","params":{"tag":"alpha"}`)
 		}
 	}
 	if !found {

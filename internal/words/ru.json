@@ -1045,5 +1045,6 @@
   "deck: the form has no file": "deck: в форме нет файла",
   "deck: a file id is a number": "deck: номер файла — это число",
   "deck: custom blocks need the second port": "deck: блокам custom нужен второй порт",
-  "deck: custom blocks need an address a CSP names, such as localhost or an IPv4 one": "deck: блокам custom нужен адрес, который называет CSP, например localhost или IPv4"
+  "deck: custom blocks need an address a CSP names, such as localhost or an IPv4 one": "deck: блокам custom нужен адрес, который называет CSP, например localhost или IPv4",
+  "deck: no chat to turn the recording into text": "deck: нет чата, который превратил бы запись в текст"
 }

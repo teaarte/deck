@@ -14,16 +14,13 @@ import { Field } from './Field';
 import { Result } from './Result';
 import { buildInput, type Schema } from './schema';
 import { useFormValues } from './useFormValues';
-import catalogSchema from '../../lib/catalogSchema';
-import { watchRun } from '../../ui/actions/pressStore';
+import { FINAL, followRun, watchRun, type RunState } from '../../ui/actions/pressStore';
 
 type FormCommand = Omit<Generated['commands'][number], 'input' | 'result'> & { input?: Schema; result?: Schema };
 export type FormValue = Omit<Generated, 'commands'> & { commands: FormCommand[] };
 
-const FINAL: string[] = catalogSchema.final_states;
-
-// Outcome is where the run of the form stands, as its press came to it.
-interface Outcome { state: string; result?: unknown; error?: string; process?: number }
+// Outcome is where the run of the form stands.
+type Outcome = RunState & { process?: number };
 
 // Form asks for the input of a command by its schema, calls it and shows the result under the form.
 export function Form({ value }: { value: FormValue }) {
@@ -81,9 +78,12 @@ export function Form({ value }: { value: FormValue }) {
         close();
         return;
       }
-      setOut({ state: 'running', process: started });
+      // The run is followed past what its press waited for, until it ends.
+      const show = (p: RunState) => { if (alive.current) setOut({ state: p.state, result: p.result, error: p.error, process: started }); };
+      show({ state: 'running' });
       const end = await watchRun(started);
-      if (alive.current) setOut({ state: end?.state ?? 'running', result: end?.result, error: end?.error, process: started });
+      if (end) show(end);
+      if (!end || !FINAL.includes(end.state)) await followRun(started, show, alive);
     } catch (e) {
       setFailed({ at: 'run', error: errorText(e) });
     } finally {
@@ -114,7 +114,7 @@ export function Form({ value }: { value: FormValue }) {
       {out && (
         <Stack gap="xs" data-outcome={out.state}>
           {!FINAL.includes(out.state) && (
-            <Group gap="xs">{busy && <Loader size="xs" />}<Text size="sm" c="dimmed">{t('#{{id}}: {{state}}', { id: out.process, state: out.state })}</Text></Group>
+            <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">{t('#{{id}}: {{state}}', { id: out.process, state: out.state })}</Text></Group>
           )}
           {out.state === 'done' && <Result value={out.result} schema={edit ? undefined : cmd?.result} />}
           {out.state !== 'done' && FINAL.includes(out.state) && <Alert color="red" title={out.state}>{out.error}</Alert>}

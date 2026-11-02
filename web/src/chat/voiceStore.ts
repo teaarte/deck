@@ -1,4 +1,5 @@
 import { upload } from '../lib/api';
+import i18n from '../lib/i18n';
 import type { Action } from '../lib/catalog.gen';
 import { press } from '../screen/press';
 import { createStore, useStore } from '../lib/store';
@@ -110,7 +111,7 @@ async function pump() {
     for (let p = pieces.find((x) => x.text === undefined && !x.error); p; p = pieces.find((x) => x.text === undefined && !x.error)) {
       try {
         const [f] = await upload('master', [new File([p.wav], 'voice.wav', { type: 'audio/wav' })]);
-        if (!turn?.input) throw new Error('deck: no chat to turn the recording into text');
+        if (!turn?.input) throw new Error(i18n.t('deck: no chat to turn the recording into text'));
         const r = await press(undefined, turn, { [turn.input]: String(f.id) });
         if (r.error) throw new Error(r.error);
         p.text = (r.result as { text: string }).text;

@@ -1,4 +1,6 @@
+import type { RefObject } from 'react';
 import { call } from '../../lib/api';
+import catalogSchema from '../../lib/catalogSchema';
 import { liveRead } from '../../lib/live';
 import type { Action } from '../../lib/catalog.gen';
 import { createStore, useStore } from '../../lib/store';
@@ -34,6 +36,33 @@ const keep = (open: { id: number }[] | null) => {
   const ids = new Set((open ?? []).map((a) => a.id));
   asks.set(asks.get().filter((a) => ids.has(a.id)));
 };
+
+// FINAL are the states a run ends in.
+export const FINAL: string[] = catalogSchema.final_states;
+
+// RunState is where a run stands, as deck.process_get gives it.
+export interface RunState { state: string; result?: unknown; error?: string }
+
+// followRun follows a run its press left going until it ends, read live; it stops within 10 s once alive is not.
+export function followRun(process: number, onState: (p: RunState) => void, alive: RefObject<boolean>): Promise<void> {
+  return new Promise<void>((finished) => {
+    let over = false;
+    let stop = () => undefined as void;
+    const gone = setInterval(() => { if (!alive.current) end(); }, 10000);
+    const end = () => {
+      if (over) return;
+      over = true;
+      clearInterval(gone);
+      stop();
+      finished();
+    };
+    stop = liveRead<RunState>('deck.process_get', { process }, (p) => {
+      if (over || !alive.current) return end();
+      onState(p);
+      if (FINAL.includes(p.state)) end();
+    }, end);
+  });
+}
 
 // settleAsks takes off the cards of asks deck closed by itself meanwhile.
 export function settleAsks() {

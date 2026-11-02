@@ -32,45 +32,84 @@ var verbs = map[string]button{
 func IsVerb(name string) bool { _, ok := verbs[name]; return ok }
 
 // Labeled is a JSON value with every button that names a verb given its label in ws and, without a label of its
-// own, its icon; a value with no verb comes back as it is.
+// own, its icon; the keys keep their order, and a value with no verb comes back as it is.
 func Labeled(raw []byte, ws map[string]string) []byte {
 	if !bytes.Contains(raw, []byte(`"verb":`)) {
 		return raw
 	}
-	var v any
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.UseNumber()
-	if d.Decode(&v) != nil {
-		return raw
-	}
-	out, err := json.Marshal(label(v, ws))
+	out, err := labeled(d, ws)
 	if err != nil {
 		return raw
 	}
 	return out
 }
 
-func label(v any, ws map[string]string) any {
-	switch x := v.(type) {
-	case map[string]any:
-		for k, c := range x {
-			x[k] = label(c, ws)
+// labeled copies the next value of d, giving each button of a verb its label and icon.
+func labeled(d *json.Decoder, ws map[string]string) ([]byte, error) {
+	t, err := d.Token()
+	if err != nil {
+		return nil, err
+	}
+	switch t {
+	case json.Delim('['):
+		out := []byte{'['}
+		for d.More() {
+			v, err := labeled(d, ws)
+			if err != nil {
+				return nil, err
+			}
+			if len(out) > 1 {
+				out = append(out, ',')
+			}
+			out = append(out, v...)
 		}
-		name, _ := x["verb"].(string)
-		vb, ok := verbs[name]
-		if !ok {
-			return x
+		_, err = d.Token()
+		return append(out, ']'), err
+	case json.Delim('{'):
+		out := []byte{'{'}
+		var name string
+		own, icon := false, false
+		for d.More() {
+			k, err := d.Token()
+			if err != nil {
+				return nil, err
+			}
+			v, err := labeled(d, ws)
+			if err != nil {
+				return nil, err
+			}
+			key, _ := k.(string)
+			switch key {
+			case "verb":
+				_ = json.Unmarshal(v, &name)
+			case "label":
+				// An empty label is none: the verb gives it.
+				if own = string(v) != `""`; !own {
+					continue
+				}
+			case "icon":
+				icon = true
+			}
+			if len(out) > 1 {
+				out = append(out, ',')
+			}
+			out = append(append(append(out, JSON(key, "")...), ':'), v...)
 		}
-		if _, own := x["label"]; !own {
-			x["label"] = Tr(ws, vb.Label)
-			if _, icon := x["icon"]; !icon && vb.Icon != "" {
-				x["icon"] = vb.Icon
+		if _, err := d.Token(); err != nil {
+			return nil, err
+		}
+		if vb, ok := verbs[name]; ok && !own {
+			if len(out) > 1 {
+				out = append(out, ',')
+			}
+			out = append(append(out, `"label":`...), JSON(Tr(ws, vb.Label), "")...)
+			if !icon && vb.Icon != "" {
+				out = append(append(out, `,"icon":`...), JSON(vb.Icon, "")...)
 			}
 		}
-	case []any:
-		for i, c := range x {
-			x[i] = label(c, ws)
-		}
+		return append(out, '}'), nil
 	}
-	return v
+	return JSON(t, ""), nil
 }

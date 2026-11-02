@@ -95,12 +95,14 @@ func validVAPID(k vapid) bool {
 	return err1 == nil && err2 == nil && len(pub) == 65 && len(priv) == 32
 }
 
-func (s *Service) pushKey(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+// pushKeyView is the public key a device subscribes with.
+type pushKeyView struct {
+	Key string `json:"key"`
+}
+
+func (s *Service) pushKey(ctx context.Context, act registry.Actor, _ struct{}) (pushKeyView, error) {
 	k, err := s.vapidKeys(act.Workspace)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"key": k.Public}, nil
+	return pushKeyView{Key: k.Public}, err
 }
 
 type pushSubscribeIn struct {
@@ -187,6 +189,8 @@ type pushDeviceView struct {
 	ID        int64  `json:"id"`
 	Name      string `json:"name"`
 	CreatedAt string `json:"created_at"`
+	// Remove is the button that stops its pushes.
+	Remove map[string]any `json:"remove"`
 }
 
 func (s *Service) pushDevices(ctx context.Context, act registry.Actor, _ struct{}) ([]pushDeviceView, error) {
@@ -196,7 +200,8 @@ func (s *Service) pushDevices(ctx context.Context, act registry.Actor, _ struct{
 	}
 	out := []pushDeviceView{}
 	for _, r := range rows {
-		out = append(out, pushDeviceView{ID: r.ID, Name: r.Device, CreatedAt: r.CreatedAt})
+		out = append(out, pushDeviceView{ID: r.ID, Name: r.Device, CreatedAt: r.CreatedAt,
+			Remove: map[string]any{"verb": "remove", "command": registry.Deck("push_unsubscribe"), "params": map[string]any{"device": r.ID}}})
 	}
 	return out, nil
 }
@@ -428,9 +433,9 @@ func otherKey(body string) bool {
 
 func (s *Service) pushCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("push_key_get", "Push key",
+		registry.Read("push_key_get", "Push key",
 			"Returns the public key a device subscribes to the pushes of deck with.",
-			registry.OwnerOnly, s.pushKey),
+			registry.OwnerOnly, s.pushKey).On("settings"),
 		registry.Def("push_subscribe", "Get pushes",
 			"Subscribes a device to pushes: what waits for the owner and the notes of the feed when no client is open.",
 			registry.OwnerOnly, s.pushSubscribe),

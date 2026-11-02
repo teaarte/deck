@@ -128,6 +128,8 @@ type chatView struct {
 	Archive  action        `json:"archive,omitempty"`
 	Delete   action        `json:"delete,omitempty"`
 	Choose   action        `json:"choose,omitempty"`
+	// Transcribe is the button that turns a recording of the owner, given as file, into text.
+	Transcribe action `json:"transcribe"`
 	// Suggest are what a new topic may ask of the module of the owner's screen.
 	Suggest []suggestView `json:"suggest"`
 }
@@ -274,7 +276,8 @@ func (s *Service) picked(ctx context.Context, workspace int64, topic string, tr 
 
 // chat is the topic picked with its messages as a chat block shows it.
 func (s *Service) chat(ctx context.Context, act registry.Actor, in chatGetIn) (chatView, error) {
-	v := chatView{Messages: []messageView{}, Suggest: []suggestView{}, Send: chatAction("send", registry.Deck("chat_send"), map[string]any{})}
+	v := chatView{Messages: []messageView{}, Suggest: []suggestView{}, Send: chatAction("send", registry.Deck("chat_send"), map[string]any{}),
+		Transcribe: action{"label": "Speak", "command": registry.Deck("recording_transcribe"), "input": "file"}}
 	tr := s.words(in.Lang)
 	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
 	if err != nil {

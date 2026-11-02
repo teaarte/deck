@@ -34,8 +34,8 @@ function Raw({ text, mark }: { text: string; mark: string }) {
   const { t } = useTranslation();
   const v = laidOut(text);
   return (
-    <Spoiler maxHeight={132} showLabel={t('log.more')} hideLabel={t('log.less')}>
-      <Code block {...{ [mark]: '' }} data-json={v.json || undefined} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{v.text}</Code>
+    <Spoiler maxHeight={132} showLabel={t('Show more')} hideLabel={t('Show less')}>
+      <Code block {...{ [mark]: '' }} data-json={v.json || undefined} className="deck-pre">{v.text}</Code>
     </Spoiler>
   );
 }
@@ -46,7 +46,7 @@ function At({ at }: { at: string }) {
   const today = d.toDateString() === new Date().toDateString();
   const text = today ? d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : d.toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  return <Text size="xs" c="dimmed" ml="auto" style={{ flexShrink: 0 }} title={d.toLocaleString(locale())}>{text}</Text>;
+  return <Text size="xs" c="dimmed" ml="auto" className="deck-fixed" title={d.toLocaleString(locale())}>{text}</Text>;
 }
 
 // Live is the head of a log still going: how long it runs and how many steps it made.
@@ -57,7 +57,7 @@ function Live({ since, steps }: { since: string; steps: number }) {
     <Group gap="xs" className={s.live} data-log-live>
       <IconActivity size={15} color="var(--mantine-color-green-7)" aria-hidden />
       <Text size="xs" c="dimmed">
-        {t('log.running')} · {formatted(Math.max(0, (now - Date.parse(since)) / 1000), { format: 'duration' })}{steps > 0 ? ' · ' + t('chat.steps', { count: steps }) : ''}
+        {t('going')} · {formatted(Math.max(0, (now - Date.parse(since)) / 1000), { format: 'duration' })}{steps > 0 ? ' · ' + t('Steps: {{count}}', { count: steps }) : ''}
       </Text>
     </Group>
   );
@@ -74,21 +74,25 @@ function Say({ act }: { act: Action }) {
   };
   return (
     <Failed error={error} onClose={clear}>
-      <TextInput size="sm" value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder={t('log.write')} data-log-say
+      <TextInput size="sm" value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder={t('Write to the agent')} data-log-say
         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); } }}
-        rightSection={<ActionIcon variant="subtle" loading={busy} onClick={go} aria-label={t('verb.send')}><IconSend size={15} /></ActionIcon>} />
+        rightSection={<ActionIcon variant="subtle" loading={busy} onClick={go} aria-label={t('Send')}><IconSend size={15} /></ActionIcon>} />
     </Failed>
   );
 }
 
 // Owner is a message of the owner among the lines, with whether the agent took it and, while not, its delete.
+// STATUS and KINDS are the words of the state of a message of the owner and of the kind of a line.
+const STATUS: Record<string, string> = { waiting: 'not taken yet', taken: 'taken', running: 'going' };
+const KINDS: Record<string, string> = { message: 'Agent', thought: 'Thinking', tool: 'Tool', rate_limit: 'Limit', stderr: 'stderr', denied: 'Refused', owner: 'You', deck: 'deck' };
+
 function Owner({ l }: { l: Line }) {
   const { t } = useTranslation();
   return (
     <Stack gap={4} align="flex-end" data-line="owner" data-status={l.status}>
-      <div className={s.owner}><Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{l.text}</Text></div>
+      <div className={s.owner}><Text size="sm" className="deck-pre">{l.text}</Text></div>
       <Group gap={6}>
-        <Text size="xs" c="dimmed">{t('log.' + (l.status ?? 'taken'))}</Text>
+        <Text size="xs" c="dimmed">{t(STATUS[l.status ?? 'taken'] ?? l.status ?? '')}</Text>
         <At at={l.at} />
         {l.delete && <ActionButton act={l.delete} />}
       </Group>
@@ -112,12 +116,12 @@ function LogLines({ d }: { d: Data }) {
         return (
           <Stack key={i} gap={4} miw={0} data-line={l.kind}>
             <Group gap="xs" wrap="nowrap" miw={0}>
-              <Badge size="xs" variant="light" color={end?.status === 'failed' || l.kind === 'denied' ? 'red' : 'gray'} style={{ flexShrink: 0 }}>{t('log.' + l.kind, { defaultValue: l.kind })}</Badge>
+              <Badge size="xs" variant="light" color={end?.status === 'failed' || l.kind === 'denied' ? 'red' : 'gray'} className="deck-fixed">{t(KINDS[l.kind] ?? l.kind)}</Badge>
               {l.title && <Text size="xs" ff="monospace" truncate>{l.title}</Text>}
               <At at={l.at} />
             </Group>
             {l.text && (l.kind === 'message' ? <Markdown text={l.text} />
-              : l.kind === 'thought' ? <Text size="sm" c="dimmed" fs="italic" lineClamp={4} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{l.text}</Text>
+              : l.kind === 'thought' ? <Text size="sm" c="dimmed" fs="italic" lineClamp={4} className="deck-pre">{l.text}</Text>
               : <Raw text={l.text} mark="data-tool-input" />)}
             {end?.text && <Raw text={end.text} mark="data-tool-result" />}
           </Stack>

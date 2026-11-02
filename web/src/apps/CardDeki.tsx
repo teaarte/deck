@@ -77,7 +77,7 @@ export function CardDeki({ size, room }: { size: number; room: number }) {
   if (!mascot) return null;
   const head = room < 72;
   return (
-    <button ref={ref} type="button" className={s.deki} onClick={() => setChatOpen(true)} aria-label={t('chat.talk', { name })} data-card-deki={pulse.state}
+    <button ref={ref} type="button" className={s.deki} onClick={() => setChatOpen(true)} aria-label={t('Talk to {{name}}', { name })} data-card-deki={pulse.state}
       data-head={head || undefined}>
       <Deki pose={pose} size={head ? HEAD : Math.min(size, room)} still={!motion} wake={wake} />
     </button>

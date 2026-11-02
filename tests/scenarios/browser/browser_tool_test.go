@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"deck2/internal/app"
+	"deck2/internal/egress"
 	"deck2/tests/harness"
 )
 
@@ -36,7 +37,13 @@ func TestRealBrowser(t *testing.T) {
 	ag := &harness.SeqAgent{Files: []string{"cv.txt"}}
 	e := harness.New(t, harness.WithAgent(ag.Script), harness.WithConfig(func(c *app.Config) { c.Browser = app.DefaultBrowser }))
 	host := strings.TrimPrefix(page.URL, "http://")
-	e.Project("web", harness.BrowserManifest(`{"read": ["127.0.0.1"], "act": ["`+host+`"]}`))
+	second := httptest.NewServer(page.Config.Handler)
+	t.Cleanup(second.Close)
+	other := second.URL
+	// The browser reaches only public addresses: the pages of the test stand for public ones.
+	egress.AsPublic(host)
+	egress.AsPublic(strings.TrimPrefix(other, "http://"))
+	e.Project("web", harness.BrowserManifest(`{"read": ["`+strings.TrimPrefix(other, "http://")+`"], "act": ["`+host+`"]}`))
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav(page.URL), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}})), "done")
 	snap := ag.Last(1)[0]
 	m := refOf.FindStringSubmatch(snap.Out)
@@ -57,20 +64,19 @@ func TestRealBrowser(t *testing.T) {
 	if got := ag.Last(3); got[1].IsErr || !strings.Contains(got[2].Out, "Got cv.txt") {
 		t.Fatalf("the real browser uploads a file of the process: %+v", got)
 	}
-	second := httptest.NewServer(page.Config.Handler)
-	t.Cleanup(second.Close)
-	other := second.URL
 	id := e.Start("web", "browse", harness.Steps(harness.Nav(other), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}}, harness.Click("e2")))
 	e.WaitState(id, "waiting_answer")
 	if got := ag.Last(1)[0]; !strings.Contains(got.Out, `"waiting"`) {
 		t.Fatalf("a click on a read domain of the real browser waits for the owner: %+v", got)
 	}
-	e.Project("research", harness.BrowserManifest(`{"read": ["*", "`+host+`"]}`))
+	local := httptest.NewServer(page.Config.Handler)
+	t.Cleanup(local.Close)
+	e.Project("research", harness.BrowserManifest(`{"read": ["*", "`+strings.TrimPrefix(local.URL, "http://")+`"]}`))
 	e.WaitState(e.Start("research", "browse", harness.Steps(harness.Nav("https://example.com/"), harness.Step{Tool: "browser_tabs", Args: map[string]any{"action": "list"}})), "done")
 	if got := ag.Last(2); got[0].IsErr || !strings.Contains(got[1].Out, "Example Domain") || strings.Contains(got[1].Out, second.URL) {
 		t.Fatalf("a project reading any site reads the internet in a browser of its own, without the signed-in tabs: %+v", got)
 	}
-	e.WaitState(e.Start("research", "browse", harness.Steps(harness.Nav(page.URL+"/leak"))), "done")
+	e.WaitState(e.Start("research", "browse", harness.Steps(harness.Nav(local.URL+"/leak"))), "done")
 	if leaks.Load() != 0 || pixel.Load() != 0 {
 		t.Fatalf("the browser of any site reaches no local address, even one its project names: %d page, %d pixel", leaks.Load(), pixel.Load())
 	}

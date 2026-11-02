@@ -41,10 +41,10 @@ export function PhoneTabs({ onChat }: { onChat: () => void }) {
   const deck = !route.project;
   const inMore = more.some(here);
   return (
-    <nav className={s.tabs} aria-label={t('nav.screens')} data-phone-tabs>
-      <Tab to={href({ screen: 'cockpit' })} icon={<IconSun size={21} />} label={t('nav.cockpit')} count={menu.pulse.asks}
+    <nav className={s.tabs} aria-label={t('Screens')} data-phone-tabs>
+      <Tab to={href({ screen: 'cockpit' })} icon={<IconSun size={21} />} label={t('Today')} count={menu.pulse.asks}
         active={deck && route.screen === 'cockpit'} data={{ 'data-tab': 'cockpit' }} />
-      <Tab to={href({ screen: 'apps' })} icon={<IconLayoutGrid size={21} />} label={t('nav.apps')}
+      <Tab to={href({ screen: 'apps' })} icon={<IconLayoutGrid size={21} />} label={t('Modules')}
         active={(deck && route.screen === 'apps') || (!!route.project && route.project !== menu.master?.project)} data={{ 'data-tab': 'apps' }} />
       <Tab icon={<IconSparkles size={21} />} label={name} onClick={onChat} data={{ 'data-tab': 'deki', 'data-chat-toggle': true, 'data-deki': true }} />
       {schedule && (
@@ -54,7 +54,7 @@ export function PhoneTabs({ onChat }: { onChat: () => void }) {
       <Menu position="top-end" withinPortal>
         <Menu.Target>
           <span className={s.tabWrap}>
-            <Tab icon={<IconDots size={21} />} label={t('nav.more')} active={inMore} data={{ 'data-tab': 'more' }} />
+            <Tab icon={<IconDots size={21} />} label={t('More')} active={inMore} data={{ 'data-tab': 'more' }} />
           </span>
         </Menu.Target>
         <Menu.Dropdown data-more>

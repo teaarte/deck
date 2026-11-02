@@ -29,12 +29,13 @@ const (
 	processAsksQuiet = 2 * time.Second
 )
 
-// pressRun is what the run of a press came to for its button: the calls it waits to make, where it stands and why it
-// failed, in the owner's words.
+// pressRun is what the run of a press came to for its button: the calls it waits to make, where it stands, its result
+// once done and why it failed, in the owner's words.
 type pressRun struct {
-	Asks  []pressAsk `json:"asks"`
-	State string     `json:"state"`
-	Error string     `json:"error,omitempty"`
+	Asks   []pressAsk      `json:"asks"`
+	State  string          `json:"state"`
+	Result json.RawMessage `json:"result,omitempty"`
+	Error  string          `json:"error,omitempty"`
 }
 
 // processAsks is the run of a press once it ends or asks no more, a few seconds at most, an agent not waited: the calls
@@ -49,6 +50,9 @@ func (s *Service) processAsks(ctx context.Context, act registry.Actor, in proces
 		return nil, err
 	}
 	out := pressRun{Asks: asks, State: p.State}
+	if p.State == process.StateDone && json.Valid([]byte(p.Result)) {
+		out.Result = json.RawMessage(p.Result)
+	}
 	if p.Error != "" {
 		out.Error = manifest.TrText(words.In(in.Lang), p.Error)
 	}

@@ -1,23 +1,20 @@
 import { useContext, useLayoutEffect, useRef } from 'react';
-import { createComponentImplementation } from '@a2ui/react/v0_9';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Card, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { Shown } from '../lib/format';
-import { BlockContext, press } from '../screen/press';
+import type { Data } from '../lib/catalog.gen';
+import { press } from '../screen/press';
 import { NamedIcon } from '../ui/NamedIcon';
 import { Pending } from '../ui/Pending';
 import { Value } from '../ui/Value';
 import b from './blocks.module.css';
 import { Fit } from './around';
-import { api, type BlockProps } from './blockImpl';
+import { blockImpl, type BlockProps } from './blockImpl';
 import s from './stat.module.css';
 
 // stat is one number with its icon in the color of its tone and its title under it; a click opens what it counts.
-export const stat = createComponentImplementation(api('stat'), ({ props, context }) => {
-  const p = props as BlockProps & Shown;
-  return <BlockContext.Provider value={context}><Stat p={p} context={context} /></BlockContext.Provider>;
-});
+export const stat = blockImpl<Shown>('stat', (p, d, context) => <Stat p={p} d={d} context={context} />, { own: true });
 
 // useOneLine makes the text of el smaller until it stands in one line of its width.
 function useOneLine(on: boolean, key: unknown) {
@@ -38,17 +35,16 @@ function useOneLine(on: boolean, key: unknown) {
   return ref;
 }
 
-function Stat({ p, context }: { p: BlockProps & Shown; context: ComponentContext }) {
+function Stat({ p, d, context }: { p: BlockProps & Shown; d?: Data; context: ComponentContext }) {
   const { t, i18n } = useTranslation();
   const fit = useContext(Fit);
-  const d = p.data;
   const one = useOneLine(fit, `${i18n.language} ${JSON.stringify(d?.value)}`);
   const opens = d?.actions?.find((a) => a.screen);
   const open = () => { if (opens) void press(context, opens); };
   let value;
   if (!d) value = <Pending />;
-  else if (d.state === 'error') value = <Text span inherit c="red" title={fit ? d.error : undefined}>{t('state.error')}</Text>;
-  else if (d.state === 'empty') value = <Text span inherit c="dimmed" fz="sm" fw={500} data-empty>{d.empty || t('state.empty')}</Text>;
+  else if (d.state === 'error') value = <Text span inherit c="red" title={fit ? d.error : undefined}>{t('The source failed')}</Text>;
+  else if (d.state === 'empty') value = <Text span inherit c="dimmed" fz="sm" fw={500} data-empty>{d.empty || t('Nothing here')}</Text>;
   else value = <Value v={d.value} s={p} tone={d.tone} />;
   return (
     <Card className={`${b.block} ${s.stat}`} data-block data-stat-block data-title={p.title} data-fit={fit || undefined} data-span={String(p.span ?? 1)} data-tone={d?.tone}

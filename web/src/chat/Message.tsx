@@ -43,8 +43,8 @@ const sent = (at: string) => {
 function Meta({ w, at }: { w?: WorkValue; at: string }) {
   const { t } = useTranslation();
   const parts = w ? [w.model || w.provider, w.cost_usd !== undefined ? cost(w.cost_usd) : '',
-    w.subscription_usd !== undefined ? t('chat.subscription', { cost: cost(w.subscription_usd) }) : '',
-    t('chat.worked', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('chat.steps', { count: w.steps }) : ''] : [];
+    w.subscription_usd !== undefined ? t('subscription ≈ {{cost}}', { cost: cost(w.subscription_usd) }) : '',
+    t('worked {{time}}', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('Steps: {{count}}', { count: w.steps }) : ''] : [];
   return <Text size="xs" c="dimmed" data-work-meta>{[...parts, sent(at)].filter(Boolean).join(' · ')}</Text>;
 }
 
@@ -59,16 +59,16 @@ function Told({ m, told }: { m: ChatMessage; told: Told }) {
     <Stack gap={6} className={s.told} data-message="deck" data-told={told.state} data-tone={told.tone}>
       <Group gap={6} wrap="nowrap" justify="space-between">
         <Text size="sm" fw={650} data-told-head>
-          {t('chat.told', { work: `${told.project}.${told.command}` })} <Text span c={toneColor(told.tone) ?? 'dimmed'} inherit>{told.word}</Text>
+          {t('Work {{work}}:', { work: `${told.project}.${told.command}` })} <Text span c={toneColor(told.tone) ?? 'dimmed'} inherit>{told.word}</Text>
         </Text>
-        <ActionButton act={{ ...told.open, label: t('chat.told_open'), verb: undefined }} />
+        <ActionButton act={{ ...told.open, label: t('Open the process'), verb: undefined }} />
       </Group>
       {failed && told.reason && <Text size="sm">{told.reason}</Text>}
       {failed && told.error && <Details text={told.error} />}
       {failed && !!told.left?.length && <Left undo={told.left} />}
       {failed && told.go && <Group gap={6}><ActionButton act={{ ...told.go, primary: true }} /></Group>}
       {told.state === 'done' && m.text && (
-        <Spoiler maxHeight={360} showLabel={t('chat.show_all')} hideLabel={t('chat.show_less')} data-told-result>
+        <Spoiler maxHeight={360} showLabel={t('Show all')} hideLabel={t('Show less')} data-told-result>
           <Markdown text={m.text} />
         </Spoiler>
       )}
@@ -81,7 +81,7 @@ function Left({ undo }: { undo: { text: string; action: Action }[] }) {
   const { t } = useTranslation();
   return (
     <Stack gap={4} data-left>
-      <Text size="xs" fw={600}>{t('chat.cut_left')}</Text>
+      <Text size="xs" fw={600}>{t('What it left')}</Text>
       {undo.map((u, i) => (
         <Group key={i} gap={6} wrap="nowrap" justify="space-between" className={s.left}>
           <Text size="xs" lineClamp={2}>{u.text}</Text>
@@ -99,13 +99,13 @@ type Cut = NonNullable<Reply['cut']>;
 // and the providers it can go again on, the first the main action of the latest one.
 function Broken({ cut, reply, latest }: { cut: Cut; reply: Reply; latest: boolean }) {
   const { t } = useTranslation();
-  const head = cut.stopped ? t('chat.stopped_by_you') : t('chat.cut_by', { provider: reply.provider || '?' }) + (cut.reason ? ': ' + cut.reason : '');
+  const head = cut.stopped ? t('Stopped by your button') : t('The reply on {{provider}} broke off', { provider: reply.provider || '?' }) + (cut.reason ? ': ' + cut.reason : '');
   return (
     <Stack gap={8} className={s.cut} data-reply-cut data-stopped={cut.stopped || undefined}>
       <Stack gap={2}>
         <Text size="sm" fw={650}>{head}</Text>
         <Text size="xs" c="dimmed" data-cut-steps>
-          {cut.steps > 0 ? t('chat.cut_steps', { count: cut.steps }) : t('chat.cut_nothing')}{cut.said ? ' ' + t('chat.cut_said', { said: cut.said }) : ''}
+          {cut.steps > 0 ? t('Steps it made: {{count}}.', { count: cut.steps }) : t('It did nothing yet.')}{cut.said ? ' ' + t('Last: “{{said}}”', { said: cut.said }) : ''}
         </Text>
         {!cut.stopped && !cut.reason && reply.error && <Text size="xs" c="dimmed" lineClamp={2} title={reply.error}>{reply.error}</Text>}
       </Stack>
@@ -116,7 +116,7 @@ function Broken({ cut, reply, latest }: { cut: Cut; reply: Reply; latest: boolea
       {cut.retry.length > 0 && (
         <Group gap={6}>
           {cut.retry.map((r, i) => (
-            <ActionButton key={r.label ?? r.verb} act={{ ...r, primary: latest && i === 0 && !cut.stopped, label: r.label ? t('chat.retry_on', { provider: r.label }) : undefined }} />
+            <ActionButton key={r.label ?? r.verb} act={{ ...r, primary: latest && i === 0 && !cut.stopped, label: r.verb === 'retry' ? t('Answer on {{provider}}', { provider: r.label }) : r.label }} />
           ))}
         </Group>
       )}
@@ -155,13 +155,13 @@ export const Message = memo(function Message({ m, latest }: { m: ChatMessage; la
         <div className={s.ownerBubble} data-bubble>
           {pictures.length > 0 && <Group gap={4} mb={6}>{pictures.map((f) => <Thumb key={f.id} it={f} size={72} />)}</Group>}
           {files.length > 0 && <Group gap={4} mb={6}>{files.map((f) => <Badge key={f} size="sm" variant="white" leftSection={<IconPaperclip size={11} />}>{f}</Badge>)}</Group>}
-          <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</Text>
+          <Text size="sm" className="deck-pre">{m.text}</Text>
         </div>
         <div className={s.lineTools} data-line-tools><Meta at={m.created_at} /></div>
         {(m.reply?.tone === 'error' || m.reply?.tone === 'muted') && <ReplyState reply={m.reply} latest={latest} />}
         {m.delete && (
           <Group gap={2} data-not-taken>
-            <Text size="xs" c="dimmed">{t('chat.not_taken')}</Text>
+            <Text size="xs" c="dimmed">{t('not taken yet')}</Text>
             <ActionIconButton act={m.delete} icon={<IconTrash size={14} />} />
           </Group>
         )}
@@ -176,8 +176,8 @@ export const Message = memo(function Message({ m, latest }: { m: ChatMessage; la
       {m.work && <Work w={m.work} />}
       <Group gap={4} className={s.lineTools} data-line-tools>
         <CopyButton value={m.text}>{({ copied, copy }) => (
-          <Tooltip label={copied ? t('chat.copied') : t('chat.copy')}>
-            <ActionIcon variant="subtle" color="gray" size="sm" onClick={copy} aria-label={t('chat.copy')}>{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}</ActionIcon>
+          <Tooltip label={copied ? t('Copied') : t('Copy')}>
+            <ActionIcon variant="subtle" color="gray" size="sm" onClick={copy} aria-label={t('Copy')}>{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}</ActionIcon>
           </Tooltip>
         )}</CopyButton>
         <Meta w={m.work} at={m.created_at} />

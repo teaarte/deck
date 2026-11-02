@@ -34,14 +34,14 @@ export function useTopics(value: ChatData, context: ComponentContext) {
   };
   const active = first(value.topics.filter(inProject)).map((x) => ({ value: String(x.id), label: x.title }));
   const archived = first(value.archived.filter(inProject)).map((x) => ({ value: String(x.id), label: x.title }));
-  const options = archived.length ? [...active, { group: t('chat.archived'), items: archived }] : active;
+  const options = archived.length ? [...active, { group: t('Archived'), items: archived }] : active;
   // A module works when processes of its own run, not when the master talks about it.
   const working = new Set<string>();
   menu.projects.forEach((m) => { if (m.project && m.running && projects.includes(m.project)) working.add(m.project); });
   const rank = (v: string) => (recent.includes(v) ? recent.indexOf(v) : recent.length);
-  const modules = [{ value: NONE, label: t('chat.no_module') }, ...projects.map((p) => ({ value: p, label: p }))]
+  const modules = [{ value: NONE, label: t('Without a module') }, ...projects.map((p) => ({ value: p, label: p }))]
     .sort((a, b) => rank(a.value) - rank(b.value));
-  const scopes = [{ value: ALL, label: t('chat.all_modules') }, ...modules];
+  const scopes = [{ value: ALL, label: t('All modules') }, ...modules];
   const open = (v: string) => {
     setScope(v === ALL ? null : v);
     if (v === ALL) return;

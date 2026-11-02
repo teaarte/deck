@@ -3,7 +3,6 @@ import { useComputedColorScheme, useMantineTheme } from '@mantine/core';
 import { AppBridge, PostMessageTransport, type McpUiHostContext } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/client';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { call } from '../../lib/api';
 import { press } from '../../screen/press';
 import { go, parse } from '../../app/router';
 import type { CustomValue } from '../../lib/catalog.gen';
@@ -108,7 +107,9 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
       const project = latest.current.project;
       if (!project) throw new Error('deck: a block on a screen of deck has no module files to read');
       setReads((n) => n + 1);
-      const r = await call<Resource>('deck.file_read', { project, uri }).finally(() => setReads((n) => n - 1));
+      const got = await press(block.current, { command: 'deck.file_read', params: { project, uri } }).finally(() => setReads((n) => n - 1));
+      if (got.error !== undefined) throw new Error(got.error);
+      const r = got.result as Resource;
       return { contents: [{ uri: r.uri, mimeType: r.type, blob: r.blob }] };
     };
     b.onsizechange = ({ height: h }) => { if (h) setHeight(Math.min(Math.max(h, 40), 4000)); };

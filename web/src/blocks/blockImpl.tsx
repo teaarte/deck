@@ -17,14 +17,16 @@ export const api = (name: string): ComponentApi => {
 
 export type BlockProps = { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
 
-// Look is how a block of the catalog stands apart from the frame: its own look of nothing, or no frame at all.
-type Look<P> = { empty?: (p: BlockProps & P, d: Data) => ReactNode; bare?: (p: BlockProps & P, d?: Data) => Bare };
+// Look is how a block of the catalog stands apart from the frame: its own look of nothing, no frame at all, or a frame
+// of its own that draws the state of its data itself, before it comes too.
+type Look<P> = { empty?: (p: BlockProps & P, d: Data) => ReactNode; bare?: (p: BlockProps & P, d?: Data) => Bare; own?: boolean };
 
 // blockImpl draws a block of the catalog in its frame: title, icon, span, description, filters and state, in the look
 // it asks for; the buttons inside press through its A2UI context.
 export function blockImpl<P = object>(name: string, body: (p: BlockProps & P, d: Data, context: ComponentContext) => ReactNode, look: Look<P> = {}) {
   return createComponentImplementation(api(name), ({ props, context }) => {
     const p = props as BlockProps & P;
+    if (look.own) return <BlockContext.Provider value={context}>{body(p, p.data!, context)}</BlockContext.Provider>;
     return (
       <BlockContext.Provider value={context}>
         <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data} context={context}
@@ -38,8 +40,3 @@ type Children = (string | { id: string; basePath?: string })[];
 
 // children are the ids of a container's components, plain or with the path of their data.
 export const children = (v: unknown): Children => (Array.isArray(v) ? v : []) as Children;
-
-// kids draws the children of a container, each in a cell of className.
-export const kids = (v: unknown, build: (id: string, base?: string) => ReactNode, className?: string) =>
-  children(v).map((c, i) =>
-    typeof c === 'string' ? <div key={c} className={className}>{build(c)}</div> : <div key={c.id + i} className={className}>{build(c.id, c.basePath)}</div>);

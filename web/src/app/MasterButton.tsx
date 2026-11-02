@@ -15,7 +15,7 @@ export function MasterButton({ m, open, onClick }: { m?: MenuEntry; open: boolea
   const route = useRoute();
   const cockpit = !route.project && route.screen === 'cockpit';
   const busy = !!m?.running;
-  const state = busy ? t('chat.working') : m?.asks ? t('nav.asks', { n: m.asks }) : m?.errors ? t('nav.errors', { n: m.errors }) : undefined;
+  const state = busy ? t('The master is working') : m?.asks ? t('Waiting for you: {{n}}', { n: m.asks }) : m?.errors ? t('Failing checks: {{n}}', { n: m.errors }) : undefined;
   return (
     <Tooltip label={state ?? name} disabled={!state}>
       <Button size="xs" variant={m?.asks && !open && !cockpit ? 'filled' : 'light'} data-busy={busy || undefined} data-open={open || undefined}

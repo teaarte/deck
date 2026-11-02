@@ -34,14 +34,14 @@ export function Browser({ items, crumbs, empty }: { items: Item[]; crumbs?: Crum
       <Group gap="xs" justify="flex-end" wrap="nowrap">
         {crumbs && <Crumbs crumbs={crumbs} />}
         <SegmentedControl size="xs" value={view.mode} onChange={(v) => setView({ mode: v as View['mode'] })} data-files-mode
-          data={[{ value: 'grid', label: <IconLayoutGrid size={14} aria-label={t('files.grid')} /> }, { value: 'list', label: <IconList size={14} aria-label={t('files.list')} /> }]} />
+          data={[{ value: 'grid', label: <IconLayoutGrid size={14} aria-label={t('Tiles')} /> }, { value: 'list', label: <IconList size={14} aria-label={t('List')} /> }]} />
       </Group>
-      {!items.length && <Text size="sm" c="dimmed" data-empty>{empty || t('state.empty')}</Text>}
+      {!items.length && <Text size="sm" c="dimmed" data-empty>{empty || t('Nothing here')}</Text>}
       {view.mode === 'grid' ? (
         <Virtual items={items} row={tile} width={TILE + 16} className={s.grid} render={(it, i) => it.icon ? <Place key={String(it.id) + i} it={it} size={TILE} /> : (
           <UnstyledButton key={String(it.id) + i} className={s.tile} onClick={() => open(it)} data-item data-tile>
             <Thumb it={it} size={TILE} />
-            <Text size="xs" lineClamp={2} ta="center" style={{ overflowWrap: 'anywhere' }}>{it.title || it.name}</Text>
+            <Text size="xs" lineClamp={2} ta="center" className="deck-wrap">{it.title || it.name}</Text>
             {it.error && <Text size="xs" c="red" lineClamp={2} ta="center" data-media="error">{it.error}</Text>}
           </UnstyledButton>
         )} />
@@ -50,7 +50,7 @@ export function Browser({ items, crumbs, empty }: { items: Item[]; crumbs?: Crum
             <Group key={String(it.id) + i} gap={6} wrap="nowrap" data-item data-row>
               {it.icon ? <Place it={it} size={32} row /> : <UnstyledButton className={s.row} style={{ flex: 1, minWidth: 0 }} onClick={() => open(it)}>
                 <Thumb it={it} size={32} />
-                <Text size="sm" truncate style={{ flex: 1 }}>{it.title || it.name}</Text>
+                <Text size="sm" truncate className="deck-grow">{it.title || it.name}</Text>
                 {it.error ? <Text size="xs" c="red" truncate maw="40%" data-media="error">{it.error}</Text>
                   : <Text size="xs" c="dimmed">{formatted(it.size, { format: 'bytes' })}</Text>}
               </UnstyledButton>}

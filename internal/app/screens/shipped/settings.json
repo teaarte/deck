@@ -188,7 +188,11 @@
             {"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "=id"}, "when": "!revoked"}
           ]},
         {"type": "appearance", "title": "Pushes", "icon": "bell-ringing", "part": "pushes", "span": 2,
-          "description": "deck sends a push when something waits for you or a module tells you; each device turns them on for itself."},
+          "description": "deck sends a push when something waits for you or a module tells you; each device turns them on for itself.",
+          "actions": [
+            {"label": "Get pushes here", "command": "deck.push_subscribe"},
+            {"label": "Stop pushes here", "command": "deck.push_unsubscribe"}
+          ]},
         {"type": "table", "title": "Text of pushes", "source": {"from": "deck.settings_list", "where": "name == 'push_text'"},
           "description": "On a locked screen a push shows its text, or only the module it is of.",
           "columns": [

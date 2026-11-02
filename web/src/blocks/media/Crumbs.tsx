@@ -18,7 +18,7 @@ function Up({ c }: { c: Crumb }) {
   const { t } = useTranslation();
   const { send, busy } = usePress(c.action ?? none);
   return (
-    <ActionIcon variant="default" size={30} disabled={busy} onClick={() => void send()} aria-label={t('files.up')} data-crumb-up>
+    <ActionIcon variant="default" size={30} disabled={busy} onClick={() => void send()} aria-label={t('Up a level')} data-crumb-up>
       <IconArrowLeft size={16} />
     </ActionIcon>
   );
@@ -27,7 +27,7 @@ function Up({ c }: { c: Crumb }) {
 // Crumbs are the steps of the folder a file manager shows, each opening its folder, and a step up.
 export function Crumbs({ crumbs }: { crumbs: Crumb[] }) {
   return (
-    <Group gap="xs" wrap="nowrap" style={{ minWidth: 0, flex: 1 }} data-crumbs>
+    <Group gap="xs" wrap="nowrap" className="deck-fill" data-crumbs>
       <Up c={crumbs[crumbs.length - 2]} />
       <Breadcrumbs separator="›" separatorMargin={6} style={{ minWidth: 0, flexWrap: 'wrap' }}>
         {crumbs.map((c, i) => <Step key={i} c={c} />)}

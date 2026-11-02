@@ -45,7 +45,7 @@ export function DataTable({ columns, rows, searched }: { columns: Column[]; rows
   return (
     <div data-table>
       {rows.length > 10 && !searched && (
-        <TextInput size="xs" mb="sm" maw={280} leftSection={<IconSearch size={14} />} placeholder={t('table.search')}
+        <TextInput size="xs" mb="sm" maw={280} leftSection={<IconSearch size={14} />} placeholder={t('Search')}
           value={v.query} onChange={(e) => v.search(e.currentTarget.value)} data-table-search />
       )}
       <Table.ScrollContainer minWidth={Math.min(720, 150 * main.length + (acts ? 140 : 0))}>
@@ -80,7 +80,7 @@ export function DataTable({ columns, rows, searched }: { columns: Column[]; rows
                     {opens && (
                       <Table.Td className={s.toggleCol}>
                         {more(r) && (
-                          <ActionIcon variant="subtle" color="gray" size="sm" onClick={flip} aria-expanded={open} aria-label={t(open ? 'table.less' : 'table.more')} data-row-toggle>
+                          <ActionIcon variant="subtle" color="gray" size="sm" onClick={flip} aria-expanded={open} aria-label={t(open ? 'Show less' : 'Show details')} data-row-toggle>
                             <IconChevronRight size={14} className={s.chevron} data-open={open || undefined} />
                           </ActionIcon>
                         )}
@@ -109,12 +109,12 @@ export function DataTable({ columns, rows, searched }: { columns: Column[]; rows
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
-      {!v.slice.length && v.query && <Text size="sm" c="dimmed" mt="sm">{t('table.nothing')}</Text>}
+      {!v.slice.length && v.query && <Text size="sm" c="dimmed" mt="sm">{t('Nothing matches')}</Text>}
       {v.shown.length > v.per && (
         <Group justify="space-between" mt="sm" data-table-pages>
-          <Text size="xs" c="dimmed">{t('table.range', { from: (v.at - 1) * v.per + 1, to: Math.min(v.at * v.per, v.shown.length), of: v.shown.length })}</Text>
+          <Text size="xs" c="dimmed">{t('{{from}}–{{to}} of {{of}}', { from: (v.at - 1) * v.per + 1, to: Math.min(v.at * v.per, v.shown.length), of: v.shown.length })}</Text>
           <Group gap="xs">
-            <Select size="xs" w={76} data={SIZES} value={v.size} onChange={(x) => v.resize(x ?? '25')} aria-label={t('table.size')} allowDeselect={false} />
+            <Select size="xs" w={76} data={SIZES} value={v.size} onChange={(x) => v.resize(x ?? '25')} aria-label={t('Rows on a page')} allowDeselect={false} />
             <Pagination size="sm" total={v.pages} value={v.at} onChange={v.setPage} />
           </Group>
         </Group>

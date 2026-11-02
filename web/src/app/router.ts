@@ -37,7 +37,7 @@ export function serverParams(r: Route): Record<string, string> | undefined {
 
 // screenKey names the screen as the server draws it: a change of a tab or a dialog does not draw it again, a card of
 // another size does.
-export const screenKey = (r: Route) => href({ ...r, params: { ...serverParams(r), ...(r.params?.widget ? { widget: r.params.widget } : {}) } });
+const screenKey = (r: Route) => href({ ...r, params: { ...serverParams(r), ...(r.params?.widget ? { widget: r.params.widget } : {}) } });
 
 // picks are the params the filters of the side panel of a screen set, by the screen; a pick reads it again in place.
 const picks = new Map<string, Set<string>>();

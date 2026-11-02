@@ -26,14 +26,14 @@ const name = (a: Action) => a.command ?? (a.screen ? 'open' : 'chat');
 // a button outside a screen acts by itself. One that holds waits while the owner may take it back first.
 export async function press(ctx: ComponentContext | undefined, a: Action, input?: Record<string, unknown>): Promise<Reply> {
   const action = input ? { ...a, params: { ...a.params, ...input } } : a;
-  if (a.hold && !(await holdPress(a.label || (a.verb ? i18n.t('verb.' + a.verb) : '')))) return { taken: true };
+  if (a.hold && !(await holdPress(a.label ?? ''))) return { taken: true };
   if (!ctx) return run(action);
   const reply = 'r' + ++presses;
   await ctx.dispatchAction({ event: { name: name(action), context: { ...action, reply } } });
   const model = ctx.dataContext.surface.dataModel;
   const got = model.get(PRESS + reply) as Reply | undefined;
   model.set(PRESS + reply, undefined);
-  return got ?? { error: i18n.t('press.lost') };
+  return got ?? { error: i18n.t('deck did not answer the press; look at what it changed before pressing again') };
 }
 
 // readBlock asks the screen for the data of a block again: by a filter picked, the next page, a dialog opened, a tab
@@ -46,7 +46,7 @@ export function readBlock(ctx: ComponentContext, kind: 'filter' | 'more' | 'dial
 export async function run(a: Action): Promise<Reply> {
   try {
     const result = await act(a);
-    if (a.undo) offerUndo(a.undo, a.label || (a.verb ? i18n.t('verb.' + a.verb) : ''));
+    if (a.undo) offerUndo(a.undo, a.label ?? '');
     return { result };
   } catch (e) {
     return { error: errorText(e) };

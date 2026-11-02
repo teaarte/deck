@@ -6,7 +6,7 @@ import { kind, type Schema } from './schema';
 // Result draws what a command returned by its result schema: a number, a text, a list or a table.
 export function Result({ value, schema }: { value: unknown; schema?: Schema }) {
   const { t } = useTranslation();
-  if (value === null || value === undefined) return <Text size="sm" c="dimmed">{t('form.nothing')}</Text>;
+  if (value === null || value === undefined) return <Text size="sm" c="dimmed">{t('Nothing to show')}</Text>;
   const k = schema ? kind(schema) : Array.isArray(value) ? 'array' : typeof value;
   if (k === 'array' && Array.isArray(value)) {
     const objects = value.every((v) => v && typeof v === 'object' && !Array.isArray(v));
@@ -35,12 +35,12 @@ export function Result({ value, schema }: { value: unknown; schema?: Schema }) {
             <Text size="sm" c="dimmed" w={140}>{schema?.properties?.[key]?.title || key}</Text>
             {o[key] !== null && typeof o[key] === 'object'
               ? <Result value={o[key]} schema={schema?.properties?.[key]} />
-              : <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{text(o[key])}</Text>}
+              : <Text size="sm" className="deck-wrap">{text(o[key])}</Text>}
           </Group>
         ))}
       </Stack>
     );
   }
   if (typeof value === 'number') return <Text fz={32} fw={700} data-result="number">{value}</Text>;
-  return <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }} data-result="text">{text(value)}</Text>;
+  return <Text size="sm" className="deck-pre" data-result="text">{text(value)}</Text>;
 }

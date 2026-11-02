@@ -30,8 +30,8 @@ export function Lightbox({ items, at, onAt }: { items: Item[]; at: number | null
           <Viewer key={String(it.id) + at} it={it} />
           <Group justify="space-between" mt="sm">
             <Group gap={4}>
-              <ActionIcon variant="default" onClick={() => step(-1)} disabled={items.length < 2} aria-label={t('files.previous')} data-lightbox-prev><IconChevronLeft size={16} /></ActionIcon>
-              <ActionIcon variant="default" onClick={() => step(1)} disabled={items.length < 2} aria-label={t('files.next')} data-lightbox-next><IconChevronRight size={16} /></ActionIcon>
+              <ActionIcon variant="default" onClick={() => step(-1)} disabled={items.length < 2} aria-label={t('Previous')} data-lightbox-prev><IconChevronLeft size={16} /></ActionIcon>
+              <ActionIcon variant="default" onClick={() => step(1)} disabled={items.length < 2} aria-label={t('Next')} data-lightbox-next><IconChevronRight size={16} /></ActionIcon>
             </Group>
             <Group gap={4}>{!it.error && <Download it={it} />}<Actions actions={it.actions} max={2} /></Group>
           </Group>

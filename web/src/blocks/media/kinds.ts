@@ -11,7 +11,7 @@ const TEXT_EXT = ['txt', 'md', 'json', 'jsonl', 'yaml', 'yml', 'toml', 'csv', 't
   'sh', 'sql', 'css', 'ini', 'cfg', 'conf', 'srt', 'vtt'];
 // PREVIEW is the largest file read whole for a preview; TEXT the most of a text read for one.
 export const PREVIEW = 20 * 1000 * 1000;
-export const TEXT = 2 << 20;
+const TEXT = 2 << 20;
 
 export const extOf = (name = '') => (/\.([a-z0-9]+)$/i.exec(name)?.[1] ?? '').toLowerCase();
 

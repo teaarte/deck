@@ -44,7 +44,7 @@ func destination(ctx context.Context, domains []string, hostport string) ([]stri
 		return nil, fmt.Errorf("%s is not in the domains of this project; its manifest names it in domains.read and the owner grants it", hostport)
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
-		if !Public(ip) && !listed(domains, hostport) {
+		if !Public(ip) && !listed(domains, hostport) && !standing(hostport) {
 			return nil, fmt.Errorf("%s is not a public address; local services are reached by naming their IP, network or IP:port", host)
 		}
 		return []string{hostport}, nil
@@ -190,8 +190,8 @@ var Anywhere = []string{"*"}
 
 var stand sync.Map
 
-// AsPublic has deck take the address host:port for a public one where a URL names it: a test's service on loopback
-// stands for one on the internet.
+// AsPublic has deck take the address host:port for a public one where a URL names it or a program dials it: a
+// test's service on loopback stands for one on the internet.
 func AsPublic(hostport string) { stand.Store(hostport, true) }
 
 func standing(hostport string) bool {

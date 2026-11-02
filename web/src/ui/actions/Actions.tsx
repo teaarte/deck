@@ -23,7 +23,7 @@ export function Actions({ actions, max = 3, quiet }: { actions?: Action[]; max?:
       {rest.length > 0 && (
         <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md">
           <Menu.Target>
-            <ActionIcon variant="default" size={30} aria-label={t('actions.more')} data-more={more}><IconDots size={16} /></ActionIcon>
+            <ActionIcon variant="default" size={30} aria-label={t('More')} data-more={more}><IconDots size={16} /></ActionIcon>
           </Menu.Target>
           <Menu.Dropdown p={4} miw={180} data-more-menu={more}>
             <Stack gap={2}>

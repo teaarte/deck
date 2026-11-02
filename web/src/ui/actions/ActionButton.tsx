@@ -5,7 +5,10 @@ import { ActionInput } from './ActionInput';
 import { ConfirmModal } from './ConfirmModal';
 import { Failed } from './Failed';
 import { usePress } from './usePress';
-import { verbIcon } from './verbIcons';
+import { NamedIcon } from '../NamedIcon';
+
+// actionIcon is the icon a button of the server names, none without one.
+export const actionIcon = (act: Action) => act.icon ? <NamedIcon name={act.icon} fallback={act.label ?? ''} size={14} stroke={2} /> : undefined;
 
 // ActionButton is one button of a screen: it asks for its input or a confirmation first when it has one, and shows
 // why a press failed beside it. A primary is filled unless quiet.
@@ -22,12 +25,12 @@ export function ActionButton({ act, params, inMenu, quiet }: { act: Action; para
         </Failed>
       );
     }
-    return <Button size="xs" variant={variant} justify={inMenu ? 'flex-start' : undefined} fullWidth={inMenu} leftSection={verbIcon(act)} data-verb={act.verb} onClick={() => setTyping(true)}>{label}</Button>;
+    return <Button size="xs" variant={variant} justify={inMenu ? 'flex-start' : undefined} fullWidth={inMenu} leftSection={actionIcon(act)} data-verb={act.verb} onClick={() => setTyping(true)}>{label}</Button>;
   }
   const button = (
     <Failed error={error} onClose={clear}>
       <Button size="xs" variant={variant} justify={inMenu ? 'flex-start' : undefined} fullWidth={inMenu}
-        color={inMenu && ['delete', 'remove', 'revoke'].includes(act.verb ?? '') ? 'red' : undefined} loading={busy} data-verb={act.verb} leftSection={verbIcon(act)}
+        color={inMenu && ['delete', 'remove', 'revoke'].includes(act.verb ?? '') ? 'red' : undefined} loading={busy} data-verb={act.verb} leftSection={actionIcon(act)}
         onClick={() => (act.confirm ? setAsking(true) : void send(params))}>{label}</Button>
     </Failed>
   );

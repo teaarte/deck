@@ -42,7 +42,7 @@ export function holdPress(label: string): Promise<boolean> {
     timer = window.setTimeout(send, SHOWN);
     addEventListener('pagehide', send);
     document.addEventListener('visibilitychange', hide);
-    offer.set({ id, label: i18n.t('hold.goes', { label }), undo: () => finish(false) });
+    offer.set({ id, label: i18n.t('“{{label}}” goes in 5 s', { label }), undo: () => finish(false) });
   });
 }
 
@@ -70,7 +70,7 @@ export function UndoToast() {
         <IconCheck size={17} className={s.icon} />
         <span className={s.text}>{o.label}</span>
         <UnstyledButton className={s.undo} onClick={o.undo} data-undo-button>
-          <IconArrowBackUp size={15} />{i18n.t('verb.undo')}
+          <IconArrowBackUp size={15} />{i18n.t('Undo')}
         </UnstyledButton>
         <span className={s.bar} style={{ animationDuration: `${SHOWN}ms` }} />
       </div>

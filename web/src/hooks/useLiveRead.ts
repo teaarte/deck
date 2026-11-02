@@ -6,14 +6,12 @@ const last = new Map<string, unknown>();
 
 // useLiveRead is a read of a command kept fresh by liveRead; it is its last answer in this tab, else initial, until
 // the first answer, and off reads nothing.
-export function useLiveRead<T>(command: string, input: Record<string, unknown>, topics: string[] | ((data: T | undefined) => string[]),
-  initial: T, off = false): T {
+export function useLiveRead<T>(command: string, input: Record<string, unknown>, initial: T, off = false): T {
   const key = command + JSON.stringify(input);
   const [data, setData] = useState<{ key: string; value: T }>(() => ({ key, value: (last.get(key) as T | undefined) ?? initial }));
   useEffect(() => {
     if (off) return;
-    const follows = typeof topics === 'function' ? topics : () => topics;
-    return liveRead<T>(command, input, follows, (value) => {
+    return liveRead<T>(command, input, (value) => {
       last.set(key, value);
       setData({ key, value });
     });

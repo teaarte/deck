@@ -25,6 +25,12 @@ func (c *Command) On(topics ...string) *Command {
 	return c
 }
 
+// Follows makes a read follow the topics of other reads of deck too, such as those of what it counts.
+func (c *Command) Follows(reads ...string) *Command {
+	c.follows = reads
+	return c
+}
+
 // Brief makes a read give only these fields of each row unless the call asks for fields, the rest of them too.
 func (c *Command) Brief(fields ...string) *Command {
 	c.brief = fields

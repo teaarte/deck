@@ -43,3 +43,9 @@ and bring the modules in line.
 - 2026-11-02: `domains.read` is network, not only reading: deck's door sees the host, not the method, so a program
   may send to a host it may read. Acting on a site without the owner is only `domains.act` in the browser. A
   service on the owner's machine or network is named by IP:port, never by a name (Codex on a local model too).
+- 2026-11-02: a read of deck says its topics in the header `Deck-Topics` of its answer; `menu_get` is a read and has
+  no field `topics`. A button that names a `verb` comes with its `label` in the owner's language and, without a label
+  of its own, its `icon`: data carries no word for the client to translate. Buttons deck gives in data: `use` of
+  `themes_list` rows and of `theme_get` (a theme not in use), `remove` of `push_devices_list` rows, `save` of
+  `layout_get`, `draw` of the projects of `menu_get`, `transcribe` of `chat_get`; `process_asks_list` gives the
+  `result` of a run once done; `theme_use` answers with the theme's `accent`; `push_key_get` is a read.

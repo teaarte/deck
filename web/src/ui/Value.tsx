@@ -13,8 +13,8 @@ function Copied({ text }: { text: string }) {
     <span className={s_.copy} tabIndex={-1} data-format="copy">
       {text}
       <CopyButton value={text}>{({ copied, copy }) => (
-        <Tooltip label={copied ? t('actions.copied') : t('actions.copy')}>
-          <ActionIcon className={s_.copyButton} variant="subtle" color="gray" size="xs" aria-label={t('actions.copy')}
+        <Tooltip label={copied ? t('Copied') : t('Copy')}>
+          <ActionIcon className={s_.copyButton} variant="subtle" color="gray" size="xs" aria-label={t('Copy')}
             onClick={(e) => { e.stopPropagation(); copy(); }}>
             {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
           </ActionIcon>

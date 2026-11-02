@@ -79,3 +79,12 @@ body {
   transition-duration: 0.01ms !important;
   transition-delay: 0s !important;
 }
+
+/* The few layouts the parts of the client repeat. */
+.deck-wrap { overflow-wrap: anywhere; }
+.deck-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.deck-grow { flex: 1; }
+.deck-fill { flex: 1; min-width: 0; }
+.deck-fixed { flex: none; }
+.deck-start { align-self: flex-start; }
+.deck-pointer { cursor: pointer; }

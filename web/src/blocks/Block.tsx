@@ -34,17 +34,17 @@ export function Block({ title, icon, span, description, data, context, empty, ba
   tally('block');
   let body: ReactNode;
   const own = data?.state === 'empty' && !fit ? empty?.(data) : undefined;
-  if (!data) body = <Pending text={t('state.loading')} />;
+  if (!data) body = <Pending text={t('Loading…')} />;
   else if (data.state === 'error' && fit) {
-    body = <Group gap={8} wrap="nowrap" c="red" className={s.fitLine} title={data.error}><IconAlertTriangle size={18} /><Text size="sm" truncate>{t('state.error')}</Text></Group>;
+    body = <Group gap={8} wrap="nowrap" c="red" className={s.fitLine} title={data.error}><IconAlertTriangle size={18} /><Text size="sm" truncate>{t('The source failed')}</Text></Group>;
   }
-  else if (data.state === 'error') body = <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('state.error')}>{data.error}</Alert>;
+  else if (data.state === 'error') body = <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('The source failed')}>{data.error}</Alert>;
   else if (own) body = own;
   else if (data.state === 'empty') {
     body = (
       <Group gap={8} c="dimmed" wrap="nowrap" className={fit ? s.fitLine : undefined}>
         <IconInbox size={18} stroke={1.5} />
-        <Text size="sm" c="dimmed" truncate={fit} data-empty>{data.empty || t('state.empty')}</Text>
+        <Text size="sm" c="dimmed" truncate={fit} data-empty>{data.empty || t('Nothing here')}</Text>
       </Group>
     );
   }
@@ -76,7 +76,7 @@ export function Block({ title, icon, span, description, data, context, empty, ba
             ) : <span />}
             <Group gap="xs">
               {!!data?.head?.length && <Actions actions={data.head} quiet />}
-              {old && <Badge color="yellow" variant="light" title={t('state.stale_why')} data-stale>{t('state.stale')}</Badge>}
+              {old && <Badge color="yellow" variant="light" title={t('The live connection is down; this may be old')} data-stale>{t('Out of date')}</Badge>}
             </Group>
           </Group>
         )}
@@ -84,8 +84,8 @@ export function Block({ title, icon, span, description, data, context, empty, ba
         <Filters filters={data?.filters} context={context} />
         {body}
         {!!data?.more && data.state === 'ready' && (context
-          ? <Anchor component="button" size="xs" onClick={() => readBlock(context, 'more')} data-more={data.more}>{t('state.show_more', { count: data.more })}</Anchor>
-          : <Text size="xs" c="dimmed" data-more={data.more}>{t('state.more', { count: data.more })}</Text>)}
+          ? <Anchor component="button" size="xs" onClick={() => readBlock(context, 'more')} data-more={data.more}>{t('Show more · {{count}} left', { count: data.more })}</Anchor>
+          : <Text size="xs" c="dimmed" data-more={data.more}>{t('{{count}} more not shown', { count: data.more })}</Text>)}
       </Stack>
     </Card>
   );

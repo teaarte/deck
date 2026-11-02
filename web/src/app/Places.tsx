@@ -13,7 +13,7 @@ export function Places({ slot }: { slot?: (el: HTMLElement | null) => void }) {
   if (places.length < 2) return <div ref={slot} className={s.slot} data-side-slot data-alone />;
   return (
     <div className={s.placesRow}>
-    <nav className={s.places} aria-label={t('nav.screens')} data-places>
+    <nav className={s.places} aria-label={t('Screens')} data-places>
       {places.map((p) => (
         <a key={p.name} href={href({ project: p.project, screen: p.name })} className={s.place}
           aria-current={p.name === route.screen ? 'page' : undefined} data-active={p.name === route.screen || undefined}>

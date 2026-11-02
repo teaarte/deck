@@ -1,9 +1,8 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import en from '../locales/en.json';
-import ru from '../locales/ru.json';
+import ru from '../../../internal/words/ru.json';
 
-export const LANGS = ['en', 'ru'];
+const LANGS = ['en', 'ru'];
 
 // resolve is the language of the interface: the one the owner picked, or the device's for auto.
 export function resolve(setting: string): string {
@@ -15,9 +14,11 @@ export function resolve(setting: string): string {
 const KEY = 'deck-language';
 
 void i18n.use(initReactI18next).init({
-  resources: { en: { translation: en }, ru: { translation: ru } },
+  resources: { ru: { translation: ru } },
   lng: resolve(localStorage.getItem(KEY) ?? 'auto'),
-  fallbackLng: 'en',
+  fallbackLng: false,
+  keySeparator: false,
+  nsSeparator: false,
   interpolation: { escapeValue: false },
 });
 document.documentElement.lang = i18n.language;

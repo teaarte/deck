@@ -29,7 +29,7 @@ export function Side({ blocks, slot, children }: { blocks: ReactNode; slot?: HTM
     return (
       <Picks.Provider value={mark}>
         <div className={s.withSide} data-with-side>
-          <aside className={s.side} data-side aria-label={t('side.title')}>{panel}</aside>
+          <aside className={s.side} data-side aria-label={t('The panel of the screen')}>{panel}</aside>
           <div className={s.sideMain}>{children}</div>
         </div>
       </Picks.Provider>
@@ -37,15 +37,15 @@ export function Side({ blocks, slot, children }: { blocks: ReactNode; slot?: HTM
   }
   const button = (
     <Button size="compact-sm" variant="default" leftSection={<IconLayoutSidebarLeftExpand size={15} />} onClick={() => setOpen(true)} data-side-open
-      rightSection={picked.size > 0 ? <Badge size="xs" circle>{picked.size}</Badge> : undefined} aria-label={t('side.title')}>
-      {t('side.open')}
+      rightSection={picked.size > 0 ? <Badge size="xs" circle>{picked.size}</Badge> : undefined} aria-label={t('The panel of the screen')}>
+      {t('Panel')}
     </Button>
   );
   return (
     <Picks.Provider value={mark}>
       {slot ? createPortal(button, slot) : <div className={s.sideButton}>{button}</div>}
       {children}
-      <Drawer opened={open} onClose={() => setOpen(false)} position="bottom" size="auto" title={t('side.title')} keepMounted data-side-sheet
+      <Drawer opened={open} onClose={() => setOpen(false)} position="bottom" size="auto" title={t('The panel of the screen')} keepMounted data-side-sheet
         classNames={{ content: s.sideSheet }}>
         <div data-side>{panel}</div>
       </Drawer>

@@ -24,27 +24,27 @@ export function TopicBar({ value, topics, model, setModel }: {
   const price = (m?: string) => (m && value.prices?.[m] ? <Text size="xs" c="dimmed" data-model-price>{value.prices[m]}</Text> : undefined);
   const choose = (m: string) => {
     if (!topic) return setModel(m);
-    if (value.choose) void press(ctx, value.choose, { model: m }).then((r) => { if (r.error) notifyError(new Error(r.error), t('chat.model_failed')); });
+    if (value.choose) void press(ctx, value.choose, { model: m }).then((r) => { if (r.error) notifyError(new Error(r.error), t('The model was not changed')); });
   };
   return (
     <Group gap={4} wrap="nowrap" miw={0}>
-      <Select size="xs" style={{ flex: 1, minWidth: 0 }} placeholder={t('chat.new_topic')} data={topics.options} value={topic ? String(topic.id) : null}
+      <Select size="xs" className="deck-fill" placeholder={t('New topic')} data={topics.options} value={topic ? String(topic.id) : null}
         onChange={(v) => topics.pick(v ?? 'new')} data-topics
         renderOption={({ option, checked }) => <Group gap={8} wrap="nowrap">{check(!!checked)}{option.label}</Group>}
-        searchable nothingFoundMessage={t('chat.no_topics')} comboboxProps={{ width: 'max-content', position: 'bottom-start', styles: { dropdown: { maxWidth: 'calc(100vw - 16px)' } } }} />
+        searchable nothingFoundMessage={t('No topics')} comboboxProps={{ width: 'max-content', position: 'bottom-start', styles: { dropdown: { maxWidth: 'calc(100vw - 16px)' } } }} />
       {(value.models?.length ?? 0) > 0 && (
         <Menu position="bottom-end" shadow="md" withinPortal>
-          <Tooltip label={t('chat.model')}>
+          <Tooltip label={t('Model of this topic')}>
             <Menu.Target>
               <Button size="compact-xs" variant="light" maw={150}
-                leftSection={<IconCpu size={13} />} aria-label={`${t('chat.model')}: ${shown}`} data-topic-model={shown} data-own={own ? true : undefined}>
+                leftSection={<IconCpu size={13} />} aria-label={`${t('Model of this topic')}: ${shown}`} data-topic-model={shown} data-own={own ? true : undefined}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{shown}</span>
               </Button>
             </Menu.Target>
           </Tooltip>
           <Menu.Dropdown data-topic-models>
-            <Menu.Label>{t('chat.model')}</Menu.Label>
-            <Menu.Item leftSection={check(!own)} onClick={() => choose('')} data-model="" rightSection={price(value.model)}>{t('chat.master_model', { model: value.model ?? '' })}</Menu.Item>
+            <Menu.Label>{t('Model of this topic')}</Menu.Label>
+            <Menu.Item leftSection={check(!own)} onClick={() => choose('')} data-model="" rightSection={price(value.model)}>{t("The master's own ({{model}})", { model: value.model ?? '' })}</Menu.Item>
             {value.models!.filter((m) => m !== value.model || own === m).map((m) => (
               <Menu.Item key={m} leftSection={check(own === m)} onClick={() => choose(m)} data-model={m} rightSection={price(m)}>{m}</Menu.Item>
             ))}
@@ -53,10 +53,10 @@ export function TopicBar({ value, topics, model, setModel }: {
       )}
       {topics.scopes.length > 0 && (
         <Menu position="bottom-end" shadow="md" withinPortal>
-          <Tooltip label={narrowed ? `${t('chat.module')}: ${narrowed.label}` : t('chat.module')}>
+          <Tooltip label={narrowed ? `${t('Module')}: ${narrowed.label}` : t('Module')}>
             <Menu.Target>
               <ActionIcon variant={narrowed ? 'light' : 'subtle'} color={narrowed ? undefined : 'gray'} size={28}
-                aria-label={t('chat.module')} data-topic-project={topics.scope}>
+                aria-label={t('Module')} data-topic-project={topics.scope}>
                 <IconStack2 size={15} />
               </ActionIcon>
             </Menu.Target>
@@ -64,13 +64,13 @@ export function TopicBar({ value, topics, model, setModel }: {
           <Menu.Dropdown data-topic-projects>
             {topics.scopes.map((x) => (
               <Menu.Item key={x.value} onClick={() => topics.setScope(x.value)} data-scope={x.value} leftSection={check(x.value === topics.scope)}
-                rightSection={topics.working.has(x.value) ? <IconActivity size={14} color="var(--mantine-color-green-text)" aria-label={t('chat.working')} data-busy /> : undefined}>{x.label}</Menu.Item>
+                rightSection={topics.working.has(x.value) ? <IconActivity size={14} color="var(--mantine-color-green-text)" aria-label={t('The master is working')} data-busy /> : undefined}>{x.label}</Menu.Item>
             ))}
           </Menu.Dropdown>
         </Menu>
       )}
-      <Tooltip label={t('chat.new_topic')}>
-        <ActionIcon variant="subtle" color="gray" size={28} onClick={() => topics.pick('new')} aria-label={t('chat.new_topic')} data-new-topic><IconPlus size={16} /></ActionIcon>
+      <Tooltip label={t('New topic')}>
+        <ActionIcon variant="subtle" color="gray" size={28} onClick={() => topics.pick('new')} aria-label={t('New topic')} data-new-topic><IconPlus size={16} /></ActionIcon>
       </Tooltip>
       {topic && <ActionsMenu actions={[value.archive!, value.delete!].filter(Boolean)} />}
     </Group>

@@ -9,7 +9,7 @@ import { ActionButton } from '../ui/actions/ActionButton';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import { Actions } from '../ui/actions/Actions';
 import { Holding } from '../ui/actions/undo';
-import { verbIcon } from '../ui/actions/verbIcons';
+import { actionIcon } from '../ui/actions/ActionButton';
 import { useVisibleActions } from '../ui/actions/useVisibleActions';
 import { Deki, useMascot } from '../ui/deki/Deki';
 import { Cover } from '../ui/Cover';
@@ -139,7 +139,7 @@ function Focus({ items, empty }: { items: Item[]; empty?: string }) {
       <div className={s.focusCard} key={key(it)} data-focus-card={key(it)}>
         <Group justify="space-between" gap="xs" className={s.focusHead}>
           <Text size="xs" fw={700} className={s.kind} data-kind>{it.kind}</Text>
-          <Text size="xs" fw={600} c="dimmed" data-of>{t('list.one_of', { n: 1, of: order.length })}</Text>
+          <Text size="xs" fw={600} c="dimmed" data-of>{t('{{n}} of {{of}}', { n: 1, of: order.length })}</Text>
         </Group>
         <Holding.Provider value={hold(key(it))}>
           <Line it={it} big max={3} later={next} />
@@ -158,7 +158,7 @@ function Done({ text }: { text?: string }) {
   return (
     <Stack align="center" gap="xs" className={s.done} data-focus-done>
       {mascot && <Deki pose="done" size={150} />}
-      <Text fz={20} fw={700} ta="center">{text || t('state.empty')}</Text>
+      <Text fz={20} fw={700} ta="center">{text || t('Nothing here')}</Text>
     </Stack>
   );
 }
@@ -179,7 +179,7 @@ function Chip({ it }: { it: Item }) {
       {it.icon && <span className={s.chipIcon}><NamedIcon name={it.icon} fallback={it.title} size={15} /></span>}
       <Text size="sm" fw={600} truncate>{it.title}</Text>
       {it.since && <Since at={it.since} />}
-      {act && <ActionIconButton act={act} icon={verbIcon(act)} variant="default" />}
+      {act && <ActionIconButton act={act} icon={actionIcon(act)} variant="default" />}
     </div>
   );
 }
@@ -216,7 +216,7 @@ function FitLine({ it }: { it: Item }) {
       {act && (
         <span className={s.fitAct}>
           <span className={s.fitWide}><ActionButton act={act} quiet /></span>
-          <span className={s.fitNarrow}><ActionIconButton act={act} icon={verbIcon(act)} variant="default" /></span>
+          <span className={s.fitNarrow}><ActionIconButton act={act} icon={actionIcon(act)} variant="default" /></span>
         </span>
       )}
     </div>
@@ -240,7 +240,7 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
       {it.cover && <Cover cover={it.cover} className={s.cover} />}
       <Group gap={12} wrap="nowrap" align="flex-start">
         {marked}
-        <Stack gap={2} miw={0} style={{ flex: 1 }}>
+        <Stack gap={2} miw={0} className="deck-grow">
           <Text fw={600} lh={1.35} className={s.itemTitle}>{it.title}</Text>
           {it.text && <Text size="sm" c="var(--deck-text-2)" lh={1.45}>{it.text}</Text>}
           {(it.meta || it.since || until) && (
@@ -258,7 +258,7 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
         {later ? (
           <Group gap={6} wrap="wrap">
             <Actions actions={rest} max={max ?? 4} quiet={quiet} />
-            <UnstyledButton className={s.later} onClick={later} data-later>{t('list.later')}<IconArrowRight size={14} /></UnstyledButton>
+            <UnstyledButton className={s.later} onClick={later} data-later>{t('Later')}<IconArrowRight size={14} /></UnstyledButton>
           </Group>
         ) : <Actions actions={rest} max={max ?? (big ? 4 : 3)} quiet={quiet} />}
       </div>

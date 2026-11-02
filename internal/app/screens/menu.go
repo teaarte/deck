@@ -3,7 +3,6 @@ package screens
 import (
 	"context"
 	"slices"
-	"sync"
 
 	"deck2/internal/docs"
 	"deck2/internal/files"
@@ -39,6 +38,8 @@ type menuEntry struct {
 	// schedule.
 	Doing string   `json:"doing,omitempty"`
 	Next  *nextRun `json:"next,omitempty"`
+	// Draw is the button that asks for a view of the card for a size, given as size.
+	Draw map[string]any `json:"draw,omitempty"`
 }
 
 // nextRun is the command a trigger of the schedule runs next, by its title, and when.
@@ -60,7 +61,7 @@ type menuLink struct {
 }
 
 // menuOut is the navigation of the client: the pulse, deck's screens, the projects of the side list but those paused,
-// the master, the foot, the language the workspace picked, and the topics after which it is read again.
+// the master, the foot and the language the workspace picked.
 type menuOut struct {
 	Pulse    pulse       `json:"pulse"`
 	Language string      `json:"language"`
@@ -68,30 +69,14 @@ type menuOut struct {
 	Projects []menuEntry `json:"projects"`
 	Master   *menuEntry  `json:"master,omitempty"`
 	System   []menuGroup `json:"system"`
-	Topics   []string    `json:"topics"`
 }
-
-// menuTopics are the topics of what the menu reads: the projects, their manifests, order, covers and schedules, and
-// what it counts.
-var menuTopics = sync.OnceValue(func() []string {
-	out := []string{"projects", "documents", "settings", "files", "triggers"}
-	for _, name := range []string{registry.Deck("asks_list"), registry.Deck("processes_list"), registry.Deck("health_list"), registry.Deck("feed_list")} {
-		c, _ := manifest.Reads(name)
-		for _, t := range c.Topics {
-			if !slices.Contains(out, t) {
-				out = append(out, t)
-			}
-		}
-	}
-	return out
-})
 
 type menuGetIn struct {
 	Lang string `opt:"" desc:"Language of the titles, such as ru; as written without one"`
 }
 
-func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (any, error) {
-	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{}, Topics: menuTopics(),
+func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (menuOut, error) {
+	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{},
 		Language: s.Language(ctx, act.Workspace)}
 	deckWords := wordsOf(in.Lang, nil)
 	for _, name := range shipped().Menu {
@@ -100,7 +85,7 @@ func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (a
 	}
 	ps, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	var asks, running, failing map[string]int64
 	out.Pulse, asks, running, failing = s.pulse(ctx, act, in.Lang)
@@ -120,7 +105,9 @@ func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (a
 			continue
 		}
 		ws := wordsOf(in.Lang, m)
-		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name]}
+		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name],
+			Draw: map[string]any{"label": manifest.Tr(deckWords, "Deki prepares a view for this size"), "icon": "sparkles",
+				"command": registry.Deck("widget_draw"), "params": map[string]any{"project": p.Name}, "input": "size", "chat": true}}
 		if c := files.CoverOf(pics, p.ID, theme); c != nil {
 			e.Cover, e.CoverColor, e.CoverDark, e.CoverDarkColor = c.Light, c.Color, c.Dark, c.DarkColor
 		}
@@ -212,8 +199,9 @@ func (s *Service) foot(m menuOut, lang string) []menuGroup {
 
 func (s *Service) menuCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("menu_get", "Menu",
+		registry.Read("menu_get", "Menu",
 			"Lists the screens to navigate: deck's own, then each project's menu.",
-			registry.OwnerSide, s.menu),
+			registry.OwnerSide, s.menu).On("projects", "documents", "settings", "files", "triggers").
+			Follows(registry.Deck("asks_list"), registry.Deck("processes_list"), registry.Deck("health_list"), registry.Deck("feed_list")),
 	}
 }

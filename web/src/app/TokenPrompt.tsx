@@ -10,9 +10,9 @@ export function TokenPrompt() {
   return (
     <Stack maw={420} mx="auto" mt="xl" p="md">
       <Title order={3}>deck</Title>
-      <Text size="sm">{t('token.why')}</Text>
-      <PasswordInput label={t('token.label')} value={value} onChange={(e) => setValue(e.currentTarget.value)} data-token />
-      <Button disabled={!value.trim()} onClick={() => { setToken(value.trim()); location.reload(); }}>{t('token.save')}</Button>
+      <Text size="sm">{t('This device has no access token of deck yet. The URL deck prints when it starts ends with it.')}</Text>
+      <PasswordInput label={t('Access token')} value={value} onChange={(e) => setValue(e.currentTarget.value)} data-token />
+      <Button disabled={!value.trim()} onClick={() => { setToken(value.trim()); location.reload(); }}>{t('Open deck')}</Button>
     </Stack>
   );
 }

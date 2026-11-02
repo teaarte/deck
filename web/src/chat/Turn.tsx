@@ -20,7 +20,7 @@ const SHOWN = 6;
 const firstLine = (text?: string) => (text ?? '').split('\n').find((x) => x.trim())?.trim() ?? '';
 
 // logLines are the calls of the log as lines, each marked by how it ended.
-export function logLines(lines: TurnValue['lines'], shown = SHOWN): { key: string; text: string; failed?: boolean }[] {
+function logLines(lines: TurnValue['lines'], shown = SHOWN): { key: string; text: string; failed?: boolean }[] {
   const ended = new Map(lines.filter((l) => l.kind === 'tool_update' && l.id).map((l) => [l.id!, l.status]));
   return lines.map((l, i) => ({ l, i })).filter(({ l }) => l.kind === 'tool').map(({ l, i }) => {
     const status = l.id ? ended.get(l.id) : undefined;
@@ -49,7 +49,7 @@ export function Processes({ list }: { list: Proc[] }) {
     <div className={s.procs} data-turn-processes>
       {list.map((p) => (
         <Group key={p.id} gap={6} wrap="nowrap" className={s.proc} data-process={p.id}>
-          <Text size="xs" ff="monospace" truncate style={{ flex: 1 }}>{p.project}.{p.command}</Text>
+          <Text size="xs" ff="monospace" truncate className="deck-grow">{p.project}.{p.command}</Text>
           <Text size="xs" c={toneColor(p.tone) ?? 'dimmed'} data-process-tone={p.tone}>{p.word}</Text>
           <ActionIconButton act={p.open} variant="subtle" icon={<IconArrowUpRight size={13} />} />
         </Group>
@@ -62,7 +62,7 @@ export function Processes({ list }: { list: Proc[] }) {
 function Stop({ act }: { act: Action }) {
   const { t } = useTranslation();
   const { busy, send } = usePress(act);
-  return <Button size="compact-xs" color="red" variant="light" loading={busy} onClick={() => void send()} data-verb="stop">{t('chat.stop')}</Button>;
+  return <Button size="compact-xs" color="red" variant="light" loading={busy} onClick={() => void send()} data-verb="stop">{t('Stop')}</Button>;
 }
 
 // Turn is the reply going on in one line: what it does now with a timer, the model and Stop; a press on the line
@@ -79,7 +79,7 @@ export function Turn({ turn }: { turn: TurnValue }) {
   const tick = useClock(1000, running);
   const started = turn.started_at ? Date.parse(turn.started_at) : NaN;
   const now = calling(turn.lines);
-  const head = turn.waits || !running ? turn.word : now?.doing ?? steps[steps.length - 1] ?? t(mascot ? 'chat.working_deki' : 'chat.working_master');
+  const head = turn.waits || !running ? turn.word : now?.doing ?? steps[steps.length - 1] ?? t(mascot ? 'Deki is working' : 'The master is working');
   const more = steps.length > 0 || calls.length > 0 || procs.length > 0;
   return (
     <div className={s.turn} data-turn={turn.state}>
@@ -89,7 +89,7 @@ export function Turn({ turn }: { turn: TurnValue }) {
             {!mascot ? <Glyph busy={running} /> : running || turn.waits ? <Deki pose={turnPose(!!turn.waits, now?.act)} size={26} />
               : <DekiHead size={24} />}
           </span>
-          <Text size="sm" fw={600} truncate style={{ flex: 1 }} c={running && !turn.waits ? undefined : toneColor(turn.tone)} data-turn-now>{head}</Text>
+          <Text size="sm" fw={600} truncate className="deck-grow" c={running && !turn.waits ? undefined : toneColor(turn.tone)} data-turn-now>{head}</Text>
           {running && !Number.isNaN(started) && <Text size="xs" c="dimmed" className={s.turnFact} data-turn-timer>{clock(Math.max(0, (tick - started) / 1000))}</Text>}
           {turn.provider && <Text size="xs" c="dimmed" truncate className={s.turnModel} data-turn-model>{turn.provider}</Text>}
           {more && <span className={s.turnChevron} aria-hidden>{open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}</span>}
@@ -110,7 +110,7 @@ export function Turn({ turn }: { turn: TurnValue }) {
           {calls.length > 0 && (
             <div className={s.log} data-turn-log>
               <div className={s.logLines} role={turn.open ? 'button' : undefined} tabIndex={turn.open ? 0 : undefined}
-                aria-label={turn.open ? t('chat.full_log') : undefined} title={turn.open ? t('chat.full_log') : undefined}
+                aria-label={turn.open ? t('Open the whole log') : undefined} title={turn.open ? t('Open the whole log') : undefined}
                 onClick={() => turn.open && void log.send()} onKeyDown={(e) => { if (turn.open && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void log.send(); } }}>
                 {calls.map((l) => <div key={l.key} className={s.logLine} data-failed={l.failed || undefined} data-turn-line>{l.text}</div>)}
               </div>

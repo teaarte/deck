@@ -12,9 +12,9 @@ export function BackButton() {
   const trail = useCanGoBack();
   if (!route.record) return null;
   return (
-    <Tooltip label={t('nav.back')}>
+    <Tooltip label={t('Back')}>
       <ActionIcon variant="default" size="lg" onClick={() => (trail ? back() : go({ project: route.project, screen: route.screen }))}
-        aria-label={t('nav.back')} data-back>
+        aria-label={t('Back')} data-back>
         <IconArrowLeft size={18} />
       </ActionIcon>
     </Tooltip>
@@ -22,13 +22,13 @@ export function BackButton() {
 }
 
 // Home is the way to the tiles of deck from any other screen.
-export function Home() {
+function Home() {
   const { t } = useTranslation();
   const route = useRoute();
   if (!route.project && route.screen === 'apps') return null;
   return (
-    <Tooltip label={t('nav.apps')}>
-      <ActionIcon component="a" href={href({ screen: 'apps' })} variant="default" size={40} aria-label={t('nav.apps')} data-apps-home>
+    <Tooltip label={t('Modules')}>
+      <ActionIcon component="a" href={href({ screen: 'apps' })} variant="default" size={40} aria-label={t('Modules')} data-apps-home>
         <IconLayoutGrid size={18} />
       </ActionIcon>
     </Tooltip>

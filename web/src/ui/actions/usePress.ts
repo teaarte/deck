@@ -13,15 +13,15 @@ import { Holding } from './undo';
 async function told(result: unknown, label: string) {
   const o = outcome(result);
   if (o.running) {
-    notifyNote(i18n.t('press.already', { label }));
+    notifyNote(i18n.t('{{label}}: already running', { label }));
     return;
   }
   if (!o.started) return;
   const end = await watchRun(o.started);
   if (!end || end.asks.length) return;
-  if (end.state === 'error') notifyError(end.error || i18n.t('press.failed'), label);
-  else if (end.state === 'done') notifyNote(i18n.t('press.done', { label }));
-  else notifyNote(i18n.t('press.going', { label }));
+  if (end.state === 'error') notifyError(end.error || i18n.t('the run failed'), label);
+  else if (end.state === 'done') notifyNote(i18n.t('{{label}}: done', { label }));
+  else notifyNote(i18n.t('{{label}}: still going; its result comes to the feed', { label }));
 }
 
 // usePress presses a button once at a time with what the owner gave it; busy is while its press and the run it started
@@ -33,10 +33,10 @@ export function usePress(act: Action) {
   const [error, setError] = useState('');
   const running = useRef(false);
   const holding = useContext(Holding);
-  const label = act.label || (act.verb ? t('verb.' + act.verb) : '');
+  const label = act.label ?? '';
   const send = async (input?: Record<string, unknown>): Promise<Reply | undefined> => {
     if (running.current) {
-      notifyNote(i18n.t('press.already', { label }));
+      notifyNote(i18n.t('{{label}}: already running', { label }));
       return undefined;
     }
     running.current = true;

@@ -40,10 +40,10 @@ export function QuestionPicker({ questions, act, quiet }: { questions: Question[
   const q = questions[i];
   const last = i === questions.length - 1;
   const pick = (v: string[]) => setPicked({ ...picked, [q.question]: v });
-  const head = [questions.length > 1 ? t('question.of', { n: i + 1, total: questions.length }) : '', q.header ?? '',
-    q.multiSelect ? t('question.several') : ''].filter(Boolean).join(' · ');
+  const head = [questions.length > 1 ? t('{{n}} of {{total}}', { n: i + 1, total: questions.length }) : '', q.header ?? '',
+    q.multiSelect ? t('several may be picked') : ''].filter(Boolean).join(' · ');
   const all = Object.fromEntries(questions.map((x) => [x.question, answer(x)]));
-  const label = act.label || t('verb.' + (act.verb ?? 'answer'));
+  const label = act.label || t('Answer');
   return (
     <Stack gap="xs" data-question-at={i + 1}>
       {head && <Text size="xs" c="dimmed" fw={600} data-question-head>{head}</Text>}
@@ -59,11 +59,11 @@ export function QuestionPicker({ questions, act, quiet }: { questions: Question[
           </Radio.Group>
         )}
       </div>
-      <TextInput size="xs" placeholder={t('question.other')} value={other[q.question] ?? ''}
+      <TextInput size="xs" placeholder={t('Your own answer')} value={other[q.question] ?? ''}
         onChange={(e) => setOther({ ...other, [q.question]: e.currentTarget.value })} data-question-other />
       <Group justify="space-between" gap="xs">
-        {i > 0 ? <Button size="xs" variant="subtle" onClick={() => setAt(i - 1)} data-question-back>{t('question.back')}</Button> : <span />}
-        {!last ? <Button size="xs" variant={quiet ? 'light' : undefined} disabled={answer(q) === ''} onClick={() => setAt(i + 1)} data-question-next>{t('question.next')}</Button>
+        {i > 0 ? <Button size="xs" variant="subtle" onClick={() => setAt(i - 1)} data-question-back>{t('Back')}</Button> : <span />}
+        {!last ? <Button size="xs" variant={quiet ? 'light' : undefined} disabled={answer(q) === ''} onClick={() => setAt(i + 1)} data-question-next>{t('Go on')}</Button>
           : questions.every((x) => answer(x) !== '') ? <ActionButton act={act} params={{ [act.input ?? 'answer']: JSON.stringify(all) }} quiet={quiet} />
           : <Button size="xs" variant={quiet ? 'light' : undefined} disabled>{label}</Button>}
       </Group>

@@ -11,6 +11,6 @@ export function Deadline({ until }: { until: string }) {
   if (Number.isNaN(left)) return null;
   const tone = left < 30 ? 'error' : left < 60 ? 'warn' : undefined;
   const h = Math.floor(left / 60);
-  const text = h ? t('deadline.hours', { h, m: left % 60 }) : t('deadline.minutes', { m: left });
+  const text = h ? t('{{h}} h {{m}} min', { h, m: left % 60 }) : t('{{m}} min', { m: left });
   return <span className={s.chip} data-tone={tone} data-deadline><IconClock size={12} stroke={2} />{text}</span>;
 }

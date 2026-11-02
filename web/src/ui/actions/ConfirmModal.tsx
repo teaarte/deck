@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Code, Group, List, Loader, Modal, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { call } from '../../lib/api';
+import { liveRead } from '../../lib/live';
 import { errorText } from '../../lib/notify';
 
 type Part = { kind: string; name: string };
+
+// PARTS are the words of the kinds of what a call deletes.
+const PARTS: Record<string, string> = { record: 'Record', file: 'File', folder: 'Folder', process: 'Process it stops' };
 
 // Parts are what a call deletes for good, as the read the server named lists them; onReady says whether they came.
 function Parts({ from, params, onReady }: { from: string; params?: Record<string, unknown>; onReady: (ok: boolean) => void }) {
@@ -12,20 +15,17 @@ function Parts({ from, params, onReady }: { from: string; params?: Record<string
   const [got, setGot] = useState<{ parts?: Part[]; error?: string }>();
   const key = JSON.stringify(params ?? {});
   useEffect(() => {
-    let gone = false;
     onReady(false);
-    call<Part[]>(from, JSON.parse(key)).then(
-      (parts) => { if (!gone) { setGot({ parts }); onReady(true); } },
-      (e) => { if (!gone) setGot({ error: errorText(e) }); });
-    return () => { gone = true; };
+    return liveRead<Part[]>(from, JSON.parse(key), (parts) => { setGot({ parts }); onReady(true); },
+      (e) => setGot({ error: errorText(e) }));
   }, [from, key, onReady]);
   if (got?.error) return <Alert color="red" p="xs">{got.error}</Alert>;
   if (!got?.parts) return <Loader size="xs" />;
   return (
     <Stack gap={4} data-confirm-parts>
-      <Text size="sm">{t('confirm.parts')}</Text>
+      <Text size="sm">{t('This is deleted for good:')}</Text>
       <List size="sm" spacing={2} style={{ maxHeight: '50vh', overflow: 'auto' }}>
-        {got.parts.map((p, i) => <List.Item key={i}>{t('confirm.part.' + p.kind, { defaultValue: p.kind })}: {p.name}</List.Item>)}
+        {got.parts.map((p, i) => <List.Item key={i}>{t(PARTS[p.kind] ?? p.kind)}: {p.name}</List.Item>)}
       </List>
     </Stack>
   );
@@ -40,11 +40,11 @@ export function ConfirmModal({ opened, label, parts, params, onCancel, onConfirm
   const [ready, setReady] = useState(false);
   useEffect(() => { if (!opened) setReady(false); }, [opened]);
   return (
-    <Modal opened={opened} onClose={onCancel} title={t('confirm.title', { action: label })}>
+    <Modal opened={opened} onClose={onCancel} title={t('{{action}}?', { action: label })}>
       <Stack gap="sm" data-confirm>
         {parts ? opened && <Parts from={parts} params={params} onReady={setReady} /> : <Code block>{JSON.stringify(params ?? {}, null, 2)}</Code>}
         <Group justify="flex-end">
-          <Button variant="default" onClick={onCancel}>{t('verb.cancel')}</Button>
+          <Button variant="default" onClick={onCancel}>{t('Cancel')}</Button>
           <Button color="red" onClick={onConfirm} disabled={!!parts && !ready} data-confirm-yes>{label}</Button>
         </Group>
       </Stack>

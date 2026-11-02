@@ -1,14 +1,14 @@
 import i18n from '../lib/i18n';
 import { known, UNKNOWN } from './catalog';
 
-export const VERSION = 'v0.9';
+const VERSION = 'v0.9';
 
 export type Message = Record<string, any> & { version?: string };
 
 // prepare checks the protocol version and swaps components the client does not know for open in web.
-export function prepare(msgs: Message[]): Message[] {
+function prepare(msgs: Message[]): Message[] {
   for (const m of msgs) {
-    if (m.version !== VERSION) throw new Error(i18n.t('screen.version', { got: m.version ?? '?', want: VERSION }));
+    if (m.version !== VERSION) throw new Error(i18n.t('This screen speaks A2UI {{got}}; this client speaks {{want}}. Reload the page.', { got: m.version ?? '?', want: VERSION }));
   }
   return msgs.map((m) => {
     if (!m.updateComponents) return m;

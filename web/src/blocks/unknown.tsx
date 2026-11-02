@@ -16,9 +16,9 @@ export const unknown = createComponentImplementation(unknownApi, ({ props }) => 
   return (
     <Alert color="gray" data-unknown={type}>
       <Stack gap="xs" align="flex-start">
-        <Text size="sm">{t('screen.unknown', { type })}</Text>
+        <Text size="sm">{t('This client cannot show a {{type}} block.', { type })}</Text>
         <UnstyledButton component="a" href={location.href} onClick={() => location.reload()}>
-          <Text c="blue" size="sm">{t('screen.open_in_web')}</Text>
+          <Text c="blue" size="sm">{t('Open in web')}</Text>
         </UnstyledButton>
       </Stack>
     </Alert>

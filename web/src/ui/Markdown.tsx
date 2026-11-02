@@ -12,8 +12,8 @@ function CopyCode({ host }: { host: HTMLElement }) {
   const code = host.parentElement?.querySelector('code')?.textContent ?? host.parentElement?.textContent ?? '';
   return (
     <CopyButton value={code}>{({ copied, copy }) => (
-      <Tooltip label={copied ? t('actions.copied') : t('actions.copy')}>
-        <ActionIcon variant="default" size="sm" onClick={copy} aria-label={t('actions.copy')} data-copy-code>
+      <Tooltip label={copied ? t('Copied') : t('Copy')}>
+        <ActionIcon variant="default" size="sm" onClick={copy} aria-label={t('Copy')} data-copy-code>
           {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
         </ActionIcon>
       </Tooltip>

@@ -14,12 +14,16 @@ import { Field } from './Field';
 import { Result } from './Result';
 import { buildInput, type Schema } from './schema';
 import { useFormValues } from './useFormValues';
-import { FINAL, useProcessWatch, type ProcessState } from './useProcessWatch';
+import catalogSchema from '../../lib/catalogSchema';
+import { watchRun } from '../../ui/actions/pressStore';
 
 type FormCommand = Omit<Generated['commands'][number], 'input' | 'result'> & { input?: Schema; result?: Schema };
 export type FormValue = Omit<Generated, 'commands'> & { commands: FormCommand[] };
 
-type Outcome = ProcessState & { process?: number };
+const FINAL: string[] = catalogSchema.final_states;
+
+// Outcome is where the run of the form stands, as its press came to it.
+interface Outcome { state: string; result?: unknown; error?: string; process?: number }
 
 // Form asks for the input of a command by its schema, calls it and shows the result under the form.
 export function Form({ value }: { value: FormValue }) {
@@ -31,7 +35,6 @@ export function Form({ value }: { value: FormValue }) {
   const alive = useMountedRef();
   const ctx = useBlockContext();
   const form = useFormValues(value.values as Record<string, unknown> | undefined, value.record, cmd, alive);
-  const watch = useProcessWatch(alive);
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<Outcome>();
   // failed is why the press of run or keep did not go through.
@@ -78,7 +81,9 @@ export function Form({ value }: { value: FormValue }) {
         close();
         return;
       }
-      await watch(started, (p) => setOut({ ...p, process: started }));
+      setOut({ state: 'running', process: started });
+      const end = await watchRun(started);
+      if (alive.current) setOut({ state: end?.state ?? 'running', result: end?.result, error: end?.error, process: started });
     } catch (e) {
       setFailed({ at: 'run', error: errorText(e) });
     } finally {
@@ -90,7 +95,7 @@ export function Form({ value }: { value: FormValue }) {
   return (
     <Stack gap="sm" data-form={cmd?.name ?? ''}>
       {value.commands.length > 1 && (
-        <Select label={t('form.command')} data={value.commands.map((c) => ({ value: c.name, label: `${c.title} (${c.name})` }))}
+        <Select label={t('Command')} data={value.commands.map((c) => ({ value: c.name, label: `${c.title} (${c.name})` }))}
           value={picked || null} onChange={(v) => { setPicked(v ?? ''); form.reset(); setOut(undefined); }} data-pick />
       )}
       {cmd?.description && <Text size="sm" c="dimmed">{cmd.description}</Text>}
@@ -102,13 +107,15 @@ export function Form({ value }: { value: FormValue }) {
       {cmd && (
         <Group>
           <Failed error={failed.at === 'run' ? failed.error : ''} onClose={() => setFailed({ at: '', error: '' })}>
-            <Button onClick={submit} loading={busy} data-submit>{edit ? t('form.save_record') : t('form.run')}</Button>
+            <Button onClick={submit} loading={busy} data-submit>{edit ? t('Save') : t('Run')}</Button>
           </Failed>
         </Group>
       )}
       {out && (
         <Stack gap="xs" data-outcome={out.state}>
-          {!FINAL.includes(out.state) && <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">{t('form.state', { id: out.process, state: out.state })}</Text></Group>}
+          {!FINAL.includes(out.state) && (
+            <Group gap="xs">{busy && <Loader size="xs" />}<Text size="sm" c="dimmed">{t('#{{id}}: {{state}}', { id: out.process, state: out.state })}</Text></Group>
+          )}
           {out.state === 'done' && <Result value={out.result} schema={edit ? undefined : cmd?.result} />}
           {out.state !== 'done' && FINAL.includes(out.state) && <Alert color="red" title={out.state}>{out.error}</Alert>}
         </Stack>

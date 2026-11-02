@@ -1,3 +1,4 @@
+import type { Action } from '../lib/catalog.gen';
 import { createContext, useContext } from 'react';
 import i18n from '../lib/i18n';
 import { useLiveRead } from './useLiveRead';
@@ -26,6 +27,8 @@ export interface MenuEntry {
   widgets?: string[];
   doing?: string;
   next?: { title: string; at: string };
+  // draw is the button that asks Deki for a view of the card for a size.
+  draw?: Action;
 }
 
 // Pulse is what waits for the owner, runs and fails in the workspace, which of them Today says first, and the first
@@ -38,11 +41,10 @@ export interface Pulse {
 // MenuGroup is a group at the foot of the menu, its links each of a project or of deck.
 export interface MenuGroup { key: string; title?: string; links: (ScreenLink & { project?: string })[] }
 
-// Menu is what deck.menu_get gives: the pulse, deck's screens, the projects of the side, the master, the foot and the
-// topics after which it is read again.
-export interface Menu { pulse: Pulse; deck: MenuEntry; projects: MenuEntry[]; master?: MenuEntry; system: MenuGroup[]; language?: string; topics: string[] }
+// Menu is what deck.menu_get gives: the pulse, deck's screens, the projects of the side, the master and the foot.
+export interface Menu { pulse: Pulse; deck: MenuEntry; projects: MenuEntry[]; master?: MenuEntry; system: MenuGroup[]; language?: string }
 
-const EMPTY: Menu = { pulse: { asks: 0, running: 0, errors: 0, state: 'calm' }, deck: { title: 'deck', screens: [] }, projects: [], system: [], topics: [] };
+const EMPTY: Menu = { pulse: { asks: 0, running: 0, errors: 0, state: 'calm' }, deck: { title: 'deck', screens: [] }, projects: [], system: [] };
 
 // entryOf is the entry of a project in the menu, deck's own without one.
 export const entryOf = (m: Menu, project?: string) =>
@@ -52,8 +54,8 @@ export const entryOf = (m: Menu, project?: string) =>
 export const MenuContext = createContext<Menu>(EMPTY);
 export const useMenuData = () => useContext(MenuContext);
 
-// useMenu is the menu of deck, read again after a change of a topic it names.
-export const useMenu = () => useLiveRead<Menu>('deck.menu_get', { lang: i18n.language }, (m) => m?.topics ?? [], EMPTY);
+// useMenu is the menu of deck, kept fresh.
+export const useMenu = () => useLiveRead<Menu>('deck.menu_get', { lang: i18n.language }, EMPTY);
 
 // Place is a screen to open, of a project or of deck.
 export type Place = ScreenLink & { project?: string };
@@ -62,7 +64,7 @@ export type Place = ScreenLink & { project?: string };
 export function placesOf(m: Menu, project?: string): Place[] {
   if (!project) {
     const own = m.system.flatMap((g) => g.links).filter((l) => !l.project);
-    return [{ name: 'cockpit', title: i18n.t('nav.cockpit'), icon: 'sun' }, ...own];
+    return [{ name: 'cockpit', title: i18n.t('Today'), icon: 'sun' }, ...own];
   }
   const e = entryOf(m, project);
   return e ? [...e.screens, ...(e.extra ?? [])].map((l) => ({ ...l, project })) : [];

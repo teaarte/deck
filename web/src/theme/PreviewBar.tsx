@@ -3,7 +3,7 @@ import { Button, Group, Text, useMantineColorScheme } from '@mantine/core';
 import { IconPalette } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useRoute } from '../app/router';
-import { call } from '../lib/api';
+import { press } from '../screen/press';
 import { notifyError } from '../lib/notify';
 import { endPreview, shot, usePreview, useWorn } from './worn';
 import s from './preview.module.css';
@@ -24,20 +24,17 @@ export function PreviewBar() {
   }, [route.project, route.screen, route.record]);
   if ((!preview.theme && !preview.scheme) || shot) return null;
   const use = async () => {
-    try {
-      if (preview.theme) await call('deck.theme_use', { name: preview.theme });
-      if (preview.scheme) setColorScheme(preview.scheme);
-      endPreview();
-    } catch (e) {
-      notifyError(e, t('look.theme'));
-    }
+    const r = preview.theme && worn.use ? await press(undefined, worn.use) : {};
+    if (r.error) return notifyError(r.error, t('Theme'));
+    if (preview.scheme) setColorScheme(preview.scheme);
+    endPreview();
   };
   return (
     <Group className={s.bar} gap="sm" justify="center" wrap="wrap" role="status" data-preview-bar>
       <IconPalette size={16} />
-      <Text size="sm" fw={600}>{t('look.preview', { theme: worn.title || preview.theme })}</Text>
-      <Button size="compact-sm" onClick={() => void use()} data-preview="use">{t('look.preview_use')}</Button>
-      <Button size="compact-sm" variant="default" onClick={endPreview} data-preview="leave">{t('look.preview_leave')}</Button>
+      <Text size="sm" fw={600}>{t('Preview of the theme “{{theme}}”', { theme: worn.title || preview.theme })}</Text>
+      <Button size="compact-sm" onClick={() => void use()} data-preview="use">{worn.use?.label ?? t('Use')}</Button>
+      <Button size="compact-sm" variant="default" onClick={endPreview} data-preview="leave">{t('Leave')}</Button>
     </Group>
   );
 }

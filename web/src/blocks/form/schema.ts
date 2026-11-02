@@ -45,7 +45,7 @@ export async function buildInput(props: Record<string, Schema>, values: Record<s
       try {
         v = JSON.parse(v);
       } catch {
-        throw new Error(i18n.t('form.json', { field: name }));
+        throw new Error(i18n.t('{{field}} is not valid JSON', { field: name }));
       }
     }
     data[name] = v;

@@ -60,11 +60,11 @@ export function Shell() {
     else if (chat && full) layout.setFull(false);
   }), [chat, phone, full]);
   const entry = entryOf(menu, route.project);
-  const screen = apps ? t('nav.apps') : route.screen === 'cockpit' && !route.project ? t('nav.cockpit') : [...(entry?.screens ?? []), ...(entry?.extra ?? [])].find((x) => x.name === route.screen)?.title;
+  const screen = apps ? t('Modules') : route.screen === 'cockpit' && !route.project ? t('Today') : [...(entry?.screens ?? []), ...(entry?.extra ?? [])].find((x) => x.name === route.screen)?.title;
   useEffect(() => titlePlace([screen, route.project && entry?.title].filter(Boolean).join(' · ')), [screen, route.project, entry?.title]);
   const toggle = () => { moveFocus(chat ? '[data-chat-toggle]' : '[data-chat-close]'); setChat(!chat); };
   const side = !phone && chat;
-  const heading = apps ? t('nav.deck') : route.project ? entry?.title : undefined;
+  const heading = apps ? t('deck') : route.project ? entry?.title : undefined;
   const place = route.record ? undefined : screen;
   const lead = { slot, ...(route.project && entry && !route.record ? { under: <ModuleLead entry={entry} />, place }
     : !route.project && route.screen === 'cockpit' ? { beside: <TodayDate />, under: <TodayLine />, place } : { place }) };

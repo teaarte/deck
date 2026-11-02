@@ -34,7 +34,7 @@ export function useChatSend(value: ChatData, { before, files, model, sent }: {
       key.current = '';
       sent((r.result as { topic: number }).topic);
     } catch (e) {
-      notifyError(e, t('chat.send_failed'));
+      notifyError(e, t('The message was not sent'));
     } finally {
       setBusy(false);
     }

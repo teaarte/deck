@@ -22,7 +22,7 @@ export const filter = createComponentImplementation(api('filter'), ({ props }) =
   // All is a pick of its own: a filter with a default starts on it, and all stays picked in the address.
   return (
     <Select size="sm" label={f.label || p.title} value={value ?? ALL} comboboxProps={{ withinPortal: true }} allowDeselect={false}
-      data={[{ value: ALL, label: t('filter.all') }, ...f.options.map((o, i) => ({ value: o, label: f.labels?.[i] ?? o }))]}
+      data={[{ value: ALL, label: t('All') }, ...f.options.map((o, i) => ({ value: o, label: f.labels?.[i] ?? o }))]}
       onChange={(v) => setParam(f.field, v === ALL ? '' : v)} data-side-filter={f.field} />
   );
 });

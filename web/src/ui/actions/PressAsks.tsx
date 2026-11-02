@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Code, Group, Paper, Portal, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { Action } from '../../lib/catalog.gen';
-import { events } from '../../lib/events';
-import { dropAsk, settleAsks, usePressAsks } from './pressStore';
+import { dropAsk, followAsks, settleAsks, usePressAsks } from './pressStore';
 import { usePress } from './usePress';
 import s from './PressAsks.module.css';
 
@@ -20,12 +19,12 @@ function Answer({ id, act, answer, primary, busy, onBusy, onError }: {
     onBusy('');
     if (r?.error) {
       onError(r.error);
-      void settleAsks();
+      settleAsks();
     } else if (r) dropAsk(id);
   };
   return (
     <Button size="xs" variant={primary ? 'filled' : 'default'} loading={busy === answer} disabled={!!busy} onClick={() => void go()} data-press-answer={answer}>
-      {t(primary ? 'press.yes' : 'press.no')}
+      {t(primary ? 'Yes' : 'No')}
     </Button>
   );
 }
@@ -39,25 +38,25 @@ export function PressAsks() {
   const [error, setError] = useState('');
   const a = asks[0];
   const shown = !!a;
-  useEffect(() => (shown ? events((e) => { if (e.topic === 'asks') void settleAsks(); }) : undefined), [shown]);
+  useEffect(() => (shown ? followAsks() : undefined), [shown]);
   if (!a) return null;
   return (
     <Portal>
-      <Paper key={a.id} className={s.card} p="md" shadow="xl" withBorder role="dialog" aria-label={t('press.title')} data-press-ask={a.id} data-toast>
+      <Paper key={a.id} className={s.card} p="md" shadow="xl" withBorder role="dialog" aria-label={t('Your yes is needed')} data-press-ask={a.id} data-toast>
         <Stack gap="xs">
           <Group justify="space-between" wrap="nowrap" gap="xs">
-            <Text size="sm" fw={700}>{t('press.title')}</Text>
+            <Text size="sm" fw={700}>{t('Your yes is needed')}</Text>
             {asks.length > 1 && <Text size="xs" c="dimmed">1 / {asks.length}</Text>}
           </Group>
           <Text fw={650}>{a.what}</Text>
-          {a.where && <Text size="sm" style={{ overflowWrap: 'anywhere' }} data-press-where>{a.where}</Text>}
+          {a.where && <Text size="sm" className="deck-wrap" data-press-where>{a.where}</Text>}
           {a.payload !== undefined && a.payload !== null && (
             <Code block mah={160} style={{ overflow: 'auto' }} data-press-input>{JSON.stringify(a.payload, null, 2)}</Code>
           )}
           {a.who && <Text size="xs" c="dimmed">{a.who}</Text>}
           {error && <Text size="sm" c="red" data-press-error>{error}</Text>}
           <Group justify="flex-end" gap="xs">
-            <Button size="xs" variant="subtle" color="gray" onClick={() => dropAsk(a.id)} data-press-answer="later">{t('press.later')}</Button>
+            <Button size="xs" variant="subtle" color="gray" onClick={() => dropAsk(a.id)} data-press-answer="later">{t('Later, in the cockpit')}</Button>
             <Answer id={a.id} act={a.deny} answer="deny" busy={busy} onBusy={setBusy} onError={setError} />
             <Answer id={a.id} act={a.allow} answer="allow" primary busy={busy} onBusy={setBusy} onError={setError} />
           </Group>

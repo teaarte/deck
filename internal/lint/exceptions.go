@@ -3,8 +3,8 @@ package lint
 // exceptions are the places that break a rule today, by file:line; the lists only shrink.
 var exceptions = map[string][]string{
 	"now": {
-		"internal/app/asks/process_asks.go:76", "internal/app/asks/process_asks.go:80",
-		"internal/app/asks/process_asks.go:82", "internal/app/config.go:56", "internal/app/files/thumbs.go:31",
+		"internal/app/asks/process_asks.go:80", "internal/app/asks/process_asks.go:84",
+		"internal/app/asks/process_asks.go:86", "internal/app/config.go:56", "internal/app/files/thumbs.go:31",
 		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:291",
 		"internal/app/processes/processes.go:294", "internal/app/processes/processes.go:298",
 		"internal/app/tokens/lent.go:37",

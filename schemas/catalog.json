@@ -207,7 +207,7 @@
     "appearance": {
       "description": "How deck looks on the device: theme, color scheme, accent, surfaces, density, font size, corners; with part pushes, the pushes of the device.",
       "deck_only": true,
-      "block": {"description": "Takes no source; part picks the look (by default) or the pushes of the device.", "properties": {"part": {"enum": ["look", "pushes"]}}},
+      "block": {"description": "Takes no source; part picks the look (by default) or the pushes of the device; actions are the buttons it presses: the language, the drawings of the theme, the pushes of the device.", "properties": {"part": {"enum": ["look", "pushes"]}, "actions": {"$ref": "#/$defs/actions"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -362,7 +362,7 @@
         "send": {"$ref": "#/$defs/action"}, "archive": {"$ref": "#/$defs/action"}, "delete": {"$ref": "#/$defs/action"},
         "models": {"type": "array", "items": {"type": "string"}, "description": "the models the master's replies may go on"}, "prices": {"type": "object", "additionalProperties": {"type": "string"}, "description": "the price of each model in words, such as subscription or free"},
         "model": {"type": "string", "description": "the master's own model, which a topic without one takes"},
-        "choose": {"$ref": "#/$defs/action"},
+        "choose": {"$ref": "#/$defs/action"}, "transcribe": {"$ref": "#/$defs/action", "description": "Turns a recording of the owner, given as its input, into text."},
         "suggest": {"type": "array", "description": "of a topic without messages: commands of the module of the owner's screen, as texts to put in the field", "items": {"type": "object", "additionalProperties": false, "required": ["icon", "text"], "properties": {
           "icon": {"type": "string"}, "text": {"type": "string"}}}},
         "asks": {"type": "array", "description": "what the turn going on and the processes it started wait for the owner to decide, its questions apart: items of deck.asks_list with their buttons", "items": {"type": "object", "required": ["id", "kind", "what", "actions"], "properties": {

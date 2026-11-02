@@ -24,7 +24,7 @@ export function Widget({ project, screen, size, rest }: { project?: string; scre
       </Small.Provider>
       {rest}
       {out.names.length > 0 && (
-        <span className={s.leftOut} title={t('apps.left_out', { names: out.names.join(', ') })} aria-label={t('apps.left_out', { names: out.names.join(', ') })}
+        <span className={s.leftOut} title={t('Not in the card: {{names}}', { names: out.names.join(', ') })} aria-label={t('Not in the card: {{names}}', { names: out.names.join(', ') })}
           data-widget-left-out={out.names.length}>+{out.names.length}</span>
       )}
     </div>
@@ -48,7 +48,7 @@ function useLeftOut() {
       cells.forEach((c) => { c.inert = left.includes(c); });
       const out = left.map((c) => {
         const b = c.querySelector<HTMLElement>('[data-block]');
-        return b?.getAttribute('aria-label') || b?.dataset.title || t(c.querySelector('[data-chart-block]') ? 'apps.a_chart' : 'apps.a_block');
+        return b?.getAttribute('aria-label') || b?.dataset.title || t(c.querySelector('[data-chart-block]') ? 'a chart' : 'a block');
       });
       setNames((was) => (was.join('\n') === out.join('\n') ? was : out));
     };

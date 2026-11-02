@@ -139,6 +139,13 @@ type lookView struct {
 	Current bool `json:"current"`
 	// Text is the JSON of the theme to start a change from.
 	Text string `json:"text"`
+	// Use is the button that puts it on the whole deck, on a theme not in use.
+	Use map[string]any `json:"use,omitempty"`
+}
+
+// useButton puts a theme on the whole deck.
+func useButton(name string) map[string]any {
+	return map[string]any{"verb": "use", "command": registry.Deck("theme_use"), "params": map[string]any{"name": name}}
 }
 
 func (s *Service) theme(ctx context.Context, act registry.Actor, in themeGetIn) (lookView, error) {
@@ -153,7 +160,11 @@ func (s *Service) theme(ctx context.Context, act registry.Actor, in themeGetIn) 
 		l, err = s.look(ctx, act.Workspace, name, in.Lang)
 	}
 	raw, _, _ := s.text(ctx, s.St.Q, act.Workspace, name)
-	return lookView{Look: l, Current: name == cur, Text: string(raw)}, err
+	v := lookView{Look: l, Current: name == cur, Text: string(raw)}
+	if !v.Current {
+		v.Use = useButton(name)
+	}
+	return v, err
 }
 
 type themeView struct {
@@ -166,6 +177,8 @@ type themeView struct {
 	Own      bool     `json:"own"`
 	Schemes  []string `json:"schemes"`
 	Problems []string `json:"problems,omitempty"`
+	// Use is the button that puts it on the whole deck.
+	Use map[string]any `json:"use"`
 }
 
 type themesListIn struct {
@@ -190,7 +203,7 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in themesListIn)
 		if err != nil {
 			return nil, err
 		}
-		row := themeView{Name: n, Title: n, Current: n == cur, Builtin: theme.Builtin(n) != nil, Own: own}
+		row := themeView{Name: n, Title: n, Current: n == cur, Builtin: theme.Builtin(n) != nil, Own: own, Use: useButton(n)}
 		if t, err := theme.Parse(raw); err != nil {
 			row.Problems = []string{err.Error()}
 		} else {
@@ -333,7 +346,8 @@ func (s *Service) use(ctx context.Context, act registry.Actor, in themeNameIn) (
 	if raw == nil {
 		return nil, registry.NotFound("no theme %q; deck.themes_list names them", in.Name)
 	}
-	if _, err := theme.Parse(raw); err != nil {
+	t, err := theme.Parse(raw)
+	if err != nil {
 		return nil, registry.Invalid("%v", err)
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -342,7 +356,11 @@ func (s *Service) use(ctx context.Context, act registry.Actor, in themeNameIn) (
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"name": in.Name, "current": true}, nil
+	out := map[string]any{"name": in.Name, "current": true}
+	if t.Accent != "" {
+		out["accent"] = t.Accent
+	}
+	return out, nil
 }
 
 // Commands are the commands of themes.

@@ -40,11 +40,11 @@ hold; look inside a package for the rest.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
   `internal/app`. Who may touch what is `internal/access`. Deck's screens are data in `app/screens/shipped/` (a file a
   screen).
-- `internal/words` — `ru.json`, the one dictionary of deck's words — of screens, of commands and of the sentences
-  deck writes, phrases with verbs too (`manifest.TrText`); `words.In(lang)`. One phrase a meaning (`lint.Words`).
+- `internal/words` — `ru.json`, the one dictionary of deck's words — of screens, of commands, of the client and of the
+  sentences deck writes, phrases with verbs too (`manifest.TrText`); `words.In(lang)`. One phrase a meaning (`lint.Words`).
 - `internal/registry` — every input (API, MCP, triggers) calls commands through it; input schemas are limited to
   App Intents types; `Def` takes the schema from a tagged input struct, `Read` declares a read with its result type
-  and event topics (screens read only these; a read without topics panics, `registry.Static` for none); a command
+  and event topics (screens read only these; a read without topics panics, `registry.Static` for none; the API says them in the header `Deck-Topics`, `Follows` adds those of other reads); a command
   not written in Go is `registry.Loose`, the policy of the gateway `Command.Gate`; deck's commands are named
   `<entity>_<verb>` (`_list`, `_get`, `_delete`, `_revoke`), a name of one only through `registry.Deck`/`IsBuiltin`;
   the reserved fields of an input (`retry_key`, `allows`) only the registry adds and takes out.
@@ -121,6 +121,8 @@ hold; look inside a package for the rest.
   commit it with the sources. Every button presses through `screen/press.ts`: an A2UI action of its block's context,
   the one handler in `useScreen` acts (`screen/act.ts`, `outcome()`) and replies in `/press/<reply>`; a block never
   calls a command itself, and a button the client needs comes from the server in the block's data.
+  The client's words are `internal/words/ru.json` by their English text; a button's label and icon come from the server
+  (`manifest/verbs.go`); commands are called only by `lib/live.ts`, `useScreen`/`act.ts` and `pressStore` (`lint.Client`).
   `web/foreign` is a test page: a screen in the stock renderer with deck's catalog alone.
 - `tests/harness` — the one harness of the tests: `New` with options and `Restart`, the owner's client
   (`Call`/`Must`/`Refused`, `In`, `As`), the one wait `Until` (and `WaitState`, `WaitAsk`, `WaitEvent`), `Manifest` on

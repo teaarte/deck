@@ -2,5 +2,9 @@
   "name": "look",
   "icon": "palette",
   "title": "Look",
-  "blocks": [{"type": "appearance"}]
+  "blocks": [{"type": "appearance", "actions": [
+    {"label": "Language of the interface (for the whole workspace)", "command": "deck.setting_set", "params": {"name": "language"}, "input": "value"},
+    {"label": "Draw the missing covers for this theme", "icon": "sparkles", "command": "deck.cover_draw", "chat": true},
+    {"label": "Draw the background and the scene of Today for this theme", "icon": "sparkles", "command": "deck.theme_draw", "chat": true}
+  ]}]
 }

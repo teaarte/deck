@@ -19,7 +19,7 @@ export function ActionsMenu({ actions, label, icon }: { actions?: Action[]; labe
         {label ? (
           <Button variant="default" leftSection={icon} rightSection={<IconChevronDown size={14} />} data-more={id} data-menu>{label}</Button>
         ) : (
-          <ActionIcon variant="subtle" color="gray" aria-label={t('actions.more')} data-more={id} data-menu><IconDots size={18} /></ActionIcon>
+          <ActionIcon variant="subtle" color="gray" aria-label={t('More')} data-more={id} data-menu><IconDots size={18} /></ActionIcon>
         )}
       </Menu.Target>
       <Menu.Dropdown p={4} miw={190} data-more-menu={id}>

@@ -36,7 +36,7 @@ export const useMascot = () => useLook().mascot;
 // useMasterName is what the master is called: Deki while the mascot is on.
 export function useMasterName() {
   const { t } = useTranslation();
-  return useMascot() ? t('chat.deki') : t('chat.master');
+  return useMascot() ? t('Deki') : t('Master');
 }
 
 // still is the motion off: by the owner on this device or by the system.

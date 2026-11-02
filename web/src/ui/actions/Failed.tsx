@@ -10,7 +10,7 @@ export function Failed({ error, onClose, children }: { error: string; onClose: (
       <Popover.Dropdown p="xs" maw={360} data-failed-press>
         <Group gap={6} wrap="nowrap" align="flex-start">
           <IconAlertTriangle size={16} color="var(--mantine-color-red-filled)" style={{ flex: 'none', marginTop: 2 }} />
-          <Text size="sm" c="red" style={{ overflowWrap: 'anywhere' }}>{error}</Text>
+          <Text size="sm" c="red" className="deck-wrap">{error}</Text>
         </Group>
       </Popover.Dropdown>
     </Popover>

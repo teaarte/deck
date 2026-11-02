@@ -1,4 +1,6 @@
-import { call, upload } from '../lib/api';
+import { upload } from '../lib/api';
+import type { Action } from '../lib/catalog.gen';
+import { press } from '../screen/press';
 import { createStore, useStore } from '../lib/store';
 import { errorText } from '../lib/notify';
 import { fromFile, record, type Recording } from './voice';
@@ -19,6 +21,8 @@ let takes = 0;
 let current = 0;
 let waiting = '';
 const hearers: ((text: string) => void)[] = [];
+// turn is the button of the last composer that turns a recording into text.
+let turn: Action | undefined;
 
 const set = (s: Partial<VoiceState>) => state.set({ ...state.get(), ...s });
 
@@ -27,8 +31,9 @@ export const useVoiceState = () => useStore(state);
 
 // hearBy hands the text of the voice to the composer that came last, the text none took first; once the last
 // composer goes the recording stops, and its text waits for the next.
-export function hearBy(f: (text: string) => void): () => void {
+export function hearBy(f: (text: string) => void, transcribe?: Action): () => void {
   hearers.push(f);
+  if (transcribe) turn = transcribe;
   if (waiting) { f(waiting); waiting = ''; }
   return () => {
     hearers.splice(hearers.indexOf(f), 1);
@@ -105,7 +110,10 @@ async function pump() {
     for (let p = pieces.find((x) => x.text === undefined && !x.error); p; p = pieces.find((x) => x.text === undefined && !x.error)) {
       try {
         const [f] = await upload('master', [new File([p.wav], 'voice.wav', { type: 'audio/wav' })]);
-        p.text = (await call<{ text: string }>('deck.recording_transcribe', { file: String(f.id) })).text;
+        if (!turn?.input) throw new Error('deck: no chat to turn the recording into text');
+        const r = await press(undefined, turn, { [turn.input]: String(f.id) });
+        if (r.error) throw new Error(r.error);
+        p.text = (r.result as { text: string }).text;
       } catch (e) {
         p.error = errorText(e);
       }

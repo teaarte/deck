@@ -16,10 +16,10 @@ export const ScreenView = memo(function ScreenView({ route, visible = true }: { 
   const { surface, error, key } = useScreen(route, visible);
   tally('screen');
   const last = useRef<Shown>(undefined);
-  if (error) return <Alert color="red" title={t('screen.failed')} data-screen-error>{error}</Alert>;
+  if (error) return <Alert color="red" title={t('The screen could not be shown')} data-screen-error>{error}</Alert>;
   if (surface) last.current = { surface, key };
   const shown = last.current;
-  if (!shown) return <Pending text={t('state.loading')} lines={6} />;
+  if (!shown) return <Pending text={t('Loading…')} lines={6} />;
   return (
     <div aria-busy={!surface || undefined} data-screen-view>
       <A2uiSurface key={shown.surface.id + shown.key} surface={shown.surface} />

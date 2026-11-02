@@ -33,22 +33,22 @@ export function Custom({ value }: { value: CustomValue }) {
   }, [asking]);
   return (
     <>
-      {failed && <Text size="sm" c="red" data-custom-error>{t('custom.failed', { why: failed })}</Text>}
+      {failed && <Text size="sm" c="red" data-custom-error>{t('The block did not work: {{why}}', { why: failed })}</Text>}
       <iframe ref={frame} title="custom" data-custom data-full={full || undefined} data-awaits={!ready && !failed || undefined} sandbox="allow-scripts allow-forms"
         style={full ? { position: 'fixed', inset: 0, width: '100vw', height: '100dvh', border: 0, zIndex: 190, background: 'var(--mantine-color-body)' }
           : { width: '100%', height, border: 0, display: 'block' }} />
       {full && (
-        <ActionIcon variant="default" size="lg" onClick={inline} aria-label={t('custom.inline')} data-custom-inline
+        <ActionIcon variant="default" size="lg" onClick={inline} aria-label={t('Back into the screen')} data-custom-inline
           style={{ position: 'fixed', top: 12, right: 12, zIndex: 191 }}><IconX size={18} /></ActionIcon>
       )}
-      <Modal opened={!!asking} onClose={() => answer(false)} title={t('custom.ask')}>
+      <Modal opened={!!asking} onClose={() => answer(false)} title={t('A custom block wants to run a command that goes outside deck')}>
         {asking && (
           <Stack gap="sm" data-custom-ask>
             <Text size="sm">{asking.act.label} ({asking.act.command})</Text>
             <Code block>{JSON.stringify(asking.input, null, 2)}</Code>
             <Group justify="flex-end">
-              <Button variant="default" onClick={() => answer(false)}>{t('verb.deny')}</Button>
-              <Button onClick={() => answer(true)} disabled={!armed} data-custom-allow>{t('verb.allow')}</Button>
+              <Button variant="default" onClick={() => answer(false)}>{t('Deny')}</Button>
+              <Button onClick={() => answer(true)} disabled={!armed} data-custom-allow>{t('Allow')}</Button>
             </Group>
           </Stack>
         )}

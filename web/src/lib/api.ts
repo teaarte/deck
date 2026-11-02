@@ -10,8 +10,6 @@ if (fromUrl) {
 export const token = (): string => localStorage.getItem('deck-token') ?? '';
 export const setToken = (t: string) => localStorage.setItem('deck-token', t);
 
-export class CommandError extends Error {}
-
 // authed is every request of the page to deck, with the owner's token; deck's own refusal of the token signs the page
 // out, while a model's refused key is a 401 without the challenge.
 export async function authed(url: string, init: RequestInit = {}): Promise<Response> {
@@ -25,17 +23,24 @@ export async function authed(url: string, init: RequestInit = {}): Promise<Respo
   return r;
 }
 
-// call invokes a registry command and returns its JSON result; a refusal throws the server's text in the language of
-// the interface. A small call outlives the page, so a press made as the page leaves still goes.
-export async function call<T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<T> {
+// Answer is the JSON result of a command and, for a read, the topics after which it gives another.
+export interface Answer<T> { data: T; topics: string[] }
+
+// invoke calls a registry command; a refusal throws the server's text in the language of the interface. A small call
+// outlives the page, so a press made as the page leaves still goes.
+export async function invoke<T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<Answer<T>> {
   const body = JSON.stringify(input);
   const r = await authed('/api/commands/' + encodeURIComponent(command), {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'Deck-Lang': i18n.language ?? '' }, body, keepalive: body.length < 60000,
   });
   const text = await r.text();
-  if (!r.ok) throw new CommandError(text.trim() || r.statusText);
-  return (text ? JSON.parse(text) : null) as T;
+  if (!r.ok) throw new Error(text.trim() || r.statusText);
+  const topics = r.headers.get('Deck-Topics');
+  return { data: (text ? JSON.parse(text) : null) as T, topics: topics ? topics.split(',') : [] };
 }
+
+// call is the result of a command alone.
+export const call = async <T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<T> => (await invoke<T>(command, input)).data;
 
 export interface Uploaded {
   id: number;
@@ -48,7 +53,7 @@ export async function upload(project: string, files: File[]): Promise<Uploaded[]
   files.forEach((f) => body.append('file', f, f.name));
   const r = await authed('/api/files?project=' + encodeURIComponent(project), { method: 'POST', body });
   const text = await r.text();
-  if (!r.ok) throw new CommandError(text.trim() || r.statusText);
+  if (!r.ok) throw new Error(text.trim() || r.statusText);
   return JSON.parse(text) as Uploaded[];
 }
 
@@ -64,7 +69,7 @@ export function saveBlob(blob: Blob, name: string) {
 // fetchFile reads a file deck gives at its address, with the type it is stored with.
 export async function fetchFile(url: string): Promise<Blob> {
   const r = await authed(url);
-  if (!r.ok) throw new CommandError((await r.text()).trim() || r.statusText);
+  if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
   return new Blob([await r.arrayBuffer()], { type: r.headers.get('Content-Type') ?? 'application/octet-stream' });
 }
 

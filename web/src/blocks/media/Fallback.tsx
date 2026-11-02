@@ -11,8 +11,8 @@ export function Fallback({ it }: { it: Item }) {
   return (
     <Stack align="center" gap="xs" py="lg" data-media="fallback">
       <TypeIcon it={it} size={72} />
-      <Text size="sm" fw={500} ta="center" style={{ overflowWrap: 'anywhere' }}>{it.name}</Text>
-      <Text size="xs" c="dimmed">{[formatted(it.size, { format: 'bytes' }), t('files.no_preview')].join(' · ')}</Text>
+      <Text size="sm" fw={500} ta="center" className="deck-wrap">{it.name}</Text>
+      <Text size="xs" c="dimmed">{[formatted(it.size, { format: 'bytes' }), t('no preview')].join(' · ')}</Text>
       <Download it={it} />
     </Stack>
   );

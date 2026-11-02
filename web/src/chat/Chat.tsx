@@ -39,8 +39,8 @@ function Empty({ suggest, put }: { suggest: ChatData['suggest']; put: (text: str
   return (
     <Stack align="center" gap="sm" className={s.empty} data-chat-empty>
       {mascot && <Deki pose={voice.seconds > 0 ? 'listen' : 'chill'} size={190} still={voice.seconds === 0} />}
-      <Text fz={19} fw={700} ta="center">{t('chat.what')}</Text>
-      <Text size="sm" c="dimmed" ta="center">{t('chat.what_text', { name })}</Text>
+      <Text fz={19} fw={700} ta="center">{t('What to do?')}</Text>
+      <Text size="sm" c="dimmed" ta="center">{t('A task, a question or something to put into a module. {{name}} sees the screen you are on.', { name })}</Text>
       {suggest.length > 0 && (
         <Stack gap={8} w="100%" mt={4}>
           {suggest.map((x) => {
@@ -48,7 +48,7 @@ function Empty({ suggest, put }: { suggest: ChatData['suggest']; put: (text: str
             return (
               <UnstyledButton key={x.text} className={s.suggest} onClick={() => put(x.text)} data-suggest>
                 <span className={s.suggestIcon}>{Icon ? <Icon size={17} /> : <NamedIcon name={x.icon} fallback={x.text} size={17} />}</span>
-                <span style={{ flex: 1 }}>{x.text}</span>
+                <span className="deck-grow">{x.text}</span>
                 <IconArrowUpRight size={14} opacity={0.5} />
               </UnstyledButton>
             );
@@ -71,14 +71,14 @@ function DecisionCard({ d }: { d: Decision }) {
       <Group justify="space-between" gap="xs" wrap="nowrap">
         <Group gap={6} className={s.decisionHead} wrap="nowrap">
           <IconHandStop size={15} />
-          <Text size="xs" fw={700}>{d.expired ? t('chat.ask_expired') : t('chat.ask_yes')}</Text>
+          <Text size="xs" fw={700}>{d.expired ? t('Expired') : t('Your yes is needed')}</Text>
         </Group>
         {d.expires_at && !d.expired && <Deadline until={d.expires_at} />}
       </Group>
       <Stack gap={2}>
         <Text size="sm" fw={650}>{d.what}</Text>
-        {(d.why || d.where) && <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{d.why || d.where}</Text>}
-        <Text size="xs" c="dimmed">{[d.who && t('chat.ask_who', { who: d.who }), d.project].filter(Boolean).join(' · ')}</Text>
+        {(d.why || d.where) && <Text size="sm" className="deck-wrap">{d.why || d.where}</Text>}
+        <Text size="xs" c="dimmed">{[d.who && t('Asked by {{who}}', { who: d.who }), d.project].filter(Boolean).join(' · ')}</Text>
       </Stack>
       {details && <Details text={details} />}
       <Holding.Provider value={setHeld}>
@@ -135,7 +135,7 @@ export function Chat({ value, context }: { value: ChatData; context: ComponentCo
         {value.asks.map((d) => <DecisionCard key={d.id} d={d} />)}
       </Feed>
       {value.turn && <Turn turn={value.turn} />}
-      <Composer text={text} setText={setText} files={files} busy={chat.busy} onNewTopic={() => topics.pick('new')}
+      <Composer text={text} setText={setText} files={files} busy={chat.busy} transcribe={value.transcribe} onNewTopic={() => topics.pick('new')}
         onSend={(detached) => { if (text.trim()) history.push(text.trim()); void chat.send(text, detached); }} onWalk={history.walk}
         onEdit={(v) => { setText(v); chat.forgetKey(); }} />
     </Stack>

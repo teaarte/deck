@@ -8,14 +8,12 @@ import { useTranslation } from 'react-i18next';
 import { of } from '../app/Backdrop';
 import { NavStatus } from '../app/NavStatus';
 import { dropParam, href, useMoving, useRoute } from '../app/router';
-import { openTopic } from '../chat/chatStore';
 import { useLiveRead } from '../hooks/useLiveRead';
 import { useMenuData, type MenuEntry } from '../hooks/useMenu';
-import { call } from '../lib/api';
 import { useCover } from '../lib/covers';
 import { device } from '../lib/device';
 import { notifyError } from '../lib/notify';
-import { outcome } from '../screen/act';
+import { press } from '../screen/press';
 import { useWorn } from '../theme/worn';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './apps.module.css';
@@ -136,7 +134,7 @@ export function Apps() {
   // The narrowest grid still has two columns, as a phone: a card across it is two cells wide, a half one.
   const cols = Math.max(2, Math.floor((width + cell.gap) / (cell.min + cell.gap)));
   const me = device();
-  const saved = useLiveRead<Saved>('deck.layout_get', { device: me, columns: cols }, ['settings', 'projects'], EMPTY, !mounted);
+  const saved = useLiveRead<Saved>('deck.layout_get', { device: me, columns: cols }, EMPTY, !mounted);
   const ids = [TODAY, ...menu.projects.map((p) => p.project ?? '')];
   const [placing, setPlacing] = useState(route.params?.edit === '1');
   const [room, setRoom] = useState(0);
@@ -151,9 +149,11 @@ export function Apps() {
     setMoved(next);
     const q = saving.current;
     q.left++;
-    q.queue = q.queue.then(() => call('deck.layout_set', { device: me, columns: cols, cards: JSON.stringify(next.map(({ i, ...c }) => ({ id: i, ...c }))) }))
-      .catch((e) => notifyError(e, t('apps.place')))
-      .finally(() => { q.left--; });
+    const save = saved.save;
+    q.queue = q.queue.then(async () => {
+      const r = save ? await press(undefined, save, { cards: JSON.stringify(next.map(({ i, ...c }) => ({ id: i, ...c }))) }) : {};
+      if (r.error) notifyError(r.error, t('The tiles could not be placed'));
+    }).finally(() => { q.left--; });
   };
   // A press held still opens the placing; a press beside the cards or Escape closes it.
   const hold = useRef<number>(undefined);
@@ -181,11 +181,11 @@ export function Apps() {
   const draw = (id: string, p: MenuEntry, w: number, h: number) => {
     const view = fits(p.widgets, w, h);
     const cover = dark ? p.cover_dark || p.cover : p.cover || p.cover_dark;
-    const ask = placing && roomy(p.widgets, w, h) && (
+    const asks = p.draw;
+    const ask = placing && asks && roomy(p.widgets, w, h) && (
       <Button size="compact-xs" variant="default" className={s.draw} leftSection={<IconSparkles size={13} />} data-widget-draw
-        onClick={() => void call('deck.widget_draw', { project: id, size: `${w}x${h}` })
-          .then((r) => { const o = outcome(r); if (o.topic) openTopic(o.topic); }, (e) => notifyError(e, t('apps.draw')))}>
-        {t('apps.draw')}
+        onClick={() => void press(undefined, asks, { size: `${w}x${h}` }).then((r) => { if (r.error) notifyError(r.error, asks.label); })}>
+        {asks.label}
       </Button>
     );
     if (view) {
@@ -217,8 +217,8 @@ export function Apps() {
       {saved === EMPTY && <span hidden data-awaits />}
       {placing && (
         <div className={s.placingBar}>
-          <Text size="sm" c="dimmed">{t('apps.placing')}</Text>
-          <Button size="xs" leftSection={<IconCheck size={14} />} onClick={() => setPlacing(false)} data-placing-done>{t('apps.done')}</Button>
+          <Text size="sm" c="dimmed">{t('Drag a card to any cell or pull its corner')}</Text>
+          <Button size="xs" leftSection={<IconCheck size={14} />} onClick={() => setPlacing(false)} data-placing-done>{t('Done')}</Button>
         </div>
       )}
       <div ref={containerRef} className={s.room} data-cols={cols}>
@@ -232,9 +232,9 @@ export function Apps() {
               if (c.i === TODAY) {
                 return (
                   <div key={c.i} data-cell={c.i}>
-                    <Tile to={href({ screen: 'cockpit' })} title={t('nav.cockpit')} seed="cockpit" big cover={of(scene, dark)}
+                    <Tile to={href({ screen: 'cockpit' })} title={t('Today')} seed="cockpit" big cover={of(scene, dark)}
                       color={(dark ? scene?.dark_color : undefined) || scene?.color} art={<CardDeki size={Math.min(phone ? 96 : 150, cell.height * 0.8)} room={room} />}>
-                      <span className={s.today}><IconSun size={15} aria-hidden />{t('nav.cockpit')}</span>
+                      <span className={s.today}><IconSun size={15} aria-hidden />{t('Today')}</span>
                       <Widget screen="today" size={`${c.w}x${c.h}`} rest={<Room onHeight={setRoom} />} />
                     </Tile>
                   </div>

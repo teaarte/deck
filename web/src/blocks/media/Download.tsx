@@ -19,6 +19,6 @@ export function Download({ it }: { it: Item }) {
       } finally {
         setBusy(false);
       }
-    }}>{t('verb.download')}</Button>
+    }}>{t('Download')}</Button>
   );
 }

@@ -88,6 +88,8 @@ type Command struct {
 	json   []string
 	// brief are the fields of each row a read gives when the call asks for none.
 	brief []string
+	// follows are the reads of deck whose topics this read follows too.
+	follows []string
 	// foreign marks an input schema from elsewhere, not held to App Intents types; retries one that takes a retry key;
 	// untokened one no automation token calls.
 	foreign, retries, keyed, untokened bool
@@ -185,6 +187,19 @@ var reads sync.Map
 // Declare makes the reads among deck's commands known before any registry is built; a read follows only topics deck
 // publishes.
 func Declare(cs []*Command, topics []string) {
+	for _, c := range cs {
+		for _, name := range c.follows {
+			i := slices.IndexFunc(cs, func(o *Command) bool { return o.Name == name && o.Readable })
+			if i < 0 {
+				panic("registry: read " + c.Name + " follows " + name + ", which is no read of deck")
+			}
+			for _, t := range cs[i].Topics {
+				if !slices.Contains(c.Topics, t) {
+					c.Topics = append(c.Topics, t)
+				}
+			}
+		}
+	}
 	for _, c := range cs {
 		if !c.Readable {
 			continue

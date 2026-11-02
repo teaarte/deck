@@ -44,12 +44,15 @@ type layoutView struct {
 	Columns int64  `json:"columns"`
 	Own     bool   `json:"own"`
 	Cards   []card `json:"cards"`
+	// Save is the button that keeps the cards the device placed, given as cards.
+	Save map[string]any `json:"save"`
 }
 
 // layout is the layout of a device for its columns: its own, else its own of the nearest wider grid, then of the
 // nearest narrower one, else the newest of any device for the columns, else the order of its own or the newest.
 func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutGetIn) (layoutView, error) {
-	out := layoutView{Cards: []card{}}
+	out := layoutView{Cards: []card{}, Save: map[string]any{"label": "Arrange the tiles", "command": registry.Deck("layout_set"),
+		"params": map[string]any{"device": in.Device, "columns": in.Columns}, "input": "cards"}}
 	ls, err := s.St.Q.ListLayouts(ctx, act.Workspace)
 	if err != nil {
 		return out, err

@@ -16,14 +16,14 @@ export function ModuleLead({ entry }: { entry: MenuEntry }) {
         {entry.doing && (
           <Group gap={6} wrap="nowrap" data-doing>
             <IconActivity size={15} className={s.leadIcon} data-tone="ok" aria-hidden />
-            <Text size="sm" c="inherit">{t('lead.doing', { what: entry.doing })}</Text>
+            <Text size="sm" c="inherit">{t('Now: {{what}}', { what: entry.doing })}</Text>
           </Group>
         )}
         <NavStatus m={state} words />
         {entry.next && (
           <Group gap={6} wrap="nowrap" data-next>
             <IconClockHour4 size={15} aria-hidden />
-            <Text size="sm" c="inherit">{t('lead.next', { what: entry.next.title, when: formatted(entry.next.at, { format: 'relative' }) })}</Text>
+            <Text size="sm" c="inherit">{t('Next: {{what}} {{when}}', { what: entry.next.title, when: formatted(entry.next.at, { format: 'relative' }) })}</Text>
           </Group>
         )}
     </Group>

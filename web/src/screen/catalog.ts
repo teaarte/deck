@@ -21,15 +21,17 @@ import { table } from '../blocks/table';
 import { tabs } from '../blocks/tabs';
 import { unknown } from '../blocks/unknown';
 
-export const CATALOG_ID = catalogSchema.catalogId;
+const CATALOG_ID = catalogSchema.catalogId;
 export { UNKNOWN } from '../blocks/unknown';
 export type { Action } from '../lib/catalog.gen';
 
-// The standard components are A2UI's; deck draws its containers in its own look, a button and a text as A2UI does.
-const impls: ReactComponentImplementation[] = [
-  row, column, tabs, modal, Button, Text,
-  screen, table, list, card, stat, chart, media, actions, filter, log, form, custom, documentBlock, chat, appearance, unknown,
+// blocks are deck's own blocks of the catalog, beside the standard components.
+export const blocks: ReactComponentImplementation[] = [
+  screen, table, list, card, stat, chart, media, actions, filter, log, form, custom, documentBlock, chat, appearance,
 ];
+
+// The standard components are A2UI's; deck draws its containers in its own look, a button and a text as A2UI does.
+const impls: ReactComponentImplementation[] = [row, column, tabs, modal, Button, Text, ...blocks, unknown];
 
 export const catalog = new Catalog<ReactComponentImplementation>(CATALOG_ID, impls);
 export const known = new Set(impls.map((c) => c.name));

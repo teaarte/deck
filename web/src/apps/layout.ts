@@ -1,8 +1,10 @@
+import type { Action } from '../lib/catalog.gen';
 // Cell is where a card stands on the tiles, in cells: Today or a module by its name.
 export type Cell = { i: string; x: number; y: number; w: number; h: number };
 
 // Saved is the layout deck gives a device: of its columns, or 0 when it gives the order alone.
-export type Saved = { columns: number; own: boolean; cards: { id: string; x: number; y: number; w: number; h: number }[] };
+// save is the button that keeps the cards the device placed.
+export type Saved = { columns: number; own: boolean; cards: { id: string; x: number; y: number; w: number; h: number }[]; save?: Action };
 
 export const TODAY = 'today';
 

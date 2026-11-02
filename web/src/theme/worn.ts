@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import type { Action } from '../lib/catalog.gen';
 import { useTranslation } from 'react-i18next';
 import i18n from '../lib/i18n';
 import { liveRead } from '../lib/live';
@@ -18,6 +19,8 @@ export interface Worn {
   css: string;
   // images are the pictures of the theme as covers are: the scene of Today, the page behind, a tile repeated behind.
   images?: Partial<Record<'cockpit' | 'backdrop' | 'pattern', Picture>>;
+  // use is the button that puts a theme not in use on the whole deck.
+  use?: Action;
 }
 
 // Picture is a picture of the theme by scheme: where it is read and its main color.
@@ -76,7 +79,7 @@ export function useWear(on: boolean) {
   useEffect(() => {
     if (!on) return;
     const input = { name: theme || undefined, lang: i18n.language };
-    return liveRead<Worn>('deck.theme_get', input, () => ['documents', 'settings', 'files'], (w) => {
+    return liveRead<Worn>('deck.theme_get', input, (w) => {
       if (!w) return;
       if (!theme) localStorage.setItem(KEY, JSON.stringify(w));
       put(w);

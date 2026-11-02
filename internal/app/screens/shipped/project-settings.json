@@ -75,15 +75,18 @@
             "actions": [
               {"verb": "remove", "confirm": true, "command": "deck.folder_delete", "params": {"name": "=name"}}
             ]},
-          {"type": "table", "title": "Secrets", "when": "len(rows) > 0", "source": {"from": "deck.secrets_list"},
+          {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
             "description": "Keys and passwords its tools need.",
+            "empty": "No secrets: set one its tools need with Set a secret",
             "columns": [
               {"label": "Secret", "bind": "name", "format": "copy"},
-              {"label": "State", "bind": "set ? 'set' : 'not set'", "format": "tag", "tone": "set ? 'ok' : 'warn'"}
+              {"label": "State", "bind": "!named ? 'not named by the manifest' : set ? 'set' : 'not set'", "format": "tag", "tone": "!named ? '' : set ? 'ok' : 'warn'"},
+              {"label": "Changed", "bind": "changed_at ?? ''", "format": "relative"}
             ],
             "actions": [
               {"verb": "replace", "screen": "settings", "params": {"dialog": "secret", "name": "=name"}, "when": "set"},
-              {"verb": "set", "primary": true, "screen": "settings", "params": {"dialog": "secret", "name": "=name"}, "when": "!set"}
+              {"verb": "set", "primary": true, "screen": "settings", "params": {"dialog": "secret", "name": "=name"}, "when": "!set"},
+              {"verb": "delete", "confirm": true, "command": "deck.secret_delete", "params": {"name": "=name"}, "when": "set"}
             ]}
       ]},
       {"title": "Health", "icon": "heartbeat", "blocks": [

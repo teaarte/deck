@@ -609,8 +609,8 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	}
 }
 
-// TestTheMasterSettingsShowWhatItDoesOnSchedule: the settings of a project list what its commands do by themselves
-// and leave out the empty tools, secrets and tokens; the documents of the master are a folder of files.
+// TestTheMasterSettingsShowWhatItDoesOnSchedule: the settings of a project list what its commands do by themselves,
+// leave out the empty tools and tokens but show the Secrets table; the documents of the master are files.
 func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
@@ -627,10 +627,13 @@ func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 		t.Fatalf("the settings of the master list its runs on schedule: %v", harness.Keys(data))
 	}
 	comps := string(e.ScreenMessages("master", "settings", nil)[1]["updateComponents"])
-	for _, gone := range []string{`"title":"Tools"`, `"title":"Secrets"`, `"title":"Tokens with access"`} {
+	for _, gone := range []string{`"title":"Tools"`, `"title":"Tokens with access"`} {
 		if strings.Contains(comps, gone) {
 			t.Fatalf("an empty block is left out of the settings of the master: %s", gone)
 		}
+	}
+	if !strings.Contains(comps, `"title":"Secrets"`) {
+		t.Fatalf("the Secrets table is shown even empty, with its button beside it")
 	}
 	docs := harness.BlockData[[]map[string]any](t, e.ScreenBlock("", "files", "Modules", map[string]any{"params": `{"path": "master/documents"}`})["files"])
 	if len(docs) == 0 {

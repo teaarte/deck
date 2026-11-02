@@ -420,9 +420,7 @@
   "Secret value; it is never shown again": "Значение секрета; больше его не покажут",
   "The module whose tools and servers use the secret": "Модуль, чьи инструменты и серверы берут этот секрет",
   "The module of the secret": "Модуль секрета",
-  "The module whose tools and servers use the secrets": "Модуль, чьи инструменты и серверы берут эти секреты",
   "Deletes a stored secret of a module; the tools that name it fail until it is set again.": "Удаляет секрет модуля; инструменты, которые его называют, не работают, пока его не зададут снова.",
-  "Lists the secrets a module names and whether each is set, never their values.": "Секреты, которые называет модуль, и задан ли каждый; значений не показывает.",
   "The API key; deck keeps it apart from the secrets of modules, and a connection changed without it keeps its own": "Ключ API; deck хранит его отдельно от секретов модулей, а подключение, изменённое без него, оставляет свой",
   "after %s": "после «%s»",
   "here": "здесь",
@@ -1031,5 +1029,13 @@
   "Not in the card: {{names}}": "Не влезло в карточку: {{names}}",
   "a chart": "график",
   "a block": "блок",
-  "Answer on {{provider}}": "Ответить через {{provider}}"
+  "Answer on {{provider}}": "Ответить через {{provider}}",
+  "not named by the manifest": "не назван манифестом",
+  "Changed": "Изменён",
+  "No secrets: set one its tools need with Set a secret": "Секретов нет: задайте нужный инструментам через «Задать секрет»",
+  "Secrets of the modules": "Секреты модулей",
+  "The secrets each module keeps apart; set, replace or delete one in the settings of its module.": "Секреты, которые каждый модуль хранит отдельно; задать, заменить или удалить секрет можно в настройках его модуля.",
+  "No module names or keeps a secret": "Ни один модуль не называет и не хранит секретов",
+  "Lists the secrets of a module, or of every module: those its manifest names and whether each is set, and those set it does not name; never their values.": "Перечисляет секреты модуля или всех модулей: названные манифестом и задан ли каждый, и заданные, которых манифест не называет; значения — никогда.",
+  "The module whose tools and servers use the secrets; without it every module's": "Модуль, чьи инструменты и серверы пользуются секретами; без него — все модули"
 }

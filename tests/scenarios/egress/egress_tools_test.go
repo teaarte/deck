@@ -333,8 +333,8 @@ func TestHTTPToolTemplatesStayOnTheirHost(t *testing.T) {
 	e.Secret("svc", "svc", "v")
 	var names []map[string]any
 	e.Must("deck.secrets_list", map[string]any{"project": "svc"}, &names)
-	if len(names) != 1 || names[0]["name"] != "svc" || names[0]["set"] != true || len(names[0]) != 2 {
-		t.Fatalf("secrets_list gives names only: %v", names)
+	if len(names) != 1 || names[0]["name"] != "svc" || names[0]["set"] != true || names[0]["value"] != nil || len(names[0]) != 5 {
+		t.Fatalf("secrets_list gives names and marks, no value: %v", names)
 	}
 }
 

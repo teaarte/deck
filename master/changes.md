@@ -49,3 +49,5 @@ and bring the modules in line.
   `themes_list` rows and of `theme_get` (a theme not in use), `remove` of `push_devices_list` rows, `save` of
   `layout_get`, `draw` of the projects of `menu_get`, `transcribe` of `chat_get`; `process_asks_list` gives the
   `result` of a run once done; `theme_use` answers with the theme's `accent`; `push_key_get` is a read.
+- 2026-11-02: `secrets_list` gives `project`, `named` and `changed_at` of each secret, and also the secrets set that
+  the manifest does not name (yet), `named: false`; without `project` it lists every module's. Values never.

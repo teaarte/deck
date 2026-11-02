@@ -451,7 +451,7 @@ func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
 	e.Secret("mail", "svc", "s3cret-value")
 	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.secrets_list", []byte(`{"project": "mail"}`))
 	raw, _ := json.Marshal(out)
-	if err != nil || string(raw) != `[{"name":"svc","set":true}]` {
+	if err != nil || !strings.HasPrefix(string(raw), `[{"project":"mail","name":"svc","set":true,"named":true,"changed_at":"`) || strings.Contains(string(raw), "s3cret") {
 		t.Fatalf("the master gets the names of the secrets and no value: %s %v", raw, err)
 	}
 }

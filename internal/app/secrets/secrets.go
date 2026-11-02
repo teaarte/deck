@@ -6,10 +6,13 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
@@ -185,31 +188,72 @@ func (s *Service) secretDelete(ctx context.Context, act registry.Actor, in secre
 	return map[string]any{"deleted": in.Name}, nil
 }
 
-// secretRow is a secret by name, and whether it is set; its value never leaves deck.
+// secretView is a secret of a module by name: whether it is set, whether its manifest names it, when it changed; its
+// value never leaves deck.
 type secretView struct {
-	Name string `json:"name"`
-	Set  bool   `json:"set"`
+	Project   string `json:"project"`
+	Name      string `json:"name"`
+	Set       bool   `json:"set"`
+	Named     bool   `json:"named"`
+	ChangedAt string `json:"changed_at,omitempty"`
 }
 
 type secretsListIn struct {
-	Project string `type:"project" desc:"The module whose tools and servers use the secrets"`
+	Project string `type:"project" opt:"" desc:"The module whose tools and servers use the secrets; without it every module's"`
 }
 
-// secretsList are the secrets a module's manifest names, each with whether it is set.
+// secretsList are the secrets of a module, or of every module of the workspace: those its manifest names and those set
+// that it does not name (yet).
 func (s *Service) secretsList(ctx context.Context, act registry.Actor, in secretsListIn) ([]secretView, error) {
-	p, err := access.Project(ctx, s.St.Q, act, in.Project)
-	if err != nil {
-		return nil, err
+	if in.Project != "" {
+		p, err := access.Project(ctx, s.St.Q, act, in.Project)
+		if err != nil {
+			return nil, err
+		}
+		m, err := docs.Manifest(ctx, s.St.Q, p)
+		if err != nil {
+			return nil, err
+		}
+		return s.listed(act.Workspace, p.Name, m.Secrets()), nil
 	}
-	m, err := docs.Manifest(ctx, s.St.Q, p)
+	ps, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
 	out := []secretView{}
-	for _, n := range m.Secrets() {
-		out = append(out, secretView{Name: n, Set: s.Has(act.Workspace, p.Name, n)})
+	for _, p := range ps {
+		var named []string
+		if m, err := docs.Manifest(ctx, s.St.Q, p); err == nil {
+			named = m.Secrets()
+		}
+		out = append(out, s.listed(act.Workspace, p.Name, named)...)
 	}
 	return out, nil
+}
+
+// listed are the secrets named of a project, each with whether it is set, then those set it does not name.
+func (s *Service) listed(workspace int64, project string, named []string) []secretView {
+	changed := map[string]string{}
+	entries, _ := os.ReadDir(filepath.Join(s.Home.Secrets(workspace), project))
+	for _, e := range entries {
+		if temp, _ := filepath.Match(home.TempPattern, e.Name()); temp {
+			continue
+		}
+		if info, err := e.Info(); err == nil && info.Mode().IsRegular() && schemas.ValidSecret(e.Name()) {
+			changed[e.Name()] = info.ModTime().UTC().Format(time.RFC3339)
+		}
+	}
+	out := []secretView{}
+	for _, n := range named {
+		at, set := changed[n]
+		out = append(out, secretView{Project: project, Name: n, Set: set, Named: true, ChangedAt: at})
+	}
+	for _, n := range slices.Sorted(maps.Keys(changed)) {
+		if !slices.Contains(named, n) {
+			out = append(out, secretView{Project: project, Name: n, Set: true, ChangedAt: changed[n]})
+		}
+	}
+	return out
 }
 
 // Commands are the commands of secrets.
@@ -222,7 +266,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Deletes a stored secret of a module; the tools that name it fail until it is set again.",
 			registry.OwnerOnly, s.secretDelete),
 		registry.Read("secrets_list", "Secrets",
-			"Lists the secrets a module names and whether each is set, never their values.",
+			"Lists the secrets of a module, or of every module: those its manifest names and whether each is set, and those set it does not name; never their values.",
 			registry.OwnerSide, s.secretsList).On("secrets").NoTokens(),
 	}
 }

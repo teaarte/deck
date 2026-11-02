@@ -103,6 +103,18 @@
             {"label": "Take off the cover", "icon": "photo-off", "confirm": true, "command": "deck.project_cover_set", "params": {"project": "=name", "theme": "=cover.theme", "remove": "true"}, "when": "cover != nil"},
             {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!builtin && manifest_error == ''"},
             {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
+          ]},
+        {"type": "table", "title": "Secrets of the modules", "source": {"from": "deck.secrets_list", "sort": "project"}, "filter": ["project"],
+          "description": "The secrets each module keeps apart; set, replace or delete one in the settings of its module.",
+          "empty": "No module names or keeps a secret",
+          "columns": [
+            {"label": "Module", "bind": "project"},
+            {"label": "Secret", "bind": "name"},
+            {"label": "State", "bind": "!named ? 'not named by the manifest' : set ? 'set' : 'not set'", "format": "tag", "tone": "!named ? '' : set ? 'ok' : 'warn'"},
+            {"label": "Changed", "bind": "changed_at ?? ''", "format": "relative"}
+          ],
+          "actions": [
+            {"verb": "settings", "screen": "settings", "project": "=project", "params": {"tab": "Access"}}
           ]}
       ]},
       {"title": "Health", "icon": "heartbeat", "count": "failures", "blocks": [

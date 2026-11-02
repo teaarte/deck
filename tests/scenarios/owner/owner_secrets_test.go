@@ -3,6 +3,7 @@ package owner
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -169,4 +170,64 @@ func TestAKeyOutlivesItsConnection(t *testing.T) {
 	if i < 0 || out.Connections[i].Key != "set" {
 		t.Fatalf("the connection made again has its key: %+v", out.Connections)
 	}
+}
+
+// TestASecretSetBeforeItsManifestNamesItIsSeen: a secret of a module its manifest does not name yet is listed with
+// its mark and time, shown in the Secrets table of its Access tab and in the summary of the settings, and deleted there.
+func TestASecretSetBeforeItsManifestNamesItIsSeen(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("mail", harness.PostManifest("https://api.example", ""))
+	e.Project("notes", harness.PlainManifest)
+	if rows := secretRows(e, "notes"); len(rows) != 0 {
+		t.Fatalf("the Secrets table of a module without secrets is there and empty: %v", rows)
+	}
+	e.Secret("mail", "svc", "named-value")
+	e.Secret("mail", "early", "early-value")
+	var listed []struct {
+		Project   string
+		Name      string
+		Set       bool
+		Named     bool
+		ChangedAt string `json:"changed_at"`
+	}
+	e.Must("deck.secrets_list", map[string]any{"project": "mail"}, &listed)
+	if len(listed) != 2 || listed[1].Name != "early" || !listed[1].Set || listed[1].Named || listed[1].ChangedAt == "" ||
+		listed[0].Name != "svc" || !listed[0].Named || strings.Contains(fmt.Sprint(listed), "value") {
+		t.Fatalf("secrets_list gives the named secret and the one set before its manifest names it, no value: %+v", listed)
+	}
+	rows := secretRows(e, "mail")
+	i := slices.IndexFunc(rows, func(r harness.ScreenRow) bool { return len(r.Cells) > 0 && fmt.Sprint(r.Cells[0]) == "early" })
+	if i < 0 || !strings.Contains(fmt.Sprint(rows[i].Cells), "not named by the manifest") || strings.Contains(fmt.Sprint(rows), "early-value") {
+		t.Fatalf("the Access tab shows the secret its manifest does not name: %+v", rows)
+	}
+	if !slices.ContainsFunc(rows[i].Actions, func(a map[string]any) bool { return a["command"] == "deck.secret_delete" }) {
+		t.Fatalf("a secret set has a delete button: %+v", rows[i].Actions)
+	}
+	if summary := fmt.Sprint(e.Screen("", "settings", map[string]any{"tab": "Modules"})); !strings.Contains(summary, "early") || strings.Contains(summary, "early-value") {
+		t.Fatalf("the settings sum up the secrets of the modules without a value: %s", summary)
+	}
+	e.Must("deck.secret_delete", map[string]any{"project": "mail", "name": "early"}, nil)
+	e.Must("deck.secrets_list", map[string]any{"project": "mail"}, &listed)
+	if len(listed) != 1 || listed[0].Name != "svc" {
+		t.Fatalf("a deleted secret is gone from the list: %+v", listed)
+	}
+}
+
+// secretRows are the rows of the Secrets table on the Access tab of a module's settings.
+func secretRows(e *harness.Env, project string) []harness.ScreenRow {
+	e.T.Helper()
+	in := map[string]any{"tab": "Access"}
+	data := e.Screen(project, "settings", in)
+	for _, m := range e.ScreenMessages(project, "settings", in) {
+		var uc struct{ Components []map[string]any }
+		_ = json.Unmarshal(m["updateComponents"], &uc)
+		for _, c := range uc.Components {
+			if id, _ := c["id"].(string); c["component"] == "table" && c["title"] == "Secrets" && data[id] != nil {
+				return harness.BlockData[[]harness.ScreenRow](e.T, data[id]["rows"])
+			}
+		}
+	}
+	e.T.Fatal("the Access tab has a Secrets table")
+	return nil
 }

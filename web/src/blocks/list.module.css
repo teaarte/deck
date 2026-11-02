@@ -259,12 +259,12 @@
   margin-bottom: 10px;
 }
 
-/* A line of a widget: three thirds of a line high, nothing wraps (Fit). */
+/* A line of a widget: its thirds of a line high, nothing wraps (Fit). */
 .fitLine {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: calc(3 * var(--third));
+  height: calc(var(--line-thirds) * var(--third));
   min-width: 0;
   container-type: inline-size;
 

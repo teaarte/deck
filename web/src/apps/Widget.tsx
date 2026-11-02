@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Fit, Small, thirds } from '../blocks/around';
+import catalogSchema from '../lib/catalogSchema';
 import { ScreenView } from '../screen/ScreenView';
 import s from './apps.module.css';
+
+// lines are the thirds of a line each part of a widget takes, by the catalog the server lays it by.
+const lines = { '--title-thirds': catalogSchema.widget.title, '--line-thirds': catalogSchema.widget.line, '--stat-thirds': catalogSchema.widget.stat,
+  '--chart-thirds': catalogSchema.widget.chart };
 
 // Widget is a small screen in a card of the tiles, its blocks in the thirds of a line the server gave them; a press
 // opens the card's link, its buttons press as on a screen; rest stands in the room they leave.
@@ -16,7 +21,7 @@ export function Widget({ project, screen, size, rest }: { project?: string; scre
   const out = useLeftOut();
   return (
     <div ref={out.ref} className={s.widget} data-widget={size} data-resized={was.current.resized || undefined} data-fills={!rest || undefined}
-      style={{ '--thirds': thirds(h) } as CSSProperties}>
+      style={{ '--thirds': thirds(h), ...lines } as CSSProperties}>
       <Small.Provider value>
         <Fit.Provider value>
           <ScreenView route={route} />

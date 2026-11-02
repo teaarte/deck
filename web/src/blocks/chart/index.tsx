@@ -14,7 +14,7 @@ function Charted({ p, value }: { p: Shown & { kind?: string }; value: ChartValue
   const fit = useContext(Fit);
   if (fit) {
     return (
-      <div data-chart-block style={{ position: 'relative', flex: 1, minHeight: 'calc(3 * var(--third))' }}>
+      <div data-chart-block style={{ position: 'relative', flex: 1, minHeight: 'calc(var(--chart-thirds) * var(--third))' }}>
         <div style={{ position: 'absolute', inset: 0 }}>
           <Suspense fallback={<Pending />}><Chart value={value} kind={p.kind} s={p} h="100%" /></Suspense>
         </div>

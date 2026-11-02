@@ -170,18 +170,18 @@
   flex: none;
 }
 
-/* In a widget a block takes its thirds of a line: its title one, a line three. */
+/* In a widget a block takes its thirds of a line, as many as the catalog says (Widget.tsx). */
 .small[data-fit] {
   gap: 0;
 }
 
 .small[data-fit] > .bareTitle {
-  height: var(--third);
-  line-height: var(--third);
+  height: calc(var(--title-thirds) * var(--third));
+  line-height: calc(var(--title-thirds) * var(--third));
 }
 
 .fitLine {
-  height: calc(3 * var(--third));
+  height: calc(var(--line-thirds) * var(--third));
   min-width: 0;
 }
 

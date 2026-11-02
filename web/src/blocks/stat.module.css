@@ -65,9 +65,9 @@
   color: var(--mantine-color-dimmed);
 }
 
-/* A number of a widget: three thirds of a line, in one line however narrow the card (Fit). */
+/* A number of a widget: its thirds of a line, in one line however narrow the card (Fit). */
 .stat[data-fit] {
-  height: calc(3 * var(--third));
+  height: calc(var(--stat-thirds) * var(--third));
   padding: 0;
   gap: 10px;
   border-radius: 0;

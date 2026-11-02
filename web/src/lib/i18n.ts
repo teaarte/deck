@@ -13,9 +13,12 @@ export function resolve(setting: string): string {
 
 const KEY = 'deck-language';
 
+// languageSetting is the language the workspace picked, auto when none.
+export const languageSetting = () => localStorage.getItem(KEY) ?? 'auto';
+
 void i18n.use(initReactI18next).init({
   resources: { ru: { translation: ru } },
-  lng: resolve(localStorage.getItem(KEY) ?? 'auto'),
+  lng: resolve(languageSetting()),
   fallbackLng: false,
   keySeparator: false,
   nsSeparator: false,

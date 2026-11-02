@@ -55,7 +55,7 @@ export const MenuContext = createContext<Menu>(EMPTY);
 export const useMenuData = () => useContext(MenuContext);
 
 // useMenu is the menu of deck, kept fresh.
-export const useMenu = () => useLiveRead<Menu>('deck.menu_get', { lang: i18n.language }, EMPTY);
+export const useMenu = () => useLiveRead<Menu>('deck.menu_get', {}, EMPTY);
 
 // Place is a screen to open, of a project or of deck.
 export type Place = ScreenLink & { project?: string };

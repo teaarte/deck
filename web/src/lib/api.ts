@@ -15,6 +15,7 @@ export const setToken = (t: string) => localStorage.setItem('deck-token', t);
 export async function authed(url: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set('Authorization', 'Bearer ' + token());
+  headers.set('Deck-Lang', i18n.language ?? '');
   const r = await fetch(url, { ...init, headers });
   if (r.status === 401 && r.headers.has('WWW-Authenticate')) {
     localStorage.removeItem('deck-token');
@@ -31,7 +32,7 @@ export interface Answer<T> { data: T; topics: string[] }
 export async function invoke<T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<Answer<T>> {
   const body = JSON.stringify(input);
   const r = await authed('/api/commands/' + encodeURIComponent(command), {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'Deck-Lang': i18n.language ?? '' }, body, keepalive: body.length < 60000,
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000,
   });
   const text = await r.text();
   if (!r.ok) throw new Error(text.trim() || r.statusText);

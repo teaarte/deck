@@ -1,6 +1,5 @@
 import { call } from '../../lib/api';
 import { liveRead } from '../../lib/live';
-import i18n from '../../lib/i18n';
 import type { Action } from '../../lib/catalog.gen';
 import { createStore, useStore } from '../../lib/store';
 
@@ -19,7 +18,7 @@ const runs = new Map<number, Promise<RunEnd | undefined>>();
 export function watchRun(process: number): Promise<RunEnd | undefined> {
   let got = runs.get(process);
   if (!got) {
-    got = call<RunEnd>('deck.process_asks_list', { process, lang: i18n.language }).then((end) => {
+    got = call<RunEnd>('deck.process_asks_list', { process }).then((end) => {
       const fresh = (end?.asks ?? []).filter((a) => !asks.get().some((x) => x.id === a.id));
       if (fresh.length) asks.set([...asks.get(), ...fresh]);
       return end;

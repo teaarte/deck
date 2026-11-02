@@ -173,7 +173,7 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Deck-Topics", strings.Join(c.Topics, ","))
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(manifest.Labeled(raw, words.In(r.Header.Get("Deck-Lang"))))
+	_, _ = w.Write(manifest.Labeled(raw, words.In(registry.Lang(r.Context()))))
 }
 
 // refuse answers a refusal of deck in the language the client reads, by its Deck-Lang header.

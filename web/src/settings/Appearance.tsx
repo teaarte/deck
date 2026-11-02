@@ -9,6 +9,7 @@ import { useLiveRead } from '../hooks/useLiveRead';
 import { press, useBlockContext } from '../screen/press';
 import { Pushes } from './Pushes';
 import { notifyError } from '../lib/notify';
+import { languageSetting } from '../lib/i18n';
 
 // OPTIONS are the words of the values of the look.
 const OPTIONS: Record<string, string> = {
@@ -76,10 +77,10 @@ interface ThemeRow { name: string; title: string; current: boolean; problems?: s
 // Theme is the theme of the whole deck, from the shipped ones and the owner's; one with an accent gives it to this device.
 // draws are the buttons that ask the master to draw in it.
 function Theme({ draws }: { draws: (Action | undefined)[] }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const ctx = useBlockContext();
   const worn = useWorn();
-  const listed = useLiveRead<ThemeRow[]>('deck.themes_list', { lang: i18n.language }, []);
+  const listed = useLiveRead<ThemeRow[]>('deck.themes_list', {}, []);
   const rows = listed.length ? listed : [{ name: worn.name, title: worn.title, current: true }];
   const current = rows.find((r) => r.current)?.name ?? worn.name;
   const pick = async (name: string) => {
@@ -111,7 +112,7 @@ function Theme({ draws }: { draws: (Action | undefined)[] }) {
 function Language({ act }: { act?: Action }) {
   const { t } = useTranslation();
   const ctx = useBlockContext();
-  const [value, setValue] = useState(() => localStorage.getItem('deck-language') ?? 'auto');
+  const [value, setValue] = useState(languageSetting);
   const label = act?.label ?? t('Language of the interface (for the whole workspace)');
   const pick = async (v: string) => {
     setValue(v);

@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import type { Action } from '../lib/catalog.gen';
 import { useTranslation } from 'react-i18next';
-import i18n from '../lib/i18n';
 import { liveRead } from '../lib/live';
 import { createStore, useStore } from '../lib/store';
 
@@ -78,7 +77,7 @@ export function useWear(on: boolean) {
   const { theme } = usePreview();
   useEffect(() => {
     if (!on) return;
-    const input = { name: theme || undefined, lang: i18n.language };
+    const input = { name: theme || undefined };
     return liveRead<Worn>('deck.theme_get', input, (w) => {
       if (!w) return;
       if (!theme) localStorage.setItem(KEY, JSON.stringify(w));

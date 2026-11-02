@@ -51,7 +51,7 @@ export function useScreen(route: Route, shownNow = true) {
       const r = routeRef.current;
       const params = serverParams(r);
       return {
-        project: route.project, screen: route.screen, record: route.record, lang: i18n.language,
+        project: route.project, screen: route.screen, record: route.record,
         ...(params ? { params: JSON.stringify(params) } : {}),
         ...(r.params?.dialog ? { dialog: r.params.dialog } : {}),
         ...(r.params?.tab ? { tab: r.params.tab } : {}),

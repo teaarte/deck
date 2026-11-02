@@ -15,7 +15,6 @@ import (
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 	"deck2/master"
-	"deck2/schemas"
 )
 
 type manifestGetIn struct {
@@ -139,68 +138,6 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 		}
 	}
 	return parsed{m: m, text: []byte(manifest.Canonical(string(m.Text())))}, nil
-}
-
-// CreateProject validates the manifest, stores it and the prompt as first revisions and registers triggers.
-// The owner's project is enabled; anyone else's is a draft.
-func (s *Service) CreateProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt string) (db.Project, error) {
-	status := store.ProjectDraft
-	if act.Kind == registry.Owner {
-		status = store.ProjectEnabled
-	}
-	return s.createProject(ctx, act, name, raw, prompt, status, nil)
-}
-
-// createProject stores a new project; more stores further documents in the same transaction before the checks.
-func (s *Service) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
-	more func(ctx context.Context, q *db.Queries, p db.Project) error) (db.Project, error) {
-	if !schemas.ProjectName.MatchString(name) || name == registry.Builtin {
-		return db.Project{}, registry.Invalid("project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
-	}
-	pm, err := parseManifest(raw, false)
-	if err != nil {
-		return db.Project{}, err
-	}
-	var p db.Project
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
-			return registry.Invalid("project %q already exists", name)
-		}
-		if err := checkReads(ctx, q, act.Workspace, name, pm.m); err != nil {
-			return err
-		}
-		if err := s.checkToolFit(ctx, q, act.Workspace, 0, pm.m); err != nil {
-			return err
-		}
-		if p, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: act.Workspace, Name: name, Status: status}); err != nil {
-			return err
-		}
-		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-		_, n, _, err := docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), "create project")
-		if err != nil {
-			return err
-		}
-		if err := grant(ctx, q, p, n, pm.m); err != nil {
-			return err
-		}
-		if prompt != "" {
-			ref.Name = docs.PromptName
-			if _, _, _, err := docs.Save(ctx, q, ref, docs.KindPrompt, prompt, act.Author(), "create project"); err != nil {
-				return err
-			}
-		}
-		if more != nil {
-			if err := more(ctx, q, p); err != nil {
-				return err
-			}
-		}
-		return s.Scheduler.Sync(ctx, q, p.ID, pm.m)
-	})
-	if err != nil {
-		return db.Project{}, err
-	}
-	s.PrepareLater(p.ID)
-	return p, nil
 }
 
 // Saved is a stored manifest revision, or the ask it waits on when the change widens the project's rights.

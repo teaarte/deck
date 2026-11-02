@@ -20,8 +20,8 @@ type manifestCheckIn struct {
 	New      []string `type:"text[]" opt:"" desc:"The text that replaces each old part, in the same order"`
 }
 
-// checked is what a save of a manifest would say, without the save.
-type checked struct {
+// manifestCheckView is what a save of a manifest would say, without the save.
+type manifestCheckView struct {
 	// Ok says a save would take it; Refused are why it would not.
 	Ok      bool     `json:"ok"`
 	Refused []string `json:"refused"`
@@ -39,8 +39,8 @@ type checked struct {
 }
 
 // check runs the checks of a save on a manifest and writes nothing; a migration script it would run it only names.
-func (s *Service) check(ctx context.Context, act registry.Actor, in manifestCheckIn) (checked, error) {
-	out := checked{Refused: []string{}, Warnings: []string{}, Widens: []string{}, Screens: []string{}, Unused: []string{}, Untranslated: []string{}}
+func (s *Service) check(ctx context.Context, act registry.Actor, in manifestCheckIn) (manifestCheckView, error) {
+	out := manifestCheckView{Refused: []string{}, Warnings: []string{}, Widens: []string{}, Screens: []string{}, Unused: []string{}, Untranslated: []string{}}
 	var p db.Project
 	if in.Project != "" {
 		var err error

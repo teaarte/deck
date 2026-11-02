@@ -54,10 +54,10 @@ one place.
   delete only the files its own run made; that is a line of "done without you" with an undo.
 - **Sandbox.** Scripts, MCP servers and ACP agents run under `sandbox-exec` on macOS or bubblewrap on Linux. The
   only network path is the `Door` to deck's proxy. A process sees its own folder, the folders the owner granted
-  and the environment deck gives it. In deck's image (`DECK_AGENT_USER=agent`) the container is the sandbox: deck
-  runs as `deck` with a few file capabilities, and every program of agents, scripts and MCP servers runs as `agent`
-  (`sandbox.AsAgent` hands it the folders of its turn). deck's state stays closed by file rights, but the network of
-  modules is not limited and modules see one another; `DECK_SANDBOX=bwrap` keeps bubblewrap inside as well.
+  and the environment deck gives it. deck's image builds the same boxes with bubblewrap inside the container: deck
+  runs as `deck` without capabilities, and `compose.yaml` gives the container `seccomp.json`,
+  `systempaths=unconfined` and the AppArmor profile `deck-box`; without them deck starts no foreign program and
+  health names the lines.
 - **Screens are data.** The server resolves a stored screen into [A2UI](https://github.com/google/A2UI) messages
   from a block catalog (`schemas/catalog.json`): tables, lists and boards, cards, forms, stats, charts, media, a
   file manager, tabs, columns and dialogs. A screen can also have a side panel. The client only draws them, and a

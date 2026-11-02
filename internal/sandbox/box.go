@@ -127,15 +127,13 @@ func (s *Sandbox) Run(ctx context.Context, b Box, o IO) (*Proc, error) {
 
 // Leaves says what a box of kind leaves open on this machine: the files of the machine, its network.
 func Leaves(kind string) (files, network bool) {
-	if outside(Box{Kind: kind}) {
-		return true, true
-	}
-	return false, Contained()
+	out := outside(Box{Kind: kind})
+	return out, out
 }
 
 // Homed says the CLI of an agent runs in a home deck keeps for its project, in a box of its own; else, on macOS until
-// deck moves into a Linux container there and in deck's container until it builds boxes, in the home of the user.
-func Homed() bool { return !outside(Box{Kind: KindCLI}) && !Contained() }
+// deck moves into a Linux container there, in the home of the user.
+func Homed() bool { return !outside(Box{Kind: KindCLI}) }
 
 // base is the environment every box starts from: deck's few variables, its PATH, the box's home and temp folder, so
 // the caches of npm, uv and pip are the box's too; the box's own and its door's go over it.

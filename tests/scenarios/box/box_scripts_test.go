@@ -18,7 +18,6 @@ import (
 
 	deckhome "deck2/internal/home"
 	"deck2/internal/registry"
-	"deck2/internal/sandbox"
 	"deck2/tests/harness"
 )
 
@@ -112,8 +111,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	_ = json.Unmarshal(p.Result, &res)
 	for _, c := range []string{"internal_call", "no_command_list", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked", "proxy_needs_token", "proxy_key_is_not_the_token", "deck_needs_door_key",
 		"outside_write_blocked", "secret_hidden", "owner_key_hidden", "late_key_hidden", "host_socket_blocked"} {
-		// deck's container as the sandbox leaves the network to a program that does not take the proxy.
-		if !res.Checks[c] && !(c == "direct_network_blocked" && sandbox.Contained()) {
+		if !res.Checks[c] {
 			t.Errorf("check %s failed: %s", c, p.Result)
 		}
 	}

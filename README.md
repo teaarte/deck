@@ -170,7 +170,9 @@ need Docker with compose, and a domain name pointing at the server, with ports 8
 
 ```bash
 mkdir deck && cd deck
-curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/master/compose.yaml
+for f in compose.yaml seccomp.json deck-box.apparmor; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/master/$f; done
+# Ubuntu and Debian, once: the AppArmor profile the container runs under
+sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
 echo "DECK_DOMAIN=deck.example.com" > .env
 docker compose up -d
 docker compose logs deck | grep token     # the link with the access token
@@ -178,24 +180,25 @@ docker compose logs deck | grep token     # the link with the access token
 
 Caddy in the same compose gets the HTTPS certificate. Open the link, then sign in to the agents in
 Settings → Models → **Sign in**: Codex shows a link and a code, Claude Code a link whose page gives the code to
-enter. Their logins stay in the volume `agents`, deck's data in `deck`. Add `DECK_TAILSCALE=deck` to `.env` to
-also reach deck on your tailnet. Without a domain, reach deck through an SSH tunnel to `127.0.0.1:7700` of the
-server (Caddy then serves only a self-signed `localhost`, still behind the token). To update:
+enter. Their logins and deck's data stay in the volume `deck`. Add `DECK_TAILSCALE=deck` to `.env` to also reach
+deck on your tailnet. Without a domain, reach deck through an SSH tunnel to `127.0.0.1:7700` of the server (Caddy
+then serves only a self-signed `localhost`, still behind the token). To update:
 `docker compose pull && docker compose up -d`.
 
-**What the container protects.** deck runs as one user and every agent, script and MCP server as another, under
-Docker's own seccomp and AppArmor with nothing loosened. They cannot read deck's token, base or secrets, and they
-cannot touch the server's files or processes. They do share one user and the container's network:
+**What the container needs.** Every program of a module runs in a box of its own inside the container, built by
+bubblewrap as on any Linux. For that `compose.yaml` gives the container three lines, and nothing else is loosened:
+`seccomp=./seccomp.json` (Docker's default profile with `clone`, `unshare`, `mount`, `umount2` and `pivot_root`
+allowed), `systempaths=unconfined` (so a box mounts its own `/proc`) and `apparmor=deck-box` (Docker's
+`docker-default` with `mount` and `pivot_root` allowed). A host without AppArmor ignores the last line; on a host with
+AppArmor where the profile is not loaded, Docker does not start the container and says the profile is not found.
+Without these lines deck starts no foreign program, and Settings → Health says which line is missing. Tried on Ubuntu 22.04 and
+24.04 with Docker, rootless Docker and OrbStack; Docker Desktop and SELinux hosts (Fedora, RHEL) are not tried yet.
 
-- the network of modules is not limited to their domains, and it reaches what the server offers to its containers,
-  such as the address of the cloud's metadata;
-- a module's program can read what another running turn was given and act with its rights, the master's too, and
-  read the logins of Claude Code and Codex, since the CLIs read them to work.
-
-Run deck there for yourself, with modules you trust. For deck's own sandbox inside as well (programs in their own
-namespaces, the network only through deck's proxy), set `DECK_SANDBOX=bwrap` and give the container
-`security_opt: [seccomp=unconfined, systempaths=unconfined]`; on Ubuntu 23.10+ the host must also allow it user
-namespaces (an AppArmor profile with `userns`, or `sysctl kernel.apparmor_restrict_unprivileged_userns=0`).
+**Updating from v0.1.** v0.1 ran agents as a user `agent` with their logins in a volume `agents`. Update the image
+first, with the old `compose.yaml`: on its first start the new image copies the logins into deck's volume. deck then
+starts no foreign program and says why; download the three files above, load the profile and run
+`docker compose up -d` again. The volume `deck_agents` is no longer used: `docker volume rm deck_agents`. A new
+`compose.yaml` before the new image leaves the logins behind, and the agents need to sign in again.
 
 ## Status
 

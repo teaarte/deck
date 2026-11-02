@@ -55,9 +55,6 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	switch {
 	case sandbox.Homed():
 		perms = []string{"sandbox_mode=" + quote("danger-full-access"), "cli_auth_credentials_store=" + quote("file")}
-	case sandbox.Contained():
-		// In deck's container its user of agents is the sandbox; Codex's own needs namespaces the container has not.
-		perms = []string{"sandbox_mode=" + quote("danger-full-access")}
 	default:
 		perms = a.profile(req, skills)
 	}

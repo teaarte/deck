@@ -46,7 +46,7 @@ func TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest(t *testing.T) {
 		t.Fatalf("codex %s self-check: %+v\nthe model did:\n%s", c.Version, c, m.Log())
 	}
 	// In its box the agent sees the one login of the CLI, as the CLI does; outside one its profile closes it.
-	if sandbox.Contained() || sandbox.Homed() {
+	if sandbox.Homed() {
 		return
 	}
 	// The login of the owner's Codex stays closed to its shell, though Codex runs its helpers from its folder.

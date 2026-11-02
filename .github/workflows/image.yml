@@ -4,9 +4,9 @@ name: image
 on:
   push:
     branches: [master]
-    paths: [Dockerfile, compose.yaml, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go]
+    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go]
   pull_request:
-    paths: [Dockerfile, compose.yaml, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go]
+    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go]
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
@@ -17,10 +17,12 @@ permissions:
 jobs:
   server:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
-      - run: DECK_SERVER=1 go test -count=1 -timeout 35m -v -run TestServerFromScratch ./tests/scenarios/real
+      - name: The profile deck-box, as README loads it
+        run: sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
+      - run: DECK_SERVER=1 go test -count=1 -timeout 50m -v -run '^TestServer' ./tests/scenarios/real

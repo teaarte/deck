@@ -94,16 +94,22 @@ jobs:
           sandbox: true
       - run: go test -race -count=1 -timeout 15m $(.github/shard.sh ${{ matrix.areas }})
 
+  # The hosts deck's compose.yaml is tried on: Ubuntu 22.04 with AppArmor 3, 24.04 with AppArmor 4, whose user
+  # namespaces only a profile opens.
   linux:
     if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}
-    name: linux (${{ matrix.test }})
+    name: linux (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        test: [TestScenariosOnLinux, TestScenariosInDecksContainer]
-    runs-on: ubuntu-latest
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: ./.github/actions/setup
-      - run: DECK_LINUX=1 go test -count=1 -timeout 20m -v -run "^(TestLinuxTestsExist|${{ matrix.test }})$" ./tests/linux
+      - name: The profile deck-box, as README loads it
+        run: |
+          sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
+          apparmor_parser --version | head -1; sysctl kernel.apparmor_restrict_unprivileged_userns || true
+      - run: DECK_LINUX=1 go test -count=1 -timeout 20m -v ./tests/linux

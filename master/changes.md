@@ -26,3 +26,6 @@ and bring the modules in line.
 - 2026-11-02: deck tells the master of incidents around a process — `result_running`, `result_not_done`,
   `after_not_started` — by the trigger `on: incident` of the master (`on_incident`, skill `incident-recovery`); deck
   mends none itself.
+- 2026-11-02: on a server, in deck's image, every program of a module runs in its box as elsewhere: it reaches only
+  the hosts of its `domains.read`, not the network of the container, and sees no folder of another module; Claude
+  Code and Codex keep a home per project in deck's folder, with the one login.

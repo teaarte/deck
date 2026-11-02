@@ -124,7 +124,7 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 	text, _ := json.Marshal(TextUserInput{Type: "text", Text: t.req.Prompt})
 	var started TurnStartResponse
 	perms := ""
-	if !sandbox.Homed() && !sandbox.Contained() {
+	if !sandbox.Homed() {
 		perms = profile
 	}
 	if err := t.call(ctx, "turn/start", TurnStartParams{ThreadID: t.thread, Input: []UserInput{text}, Permissions: perms,

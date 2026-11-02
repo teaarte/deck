@@ -26,42 +26,69 @@ const serverOverride = `services:
       - /srv/scenarios.test:/srv/scenarios.test:ro
 `
 
+// serverCodex is Codex on the model of the test, named by its address: a box reaches a local service only so.
 const serverCodex = `model_provider = "fake"
 model = "gpt-5"
 [model_providers.fake]
 name = "fake"
-base_url = "http://model:8080/v1"
+base_url = "http://%s:8080/v1"
 wire_api = "responses"
 requires_openai_auth = false
 `
 
-// TestServerFromScratch is deck on a bare docker, docker in docker, from compose.yaml: the token in the log, HTTPS by
-// Caddy, sign-in links, Codex on a model of the test passing its self-check, a script as the user of agents.
-func TestServerFromScratch(t *testing.T) {
-	harness.Needs(t, "DECK_SERVER")
-	root := harness.Root
-	run := func(name string, args ...string) string {
-		t.Helper()
-		out, err := exec.Command(name, args...).CombinedOutput()
-		if err != nil {
-			t.Fatalf("%s %s: %v\n%s", name, strings.Join(args, " "), err, out)
-		}
-		return string(out)
-	}
-	run("docker", "buildx", "build", "--load", "-t", "ghcr.io/teaarte/deck:latest", root)
-	bin := filepath.Join(t.TempDir(), "scenarios.test")
-	build := exec.Command("go", "test", "-c", "-o", bin, ".")
-	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH="+runtime.GOARCH)
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("the test as the model: %v\n%s", err, out)
-	}
+// composeV01 is the compose.yaml of v0.1 as its owners downloaded it, Caddy aside: the logins of the CLIs lie in a
+// volume of their own.
+const composeV01 = `name: deck
+services:
+  deck:
+    image: ghcr.io/teaarte/deck:%s
+    init: true
+    restart: unless-stopped
+    shm_size: 512m
+    environment:
+      DECK_PUBLIC: ${DECK_DOMAIN:+https://${DECK_DOMAIN}}
+      TZ: ${TZ:-}
+    ports:
+      - "127.0.0.1:7700:7700"
+      - "127.0.0.1:7701:7701"
+    volumes:
+      - deck:/var/lib/deck
+      - agents:/home/agent
+volumes:
+  deck:
+  agents:
+`
 
-	name := fmt.Sprintf("deck-server-%d", time.Now().UnixNano())
-	run("docker", "run", "-d", "--privileged", "--name", name, "-e", "DOCKER_TLS_CERTDIR=", "docker:dind")
-	t.Cleanup(func() { _ = exec.Command("docker", "rm", "-f", "-v", name).Run() })
-	in := func(args ...string) string { return run("docker", append([]string{"exec", name}, args...)...) }
-	harness.Until(t, "docker in docker to start", func() bool { return exec.Command("docker", "exec", name, "docker", "info").Run() == nil })
-	spec, err := os.ReadFile(filepath.Join(root, "compose.yaml"))
+// pidsScript says how many processes its box shows and whether it reads deck's token, and calls deck.
+const pidsScript = harness.PythonLib + `
+def readable(p):
+    try:
+        open(p).read()
+        return True
+    except OSError:
+        return False
+pids = [p for p in os.listdir("/proc") if p.isdigit()]
+print(json.dumps({"pids": len(pids), "token": readable("/var/lib/deck/state/token"), "deck": deck("deck.records_list", {"collection": "items"})[0]}))
+`
+
+// seen is what pidsScript saw.
+type seen struct {
+	Pids  int
+	Token bool
+	Deck  int
+}
+
+// bare is a bare docker, docker in docker, with deck's image as this tree builds it and the test as a model.
+type bare struct {
+	t    *testing.T
+	name string
+}
+
+// newBare starts a bare docker with deck's image, Caddy's of compose.yaml and the images named.
+func newBare(t *testing.T, images ...string) *bare {
+	t.Helper()
+	b := &bare{t: t}
+	spec, err := os.ReadFile(filepath.Join(harness.Root, "compose.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,44 +96,174 @@ func TestServerFromScratch(t *testing.T) {
 	if caddy == nil {
 		t.Fatal("compose.yaml names no image of caddy")
 	}
-	run("docker", "pull", string(caddy[1]))
-	save := exec.Command("sh", "-c", "docker save ghcr.io/teaarte/deck:latest "+string(caddy[1])+" | docker exec -i "+name+" docker load")
+	images = append(images, string(caddy[1]))
+	b.host("docker", "buildx", "build", "--load", "-t", "ghcr.io/teaarte/deck:latest", harness.Root)
+	bin := filepath.Join(t.TempDir(), "scenarios.test")
+	build := exec.Command("go", "test", "-c", "-o", bin, ".")
+	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH="+runtime.GOARCH)
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("the test as the model: %v\n%s", err, out)
+	}
+	b.name = fmt.Sprintf("deck-server-%d", time.Now().UnixNano())
+	b.host("docker", "run", "-d", "--privileged", "--name", b.name, "-e", "DOCKER_TLS_CERTDIR=", "docker:dind")
+	t.Cleanup(func() { _ = exec.Command("docker", "rm", "-f", "-v", b.name).Run() })
+	harness.Until(t, "docker in docker to start", func() bool { return exec.Command("docker", "exec", b.name, "docker", "info").Run() == nil })
+	save := exec.Command("sh", "-c", "docker save ghcr.io/teaarte/deck:latest | docker exec -i "+b.name+" docker load")
 	if out, err := save.CombinedOutput(); err != nil {
-		t.Fatalf("the images in the bare docker: %v\n%s", err, out)
+		t.Fatalf("deck's image in the bare docker: %v\n%s", err, out)
 	}
-	in("mkdir", "-p", "/srv/deck")
-	run("docker", "cp", filepath.Join(root, "compose.yaml"), name+":/srv/deck/compose.yaml")
-	run("docker", "cp", bin, name+":/srv/scenarios.test")
-	write := func(path, text string) {
-		cmd := exec.Command("docker", "exec", "-i", name, "sh", "-c", "cat > "+path)
-		cmd.Stdin = strings.NewReader(text)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("write %s: %v\n%s", path, err, out)
-		}
+	// The bare docker pulls the images of others itself: a save of an image of many platforms leaves layers out.
+	for _, img := range images {
+		b.in("docker", "pull", "-q", img)
 	}
-	write("/srv/deck/.env", "DECK_DOMAIN=localhost\n")
-	write("/srv/deck/compose.override.yaml", serverOverride)
-	compose := func(args ...string) string {
-		return in(append([]string{"docker", "compose", "--project-directory", "/srv/deck"}, args...)...)
-	}
-	compose("up", "-d")
+	b.in("mkdir", "-p", "/srv/deck")
+	b.host("docker", "cp", bin, b.name+":/srv/scenarios.test")
+	b.write("/srv/deck/.env", "DECK_DOMAIN=localhost\n")
+	b.write("/srv/deck/compose.override.yaml", serverOverride)
+	return b
+}
 
+func (b *bare) host(name string, args ...string) string {
+	b.t.Helper()
+	out, err := exec.Command(name, args...).CombinedOutput()
+	if err != nil {
+		b.t.Fatalf("%s %s: %v\n%s", name, strings.Join(args, " "), err, out)
+	}
+	return string(out)
+}
+
+func (b *bare) in(args ...string) string {
+	b.t.Helper()
+	return b.host("docker", append([]string{"exec", b.name}, args...)...)
+}
+
+// write writes a file of the bare docker; with user it writes one in the container of deck as that user.
+func (b *bare) write(path, text string, user ...string) {
+	b.t.Helper()
+	args := []string{"exec", "-i", b.name, "sh", "-c", "cat > " + path}
+	if len(user) > 0 {
+		args = []string{"exec", "-i", b.name, "docker", "compose", "--project-directory", "/srv/deck", "exec", "-T", "-u", user[0], "deck",
+			"sh", "-c", "mkdir -p " + filepath.Dir(path) + " && cat > " + path}
+	}
+	cmd := exec.Command("docker", args...)
+	cmd.Stdin = strings.NewReader(text)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		b.t.Fatalf("write %s: %v\n%s", path, err, out)
+	}
+}
+
+// files puts files of the repository beside compose.yaml, as the owner downloads them.
+func (b *bare) files(names ...string) {
+	b.t.Helper()
+	for _, n := range names {
+		b.host("docker", "cp", filepath.Join(harness.Root, n), b.name+":/srv/deck/"+n)
+	}
+}
+
+func (b *bare) compose(args ...string) string {
+	b.t.Helper()
+	return b.in(append([]string{"docker", "compose", "--project-directory", "/srv/deck"}, args...)...)
+}
+
+// sh runs a shell in the container of deck as user.
+func (b *bare) sh(user, script string) string {
+	b.t.Helper()
+	return b.compose("exec", "-T", "-u", user, "deck", "sh", "-c", script)
+}
+
+// token is the token of the link deck logs.
+func (b *bare) token() string {
+	b.t.Helper()
 	var token, logs string
 	defer func() {
 		if token == "" {
-			t.Logf("the log of deck:\n%s", logs)
+			b.t.Logf("the log of deck:\n%s", logs)
 		}
 	}()
-	harness.Until(t, "the link with the token in the log of deck", func() bool {
-		logs = compose("logs", "deck")
+	harness.Until(b.t, "the link with the token in the log of deck", func() bool {
+		logs = b.compose("logs", "deck")
 		if m := regexp.MustCompile(`url="https://localhost/\?token=([0-9a-f]+)"`).FindStringSubmatch(logs); m != nil {
 			token = m[1]
 		}
 		return token != ""
 	})
+	return token
+}
+
+// call calls a command of deck from inside its container, as the owner.
+func (b *bare) call(token, command string, input any) json.RawMessage {
+	b.t.Helper()
+	body, _ := json.Marshal(input)
+	return json.RawMessage(b.compose("exec", "-T", "-u", "deck", "deck", "curl", "-s", "--max-time", "60", "-X", "POST",
+		"-H", harness.AuthorizationHeader(token), "-H", "Content-Type: application/json", "-d", string(body),
+		"http://127.0.0.1:7700/api/commands/"+command))
+}
+
+// health waits for the row of subject to be want and gives its text.
+func (b *bare) health(token, subject, want string) string {
+	b.t.Helper()
+	var status, text string
+	defer func() {
+		if status != want {
+			b.t.Logf("%s is %s, want %s: %s", subject, status, want, text)
+		}
+	}()
+	harness.UntilWithin(b.t, 4*time.Minute, subject+" to be "+want, func() bool {
+		var rows []struct{ Subject, Status, Error string }
+		_ = json.Unmarshal(b.call(token, "deck.health_list", map[string]any{}), &rows)
+		for _, r := range rows {
+			if r.Subject == subject {
+				status, text = r.Status, r.Error
+			}
+		}
+		return status == want
+	})
+	return text
+}
+
+// script runs the script of the module tools, made the first time, and gives how its process ended.
+func (b *bare) script(token string) (state, errText string, out seen) {
+	b.t.Helper()
+	b.call(token, "deck.project_create", map[string]any{"name": "tools", "manifest": harness.ScriptManifest("collect", "", "")})
+	b.call(token, "deck.document_save", map[string]any{"project": "tools", "name": "scripts/main.py", "kind": "script", "text": pidsScript})
+	var started struct{ Process int64 }
+	_ = json.Unmarshal(b.call(token, "tools.collect", map[string]any{}), &started)
+	harness.Until(b.t, "the script of the module to end", func() bool {
+		var pr struct {
+			State  string
+			Result json.RawMessage
+			Error  string
+		}
+		_ = json.Unmarshal(b.call(token, "deck.process_get", map[string]any{"process": started.Process}), &pr)
+		state, errText = pr.State, pr.Error
+		_ = json.Unmarshal(pr.Result, &out)
+		return state == "done" || state == "error"
+	})
+	return state, errText, out
+}
+
+// codex points Codex at the model of the test, in its folder as user.
+func (b *bare) codex(user, folder string) {
+	b.t.Helper()
+	ip := strings.Fields(b.sh(user, "getent hosts model"))
+	if len(ip) == 0 {
+		b.t.Fatal("the model of the test has no address")
+	}
+	b.write(folder+"/config.toml", fmt.Sprintf(serverCodex, ip[0]), user)
+}
+
+// TestServerFromScratch is deck from compose.yaml with its three lines: the token in the log, HTTPS by Caddy, sign-in
+// links, Codex in its box passing its self-check, a script in its box that sees no other process nor deck's token.
+func TestServerFromScratch(t *testing.T) {
+	harness.Needs(t, "DECK_SERVER")
+	b := newBare(t)
+	b.files("compose.yaml", "seccomp.json", "deck-box.apparmor")
+	b.compose("up", "-d")
+	token := b.token()
+
 	// Caddy's own certificate for localhost stands for the one it gets for a domain.
 	curl := func(args ...string) string {
-		return compose(append([]string{"exec", "-T", "deck", "curl", "-sk", "--max-time", "60", "--connect-to", "localhost:443:caddy:443",
+		return b.compose(append([]string{"exec", "-T", "deck", "curl", "-sk", "--max-time", "60", "--connect-to", "localhost:443:caddy:443",
 			"--connect-to", "localhost:8443:caddy:8443"}, args...)...)
 	}
 	if page := curl("https://localhost/?token=" + token); !strings.Contains(page, "<html") {
@@ -115,85 +272,76 @@ func TestServerFromScratch(t *testing.T) {
 	if sb := curl("https://localhost:8443/sandbox.html"); !strings.Contains(sb, "localhost") {
 		t.Fatalf("the second origin of custom blocks over HTTPS: %.300s", sb)
 	}
-	call := func(command string, input any) json.RawMessage {
-		t.Helper()
-		body, _ := json.Marshal(input)
-		out := curl("-X", "POST", "-H", harness.AuthorizationHeader(token), "-H", "Content-Type: application/json", "-d", string(body),
-			"https://localhost/api/commands/"+command)
-		return json.RawMessage(out)
-	}
-	health := func(subject string) (string, string) {
-		var rows []struct{ Subject, Status, Error string }
-		_ = json.Unmarshal(call("deck.health_list", map[string]any{}), &rows)
-		for _, r := range rows {
-			if r.Subject == subject {
-				return r.Status, r.Error
-			}
-		}
-		return "", ""
-	}
-	waitHealth := func(subject, want string) {
-		t.Helper()
-		var status, text string
-		defer func() {
-			if status != want {
-				t.Logf("%s is %s, want %s: %s", subject, status, want, text)
-			}
-		}()
-		harness.UntilWithin(t, 4*time.Minute, subject+" to be "+want, func() bool {
-			status, text = health(subject)
-			return status == want
-		})
-	}
-	waitHealth("provider:claude-code", "needs_login")
-	waitHealth("provider:codex", "needs_login")
+	b.health(token, "sandbox", "ok")
+	b.health(token, "provider:claude-code", "needs_login")
+	b.health(token, "provider:codex", "needs_login")
 	for _, agent := range []string{"claude-code", "codex"} {
 		var l struct{ URL, Code string }
-		if err := json.Unmarshal(call("deck.agent_login", map[string]any{"provider": agent}), &l); err != nil || !strings.HasPrefix(l.URL, "https://") {
+		if err := json.Unmarshal(b.call(token, "deck.agent_login", map[string]any{"provider": agent}), &l); err != nil || !strings.HasPrefix(l.URL, "https://") {
 			t.Fatalf("the sign-in link of %s: %+v %v", agent, l, err)
 		}
 	}
 
-	cfg := exec.Command("docker", "exec", "-i", name, "docker", "compose", "--project-directory", "/srv/deck", "exec", "-T", "-u", "agent", "deck",
-		"sh", "-c", "mkdir -p ~/.codex && cat > ~/.codex/config.toml")
-	cfg.Stdin = strings.NewReader(serverCodex)
-	if out, err := cfg.CombinedOutput(); err != nil {
-		t.Fatalf("Codex on the model of the test: %v\n%s", err, out)
-	}
-	call("deck.provider_check", map[string]any{"provider": "codex"})
-	waitHealth("provider:codex", "ok")
+	b.codex("deck", "/var/lib/deck/agents/codex/login")
+	b.call(token, "deck.provider_check", map[string]any{"provider": "codex"})
+	b.health(token, "provider:codex", "ok")
 
-	var p struct{ ID int64 }
-	if err := json.Unmarshal(call("deck.project_create", map[string]any{"name": "tools", "manifest": harness.ScriptManifest("collect", "", "")}), &p); err != nil || p.ID == 0 {
-		t.Fatalf("a module: %v", err)
+	if state, errText, out := b.script(token); state != "done" || out.Pids == 0 || out.Pids > 5 || out.Token || out.Deck != 200 {
+		t.Fatalf("the script runs in its box, sees only its own processes and not deck's token, and calls deck: %s %s %+v", state, errText, out)
 	}
-	call("deck.document_save", map[string]any{"project": "tools", "name": "scripts/main.py", "kind": "script", "text": harness.PythonLib + `
-print(json.dumps({"uid": os.getuid(), "deck": deck("deck.records_list", {"collection": "items"})[0]}))
-`})
-	var started struct{ Process int64 }
-	_ = json.Unmarshal(call("tools.collect", map[string]any{}), &started)
-	harness.Until(t, "the script of the module to end", func() bool {
-		var pr struct {
-			State  string
-			Result json.RawMessage
-			Error  string
+	if logs := b.compose("logs", "deck"); strings.Contains(logs, "panic") {
+		t.Fatalf("deck panicked:\n%s", logs)
+	}
+}
+
+// TestServerTakesOverTheVolumesOfV01: under the compose.yaml of v0.1 the image copies the logins of its user agent into
+// deck's folder and refuses foreign programs, saying the lines it lacks; under this compose.yaml the CLIs find them.
+func TestServerTakesOverTheVolumesOfV01(t *testing.T) {
+	harness.Needs(t, "DECK_SERVER")
+	b := newBare(t, "ghcr.io/teaarte/deck:v0.1.1")
+	b.write("/srv/deck/compose.yaml", fmt.Sprintf(composeV01, "v0.1.1"))
+	b.compose("up", "-d")
+	token := b.token()
+	b.sh("root", `set -e
+mkdir -p /home/agent/.claude /home/agent/.codex /var/lib/deck/work/left
+echo '{"claudeAiOauth":{"accessToken":"sk-ant-oat01-old","refreshToken":"sk-ant-ort01-old","expiresAt":4102444800000}}' > /home/agent/.claude/.credentials.json
+echo '{"OPENAI_API_KEY":"sk-old"}' > /home/agent/.codex/auth.json
+echo left > /var/lib/deck/work/left/file
+chown -R agent:agent /home/agent /var/lib/deck/work/left`)
+	b.codex("agent", "/home/agent/.codex")
+
+	b.write("/srv/deck/compose.yaml", fmt.Sprintf(composeV01, "latest"))
+	b.compose("up", "-d")
+	if got := b.token(); got != token {
+		t.Fatalf("the token in the volume stays: %s, was %s", got, token)
+	}
+	fix := b.health(token, "sandbox", "error")
+	for _, line := range []string{"seccomp=./seccomp.json", "systempaths=unconfined", "apparmor=deck-box", "apparmor_parser -r /etc/apparmor.d/deck-box"} {
+		if !strings.Contains(fix, line) {
+			t.Fatalf("without its lines health says what to fix, %s among them: %s", line, fix)
 		}
-		_ = json.Unmarshal(call("deck.process_get", map[string]any{"process": started.Process}), &pr)
-		if pr.State == "done" {
-			var out struct{ UID, Deck int }
-			_ = json.Unmarshal(pr.Result, &out)
-			deckUID := strings.TrimSpace(compose("exec", "-T", "deck", "id", "-u"))
-			if fmt.Sprint(out.UID) == deckUID || out.Deck != 200 {
-				t.Fatalf("the script runs as the user of agents and calls deck: %s (deck is %s)", pr.Result, deckUID)
-			}
-			return true
+	}
+	if state, errText, _ := b.script(token); state != "error" || !strings.Contains(errText, "without its box") {
+		t.Fatalf("no script runs without its box: %s %s", state, errText)
+	}
+	moved := b.sh("deck", `cd /var/lib/deck && cat agents/claude/login/.credentials.json agents/codex/login/auth.json agents/codex/login/config.toml &&
+stat -c '%U %n' work/left/file agents/claude/login/.credentials.json agents/codex/login/auth.json`)
+	for _, want := range []string{"sk-ant-ort01-old", "sk-old", "base_url", "deck work/left/file",
+		"deck agents/claude/login/.credentials.json", "deck agents/codex/login/auth.json"} {
+		if !strings.Contains(moved, want) {
+			t.Fatalf("the logins of v0.1 are deck's in the folders of their CLIs, and so is what its agents left (%s):\n%s", want, moved)
 		}
-		if pr.State == "error" {
-			t.Fatalf("the script of the module: %s %s", pr.State, pr.Error)
-		}
-		return false
-	})
-	if out := compose("logs", "deck"); strings.Contains(out, "panic") {
-		t.Fatalf("deck panicked:\n%s", out)
+	}
+
+	b.files("compose.yaml", "seccomp.json", "deck-box.apparmor")
+	b.compose("up", "-d")
+	b.health(token, "sandbox", "ok")
+	b.call(token, "deck.provider_check", map[string]any{"provider": "codex"})
+	b.health(token, "provider:codex", "ok")
+	if state, errText, out := b.script(token); state != "done" || out.Token || out.Deck != 200 {
+		t.Fatalf("with its lines the script runs in its box: %s %s %+v", state, errText, out)
+	}
+	if logs := b.compose("logs", "deck"); strings.Contains(logs, "panic") {
+		t.Fatalf("deck panicked:\n%s", logs)
 	}
 }

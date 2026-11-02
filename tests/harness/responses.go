@@ -8,10 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/user"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -286,27 +284,16 @@ func (f *fakeResponses) say(text string) map[string]any {
 }
 
 // HomeTemp is a folder of the test in the home, as deck's and Codex's are: Codex puts no helper of its sandbox under
-// /tmp, and on Linux its sandbox shows /tmp only where it may write; with a user of agents it is in theirs, as theirs.
+// /tmp, and on Linux its sandbox shows /tmp only where it may write.
 func HomeTemp(t *testing.T) string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatal(err)
-	}
-	agent, _ := user.Lookup(os.Getenv("DECK_AGENT_USER"))
-	if agent != nil {
-		home = agent.HomeDir
 	}
 	dir, err := os.MkdirTemp(home, ".deck-test-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	if agent != nil {
-		uid, _ := strconv.Atoi(agent.Uid)
-		gid, _ := strconv.Atoi(agent.Gid)
-		if err := os.Chown(dir, uid, gid); err != nil {
-			t.Fatal(err)
-		}
-	}
 	return dir
 }

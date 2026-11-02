@@ -42,12 +42,7 @@ const Fix = "deck's compose.yaml gives its container three lines, security_opt: 
 
 func outside(Box) bool { return false }
 
-func (s *Sandbox) Name() string {
-	if Contained() {
-		return "container"
-	}
-	return "bubblewrap"
-}
+func (s *Sandbox) Name() string { return "bubblewrap" }
 
 func (s *Sandbox) program() string {
 	if s.Program != "" {
@@ -61,10 +56,6 @@ func (s *Sandbox) program() string {
 
 // check builds an empty box as every box is built; what bwrap says tells which line of the host is missing.
 func (s *Sandbox) check() error {
-	if Contained() {
-		_, err := theAgent()
-		return err
-	}
 	prog := s.program()
 	if !runnable(prog) {
 		if _, err := exec.LookPath(prog); err != nil {
@@ -80,7 +71,7 @@ func (s *Sandbox) check() error {
 	why := ""
 	switch {
 	case strings.Contains(said, "Can't mount proc"):
-		why = "systempaths=unconfined is missing; "
+		why = "systempaths=unconfined is missing (in Apple's container: --masked-path NONE --read-only-path NONE); "
 	case strings.Contains(said, "No permissions to create new namespace"), strings.Contains(said, "unshare"):
 		why = "the seccomp profile refuses namespaces (seccomp=./seccomp.json is missing); "
 	case strings.Contains(said, "RTM_NEWADDR"), strings.Contains(said, "Failed to make / slave"), strings.Contains(said, "Creating new namespace failed"):
@@ -92,10 +83,6 @@ func (s *Sandbox) check() error {
 // listen opens the socket of a door in dir, or in a folder of the temp one when dir is too long for a socket, which
 // it gives to remove with the door.
 func (s *Sandbox) listen(dir string) (net.Listener, string, error) {
-	if Contained() {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		return ln, "", err
-	}
 	if len(filepath.Join(dir, "s")) > 107 {
 		short, err := os.MkdirTemp("", "deck-")
 		if err != nil {
@@ -108,18 +95,10 @@ func (s *Sandbox) listen(dir string) (net.Listener, string, error) {
 	return ln, "", err
 }
 
-func (s *Sandbox) addr(ln net.Listener) string {
-	if Contained() {
-		return ln.Addr().String()
-	}
-	return bridgeAddr
-}
+func (s *Sandbox) addr(net.Listener) string { return bridgeAddr }
 
 func (s *Sandbox) command(ctx context.Context, b Box, door *Door, env []string) (*exec.Cmd, error) {
 	env = merged(append(base(b), env...))
-	if Contained() {
-		return contained(ctx, b, env)
-	}
 	args, argv, err := allowed(b, door, env)
 	if err != nil {
 		return nil, err
@@ -231,9 +210,6 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
 	argv = b.Argv
 	if door != nil && !b.HostNet {
 		self, err := os.Executable()
-		if v := lookup("DECK_BRIDGE"); v != "" {
-			self, err = v, nil
-		}
 		if err != nil {
 			return nil, nil, err
 		}

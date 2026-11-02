@@ -1,5 +1,6 @@
 # deck on a server: put DECK_DOMAIN (a name of this server) in .env, run docker compose up -d, and open the link
-# with the token from docker compose logs deck. README, "Server", says the rest.
+# with the token from docker compose logs deck. seccomp.json and deck-box.apparmor lie beside it; README, "Server",
+# says the rest.
 name: deck
 services:
   deck:
@@ -7,6 +8,11 @@ services:
     init: true
     restart: unless-stopped
     shm_size: 512m
+    # bubblewrap builds the box of every foreign program: namespaces, its own /proc, mount; nothing else is loosened.
+    security_opt:
+      - seccomp=./seccomp.json
+      - systempaths=unconfined
+      - apparmor=deck-box
     environment:
       DECK_PUBLIC: ${DECK_DOMAIN:+https://${DECK_DOMAIN}}
       DECK_TAILSCALE: ${DECK_TAILSCALE:-}
@@ -16,7 +22,6 @@ services:
       - "127.0.0.1:7701:7701"
     volumes:
       - deck:/var/lib/deck
-      - agents:/home/agent
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -31,7 +36,6 @@ services:
       - caddy:/data
 volumes:
   deck:
-  agents:
   caddy:
 configs:
   caddyfile:

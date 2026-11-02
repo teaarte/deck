@@ -18,15 +18,14 @@ var exceptions = map[string][]string{
 		"internal/script/run.go:14", "internal/script/runtime.go:7",
 	},
 	"write": {
-		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:50", "cmd/deck/main.go:237",
+		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:50", "cmd/deck/main.go:228",
 		"internal/app/snapshots/snapshot.go:100", "internal/app/updates/updates.go:286", "internal/process/script.go:121",
 		"internal/provider/codex/gen/main.go:93", "internal/provider/codex/gen/main.go:104",
 		"internal/provider/shellcheck.go:78", "internal/provider/shellcheck.go:79", "internal/script/run.go:75",
 	},
 	"env": {
 		"cmd/deck-release/main.go:33", "internal/provider/codex/config.go:30",
-		"internal/sandbox/env.go:15", "internal/sandbox/refused.go:32", "internal/sandbox/user.go:29",
-		"internal/sandbox/user.go:65",
+		"internal/sandbox/env.go:15", "internal/sandbox/refused.go:32",
 	},
 	"layers": {
 		"internal/tsnet/config.go:3", "internal/tsnet/off.go:3", "internal/tsnet/tsnet.go:3",

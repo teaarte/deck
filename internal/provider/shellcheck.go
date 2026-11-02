@@ -226,9 +226,6 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		model(fmt.Errorf("resume: the result was %+v, want the word %s and the answer %s", o, word, answer))
 		return c
 	}
-	if sandbox.Contained() {
-		return c
-	}
 	off := Request{Cwd: work, SessionID: sessions[1], MCPURL: req.MCPURL, PermissionMCP: req.PermissionMCP, AllowedTools: req.AllowedTools, OnUsage: req.OnUsage,
 		Prompt: "This is a self-check of deck. Run exactly this shell command once: sh " + filepath.Join(work, "net.sh") +
 			"\nDo not ask for approval. Then hand in {\"word\": \"done\", \"answer\": \"\"} with the result_submit tool of the deck MCP server, even if the command failed."}

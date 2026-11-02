@@ -71,10 +71,7 @@ func run() (*release.Restart, error) {
 	if *public != "" && !strings.HasPrefix(*public, "https://") {
 		return nil, errors.New("deck: -public is an https address, such as https://deck.example.com")
 	}
-	if err := sandbox.AgentUserErr(); err != nil {
-		return nil, err
-	}
-	// What deck writes is its own: another user reads only what deck hands it.
+	// What deck writes is its own.
 	syscall.Umask(0o077)
 
 	home := os.Getenv("DECK_HOME")
@@ -93,11 +90,6 @@ func run() (*release.Restart, error) {
 	defer lock.Close()
 	if err := os.Chmod(deckhome.Layout(home).State(), 0o700); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
-	}
-	if sandbox.HasAgentUser() {
-		if err := private(deckhome.Layout(home)); err != nil {
-			return nil, err
-		}
 	}
 	if err := pending(deckhome.Layout(home)); err != nil {
 		return nil, err
@@ -208,9 +200,8 @@ func run() (*release.Restart, error) {
 // cleanEnv restarts deck with only the variables it needs: on macOS a confined program reads the
 // environment of every process of the owner.
 func cleanEnv() error {
-	// Go adds GOTRACEBACK to the environment of a binary with capabilities, as deck's in its image.
 	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_HOME", "DECK_LAUNCHER", "DECK_ADDR", "DECK_TAILSCALE",
-		"DECK_PUBLIC", "DECK_AGENT_USER", "DECK_SANDBOX", "DECK_IMAGE", "DECK_BRIDGE", "GOTRACEBACK")
+		"DECK_PUBLIC", "DECK_IMAGE")
 	if len(clean) == len(os.Environ()) {
 		return nil
 	}
@@ -238,20 +229,6 @@ func pending(h deckhome.Layout) error {
 		return fmt.Errorf("go back from the update %s: %w", p.Version, err)
 	}
 	return syscall.Exec(p.Exe, os.Args, os.Environ())
-}
-
-// private closes to others all deck kept in its state before it had a user of agents, the base too.
-func private(h deckhome.Layout) error {
-	return filepath.WalkDir(h.State(), func(p string, e fs.DirEntry, err error) error {
-		if err != nil || e.Type()&fs.ModeSymlink != 0 {
-			return err
-		}
-		fi, err := e.Info()
-		if err == nil && fi.Mode().Perm()&0o077 != 0 {
-			err = os.Chmod(p, fi.Mode().Perm()&^0o077)
-		}
-		return err
-	})
 }
 
 // lockHome holds the lock of the home until deck exits; another deck holding it refuses this one.

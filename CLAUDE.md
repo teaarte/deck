@@ -18,10 +18,12 @@ Protocol facts: Claude Code â€” `docs/spikes/claude-code.md`, Codex app-server â
 - Script packages from PyPI and npm through deck's proxy: `DECK_REAL_PACKAGES=1 go test ./tests/scenarios/real -run TestRealScriptPackages -v`
 - Web client in a real browser (Playwright MCP; checks that `web/dist` is fresh):
   `DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
-- Scenario tests on Linux (bubblewrap sandbox, a user without privileges as in WSL2, needs docker):
+- Scenario tests on Linux (bubblewrap sandbox, a user without privileges as in deck's image and WSL2, the three
+  `security_opt` lines of `compose.yaml`, needs docker):
   `DECK_LINUX=1 go test ./tests/linux -v`
-- deck's image from `compose.yaml` on a bare docker (docker in docker, Codex on a model of the test):
-  `DECK_SERVER=1 go test ./tests/scenarios/real -run TestServerFromScratch -v`
+- deck's image from `compose.yaml` on a bare docker (docker in docker, Codex on a model of the test), and its update
+  from the volumes of v0.1: `DECK_SERVER=1 go test ./tests/scenarios/real -run TestServer -v`; `compose.yaml` needs
+  `seccomp.json` beside it and the AppArmor profile `deck-box.apparmor` loaded on a host with AppArmor
 - The desktop launcher (its own module): `cd desktop && go test ./...`; `desktop/build.sh` makes `deck.app` and the
   Windows installer (`brew install makensis`)
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`

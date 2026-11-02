@@ -15,7 +15,6 @@ import (
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
-	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 )
 
@@ -132,8 +131,7 @@ func (r *Runner) place(f db.File, dir string, copies bool) (string, error) {
 	if _, err := os.Lstat(dst); err == nil {
 		return dst, nil
 	}
-	// The user of agents of deck's image gets copies: a link would open deck's own file to it.
-	if copies || sandbox.HasAgentUser() || os.Link(src, dst) != nil {
+	if copies || os.Link(src, dst) != nil {
 		if err := copyFile(src, dst); err != nil {
 			return "", fmt.Errorf("file %d: %v", f.ID, err)
 		}

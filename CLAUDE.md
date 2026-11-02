@@ -36,7 +36,7 @@ hold; look inside a package for the rest.
 
 - `cmd/deck` — entry point and flags.
 - `internal/app` — the wiring only: `New` builds every service from the functions of the others (a test checks none
-  is left unset), registers their commands, runs `Loop`/`Sweep`; background work goes through `Go(func(ctx)) bool`.
+  is left unset), registers their commands and collects those of modules (`modules.go`), runs `Loop`/`Sweep`; background work goes through `Go(func(ctx)) bool`.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
   `internal/app`. Who may touch what is `internal/access`. Deck's screens are data in `app/screens/shipped/` (a file a
   screen).
@@ -63,7 +63,7 @@ hold; look inside a package for the rest.
 - `internal/process` — the runner of processes: turns of agents, scripts, tools and models, slots, resume, the
   deadlines (`Due`), the hand-on of a refused or silent turn to the next model (`handon.go`, `watch.go`), what a
   process left (`left.go`); what it needs from deck is `Deps`.
-- `internal/provider` — model providers behind one interface and one `Outcome` of a turn: `claudecode`, `codex`
+- `internal/provider` — model providers behind one interface and one `Result` of a turn (its failure a `*fault.F`): `claudecode`, `codex`
   (generated protocol), `acp` (an ACP agent in deck's sandbox on a model through deck's proxy), each on
   `sandbox.Run`; a CLI's home per project (`home.Agent`) with its one login (`Homed`), deck's MCP server at the door
   of the box (`MCP`); one self-check (`ShellCheck`); the version CI tests a CLI with is the ARG of `Dockerfile`

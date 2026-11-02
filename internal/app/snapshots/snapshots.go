@@ -13,15 +13,14 @@ import (
 	"deck2/internal/store"
 )
 
-// Service takes the snapshots and runs the cleanup; LockFiles and UnlockFiles hold the stored files while a
-// snapshot copies them.
+// Service takes the snapshots and runs the cleanup; Still holds the writes of the stored files while a snapshot
+// copies them, until the func it gives.
 type Service struct {
-	St          *store.Store
-	Bus         *events.Bus
-	Home        home.Layout
-	Now         func() time.Time
-	LockFiles   func()
-	UnlockFiles func()
+	St    *store.Store
+	Bus   *events.Bus
+	Home  home.Layout
+	Now   func() time.Time
+	Still func() func()
 	// Expire deletes the records past their retention with what belongs to them.
 	Expire func(ctx context.Context, now time.Time)
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk, when the

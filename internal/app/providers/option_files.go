@@ -87,8 +87,7 @@ func (s *Service) keepBig(ctx context.Context, workspace int64, m db.Model) (str
 	}
 	ids := map[string]int64{}
 	options := m.Options
-	s.FilesMu.RLock()
-	defer s.FilesMu.RUnlock()
+	defer s.Hold()()
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		changed := len(big) > 0
 		for k, v := range o {

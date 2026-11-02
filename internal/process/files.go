@@ -39,8 +39,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	if json.Unmarshal([]byte(result), &res) != nil || len(res.Files) == 0 {
 		return result, nil
 	}
-	r.cfg.FilesMu.RLock()
-	defer r.cfg.FilesMu.RUnlock()
+	defer r.cfg.Hold()()
 	var given []FileRef
 	res.Files = slices.DeleteFunc(res.Files, func(f FileRef) bool {
 		if f.File != 0 {

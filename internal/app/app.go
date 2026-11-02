@@ -138,7 +138,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser}
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
-		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, FilesMu: &a.Files.Mu, AgentSlots: a.Settings.AgentSlots},
+		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, Hold: a.Files.Hold, AgentSlots: a.Settings.AgentSlots},
 		process.Deps{For: a.Providers.For, Next: a.Providers.Next, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
@@ -158,9 +158,9 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		}}
 	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted}
-	a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
+	a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
 		Expire: a.Records.Expire}
-	a.Providers = providers.Service{St: st, Changed: func(topic string) { a.Bus.Emit(events.Event{Topic: topic}) }, Now: cfg.Now, Home: h, FilesMu: &a.Files.Mu, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+	a.Providers = providers.Service{St: st, Changed: func(topic string) { a.Bus.Emit(events.Event{Topic: topic}) }, Now: cfg.Now, Home: h, Hold: a.Files.Hold, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
 		VideoCeiling: cfg.VideoCeiling, Key: a.Secrets.Key, WriteKey: a.Secrets.WriteKey,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,

@@ -21,6 +21,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/registry"
+
 	"github.com/google/uuid"
 )
 
@@ -114,8 +115,7 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 // hold copies the base and links the stored files into files while no file comes or goes, so the copy names
 // only files the snapshot holds; the stored files never change, so the links are their copy.
 func (s *Service) hold(ctx context.Context, copyDB, files string, project int64) error {
-	s.LockFiles()
-	defer s.UnlockFiles()
+	defer s.Still()()
 	if err := s.St.Backup(ctx, copyDB); err != nil {
 		return err
 	}

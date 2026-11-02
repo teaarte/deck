@@ -27,12 +27,11 @@ import (
 	"deck2/internal/store/db"
 )
 
-// Service keeps the files; Mu keeps them from coming or going while a snapshot copies the base and files/.
+// Service keeps the files; mu keeps them from coming or going while a snapshot copies the base and files/.
 type Service struct {
 	St   *store.Store
 	Home home.Layout
 	Now  func() time.Time
-	Mu   sync.RWMutex
 	// Held reports whether a record of a project holds a folder of its data folder now.
 	Held func(ctx context.Context, project int64, folder string) bool
 	// Go runs work beside the calls unless deck stops.
@@ -41,6 +40,19 @@ type Service struct {
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// draining keeps one drain of the outbox at a time.
 	draining sync.Mutex
+	mu       sync.RWMutex
+}
+
+// Hold keeps a snapshot from copying the base between the row of a file and its blob, until the func it gives.
+func (s *Service) Hold() func() {
+	s.mu.RLock()
+	return s.mu.RUnlock
+}
+
+// Still holds every write of a file and its row while a snapshot copies the base and files/, until the func it gives.
+func (s *Service) Still() func() {
+	s.mu.Lock()
+	return s.mu.Unlock
 }
 
 // View is a stored file as a list or an upload gives it.
@@ -177,8 +189,7 @@ func (s *Service) Upload(ctx context.Context, act registry.Actor, project, name,
 	if n > maxUpload {
 		return View{}, registry.Invalid("a file may be at most 1 GB")
 	}
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
+	defer s.Hold()()
 	var f db.File
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error

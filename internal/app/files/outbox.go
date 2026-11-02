@@ -24,8 +24,7 @@ func (s *Service) Follow(bus *events.Bus) {
 func (s *Service) Drain(ctx context.Context) {
 	s.draining.Lock()
 	defer s.draining.Unlock()
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
+	defer s.Hold()()
 	var stuck []string
 	for _, kind := range []string{"file", "project", "folder"} {
 		rows, err := s.St.Q.ListOutbox(ctx, kind)

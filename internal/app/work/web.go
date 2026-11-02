@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"context"
@@ -53,7 +53,7 @@ type webSearchIn struct {
 	Count int64  `opt:"" desc:"How many results, 10 when left out, at most 20"`
 }
 
-type searchResult struct {
+type searchView struct {
 	Title   string `json:"title"`
 	URL     string `json:"url"`
 	Snippet string `json:"snippet"`
@@ -108,12 +108,12 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	if count <= 0 {
 		count = 10
 	}
-	out := []searchResult{}
+	out := []searchView{}
 	for _, r := range v.Results {
 		if len(out) == min(count, 20) {
 			break
 		}
-		out = append(out, searchResult{Title: untrusted.Cut(r.Title, 300), URL: r.URL, Snippet: untrusted.Cut(r.Content, 1000)})
+		out = append(out, searchView{Title: untrusted.Cut(r.Title, 300), URL: r.URL, Snippet: untrusted.Cut(r.Content, 1000)})
 	}
 	return map[string]any{"results": out, "search": h.Name}, nil
 }

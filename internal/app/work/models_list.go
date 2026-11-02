@@ -1,27 +1,23 @@
-package providers
+package work
 
 import (
 	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/provider/acp"
 	"deck2/internal/registry"
+	"deck2/internal/store/db"
 	"deck2/internal/words"
-)
-
-// Units are what a price per million of a model counts: tokens in and out, characters deck sent, or seconds of a
-// recording the API reported.
-const (
-	UnitToken  = "token"
-	UnitChar   = "char"
-	UnitSecond = "second"
 )
 
 type modelView struct {
@@ -60,22 +56,31 @@ type modelView struct {
 
 // lastCheck fills in the state of a model: of its last self-check in an agent, else of its last call.
 func (s *Service) lastCheck(ctx context.Context, workspace int64, v *modelView) {
-	if h, err := s.healthOf(ctx, workspace, v.Name); err == nil {
+	if h, err := s.Health(ctx, workspace, v.Name); err == nil {
 		v.Status, v.Error, v.Verdict, v.Speed, v.Version = h.Status, h.Error, h.Verdict, h.Speed, h.Version
 	}
 }
 
-type modelsOut struct {
+type modelsView struct {
 	Agents      []agentView      `json:"agents"`
 	Connections []connectionView `json:"connections"`
 	Models      []modelView      `json:"models"`
 	Assignments []assignmentView `json:"assignments"`
+	// Choices are the models of deck that could do each kind of work, once a kind.
+	Choices []choiceView `json:"choices"`
 	// Uses are the kinds of work the projects call models for apart from their commands, such as the pictures of
 	// their scripts, with the model each goes to.
 	Uses []useView `json:"uses"`
 	// Work is every command of a project that runs on a model and every kind of work of its scripts, with the model
 	// each runs on; without a project, of every project and then the defaults of each kind of work.
 	Work []workView `json:"work"`
+}
+
+// choiceView is the models of deck that could do a kind of work, in the order deck lists them, with the group of each.
+type choiceView struct {
+	Role   string   `json:"role" enum:"agent|text|image|tts|stt|music|video|search|widget"`
+	Models []string `json:"models"`
+	Groups []string `json:"groups"`
 }
 
 type useView struct {
@@ -108,10 +113,11 @@ type modelsListIn struct {
 	Lang    string `opt:"" desc:"Language of the prices, such as ru; English without one"`
 }
 
-func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsListIn) (modelsOut, error) {
+func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsListIn) (modelsView, error) {
 	ws := words.In(in.Lang)
 	tr := func(p string) string { return manifest.TrText(ws, p) }
-	out := modelsOut{Agents: s.agents(ctx, act.Workspace, tr), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}, Uses: []useView{}, Work: []workView{}}
+	out := modelsView{Agents: s.agents(ctx, act.Workspace, tr), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{},
+		Choices: []choiceView{}, Uses: []useView{}, Work: []workView{}}
 	conns, err := s.St.Q.ListConnections(ctx, act.Workspace)
 	if err != nil {
 		return out, err
@@ -179,7 +185,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		v := assignmentView{Project: r.Project, Command: r.Command, Role: r.Role}
 		_ = json.Unmarshal([]byte(r.Models), &v.Models)
 		for _, name := range v.Models {
-			if s.exists(ctx, act.Workspace, name) && s.Up(ctx, act.Workspace, name) {
+			if s.Exists(ctx, act.Workspace, name) && s.Up(ctx, act.Workspace, name) {
 				v.Using = name
 				break
 			}
@@ -192,14 +198,13 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		return out, err
 	}
 	b := s.book(ctx, act.Workspace, tr)
-	for i, a := range out.Assignments {
-		out.Assignments[i].Choices = b.Of(a.Role)
-		if agentic(a.Role) {
-			out.Assignments[i].Choices = b.Agents()
+	for _, role := range roles {
+		w := provider.Work{Choices: b.Of(role)}
+		if agentic(role) {
+			w.Choices = b.Agents()
 		}
-		if len(a.Models) > 0 {
-			out.Assignments[i].Price = b.Price(a.Models[0])
-		}
+		w = b.Grouped(w)
+		out.Choices = append(out.Choices, choiceView{Role: role, Models: w.Choices, Groups: w.ChoiceGroups})
 	}
 	for i := range out.Models {
 		out.Models[i].Price, out.Models[i].Used = Price(out.Models[i], tr), used[out.Models[i].Name]
@@ -217,7 +222,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 
 // uses fills in the uses of the projects the caller reaches, all of them or only pid, with the work of pid, and says
 // which models some work goes to or is assigned to.
-func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang string, out *modelsOut) (map[string]bool, error) {
+func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang string, out *modelsView) (map[string]bool, error) {
 	used := map[string]bool{}
 	for _, a := range out.Assignments {
 		for _, name := range a.Models {
@@ -297,5 +302,74 @@ func boolRank(b bool) int {
 func (s *Service) offStatus(ctx context.Context, workspace int64, v *modelView) {
 	if off := s.Off(ctx, workspace, v.Name); off != "" {
 		v.Status, v.Error, v.Verdict, v.Speed = off, "", "", 0
+	}
+}
+
+type connectionView struct {
+	Name string `json:"name"`
+	API  string `json:"api" enum:"openai|google|anthropic|raw|cli"`
+	URL  string `json:"url"`
+	// Key says whether deck keeps an API key of the connection, apart from the secrets of modules.
+	Key    string `json:"key" enum:"set|none"`
+	Local  bool   `json:"local"`
+	Models int64  `json:"models"`
+}
+
+// agentView is a program models run in: a built-in provider or an ACP agent, with its version and health; an ACP
+// agent that is not installed is missing.
+type agentView struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Status  string `json:"status" enum:"ok|warning|error|checking|paused|needs_login|missing|off"`
+	Error   string `json:"error"`
+	// Builtin is a provider deck was started with, which the owner may turn off.
+	Builtin bool `json:"builtin"`
+}
+
+// agents are the built-in providers with a self-check and the ACP agents deck knows; a built-in one that is not
+// installed says how to install it, one the workspace turned off says so.
+func (s *Service) agents(ctx context.Context, workspace int64, tr func(string) string) []agentView {
+	var out []agentView
+	for _, pv := range s.Builtin {
+		if _, ok := pv.(provider.SelfChecker); !ok {
+			continue
+		}
+		v := agentView{Name: pv.Name(), Builtin: true}
+		if h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(pv.Name())); err == nil {
+			v.Version, v.Status, v.Error = h.Version, h.Status, h.Error
+		}
+		if off := s.Off(ctx, workspace, pv.Name()); off != "" {
+			v.Status, v.Error = off, ""
+		}
+		if i, ok := pv.(provider.Installed); ok && v.Status == health.Missing {
+			v.Error = tr(fmt.Sprintf("not installed; install it: %s", i.Install()))
+		}
+		out = append(out, v)
+	}
+	for _, name := range acp.Names() {
+		v := agentView{Name: name, Status: health.Missing}
+		if s.Installed(name) {
+			v.Status = "checking"
+		}
+		if h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Agent(name)); err == nil {
+			v.Version, v.Status, v.Error = h.Version, h.Status, h.Error
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+// ModelView is a model as its form shows it, a file of its options by its name and size.
+func (s *Service) ModelView(ctx context.Context, m db.Model, connection string) any {
+	return modelView{Name: m.Name, Connection: connection, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: s.shownOptions(ctx, m.Options),
+		InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0,
+		Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context}
+}
+
+func (s *Service) listCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Read("models_list", "Models",
+			"Lists the connections models are reached through, the models with their kind and price, the models that could do each kind of work, and which models do which work.",
+			registry.Everyone, s.modelsList).On("models", "assignments", "projects", "health", "settings"),
 	}
 }

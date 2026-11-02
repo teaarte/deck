@@ -22,6 +22,13 @@ const (
 	Error      = "error"
 )
 
+// Why a provider takes no work, in place of the status of its health: its program is not on the machine, or the
+// owner turned it off.
+const (
+	Missing = "missing"
+	Off     = "off"
+)
+
 // severity orders the statuses from the best; an unknown status counts as ok.
 var severity = map[string]int{OK: 0, Checking: 1, Paused: 2, NeedsLogin: 2, Warning: 2, Error: 3}
 

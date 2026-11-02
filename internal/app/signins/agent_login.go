@@ -1,4 +1,4 @@
-package providers
+package signins
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -45,7 +46,7 @@ type agentLoginIn struct {
 
 // agentLogin starts the sign-in of a CLI agent and gives its link, once its program printed one.
 func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLoginIn) (any, error) {
-	si, ok := s.builtinNamed(in.Provider).(provider.SignIn)
+	si, ok := s.Agent(in.Provider).(provider.SignIn)
 	if !ok {
 		return nil, registry.Invalid("%s is not a CLI agent deck signs in to", in.Provider)
 	}
@@ -95,7 +96,7 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 	shown := make(chan struct{})
 	var tail []string
 	read := make(chan struct{})
-	go func() {
+	pumped := s.Go(func(context.Context) {
 		defer close(read)
 		once := false
 		var text string
@@ -121,7 +122,7 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 			if ready && !once {
 				once = true
 				close(shown)
-				s.Changed("health")
+				s.Emit(events.Event{Topic: "health"})
 			}
 			if err != nil {
 				break
@@ -130,7 +131,11 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 		if !once {
 			close(shown)
 		}
-	}()
+	})
+	if !pumped {
+		close(read)
+		close(shown)
+	}
 	s.Go(func(context.Context) {
 		err := p.Wait()
 		w.Close()
@@ -147,9 +152,9 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 			l.Error = fmt.Sprintf("%s sign-in ended: %s", in.Provider, untrusted.Line(err.Error()+": "+strings.Join(lastLines(tail, 3), " "), 600))
 		}
 		s.mu.Unlock()
-		s.Changed("health")
+		s.Emit(events.Event{Topic: "health"})
 		if err == nil {
-			s.startCheck(in.Provider, true)
+			s.Check(in.Provider)
 		}
 	})
 	select {
@@ -165,13 +170,13 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 	return *l, nil
 }
 
-type agentLoginCodeIn struct {
+type agentLoginFinishIn struct {
 	Provider string `desc:"The CLI agent being signed in"`
 	Code     string `desc:"The code the page of the sign-in link gave"`
 }
 
-// agentLoginCode hands the program of a sign-in the code its page gave.
-func (s *Service) agentLoginCode(_ context.Context, _ registry.Actor, in agentLoginCodeIn) (any, error) {
+// agentLoginFinish hands the program of a sign-in the code its page gave.
+func (s *Service) agentLoginFinish(_ context.Context, _ registry.Actor, in agentLoginFinishIn) (any, error) {
 	s.mu.Lock()
 	var stdin io.WriteCloser
 	if l := s.logins[in.Provider]; l != nil && l.Error == "" && l.Paste {
@@ -191,12 +196,12 @@ func (s *Service) agentLoginCode(_ context.Context, _ registry.Actor, in agentLo
 	return map[string]any{"provider": in.Provider}, nil
 }
 
-type agentLoginsIn struct {
+type agentLoginsListIn struct {
 	Lang string `opt:"" desc:"Language of the failures, such as ru; English without one"`
 }
 
-// agentLogins are the sign-ins from deck that wait for the owner or ended in a failure.
-func (s *Service) agentLogins(_ context.Context, _ registry.Actor, in agentLoginsIn) ([]signIn, error) {
+// agentLoginsList are the sign-ins from deck that wait for the owner or ended in a failure.
+func (s *Service) agentLoginsList(_ context.Context, _ registry.Actor, in agentLoginsListIn) ([]signIn, error) {
 	ws := words.In(in.Lang)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -220,4 +225,18 @@ func lastLines(lines []string, n int) []string {
 		}
 	}
 	return out[max(0, len(out)-n):]
+}
+
+func (s *Service) agentLoginCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("agent_login", "Sign in to agent",
+			"Starts the sign-in of a built-in CLI agent (claude-code, codex) on this machine by a link: gives the link and the code to enter there, or that the page of the link gives a code to hand in with agent_login_finish; the self-check runs once it is signed in.",
+			registry.OwnerOnly, s.agentLogin),
+		registry.Def("agent_login_finish", "Sign-in code",
+			"Hands the sign-in of a CLI agent started with agent_login the code the page of its link gave.",
+			registry.OwnerOnly, s.agentLoginFinish),
+		registry.Read("agent_logins_list", "Sign-ins",
+			"Lists the sign-ins of CLI agents started from deck that wait for the owner, with their link and code, and those that failed.",
+			registry.OwnerOnly, s.agentLoginsList).On("health"),
+	}
 }

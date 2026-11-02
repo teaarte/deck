@@ -3,6 +3,7 @@ package providers
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -10,9 +11,11 @@ import (
 
 	"deck2/internal/fault"
 	"deck2/internal/health"
+	"deck2/internal/models"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
+	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
 
@@ -252,8 +255,40 @@ func (s *Service) onCLI(ctx context.Context, name string) bool {
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)
 	for _, ws := range spaces {
 		if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name}); err == nil {
-			return row.Connection.Api == APICLI
+			return row.Connection.Api == models.APICLI
 		}
 	}
 	return false
 }
+
+type providerCheckIn struct {
+	Provider string `desc:"Provider name"`
+}
+
+func (s *Service) providerCheck(ctx context.Context, act registry.Actor, in providerCheckIn) (any, error) {
+	pv, err := s.Provider(ctx, act.Workspace, in.Provider)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := pv.(provider.SelfChecker); !ok {
+		return nil, registry.Invalid("provider %q has no self-check", in.Provider)
+	}
+	if !s.startCheck(in.Provider, true) {
+		if s.Ctx.Err() != nil {
+			return nil, errors.New("deck: deck is stopping")
+		}
+		return nil, errors.New("deck: a self-check is already running")
+	}
+	return map[string]any{"checking": in.Provider}, nil
+}
+
+func (s *Service) checkCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("provider_check", "Check provider",
+			"Runs the self-check of a provider's adapter again; its health shows the outcome.",
+			registry.OwnerOnly, s.providerCheck),
+	}
+}
+
+// Check runs the self-check of a provider again, as the owner asked for it.
+func (s *Service) Check(name string) { s.startCheck(name, true) }

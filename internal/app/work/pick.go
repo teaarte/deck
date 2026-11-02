@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"cmp"
@@ -11,7 +11,6 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
-	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
 
@@ -92,7 +91,7 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 		var why []string
 		for _, name := range names {
 			if off := s.Off(ctx, p.WorkspaceID, name); off != "" {
-				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which is %s; %s", place, name, map[string]string{offMissing: "not installed on this machine", offByOwner: "turned off in Settings → Models"}[off], s.change(ctx, p.WorkspaceID, requires)))
+				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which is %s; %s", place, name, map[string]string{health.Missing: "not installed on this machine", health.Off: "turned off in Settings → Models"}[off], s.change(ctx, p.WorkspaceID, requires)))
 				continue
 			}
 			pv, err := s.Provider(ctx, p.WorkspaceID, name)
@@ -146,21 +145,14 @@ func (s *Service) change(ctx context.Context, workspace int64, requires []string
 	return "pick one that has it in the row of the command in the settings of the module: " + strings.Join(names, ", ")
 }
 
-// Up reports whether a new start may pick a provider: not in a self-check, a limit, a lost login or an error.
-func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
-	h, err := s.healthOf(ctx, workspace, name)
-	return err != nil || h.Status != health.Checking && h.Status != health.Paused && h.Status != health.Error &&
-		h.Status != health.NeedsLogin
-}
-
 // why is one line of why the work does not go to the first of models, in words tr gives: the health of the first one
 // down up to using; empty when the first does the work.
 func (s *Service) why(ctx context.Context, workspace int64, models []string, using string, tr func(string) string) string {
 	for _, name := range models {
-		if !s.exists(ctx, workspace, name) {
+		if !s.Exists(ctx, workspace, name) {
 			return name + ": " + tr(noModel)
 		}
-		if h, err := s.healthOf(ctx, workspace, name); err == nil && !s.Up(ctx, workspace, name) {
+		if h, err := s.Health(ctx, workspace, name); err == nil && !s.Up(ctx, workspace, name) {
 			return name + ": " + untrusted.Flat(tr(cmp.Or(h.Error, h.Status)), 200)
 		}
 		if name == using {
@@ -168,33 +160,4 @@ func (s *Service) why(ctx context.Context, workspace int64, models []string, usi
 		}
 	}
 	return ""
-}
-
-// Goes reports whether a turn already started may run on a provider: not in a self-check, a broken adapter or a
-// limit; a lost login or a weak model holds no turn.
-func (s *Service) Goes(ctx context.Context, workspace int64, name string) bool {
-	h, err := s.healthOf(ctx, workspace, name)
-	return err != nil || h.Status != health.Checking && !down(h)
-}
-
-// Down is the status and text of the health of a provider that is paused or red by its adapter, so no turn goes on
-// on it; empty when it is up.
-func (s *Service) Down(ctx context.Context, workspace int64, name string) (string, string) {
-	if h, err := s.healthOf(ctx, workspace, name); err == nil && down(h) {
-		return h.Status, h.Error
-	}
-	return "", ""
-}
-
-func down(h db.Health) bool {
-	return h.Status == health.Paused || h.Status == health.Error && h.Verdict == "adapter"
-}
-
-// healthOf is the health row of a model by name: of its self-check when it is built in or runs in an agent, else of
-// its last call in the workspace.
-func (s *Service) healthOf(ctx context.Context, workspace int64, name string) (db.Health, error) {
-	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name}); err == nil && row.Model.Agent == "" {
-		return health.Get(ctx, s.St.Q, health.Of{Workspace: workspace}, health.Model(name))
-	}
-	return health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
 }

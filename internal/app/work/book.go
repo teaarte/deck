@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"cmp"
@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
+	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -31,9 +32,9 @@ func Price(v modelView, tr func(string) string) string {
 		return tr("free")
 	case v.InputUSD == nil:
 		return tr("unknown")
-	case v.Unit == UnitChar:
+	case v.Unit == models.UnitChar:
 		return fmt.Sprintf(tr("%s per 1M chars"), usd(*v.InputUSD))
-	case v.Unit == UnitSecond:
+	case v.Unit == models.UnitSecond:
 		return fmt.Sprintf(tr("%s a minute"), usd(*v.InputUSD*60/1000000))
 	}
 	out := 0.0

@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"context"
@@ -9,7 +9,10 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
+	"deck2/internal/models"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -18,14 +21,14 @@ import (
 // Roles are the kinds of work an assignment names models for: agent turns, and direct calls by kind.
 const (
 	RoleAgent = "agent"
-	RoleText  = "text"
-	RoleImage = "image"
-	RoleTTS   = "tts"
-	RoleSTT   = "stt"
-	RoleMusic = "music"
-	RoleVideo = "video"
+	RoleText  = models.KindText
+	RoleImage = models.KindImage
+	RoleTTS   = models.KindTTS
+	RoleSTT   = models.KindSTT
+	RoleMusic = models.KindMusic
+	RoleVideo = models.KindVideo
 	// RoleSearch is web search for the agents that have none of their own.
-	RoleSearch = "search"
+	RoleSearch = models.KindSearch
 	// RoleWidget is the agent that draws a view of the card of a module for a size; the master's model without one.
 	RoleWidget = "widget"
 )
@@ -74,9 +77,6 @@ type assignmentView struct {
 	Using string `json:"using,omitempty"`
 	// Why is one line of the health of the first model that is down, when another takes the work.
 	Why string `json:"why,omitempty"`
-	// Choices are the models of deck that could do the work, Price how the price of the first reads.
-	Choices []string `json:"choices"`
-	Price   string   `json:"price"`
 }
 
 type assignmentSetIn struct {
@@ -164,7 +164,7 @@ func (s *Service) planned(ctx context.Context, workspace int64, in assignmentSet
 		if err != nil {
 			return 0, nil, registry.NotFound("no model %q", name)
 		}
-		if row.Connection.Api == APICLI {
+		if row.Connection.Api == models.APICLI {
 			return 0, nil, registry.Invalid("model %s runs agent turns in %s; assign it to agent commands", name, row.Model.Agent)
 		}
 		if row.Model.Kind != in.Role {
@@ -199,9 +199,9 @@ func picked(model string, before []string) []string {
 	return append([]string{model}, slices.DeleteFunc(slices.Clone(before), func(n string) bool { return n == model })...)
 }
 
-// assignmentCommand is assignment_set: the owner's call sets the models at once; one of the master or a module waits
+// assignmentCommands are assignment_set: the owner's call sets the models at once; one of the master or a module waits
 // for the owner's yes, which applies it only while the models in force there are still those the owner saw.
-func (s *Service) assignmentCommand() *registry.Command {
+func (s *Service) assignmentCommands() []*registry.Command {
 	c := registry.Def("assignment_set", "Assign models",
 		"Sets the models that do a kind of work in the workspace, a project or a command: the first, then the fallbacks a new turn or call takes when it is down. A module or the master proposes an assignment this way, of any project, and the owner applies it with one button.",
 		registry.Everyone, s.assignmentSet).As(registry.External)
@@ -304,7 +304,7 @@ func (s *Service) assignmentCommand() *registry.Command {
 		}
 		return fmt.Sprintf("%s of %s: %s → %s", in.Role, where, listed(before, "deck's default"), listed(after, "none, the default above it"))
 	}
-	return c
+	return []*registry.Command{c}
 }
 
 func assignmentInput(input json.RawMessage) (assignmentSetIn, error) {
@@ -385,5 +385,23 @@ func (s *Service) NoSearch(ctx context.Context, workspace int64) string {
 // inAgent says a provider is a model in an ACP agent, whose web is deck's.
 func (s *Service) inAgent(ctx context.Context, workspace int64, name string) bool {
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
-	return err == nil && row.Model.Agent != "" && row.Connection.Api != APICLI
+	return err == nil && row.Model.Agent != "" && row.Connection.Api != models.APICLI
+}
+
+// agentCommand finds an agent command of the workspace by its place, project.command.
+func (s *Service) agentCommand(ctx context.Context, workspace int64, place string) (db.Project, *manifest.Command, error) {
+	name, command, _ := strings.Cut(place, ".")
+	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
+	if err != nil {
+		return p, nil, registry.NotFound("no project %q", name)
+	}
+	m, err := docs.Manifest(ctx, s.St.Q, p)
+	if err != nil {
+		return p, nil, err
+	}
+	cmd := m.Command(command)
+	if cmd == nil || cmd.Executor.Type != process.KindAgent {
+		return p, nil, registry.Invalid("%s is not an agent command; only agent commands call a model", place)
+	}
+	return p, cmd, nil
 }

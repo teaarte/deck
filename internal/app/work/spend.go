@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"context"
@@ -28,12 +28,12 @@ func price(m db.Model, u provider.Usage) *float64 {
 	}
 	in, out := float64(u.Input), float64(u.Output)
 	switch m.Unit {
-	case UnitChar:
+	case models.UnitChar:
 		if u.Chars == 0 {
 			return nil
 		}
 		in, out = float64(u.Chars), 0
-	case UnitSecond:
+	case models.UnitSecond:
 		if u.Seconds == 0 {
 			return nil
 		}

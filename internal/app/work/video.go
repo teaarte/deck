@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"context"
@@ -55,7 +55,8 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 	}
 	spent := &provider.Usage{}
 	defer func() { done(spent) }()
-	end := time.Now().Add(s.VideoCeiling)
+	ceiling := time.NewTimer(s.VideoCeiling)
+	defer ceiling.Stop()
 	for job.Status != "completed" {
 		if job.Status == "failed" || job.Status == "cancelled" || job.Status == "canceled" || job.Status == "expired" {
 			if spent = models.UsageOf(raw); spent == nil || spent.CostUSD == nil {
@@ -64,10 +65,9 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 			}
 			return nil, fmt.Errorf("deck: the video job %s of %s ended %s: %s", job.ID, h.Connection, job.Status, untrusted.Cut(failure(job.Error), 1000))
 		}
-		if !time.Now().Before(end) {
-			return nil, fmt.Errorf("deck: the video job %s of %s was not ready in %s", job.ID, h.Connection, s.VideoCeiling)
-		}
 		select {
+		case <-ceiling.C:
+			return nil, fmt.Errorf("deck: the video job %s of %s was not ready in %s", job.ID, h.Connection, s.VideoCeiling)
 		case <-ctx.Done():
 			return nil, fmt.Errorf("deck: the call stopped while the video job %s of %s ran; the service may still finish it: %w", job.ID, h.Connection, ctx.Err())
 		case <-time.After(s.VideoPoll):

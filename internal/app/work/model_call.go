@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"context"
@@ -146,12 +146,12 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 	return out, err
 }
 
-// modelCallCommand is a call of a model of a kind through deck; a script's call through the proxy goes by its rules.
-func (s *Service) modelCallCommand() *registry.Command {
+// callCommands are a call of a model of a kind through deck; a script's call through the proxy goes by its rules.
+func (s *Service) callCommands() []*registry.Command {
 	c := registry.Def("model_call", "Ask a model",
 		"Asks the model assigned to a kind of work, or one named: text by a JSON schema, a picture or an edit of the one in file, speech of text, text of a recording, music or a video from its first and last frames; pictures, sound and video come back as files.",
 		registry.Everyone, s.modelCall)
 	c.Class, c.Gate.Allowed, c.Gate.Free, c.Gate.Spends = registry.External, s.allowed, s.free, true
 	c.Gate.Fingerprint = func(context.Context, int64, int64, json.RawMessage) string { return gateway.ModelCommand }
-	return c
+	return []*registry.Command{c}
 }

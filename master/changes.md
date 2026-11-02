@@ -29,3 +29,5 @@ and bring the modules in line.
 - 2026-11-02: on a server, in deck's image, every program of a module runs in its box as elsewhere: it reaches only
   the hosts of its `domains.read`, not the network of the container, and sees no folder of another module; Claude
   Code and Codex keep a home per project in deck's folder, with the one login.
+- 2026-11-02: `models_list` gives the models that could do each kind of work once, in `choices` (`role`, `models`,
+  `groups`); a row of `assignments` holds only `models`, `using` and `why`, no `choices` or `price`.

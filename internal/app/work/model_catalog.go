@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"context"
@@ -16,9 +16,9 @@ import (
 	"deck2/internal/store/db"
 )
 
-// catalog reads the price and kind of a model from OpenRouter's list of its connection; a zero is free only for a model
+// Catalog reads the price and kind of a model from OpenRouter's list of its connection; a zero is free only for a model
 // of text or one named free, since a song or a picture may cost what no field of the catalog says.
-func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection, model string) (db.AddModelParams, bool) {
+func (s *Service) Catalog(ctx context.Context, workspace int64, c db.Connection, model string) (db.AddModelParams, bool) {
 	var out db.AddModelParams
 	key := s.Key(workspace, c.Name)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

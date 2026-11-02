@@ -19,8 +19,8 @@ func (s *Service) agent(c acp.Config) (*acp.Adapter, error) {
 	return acp.New(c)
 }
 
-// installed says deck finds the program of an ACP agent.
-func (s *Service) installed(agent string) bool {
+// Installed says deck finds the program of an ACP agent.
+func (s *Service) Installed(agent string) bool {
 	bin := s.ACPBinaries[agent]
 	if bin == "" {
 		bin = agent

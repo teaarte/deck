@@ -4,25 +4,12 @@ import (
 	"context"
 	"strings"
 
+	"deck2/internal/models"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/schemas"
 )
-
-// APICLI is the API of a connection deck keeps itself for an agent CLI on the owner's subscription: no address, no
-// key, its models run agent turns in the CLI of its name.
-const APICLI = "cli"
-
-type connectionView struct {
-	Name string `json:"name"`
-	API  string `json:"api" enum:"openai|google|anthropic|raw|cli"`
-	URL  string `json:"url"`
-	// Key says whether deck keeps an API key of the connection, apart from the secrets of modules.
-	Key    string `json:"key" enum:"set|none"`
-	Local  bool   `json:"local"`
-	Models int64  `json:"models"`
-}
 
 type connectionSetIn struct {
 	Name  string `desc:"Connection name: lowercase letters, digits and '-'"`
@@ -41,7 +28,7 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 	case strings.ContainsAny(in.URL, "@?#"):
 		return nil, registry.Invalid("the url takes no user, query or key; give the key in key, deck keeps it apart")
 	}
-	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == APICLI {
+	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == models.APICLI {
 		return nil, registry.Invalid("connection %s is the %s CLI on the owner's subscription, which deck keeps itself; name another one", in.Name, in.Name)
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -60,12 +47,12 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 	return map[string]any{"connection": in.Name, "key": in.Key != ""}, nil
 }
 
-type connectionRemoveIn struct {
+type connectionDeleteIn struct {
 	Name string `desc:"Connection name"`
 }
 
-func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in connectionRemoveIn) (any, error) {
-	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && c.Api == APICLI {
+func (s *Service) connectionDelete(ctx context.Context, act registry.Actor, in connectionDeleteIn) (any, error) {
+	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && c.Api == models.APICLI {
 		return nil, registry.Invalid("connection %s is the %s CLI, which deck keeps itself; remove its models instead", in.Name, in.Name)
 	}
 	var n int64
@@ -89,4 +76,14 @@ func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in c
 		return nil, registry.NotFound("no connection %q", in.Name)
 	}
 	return map[string]any{"removed": in.Name}, nil
+}
+
+func (s *Service) connectionCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("connection_set", "Set connection",
+			"Adds or changes a connection models are reached through: its API, address and key.",
+			registry.OwnerOnly, s.connectionSet),
+		registry.Def("connection_delete", "Remove connection", "Removes a connection that has no models left.",
+			registry.OwnerOnly, s.connectionDelete),
+	}
 }

@@ -161,7 +161,8 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   read those (`records_list`, `document_get` with `project`), and a screen shows them with `"source": {"from":
   "deck.records_list", "input": {"project": "other", "collection": "items"}}`, its fields under `data.`.
   `{"project": "*", "models": true}` (or a project's name) lets them read which models do the work of every project:
-  `models_list` with `project` gives its assignments, the work of its commands and scripts, choices and prices. To
+  `models_list` with `project` gives its assignments, the work of its commands and scripts with their prices, and
+  once for each kind of work the models that could do it (`choices`). To
   change one, propose it with `assignment_set`. `"runs": true` on the same entry lets them read its runs in brief:
   `processes_list` with `project` gives the command, state, type and first line of a failure, the models that
   answered and the times, never input, result or log. Nothing ever writes to another project.

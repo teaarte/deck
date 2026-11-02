@@ -76,7 +76,7 @@ hold; look inside a package for the rest.
   through it. `AsPublic` lets a test's service on loopback stand for a public one.
 - `internal/models` — deck's proxy of models: what a call asks (`AskOf`), one `Handler(Policy)` for scripts and
   agent turns, `SendHops` the one loop of fallbacks, the usage of an answer; every connection, a local one too, goes
-  through the transport of its `Target` (`providers.target`), the place a node's connection takes.
+  through the transport of its `Target` (`work.target`), the place a node's connection takes.
 - `internal/fault` — the one form of a failure: a type of a closed set, whose it is, text and details; a script
   reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit. A refusal of a call at its entry is
   `registry.Error` (its constructors add `deck: `), any other failure `*fault.F`; `fault.Status` is the HTTP status of

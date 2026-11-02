@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"cmp"
@@ -54,7 +54,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 		}
 		for _, name := range names {
 			row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: name})
-			if err == nil && row.Connection.Api != APICLI && (connection == "@" || connection == row.Connection.Name) {
+			if err == nil && row.Connection.Api != models.APICLI && (connection == "@" || connection == row.Connection.Name) {
 				picks = append(picks, pick{row.Model, row.Connection})
 			}
 		}
@@ -72,7 +72,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 		if err != nil {
 			return nil, registry.NotFound("no connection %q; deck.models_list names the connections", connection)
 		}
-		if c.Api == APICLI {
+		if c.Api == models.APICLI {
 			return nil, registry.Invalid("connection %s is the %s CLI; its models run agent turns, not calls of a model", connection, connection)
 		}
 		if ask.Path != "" && c.Api != "raw" && !models.IsCall(ask.Method, ask.Path) {
@@ -247,9 +247,9 @@ func proxied(in call) (models.Ask, error) {
 	return models.AskOf(connection, in.Method, in.Path, http.Header{models.Header: {in.Model}}, []byte(in.Body))
 }
 
-// turnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, and its
+// TurnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, and its
 // usage, priced, and its answers go to the hooks.
-func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(provider.ModelHooks) http.Handler {
+func (s *Service) TurnModel(workspace int64, m db.Model, c db.Connection) func(provider.ModelHooks) http.Handler {
 	return func(hooks provider.ModelHooks) http.Handler {
 		return models.Handler(models.Policy{Connection: c.Name, Named: true, Answer: hooks.Answer, Plain: s.plainOf(c.Url + " " + m.Model),
 			Route: func(ctx context.Context, ask models.Ask) ([]models.Hop, error) {

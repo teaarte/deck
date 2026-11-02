@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"context"
@@ -37,8 +37,8 @@ func fileOf(v any) int64 {
 	return 0
 }
 
-// checkFiles refuses options that name a file which is no file of the model.
-func (s *Service) checkFiles(ctx context.Context, workspace int64, model string, o map[string]any) error {
+// CheckFiles refuses options that name a file which is no file of the model.
+func (s *Service) CheckFiles(ctx context.Context, workspace int64, model string, o map[string]any) error {
 	for k, v := range o {
 		id := fileOf(v)
 		if id == 0 {
@@ -53,9 +53,9 @@ func (s *Service) checkFiles(ctx context.Context, workspace int64, model string,
 	return nil
 }
 
-// keepBig keeps the long text values of the options of a model as its files and names them there by reference; a
+// KeepBig keeps the long text values of the options of a model as its files and names them there by reference; a
 // file its options no longer name goes. A reference may come back with the name and size the screen showed.
-func (s *Service) keepBig(ctx context.Context, workspace int64, m db.Model) (string, error) {
+func (s *Service) KeepBig(ctx context.Context, workspace int64, m db.Model) (string, error) {
 	var o map[string]any
 	if json.Unmarshal([]byte(m.Options), &o) != nil {
 		return m.Options, nil
@@ -153,7 +153,7 @@ func (s *Service) KeepBigOptions(ctx context.Context) {
 			if len(r.Model.Options) <= bigOption {
 				continue
 			}
-			if _, err := s.keepBig(ctx, ws, r.Model); err != nil {
+			if _, err := s.KeepBig(ctx, ws, r.Model); err != nil {
 				slog.Error("options of a model", "model", r.Model.Name, "err", err)
 			}
 		}

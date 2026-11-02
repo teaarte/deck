@@ -4,15 +4,10 @@ import (
 	"context"
 
 	"deck2/internal/health"
+	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
-)
-
-// Why a provider takes no work: its program is not on the machine, or the owner turned it off.
-const (
-	offMissing = "missing"
-	offByOwner = "off"
 )
 
 // offKey is the setting of a workspace that turns a built-in provider off.
@@ -25,23 +20,23 @@ func (s *Service) base(ctx context.Context, workspace int64, name string) provid
 		return pv
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
-	if err != nil || row.Connection.Api != APICLI {
+	if err != nil || row.Connection.Api != models.APICLI {
 		return nil
 	}
 	return s.builtinNamed(row.Model.Agent)
 }
 
-// Off is why a provider of a workspace takes no work: offMissing or offByOwner; empty when it is on.
+// Off is why a provider of a workspace takes no work: health.Missing or health.Off; empty when it is on.
 func (s *Service) Off(ctx context.Context, workspace int64, name string) string {
 	pv := s.base(ctx, workspace, name)
 	if pv == nil {
 		return ""
 	}
 	if i, ok := pv.(provider.Installed); ok && !i.Installed() {
-		return offMissing
+		return health.Missing
 	}
 	if v, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: offKey(pv.Name())}); err == nil && v == "1" {
-		return offByOwner
+		return health.Off
 	}
 	return ""
 }
@@ -61,14 +56,14 @@ func (s *Service) resting(ctx context.Context, pv provider.Provider) bool {
 	return len(spaces) > 0
 }
 
-type providerOffIn struct {
+type providerSwitchIn struct {
 	Provider string `desc:"A built-in provider: claude-code or codex"`
 	Off      bool   `desc:"True turns it off, false on again"`
 }
 
-// providerOff turns a built-in provider off or on for the workspace: off, it is not checked and takes no work, and
+// providerSwitch turns a built-in provider off or on for the workspace: off, it is not checked and takes no work, and
 // the models that run in it are not offered.
-func (s *Service) providerOff(ctx context.Context, act registry.Actor, in providerOffIn) (any, error) {
+func (s *Service) providerSwitch(ctx context.Context, act registry.Actor, in providerSwitchIn) (any, error) {
 	pv := s.builtinNamed(in.Provider)
 	if _, ok := pv.(provider.SelfChecker); !ok {
 		return nil, registry.Invalid("%q is no built-in provider; a model of an agent is removed in Settings → Models", in.Provider)
@@ -93,4 +88,12 @@ func (s *Service) providerOff(ctx context.Context, act registry.Actor, in provid
 		s.startCheck(in.Provider, true)
 	}
 	return map[string]any{"provider": in.Provider, "off": in.Off}, nil
+}
+
+func (s *Service) offCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("provider_switch", "Turn provider off",
+			"Turns a built-in provider (claude-code, codex) off or on again: off, deck does not check it, gives it no work and offers none of its models; a provider whose program is not installed is off by itself.",
+			registry.OwnerOnly, s.providerSwitch),
+	}
 }

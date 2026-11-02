@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"deck2/internal/health"
+	"deck2/internal/models"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
@@ -40,8 +41,9 @@ type modelSetIn struct {
 	Context *int64 `json:"context" opt:"" desc:"Tokens one request of the model may hold: a request past it goes to the next model of its assignment; 0 for none, a model changed without it keeps its own"`
 }
 
-// modelSetCommand is model_set, whose call held for the owner says the model it adds or changes and what it sets.
-func (s *Service) modelSetCommand() *registry.Command {
+// modelCommands are model_set, whose call held for the owner says the model it adds or changes and what it sets,
+// and model_delete.
+func (s *Service) modelCommands() []*registry.Command {
 	c := registry.Def("model_set", "Set model",
 		"Adds or changes a model of a connection with its kind and price; what is left out comes from the catalog of the connection. A module or the master proposes a model it needs this way, and the owner adds it with one button.",
 		registry.Everyone, s.modelSet).Enum("agent", s.agentNames()...).As(registry.External)
@@ -62,7 +64,9 @@ func (s *Service) modelSetCommand() *registry.Command {
 		}
 		return name + " → " + cmp.Or(strings.Join(sets, ", "), "as the catalog of the connection has it")
 	}
-	return c
+	return []*registry.Command{c,
+		registry.Def("model_delete", "Remove model", "Removes a model and takes it out of the assignments that name it.",
+			registry.OwnerOnly, s.modelDelete)}
 }
 
 func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetIn) (any, error) {
@@ -73,7 +77,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if strings.TrimSpace(in.Model) == "" {
 		return nil, registry.Invalid("a model needs its name in the API")
 	}
-	if c.Api == APICLI && in.Name == "" {
+	if c.Api == models.APICLI && in.Name == "" {
 		base, _, _ := strings.Cut(in.Model, "[")
 		in.Name = in.Connection + "-" + strings.NewReplacer(".", "-", "/", "-").Replace(base)
 	}
@@ -81,16 +85,16 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if strings.ContainsAny(in.Name, " @") {
 		return nil, registry.Invalid("a model name has no spaces or @, got %q", in.Name)
 	}
-	if c.Api == APICLI {
+	if c.Api == models.APICLI {
 		in.Agent = cmp.Or(in.Agent, c.Name)
-	} else if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.Agent == "" && old.Connection.Api == APICLI {
+	} else if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.Agent == "" && old.Connection.Api == models.APICLI {
 		return nil, registry.Invalid("%s is a model of %s; a model of connection %s takes another name, or an agent", in.Name, old.Connection.Name, c.Name)
 	}
 	if in.Agent != "" {
 		if err := s.checkAgent(ctx, act.Workspace, c, in); err != nil {
 			return nil, err
 		}
-		in.Kind = RoleText
+		in.Kind = models.KindText
 	}
 	m := db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Model: in.Model, Kind: in.Kind, Options: "{}",
 		InputUsd: positive(in.InputUSD), OutputUsd: positive(in.OutputUSD), CallUsd: positive(in.CallUSD), Unit: in.Unit,
@@ -114,16 +118,16 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			*l.out = *l.in
 		}
 	}
-	m.Unit = cmp.Or(m.Unit, UnitToken)
-	if m.Unit != UnitToken && m.OutputUsd.Valid {
+	m.Unit = cmp.Or(m.Unit, models.UnitToken)
+	if m.Unit != models.UnitToken && m.OutputUsd.Valid {
 		return nil, registry.Invalid("a model priced per %s has one price, input_usd per million; output_usd is for tokens", m.Unit)
 	}
-	if c.Api != APICLI && (unpriced || m.Kind == "") {
-		if got, ok := s.catalog(ctx, act.Workspace, c, in.Model); ok {
+	if c.Api != models.APICLI && (unpriced || m.Kind == "") {
+		if got, ok := s.Catalog(ctx, act.Workspace, c, in.Model); ok {
 			if unpriced {
 				m.InputUsd, m.OutputUsd, m.CallUsd, m.Free = got.InputUsd, got.OutputUsd, got.CallUsd, got.Free
-				if cmp.Or(m.Kind, got.Kind) == RoleTTS && in.Unit == "" && m.InputUsd.Valid && !m.OutputUsd.Valid {
-					m.Unit = UnitChar
+				if cmp.Or(m.Kind, got.Kind) == models.KindTTS && in.Unit == "" && m.InputUsd.Valid && !m.OutputUsd.Valid {
+					m.Unit = models.UnitChar
 				}
 			}
 			m.Kind = cmp.Or(m.Kind, got.Kind)
@@ -135,16 +139,16 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if in.Subscription != nil {
 		m.Subscription = store.Bool(*in.Subscription)
 	}
-	if c.Api == APICLI {
+	if c.Api == models.APICLI {
 		m.Subscription = 1
 	}
-	m.Kind = cmp.Or(m.Kind, RoleText)
+	m.Kind = cmp.Or(m.Kind, models.KindText)
 	if in.Options != "" {
 		var o map[string]any
 		if err := json.Unmarshal([]byte(in.Options), &o); err != nil {
 			return nil, registry.Invalid("options are a JSON object: %v", err)
 		}
-		if err := s.checkFiles(ctx, act.Workspace, in.Name, o); err != nil {
+		if err := s.CheckFiles(ctx, act.Workspace, in.Name, o); err != nil {
 			return nil, err
 		}
 		m.Options = in.Options
@@ -166,7 +170,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			if err := health.Clear(ctx, q, health.Of{Workspace: act.Workspace}, health.Model(in.Name)); err != nil {
 				return err
 			}
-			if c.Api == APICLI {
+			if c.Api == models.APICLI {
 				err = health.Clear(ctx, q, health.Of{}, health.Provider(in.Name))
 			} else {
 				err = process.ProviderHealth(ctx, q, in.Name, health.Checking, "the self-check of the model in its agent is about to run")
@@ -181,15 +185,13 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if err != nil {
 		return nil, err
 	}
-	if out.Options, err = s.keepBig(ctx, act.Workspace, out); err != nil {
+	if out.Options, err = s.KeepBig(ctx, act.Workspace, out); err != nil {
 		return nil, err
 	}
-	if in.Agent != "" && c.Api != APICLI {
+	if in.Agent != "" && c.Api != models.APICLI {
 		s.startCheck(in.Name, true)
 	}
-	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, Options: s.shownOptions(ctx, out.Options), InputUSD: nullable(out.InputUsd),
-		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Unit: out.Unit, Free: out.Free != 0,
-		Subscription: out.Subscription != 0, TPM: out.Tpm, Context: out.Context}, nil
+	return s.View(ctx, out, c.Name), nil
 }
 
 // checkAgent refuses a model in an agent deck cannot run: an agent it does not know or that is not installed, a
@@ -197,9 +199,9 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connection, in modelSetIn) error {
 	cli, _ := s.builtinNamed(in.Agent).(provider.Modeled)
 	switch {
-	case c.Api == APICLI && in.Agent != c.Name:
+	case c.Api == models.APICLI && in.Agent != c.Name:
 		return registry.Invalid("the models of connection %s run in %s, not %s", c.Name, c.Name, in.Agent)
-	case cli != nil && c.Api != APICLI:
+	case cli != nil && c.Api != models.APICLI:
 		return registry.Invalid("a model of %s is on its own connection %s, not %s", in.Agent, in.Agent, c.Name)
 	case cli == nil && acp.Agents[in.Agent].Start == nil:
 		return registry.Invalid("no agent %q; deck knows %s", in.Agent, strings.Join(s.agentNames(), ", "))
@@ -218,7 +220,7 @@ func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connecti
 		return registry.Invalid("another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
 	case cli != nil:
 		return s.checkCLI(ctx, workspace, cli, in)
-	case !s.installed(in.Agent):
+	case !s.Installed(in.Agent):
 		return registry.Invalid("%s is not installed on this machine", in.Agent)
 	}
 	return nil
@@ -284,11 +286,11 @@ func (s *Service) agentNames() []string {
 
 func positive(f float64) sql.NullFloat64 { return sql.NullFloat64{Float64: f, Valid: f > 0} }
 
-type modelRemoveIn struct {
+type modelDeleteIn struct {
 	Name string `desc:"Model name"`
 }
 
-func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelRemoveIn) (any, error) {
+func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelDeleteIn) (any, error) {
 	var n int64
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		active, err := q.CountActiveOnProvider(ctx, db.CountActiveOnProviderParams{Provider: in.Name, WorkspaceID: act.Workspace})
@@ -306,7 +308,7 @@ func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelR
 		if n, err = q.DeleteModel(ctx, db.DeleteModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err != nil || n == 0 {
 			return err
 		}
-		if err := dropModel(ctx, q, act.Workspace, in.Name); err != nil {
+		if err := s.Unassign(ctx, q, act.Workspace, in.Name); err != nil {
 			return err
 		}
 		return q.DeleteModelHealth(ctx, db.DeleteModelHealthParams{WorkspaceID: store.ID(act.Workspace), Name: in.Name})
@@ -318,4 +320,13 @@ func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelR
 		return nil, registry.NotFound("no model %q", in.Name)
 	}
 	return map[string]any{"removed": in.Name}, nil
+}
+
+// Exists reports whether a name is a built-in provider or a model of the workspace.
+func (s *Service) Exists(ctx context.Context, workspace int64, name string) bool {
+	if s.builtinNamed(name) != nil {
+		return true
+	}
+	_, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
+	return err == nil
 }

@@ -1,4 +1,4 @@
-package providers
+package work
 
 import (
 	"context"
@@ -74,8 +74,8 @@ func (s *Service) prune(ctx context.Context, ws int64, projects []string) error 
 	})
 }
 
-// dropModel takes a model out of every assignment of a workspace; an assignment left with none goes.
-func dropModel(ctx context.Context, q *db.Queries, ws int64, name string) error {
+// Unassign takes a model out of every assignment of a workspace; an assignment left with none goes.
+func (s *Service) Unassign(ctx context.Context, q *db.Queries, ws int64, name string) error {
 	rows, err := q.ListAssignments(ctx, ws)
 	if err != nil {
 		return err
@@ -101,15 +101,6 @@ func dropModel(ctx context.Context, q *db.Queries, ws int64, name string) error 
 
 const noModel = "deck has no such model, so the work skips it"
 
-// exists reports whether a name is a built-in provider or a model of the workspace.
-func (s *Service) exists(ctx context.Context, workspace int64, name string) bool {
-	if s.builtinNamed(name) != nil {
-		return true
-	}
-	_, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
-	return err == nil
-}
-
 // Missing are the names assignments of a workspace hold that are no model of deck, each with the places that name it.
 func (s *Service) Missing(ctx context.Context, workspace int64) map[string][]string {
 	rows, err := s.St.Q.ListAssignments(ctx, workspace)
@@ -128,7 +119,7 @@ func (s *Service) Missing(ctx context.Context, workspace int64) map[string][]str
 			place = r.Role + " of " + r.Project
 		}
 		for _, name := range names {
-			if !s.exists(ctx, workspace, name) {
+			if !s.Exists(ctx, workspace, name) {
 				out[name] = append(out[name], place)
 			}
 		}

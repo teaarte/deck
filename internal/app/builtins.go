@@ -26,7 +26,7 @@ func (a *App) builtins() []*registry.Command {
 	for _, cs := range [][]*registry.Command{a.Answers.Commands(), a.Health.Commands(), a.Signins.Commands(), a.Chats.Commands(),
 		a.Documents.Commands(), a.Feed.Commands(), a.Folders.Commands(), a.Projects.Commands(),
 		a.Journal.Commands(),
-		a.Processes.Commands(), a.Providers.Commands(), a.Records.Commands(),
+		a.Processes.Commands(), a.Providers.Commands(), a.Work.Commands(), a.Records.Commands(),
 		a.Screens.Commands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(), a.Themes.Commands(),
 		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Shots.Commands(), a.Updates.Commands(), a.Cfg.Commands} {
 		out = append(out, cs...)

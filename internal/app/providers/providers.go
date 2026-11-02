@@ -1,21 +1,19 @@
-// Package providers keeps the model providers of deck: the built-in ones, those the owner adds per workspace, which
-// command runs on which, and their self-checks.
+// Package providers keeps who exists to do the work of deck: the built-in providers, the connections and models the
+// owner adds per workspace, which of them are off or up, and their self-checks.
 package providers
 
 import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/http"
+	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"deck2/internal/docs"
-	"deck2/internal/files"
 	"deck2/internal/home"
-	"deck2/internal/manifest"
-	"deck2/internal/process"
+	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
 	"deck2/internal/registry"
@@ -27,19 +25,14 @@ import (
 // Service keeps the providers. Wake lets turns that wait for a provider go on once it is ready; Ctx and Go are
 // the life of deck, for the self-checks it runs in the background.
 type Service struct {
-	St   *store.Store
-	Now  func() time.Time
-	Home home.Layout
-	// Hold keeps a snapshot from copying the base between the row of a file of a model and its blob, until the func it gives.
-	Hold             func() func()
+	St               *store.Store
+	Now              func() time.Time
+	Home             home.Layout
 	Sandbox          *sandbox.Sandbox
 	ACPBinaries      map[string]string
 	ACPCallLimit     time.Duration
 	SelfCheckCeiling time.Duration
-	// VideoPoll is how often a job of a video model is asked after, VideoCeiling how long deck waits for it.
-	VideoPoll, VideoCeiling time.Duration
-	// Key is the API key of a connection, "" for none; WriteKey keeps one.
-	Key      func(workspace int64, connection string) string
+	// WriteKey keeps the API key of a connection.
 	WriteKey func(workspace int64, connection, key string) error
 	Wake     func(ctx context.Context)
 	// Builtin are the providers deck was started with, the main one first; the owner adds ACP ones per workspace.
@@ -47,22 +40,24 @@ type Service struct {
 	Ctx     context.Context
 	// Go runs work beside the calls; false once deck stops.
 	Go func(func(context.Context)) bool
-	// Resolve finds a file an input points to for a process of a project.
-	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 	// Reach connects to deck's MCP server as an agent turn does; a self-check fails when it does not answer.
 	Reach func(ctx context.Context) error
-	// Changed tells the clients a topic changed that no write of the store announced, such as a sign-in from deck.
-	Changed func(topic string)
+	// TurnModel is deck's proxy of a model of an agent turn.
+	TurnModel func(workspace int64, m db.Model, c db.Connection) func(provider.ModelHooks) http.Handler
+	// Catalog reads the price and kind of a model from the list of its connection.
+	Catalog func(ctx context.Context, workspace int64, c db.Connection, model string) (db.AddModelParams, bool)
+	// CheckFiles refuses options that name a file which is no file of the model; KeepBig keeps their long values
+	// as files of the model; View is a model as its form shows it.
+	CheckFiles func(ctx context.Context, workspace int64, model string, o map[string]any) error
+	KeepBig    func(ctx context.Context, workspace int64, m db.Model) (string, error)
+	View       func(ctx context.Context, m db.Model, connection string) any
+	// Unassign takes a model out of every assignment of a workspace, in the transaction of its removal.
+	Unassign func(ctx context.Context, q *db.Queries, workspace int64, name string) error
 
 	mu    sync.Mutex
 	check map[string]*checks
-	// plain are the models whose API refused the reasoning an agent hands back, by address and model, while deck runs.
-	plain sync.Map
-	jobs  sync.Map
 	// found is set once the ACP agents were looked for.
 	found bool
-	// logins are the sign-ins of CLI agents from deck, by provider.
-	logins map[string]*signIn
 }
 
 // Named is the provider of a workspace by name: a built-in one of deck or one the owner added.
@@ -92,7 +87,7 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	if m.Agent == "" {
 		return nil, registry.Invalid("model %q runs in no agent; set it again with deck.model_set and agent %s", name, strings.Join(s.agentNames(), " or "))
 	}
-	if c.Api == APICLI {
+	if c.Api == models.APICLI {
 		cli, ok := s.builtinNamed(m.Agent).(provider.Modeled)
 		if !ok {
 			return nil, registry.Invalid("model %q runs in %s, which this deck does not run", name, m.Agent)
@@ -105,17 +100,11 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	}
 	a, err := s.agent(acp.Config{Name: name, Agent: m.Agent, Model: m.Model,
 		NoCloud: c.Local != 0, CallLimit: s.ACPCallLimit, Now: s.Now,
-		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, m, c)})
+		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.TurnModel(workspace, m, c)})
 	if err != nil {
 		return nil, registry.Invalid("%v", err)
 	}
 	return a, nil
-}
-
-// plainOf is the flag of a model whose API takes no reasoning back, kept while deck runs.
-func (s *Service) plainOf(key string) *atomic.Bool {
-	v, _ := s.plain.LoadOrStore(key, &atomic.Bool{})
-	return v.(*atomic.Bool)
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.
@@ -179,6 +168,9 @@ func (s *Service) All(ctx context.Context, workspace int64) ([]provider.Provider
 	return out, nil
 }
 
+// Agent is a built-in provider by name; nil when there is none.
+func (s *Service) Agent(name string) provider.Provider { return s.builtinNamed(name) }
+
 func (s *Service) builtinNamed(name string) provider.Provider {
 	for _, pv := range s.Builtin {
 		if pv.Name() == name {
@@ -188,75 +180,7 @@ func (s *Service) builtinNamed(name string) provider.Provider {
 	return nil
 }
 
-// agentCommand finds an agent command of the workspace by its place, project.command.
-func (s *Service) agentCommand(ctx context.Context, workspace int64, place string) (db.Project, *manifest.Command, error) {
-	name, command, _ := strings.Cut(place, ".")
-	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
-	if err != nil {
-		return p, nil, registry.NotFound("no project %q", name)
-	}
-	m, err := docs.Manifest(ctx, s.St.Q, p)
-	if err != nil {
-		return p, nil, err
-	}
-	cmd := m.Command(command)
-	if cmd == nil || cmd.Executor.Type != process.KindAgent {
-		return p, nil, registry.Invalid("%s is not an agent command; only agent commands call a model", place)
-	}
-	return p, cmd, nil
-}
-
-type providerCheckIn struct {
-	Provider string `desc:"Provider name"`
-}
-
-func (s *Service) providerCheck(ctx context.Context, act registry.Actor, in providerCheckIn) (any, error) {
-	pv, err := s.Provider(ctx, act.Workspace, in.Provider)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := pv.(provider.SelfChecker); !ok {
-		return nil, registry.Invalid("provider %q has no self-check", in.Provider)
-	}
-	if !s.startCheck(in.Provider, true) {
-		if s.Ctx.Err() != nil {
-			return nil, errors.New("deck: deck is stopping")
-		}
-		return nil, errors.New("deck: a self-check is already running")
-	}
-	return map[string]any{"checking": in.Provider}, nil
-}
-
-// Commands are the commands of providers.
+// Commands are the commands of providers: their self-checks, switches, connections and models.
 func (s *Service) Commands() []*registry.Command {
-	return append([]*registry.Command{
-		registry.Def("provider_check", "Check provider",
-			"Runs the self-check of a provider's adapter again; its health shows the outcome.",
-			registry.OwnerOnly, s.providerCheck),
-		registry.Read("models_list", "Models",
-			"Lists the connections models are reached through, the models with their kind and price, and which models do which work.",
-			registry.Everyone, s.modelsList).On("models", "assignments", "projects", "health", "settings"),
-		registry.Def("agent_login", "Sign in to agent",
-			"Starts the sign-in of a built-in CLI agent (claude-code, codex) on this machine by a link: gives the link and the code to enter there, or that the page of the link gives a code to hand in with agent_login_finish; the self-check runs once it is signed in.",
-			registry.OwnerOnly, s.agentLogin),
-		registry.Def("agent_login_finish", "Sign-in code",
-			"Hands the sign-in of a CLI agent started with agent_login the code the page of its link gave.",
-			registry.OwnerOnly, s.agentLoginCode),
-		registry.Read("agent_logins_list", "Sign-ins",
-			"Lists the sign-ins of CLI agents started from deck that wait for the owner, with their link and code, and those that failed.",
-			registry.OwnerOnly, s.agentLogins).On("health"),
-		registry.Def("provider_switch", "Turn provider off",
-			"Turns a built-in provider (claude-code, codex) off or on again: off, deck does not check it, gives it no work and offers none of its models; a provider whose program is not installed is off by itself.",
-			registry.OwnerOnly, s.providerOff),
-		s.assignmentCommand(),
-		registry.Def("connection_set", "Set connection",
-			"Adds or changes a connection models are reached through: its API, address and key.",
-			registry.OwnerOnly, s.connectionSet),
-		registry.Def("connection_delete", "Remove connection", "Removes a connection that has no models left.",
-			registry.OwnerOnly, s.connectionRemove),
-		s.modelSetCommand(),
-		registry.Def("model_delete", "Remove model", "Removes a model and takes it out of the assignments that name it.",
-			registry.OwnerOnly, s.modelRemove),
-		s.modelCallCommand(),
-	}, s.webCommands()...)
+	return slices.Concat(s.checkCommands(), s.offCommands(), s.connectionCommands(), s.modelCommands())
 }

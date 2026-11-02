@@ -733,3 +733,45 @@ func TestAModelOfAConnectionIsAddedOnceAndItsPriceReads(t *testing.T) {
 		t.Fatalf("a model without a price reads unknown, one of a local connection free: %v", price)
 	}
 }
+
+// TestModelsListGivesTheChoicesOnceAKind: the models that could do a kind of work come once for the kind, with
+// their groups; an assignment says only its models, the one it uses and why.
+func TestModelsListGivesTheChoicesOnceAKind(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "flux", "kind": "image", "call_usd": 0.02}, nil)
+	e.Project("films", harness.PlainManifest)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"openrouter/qwen"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/qwen"}}, nil)
+	var raw map[string]json.RawMessage
+	e.Must("deck.models_list", nil, &raw)
+	var assignments []map[string]any
+	if err := json.Unmarshal(raw["assignments"], &assignments); err != nil || len(assignments) == 0 {
+		t.Fatalf("the assignments are listed: %s", raw["assignments"])
+	}
+	for _, a := range assignments {
+		if _, ok := a["choices"]; ok || a["price"] != nil || a["role"] == "text" && a["using"] != "openrouter/qwen" {
+			t.Fatalf("an assignment holds its models, using and why, not the choices: %v", a)
+		}
+	}
+	var choices []struct {
+		Role   string   `json:"role"`
+		Models []string `json:"models"`
+		Groups []string `json:"groups"`
+	}
+	if err := json.Unmarshal(raw["choices"], &choices); err != nil {
+		t.Fatal(err)
+	}
+	of := map[string][]string{}
+	for _, c := range choices {
+		if _, twice := of[c.Role]; twice || len(c.Groups) != len(c.Models) {
+			t.Fatalf("a kind is listed once, a group for each model: %s", raw["choices"])
+		}
+		of[c.Role] = c.Models
+	}
+	if !slices.Equal(of["text"], []string{"openrouter/qwen"}) || !slices.Equal(of["image"], []string{"openrouter/flux"}) || !slices.Contains(of["agent"], "fake") {
+		t.Fatalf("each kind lists the models that could do it: %v", of)
+	}
+}

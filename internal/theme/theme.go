@@ -3,13 +3,13 @@ package theme
 
 import (
 	"bytes"
+	"cmp"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"path"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -218,7 +218,7 @@ func radius(v string) string {
 // Wear is the look of a theme; problems name what deck's checks refuse in it, left out of the look.
 func (t *Theme) Wear(name, lang string) Look {
 	l := Look{Name: name, Title: t.Title["en"], Mood: t.Mood, Schemes: t.Schemes, Accent: t.Accent, Font: t.Font,
-		Radius: cmpOr(t.Radius, "md"), Density: cmpOr(t.Density, "default"), Images: map[string]any{}}
+		Radius: cmp.Or(t.Radius, "md"), Density: cmp.Or(t.Density, "default"), Images: map[string]any{}}
 	if s := t.Title[lang]; s != "" {
 		l.Title = s
 	}
@@ -242,7 +242,7 @@ func (t *Theme) Wear(name, lang string) Look {
 	for _, scheme := range t.Schemes {
 		toks := t.tokens(scheme)
 		b.WriteString(roots[scheme] + " {\n")
-		for _, n := range sorted(toks) {
+		for _, n := range slices.Sorted(maps.Keys(toks)) {
 			if toks[n] == "" {
 				continue
 			}
@@ -255,10 +255,10 @@ func (t *Theme) Wear(name, lang string) Look {
 		}
 		b.WriteString("}\n")
 	}
-	for _, p := range sorted(t.Parts) {
+	for _, p := range slices.Sorted(maps.Keys(t.Parts)) {
 		def := Catalog.Parts[p]
 		var rules []string
-		for _, k := range sorted(t.Parts[p]) {
+		for _, k := range slices.Sorted(maps.Keys(t.Parts[p])) {
 			v, err := Value(t.Parts[p][k])
 			if err != nil {
 				l.Problems = append(l.Problems, fmt.Sprintf("parts: %s.%s: %v", p, k, err))
@@ -285,19 +285,6 @@ func (t *Theme) Wear(name, lang string) Look {
 	return l
 }
 
-func cmpOr(v, def string) string {
-	if v == "" {
-		return def
-	}
-	return v
-}
-
-func sorted[V any](m map[string]V) []string {
-	out := slices.Collect(maps.Keys(m))
-	sort.Strings(out)
-	return out
-}
-
 // Least is the contrast text needs on its background.
 const Least = 4.5
 
@@ -321,7 +308,7 @@ func (t *Theme) Contrast() []string {
 				best[k] = max(best[k], r)
 			}
 		}
-		for _, k := range sorted(worst) {
+		for _, k := range slices.Sorted(maps.Keys(worst)) {
 			switch {
 			case worst[k] >= Least:
 			case best[k]-worst[k] > 0.05:

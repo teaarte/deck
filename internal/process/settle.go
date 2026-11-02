@@ -68,10 +68,14 @@ func (r *Runner) cutRun(ctx, runCtx context.Context, u *run) bool {
 // settle closes a run with what it gave: failure f, or result, done by the schema of its command with the files it
 // names kept, or done off its schema, which nothing acts on.
 func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) {
-	if !u.agent {
-		defer r.clearRun(r.runDir(u.process))
+	// The run folder of a script or call goes before the process ends, so none sees it ended with its folder there.
+	clear := func() {
+		if !u.agent {
+			r.clearRun(r.runDir(u.process))
+		}
 	}
 	if f != nil {
+		clear()
 		r.finish(ctx, u.process, StateError, "", false, f)
 		if u.cmd.Executor.Type == KindScript {
 			r.failedInARow(ctx, u.turn, f.Error())
@@ -79,6 +83,7 @@ func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) 
 		return
 	}
 	if verr := validate(u.cmd, []byte(result)); verr != nil {
+		clear()
 		r.finish(ctx, u.process, StateDone, result, true, nil)
 		name := u.cmd.Name
 		if p, err := r.st.Q.GetProject(ctx, u.project); err == nil {
@@ -88,6 +93,7 @@ func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) 
 		return
 	}
 	kept, err := r.kept(ctx, u, result)
+	clear()
 	if err != nil {
 		if !u.agent {
 			result = ""

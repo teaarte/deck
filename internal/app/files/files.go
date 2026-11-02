@@ -37,12 +37,8 @@ type Service struct {
 	Held func(ctx context.Context, project int64, folder string) bool
 	// Go runs work beside the calls unless deck stops.
 	Go func(func(context.Context)) bool
-	// Themed reports whether a theme of the name is there.
-	Themed func(ctx context.Context, ws int64, name string) bool
-	// Invoke calls a command as an actor; Words are deck's phrases in a language.
+	// Invoke calls a command as an actor.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
-	// Current is the name of the theme a workspace wears.
-	Current func(ctx context.Context, ws int64) string
 	// draining keeps one drain of the outbox at a time.
 	draining sync.Mutex
 }

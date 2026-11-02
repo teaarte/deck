@@ -7,14 +7,12 @@ import (
 	"slices"
 
 	"deck2/internal/access"
+	"deck2/internal/files"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
-
-// trash is the owner of a deleted file until the daily cleanup drops it; its owner id is the second it went there.
-const trash = "trash"
 
 type fileIn struct {
 	File int64 `desc:"Stored file id"`
@@ -37,14 +35,14 @@ func (s *Service) rebind(ctx context.Context, f db.File, fromKind string, fromID
 	})
 }
 
-// fileDelete puts a stored file into the trash, from where file_restore brings it back for a day. A process deletes
+// fileDelete puts a stored file into the files.TrashKind, from where file_restore brings it back for a day. A process deletes
 // only a file its own run made, and the owner sees that among what was done without them, with its undo.
 func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileIn) (any, error) {
 	f, p, err := s.own(ctx, act, in.File)
 	if err != nil {
 		return nil, err
 	}
-	if f.OwnerKind == trash {
+	if f.OwnerKind == files.TrashKind {
 		return nil, registry.Conflict("file %d is deleted already", f.ID)
 	}
 	if act.Kind != registry.Owner && (act.ProcessID == 0 || f.ProcessID.Int64 != act.ProcessID) {
@@ -52,7 +50,7 @@ func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileIn)
 	}
 	out := map[string]any{"file": f.ID, "owner_kind": f.OwnerKind, "owner_id": f.OwnerID}
 	return out, s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: trash, OwnerID: s.Now().Unix(), ID: f.ID, ProjectID: f.ProjectID, FromKind: f.OwnerKind, FromID: f.OwnerID})
+		n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: files.TrashKind, OwnerID: s.Now().Unix(), ID: f.ID, ProjectID: f.ProjectID, FromKind: f.OwnerKind, FromID: f.OwnerID})
 		if err == nil && n == 0 {
 			err = registry.Conflict("file %d changed meanwhile", f.ID)
 		}
@@ -81,18 +79,17 @@ func (s *Service) fileRestore(ctx context.Context, act registry.Actor, in fileRe
 	if f.OwnerKind == in.OwnerKind && f.OwnerID == in.OwnerID {
 		return map[string]any{"file": f.ID}, nil
 	}
-	if f.OwnerKind != trash {
+	if f.OwnerKind != files.TrashKind {
 		return nil, registry.Conflict("file %d is not deleted", f.ID)
 	}
 	if !slices.Contains([]string{"record", "process", "chat_message", "upload"}, in.OwnerKind) {
 		return nil, registry.Invalid("a file belongs to no %q", in.OwnerKind)
 	}
-	return map[string]any{"file": f.ID}, s.rebind(ctx, f, trash, f.OwnerID, in.OwnerKind, in.OwnerID)
+	return map[string]any{"file": f.ID}, s.rebind(ctx, f, files.TrashKind, f.OwnerID, in.OwnerKind, in.OwnerID)
 }
 
 func (s *Service) manageCommands() []*registry.Command {
 	return []*registry.Command{
-		s.coverCommand(), s.themeImageCommand(),
 		registry.Def("file_delete", "Delete file",
 			"Deletes a stored file; file_restore brings it back for a day. A process deletes only the files its own run made, such as a draft it made again, and the owner sees it with an undo.",
 			registry.Everyone, s.fileDelete),

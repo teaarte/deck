@@ -26,8 +26,8 @@ const (
 	smallPicture = 300 << 10
 )
 
-// fileThumbs makes the light copies of the stored pictures deck has not tried yet, batch by batch for thumbsFor.
-func (s *Service) fileThumbs(ctx context.Context) {
+// Thumbs makes the light copies of the stored pictures deck has not tried yet, batch by batch for thumbsFor.
+func (s *Service) Thumbs(ctx context.Context) {
 	until, tried := time.Now().Add(thumbsFor), map[int64]bool{}
 	for ctx.Err() == nil && time.Now().Before(until) {
 		fs, err := s.St.Q.ListImagesWithoutThumb(ctx)
@@ -48,9 +48,9 @@ func (s *Service) fileThumb(ctx context.Context, f db.File) {
 	if err != nil {
 		return
 	}
-	thumb, l := s.thumbOf(ctx, registry.Actor{Kind: registry.Owner, Workspace: p.WorkspaceID}, p.Name, f.ID)
+	thumb, l := s.Thumb(ctx, registry.Actor{Kind: registry.Owner, Workspace: p.WorkspaceID}, p.Name, f.ID)
 	if thumb.Int64 != 0 && l.Width <= files.ThumbWidth && f.Size <= smallPicture {
-		s.dropUploads(ctx, thumb.Int64)
+		s.Drop(ctx, thumb.Int64)
 		thumb.Int64 = f.ID
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -65,7 +65,7 @@ func (s *Service) fileThumb(ctx context.Context, f db.File) {
 	})
 	if err != nil {
 		if thumb.Int64 != f.ID {
-			s.dropUploads(ctx, thumb.Int64)
+			s.Drop(ctx, thumb.Int64)
 		}
 		slog.Error("files: light copy of a stored picture", "file", f.ID, "err", err)
 	}

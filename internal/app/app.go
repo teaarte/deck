@@ -13,7 +13,6 @@ import (
 	"deck2/internal/app/chat"
 	"deck2/internal/app/devices"
 	"deck2/internal/app/documents"
-	"deck2/internal/app/failures"
 	appfiles "deck2/internal/app/files"
 	"deck2/internal/app/folders"
 	apphealth "deck2/internal/app/health"
@@ -80,7 +79,6 @@ type App struct {
 	Records   records.Service
 	Health    apphealth.Service
 	Processes processes.Service
-	Failures  failures.Service
 	Screens   screens.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
@@ -142,17 +140,17 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		process.Deps{For: a.Providers.For, Next: a.Providers.Next, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
-	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: &a.Failures}, triggers.After{S: &a.Triggers}, asks.Unheard{S: &a.Answers}}
+	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), a.Processes.Hook(), triggers.After{S: &a.Triggers}, asks.Unheard{S: &a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
 	a.Secrets = secrets.Service{St: st, Bus: a.Bus, Home: h}
 	a.Folders = folders.Service{St: st, Home: h}
-	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go,
-		Themed: a.Themes.Exists, Current: a.Themes.Current, Invoke: a.Registry.Invoke}
+	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Invoke: a.Registry.Invoke}
 	a.Journal = journal.Service{St: st, Now: cfg.Now, Groups: a.Providers.Groups}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
-	a.Themes = themes.Service{St: st, Now: cfg.Now, Invoke: a.Registry.Invoke, Language: a.Settings.Language}
-	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Providers.Works, Incident: a.Failures.Incident,
+	a.Themes = themes.Service{St: st, Now: cfg.Now, Home: h, Invoke: a.Registry.Invoke, Language: a.Settings.Language,
+		Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
+	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Providers.Works, Incident: a.Processes.Incident,
 		IsFailure: func(ctx context.Context, act registry.Actor, id int64) (bool, error) {
 			return a.Processes.IsFailure(ctx, act, id)
 		}}
@@ -176,13 +174,12 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		}}
 	a.Devices = devices.Service{St: st, Now: cfg.Now,
 		Home: h, Invoke: a.Registry.Invoke, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Settings.Language}
-	a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup}
 	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch, Missing: a.Providers.Missing,
 		Works: a.Providers.Works, Places: a.Providers.Places, Go: a.bg.Go}
 	a.Screens = screens.Service{St: st, Now: cfg.Now, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Devices.Unread, Works: a.Providers.Works,
-		ScreenFailed: a.Failures.Screen, ScreenDrawn: a.Failures.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
+		ScreenFailed: a.Processes.Screen, ScreenDrawn: a.Processes.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
 	a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
@@ -309,7 +306,7 @@ func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Answers.ExpireConfirms(ctx, now)
 	a.Answers.Settle(ctx)
 	a.Runner.Due(ctx, now)
-	a.Failures.Due(ctx, now)
+	a.Processes.Due(ctx, now)
 	a.Files.Drain(ctx)
 	a.Snapshots.CheckDisk(ctx, now)
 }
@@ -324,6 +321,7 @@ func (a *App) slow(ctx context.Context, now time.Time) {
 		}
 	}
 	cancel()
+	a.Themes.Thumbs(ctx)
 	a.Files.Thumbs(ctx)
 	a.Snapshots.Daily(ctx, now)
 	a.Updates.Daily(ctx, now)

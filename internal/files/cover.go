@@ -11,6 +11,8 @@ import (
 const (
 	CoverSlot   = "cover"
 	PictureKind = "picture"
+	// TrashKind is the owner kind of a deleted file until the daily cleanup drops it; its owner id the second it went there.
+	TrashKind = "trash"
 )
 
 // Pick is the picture a theme and scheme show: of the theme and scheme, of the theme in the other scheme, the one for

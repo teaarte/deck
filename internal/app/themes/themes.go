@@ -8,12 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
 
+	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/files"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -27,6 +31,12 @@ type Service struct {
 	// Invoke calls a command of deck: the master is told through deck.chat_send.
 	Invoke   func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	Language func(ctx context.Context, workspace int64) string
+	Home     home.Layout
+	// Keep stores a file for a project as an upload; Thumb stores the light copy of a stored picture with its size
+	// and main color; Drop deletes the uploads a picture did not take.
+	Keep  func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
+	Thumb func(ctx context.Context, owner registry.Actor, project string, file int64) (sql.NullInt64, files.Light)
+	Drop  func(ctx context.Context, ids ...int64)
 }
 
 // Format is the schema of a theme.
@@ -337,6 +347,10 @@ func (s *Service) use(ctx context.Context, act registry.Actor, in nameIn) (any, 
 
 // Commands are the commands of themes.
 func (s *Service) Commands() []*registry.Command {
+	return slices.Concat(s.themeCommands(), s.pictureCommands())
+}
+
+func (s *Service) themeCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("themes_list", "Themes",
 			"Lists the themes of deck: the shipped ones and the owner's, which one is in use and what a check refuses in each.",
@@ -383,4 +397,39 @@ func (s *Service) overPictures(ctx context.Context, ws int64, name string, raw [
 		return nil
 	}
 	return t.ContrastOver("cockpit", map[string]string{"light": c.Color, "dark": cmp.Or(c.DarkColor, c.Color)})
+}
+
+// Exists reports whether a theme of the name is there, shipped or the owner's.
+func (s *Service) Exists(ctx context.Context, ws int64, name string) bool {
+	raw, _, err := s.text(ctx, s.St.Q, ws, name)
+	return err == nil && raw != nil
+}
+
+// Settle puts the default theme on a workspace whose theme is gone, such as one deck no longer ships, and says so
+// once in the feed.
+func (s *Service) Settle(ctx context.Context) {
+	wss, err := s.St.Q.ListWorkspaces(ctx)
+	if err != nil {
+		return
+	}
+	for _, ws := range wss {
+		name, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: ws, Key: key})
+		if err != nil || name == "" || s.Exists(ctx, ws, name) {
+			continue
+		}
+		m, err := access.Master(ctx, s.St.Q, ws)
+		if err != nil {
+			continue
+		}
+		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			if err := q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: ws, Key: key, Value: theme.Default}); err != nil {
+				return err
+			}
+			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: m.ID,
+				Text: fmt.Sprintf("The theme %s is gone from deck, so deck wears %s now; ask Deki to make %s again from its example.", name, theme.Default, name)})
+		})
+		if err != nil {
+			slog.Error("themes: settle the theme of a workspace", "workspace", ws, "err", err)
+		}
+	}
 }

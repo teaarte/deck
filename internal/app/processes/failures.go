@@ -1,5 +1,4 @@
-// Package failures hands what fails in a project to the master: failed processes and blocks of screens.
-package failures
+package processes
 
 import (
 	"context"
@@ -30,23 +29,18 @@ const (
 	incidentPrefix    = "incident:"
 )
 
-// Service hands the failures of projects to the master.
-type Service struct {
-	St     *store.Store
-	Now    func() time.Time
-	Runner *process.Runner
-}
-
 // Hook hands the failed processes of projects to the master.
-type Hook struct {
+func (s *Service) Hook() process.Hook { return failures{s: s} }
+
+type failures struct {
 	process.NoHook
-	S *Service
+	s *Service
 }
 
-func (h Hook) Closed(ctx context.Context, p db.Process) {
-	h.S.toMaster(ctx, p)
+func (h failures) Closed(ctx context.Context, p db.Process) {
+	h.s.toMaster(ctx, p)
 	if p.SubmittedAt.Valid && p.State != process.StateDone {
-		h.S.Incident(ctx, p, process.IncidentNotDone, fmt.Sprintf("process #%d of %s handed in its result, then closed as %s: %s",
+		h.s.Incident(ctx, p, process.IncidentNotDone, fmt.Sprintf("process #%d of %s handed in its result, then closed as %s: %s",
 			p.ID, p.Command, p.State, untrusted.Cut(p.Error, 300)))
 	}
 }

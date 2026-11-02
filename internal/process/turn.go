@@ -131,7 +131,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		t.live.slot = t.slot
 		r.mu.Unlock()
 	}
-	a := &agentTurn{proj: proj, dir: r.runDir(t.process), data: r.scripts.DataDir(t.project)}
+	a := &agentTurn{proj: proj, dir: r.runDir(t.process), data: r.cfg.Home.Data(t.project)}
 	work, repo := r.cfg.Home.RunWork(t.process), false
 	if t.folder != "" {
 		work = t.folder

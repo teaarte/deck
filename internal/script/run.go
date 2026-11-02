@@ -33,11 +33,6 @@ type Exec struct {
 
 func New(sb *sandbox.Sandbox, h home.Layout) *Exec { return &Exec{Sandbox: sb, Home: h} }
 
-// DataDir is the lasting folder of a project that its scripts and agents write indexes, caches and state to.
-func (x *Exec) DataDir(project int64) string {
-	return x.Home.Data(project)
-}
-
 // Job is one run of a script; Dir is its run folder, with work/ and results/ inside.
 type Job struct {
 	Project int64
@@ -65,7 +60,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	}
 	src := filepath.Join(j.Dir, "script")
 	tmp := filepath.Join(j.Work(), "tmp")
-	data := x.DataDir(j.Project)
+	data := x.Home.Data(j.Project)
 	for _, d := range []string{src, tmp, j.Results(), data} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return nil, err

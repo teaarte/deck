@@ -818,7 +818,6 @@
   "{{from}}–{{to}} of {{of}}": "{{from}}–{{to}} из {{of}}",
   "Rows on a page": "Строк на странице",
   "Screens": "Экраны",
-  "Control": "Управление",
   "Back": "Назад",
   "Running: {{n}}": "Работает: {{n}}",
   "Waiting for you: {{n}}": "Ждёт вас: {{n}}",
@@ -859,7 +858,6 @@
   "Bring back": "Вернуть",
   "Resume": "Возобновить",
   "Turn off": "Выключить",
-  "Turn on": "Включить",
   "Send": "Отправить",
   "Review and enable": "Проверить и включить",
   "Export": "Экспорт",
@@ -952,7 +950,6 @@
   "working": "в работе",
   "Deki is working": "Деки работает",
   "The master is working": "Мастер работает",
-  "Hide the log": "Скрыть лог",
   "Stopped by your button": "Остановлено по вашей кнопке",
   "Steps it made: {{count}}._one": "Успел сделать {{count}} шаг.",
   "Steps it made: {{count}}._few": "Успел сделать {{count}} шага.",
@@ -965,7 +962,6 @@
   "Asked by {{who}}": "Просит {{who}}",
   "Speak — the recording becomes text": "Говорите — запись станет текстом",
   "Talk to {{name}}": "Поговорить с {{name}}",
-  "Delete, the master has not taken it": "Удалить, мастер его ещё не взял",
   "New topic": "Новая тема",
   "No topics": "Тем нет",
   "Archived": "В архиве",
@@ -1046,5 +1042,6 @@
   "deck: a file id is a number": "deck: номер файла — это число",
   "deck: custom blocks need the second port": "deck: блокам custom нужен второй порт",
   "deck: custom blocks need an address a CSP names, such as localhost or an IPv4 one": "deck: блокам custom нужен адрес, который называет CSP, например localhost или IPv4",
-  "deck: no chat to turn the recording into text": "deck: нет чата, который превратил бы запись в текст"
+  "deck: no chat to turn the recording into text": "deck: нет чата, который превратил бы запись в текст",
+  "Enable": "Включить"
 }

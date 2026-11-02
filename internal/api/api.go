@@ -1,6 +1,7 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
@@ -172,8 +173,13 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 	if c := registry.ReadOf(r.PathValue("name")); c != nil {
 		w.Header().Set("Deck-Topics", strings.Join(c.Topics, ","))
 	}
+	// Buttons are labeled in the language of the call, as the command reads it: its lang, else the client's.
+	var in struct {
+		Lang string `json:"lang"`
+	}
+	_ = json.Unmarshal(body, &in)
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(manifest.Labeled(raw, words.In(registry.Lang(r.Context()))))
+	_, _ = w.Write(manifest.Labeled(raw, words.In(cmp.Or(in.Lang, registry.Lang(r.Context())))))
 }
 
 // refuse answers a refusal of deck in the language the client reads, by its Deck-Lang header.

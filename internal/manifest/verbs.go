@@ -19,7 +19,7 @@ var verbs = map[string]button{
 	"sign_in": {"Sign in", "login"}, "signed_in": {"Signed in", ""}, "undo": {"Undo", "arrow-back-up"},
 	"stop": {"Stop", "player-stop"}, "check": {"Check", ""}, "open": {"Open", "arrow-up-right"},
 	"run_now": {"Run now", "player-play"}, "pause": {"Pause", "player-pause"}, "restore": {"Bring back", ""},
-	"resume": {"Resume", "player-play"}, "turn_off": {"Turn off", ""}, "turn_on": {"Turn on", ""},
+	"resume": {"Resume", "player-play"}, "turn_off": {"Turn off", ""}, "turn_on": {"Enable", ""},
 	"send": {"Send", "send"}, "rework": {"Send back for rework", ""}, "enable": {"Enable project", ""},
 	"review": {"Review and enable", ""}, "export": {"Export", ""}, "revoke": {"Revoke", ""},
 	"remove": {"Remove", "trash"}, "delete": {"Delete", "trash"}, "download": {"Download", "download"},

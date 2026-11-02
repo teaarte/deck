@@ -554,14 +554,14 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		strings.Contains(fresh.Details, `"caller"`) {
 		t.Fatalf("the call and only the call is in the details: %s", fresh.Details)
 	}
-	if got := verbs(fresh); !slices.Equal(got, []string{"Allow: post", "deny", "Always let notes run post", "deny_because"}) ||
+	if got := verbs(fresh); !slices.Equal(got, []string{"Allow: post", "Deny", "Always let notes run post", "Deny because…"}) ||
 		fresh.Actions[0]["primary"] != true || fresh.Actions[0]["until"] == nil || fresh.Actions[3]["input"] != "reason" {
 		t.Fatalf("a confirmation offers what its yes allows first until it expires, then deny with a reason: %v", fresh.Actions)
 	}
-	if got := verbs(old); !slices.Equal(got, []string{"deny"}) || !strings.Contains(old.Details, `"id": "n1"`) {
+	if got := verbs(old); !slices.Equal(got, []string{"Deny"}) || !strings.Contains(old.Details, `"id": "n1"`) {
 		t.Fatalf("an expired confirmation keeps only deny: %+v", old)
 	}
-	if got := verbs(q); !slices.Equal(got, []string{"answer"}) || len(q.Questions) != 1 || q.Actions[0]["input"] != "answer" || q.Title != "Question" {
+	if got := verbs(q); !slices.Equal(got, []string{"Answer"}) || len(q.Questions) != 1 || q.Actions[0]["input"] != "answer" || q.Title != "Question" {
 		t.Fatalf("a question carries its options and the answer button: %+v", q)
 	}
 
@@ -736,12 +736,14 @@ func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 	if len(feed) != 2 || feed[1].Screen != "schedule" || !feed[1].DeckScreen || feed[0].Screen != "main" || feed[0].DeckScreen {
 		t.Fatalf("a note says whether its screen is of deck: %+v", feed)
 	}
-	if fmt.Sprint(feed[1].Open) != "map[screen:schedule verb:open]" || fmt.Sprint(feed[0].Open) != "map[project:web screen:main verb:open]" ||
+	if fmt.Sprint(feed[1].Open) != "map[icon:arrow-up-right label:Open screen:schedule verb:open]" ||
+		fmt.Sprint(feed[0].Open) != "map[icon:arrow-up-right label:Open project:web screen:main verb:open]" ||
 		feed[0].MarkRead["command"] != "deck.feed_mark_read" {
 		t.Fatalf("a note gives the buttons the bell draws, opening its screen and marking it read: %+v", feed)
 	}
 	data, _ := json.Marshal(e.Screen("", "cockpit", nil))
-	for _, want := range []string{`{"project":"","record":0,"screen":"schedule","verb":"open"}`, `{"project":"web","record":0,"screen":"main","verb":"open"}`} {
+	for _, want := range []string{`{"project":"","record":0,"screen":"schedule","verb":"open","label":"Open","icon":"arrow-up-right"}`,
+		`{"project":"web","record":0,"screen":"main","verb":"open","label":"Open","icon":"arrow-up-right"}`} {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("the cockpit opens the screen of a note %s: %s", want, data)
 		}

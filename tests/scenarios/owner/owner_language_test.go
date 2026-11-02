@@ -121,7 +121,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 			t.Errorf("no ru for %q", text)
 		}
 	}
-	var code strings.Builder
+	var code, client strings.Builder
 	_ = filepath.WalkDir(filepath.Join(harness.Root, "internal"), func(p string, d os.DirEntry, err error) error {
 		if err == nil && strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, "_test.go") {
 			b, _ := os.ReadFile(p)
@@ -129,6 +129,18 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 		}
 		return nil
 	})
+	// The client says deck's words too, by their English text; a plural is its text with the form after it.
+	_ = filepath.WalkDir(filepath.Join(harness.Root, "web/src"), func(p string, d os.DirEntry, err error) error {
+		if err == nil && (strings.HasSuffix(p, ".ts") || strings.HasSuffix(p, ".tsx")) {
+			b, _ := os.ReadFile(p)
+			client.Write(b)
+		}
+		return nil
+	})
+	inClient := func(k string) bool {
+		k = regexp.MustCompile(`_(one|few|many)$`).ReplaceAllString(k, "")
+		return strings.Contains(client.String(), "'"+strings.ReplaceAll(k, "'", `\'`)+"'") || strings.Contains(client.String(), strconv.Quote(k))
+	}
 	// A value of an enum of a result of deck is a word of it too.
 	for _, m := range regexp.MustCompile(`enum:"([^"]+)"`).FindAllStringSubmatch(code.String(), -1) {
 		for _, v := range strings.Split(m[1], "|") {
@@ -141,7 +153,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 		return strings.Contains(code.String(), strconv.Quote(k)) || ok && strings.Contains(code.String(), strconv.Quote(bare))
 	}
 	for k := range ru {
-		if !texts[k] && !titles[k] && !inCode(k) && !strings.Contains(screens.String(), "'"+k+"'") {
+		if !texts[k] && !titles[k] && !inCode(k) && !inClient(k) && !strings.Contains(screens.String(), "'"+k+"'") {
 			t.Errorf("ru translates %q, which is no text", k)
 		}
 	}

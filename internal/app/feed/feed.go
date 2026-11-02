@@ -189,7 +189,7 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 	if err != nil {
 		return nil, err
 	}
-	ws := words.In(in.Lang)
+	ws := words.In(registry.Lang(ctx))
 	out := make([]feedView, 0, len(rows))
 	for _, f := range rows {
 		r := feedView{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: deckText(ws, f.Kind, f.Author, f.Text), Screen: f.Screen,
@@ -262,7 +262,7 @@ func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListI
 		Retry       bool   `json:"retry"`
 		Repeats     int64  `json:"repeats"`
 	}
-	if err := s.read(ctx, act, "processes_list", map[string]any{"project": in.Project, "failed": true, "brief": true, "lang": in.Lang}, &runs); err != nil {
+	if err := s.read(ctx, act, "processes_list", map[string]any{"project": in.Project, "failed": true, "brief": true}, &runs); err != nil {
 		return nil, err
 	}
 	var checks []struct {
@@ -281,7 +281,7 @@ func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListI
 		Groups    []string `json:"choice_groups"`
 		Trigger   int64    `json:"trigger"`
 	}
-	if err := s.read(ctx, act, "health_list", map[string]any{"project": in.Project, "lang": in.Lang}, &checks); err != nil {
+	if err := s.read(ctx, act, "health_list", map[string]any{"project": in.Project}, &checks); err != nil {
 		return nil, err
 	}
 	var out []feedView
@@ -294,7 +294,7 @@ func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListI
 			CreatedAt: p.FinishedAt, Process: p.ID, Error: p.Error, ErrorType: p.ErrorType, Retry: p.Retry, Repeats: p.Repeats,
 			Open: map[string]any{"verb": "open", "screen": "process", "record": p.ID}})
 	}
-	ws := words.In(in.Lang)
+	ws := words.In(registry.Lang(ctx))
 	for _, c := range checks {
 		if c.Status != "error" || c.Seen {
 			continue

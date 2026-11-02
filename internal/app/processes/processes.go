@@ -198,7 +198,7 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 		}
 		v := procView(p, names[p.ProjectID])
 		if runs {
-			out = append(out, s.runOf(ctx, p, v, in.Lang))
+			out = append(out, s.runOf(ctx, p, v, registry.Lang(ctx)))
 			continue
 		}
 		if in.Brief {
@@ -207,13 +207,13 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 		s.ofRecord(ctx, p, &v)
 		c, err := s.Lookup(ctx, act.Workspace, v.Project+"."+p.Command)
 		if err == nil {
-			v.Title = c.Tr(words.In(in.Lang), in.Lang, c.Title)
+			v.Title = c.Tr(words.In(registry.Lang(ctx)), registry.Lang(ctx), c.Title)
 		}
 		if in.Failed {
 			v.Retry = err == nil && slices.Contains(c.Callers, registry.Owner)
 			v.Repeats = repeats[p.ID]
 		}
-		s.shown(ctx, p, &v, in.Lang)
+		s.shown(ctx, p, &v, registry.Lang(ctx))
 		out = append(out, v)
 	}
 	return out, nil
@@ -329,7 +329,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		}
 	}
 	v.Terminal = s.terminal(ctx, p)
-	s.shown(ctx, p, &v, in.Lang)
+	s.shown(ctx, p, &v, registry.Lang(ctx))
 	if p.State == process.StateWaitingSlot {
 		ahead, err := s.St.Q.CountSlotAhead(ctx, db.CountSlotAheadParams{WorkspaceID: project.WorkspaceID, ID: p.ID})
 		if err != nil {

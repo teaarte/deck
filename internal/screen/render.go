@@ -43,8 +43,6 @@ type Scope struct {
 	Filter map[string]string
 	// By is the project whose rights read another project, for a block of its screen.
 	By int64
-	// Lang is the owner's language, for a command that says things in it.
-	Lang string
 }
 
 // Request is a screen to resolve. Project is zero for a screen deck ships.
@@ -158,7 +156,7 @@ func resolve(ctx context.Context, src Sources, req Request, every bool) (*render
 	if h := req.Size[1]; h > 0 {
 		r.fitting, r.left = true, Thirds(h)
 	}
-	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name, Lang: req.Lang}
+	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name}
 	r.params = map[string]any{}
 	// A param the address names empty is the owner's pick of all, not its default.
 	for name, p := range req.Screen.Params {
@@ -258,7 +256,7 @@ func (r *renderer) loadRecord() error {
 		return fmt.Errorf("screen %q shows one record; open it with the record id", r.req.Screen.Name)
 	}
 	if r.deck() {
-		got, err := r.src.Read(r.ctx, processRead, map[string]any{"process": r.req.Record}, Scope{Workspace: r.scope.Workspace, Lang: r.req.Lang})
+		got, err := r.src.Read(r.ctx, processRead, map[string]any{"process": r.req.Record}, Scope{Workspace: r.scope.Workspace})
 		rec, _ := got.(map[string]any)
 		if err != nil || rec == nil {
 			return fmt.Errorf("no process %d", r.req.Record)

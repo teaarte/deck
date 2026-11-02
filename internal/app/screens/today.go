@@ -32,11 +32,11 @@ type todayLineView struct {
 
 // today are the lines of the card of Today, read by the reads of deck as the caller.
 func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) ([]todayLineView, error) {
-	ws := words.In(in.Lang)
+	ws := words.In(registry.Lang(ctx))
 	tr := func(str string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, str), a...) }
 	out := []todayLineView{}
 	var asks []struct{ What, Allow string }
-	if err := s.read(ctx, act, "asks_list", map[string]any{"lang": in.Lang}, &asks); err != nil {
+	if err := s.read(ctx, act, "asks_list", map[string]any{}, &asks); err != nil {
 		return nil, err
 	}
 	if n := len(asks); n > 0 {
@@ -50,7 +50,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		Text      string
 		CreatedAt string `json:"created_at"`
 	}
-	if err := s.read(ctx, act, "feed_list", map[string]any{"kind": "failure", "lang": in.Lang}, &fails); err != nil {
+	if err := s.read(ctx, act, "feed_list", map[string]any{"kind": "failure"}, &fails); err != nil {
 		return nil, err
 	}
 	if n := len(fails); n > 0 {
@@ -65,7 +65,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		Title, Command     string
 		Topic, Since, Word string
 	}
-	if err := s.read(ctx, act, "processes_list", map[string]any{"open": true, "lang": in.Lang}, &running); err != nil {
+	if err := s.read(ctx, act, "processes_list", map[string]any{"open": true}, &running); err != nil {
 		return nil, err
 	}
 	for i, p := range running {
@@ -101,7 +101,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		NextAt       string `json:"next_at"`
 		Paused       bool
 	}
-	if err := s.read(ctx, act, "triggers_list", map[string]any{"lang": in.Lang}, &ts); err != nil {
+	if err := s.read(ctx, act, "triggers_list", map[string]any{}, &ts); err != nil {
 		return nil, err
 	}
 	next := -1

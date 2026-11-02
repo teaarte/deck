@@ -95,8 +95,8 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 	names := map[int64]db.Project{}
 	manifests := map[int64]*manifest.Manifest{}
 	works := map[string]provider.Work{}
-	work := s.Works(ctx, act.Workspace, in.Lang)
-	ws := words.In(in.Lang)
+	work := s.Works(ctx, act.Workspace, registry.Lang(ctx))
+	ws := words.In(registry.Lang(ctx))
 	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
 	out := make([]triggerView, 0, len(ts))
 	for _, t := range ts {
@@ -117,7 +117,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		}
 		v.Title, v.ProjectTitle = t.Command, p.Name
 		if m != nil {
-			mws := manifest.Words(ws, m, in.Lang)
+			mws := manifest.Words(ws, m, registry.Lang(ctx))
 			v.ProjectTitle, _, _ = manifest.Nav(p.Name, m, mws)
 			if c := m.Command(t.Command); c != nil && c.Title != "" {
 				v.Title = manifest.Tr(mws, c.Title)

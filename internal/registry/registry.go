@@ -580,7 +580,7 @@ func Typed[T any](f func(ctx context.Context, a Actor, in T) (any, error)) Handl
 		if err := json.Unmarshal(raw, &in); err != nil {
 			return nil, Invalid("%v", err)
 		}
-		return f(ctx, a, in)
+		return f(inputLang(ctx, raw), a, in)
 	}
 }
 

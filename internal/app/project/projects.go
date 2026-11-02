@@ -67,7 +67,7 @@ func (s *Service) projectsList(ctx context.Context, act registry.Actor, in proje
 	theme := s.Theme(ctx, act.Workspace)
 	out := make([]projectView, 0, len(ps))
 	for _, p := range ps {
-		v := s.viewProject(ctx, p, ms[p.ID], failed[p.ID], in.Lang)
+		v := s.viewProject(ctx, p, ms[p.ID], failed[p.ID], registry.Lang(ctx))
 		v.Cover = files.CoverOf(pics, p.ID, theme)
 		out = append(out, v)
 	}

@@ -100,7 +100,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 				return
 			}
 		}
-		ctx := context.WithValue(r.Context(), actorKey{}, act)
+		ctx := registry.WithLang(context.WithValue(r.Context(), actorKey{}, act), r.Header.Get("Deck-Lang"))
 		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, lentKey{}, lent)))
 	})
 }
@@ -135,7 +135,7 @@ func lentTo(r *http.Request) bool { return r.Context().Value(lentKey{}) == true 
 func (s *Server) ownerOnly(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if actor(r).Kind != registry.Owner && !lentTo(r) {
-			http.Error(w, "deck: automation tokens call commands only", http.StatusForbidden)
+			refuse(w, r, "deck: automation tokens call commands only", http.StatusForbidden)
 			return
 		}
 		next(w, r)
@@ -151,7 +151,7 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 	}
 	var out any
 	if lentTo(r) && !s.app.Tokens.Reads(r.PathValue("name")) {
-		http.Error(w, "deck: a page deck opens itself only reads", http.StatusForbidden)
+		refuse(w, r, readsOnly, http.StatusForbidden)
 		return
 	}
 	if act := actor(r); act.Kind == registry.Token {
@@ -160,7 +160,7 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 		out, err = s.app.Registry.Invoke(r.Context(), act, r.PathValue("name"), body)
 	}
 	if err != nil {
-		http.Error(w, said(r, err.Error()), fault.Status(err))
+		refuse(w, r, err.Error(), fault.Status(err))
 		return
 	}
 	raw, err := json.Marshal(out)
@@ -176,23 +176,26 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(manifest.Labeled(raw, words.In(r.Header.Get("Deck-Lang"))))
 }
 
-// said is a refusal of deck in the language the client reads, by its Deck-Lang header.
-func said(r *http.Request, text string) string {
-	if lang := r.Header.Get("Deck-Lang"); lang != "" {
-		return manifest.TrText(words.In(lang), text)
+// refuse answers a refusal of deck in the language the client reads, by its Deck-Lang header.
+func refuse(w http.ResponseWriter, r *http.Request, text string, status int) {
+	if lang := registry.Lang(r.Context()); lang != "" {
+		text = manifest.TrText(words.In(lang), text)
 	}
-	return text
+	http.Error(w, text, status)
 }
+
+// readsOnly refuses a write from a page deck opens itself.
+const readsOnly = "deck: a page deck opens itself only reads"
 
 // upload takes the files of a multipart form for a project; commands then get them by id.
 func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	if lentTo(r) {
-		http.Error(w, "deck: a page deck opens itself only reads", http.StatusForbidden)
+		refuse(w, r, readsOnly, http.StatusForbidden)
 		return
 	}
 	mr, err := r.MultipartReader()
 	if err != nil {
-		http.Error(w, "deck: send the files as multipart/form-data", http.StatusBadRequest)
+		refuse(w, r, "deck: send the files as multipart/form-data", http.StatusBadRequest)
 		return
 	}
 	var out []any
@@ -202,7 +205,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			refuse(w, r, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if part.FileName() == "" {
@@ -210,13 +213,13 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		}
 		f, err := s.app.Files.Upload(r.Context(), actor(r), r.URL.Query().Get("project"), part.FileName(), part.Header.Get("Content-Type"), part)
 		if err != nil {
-			http.Error(w, err.Error(), fault.Status(err))
+			refuse(w, r, err.Error(), fault.Status(err))
 			return
 		}
 		out = append(out, f)
 	}
 	if len(out) == 0 {
-		http.Error(w, "deck: the form has no file", http.StatusBadRequest)
+		refuse(w, r, "deck: the form has no file", http.StatusBadRequest)
 		return
 	}
 	send(w, out)
@@ -227,7 +230,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "deck: a file id is a number", http.StatusBadRequest)
+		refuse(w, r, "deck: a file id is a number", http.StatusBadRequest)
 		return
 	}
 	f, file, err := s.app.Files.OpenFile(r.Context(), actor(r), id)
@@ -249,7 +252,7 @@ func (s *Server) downloadData(w http.ResponseWriter, r *http.Request) {
 
 func serveFile(w http.ResponseWriter, r *http.Request, name, typ string, file *os.File, err error) {
 	if err != nil {
-		http.Error(w, err.Error(), fault.Status(err))
+		refuse(w, r, err.Error(), fault.Status(err))
 		return
 	}
 	defer file.Close()

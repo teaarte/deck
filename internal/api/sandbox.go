@@ -82,11 +82,11 @@ func (s *Server) custom(w http.ResponseWriter, r *http.Request) {
 	name, port := s.hostPort(r)
 	sb, ok := s.pairs[port]
 	if !ok {
-		http.Error(w, "deck: custom blocks need the second port", http.StatusNotFound)
+		refuse(w, r, "deck: custom blocks need the second port", http.StatusNotFound)
 		return
 	}
 	if !named(name) {
-		http.Error(w, "deck: custom blocks need an address a CSP names, such as localhost or an IPv4 one", http.StatusNotFound)
+		refuse(w, r, "deck: custom blocks need an address a CSP names, such as localhost or an IPv4 one", http.StatusNotFound)
 		return
 	}
 	http.Redirect(w, r, s.origin(r, name, sb)+"/sandbox.html", http.StatusFound)

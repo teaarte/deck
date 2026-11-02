@@ -201,8 +201,8 @@ type agentLoginsListIn struct {
 }
 
 // agentLoginsList are the sign-ins from deck that wait for the owner or ended in a failure.
-func (s *Service) agentLoginsList(_ context.Context, _ registry.Actor, in agentLoginsListIn) ([]signIn, error) {
-	ws := words.In(in.Lang)
+func (s *Service) agentLoginsList(ctx context.Context, _ registry.Actor, _ agentLoginsListIn) ([]signIn, error) {
+	ws := words.In(registry.Lang(ctx))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := []signIn{}

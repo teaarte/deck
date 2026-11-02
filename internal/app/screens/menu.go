@@ -78,7 +78,7 @@ type menuGetIn struct {
 func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (menuOut, error) {
 	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{},
 		Language: s.Language(ctx, act.Workspace)}
-	deckWords := wordsOf(in.Lang, nil)
+	deckWords := wordsOf(registry.Lang(ctx), nil)
 	for _, name := range shipped().Menu {
 		sc := manifest.DeckScreen(name)
 		out.Deck.Screens = append(out.Deck.Screens, manifest.ScreenLink{Name: name, Title: manifest.Tr(deckWords, sc.Title), Icon: sc.Icon})
@@ -88,7 +88,7 @@ func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (m
 		return out, err
 	}
 	var asks, running, failing map[string]int64
-	out.Pulse, asks, running, failing = s.pulse(ctx, act, in.Lang)
+	out.Pulse, asks, running, failing = s.pulse(ctx, act, registry.Lang(ctx))
 	if out.Pulse.State == "calm" && !slices.ContainsFunc(ps, func(p db.Project) bool { return p.Builtin == 0 }) {
 		out.Pulse.Line = manifest.Tr(deckWords, "Tell Deki what to do: say a task in the chat and Deki builds a module for it, or start with a module below.")
 	}
@@ -104,7 +104,7 @@ func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (m
 		if m == nil {
 			continue
 		}
-		ws := wordsOf(in.Lang, m)
+		ws := wordsOf(registry.Lang(ctx), m)
 		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name],
 			Draw: map[string]any{"label": manifest.Tr(deckWords, "Deki prepares a view for this size"), "icon": "sparkles",
 				"command": registry.Deck("widget_draw"), "params": map[string]any{"project": p.Name}, "input": "size", "chat": true}}
@@ -133,7 +133,7 @@ func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (m
 		}
 		out.Projects = append(out.Projects, e)
 	}
-	out.System = s.foot(out, in.Lang)
+	out.System = s.foot(out, registry.Lang(ctx))
 	return out, nil
 }
 

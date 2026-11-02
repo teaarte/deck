@@ -117,7 +117,7 @@ func (s *Service) commandsList(ctx context.Context, act registry.Actor, in comma
 	if err != nil {
 		return nil, err
 	}
-	work := s.Works(ctx, act.Workspace, in.Lang)
+	work := s.Works(ctx, act.Workspace, registry.Lang(ctx))
 	manifests := map[int64]*manifest.Manifest{}
 	out := []commandView{}
 	for _, c := range cmds {
@@ -138,8 +138,8 @@ func (s *Service) commandsList(ctx context.Context, act registry.Actor, in comma
 				manifests[c.ProjectID] = m
 			}
 		}
-		if in.Lang != "" {
-			ws := wordsOf(in.Lang, m)
+		if registry.Lang(ctx) != "" {
+			ws := wordsOf(registry.Lang(ctx), m)
 			r.Title = manifest.Tr(ws, r.Title)
 			if r.Description != "" {
 				r.Description = manifest.Tr(ws, r.Description)

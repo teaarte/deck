@@ -247,10 +247,10 @@ func (s *Service) covers(ctx context.Context, act registry.Actor, in projectCove
 	}
 	out := []coverView{}
 	for _, x := range pics {
-		title := manifest.Tr(words.In(in.Lang), "Every theme")
+		title := manifest.Tr(words.In(registry.Lang(ctx)), "Every theme")
 		if x.Theme != "" {
 			title = x.Theme
-			if l, err := s.look(ctx, act.Workspace, x.Theme, in.Lang); err == nil {
+			if l, err := s.look(ctx, act.Workspace, x.Theme, registry.Lang(ctx)); err == nil {
 				title = l.Title
 			}
 		}

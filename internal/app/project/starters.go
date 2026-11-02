@@ -100,7 +100,7 @@ func (s *Service) startersList(ctx context.Context, act registry.Actor, in start
 				row.Description = docs.Description(f.text)
 			case docs.ManifestName:
 				if m, err := manifest.Parse([]byte(f.text)); err == nil {
-					ws = m.I18n[in.Lang]
+					ws = m.I18n[registry.Lang(ctx)]
 					row.Title, row.Icon = cmp.Or(manifest.Tr(ws, m.Title), name), m.Icon
 				}
 			}
@@ -138,7 +138,7 @@ func (s *Service) projectNeeds(ctx context.Context, act registry.Actor, in proje
 		return nil, err
 	}
 	ms, _ := docs.All(ctx, s.St.Q, []db.Project{p})
-	return s.needs(ctx, p, ms[p.ID], rights, words.In(in.Lang)), nil
+	return s.needs(ctx, p, ms[p.ID], rights, words.In(registry.Lang(ctx))), nil
 }
 
 func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest, rights []rightView, ws map[string]string) []needView {

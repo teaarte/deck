@@ -54,7 +54,7 @@ func (s *Service) processAsks(ctx context.Context, act registry.Actor, in proces
 		out.Result = json.RawMessage(p.Result)
 	}
 	if p.Error != "" {
-		out.Error = manifest.TrText(words.In(in.Lang), p.Error)
+		out.Error = manifest.TrText(words.In(registry.Lang(ctx)), p.Error)
 	}
 	return out, nil
 }
@@ -74,12 +74,12 @@ func (s *Service) pressAsks(ctx context.Context, act registry.Actor, in processA
 		return nil, err
 	}
 	if p.Kind == process.KindAgent {
-		out, _, err := s.asksOf(ctx, act, p.ID, p.ProjectID, in.Lang)
+		out, _, err := s.asksOf(ctx, act, p.ID, p.ProjectID, registry.Lang(ctx))
 		return out, err
 	}
 	until, quiet, seen := time.After(processAsksWait), time.Now(), 0
 	for {
-		out, ended, err := s.asksOf(ctx, act, p.ID, p.ProjectID, in.Lang)
+		out, ended, err := s.asksOf(ctx, act, p.ID, p.ProjectID, registry.Lang(ctx))
 		if len(out) != seen {
 			quiet, seen = time.Now(), len(out)
 		}

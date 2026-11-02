@@ -150,7 +150,7 @@ type settingsListIn struct {
 
 func (s *Service) settingsList(ctx context.Context, act registry.Actor, in settingsListIn) ([]settingView, error) {
 	out := make([]settingView, 0, len(settingDefs))
-	ws := words.In(in.Lang)
+	ws := words.In(registry.Lang(ctx))
 	for _, d := range settingDefs {
 		out = append(out, settingView{Name: d.name, Title: cmp.Or(ws[d.title], d.title), Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: append(d.options, d.steps...)})
 	}

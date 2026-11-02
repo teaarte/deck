@@ -235,7 +235,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 	titles := s.titles(ctx, act, in)
 	group := func(string) (string, int) { return "", 0 }
 	if in.By == "provider" && s.Groups != nil {
-		group = s.Groups(ctx, act.Workspace, in.Lang)
+		group = s.Groups(ctx, act.Workspace, registry.Lang(ctx))
 	}
 	place := map[string]int{}
 	out := make([]spendDayView, 0, len(order))
@@ -266,7 +266,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 
 // titles give the title of a project by its name in the owner's words; deck's own work is Deki and deck.
 func (s *Service) titles(ctx context.Context, act registry.Actor, in spendDaysListIn) func(string) string {
-	ws := words.In(in.Lang)
+	ws := words.In(registry.Lang(ctx))
 	seen := map[string]string{}
 	return func(name string) string {
 		if name == "" {
@@ -278,7 +278,7 @@ func (s *Service) titles(ctx context.Context, act registry.Actor, in spendDaysLi
 		t := name
 		if p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
 			if m, err := docs.Manifest(ctx, s.St.Q, p); err == nil {
-				t, _, _ = manifest.Nav(name, m, manifest.Words(ws, m, in.Lang))
+				t, _, _ = manifest.Nav(name, m, manifest.Words(ws, m, registry.Lang(ctx)))
 			}
 		}
 		seen[name] = t

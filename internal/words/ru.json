@@ -150,6 +150,7 @@
   "Today": "Сегодня",
   "7 days": "7 дней",
   "30 days": "30 дней",
+  "Period": "Период",
   "Paid by day": "Оплачено по дням",
   "Copies of deck's base, files and the data folders of modules, without secrets: deck takes one a day and before a module is deleted, and keeps the newest. They lie in backups of deck's state folder.": "Копии базы deck, файлов и папок данных модулей, без секретов: deck делает одну в день и перед удалением модуля и хранит последние. Лежат в backups папки состояния deck.",
   "Review a draft": "Проверка черновика",
@@ -1037,5 +1038,12 @@
   "The secrets each module keeps apart; set, replace or delete one in the settings of its module.": "Секреты, которые каждый модуль хранит отдельно; задать, заменить или удалить секрет можно в настройках его модуля.",
   "No module names or keeps a secret": "Ни один модуль не называет и не хранит секретов",
   "Lists the secrets of a module, or of every module: those its manifest names and whether each is set, and those set it does not name; never their values.": "Перечисляет секреты модуля или всех модулей: названные манифестом и задан ли каждый, и заданные, которых манифест не называет; значения — никогда.",
-  "The module whose tools and servers use the secrets; without it every module's": "Модуль, чьи инструменты и серверы пользуются секретами; без него — все модули"
+  "The module whose tools and servers use the secrets; without it every module's": "Модуль, чьи инструменты и серверы пользуются секретами; без него — все модули",
+  "deck: automation tokens call commands only": "deck: токены автоматизаций только вызывают команды",
+  "deck: a page deck opens itself only reads": "deck: страница, которую deck открыл сам, только читает",
+  "deck: send the files as multipart/form-data": "deck: отправьте файлы как multipart/form-data",
+  "deck: the form has no file": "deck: в форме нет файла",
+  "deck: a file id is a number": "deck: номер файла — это число",
+  "deck: custom blocks need the second port": "deck: блокам custom нужен второй порт",
+  "deck: custom blocks need an address a CSP names, such as localhost or an IPv4 one": "deck: блокам custom нужен адрес, который называет CSP, например localhost или IPv4"
 }

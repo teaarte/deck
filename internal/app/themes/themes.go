@@ -154,10 +154,10 @@ func (s *Service) theme(ctx context.Context, act registry.Actor, in themeGetIn) 
 	if name == "" {
 		name = cur
 	}
-	l, err := s.look(ctx, act.Workspace, name, in.Lang)
+	l, err := s.look(ctx, act.Workspace, name, registry.Lang(ctx))
 	if err != nil && in.Name == "" && name != theme.Default {
 		name = theme.Default
-		l, err = s.look(ctx, act.Workspace, name, in.Lang)
+		l, err = s.look(ctx, act.Workspace, name, registry.Lang(ctx))
 	}
 	raw, _, _ := s.text(ctx, s.St.Q, act.Workspace, name)
 	v := lookView{Look: l, Current: name == cur, Text: string(raw)}
@@ -207,7 +207,7 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in themesListIn)
 		if t, err := theme.Parse(raw); err != nil {
 			row.Problems = []string{err.Error()}
 		} else {
-			l := t.Wear(n, in.Lang)
+			l := t.Wear(n, registry.Lang(ctx))
 			row.Title, row.Mood, row.Schemes, row.Problems = l.Title, l.Mood, l.Schemes, l.Problems
 		}
 		out = append(out, row)

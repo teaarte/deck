@@ -114,7 +114,7 @@ type modelsListIn struct {
 }
 
 func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsListIn) (modelsView, error) {
-	ws := words.In(in.Lang)
+	ws := words.In(registry.Lang(ctx))
 	tr := func(p string) string { return manifest.TrText(ws, p) }
 	out := modelsView{Agents: s.agents(ctx, act.Workspace, tr), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{},
 		Choices: []choiceView{}, Uses: []useView{}, Work: []workView{}}
@@ -193,7 +193,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		v.Why = s.why(ctx, act.Workspace, v.Models, v.Using, tr)
 		out.Assignments = append(out.Assignments, v)
 	}
-	used, err := s.uses(ctx, act, pid, in.Lang, &out)
+	used, err := s.uses(ctx, act, pid, registry.Lang(ctx), &out)
 	if err != nil {
 		return out, err
 	}

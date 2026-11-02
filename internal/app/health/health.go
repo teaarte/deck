@@ -73,8 +73,8 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn
 	if err != nil {
 		return nil, err
 	}
-	works, places := s.Works(ctx, act.Workspace, in.Lang), s.Places(ctx, act.Workspace)
-	ws := words.In(in.Lang)
+	works, places := s.Works(ctx, act.Workspace, registry.Lang(ctx)), s.Places(ctx, act.Workspace)
+	ws := words.In(registry.Lang(ctx))
 	out := make([]healthView, 0, len(rows))
 	for _, r := range rows {
 		r.Error = manifest.TrText(ws, r.Error)

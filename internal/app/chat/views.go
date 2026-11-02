@@ -277,7 +277,7 @@ func (s *Service) picked(ctx context.Context, workspace int64, topic string, tr 
 func (s *Service) chat(ctx context.Context, act registry.Actor, in chatGetIn) (chatView, error) {
 	v := chatView{Messages: []messageView{}, Suggest: []suggestView{}, Send: chatAction("send", registry.Deck("chat_send"), map[string]any{}),
 		Transcribe: action{"label": "Speak", "command": registry.Deck("recording_transcribe"), "input": "file"}}
-	tr := s.words(in.Lang)
+	tr := s.words(registry.Lang(ctx))
 	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
 	if err != nil {
 		return v, err
@@ -297,10 +297,10 @@ func (s *Service) chat(ctx context.Context, act registry.Actor, in chatGetIn) (c
 		if err != nil {
 			return v, err
 		}
-		v.Messages = s.messages(ctx, t.ID, rows, words.In(in.Lang), tr)
+		v.Messages = s.messages(ctx, t.ID, rows, words.In(registry.Lang(ctx)), tr)
 	}
 	if len(v.Messages) == 0 {
-		v.Suggest = s.suggest(ctx, act.Workspace, in.Project, in.Lang)
+		v.Suggest = s.suggest(ctx, act.Workspace, in.Project, registry.Lang(ctx))
 	}
 	return v, nil
 }
@@ -313,7 +313,7 @@ type chatTopicsListIn struct {
 func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsListIn) (topicsView, error) {
 	var v topicsView
 	var err error
-	tr := s.words(in.Lang)
+	tr := s.words(registry.Lang(ctx))
 	if v.Topics, err = s.topics(ctx, act.Workspace, false, 0, 50, tr); err != nil {
 		return v, err
 	}
@@ -321,7 +321,7 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 		return v, err
 	}
 	v.Models, v.Model = s.models(ctx, act.Workspace)
-	price := s.Prices(ctx, act.Workspace, in.Lang)
+	price := s.Prices(ctx, act.Workspace, registry.Lang(ctx))
 	v.Prices = map[string]string{}
 	for _, m := range append([]string{v.Model}, v.Models...) {
 		if p := price(m); m != "" && p != "" {
@@ -334,7 +334,7 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 // chatTurn is the turn going on in the topic picked.
 func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatGetIn) (turnPartView, error) {
 	v := turnPartView{Questions: []questionView{}, Asks: []any{}}
-	tr := s.words(in.Lang)
+	tr := s.words(registry.Lang(ctx))
 	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
 	if err != nil || t == nil || t.Reply == nil {
 		return v, err
@@ -350,7 +350,7 @@ func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatGetIn
 	for _, c := range v.Turn.Processes {
 		turn = append(turn, c.ID)
 	}
-	if v.Asks, err = s.Decisions(ctx, act, turn, in.Lang); err != nil {
+	if v.Asks, err = s.Decisions(ctx, act, turn, registry.Lang(ctx)); err != nil {
 		return v, err
 	}
 	asks, err := s.St.Q.ListOpenAsksOfProcess(ctx, open.Process)

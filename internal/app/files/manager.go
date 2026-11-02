@@ -80,7 +80,7 @@ func (s *Service) filesFolder(ctx context.Context, act registry.Actor, in filesF
 
 // folder is one folder of the file manager of deck, read by the reads of its parts as the caller.
 func (s *Service) folder(ctx context.Context, act registry.Actor, in filesFolderListIn) (folderView, error) {
-	ws := words.In(in.Lang)
+	ws := words.In(registry.Lang(ctx))
 	tr := func(t string) string { return manifest.Tr(ws, t) }
 	var projects []struct {
 		Name    string `json:"name"`
@@ -89,7 +89,7 @@ func (s *Service) folder(ctx context.Context, act registry.Actor, in filesFolder
 		Builtin bool   `json:"builtin"`
 		Cover   *files.Cover
 	}
-	if err := s.read(ctx, act, "projects_list", map[string]any{"lang": in.Lang}, &projects); err != nil {
+	if err := s.read(ctx, act, "projects_list", map[string]any{}, &projects); err != nil {
 		return folderView{}, err
 	}
 	out := folderView{Entries: []folderEntry{}, Names: map[string]string{}}

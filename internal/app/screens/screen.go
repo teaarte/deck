@@ -91,7 +91,8 @@ func (s *Service) screenGet(ctx context.Context, act registry.Actor, in screenGe
 	if req.Screen == nil {
 		return nil, registry.NotFound("no screen %q", in.Screen)
 	}
-	req.Words, req.Lang = wordsOf(in.Lang, req.Manifest), in.Lang
+	req.Lang = registry.Lang(ctx)
+	req.Words = wordsOf(req.Lang, req.Manifest)
 	drawn, err := screen.Render(ctx, s.sources(act), req)
 	out, errs := drawn.Messages, drawn.Errors
 	if err != nil {
@@ -158,8 +159,8 @@ func (s screenSources) File(ctx context.Context, p db.Project, ref any) (map[str
 	return s.svc.File(ctx, p, ref)
 }
 
-// Read calls a command that only reads with the project of a project screen, the language and the values picked in
-// filters that it takes, as the viewer or, for another project, with the rights of the project of the screen.
+// Read calls a command that only reads with the project of a project screen and the values picked in filters that
+// it takes, as the viewer or, for another project, with the rights of the project of the screen.
 func (s screenSources) Read(ctx context.Context, command string, input map[string]any, sc screen.Scope) (any, error) {
 	c, err := s.svc.Registry.Lookup(ctx, sc.Workspace, command)
 	if err != nil {
@@ -178,9 +179,6 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 	}
 	if _, ok := types["project"]; ok && sc.Project != "" && in["project"] == nil {
 		in["project"] = sc.Project
-	}
-	if _, ok := types["lang"]; ok && sc.Lang != "" && in["lang"] == nil {
-		in["lang"] = sc.Lang
 	}
 	// The words of a block's search reach a read that looks for them itself, past the newest of what it gives.
 	if _, ok := types["search"]; ok && sc.Filter[manifest.SearchKey] != "" {

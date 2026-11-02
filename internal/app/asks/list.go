@@ -64,7 +64,7 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 	if err != nil {
 		return nil, err
 	}
-	return s.rows(ctx, act, in.Lang, func(q db.Ask) bool { return pid == 0 || q.ProjectID.Int64 == pid })
+	return s.rows(ctx, act, registry.Lang(ctx), func(q db.Ask) bool { return pid == 0 || q.ProjectID.Int64 == pid })
 }
 
 // rows are the open asks and expired confirmations keep holds for, oldest first, in the owner's words.

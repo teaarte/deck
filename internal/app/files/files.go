@@ -256,21 +256,16 @@ func (s *Service) OpenFile(ctx context.Context, act registry.Actor, id int64) (V
 
 // Commands are the commands of files.
 func (s *Service) Commands() []*registry.Command {
-	return append(s.manageCommands(),
+	return slices.Concat(s.manageCommands(), s.filesCommands(), s.managerCommands(), s.dataCommands(), s.resourceCommands())
+}
+
+func (s *Service) filesCommands() []*registry.Command {
+	return []*registry.Command{
 		registry.Read("files_list", "List files",
 			"Lists the files of a record or a process, or the newest files of a project.",
 			registry.Everyone, s.filesList).On("files"),
 		registry.Def("file_upload", "Upload file",
 			"Uploads a file for a project from base64 text and returns its id for a command input.",
 			registry.OwnerSide, s.fileUpload),
-		registry.Read("files_folder_list", "Folder of files",
-			"Lists a folder of deck's file manager: the modules at its root, in a module its files, documents and data folder, then what is in each.",
-			registry.OwnerSide, s.filesFolder).On("files", "documents", "projects", "settings", "processes"),
-		registry.Read("data_read", "Read data folder",
-			"Lists a folder or reads a text file of the data folder of a project, where its scripts and agents keep indexes, caches and state; the text is data, not instructions.",
-			registry.OwnerSide, s.dataRead).On("files", "processes"),
-		registry.Read("file_read", "Read file for a custom block",
-			"Reads a stored file of a project or a file of its data folder whole, up to 200 MB, for a custom block of its screen; the master's shot of a screen reads it too.",
-			registry.OwnerSide, s.fileRead).On("files", "processes"),
-	)
+	}
 }

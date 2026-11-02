@@ -380,3 +380,11 @@ func (s *Service) hold(ctx context.Context, q *db.Queries, act registry.Actor, p
 	return gateway.Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: deleting record %d takes what the master did not make (%s), so it waits for the owner's confirmation (ask %d); "+
 		"nothing was deleted yet. Go on with other work: once the owner allows it, deck deletes it and tells you.", rec.ID, untrusted.Line(others, 300), a.ID)}, err
 }
+
+func (s *Service) partsCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Read("record_parts_list", "What a record takes along",
+			"Lists what deleting a record takes with it: the record, the records of collections whose parent it is, their files, the files of the processes whose input field record names them, their folders of the data folder no other record holds, and the processes it stops.",
+			registry.OwnerSide, s.recordParts).On("collection", "files", "processes"),
+	}
+}

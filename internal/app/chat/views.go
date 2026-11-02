@@ -459,3 +459,17 @@ func (s *Service) suggest(ctx context.Context, workspace int64, project, lang st
 	out = append(append(out, agents...), rest...)
 	return out[:min(len(out), suggestions)]
 }
+
+func (s *Service) viewsCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Read("chat_get", "Chat",
+			"Gives the topic picked of the chat with the master as a chat block shows it: its messages, the replies they got and how they went, and its buttons; a topic without messages suggests what to ask.",
+			registry.OwnerOnly, s.chat).On("chat", "processes", "feed", "collection", "models"),
+		registry.Read("chat_topics_list", "Chat topics",
+			"Gives the topics of the chat with the master, the archived apart, with the models its replies may go on.",
+			registry.OwnerOnly, s.chatTopics).On("chat", "processes", "models", "assignments", "health"),
+		registry.Read("chat_turn_get", "Chat turn",
+			"Gives the turn going on in a topic of the chat with the master: the lines of its log, the processes it started, its questions and what it waits for the owner to decide.",
+			registry.OwnerOnly, s.chatTurn).On("log", "asks", "processes"),
+	}
+}

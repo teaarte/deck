@@ -249,25 +249,20 @@ func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recor
 
 // Commands are the commands of records.
 func (s *Service) Commands() []*registry.Command {
+	return slices.Concat(s.recordsCommands(), s.writeCommands(), s.partsCommands())
+}
+
+func (s *Service) recordsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("records_list", "List records",
 			"Lists records of a collection, newest last.",
 			registry.Everyone, s.recordsList).On("collection"),
-		registry.Def("record_upsert", "Write records",
-			"Writes records into a collection; records with an existing key are updated.",
-			registry.Everyone, s.recordUpsert),
-		registry.Def("record_update", "Edit record",
-			"Replaces the data of one record; key fields cannot change.",
-			registry.Everyone, s.recordUpdate),
 		registry.Read("record_get", "Get record",
 			"Returns one record by its id.",
 			registry.Everyone, s.recordGet).On("collection"),
 		registry.Def("record_delete", "Delete record",
 			"Deletes a record with what belongs to it, as record_parts_list lists, for good, and stops its open processes; outside a draft the owner, an agent or script of the record's own project, and the master the records its own processes wrote: what else the master did not make waits for the owner's yes. The owner may undo a deletion that was not theirs.",
 			registry.Everyone, s.recordDelete),
-		registry.Read("record_parts_list", "What a record takes along",
-			"Lists what deleting a record takes with it: the record, the records of collections whose parent it is, their files, the files of the processes whose input field record names them, their folders of the data folder no other record holds, and the processes it stops.",
-			registry.OwnerSide, s.recordParts).On("collection", "files", "processes"),
 		registry.Def("collection_delete", "Delete collection records",
 			"Deletes every record of a collection with what belongs to each, as record_parts_list lists, so the collection can be removed from the manifest.",
 			registry.OwnerSide, s.collectionDelete).As(registry.External),

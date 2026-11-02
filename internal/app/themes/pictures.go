@@ -277,5 +277,8 @@ func (s *Service) pictureCommands() []*registry.Command {
 		registry.Def("theme_image_set", "Set theme picture",
 			"Sets a picture of a theme for the light or the dark scheme, or takes it off: cockpit, the scene of the card of Today, backdrop, the page behind, or pattern, a tile repeated behind it. The pictures are not in the theme's text; deck keeps them with a light copy and checks the words of Today over the cockpit.",
 			registry.OwnerSide, s.themeImage),
+		registry.Read("project_covers_list", "Covers",
+			"Lists the covers of a module's card: the theme each is for, empty for every theme, its scheme and picture, and which ones the card shows in the theme in use.",
+			registry.Everyone, s.covers).On("files", "documents", "settings"),
 	}
 }

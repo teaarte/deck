@@ -111,9 +111,6 @@ func (s *Service) manifestCommands() []*registry.Command {
 		registry.Def("manifest_save", "Save manifest",
 			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current one replaced with new ones.",
 			registry.OwnerSide, s.manifestSave),
-		registry.Read("manifest_check", "Check manifest",
-			"Checks a manifest without saving it, as a save would: what a save refuses, what it warns of, what it widens and whether that waits for the owner, the screens that fail on the data there is now and the texts without a translation; of a project, or alone, such as one from an old .zip.",
-			registry.OwnerSide, s.check).On(registry.Static),
 	}
 }
 

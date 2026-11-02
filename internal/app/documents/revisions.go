@@ -75,3 +75,11 @@ func (s *Service) documentRevert(ctx context.Context, act registry.Actor, in doc
 	}
 	return map[string]any{"revision": n}, nil
 }
+
+func (s *Service) revisionsCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("document_revert", "Revert document",
+			"Makes an earlier revision current again as a new revision.",
+			registry.OwnerSide, s.documentRevert),
+	}
+}

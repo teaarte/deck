@@ -209,3 +209,11 @@ func (s *Service) foot(m menuOut, lang string) []menuGroup {
 	}
 	return out
 }
+
+func (s *Service) menuCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("menu_get", "Menu",
+			"Lists the screens to navigate: deck's own, then each project's menu.",
+			registry.OwnerSide, s.menu),
+	}
+}

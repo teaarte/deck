@@ -43,7 +43,7 @@ type Service struct {
 
 // Commands are the commands of processes.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.processCommands(), s.liveCommands(), s.chatCommands())
+	return slices.Concat(s.processCommands(), s.cockpitCommands(), s.liveCommands(), s.chatCommands())
 }
 
 type processView struct {
@@ -501,12 +501,6 @@ func (s *Service) processCommands() []*registry.Command {
 		registry.Read("process_left_list", "Left by a process",
 			"Lists what a process and the processes it started left: the changes of documents of an enabled project with whether they can be undone, the records and the files of deck they made; not what was written into the data folder.",
 			registry.Everyone, s.processLeft).On("collection", "files", "feed", "processes"),
-		registry.Def("process_retry", "Run a failed process again",
-			"Starts the command of a failed process again with the same input, as the owner calls it.",
-			registry.OwnerOnly, s.processRetry),
-		registry.Def("process_dismiss", "Close a failed process",
-			"Takes a failed process, or with all every one, off the cockpit; each stays in the history.",
-			registry.OwnerOnly, s.processDismiss),
 		registry.Def("process_stop", "Stop process",
 			"Stops a process; a running agent is killed and what it did so far stays; one that handed in its result ends done with it.",
 			registry.OwnerSide, s.processStop),

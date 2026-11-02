@@ -213,3 +213,11 @@ func (s *Service) ExpireConfirms(ctx context.Context, now time.Time) {
 		s.LateAnswer(ctx, q)
 	}
 }
+
+func (s *Service) answerCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("ask_answer", "Answer",
+			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done. Deny on an expired confirmation clears it.",
+			registry.OwnerOnly, s.askAnswer),
+	}
+}

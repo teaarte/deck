@@ -347,7 +347,7 @@ func (s *Service) use(ctx context.Context, act registry.Actor, in nameIn) (any, 
 
 // Commands are the commands of themes.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.themeCommands(), s.pictureCommands())
+	return slices.Concat(s.themeCommands(), s.drawCommands(), s.pictureCommands())
 }
 
 func (s *Service) themeCommands() []*registry.Command {
@@ -370,15 +370,6 @@ func (s *Service) themeCommands() []*registry.Command {
 		registry.Def("theme_delete", "Delete theme",
 			"Deletes the owner's theme; over a shipped one, the shipped one comes back.",
 			registry.OwnerSide, s.remove),
-		registry.Def("cover_draw", "Draw covers",
-			"Asks the master to draw the covers of a module's card in the mood of the theme in use, for its schemes; without a module, of every module that has none in this theme.",
-			registry.OwnerOnly, s.draw),
-		registry.Def("theme_draw", "Draw theme pictures",
-			"Asks the master to draw the pictures of the theme in use in its mood, for its schemes: the scene of the card of Today and the backdrop or the pattern behind the page.",
-			registry.OwnerOnly, s.drawPictures),
-		registry.Read("project_covers_list", "Covers",
-			"Lists the covers of a module's card: the theme each is for, empty for every theme, its scheme and picture, and which ones the card shows in the theme in use.",
-			registry.Everyone, s.covers).On("files", "documents", "settings"),
 		registry.Def("theme_use", "Use theme",
 			"Puts a theme on the whole deck.",
 			registry.OwnerOnly, s.use),

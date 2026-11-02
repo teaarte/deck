@@ -99,3 +99,11 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in manifestChec
 	out.Ok = len(out.Refused) == 0
 	return out, nil
 }
+
+func (s *Service) saveCheckCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Read("manifest_check", "Check manifest",
+			"Checks a manifest without saving it, as a save would: what a save refuses, what it warns of, what it widens and whether that waits for the owner, the screens that fail on the data there is now and the texts without a translation; of a project, or alone, such as one from an old .zip.",
+			registry.OwnerSide, s.check).On(registry.Static),
+	}
+}

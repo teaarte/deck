@@ -208,3 +208,14 @@ func (s *Service) projectRights(ctx context.Context, act registry.Actor, in proj
 	}
 	return out, nil
 }
+
+func (s *Service) moduleZipCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("project_export", "Export project",
+			"Keeps a .zip of the documents of a project to share as a module: manifest, prompts, skills, scripts and the other documents, without its memory, records, data and secrets; the result names the file.",
+			registry.OwnerOnly, s.projectExport),
+		registry.Read("project_rights_list", "List what a draft may do",
+			"Lists what enabling a draft lets it do beyond its own records, such as the web, secrets, folders and models, and the calls that will wait for the owner each time.",
+			registry.OwnerSide, s.projectRights).On("projects", "documents"),
+	}
+}

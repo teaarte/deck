@@ -186,3 +186,14 @@ func (s *Service) recordUpdate(ctx context.Context, act registry.Actor, in recor
 	}
 	return map[string]any{"ok": true}, nil
 }
+
+func (s *Service) writeCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("record_upsert", "Write records",
+			"Writes records into a collection; records with an existing key are updated.",
+			registry.Everyone, s.recordUpsert),
+		registry.Def("record_update", "Edit record",
+			"Replaces the data of one record; key fields cannot change.",
+			registry.Everyone, s.recordUpdate),
+	}
+}

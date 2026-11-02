@@ -250,3 +250,11 @@ func (s *Service) read(ctx context.Context, act registry.Actor, name string, inp
 	}
 	return json.Unmarshal(b, out)
 }
+
+func (s *Service) managerCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Read("files_folder_list", "Folder of files",
+			"Lists a folder of deck's file manager: the modules at its root, in a module its files, documents and data folder, then what is in each.",
+			registry.OwnerSide, s.filesFolder).On("files", "documents", "projects", "settings", "processes"),
+	}
+}

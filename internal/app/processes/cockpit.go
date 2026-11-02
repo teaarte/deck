@@ -225,3 +225,14 @@ func (s *Service) IsFailure(ctx context.Context, act registry.Actor, id int64) (
 	ps, err := s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, 0, id, 1))
 	return len(ps) > 0, err
 }
+
+func (s *Service) cockpitCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("process_retry", "Run a failed process again",
+			"Starts the command of a failed process again with the same input, as the owner calls it.",
+			registry.OwnerOnly, s.processRetry),
+		registry.Def("process_dismiss", "Close a failed process",
+			"Takes a failed process, or with all every one, off the cockpit; each stays in the history.",
+			registry.OwnerOnly, s.processDismiss),
+	}
+}

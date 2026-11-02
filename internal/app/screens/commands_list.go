@@ -196,3 +196,14 @@ func formOf(command, project string, m *manifest.Manifest) (string, []string) {
 	}
 	return "", nil
 }
+
+func (s *Service) commandsListCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Read("commands_list", "Commands",
+			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. project deck selects built-in commands; omit project for all commands. command_describe gives a description.",
+			registry.OwnerSide, s.commandsList).On("projects", "tools", "assignments", "models", "triggers", "health", "documents"),
+		registry.Read("command_describe", "Describe command",
+			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers.",
+			registry.OwnerSide, s.commandDescribe).On(registry.Static),
+	}
+}

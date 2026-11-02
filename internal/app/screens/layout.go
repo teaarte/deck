@@ -248,3 +248,14 @@ func nearest(ls []db.Layout, device string, columns int64, wider bool) *db.Layou
 	}
 	return best
 }
+
+func (s *Service) layoutCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Read("layout_get", "Layout of the tiles",
+			"Gives where the cards of the tiles stand on a device for its columns: its own, else the one they are derived from; columns 0 gives the order alone.",
+			registry.OwnerSide, s.layout).On("settings", "projects"),
+		registry.Def("layout_set", "Arrange the tiles",
+			"Keeps where the cards of the tiles stand on a device for a number of columns, in cells.",
+			registry.OwnerSide, s.layoutSet),
+	}
+}

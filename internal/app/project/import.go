@@ -230,12 +230,6 @@ func (s *Service) importCommands() []*registry.Command {
 		registry.Def("project_import", "Import module",
 			"Creates a draft project from a module folder, from a .zip of one, or from a starter module deck ships: manifest.json, prompt.md and the other files by their document names; the result names what it needs to work.",
 			registry.OwnerSide, s.projectImport),
-		registry.Def("project_export", "Export project",
-			"Keeps a .zip of the documents of a project to share as a module: manifest, prompts, skills, scripts and the other documents, without its memory, records, data and secrets; the result names the file.",
-			registry.OwnerOnly, s.projectExport),
-		registry.Read("project_rights_list", "List what a draft may do",
-			"Lists what enabling a draft lets it do beyond its own records, such as the web, secrets, folders and models, and the calls that will wait for the owner each time.",
-			registry.OwnerSide, s.projectRights).On("projects", "documents"),
 	}
 }
 

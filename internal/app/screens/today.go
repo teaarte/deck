@@ -130,3 +130,11 @@ func (s *Service) read(ctx context.Context, act registry.Actor, name string, inp
 	}
 	return json.Unmarshal(b, out)
 }
+
+func (s *Service) todayCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Read("today_get", "Today in brief",
+			"Lists the lines of the card of Today, the most pressing first: what waits for the owner, what failed, what runs, what the day cost and what runs next.",
+			registry.OwnerSide, s.today).On("asks", "feed", "processes", "health", "usage", "triggers", "projects", "secrets", "models", "assignments", "documents"),
+	}
+}

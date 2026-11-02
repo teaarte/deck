@@ -142,13 +142,12 @@ func (s *Service) CheckScreens(ctx context.Context, act registry.Actor, p db.Pro
 
 // screenSources read what a screen shows as the one who looks at it.
 type screenSources struct {
-	Sources
-	ss  *Service
+	svc *Service
 	act registry.Actor
 }
 
 func (s *Service) sources(act registry.Actor) screenSources {
-	return screenSources{Sources: Sources{Store: s.St, Registry: s.Registry}, ss: s, act: act}
+	return screenSources{svc: s, act: act}
 }
 
 // File is a file a media block of the project shows.
@@ -156,13 +155,13 @@ func (s screenSources) File(ctx context.Context, p db.Project, ref any) (map[str
 	if p.ID == 0 {
 		p.WorkspaceID = s.act.Workspace
 	}
-	return s.ss.File(ctx, p, ref)
+	return s.svc.File(ctx, p, ref)
 }
 
 // Read calls a command that only reads with the project of a project screen, the language and the values picked in
 // filters that it takes, as the viewer or, for another project, with the rights of the project of the screen.
 func (s screenSources) Read(ctx context.Context, command string, input map[string]any, sc screen.Scope) (any, error) {
-	c, err := s.ss.Registry.Lookup(ctx, sc.Workspace, command)
+	c, err := s.svc.Registry.Lookup(ctx, sc.Workspace, command)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +199,7 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 		return nil, screen.OwnerOnly
 	}
 	raw, _ := json.Marshal(in)
-	out, err := s.ss.Registry.Invoke(ctx, act, command, raw)
+	out, err := s.svc.Registry.Invoke(ctx, act, command, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -209,4 +208,12 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 		return nil, err
 	}
 	return manifest.DecodeExact(b)
+}
+
+func (s *Service) screenCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("screen_get", "Screen",
+			"Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes, with a block only that of the block; the blocks of a dialog get data only while it is open. Anyone but the owner gets the text of a document and the HTML of a custom block by size, and whole by a read of that block.",
+			registry.OwnerSide, s.screenGet),
+	}
 }

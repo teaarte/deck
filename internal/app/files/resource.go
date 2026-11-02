@@ -104,3 +104,11 @@ func (s *Service) fileRead(ctx context.Context, act registry.Actor, in fileReadI
 	out.Size, out.Blob = int64(len(b)), base64.StdEncoding.EncodeToString(b)
 	return out, nil
 }
+
+func (s *Service) resourceCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Read("file_read", "Read file for a custom block",
+			"Reads a stored file of a project or a file of its data folder whole, up to 200 MB, for a custom block of its screen; the master's shot of a screen reads it too.",
+			registry.OwnerSide, s.fileRead).On("files", "processes"),
+	}
+}

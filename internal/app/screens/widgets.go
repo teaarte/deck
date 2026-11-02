@@ -50,3 +50,11 @@ func (s *Service) widgetDraw(ctx context.Context, act registry.Actor, in widgetD
 	input, _ := json.Marshal(send)
 	return s.Registry.Invoke(ctx, act, registry.Deck("chat_send"), input)
 }
+
+func (s *Service) widgetsCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("widget_draw", "Draw a widget",
+			"Asks the master to make a view of the card of a module on the tiles for a size, as a widget of its manifest, on the model of the role widget, the master's own without one.",
+			registry.OwnerOnly, s.widgetDraw),
+	}
+}

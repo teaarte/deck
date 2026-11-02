@@ -328,28 +328,20 @@ func (s *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in 
 
 // Commands are the commands of the chat.
 func (s *Service) Commands() []*registry.Command {
+	return slices.Concat(s.chatCommands(), s.viewsCommands(), s.cutCommands())
+}
+
+func (s *Service) chatCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("chat_send", "Tell the master",
 			"Sends the owner's message to the master in a chat topic, a new one when none is given; the master's reply comes into the same topic.",
 			registry.OwnerOnly, s.chatSend),
-		registry.Read("chat_get", "Chat",
-			"Gives the topic picked of the chat with the master as a chat block shows it: its messages, the replies they got and how they went, and its buttons; a topic without messages suggests what to ask.",
-			registry.OwnerOnly, s.chat).On("chat", "processes", "feed", "collection", "models"),
-		registry.Read("chat_topics_list", "Chat topics",
-			"Gives the topics of the chat with the master, the archived apart, with the models its replies may go on.",
-			registry.OwnerOnly, s.chatTopics).On("chat", "processes", "models", "assignments", "health"),
-		registry.Read("chat_turn_get", "Chat turn",
-			"Gives the turn going on in a topic of the chat with the master: the lines of its log, the processes it started, its questions and what it waits for the owner to decide.",
-			registry.OwnerOnly, s.chatTurn).On("log", "asks", "processes"),
 		registry.Def("chat_topic_archive", "Archive topic",
 			"Archives a chat topic or brings it back; a new message brings it back too.",
 			registry.OwnerOnly, s.chatTopicArchive),
 		registry.Def("chat_message_delete", "Delete message",
 			"Deletes a message of the owner with its files while the master has not taken it; a message a turn took stays.",
 			registry.OwnerOnly, s.chatMessageDelete),
-		registry.Def("chat_retry", "Answer again on another provider",
-			"Answers the messages of a reply that broke off once more, on another provider the master may use, for this reply only.",
-			registry.OwnerOnly, s.chatRetry),
 		registry.Def("chat_topic_model_set", "Pick the model of a topic",
 			"Sets the model the master's replies in a chat topic go on from the next one; empty brings back the master's own model.",
 			registry.OwnerOnly, s.chatTopicModel),

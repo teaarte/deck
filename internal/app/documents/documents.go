@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -424,6 +425,10 @@ func (s *Service) documentRestore(ctx context.Context, act registry.Actor, in do
 
 // Commands are the commands of documents.
 func (s *Service) Commands() []*registry.Command {
+	return slices.Concat(s.documentsCommands(), s.revisionsCommands(), s.programsCommands())
+}
+
+func (s *Service) documentsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("documents_list", "List documents",
 			"Lists documents of a project, or workspace documents when no project is given; deleted ones for the owner when asked.",
@@ -440,11 +445,5 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
 			registry.OwnerOnly, s.documentRestore),
-		registry.Def("document_revert", "Revert document",
-			"Makes an earlier revision current again as a new revision.",
-			registry.OwnerSide, s.documentRevert),
-		registry.Def("program_check", "Check programs",
-			"Looks again for the programs the scripts of a project need, after the owner installed one, and updates the health of its commands.",
-			registry.OwnerSide, s.programsCheck),
 	}
 }

@@ -1,0 +1,29 @@
+# A run of ci with a job no runner took (macOS arm64 runners run short at times; GitHub gives such a job up after
+# about 15 minutes with no step run) runs its failed jobs again, up to the third attempt.
+name: ci again
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+permissions:
+  actions: write
+
+jobs:
+  again:
+    if: ${{ contains(fromJSON('["failure","cancelled"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.run_attempt < 3 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN: ${{ github.event.workflow_run.id }}
+      ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+    steps:
+      - name: Jobs no runner took
+        run: |
+          untaken=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/attempts/$ATTEMPT/jobs" --paginate \
+            --jq '.jobs[] | select((.conclusion == "cancelled" or .conclusion == "failure") and (.steps | length) == 0) | .name')
+          if [ -z "$untaken" ]; then echo "every job ran on a runner"; exit 0; fi
+          echo "no runner took:"; echo "$untaken"
+          gh run rerun "$RUN" --failed --repo "$GITHUB_REPOSITORY"

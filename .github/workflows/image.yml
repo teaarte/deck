@@ -1,12 +1,13 @@
-# deck's image from compose.yaml on a bare docker, when what builds or runs it changes and every night.
+# deck's image from compose.yaml on a bare docker, when what builds or runs it changes and every night; the Go code,
+# the data it embeds and web/dist build the binary of the image.
 name: image
 
 on:
   push:
     branches: [master]
-    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go]
+    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go, "*.go", go.mod, go.sum, cmd/**, internal/**, master/**, schemas/**, skills/**, starters/**, web/dist/**, web/embed.go]
   pull_request:
-    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go]
+    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go, "*.go", go.mod, go.sum, cmd/**, internal/**, master/**, schemas/**, skills/**, starters/**, web/dist/**, web/embed.go]
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:

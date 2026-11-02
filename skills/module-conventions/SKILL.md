@@ -51,8 +51,10 @@ Style:
 - Many records are a script's work: filter, batch and merge in code; an agent gets only the slice it judges.
 - A file of `$DECK_DATA` rewritten whole goes through a temporary name of its own run and `os.replace`; a
   read-modify-write holds the lock for the whole of it.
-- Runs that share more than one file — an install into `$DECK_DATA`, an engine, a browser, a merged work file —
-  are one at a time: `"runs": "one"` on the command, and deck queues the next call; no lock of your own.
+- A command runs one at a time by default and deck queues the next call: a command that writes something shared —
+  a collection by one key, the data folder, a clone of a repository, an install, an engine, a browser — keeps that
+  default, with no lock of its own. `"runs": "many"` only where runs share nothing they write, must answer while
+  another runs, or call themselves; check it whenever a module is made or brought in line with a new deck.
 - No secrets, keys or the owner's paths in code: a key is an HTTP tool of the manifest with `$secret.<name>`, a
   folder of the owner is read from a record of settings.
 - Files the owner should see go to `$DECK_RESULTS` and are named in the result (`files`); scratch files stay in
@@ -87,8 +89,8 @@ each with the file, the line and the case that fails:
   to do is not a failure;
 - a call without a timeout, a host outside `domains.read`, a key or path in code, a model called around deck;
 - a second run writes twice: no key, no cursor, a temporary file shared by runs, a read-modify-write without lock;
-- two runs at once break each other: shared installs or work files without `"runs": "one"`, a lock of the module's
-  own where `"runs": "one"` would do;
+- two runs at once break each other: `"runs": "many"` on a command that writes something shared, a lock of the
+  module's own where one at a time would do;
 - the manifest: an expression that breaks on a record without a field, a text without `i18n`, a right wider
   than the work needs (`external` tools that only read, `"*"` domains);
 - a prompt that leaves the result shape or the tools to guess, or asks a small model to check what a script can;

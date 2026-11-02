@@ -156,7 +156,7 @@ func TestTheBoxesACrashedDeckLeftAreKilledByTheirMarks(t *testing.T) {
 }
 
 // TestWithoutABoxDeckStartsNoForeignProgramAndSaysWhatToFix: a machine where bwrap is missing or refused runs no
-// script and says in health what the administrator adds.
+// script and says in health what the administrator adds; the row of scripts is red with it.
 func TestWithoutABoxDeckStartsNoForeignProgramAndSaysWhatToFix(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("the box of macOS stays sandbox-exec until deck moves into a Linux container there")
@@ -173,6 +173,9 @@ func TestWithoutABoxDeckStartsNoForeignProgramAndSaysWhatToFix(t *testing.T) {
 		if !strings.Contains(h.Error, says) || program == refusing && (!strings.Contains(h.Error, "apparmor=deck-box") ||
 			!strings.Contains(h.Error, "apparmor_parser -r /etc/apparmor.d/deck-box") || !strings.Contains(h.Error, "seccomp=./seccomp.json")) {
 			t.Fatalf("health says what to fix: %+v", h)
+		}
+		if h := e.WaitHealth("scripts", "error"); !strings.Contains(h.Error, "see the row sandbox") {
+			t.Fatalf("the row of scripts is red too and points to the row of the box: %+v", h)
 		}
 		e.Project("tools", harness.ScriptManifest("collect", "", ""))
 		e.SaveScript("tools", "scripts/main.py", "print('{}')\n")

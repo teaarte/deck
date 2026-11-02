@@ -469,6 +469,7 @@
   "no node": "нет node",
   "Scripts run on %s; %s.": "Скрипты работают на %s; %s.",
   "%s Python scripts cannot run: the owner installs python 3.10 or newer (%s).": "%s Скрипты на Python не запустятся: установите python 3.10 или новее (%s).",
+  "%s No script runs while deck cannot build the box of foreign programs: see the row sandbox.": "%s Ни один скрипт не запустится, пока deck не может собрать ящик для чужих программ: смотрите строку sandbox.",
   "%s It is older than 3.10: the owner installs a newer one (%s).": "%s Он старше 3.10: установите новее (%s).",
   "not installed; install it: %s": "не установлено; установите: %s",
   "deck is tested with version %s of this CLI, here runs %s: it works, but may differ": "deck проверен на версии %s этой программы, здесь стоит %s: она работает, но может вести себя иначе",

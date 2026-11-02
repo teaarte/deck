@@ -228,12 +228,15 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	if err := st.Tx(a.ctx, func(ctx context.Context, q *db.Queries) error { return health.Clear(ctx, q, health.Of{}, health.HTTPS) }); err != nil {
 		return nil, err
 	}
+	box, boxText := a.Documents.Box()
 	status, text := script.Runtimes().Health()
+	if box == health.Error {
+		status, text = health.Error, fmt.Sprintf("%s No script runs while deck cannot build the box of foreign programs: see the row sandbox.", text)
+	}
 	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Scripts, status, text); err != nil {
 		return nil, err
 	}
-	status, text = a.Documents.Box()
-	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Sandbox, status, text); err != nil {
+	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Sandbox, box, boxText); err != nil {
 		return nil, err
 	}
 	return a, nil

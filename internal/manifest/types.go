@@ -10,7 +10,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const FormatVersion = 15
+const FormatVersion = 16
 
 type Manifest struct {
 	Version         int          `json:"version"`
@@ -116,7 +116,8 @@ type Command struct {
 	Requires       []string        `json:"requires,omitempty"`
 	Provider       string          `json:"provider,omitempty"`
 	TimeoutMinutes int             `json:"timeout_minutes,omitempty"`
-	// Runs is RunsOne for a command whose next call waits until the run before it has ended.
+	// Runs is RunsOne, the default, for a command whose next call waits until the run before it has ended, RunsMany
+	// for one whose runs go side by side.
 	Runs     string   `json:"runs,omitempty"`
 	Executor Executor `json:"executor"`
 
@@ -124,8 +125,11 @@ type Command struct {
 	result *jsonschema.Schema
 }
 
-// RunsOne is a command that runs one at a time.
-const RunsOne = "one"
+// RunsOne is a command that runs one at a time, RunsMany one whose runs go side by side.
+const (
+	RunsOne  = "one"
+	RunsMany = "many"
+)
 
 type Executor struct {
 	Type       string   `json:"type"`

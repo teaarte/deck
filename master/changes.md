@@ -31,3 +31,8 @@ and bring the modules in line.
   Code and Codex keep a home per project in deck's folder, with the one login.
 - 2026-11-02: `models_list` gives the models that could do each kind of work once, in `choices` (`role`, `models`,
   `groups`); a row of `assignments` holds only `models`, `using` and `why`, no `choices` or `price`.
+- 2026-11-02, format 16: a command of a module runs one at a time unless it says `"runs": "many"`: a call while a
+  run goes on waits as a run of its own. The migration gave `"runs": "many"` to every command whose real runs went
+  side by side before, so nothing slowed; every other command without `runs` is one at a time now. Check each such
+  command of the modules (skill module-conventions): `many` only where runs write nothing in common, must answer at
+  once while another runs, or call themselves.

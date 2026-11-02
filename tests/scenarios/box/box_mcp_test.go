@@ -98,7 +98,7 @@ func TestMCPCallLostWithItsServerIsAnUnknownOutcome(t *testing.T) {
 	got := map[string]harness.ToolCall{}
 	args := map[string]map[string]any{"srv__fake__vanish": {"to": "ann"}, "srv__fake__lookup": {"word": "moon"}}
 	e := harness.New(t, harness.WithAgent(stepAgent(got, args)))
-	e.Project("srv", harness.McpManifest(`, "allowed_external": ["fake.vanish"]`))
+	e.Project("srv", harness.Many(harness.McpManifest(`, "allowed_external": ["fake.vanish"]`)))
 	dir := e.McpDir("srv", "fake")
 	e.WaitState(e.Start("srv", "work", map[string]any{"step": "srv__fake__vanish"}), "done", "waiting_answer")
 	if c := got["srv__fake__vanish"]; !c.IsErr || !strings.Contains(c.Out, "outcome is unknown") {

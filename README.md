@@ -79,7 +79,11 @@ For those who want to know how it holds together; the full picture is in
   confirmations to the owner, nothing else. Scripts get an HTTP entry with a per-run token.
 - **Sandboxed, with one way out.** Every program of a module — a script, an MCP server, Claude Code, Codex, an ACP
   agent — runs in a box of its own (bubblewrap on Linux) that sees only its folders and reaches only the hosts its
-  rights name, through deck's proxy: a name resolves once, only public addresses are dialed. Model keys live in the
+  rights name, through deck's proxy: a name resolves once, only public addresses are dialed. The proxy sees the host,
+  not the method: a host a module may read is a host its programs may also send to, so grant `domains.read` as
+  network; clicking, typing and submitting in the browser (`domains.act`) is what waits for your consent. A service on
+  your machine or network is named by its IP:port, never by a name (Codex on a local model too: its `base_url` by
+  IP:port). Model keys live in the
   proxy, never in a module. The login of Claude Code or Codex is one for all projects, and the agent in a box can read
   it, as the CLI does; another project's data it cannot. On macOS, until deck runs in a Linux container there,
   scripts, MCP servers and ACP agents run under `sandbox-exec`, and Claude Code and Codex outside it, as the owner's.

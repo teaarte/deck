@@ -40,7 +40,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 	t.Parallel()
 	release := make(chan struct{}, 10)
 	e := harness.New(t, harness.WithAgent(held(release)))
-	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.Many(harness.AgentCommand("job", ""))}, nil))
 	var ids []int64
 	for range 3 {
 		ids = append(ids, e.Run(p, "job"))
@@ -108,7 +108,7 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
 	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.Many(harness.AgentCommand("job", ""))}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	e.Until("one running, one waiting", func() bool {
 		s := states(e, []int64{a, b})
@@ -176,7 +176,7 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 	first := &harness.Fake{Script: held(make(chan struct{}))}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
 	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.Many(harness.AgentCommand("job", ""))}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	e.Until("one running, one waiting", func() bool {
 		got := states(e, []int64{a, b})
@@ -202,7 +202,7 @@ func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(held(make(chan struct{}))))
 	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.Many(harness.AgentCommand("job", ""))}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	either := func(got string) bool { return got == "running waiting_slot" || got == "waiting_slot running" }
 	e.Until("one running, one waiting", func() bool { return either(states(e, []int64{a, b})) })
@@ -232,7 +232,7 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 	}))
 
 	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("boss", ""), harness.AgentCommand("job", "")}, nil))
+	p := e.Project("jobs", harness.TestManifest([]string{harness.Many(harness.AgentCommand("boss", "")), harness.Many(harness.AgentCommand("job", ""))}, nil))
 	boss := e.Run(p, "boss")
 	e.Until("the boss to hold the slot", func() bool { return len(e.Fake.Calls()) == 1 })
 	ids := []int64{e.Run(p, "job"), e.Run(p, "job")}

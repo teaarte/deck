@@ -91,11 +91,13 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
     mp3 in the voice of the options of its model in deck's settings (deck sends no voice of its own; the owner sets one
     per model when its service needs one), unless the options of the command name another.
   A script that cannot do something reliably becomes an agent, not a bigger script. `timeout_minutes` raises
-  the ceiling of a slow command (agents 60, scripts 10 by default). `"runs": "one"` makes a command run one at a
-  time: a call while a run goes on is a run of its own that waits ("waits for the run before it") and starts once
-  the runs before it have ended — for runs that share an install, an engine, a browser or a work file of
-  `$DECK_DATA`; the module writes no lock of its own for that. Such a command never calls itself: the call would wait
-  for the run that waits for it.
+  the ceiling of a slow command (agents 60, scripts 10 by default). A command runs one at a time by default
+  (`"runs": "one"`): a call while a run goes on is a run of its own that waits ("waits for the run before it") and
+  starts once the runs before it have ended, so runs that write the same records, files of `$DECK_DATA`, a clone,
+  an install, an engine or a browser never break each other; the module writes no lock of its own for that.
+  `"runs": "many"` lets runs go side by side — only for a command whose runs write nothing in common (each its own
+  record and files), that must answer at once while another of its runs goes on, or that calls itself (a command
+  of one at a time that calls itself waits for the run that waits for it).
 - **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
   input (path or query, never the host), `headers` with `$secret.<name>` (a secret of this module: the owner stores
   it with `secret_set` for the module, no other module reads it; deck cuts it out of what the service answers), `body`
@@ -400,7 +402,8 @@ These live here, not in deck: deck stays small and you combine them.
   agrees to (the last two weeks, the current thread) and name it in the hand-over.
 - **Search over big data**: a script builds an index (SQLite, a vector file, anything) in `$DECK_DATA`, the
   project's own data folder that survives runs and goes into snapshots; a `search` command reads it.
-- **Files of `$DECK_DATA` written by more than one run**: runs of a project go side by side, the same command too.
+- **Files of `$DECK_DATA` written by more than one run**: runs of different commands go side by side, and those of a
+  command with `"runs": "many"`.
   A file rewritten whole goes through a temporary name of its own run (`f"{path}.{os.getpid()}.tmp"`, then
   `os.replace`), and a read-modify-write of one file holds a lock for the whole of it (`fcntl.flock` on a
   `.lock` file beside it); a shared `.tmp` name is two runs replacing each other's file.
@@ -421,10 +424,13 @@ everything its shell starts — runs in a box of its own that sees and reaches o
   data are not there. A file of the owner elsewhere is opened by the owner adding its folder to the project (its
   settings, Access → "Add a folder"): ask for that, never copy the file around the box. A program names the path it
   was refused in its stderr (`No such file or directory`, `Operation not permitted`);
-- network: only through deck's door, to `domains.read` (`"*"` opens every public host, a right the owner gives). A
-  domain is a host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`;
-  a name reaches only public addresses, so a service on the owner's machine or network is named by its IP or
-  IP:port. The shell of an agent reaches its provider and deck, and with any `domains.read` also the package
+- network: only through deck's door, to `domains.read` (`"*"` opens every public host, a right the owner gives). The
+  door sees the host, not the method: `domains.read` is network — a program may send to such a host, not only GET
+  from it — so ask for it as network and say so in the hand-over; acting on a site without the owner is only
+  `domains.act` in the browser, where a click or a form outside it waits for their consent. A domain is a host
+  (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name reaches
+  only public addresses, so a service on the owner's machine or network is named by its IP:port, never by a name
+  (a model on the owner's machine for Codex or a script too: `base_url` by IP:port). The shell of an agent reaches its provider and deck, and with any `domains.read` also the package
   registries (PyPI, npm, the go proxy), GitHub and Hugging Face; without `domains` an agent reaches only its
   provider and deck. The CLIs' own web search and fetch are off: an agent searches with deck's `web_search` and
   reads pages of `domains.read` with `web_fetch`;

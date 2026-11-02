@@ -537,7 +537,7 @@ func TestReworkKeepsTheRetryKeyUnique(t *testing.T) {
 	}))
 
 	defer close(release)
-	e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
+	e.Project("jobs", harness.TestManifest([]string{harness.Many(harness.AgentCommand("work", ""))}, nil))
 	var first, second struct{ Process int64 }
 	e.Must("jobs.work", map[string]any{"retry_key": "a"}, &first)
 	e.WaitState(first.Process, "done")

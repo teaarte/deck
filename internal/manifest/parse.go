@@ -70,8 +70,11 @@ func Parse(raw []byte) (*Manifest, error) {
 }
 
 // defaults fills what a manifest leaves out and writes its domains one way, before any check reads it: an HTTP tool
-// is external, a domain lower case with "*.x" as x, which already takes the subdomains of x.
+// is external, a command runs one at a time, a domain lower case with "*.x" as x, which already takes the subdomains of x.
 func (m *Manifest) defaults() {
+	for i := range m.Commands {
+		m.Commands[i].Runs = cmp.Or(m.Commands[i].Runs, RunsOne)
+	}
 	for i := range m.Tools.HTTP {
 		m.Tools.HTTP[i].Class = cmp.Or(m.Tools.HTTP[i].Class, registry.External)
 	}

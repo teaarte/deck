@@ -176,7 +176,7 @@ func TwoModels(t *testing.T, main, backup func(context.Context, *Call) provider.
 	t.Helper()
 	m, b := &Fake{Script: main}, &Fake{ProviderName: "backup", Script: backup}
 	e := New(t, append([]Option{WithProvider(m, b)}, opts...)...)
-	p := e.Project("plain", TestManifest([]string{AgentCommand("work", `{"type": "object", "properties": {"n": {"type": "integer"}}}`)}, nil))
+	p := e.Project("plain", TestManifest([]string{Many(AgentCommand("work", `{"type": "object", "properties": {"n": {"type": "integer"}}}`))}, nil))
 	e.UseModels("plain.work", "fake", "backup")
 	return e, b, p
 }

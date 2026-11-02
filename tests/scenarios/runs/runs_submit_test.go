@@ -32,7 +32,7 @@ func TestAResultHandedInStaysWhenACallComesAndTheProcessIsStopped(t *testing.T) 
 		return provider.Result{Text: "Done."}
 	}}
 	e := harness.New(t, harness.WithProvider(fake))
-	e.Project("clips", harness.ClipsModule)
+	e.Project("clips", harness.Many(harness.ClipsModule))
 	e.SaveScript("clips", "scripts/render.py", harness.ClipsRender)
 	a := e.Clip("a")
 	first := e.Start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
@@ -108,7 +108,7 @@ func TestDeckHandsTheMasterTheIncidentsAroundAProcess(t *testing.T) {
 	m = strings.Replace(m, `{"after": "revise", "command": "render"}`, `{"after": "revise", "command": "render"}, {"after": "revise", "command": "label"}`, 1)
 	m = strings.Replace(m, `"commands": [`, `"commands": [{"name": "label", "title": "Label", "description": "Labels a clip.", "class": "internal",
      "input": {"type": "object", "properties": {"record": {"type": "integer"}, "process": {"type": "integer", "format": "process"}}}, "executor": {"type": "script", "script": "label"}},`, 1)
-	e.Project("clips", m)
+	e.Project("clips", harness.Many(m))
 	e.SaveScript("clips", "scripts/render.py", harness.ClipsRender)
 	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": false}, nil)
 	e.UseModels("master.on_incident", "quiet")

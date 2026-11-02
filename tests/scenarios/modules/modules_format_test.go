@@ -69,3 +69,52 @@ func TestAStoredManifestOfFormat14ReadsInFormat15(t *testing.T) {
 		t.Fatalf("one module had no_network with domains, told %d times: %+v", told, feed)
 	}
 }
+
+// TestAStoredManifestOfFormat15ReadsInFormat16: a command runs one at a time in format 16 unless it says runs many,
+// so a stored command without runs whose real runs went side by side gets runs many, and only such a one.
+func TestAStoredManifestOfFormat15ReadsInFormat16(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithHome(t.TempDir()))
+	one := strings.Replace(harness.AgentCommand("kept", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1)
+	m := harness.TestManifest([]string{harness.AgentCommand("beside", ""), harness.AgentCommand("after", ""), one}, nil)
+	p := e.Project("jobs", m)
+	// The manifest of format 15 an older deck kept.
+	e.PlantRevision("jobs", "manifest.json", manifest.Canonical(harness.ManifestVersion(m, "15")))
+	// The runs an older deck kept: beside overlapped, after ran one after another, and only its trials overlapped.
+	e.SQL(`INSERT INTO process (project_id, command, state, trial, started_at, finished_at) VALUES
+		(?, 'beside', 'done', 0, '2026-10-01T10:00:00.000Z', '2026-10-01T10:30:00.000Z'),
+		(?, 'beside', 'done', 0, '2026-10-01T10:10:00.000Z', '2026-10-01T10:20:00.000Z'),
+		(?, 'after', 'done', 0, '2026-10-01T10:00:00.000Z', '2026-10-01T10:05:00.000Z'),
+		(?, 'after', 'done', 0, '2026-10-01T10:06:00.000Z', '2026-10-01T10:07:00.000Z'),
+		(?, 'after', 'done', 1, '2026-10-01T11:00:00.000Z', '2026-10-01T11:30:00.000Z'),
+		(?, 'after', 'done', 1, '2026-10-01T11:10:00.000Z', '2026-10-01T11:20:00.000Z'),
+		(?, 'kept', 'done', 0, '2026-10-01T10:00:00.000Z', '2026-10-01T10:30:00.000Z'),
+		(?, 'kept', 'done', 0, '2026-10-01T10:10:00.000Z', '2026-10-01T10:40:00.000Z')`, p, p, p, p, p, p, p, p)
+	// A base an older deck left: the manifests of format 15.
+	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 58`)
+
+	e = e.Restart()
+	var doc struct{ Text string }
+	e.Must("deck.document_get", map[string]any{"project": "jobs", "name": "manifest.json"}, &doc)
+	var got struct {
+		Version  int `json:"version"`
+		Commands []struct {
+			Name string `json:"name"`
+			Runs string `json:"runs"`
+		} `json:"commands"`
+	}
+	if err := json.Unmarshal([]byte(doc.Text), &got); err != nil || got.Version != manifest.FormatVersion || len(got.Commands) != 3 {
+		t.Fatalf("the manifest is of format 16: %v %s", err, doc.Text)
+	}
+	runs := map[string]string{}
+	for _, c := range got.Commands {
+		runs[c.Name] = c.Runs
+	}
+	if runs["beside"] != "many" || runs["after"] != "" || runs["kept"] != "one" {
+		t.Fatalf("only the command whose real runs went side by side runs many: %v", runs)
+	}
+	if doc.Text != manifest.Canonical(doc.Text) {
+		t.Fatalf("the manifest keeps the one stored form: %s", doc.Text)
+	}
+	e.Must("deck.manifest_check", map[string]any{"project": "jobs"}, nil)
+}

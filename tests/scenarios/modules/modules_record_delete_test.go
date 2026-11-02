@@ -203,7 +203,7 @@ func TestDeletingARecordStopsItsOpenProcesses(t *testing.T) {
 		return provider.Result{}
 	}))
 
-	e.Project("films", cascadeModule)
+	e.Project("films", harness.Many(cascadeModule))
 	ids := videos(e, map[string]any{"slug": "knights", "dir": "knights"}, map[string]any{"slug": "snails", "dir": "snails"})
 	watch := e.Start("films", "watch", map[string]any{"record": ids["knights"]})
 	other := e.Start("films", "watch", map[string]any{"record": ids["snails"]})

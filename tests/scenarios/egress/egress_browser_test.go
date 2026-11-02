@@ -19,7 +19,7 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 	t.Parallel()
 	ag := &harness.SeqAgent{}
 	e := harness.New(t, harness.WithAgent(ag.Script))
-	e.Project("web", harness.BrowserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`))
+	e.Project("web", harness.Many(harness.BrowserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`)))
 
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/cart"), harness.Click("e2"))), "done")
 	if got := ag.Last(2); got[0].IsErr || got[1].IsErr || !slices.Contains(harness.FakeLog(e.Browser), "click:https://shop.example/cart") {
@@ -166,7 +166,7 @@ func TestBrowserWithholdsPagesOffTheDomainsAndSurvivesALostAction(t *testing.T) 
 	t.Parallel()
 	ag := &harness.SeqAgent{}
 	e := harness.New(t, harness.WithAgent(ag.Script))
-	e.Project("web", harness.BrowserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`))
+	e.Project("web", harness.Many(harness.BrowserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`)))
 	_ = os.WriteFile(filepath.Join(e.Browser, "goto"), []byte("https://bank.example/account"), 0o600)
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/"), harness.Click("e1"), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}})), "done")
 	got := ag.Last(2)

@@ -205,6 +205,12 @@ func FilesManifest() string {
     {"name": "read", "file": "scripts/read.py", "runtime": "python"}]}`)
 }
 
+// Many lets the runs of every command of a manifest or of one command go side by side: a command runs one at a time
+// unless it says runs many.
+func Many(s string) string {
+	return strings.ReplaceAll(s, `"executor": {`, `"runs": "many", "executor": {`)
+}
+
 // FolderCommand is an agent command of a test manifest that works in a project folder.
 func FolderCommand(name, folder string) string {
 	return strings.Replace(AgentCommand(name, ""), `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": `+folder+`,`, 1)

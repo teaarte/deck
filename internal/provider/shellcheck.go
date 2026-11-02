@@ -164,7 +164,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			c.Err = fmt.Errorf("%s: the model API refused a call with tools (%s): it may not take tool calls for this model; pick a model or a connection that does", what, res.Refusal)
 		case res.Refusal != "" && raw == nil:
 			c.Err = fmt.Errorf("%s: the model API refused what %s sent (%s): %s and this connection do not fit; pick another agent or connection for the model", what, s.Agent, res.Refusal, s.Agent)
-		case res.Fault != nil:
+		case res.Fault != nil || res.SessionMissing:
 			c.Err = fmt.Errorf("%s: %s", what, res.Text)
 		case raw == nil && asked == 0 && !wrote(work, word):
 			model(fmt.Errorf("%s: the model made no tool call and answered in words: the API may not pass tools to it, or it does not use them (%s)", what, said(res.Text)))

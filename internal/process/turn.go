@@ -361,7 +361,8 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			if raw == "" {
 				raw = res.Text
 			}
-			r.settle(bg, a.run, raw, nil)
+			// Off its schema twice, the result ends done and nothing acts on it.
+			r.finish(bg, processID, StateDone, raw, true, nil)
 		default:
 			retried = true
 			req.Resume = true

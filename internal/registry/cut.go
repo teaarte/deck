@@ -52,6 +52,10 @@ func (sh shape) unknown(v any, asked []string) (bad, names []string) {
 		rows = l
 	} else if m, ok := v.(map[string]any); ok && sh.rows != "" {
 		l, _ := m[sh.rows].([]any)
+		// Rows of no type tell their fields only by themselves.
+		if len(l) == 0 && len(sh.row) == 0 {
+			return nil, nil
+		}
 		rows = append(rows, l...)
 	}
 	known := map[string]bool{}

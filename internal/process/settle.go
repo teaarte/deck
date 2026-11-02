@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
@@ -88,7 +89,13 @@ func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) 
 	}
 	kept, err := r.kept(ctx, u, result)
 	if err != nil {
+		if !u.agent {
+			result = ""
+		}
 		r.finish(ctx, u.process, StateError, result, false, fault.Of(err))
+		if u.cmd.Executor.Type == KindScript {
+			r.failedInARow(ctx, u.turn, err.Error())
+		}
 		return
 	}
 	r.finish(ctx, u.process, StateDone, kept, false, nil)
@@ -103,6 +110,14 @@ func (r *Runner) kept(ctx context.Context, u *run, result string) (string, error
 			r.warn(ctx, u.process, "deck kept none of the files the turn left: "+err.Error())
 		}
 		return result, nil
+	}
+	if u.cmd.Executor.Type == KindScript {
+		// A script's results are moved aside first, so nothing it left running changes them while deck keeps them.
+		frozen := filepath.Join(r.runDir(u.process), "kept")
+		if err := os.Rename(results, frozen); err != nil {
+			return "", err
+		}
+		results = frozen
 	}
 	return r.keepFiles(ctx, u.project, u.process, results, result)
 }

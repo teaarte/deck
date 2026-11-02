@@ -2,6 +2,24 @@
   "name": "spend",
   "icon": "chart-bar",
   "title": "Spend",
+  "params": {
+    "period": {
+      "type": "string",
+      "default": "Today"
+    }
+  },
+  "side": [
+    {
+      "type": "filter",
+      "title": "Period",
+      "param": "period",
+      "options": [
+        "Today",
+        "7 days",
+        "30 days"
+      ]
+    }
+  ],
   "blocks": [
     {
       "type": "stat",
@@ -22,7 +40,7 @@
           "verb": "open",
           "screen": "spend",
           "params": {
-            "tab": "30 days"
+            "period": "30 days"
           }
         }
       ]
@@ -48,352 +66,123 @@
           "verb": "open",
           "screen": "spend",
           "params": {
-            "tab": "30 days"
+            "period": "30 days"
           }
         }
       ]
     },
     {
-      "type": "tabs",
-      "tabs": [
+      "type": "chart",
+      "title": "Paid by day",
+      "kind": "bar",
+      "span": "full",
+      "source": {
+        "from": "deck.spend_days_list",
+        "input": {
+          "days": "={'Today': 1, '7 days': 7, '30 days': 30}[param.period] ?? 30"
+        }
+      },
+      "x": "day",
+      "format": "money",
+      "currency": "USD",
+      "series": [
         {
-          "title": "Today",
-          "icon": "clock",
-          "blocks": [
-            {
-              "type": "table",
-              "title": "By module",
-              "span": 1,
-              "source": {
-                "from": "deck.spend_days_list",
-                "input": {
-                  "days": 1,
-                  "by": "project"
-                },
-                "sort": "-cost_usd"
-              },
-              "description": "What each module paid for models; work on a subscription costs nothing beyond it.",
-              "empty": "No model calls",
-              "columns": [
-                {
-                  "label": "Module",
-                  "bind": "title",
-                  "format": "tag"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Subscription ≈",
-                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Calls",
-                  "bind": "calls"
-                },
-                {
-                  "label": "Tokens",
-                  "bind": "tokens",
-                  "format": "compact"
-                }
-              ]
-            },
-            {
-              "type": "table",
-              "title": "By model",
-              "span": 1,
-              "source": {
-                "from": "deck.spend_days_list",
-                "input": {
-                  "days": 1,
-                  "by": "provider"
-                }
-              },
-              "empty": "No model calls",
-              "columns": [
-                {
-                  "label": "Provider",
-                  "bind": "group ?? ''"
-                },
-                {
-                  "label": "Model",
-                  "bind": "provider",
-                  "format": "tag"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Share",
-                  "bind": "share",
-                  "format": "percent"
-                },
-                {
-                  "label": "Calls",
-                  "bind": "calls"
-                },
-                {
-                  "label": "Tokens",
-                  "bind": "tokens",
-                  "format": "compact"
-                },
-                {
-                  "label": "Subscription ≈",
-                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
-                  "format": "money",
-                  "currency": "USD"
-                }
-              ]
-            }
-          ]
+          "label": "Paid",
+          "y": "cost_usd"
+        }
+      ],
+      "when": "param.period != 'Today'"
+    },
+    {
+      "type": "table",
+      "title": "By module",
+      "span": 1,
+      "source": {
+        "from": "deck.spend_days_list",
+        "input": {
+          "days": "={'Today': 1, '7 days': 7, '30 days': 30}[param.period] ?? 30",
+          "by": "project"
+        },
+        "sort": "-cost_usd"
+      },
+      "description": "What each module paid for models; work on a subscription costs nothing beyond it.",
+      "empty": "No model calls",
+      "columns": [
+        {
+          "label": "Module",
+          "bind": "title",
+          "format": "tag"
         },
         {
-          "title": "7 days",
-          "icon": "calendar-week",
-          "blocks": [
-            {
-              "type": "chart",
-              "title": "Paid by day",
-              "kind": "bar",
-              "span": "full",
-              "source": {
-                "from": "deck.spend_days_list",
-                "input": {
-                  "days": 7
-                }
-              },
-              "x": "day",
-              "format": "money",
-              "currency": "USD",
-              "series": [
-                {
-                  "label": "Paid",
-                  "y": "cost_usd"
-                }
-              ]
-            },
-            {
-              "type": "table",
-              "title": "By module",
-              "span": 1,
-              "source": {
-                "from": "deck.spend_days_list",
-                "input": {
-                  "days": 7,
-                  "by": "project"
-                },
-                "sort": "-cost_usd"
-              },
-              "description": "What each module paid for models; work on a subscription costs nothing beyond it.",
-              "empty": "No model calls",
-              "columns": [
-                {
-                  "label": "Module",
-                  "bind": "title",
-                  "format": "tag"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Subscription ≈",
-                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Calls",
-                  "bind": "calls"
-                },
-                {
-                  "label": "Tokens",
-                  "bind": "tokens",
-                  "format": "compact"
-                }
-              ]
-            },
-            {
-              "type": "table",
-              "title": "By model",
-              "span": 1,
-              "source": {
-                "from": "deck.spend_days_list",
-                "input": {
-                  "days": 7,
-                  "by": "provider"
-                }
-              },
-              "empty": "No model calls",
-              "columns": [
-                {
-                  "label": "Provider",
-                  "bind": "group ?? ''"
-                },
-                {
-                  "label": "Model",
-                  "bind": "provider",
-                  "format": "tag"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Share",
-                  "bind": "share",
-                  "format": "percent"
-                },
-                {
-                  "label": "Calls",
-                  "bind": "calls"
-                },
-                {
-                  "label": "Tokens",
-                  "bind": "tokens",
-                  "format": "compact"
-                },
-                {
-                  "label": "Subscription ≈",
-                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
-                  "format": "money",
-                  "currency": "USD"
-                }
-              ]
-            }
-          ]
+          "label": "Paid",
+          "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+          "format": "money",
+          "currency": "USD"
         },
         {
-          "title": "30 days",
-          "icon": "calendar-month",
-          "blocks": [
-            {
-              "type": "chart",
-              "title": "Paid by day",
-              "kind": "bar",
-              "span": "full",
-              "source": {
-                "from": "deck.spend_days_list",
-                "input": {
-                  "days": 30
-                }
-              },
-              "x": "day",
-              "format": "money",
-              "currency": "USD",
-              "series": [
-                {
-                  "label": "Paid",
-                  "y": "cost_usd"
-                }
-              ]
-            },
-            {
-              "type": "table",
-              "title": "By module",
-              "span": 1,
-              "source": {
-                "from": "deck.spend_days_list",
-                "input": {
-                  "days": 30,
-                  "by": "project"
-                },
-                "sort": "-cost_usd"
-              },
-              "description": "What each module paid for models; work on a subscription costs nothing beyond it.",
-              "empty": "No model calls",
-              "columns": [
-                {
-                  "label": "Module",
-                  "bind": "title",
-                  "format": "tag"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Subscription ≈",
-                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Calls",
-                  "bind": "calls"
-                },
-                {
-                  "label": "Tokens",
-                  "bind": "tokens",
-                  "format": "compact"
-                }
-              ]
-            },
-            {
-              "type": "table",
-              "title": "By model",
-              "span": 1,
-              "source": {
-                "from": "deck.spend_days_list",
-                "input": {
-                  "days": 30,
-                  "by": "provider"
-                }
-              },
-              "empty": "No model calls",
-              "columns": [
-                {
-                  "label": "Provider",
-                  "bind": "group ?? ''"
-                },
-                {
-                  "label": "Model",
-                  "bind": "provider",
-                  "format": "tag"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Share",
-                  "bind": "share",
-                  "format": "percent"
-                },
-                {
-                  "label": "Calls",
-                  "bind": "calls"
-                },
-                {
-                  "label": "Tokens",
-                  "bind": "tokens",
-                  "format": "compact"
-                },
-                {
-                  "label": "Subscription ≈",
-                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
-                  "format": "money",
-                  "currency": "USD"
-                }
-              ]
-            }
-          ]
+          "label": "Subscription ≈",
+          "bind": "subscription_usd > 0 ? subscription_usd : nil",
+          "format": "money",
+          "currency": "USD"
+        },
+        {
+          "label": "Calls",
+          "bind": "calls"
+        },
+        {
+          "label": "Tokens",
+          "bind": "tokens",
+          "format": "compact"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "By model",
+      "span": 1,
+      "source": {
+        "from": "deck.spend_days_list",
+        "input": {
+          "days": "={'Today': 1, '7 days': 7, '30 days': 30}[param.period] ?? 30",
+          "by": "provider"
+        }
+      },
+      "empty": "No model calls",
+      "columns": [
+        {
+          "label": "Provider",
+          "bind": "group ?? ''"
+        },
+        {
+          "label": "Model",
+          "bind": "provider",
+          "format": "tag"
+        },
+        {
+          "label": "Paid",
+          "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+          "format": "money",
+          "currency": "USD"
+        },
+        {
+          "label": "Share",
+          "bind": "share",
+          "format": "percent"
+        },
+        {
+          "label": "Calls",
+          "bind": "calls"
+        },
+        {
+          "label": "Tokens",
+          "bind": "tokens",
+          "format": "compact"
+        },
+        {
+          "label": "Subscription ≈",
+          "bind": "subscription_usd > 0 ? subscription_usd : nil",
+          "format": "money",
+          "currency": "USD"
         }
       ]
     }

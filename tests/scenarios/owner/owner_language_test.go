@@ -70,8 +70,8 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	drawn, _ := json.Marshal(e.ScreenMessages("", "spend", map[string]any{"lang": "ru"}))
-	if !strings.Contains(string(drawn), `"Сегодня"`) || !strings.Contains(string(drawn), `"key":"Today"`) || !strings.Contains(string(drawn), `"key":"30 days"`) {
+	drawn, _ := json.Marshal(e.ScreenMessages("", "schedule", map[string]any{"lang": "ru"}))
+	if !strings.Contains(string(drawn), `"Запуски"`) || !strings.Contains(string(drawn), `"key":"Schedule"`) || !strings.Contains(string(drawn), `"key":"Runs"`) {
 		t.Fatalf("a tab shows its title translated and keeps its key: %s", drawn)
 	}
 	twice := strings.Replace(harness.WebNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [

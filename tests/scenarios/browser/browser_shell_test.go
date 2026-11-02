@@ -110,7 +110,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the icons of a block and its button", `document.querySelector('[data-block-icon] [data-icon="notes"]') && document.querySelector('button [data-icon="arrow-right"]')`)
 	b.shot("shell-light")
 
-	b.open(e.URL + "/#/deck/spend?tab=30 days")
+	b.open(e.URL + "/#/deck/spend?period=30 days")
 	b.until("the stats and the chart of the spend", `[...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).length === 2 && [...document.querySelectorAll('[data-chart-block] svg')].some((x) => x.getBoundingClientRect().width > 0)`)
 	if got := b.eval(`String(new Set([...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).map((x) => Math.round(x.closest('[data-block]').getBoundingClientRect().top))).size)`); got != "1" {
 		t.Fatalf("the two numbers of the spend stand in one row: %s", got)

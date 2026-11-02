@@ -92,5 +92,5 @@ func SeenOf(f db.File) Seen {
 	if !f.ThumbID.Valid || f.ThumbID.Int64 == 0 {
 		return Seen{}
 	}
-	return Seen{Thumb: fmt.Sprintf("/api/files/%d", f.ThumbID.Int64), Width: f.Width, Height: f.Height, Color: f.Color}
+	return Seen{Thumb: At(f.ThumbID.Int64), Width: f.Width, Height: f.Height, Color: f.Color}
 }

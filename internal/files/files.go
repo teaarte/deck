@@ -22,6 +22,9 @@ import (
 // Results is the prefix of a file reference into the results folder of the calling process.
 const Results = "results/"
 
+// At is the address deck gives a stored file at.
+func At(id int64) string { return "/api/files/" + strconv.FormatInt(id, 10) }
+
 // Ref is a file an input points to; a results file is opened again inside its folder whenever it is read.
 type Ref struct {
 	ID   int64

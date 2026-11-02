@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strconv"
 
@@ -87,7 +86,7 @@ type fileView struct {
 }
 
 func viewFile(f db.File) fileView {
-	return fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, URL: fmt.Sprintf("/api/files/%d", f.ID), Seen: files.SeenOf(f)}
+	return fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, URL: files.At(f.ID), Seen: files.SeenOf(f)}
 }
 
 // made are the files a reply and the processes it started kept, in order.

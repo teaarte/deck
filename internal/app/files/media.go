@@ -64,7 +64,7 @@ func (s *Service) File(ctx context.Context, p db.Project, ref any) (map[string]a
 	if err != nil || f.ProjectID != p.ID {
 		return nil, fmt.Errorf("no file %d in %s", id, cmp.Or(p.Name, "this workspace"))
 	}
-	out := map[string]any{"name": f.Name, "type": f.Type, "size": f.Size, "url": fmt.Sprintf("/api/files/%d", f.ID)}
+	out := map[string]any{"name": f.Name, "type": f.Type, "size": f.Size, "url": files.At(f.ID)}
 	if seen := files.SeenOf(f); seen.Thumb != "" {
 		out["thumb"], out["width"], out["height"], out["color"] = seen.Thumb, seen.Width, seen.Height, seen.Color
 	}

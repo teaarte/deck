@@ -1,7 +1,6 @@
 package files
 
 import (
-	"fmt"
 	"slices"
 
 	"deck2/internal/store/db"
@@ -57,9 +56,9 @@ func CoverOf(pics []db.Picture, project int64, theme string) *Cover {
 	if light == nil {
 		return nil
 	}
-	c := &Cover{Light: fmt.Sprintf("/api/files/%d", Shown(*light)), Color: light.Color, Theme: light.Theme}
+	c := &Cover{Light: At(Shown(*light)), Color: light.Color, Theme: light.Theme}
 	if dark != nil {
-		c.Dark, c.DarkColor = fmt.Sprintf("/api/files/%d", Shown(*dark)), dark.Color
+		c.Dark, c.DarkColor = At(Shown(*dark)), dark.Color
 	}
 	return c
 }
@@ -74,9 +73,9 @@ func ThemeImage(pics []db.Picture, slot, theme string) *Cover {
 	}
 	shown := func(p db.Picture) string {
 		if slot == "cockpit" {
-			return fmt.Sprintf("/api/files/%d", Shown(p))
+			return At(Shown(p))
 		}
-		return fmt.Sprintf("/api/files/%d", p.FileID)
+		return At(p.FileID)
 	}
 	return &Cover{Light: shown(*light), Dark: shown(*dark), Color: light.Color, DarkColor: dark.Color, Theme: theme}
 }

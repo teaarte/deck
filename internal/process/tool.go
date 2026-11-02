@@ -3,8 +3,6 @@ package process
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"os"
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
@@ -85,29 +83,23 @@ func (r *Runner) runModel(ctx context.Context, t turn, trial bool) {
 func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call func(db.Project) (string, json.RawMessage, error)) {
 	bg := context.WithoutCancel(ctx)
 	id := t.process
-	dir := r.runDir(id)
-	fail := func(err error) {
-		r.clearRun(dir)
-		r.finish(bg, id, StateError, "", false, fault.Of(err))
-	}
+	u := &run{turn: t}
 	proj, err := r.st.Q.GetProject(bg, t.project)
 	if err != nil {
-		fail(err)
-		return
-	}
-	if err := os.MkdirAll(r.cfg.Home.Results(id), 0o700); err != nil {
-		fail(err)
+		r.settle(bg, u, "", fault.Of(err))
 		return
 	}
 	name, input, err := call(proj)
 	if err != nil {
-		fail(err)
+		r.settle(bg, u, "", fault.Of(err))
 		return
 	}
-	if err := r.startCeiling(bg, id); err != nil {
-		fail(err)
+	u, f := r.begin(bg, t, proj, nil)
+	if f != nil {
+		r.settle(bg, &run{turn: t}, "", f)
 		return
 	}
+	defer u.close(r)
 	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial, Run: t.cmd.Executor.Type}
 	var out any
 	if tool {
@@ -115,15 +107,11 @@ func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call fun
 	} else {
 		out, err = r.gw.CallAs(ctx, act, name, input)
 	}
-	if r.cut(bg, ctx, id) {
-		if r.ctx.Err() == nil {
-			r.clearRun(dir)
-		}
+	if r.cutRun(bg, ctx, u) {
 		return
 	}
 	if err != nil {
-		r.clearRun(dir)
-		r.finish(bg, id, StateError, "", false, fault.OfCall(err))
+		r.settle(bg, u, "", fault.OfCall(err))
 		return
 	}
 	if _, ok := out.(gateway.Waiting); ok {
@@ -131,13 +119,11 @@ func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call fun
 		return
 	}
 	res, _ := json.Marshal(out)
-	r.toolResult(bg, t.project, t.cmd, id, res)
+	r.settle(bg, u, string(callResult(res)), nil)
 }
 
-// toolResult closes a tool process with what its call gave; a file the tool saved belongs to the process.
-func (r *Runner) toolResult(ctx context.Context, projectID int64, cmd *manifest.Command, id int64, res json.RawMessage) {
-	dir := r.runDir(id)
-	defer r.clearRun(dir)
+// callResult is what a call gave as the result of its process: a file the tool saved is a file of the result.
+func callResult(res json.RawMessage) json.RawMessage {
 	var v map[string]any
 	if json.Unmarshal(res, &v) == nil {
 		if f, ok := v["file"].(string); ok && v["files"] == nil {
@@ -145,17 +131,7 @@ func (r *Runner) toolResult(ctx context.Context, projectID int64, cmd *manifest.
 			res, _ = json.Marshal(v)
 		}
 	}
-	if verr := validate(cmd, res); verr != nil {
-		r.finish(ctx, id, StateDone, string(res), true, nil)
-		r.warn(ctx, id, fmt.Sprintf("The result of tool command %s does not match its schema, so nothing acts on it: %v", cmd.Name, verr))
-		return
-	}
-	kept, err := r.keepFiles(ctx, projectID, id, r.cfg.Home.Results(id), string(res))
-	if err != nil {
-		r.finish(ctx, id, StateError, "", false, fault.Of(err))
-		return
-	}
-	r.finish(ctx, id, StateDone, kept, false, nil)
+	return res
 }
 
 // deliverTool closes a tool process that waited for the owner with what the frozen call gave.
@@ -184,7 +160,7 @@ func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) 
 		case o.Error != "" || cmd == nil:
 			r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.TaskFailed, o.Error))
 		default:
-			r.toolResult(ctx, p.ProjectID, cmd, p.ID, o.Result)
+			r.settle(ctx, &run{turn: turn{process: p.ID, project: p.ProjectID, cmd: cmd}}, string(callResult(o.Result)), nil)
 		}
 		return nil
 	}

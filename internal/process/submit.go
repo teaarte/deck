@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 
+	"deck2/internal/docs"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
 )
@@ -48,7 +49,11 @@ func (r *Runner) keepSubmitted(ctx context.Context, processID int64) {
 	if err != nil {
 		return
 	}
-	kept, err := r.keepFiles(ctx, p.ProjectID, processID, r.cfg.Home.Results(processID), p.Result)
+	m, err := docs.ManifestAt(ctx, r.st.Q, p.ProjectID, p.ManifestRevision)
+	if err != nil || m.Command(p.Command) == nil {
+		return
+	}
+	kept, err := r.kept(ctx, &run{turn: turn{process: processID, project: p.ProjectID, cmd: m.Command(p.Command)}, agent: true}, p.Result)
 	if err != nil {
 		r.warn(ctx, processID, "deck kept none of the files the result of the stopped process names: "+err.Error())
 		return

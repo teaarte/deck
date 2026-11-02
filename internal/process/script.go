@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"deck2/internal/fault"
@@ -26,20 +24,16 @@ import (
 func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	bg := context.WithoutCancel(ctx)
 	id := t.process
-	dir := r.runDir(id)
-	fail := func(err error) {
-		r.clearRun(dir)
-		r.finish(bg, id, StateError, "", false, fault.Of(err))
-		r.failedInARow(bg, t, err.Error())
-	}
+	u := &run{turn: t}
+	fail := func(f *fault.F) { r.settle(bg, u, "", f) }
 	proj, err := r.st.Q.GetProject(bg, t.project)
 	if err != nil {
-		fail(err)
+		fail(fault.Of(err))
 		return
 	}
 	granted, err := docs.InForce(bg, r.st.Q, proj, t.m)
 	if err != nil {
-		fail(err)
+		fail(fault.Of(err))
 		return
 	}
 	src, err := r.scriptSource(bg, t.project, t.m, t.cmd)
@@ -47,27 +41,17 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		fail(fault.New(fault.ScriptFailed, err.Error()))
 		return
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		fail(err)
-		return
-	}
-	stream, err := os.OpenFile(r.cfg.Home.Stream(id), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		fail(err)
-		return
-	}
-	defer stream.Close()
 	r.deps.Servers(bg, t.project)
 	_ = r.deps.Programs(bg, t.project)
-	tok, err := r.gw.Open(bg, &gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Run: KindScript})
-	if err != nil {
-		fail(err)
+	u, f := r.begin(bg, t, proj, &gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Run: KindScript})
+	if f != nil {
+		u = &run{turn: t}
+		fail(f)
 		return
 	}
-	defer r.gw.Close(tok)
-	side, end := r.scripts.Sandbox.Side(r.gw.Handler(tok))
+	defer u.close(r)
+	side, end := r.scripts.Sandbox.Side(r.gw.Handler(u.tok))
 	defer end()
-	_ = r.startCeiling(bg, id)
 	input, inDir, err := r.inputFiles(bg, t.cmd, t.project, id, t.input, false)
 	if err != nil {
 		fail(fault.New(fault.InputInvalid, err.Error()))
@@ -75,7 +59,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	folders, err := r.st.Q.ListProjectFolders(bg, t.project)
 	if err != nil {
-		fail(err)
+		fail(fault.Of(err))
 		return
 	}
 	var paths []string
@@ -84,21 +68,18 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	box := boxes.For(sandbox.KindScript, granted, paths)
 	box.Mark, box.Deck = r.scripts.Sandbox.Mark(sandbox.KindScript, fmt.Sprint(id)), side
-	job := script.Job{Project: t.project, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
-		Stdin: []byte(input), Box: box, Token: tok, Read: []string{inDir},
-		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
+	job := script.Job{Project: t.project, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: r.runDir(id),
+		Stdin: []byte(input), Box: box, Token: u.tok, Read: []string{inDir},
+		OnLine:  func(line string) { r.event(bg, id, u.stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}
 	out, err := r.scripts.Run(ctx, job)
 	r.setGroup(bg, id, 0)
-	if r.cut(bg, ctx, id) {
-		if r.ctx.Err() == nil {
-			r.clearRun(dir)
-		}
+	if r.cutRun(bg, ctx, u) {
 		return
 	}
 	if err != nil {
-		calls, last := r.gw.Refusals(tok)
+		calls, last := r.gw.Refusals(u.tok)
 		fail(refused(calls, last, fault.Of(err)))
 		return
 	}
@@ -111,23 +92,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		fail(fault.New(fault.ResultInvalid, fmt.Sprintf("script %s printed output that is not JSON: %s", job.Script.Name, untrusted.Cut(result, 300))))
 		return
 	}
-	if verr := validate(t.cmd, json.RawMessage(result)); verr != nil {
-		r.clearRun(dir)
-		r.finish(bg, id, StateDone, result, true, nil)
-		r.warn(bg, id, fmt.Sprintf("The result of %s.%s does not match its schema, so nothing acts on it: %v", proj.Name, t.cmd.Name, verr))
-		return
-	}
-	kept := filepath.Join(dir, "kept")
-	if err := os.Rename(job.Results(), kept); err != nil {
-		fail(err)
-		return
-	}
-	if result, err = r.keepFiles(bg, t.project, id, kept, result); err != nil {
-		fail(err)
-		return
-	}
-	r.clearRun(dir)
-	r.finish(bg, id, StateDone, result, false, nil)
+	r.settle(bg, u, result, nil)
 }
 
 // refused adds to the failure of a script deck's error answers to its calls; a failure it did not name takes the

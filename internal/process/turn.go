@@ -69,6 +69,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 
 // agentTurn is what an agent turn runs with once it holds its provider, folder and slot.
 type agentTurn struct {
+	run     *run
 	req     provider.Request
 	sub     *gateway.Submit
 	proj    db.Project
@@ -141,7 +142,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		fail(fault.Of(err))
 		return nil, false
 	}
-	if err := errors.Join(os.MkdirAll(r.cfg.Home.Results(t.process), 0o700), os.MkdirAll(a.data, 0o700)); err != nil {
+	if err := os.MkdirAll(a.data, 0o700); err != nil {
 		fail(fault.Of(err))
 		return nil, false
 	}
@@ -154,26 +155,16 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 			a.sub.Kept(json.RawMessage(p.Result))
 		}
 	}
-	tok, err := r.gw.Open(ctx, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
+	u, f := r.begin(ctx, *t, proj, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
 		Question: pv.QuestionTool(), Wait: callLimit(pv), Master: proj.Builtin == 1, Commands: t.cmd.Executor.Calls,
 		Heard: func() { r.answered(t.process) }})
-	if err != nil {
-		fail(fault.Of(err))
+	if f != nil {
+		fail(f)
 		return nil, false
 	}
-	a.tools = r.gw.Tools(tok)
-	stream, err := os.OpenFile(r.cfg.Home.Stream(t.process), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		r.gw.Close(tok)
-		fail(fault.Of(err))
-		return nil, false
-	}
-	a.cleanup = func() { stream.Close(); r.gw.Close(tok) }
-	if err := r.startCeiling(ctx, t.process); err != nil {
-		a.cleanup()
-		fail(fault.Wrap("start the ceiling", err))
-		return nil, false
-	}
+	a.run, a.tools = u, r.gw.Tools(u.tok)
+	tok, stream := u.tok, u.stream
+	a.cleanup = func() { u.close(r) }
 	var read []string
 	if folders, err := r.st.Q.ListProjectFolders(ctx, t.project); err == nil {
 		for _, f := range folders {
@@ -357,24 +348,17 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			r.park(bg, processID)
 		case verr == nil:
 			r.turnText(bg, processID, res.Text)
-			result, results := res.Text, r.cfg.Home.Results(processID)
+			result := res.Text
 			if len(t.cmd.Result) > 0 {
-				kept, err := r.keepFiles(bg, t.project, processID, results, string(res.Structured))
-				if err != nil {
-					r.finish(bg, processID, StateError, string(res.Structured), false, fault.Of(err))
-					return
-				}
-				result = kept
-			} else if err := r.keepLeft(bg, t.project, processID, results); err != nil {
-				r.warn(bg, processID, "deck kept none of the files the turn left: "+err.Error())
+				result = string(res.Structured)
 			}
-			r.finish(bg, processID, StateDone, result, false, nil)
+			r.settle(bg, a.run, result, nil)
 		case retried:
 			raw := string(res.Structured)
 			if raw == "" {
 				raw = res.Text
 			}
-			r.finish(bg, processID, StateDone, raw, true, nil)
+			r.settle(bg, a.run, raw, nil)
 		default:
 			retried = true
 			req.Resume = true

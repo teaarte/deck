@@ -198,8 +198,8 @@ func New(t *testing.T, opts ...Option) *Env {
 				_ = side.Config.Close()
 				return
 			}
-			ts.Close()
-			side.Close()
+			closeBounded(t, ts)
+			closeBounded(t, side)
 		})
 	}
 	t.Cleanup(func() { e.stop(true) })
@@ -306,5 +306,29 @@ func listenEvery(t *testing.T, servers ...*httptest.Server) {
 		}
 		_ = ts.Listener.Close()
 		ts.Listener = ln
+	}
+}
+
+// closeBounded closes a server of a test, cutting the connections a page opens again meanwhile, such as its live
+// channel, and gives up after a while so a failed test does not hold its package.
+func closeBounded(t *testing.T, ts *httptest.Server) {
+	done := make(chan struct{})
+	go func() {
+		ts.Close()
+		close(done)
+	}()
+	tick := time.NewTicker(200 * time.Millisecond)
+	defer tick.Stop()
+	end := time.After(30 * time.Second)
+	for {
+		select {
+		case <-done:
+			return
+		case <-tick.C:
+			ts.CloseClientConnections()
+		case <-end:
+			t.Logf("the server of the test at %s did not close in 30 s; left open", ts.URL)
+			return
+		}
 	}
 }

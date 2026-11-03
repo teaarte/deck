@@ -89,8 +89,18 @@ func newPlaywright(t *testing.T, browser ...string) *playwright {
 	if err != nil {
 		t.Fatalf("Playwright MCP starts: %v", err)
 	}
+	// The browser goes before the servers of the test, whole and in bounded time, so no page keeps a connection open.
 	t.Cleanup(func() {
-		_ = sess.Close()
+		closed := make(chan struct{})
+		go func() {
+			_ = sess.Close()
+			close(closed)
+		}()
+		select {
+		case <-closed:
+		case <-time.After(10 * time.Second):
+			t.Log("Playwright MCP did not close in 10 s; killed")
+		}
 		if cmd.Process != nil {
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		}

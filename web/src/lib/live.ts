@@ -6,12 +6,19 @@ import { events } from './events';
 export function liveRead<T>(command: string, input: Record<string, unknown>, onData: (data: T) => void,
   onError?: (e: unknown) => void): () => void {
   let topics: string[] = [];
+  // early are the topics that changed before the first answer named its own.
+  let early: string[] | undefined = [];
   let said = '';
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const later = () => {
+    if (!timer) timer = setTimeout(() => { timer = undefined; read(); }, 400);
+  };
   const read = () => {
     invoke<T>(command, input).then((a) => {
       topics = a.topics;
+      if (early?.some((t) => topics.includes(t))) later();
+      early = undefined;
       const now = JSON.stringify(a.data);
       if (stopped || now === said) return;
       said = now;
@@ -19,8 +26,8 @@ export function liveRead<T>(command: string, input: Record<string, unknown>, onD
     }, (e) => { if (!stopped) onError?.(e); });
   };
   const off = events((e) => {
-    if (timer || !topics.includes(e.topic)) return;
-    timer = setTimeout(() => { timer = undefined; read(); }, 400);
+    if (early) early.push(e.topic);
+    else if (topics.includes(e.topic)) later();
   }, read);
   read();
   return () => { stopped = true; clearTimeout(timer); off(); };

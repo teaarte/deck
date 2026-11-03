@@ -60,7 +60,7 @@ func TestRealBrowserPressAnswersItsAsk(t *testing.T) {
 const slowApplyScript = "import time\ntime.sleep(1.5)\n" + harness.ApplyScript
 
 // TestRealBrowserTenQuickPressesEachGetAnAnswer: ten quick presses of Apply each go busy at once and make their call
-// with nothing to answer, a press again while one goes says so: DECK_REAL_BROWSER=1, -run this test.
+// with nothing to answer; a busy button is blocked, a press again sends no second call: DECK_REAL_BROWSER=1.
 func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	e := harness.New(t)
@@ -96,19 +96,23 @@ func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 		b.Open(e, "#/p/picker/main")
 		b.until("ten Apply buttons", applies+`.length === 10`)
 		// A busy button hides its label, so the busy ones are counted as they go, from the press on.
+		// Notes close after a few seconds, so their texts are kept as they show.
+		b.eval(`(() => { window.notes = []; new MutationObserver(() => document.querySelectorAll('.mantine-Notification-root').forEach((x) => window.notes.push(x.innerText)))
+			.observe(document.body, { childList: true, subtree: true, characterData: true }); return '' })()`)
 		b.eval(`(() => { window.most = 0; const t0 = performance.now(); (function watch() {
 			window.most = Math.max(window.most, document.querySelectorAll('button[data-loading]').length);
 			if (performance.now() - t0 < 1000) requestAnimationFrame(watch) })();
 			const bs = ` + applies + `; bs.forEach((x) => x.click()); bs[0].click(); return '' })()`)
 		b.until("every pressed button busy at once", `window.most === 10`)
-		b.until("the second press of a busy button said to be running already",
-			`[...document.querySelectorAll('.mantine-Notification-root')].some((x) => x.innerText.includes('already running'))`)
 		b.shot("ten-presses-" + size.name)
 		want := 10 * (i + 1)
 		e.Until("a run of every press", func() bool { return runs() == want })
 		b.until("every press told how it went, nothing to answer over the screen", applies+`.length === 10 && `+applies+`.every((x) => x.dataset.loading === undefined) && !document.querySelector('[data-press-ask]')`)
-		b.until("the ends of the runs told in one note", `[...document.querySelectorAll('.mantine-Notification-root')].some((x) => x.innerText.includes('Apply: done ×'))`)
+		b.until("the ends of the runs told in one note", `window.notes.some((x) => x.includes('Apply: done ×'))`)
 		b.shot("ten-presses-done-" + size.name)
+		if got := runs(); got != want {
+			t.Fatalf("the press again of a busy button on a %s sent no call of its own: %d runs, want %d", size.name, got, want)
+		}
 		open, unfinished := len(e.Asks()), 0
 		for _, p := range e.Procs() {
 			if p.Command == "apply" && p.State != "done" {

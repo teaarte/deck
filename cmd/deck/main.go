@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -21,9 +22,9 @@ import (
 
 	"deck2/internal/api"
 	"deck2/internal/app"
+	"deck2/internal/auth"
 	"deck2/internal/home"
 	deckhome "deck2/internal/home"
-	"deck2/internal/nonce"
 	"deck2/internal/release"
 	"deck2/internal/sandbox"
 	"deck2/internal/tsnet"
@@ -58,7 +59,7 @@ func main() {
 func run() (*release.Restart, error) {
 	addr := flag.String("addr", cmp.Or(os.Getenv("DECK_ADDR"), "127.0.0.1:7700"), "listen address; the next port is the second origin of custom blocks")
 	tailnet := flag.String("tailscale", os.Getenv("DECK_TAILSCALE"), "join the owner's tailnet under this name and serve HTTPS there")
-	public := flag.String("public", os.Getenv("DECK_PUBLIC"), "the https address of a proxy deck is reached through, such as https://deck.example.com; its port 8443 is the second origin")
+	public := flag.String("public", os.Getenv("DECK_PUBLIC"), "the https addresses of proxies deck is reached through, comma-separated, such as https://deck.example.com; port 8443 of each is its second origin")
 	version := flag.Bool("version", false, "print the version, commit and build of deck and quit")
 	flag.Parse()
 	if *version {
@@ -68,8 +69,15 @@ func run() (*release.Restart, error) {
 	if *tailnet != "" && !tsnet.Built {
 		return nil, errors.New("deck: -tailscale needs a deck built with go build -tags tailnet")
 	}
-	if *public != "" && !strings.HasPrefix(*public, "https://") {
-		return nil, errors.New("deck: -public is an https address, such as https://deck.example.com")
+	var publics []string
+	for p := range strings.SplitSeq(*public, ",") {
+		if p = strings.TrimRight(strings.TrimSpace(p), "/"); p == "" {
+			continue
+		}
+		if u, err := url.Parse(p); err != nil || u.Scheme != "https" || u.Hostname() == "" || u.Path != "" || u.RawQuery != "" {
+			return nil, errors.New("deck: -public is an https address without a path, such as https://deck.example.com")
+		}
+		publics = append(publics, p)
 	}
 	// What deck writes is its own.
 	syscall.Umask(0o077)
@@ -99,11 +107,21 @@ func run() (*release.Restart, error) {
 		return nil, err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
+	origins := auth.NewOrigins()
+	for _, p := range publics {
+		u, _ := url.Parse(p)
+		origins.Add(p, "https://"+u.Hostname()+":8443")
+	}
+	if a := ln.Addr().(*net.TCPAddr); a.IP.IsLoopback() || a.IP.IsUnspecified() {
+		for _, name := range []string{"localhost", "127.0.0.1"} {
+			origins.Add(fmt.Sprintf("http://%s:%d", name, port), fmt.Sprintf("http://%s:%d", name, port+1))
+		}
+	}
 	restarts := make(chan release.Restart, 1)
 	a, err := app.New(app.Config{
 		Home: home, MCPBase: mcpBase(ln.Addr().(*net.TCPAddr)),
 		QuestionWait: 30 * time.Minute, ConfirmWait: 30 * time.Minute, ConfirmTTL: 24 * time.Hour,
-		Variant: release.Variant(tsnet.Built), Launcher: os.Getenv("DECK_LAUNCHER") != "", Image: os.Getenv("DECK_IMAGE"),
+		Variant: release.Variant(tsnet.Built), Launcher: os.Getenv("DECK_LAUNCHER") != "", Image: os.Getenv("DECK_IMAGE"), Origins: origins,
 		Restart: func(r release.Restart) {
 			select {
 			case restarts <- r:
@@ -115,10 +133,6 @@ func run() (*release.Restart, error) {
 		return nil, err
 	}
 	defer a.Close()
-	token, err := loadToken(a.Home.Token())
-	if err != nil {
-		return nil, err
-	}
 
 	// An update ends deck as a signal does, the signals still heard meanwhile.
 	base, end := context.WithCancel(context.Background())
@@ -136,25 +150,19 @@ func run() (*release.Restart, error) {
 	}()
 
 	// deck's MCP server answers before any turn starts, a resumed one too; the rest waits until deck has started.
-	server := api.New(a, token, web.FS())
-	server.Pair(port, port+1)
-	if *tailnet != "" {
-		server.Pair(tsnet.Ports(false))
-	}
-	if *public != "" {
-		server.Proxied()
-		server.Pair(443, 8443)
-	}
+	server := api.New(a, web.FS())
 	var started atomic.Bool
 	handler := server.Handler()
+	// No write timeout: the stream of events stays open.
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !started.Load() && !strings.HasPrefix(r.URL.Path, "/mcp/") {
 			http.Error(w, "deck is starting", http.StatusServiceUnavailable)
 			return
 		}
 		handler.ServeHTTP(w, r)
-	})}
-	side := &http.Server{Handler: server.Sandbox()}
+	}), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 64 << 10}
+	side := &http.Server{Handler: server.Sandbox(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute,
+		WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 64 << 10}
 	served := make(chan error, 2)
 	go func() { served <- side.Serve(sideLn) }()
 	go func() { served <- srv.Serve(ln) }()
@@ -184,11 +192,19 @@ func run() (*release.Restart, error) {
 		os.Remove(p.Old)
 		os.Remove(a.Home.Update())
 	}
-	url := fmt.Sprintf("http://%s/?token=%s", opened(ln.Addr().(*net.TCPAddr)), token)
-	if *public != "" {
-		url = strings.TrimSuffix(*public, "/") + "/?token=" + token
+	url := "http://" + opened(ln.Addr().(*net.TCPAddr))
+	if len(publics) > 0 {
+		url = publics[0]
 	}
 	slog.Info("deck listening", "url", url, "home", home)
+	// The first device pairs by a link in the log; deck pair makes the next ones.
+	links, err := a.Owners.Welcome(ctx, a.Auth.Signed(ctx))
+	if err != nil {
+		return nil, err
+	}
+	for _, l := range links {
+		slog.Info("pair the first device", "link", l)
+	}
 	if err := <-served; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return nil, err
 	}
@@ -245,18 +261,6 @@ func lockHome(h deckhome.Layout) (*os.File, error) {
 		return nil, fmt.Errorf("another deck runs on %s; one home has one deck", string(h))
 	}
 	return f, nil
-}
-
-func loadToken(path string) (string, error) {
-	b, err := os.ReadFile(path)
-	if tok := strings.TrimSpace(string(b)); err == nil && len(tok) >= 32 {
-		return tok, os.Chmod(path, 0o600)
-	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", err
-	}
-	tok := nonce.Hex(24)
-	return tok, home.WriteFile(path, []byte(tok+"\n"))
 }
 
 // mcpBase is where agents of this machine reach deck's MCP servers: loopback when deck listens on every address, as

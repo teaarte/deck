@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -11,9 +10,6 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 )
-
-// Automation resolves an automation token to the actor it acts as, or fails for an unknown or revoked one.
-type Automation func(ctx context.Context, token string) (registry.Actor, error)
 
 // automationInstructions tell a terminal agent where the rest of deck's knowledge is.
 const automationInstructions = "deck is the owner's control panel for digital workers; these tools are deck commands. " +
@@ -28,19 +24,9 @@ type automationEntry struct {
 	tools   []string
 }
 
-// ServeAutomation serves the MCP entry of automation tokens: the token comes as a bearer token on every
-// request, so a revoked token is refused at once; a new session sees the commands of the moment.
-func (g *Gateway) ServeAutomation(w http.ResponseWriter, r *http.Request) {
-	raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if g.automation == nil || !ok {
-		http.Error(w, "deck: an automation token is required", http.StatusUnauthorized)
-		return
-	}
-	act, err := g.automation(r.Context(), raw)
-	if err != nil {
-		http.Error(w, "deck: "+err.Error(), http.StatusUnauthorized)
-		return
-	}
+// ServeAutomation serves the MCP entry of automation tokens to act, whom the token of the request is: it comes on
+// every request, so a revoked token is refused at once; a new session sees the commands of the moment.
+func (g *Gateway) ServeAutomation(w http.ResponseWriter, r *http.Request, act registry.Actor) {
 	s := &Session{Workspace: act.Workspace, Token: act.Token, Commands: act.Commands}
 	e := g.automationEntry(act.Token)
 	if r.Method == http.MethodPost && r.Header.Get("Mcp-Session-Id") == "" {

@@ -28,7 +28,7 @@ func (a *App) builtins() []*registry.Command {
 		a.Journal.Commands(),
 		a.Processes.Commands(), a.Providers.Commands(), a.Work.Commands(), a.Records.Commands(),
 		a.Screens.Commands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(), a.Themes.Commands(),
-		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Shots.Commands(), a.Updates.Commands(), a.Cfg.Commands} {
+		a.Owners.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Shots.Commands(), a.Updates.Commands(), a.Cfg.Commands} {
 		out = append(out, cs...)
 	}
 	return append(out, registry.Read("manifest_format_get", "Manifest format", "Returns the JSON Schema of project manifests.", registry.Everyone,

@@ -3,6 +3,7 @@ package harness
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"io"
@@ -13,21 +14,43 @@ import (
 	"deck2/internal/events"
 )
 
-// ownerToken is the owner's token of every test deck; the owner signs in with it only through OwnerToken.
-const ownerToken = "test-token"
-
 // Client calls deck's HTTP API as one caller.
 type Client struct {
 	e    *Env
 	sign func(*http.Request)
+	// owner marks the owner's browser, which signs in again when its session runs out.
+	owner bool
 }
 
-// OwnerToken is how the owner signs in, for the tests of signing in and the few that hand it on.
-func (e *Env) OwnerToken() string { return ownerToken }
-
-// owner signs a request as the owner of deck.
+// owner signs a request as the owner's browser: the cookie of its session, from a page of the origin it calls.
 func (e *Env) owner(r *http.Request) {
-	r.Header.Set("Authorization", "Bearer "+e.OwnerToken())
+	r.AddCookie(&http.Cookie{Name: "deck", Value: e.cookie})
+	if r.Header.Get("Origin") == "" {
+		r.Header.Set("Origin", "http://"+cmp.Or(r.Host, r.URL.Host))
+	}
+	r.Header.Set("Sec-Fetch-Site", "same-origin")
+}
+
+// Cookie is the cookie of the owner's session.
+func (e *Env) Cookie() string { return e.cookie }
+
+// Device is the client of another browser of the owner, paired once under its name by a link of deck.
+func (e *Env) Device(name string) Client {
+	e.T.Helper()
+	cookie, ok := e.devices[name]
+	if !ok {
+		var link struct{ Code string }
+		e.Must("deck.pair_link", map[string]any{"name": name}, &link)
+		var err error
+		if cookie, err = NewPasskey().Pair(e.URL, e.Local, link.Code, name); err != nil {
+			e.T.Fatal(err)
+		}
+		e.devices[name] = cookie
+	}
+	return Client{e, func(r *http.Request) {
+		r.AddCookie(&http.Cookie{Name: "deck", Value: cookie})
+		r.Header.Set("Origin", "http://"+cmp.Or(r.Host, r.URL.Host))
+	}, false}
 }
 
 // Sign signs a request of the test as the owner.
@@ -41,23 +64,23 @@ func Bearer(token string) func(*http.Request) {
 // AuthorizationHeader is the header line of a token, as curl -H takes it.
 func AuthorizationHeader(token string) string { return "Authorization: Bearer " + token }
 
-// OwnerURL is the address the owner opens deck at, on base, with rest after the sign-in: more of the query, then
-// the route of the client.
+// OwnerURL is the address the owner opens deck at, on base, with rest: more of the query, then the route of the
+// client.
 func (e *Env) OwnerURL(base, rest string) string {
-	return base + "/?token=" + e.OwnerToken() + rest
+	return base + "/?owner=1" + rest
 }
 
 // In is the owner in a client that reads deck in lang, as the web client says with Deck-Lang.
 func (e *Env) In(lang string) Client {
-	return Client{e, func(r *http.Request) { e.owner(r); r.Header.Set("Deck-Lang", lang) }}
+	return Client{e, func(r *http.Request) { e.owner(r); r.Header.Set("Deck-Lang", lang) }, true}
 }
 
 // As is a caller with an automation token.
 func (e *Env) As(token string) Client {
-	return Client{e, Bearer(token)}
+	return Client{e, Bearer(token), false}
 }
 
-func (e *Env) client() Client { return Client{e, e.owner} }
+func (e *Env) client() Client { return Client{e, e.owner, true} }
 
 // Do sends a request with a JSON body and returns the status and raw body.
 func (c Client) Do(method, path string, body any) (int, []byte) {
@@ -67,16 +90,27 @@ func (c Client) Do(method, path string, body any) (int, []byte) {
 		b, _ := json.Marshal(body)
 		r = bytes.NewReader(b)
 	}
-	req, _ := http.NewRequest(method, c.e.URL+path, r)
-	c.sign(req)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		c.e.T.Fatal(err)
+	var b []byte
+	if r != nil {
+		b, _ = io.ReadAll(r)
 	}
-	defer resp.Body.Close()
-	out, _ := io.ReadAll(resp.Body)
-	c.e.caughtUp()
-	return resp.StatusCode, out
+	for try := 0; ; try++ {
+		req, _ := http.NewRequest(method, c.e.URL+path, bytes.NewReader(b))
+		c.sign(req)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			c.e.T.Fatal(err)
+		}
+		out, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		// A session the clock of a test ran past is signed in again with the passkey, as the client does.
+		if resp.StatusCode == http.StatusUnauthorized && c.owner && try == 0 {
+			c.e.signIn()
+			continue
+		}
+		c.e.caughtUp()
+		return resp.StatusCode, out
+	}
 }
 
 // Call invokes a registry command and returns the status and raw body.

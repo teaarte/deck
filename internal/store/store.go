@@ -40,6 +40,9 @@ const TimeLayout = "2006-01-02T15:04:05.000Z"
 
 func Time(t time.Time) string { return t.UTC().Format(TimeLayout) }
 
+// At is a time of a column that may be NULL.
+func At(t time.Time) sql.NullString { return sql.NullString{String: Time(t), Valid: true} }
+
 // ID is a row id for a column that may point nowhere: 0 is NULL.
 func ID(id int64) sql.NullInt64 { return sql.NullInt64{Int64: id, Valid: id != 0} }
 
@@ -70,9 +73,6 @@ const (
 	FeedNote   = "note"
 	FeedChange = "change"
 )
-
-// DefaultWorkspace is the workspace the owner's token opens; migrations create it.
-const DefaultWorkspace = 1
 
 type txKey struct{}
 

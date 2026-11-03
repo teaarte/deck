@@ -1,5 +1,5 @@
 # deck on a server: put DECK_DOMAIN (a name of this server) in .env, run docker compose up -d, and open the link
-# with the token from docker compose logs deck. seccomp.json and deck-box.apparmor lie beside it; README, "Server",
+# that pairs the first device from docker compose logs deck. seccomp.json and deck-box.apparmor lie beside it; README, "Server",
 # says the rest.
 name: deck
 services:
@@ -41,8 +41,12 @@ configs:
   caddyfile:
     content: |
       ${DECK_DOMAIN:-localhost} {
+        header Strict-Transport-Security "max-age=31536000"
+        header Referrer-Policy no-referrer
         reverse_proxy deck:7700
       }
       ${DECK_DOMAIN:-localhost}:8443 {
+        header Strict-Transport-Security "max-age=31536000"
+        header Referrer-Policy no-referrer
         reverse_proxy deck:7701
       }

@@ -180,7 +180,7 @@ func TestTheOrderOfTheMenuBecomesALayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, q := range []string{
+	for _, q := range append([]string{
 		`INSERT INTO project (workspace_id, name) VALUES (1, 'alpha'), (1, 'beta')`,
 		`INSERT INTO setting (workspace_id, key, value) SELECT 1, 'menu_order', json_array((SELECT id FROM project WHERE name = 'beta'), (SELECT id FROM project WHERE name = 'alpha'))`,
 		`DROP TABLE layout`,
@@ -188,7 +188,7 @@ func TestTheOrderOfTheMenuBecomesALayout(t *testing.T) {
 		`ALTER TABLE process DROP COLUMN submitted_at`,
 		`DROP INDEX feed_line`, `DROP INDEX feed_run`, `ALTER TABLE feed DROP COLUMN line_id`, `ALTER TABLE feed DROP COLUMN what`,
 		`DELETE FROM goose_db_version WHERE version_id >= 50`,
-	} {
+	}, harness.BeforeDevices...) {
 		if _, err := st.DB.Exec(q); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}

@@ -3,7 +3,7 @@
   "catalogId": "https://deck2.local/catalog/v1",
   "final_states": ["done", "error", "interrupted", "stopped"],
   "widget": {"description": "A widget is laid in thirds of a line, the server and the client alike: a card of h rows of cells holds row × h − head under its head; a line of a list takes line, the title of a block title, a stat stat, a chart at least chart.", "row": 9, "head": 3, "title": 1, "line": 3, "stat": 3, "chart": 3},
-  "topics": ["collection", "asks", "processes", "feed", "health", "log", "triggers", "secrets", "tokens", "settings", "documents", "files", "snapshots", "chat", "calls", "usage", "projects", "models", "folders", "assignments", "tools"],
+  "topics": ["collection", "asks", "processes", "feed", "health", "log", "triggers", "secrets", "devices", "settings", "documents", "files", "snapshots", "chat", "calls", "usage", "projects", "models", "folders", "assignments", "tools"],
   "description": "The catalog of deck screens: the basic catalog of A2UI and the blocks of deck as components of their own. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}. block is the form a manifest stores the block in; its refs are the $defs of the manifest schema.",
   "basic": {"catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json", "components": ["Row", "Column", "Tabs", "Modal", "Button", "Text"],
     "description": "The standard components of A2UI a screen is drawn with besides the blocks of deck; a container block of a manifest is drawn by one of them, the server translates it."},

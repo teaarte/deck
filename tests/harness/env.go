@@ -14,6 +14,7 @@ import (
 
 	"deck2/internal/api"
 	"deck2/internal/app"
+	"deck2/internal/auth"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -40,9 +41,15 @@ type Env struct {
 	Names   map[int64]string
 	// Probes counts the reads of deck.probe_list, a read every test deck has.
 	Probes *atomic.Int64
-	opts   []Option
-	wait   time.Duration
-	stop   func(wait bool)
+	// Local is the address of deck by localhost, where a browser makes passkeys.
+	Local string
+	// Owner is the passkey of the owner's browser; cookie is the session the owner's calls carry.
+	Owner   *Passkey
+	cookie  string
+	devices map[string]string
+	opts    []Option
+	wait    time.Duration
+	stop    func(wait bool)
 }
 
 type probeIn struct {
@@ -76,6 +83,8 @@ type setup struct {
 	after     []func(*Env)
 	wait      time.Duration
 	every     bool
+	owner     *Passkey
+	cookie    string
 }
 
 // WithAgent runs the turns of agents on the fake agent script; without a provider deck runs on one that says ok.
@@ -148,13 +157,17 @@ func New(t *testing.T, opts ...Option) *Env {
 	if s.every {
 		listenEvery(t, ts, side)
 	}
-	base := "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(ts.Listener.Addr().(*net.TCPAddr).Port))
+	port, sidePort := strconv.Itoa(ts.Listener.Addr().(*net.TCPAddr).Port), strconv.Itoa(side.Listener.Addr().(*net.TCPAddr).Port)
+	base := "http://" + net.JoinHostPort("127.0.0.1", port)
+	local := "http://" + net.JoinHostPort("localhost", port)
 	browser := t.TempDir()
 	self := Fakes
 	c := app.Config{Home: s.home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second,
 		Browser: []string{"env", "DECK_FAKE_MCP=browser", "DECK_FAKE_DIR=" + browser, self}}
 	probes := &atomic.Int64{}
 	c.Commands = []*registry.Command{probe(probes)}
+	c.Origins = auth.NewOrigins(auth.Origin{Main: base, Side: "http://" + net.JoinHostPort("127.0.0.1", sidePort)},
+		auth.Origin{Main: local, Side: "http://" + net.JoinHostPort("localhost", sidePort)})
 	c.Sandbox = sandbox.New(deckhome.Layout(s.home))
 	c.Sandbox.Also.Read, c.Sandbox.Also.Write = []string{self}, []string{browser}
 	for _, f := range s.cfg {
@@ -170,14 +183,13 @@ func New(t *testing.T, opts ...Option) *Env {
 		t.Fatal(err)
 	}
 	a.Asks.Poll = 20 * time.Millisecond
-	srv := api.New(a, ownerToken, web.FS())
+	srv := api.New(a, web.FS())
 	side.Config.Handler = srv.Sandbox()
 	side.Start()
-	srv.Pair(ts.Listener.Addr().(*net.TCPAddr).Port, side.Listener.Addr().(*net.TCPAddr).Port)
 	ts.Config.Handler = srv.Handler()
 	ts.Start()
-	e := &Env{T: t, App: a, URL: base, Side: "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(side.Listener.Addr().(*net.TCPAddr).Port)), Home: s.home, Fake: s.fake, Clock: s.clock, Names: map[int64]string{},
-		Browser: browser, Probes: probes, opts: opts, wait: s.wait}
+	e := &Env{T: t, App: a, URL: base, Side: "http://" + net.JoinHostPort("127.0.0.1", sidePort), Local: local, Home: s.home, Fake: s.fake, Clock: s.clock, Names: map[int64]string{},
+		Browser: browser, Probes: probes, Owner: s.owner, cookie: s.cookie, devices: map[string]string{}, opts: opts, wait: s.wait}
 	var once sync.Once
 	e.stop = func(wait bool) {
 		once.Do(func() {
@@ -203,6 +215,9 @@ func New(t *testing.T, opts ...Option) *Env {
 		})
 	}
 	t.Cleanup(func() { e.stop(true) })
+	if e.Owner == nil {
+		e.pairOwner()
+	}
 	// The master looks into failed processes on a provider of its own, so tests of failures see only their calls.
 	e.UseModels("master.on_error", "quiet")
 	// Its schedule stays out of the clocks of tests; a test of the master's own triggers resumes them.
@@ -227,7 +242,8 @@ func (e *Env) Restart(more ...Option) *Env {
 			opts = append(opts, func(s *setup) { s.providers, s.fake = nil, nil })
 		}
 	}
-	e2 := New(e.T, append(append(opts, more...), WithHome(e.Home))...)
+	owner := func(s *setup) { s.owner, s.cookie = e.Owner, e.cookie }
+	e2 := New(e.T, append(append(opts, more...), WithHome(e.Home), owner)...)
 	for id, n := range e.Names {
 		e2.Names[id] = n
 	}
@@ -289,9 +305,9 @@ func ProcessInput(t *testing.T, e *Env, id int64) map[string]any {
 	return in
 }
 
-// DeckSecretPath is the file of deck's own secret in home, the one no foreign process may read.
+// DeckSecretPath is a file of a secret of deck in its state, which no foreign process may read.
 func DeckSecretPath(home string) string {
-	return filepath.Join(deckhome.Layout(home).State(), "token")
+	return filepath.Join(deckhome.Layout(home).State(), "secret")
 }
 
 // DeckSecretPath is the file of the secret of this deck.
@@ -331,4 +347,29 @@ func closeBounded(t *testing.T, ts *httptest.Server) {
 			return
 		}
 	}
+}
+
+// pairOwner pairs the owner's browser by a link of deck, as the owner does on the first start.
+func (e *Env) pairOwner() {
+	e.T.Helper()
+	links, err := e.App.Owners.Welcome(context.Background(), false)
+	if err != nil || len(links) == 0 {
+		e.T.Fatalf("deck gives a link that pairs a device: %v %v", links, err)
+	}
+	e.Owner = NewPasskey()
+	if e.cookie, err = e.Owner.Pair(e.URL, e.Local, Code(links[0]), "the test's browser"); err != nil {
+		e.T.Fatal(err)
+	}
+}
+
+// signIn signs the owner's browser in again with its passkey, as the client does once its session ran out; a base
+// taken back to before its device pairs it again.
+func (e *Env) signIn() {
+	e.T.Helper()
+	cookie, err := e.Owner.Login(e.URL, e.Local)
+	if err != nil {
+		e.pairOwner()
+		return
+	}
+	e.cookie = cookie
 }

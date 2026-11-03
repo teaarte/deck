@@ -28,7 +28,7 @@ func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, q := range []string{
+	for _, q := range append([]string{
 		`INSERT INTO connection (workspace_id, name, url) VALUES (1, 'google', 'http://127.0.0.1:9')`,
 		`INSERT INTO model (workspace_id, connection_id, name, model, options) SELECT 1, id, 'google/flash', 'flash', '{}' FROM connection WHERE name = 'google'`,
 		`INSERT INTO model (workspace_id, connection_id, name, model, options, agent) SELECT 1, id, 'google-flash', 'flash', '{ }', 'goose' FROM connection WHERE name = 'google'`,
@@ -45,7 +45,7 @@ func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 		`ALTER TABLE process DROP COLUMN submitted_at`,
 		`DROP INDEX feed_line`, `DROP INDEX feed_run`, `ALTER TABLE feed DROP COLUMN line_id`, `ALTER TABLE feed DROP COLUMN what`,
 		`DELETE FROM goose_db_version WHERE version_id >= 46`,
-	} {
+	}, harness.BeforeDevices...) {
 		if _, err := st.DB.Exec(q); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}

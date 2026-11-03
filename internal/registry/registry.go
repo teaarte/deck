@@ -91,8 +91,8 @@ type Command struct {
 	// follows are the reads of deck whose topics this read follows too.
 	follows []string
 	// foreign marks an input schema from elsewhere, not held to App Intents types; retries one that takes a retry key;
-	// untokened one no automation token calls.
-	foreign, retries, keyed, untokened bool
+	// untokened one no automation token calls; page one a page reads that is not a read of its own.
+	foreign, retries, keyed, untokened, page bool
 }
 
 // Loose declares a command not written in Go: of a module, an HTTP tool, an MCP server or the browser, its input
@@ -113,6 +113,15 @@ func (c *Command) NoTokens() *Command {
 	c.untokened = true
 	return c
 }
+
+// Page marks a command a page of the client reads that changes nothing, though not a read with topics.
+func (c *Command) Page() *Command {
+	c.page = true
+	return c
+}
+
+// Reads says a caller that only reads may call the command.
+func (c *Command) Reads() bool { return c.Readable || c.page }
 
 // Retried gives a command of a module the retry key in its input; the registry hands it to the handler as Actor.Key.
 func (c *Command) Retried() *Command {
@@ -401,6 +410,9 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 	c, input, err := r.Check(ctx, a, name, input)
 	if err != nil {
 		return nil, err
+	}
+	if a.ReadOnly && !c.Reads() {
+		return nil, Refuse("%s changes deck; this caller only reads", c.Name)
 	}
 	return c.Handler(ctx, a, input)
 }

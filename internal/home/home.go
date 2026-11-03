@@ -32,8 +32,10 @@ func (l Layout) DB() string { return l.state("deck.db") }
 func (l Layout) Update() string { return l.state("update.json") }
 
 // Lock is the file the one deck of a home holds locked while it runs.
-func (l Layout) Lock() string  { return l.state("deck.lock") }
-func (l Layout) Token() string { return l.state("token") }
+func (l Layout) Lock() string { return l.state("deck.lock") }
+
+// Pair holds the codes that pair a device, a file each, as deck pair writes them.
+func (l Layout) Pair() string  { return l.state("pair") }
 func (l Layout) Files() string { return l.state("files") }
 
 // File is a stored file by its id.

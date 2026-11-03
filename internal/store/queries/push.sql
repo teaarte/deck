@@ -1,15 +1,20 @@
--- name: AddPushSubscription :one
-INSERT INTO push_subscription (workspace_id, device, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?)
-ON CONFLICT (endpoint) DO UPDATE SET workspace_id = excluded.workspace_id, device = excluded.device, p256dh = excluded.p256dh, auth = excluded.auth
+-- name: DropPushEndpoint :exec
+-- An endpoint is one device's: another that had it gives it up.
+UPDATE device SET push_endpoint = NULL, push_p256dh = '', push_auth = '' WHERE push_endpoint = sqlc.arg(endpoint) AND id != sqlc.arg(id);
+
+
+-- name: SetDevicePush :one
+UPDATE device SET push_endpoint = ?, push_p256dh = ?, push_auth = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL
 RETURNING *;
 
 
--- name: ListPushSubscriptions :many
-SELECT * FROM push_subscription WHERE workspace_id = ? ORDER BY id;
+-- name: ListPushDevices :many
+SELECT * FROM device WHERE workspace_id = ? AND push_endpoint IS NOT NULL AND revoked_at IS NULL ORDER BY id;
 
 
--- name: DeletePushSubscription :execrows
-DELETE FROM push_subscription WHERE workspace_id = ? AND (endpoint = sqlc.arg(endpoint) OR id = sqlc.arg(id));
+-- name: DeletePush :execrows
+UPDATE device SET push_endpoint = NULL, push_p256dh = '', push_auth = ''
+WHERE workspace_id = ? AND push_endpoint IS NOT NULL AND (push_endpoint = sqlc.arg(endpoint) OR id = sqlc.arg(id));
 
 
 -- name: MaxAskID :one
@@ -29,11 +34,11 @@ SELECT sqlc.embed(n), j.name AS project_name FROM feed n JOIN project j ON j.id 
 WHERE n.workspace_id = ? AND n.kind = 'note' AND n.for_master = 0 AND n.id > ? ORDER BY n.id;
 
 
--- name: DeleteWorkspacePushSubscriptions :exec
-DELETE FROM push_subscription WHERE workspace_id = ?;
+-- name: DeleteWorkspacePush :exec
+UPDATE device SET push_endpoint = NULL, push_p256dh = '', push_auth = '' WHERE workspace_id = ?;
 
 
 -- name: DeleteStalePushMarks :exec
 DELETE FROM mark WHERE mark.workspace_id = sqlc.arg(workspace_id) AND mark.name LIKE 'push:%' AND (NOT EXISTS (
-    SELECT 1 FROM push_subscription s WHERE s.workspace_id = mark.workspace_id AND mark.name LIKE 'push:' || s.id || ':%')
+    SELECT 1 FROM device s WHERE s.workspace_id = mark.workspace_id AND s.push_endpoint IS NOT NULL AND mark.name LIKE 'push:' || s.id || ':%')
   OR mark.name NOT LIKE 'push:%:ask' AND mark.name NOT LIKE 'push:%:notify');

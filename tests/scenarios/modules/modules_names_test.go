@@ -56,6 +56,10 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 		"text": older + "\nThe owner's line names `notify` and deck.notify.\n"}, nil)
 	// A base an older deck left: format 14 and its names not yet applied.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 54`)
+	// Nor had it the devices of the owner.
+	for _, q := range harness.BeforeDevices {
+		e.SQL(q)
+	}
 	// Nor had it the column of a result handed in, which a later migration adds again.
 	e.SQL(`ALTER TABLE process DROP COLUMN submitted_at`)
 

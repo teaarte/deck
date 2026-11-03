@@ -48,7 +48,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
-		"text": fmt.Sprintf(customProbe, e.URL, e.OwnerToken(), evil.URL, evil.URL)}, nil)
+		"text": fmt.Sprintf(customProbe, e.URL, e.Cookie(), evil.URL, evil.URL)}, nil)
 	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me"})}, nil)
 

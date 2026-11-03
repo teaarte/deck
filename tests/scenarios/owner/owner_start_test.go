@@ -22,11 +22,15 @@ import (
 )
 
 type deckBinary struct {
-	cmd        *exec.Cmd
-	url, token string
+	cmd         *exec.Cmd
+	url, cookie string
+	said        func() []string
 }
 
-var listening = regexp.MustCompile(`url="(http://[^/]+)/\?token=([0-9a-f]+)"`)
+var (
+	listening = regexp.MustCompile(`url=(http://[^ ]+)`)
+	firstLink = regexp.MustCompile(`link="?(http://[^/]+)/#pair=([A-Za-z0-9_-]+)`)
+)
 
 // startDeck builds deck, starts it on home with env added and waits until it listens.
 func startDeck(t *testing.T, home string, env ...string) *deckBinary {
@@ -52,7 +56,7 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-	up := make(chan []string, 1)
+	up, link := make(chan []string, 1), make(chan []string, 1)
 	var mu sync.Mutex
 	var said []string
 	go func() {
@@ -63,6 +67,9 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 			mu.Unlock()
 			if m := listening.FindStringSubmatch(sc.Text()); m != nil {
 				up <- m
+			}
+			if m := firstLink.FindStringSubmatch(sc.Text()); m != nil {
+				link <- m
 			}
 		}
 	}()
@@ -75,14 +82,24 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 		}
 	}()
 	m := harness.Receive(t, "deck to start", up)
+	l := harness.Receive(t, "the link of the first device in the log", link)
 	started = true
-	return &deckBinary{cmd: cmd, url: m[1], token: m[2]}
+	cookie, err := harness.NewPasskey().Pair(m[1], l[1], l[2], "first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &deckBinary{cmd: cmd, url: m[1], cookie: cookie, said: func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(said)
+	}}
 }
 
 func (d *deckBinary) call(name string, in any) (int, string, error) {
 	b, _ := json.Marshal(in)
 	req, _ := http.NewRequest("POST", d.url+"/api/commands/"+name, bytes.NewReader(b))
-	harness.Bearer(d.token)(req)
+	req.AddCookie(&http.Cookie{Name: "deck", Value: d.cookie})
+	req.Header.Set("Origin", d.url)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, "", err
@@ -142,23 +159,25 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 	harness.Receive(t, "deck to exit after the stop", done)
 }
 
-func TestTheHomeAndTheTokenOfDeckAreOnlyTheOwners(t *testing.T) {
+func TestTheHomeOfDeckIsOnlyTheOwnersAndItsLogHasNoToken(t *testing.T) {
 	t.Parallel()
 	home := filepath.Join(t.TempDir(), "home")
 	if err := os.MkdirAll(deckhome.Layout(home).State(), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(harness.DeckSecretPath(home), []byte(strings.Repeat("ab", 24)+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_ = os.Chmod(harness.DeckSecretPath(home), 0o644)
 	d := startDeck(t, home)
-	if d.token != strings.Repeat("ab", 24) {
-		t.Fatalf("deck keeps the token it has: %s", d.token)
+	if code, out, err := d.call("deck.menu_get", map[string]any{}); err != nil || code != 200 {
+		t.Fatalf("the first device pairs by the link in the log and calls: %d %s %v", code, out, err)
 	}
-	for path, want := range map[string]os.FileMode{home: 0o700, harness.DeckSecretPath(home): 0o600} {
-		if fi, err := os.Stat(path); err != nil || fi.Mode().Perm() != want {
-			t.Fatalf("%s is only the owner's: %v %v", path, fi.Mode().Perm(), err)
+	if fi, err := os.Stat(home); err != nil || fi.Mode().Perm() != 0o700 {
+		t.Fatalf("the home is only the owner's: %v %v", fi, err)
+	}
+	for _, line := range d.said() {
+		if strings.Contains(line, "token") {
+			t.Fatalf("the log of deck carries no token: %s", line)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(home).State(), "token")); err == nil {
+		t.Fatal("deck keeps no token of the owner")
 	}
 }

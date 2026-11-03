@@ -5,18 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 
-	"deck2/internal/api"
 	"deck2/internal/app"
 	"deck2/internal/events"
 	"deck2/internal/registry"
 	"deck2/tests/harness"
-	"deck2/web"
 )
 
 func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
@@ -211,9 +208,7 @@ func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
 func TestEmptyTokenDoesNotOpenTheAPI(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	ts := httptest.NewServer(api.New(e.App, "", web.FS()).Handler())
-	defer ts.Close()
-	req, _ := http.NewRequest("POST", ts.URL+"/api/commands/deck.projects_list", nil)
+	req, _ := http.NewRequest("POST", e.URL+"/api/commands/deck.projects_list", nil)
 	harness.Bearer("")(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

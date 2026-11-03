@@ -4,11 +4,10 @@ package lint
 var exceptions = map[string][]string{
 	"now": {
 		"internal/app/asks/process_asks.go:80", "internal/app/asks/process_asks.go:84",
-		"internal/app/asks/process_asks.go:86", "internal/app/config.go:56", "internal/app/files/thumbs.go:31",
+		"internal/app/asks/process_asks.go:86", "internal/app/config.go:59", "internal/app/files/thumbs.go:31",
 		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:291",
 		"internal/app/processes/processes.go:294", "internal/app/processes/processes.go:298",
-		"internal/app/tokens/lent.go:37",
-		"internal/app/tokens/lent.go:63", "internal/models/hops.go:149", "internal/models/hops.go:159",
+		"internal/models/hops.go:149", "internal/models/hops.go:159",
 		"internal/models/meter.go:23", "internal/models/meter.go:32",
 		"internal/provider/acp/acp.go:183",
 		"internal/tools/oauth.go:79", "internal/tools/oauth.go:90",
@@ -18,7 +17,7 @@ var exceptions = map[string][]string{
 		"internal/script/run.go:14", "internal/script/runtime.go:7",
 	},
 	"write": {
-		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:50", "cmd/deck/main.go:228",
+		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:51", "cmd/deck/main.go:244",
 		"internal/app/snapshots/snapshot.go:101", "internal/app/updates/updates.go:286", "internal/process/settle.go:123",
 		"internal/provider/codex/gen/main.go:93", "internal/provider/codex/gen/main.go:104",
 		"internal/provider/shellcheck.go:79", "internal/provider/shellcheck.go:80", "internal/script/run.go:70",

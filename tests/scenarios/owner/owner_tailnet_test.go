@@ -44,8 +44,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	e := harness.New(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	srv := api.New(e.App, e.OwnerToken(), web.FS())
-	srv.Pair(tsnet.Ports(true))
+	srv := api.New(e.App, web.FS())
 	node, err := tsnet.Start(ctx, tsnet.Config{Hostname: "deck", Dir: t.TempDir(), ControlURL: control.HTTPTestServer.URL, Plain: true,
 		Health: e.App.TailnetHealth}, srv)
 	if err != nil {
@@ -102,6 +101,8 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 		t.Fatalf("deck has a tailnet address: %v %+v", err, st)
 	}
 	addr := st.TailscaleIPs[0].String()
+	// A control server without certificates serves plain http, by the address of the node.
+	e.App.Auth.Origins().Add("http://"+addr, "http://"+addr+":8080")
 	client := phone.HTTPClient()
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	req, _ := http.NewRequestWithContext(ctx, "POST", "http://"+addr+"/api/commands/deck.menu_get", strings.NewReader("{}"))
@@ -141,7 +142,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	if !strings.Contains(r.Header.Get("Content-Security-Policy"), "frame-ancestors 'self'") {
 		t.Fatalf("no other page frames the client: %s", r.Header.Get("Content-Security-Policy"))
 	}
-	tok, err := e.App.Gateway.Register(ctx, &gateway.Session{Workspace: 1})
+	tok, err := e.App.Gateway.Open(ctx, &gateway.Session{Workspace: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

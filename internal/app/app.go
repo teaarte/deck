@@ -17,6 +17,7 @@ import (
 	"deck2/internal/app/folders"
 	apphealth "deck2/internal/app/health"
 	"deck2/internal/app/journal"
+	"deck2/internal/app/owners"
 	"deck2/internal/app/processes"
 	"deck2/internal/app/project"
 	"deck2/internal/app/providers"
@@ -28,11 +29,11 @@ import (
 	"deck2/internal/app/signins"
 	"deck2/internal/app/snapshots"
 	"deck2/internal/app/themes"
-	"deck2/internal/app/tokens"
 	"deck2/internal/app/triggers"
 	"deck2/internal/app/updates"
 	"deck2/internal/app/work"
 	"deck2/internal/ask"
+	"deck2/internal/auth"
 	"deck2/internal/events"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
@@ -64,7 +65,9 @@ type App struct {
 	Work      work.Service
 	Feed      feed.Service
 	Chats     chat.Service
-	Tokens    tokens.Service
+	// Auth signs the owner's devices in; Owners keeps the devices, their pushes and the tokens.
+	Auth      *auth.Auth
+	Owners    owners.Service
 	Secrets   secrets.Service
 	Settings  settings.Service
 	Themes    themes.Service
@@ -128,7 +131,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Registry = registry.New(a.mods.commands)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
 		Models: func(act registry.Actor) http.Handler { return a.Work.Proxy(act, a.Gateway.Permit) }, Progress: cfg.Progress, Go: a.bg.Go},
-		gateway.Deps{Store: st, Asks: a.Asks, Bus: a.Bus, Registry: a.Registry, Automation: a.Tokens.Automation})
+		gateway.Deps{Store: st, Asks: a.Asks, Bus: a.Bus, Registry: a.Registry})
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}
 	a.Tools = &tools.HTTP{GW: a.Gateway, Secrets: a.Secrets.Read, Home: h, OAuth: oauth, Health: a.Signins.ToolHealth, SignIn: a.Signins.ToolSignIn,
 		Resolve: func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
@@ -186,8 +189,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		ScreenFailed: a.Processes.Screen, ScreenDrawn: a.Processes.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
-	a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
-	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Tokens.Lend, Return: a.Tokens.Return,
+	a.Auth = auth.New(auth.Config{Now: cfg.Now, Home: h, Origins: cfg.Origins}, auth.Deps{Store: st})
+	a.Owners = owners.Service{St: st, Now: cfg.Now, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal, Code: a.Auth.Code, Kick: a.Auth.Kick,
+		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew}
+	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Owners.Lend, Return: a.Owners.Return,
 		Themed: a.Themes.Exists}
 	a.Updates = updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher, Image: cfg.Image,
 		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: a.bg.Go,
@@ -360,10 +365,10 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 	}
 }
 
-// Plain records that the owner reached deck at address over plain http from another machine: the browser gives
-// passkeys, the microphone and notifications only to https, so the health row says how to put https in front of deck.
+// Plain records that the owner reached deck at an address it does not sign in at, such as plain http from another
+// machine: a passkey needs https, so the health row says how to put https in front of deck.
 func (a *App) Plain(address string, port int) {
-	text := fmt.Sprintf("deck is opened over plain http at %s: the browser gives passkeys, the microphone and notifications only to https; on this machine run tailscale serve --bg %d and tailscale serve --bg --https=8443 %d, or put deck behind a domain with Caddy", address, port, port+1)
+	text := fmt.Sprintf("deck is opened at %s, an address it does not sign the owner in at: a passkey needs https; on this machine run tailscale serve --bg %d and tailscale serve --bg --https=8443 %d, or put deck behind a domain with Caddy, then start deck with -public and that https address", address, port, port+1)
 	if err := health.Write(context.Background(), a.Store, health.Of{}, health.HTTPS, health.Warning, text); err != nil {
 		slog.Error("write health", "err", err)
 	}
@@ -373,6 +378,9 @@ func (a *App) Plain(address string, port int) {
 // address once it is on it.
 func (a *App) TailnetHealth(status, text, address string) {
 	a.Feed.Tailnet.Store(&address)
+	if address != "" {
+		a.Auth.Origins().Add(address, address+":8443")
+	}
 	if err := health.Write(context.Background(), a.Store, health.Of{}, health.Tailscale, status, text); err != nil {
 		slog.Error("write health", "err", err)
 	}

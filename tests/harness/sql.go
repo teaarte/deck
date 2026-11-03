@@ -73,3 +73,9 @@ func docKind(name string) string {
 	}
 	return docs.KindDoc
 }
+
+// BeforeDevices takes a base back to before the devices of the owner, when pushes had subscriptions of their own.
+var BeforeDevices = []string{`DROP TABLE session`, `DROP TABLE device`,
+	`CREATE TABLE push_subscription (id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+	device TEXT NOT NULL, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))`}

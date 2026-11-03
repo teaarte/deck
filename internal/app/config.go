@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"deck2/internal/app/updates"
+	"deck2/internal/auth"
 	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/release"
@@ -49,11 +50,16 @@ type Config struct {
 	Restart func(release.Restart)
 	// Exe is the binary of deck an update replaces; the running one when nil.
 	Exe func() (string, error)
+	// Origins are the addresses deck signs the owner in at, each with its second origin; none when nil.
+	Origins *auth.Origins
 }
 
 func (c *Config) defaults() {
 	if c.Now == nil {
 		c.Now = time.Now
+	}
+	if c.Origins == nil {
+		c.Origins = auth.NewOrigins()
 	}
 	if c.Sandbox == nil {
 		c.Sandbox = sandbox.New(home.Layout(c.Home))

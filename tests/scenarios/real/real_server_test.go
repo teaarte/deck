@@ -1,8 +1,10 @@
 package real
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,7 +61,7 @@ volumes:
   agents:
 `
 
-// pidsScript says how many processes its box shows and whether it reads deck's token, and calls deck.
+// pidsScript says how many processes its box shows and whether it reads deck's base, and calls deck.
 const pidsScript = harness.PythonLib + `
 def readable(p):
     try:
@@ -68,13 +70,13 @@ def readable(p):
     except OSError:
         return False
 pids = [p for p in os.listdir("/proc") if p.isdigit()]
-print(json.dumps({"pids": len(pids), "token": readable("/var/lib/deck/state/token"), "deck": deck("deck.records_list", {"collection": "items"})[0]}))
+print(json.dumps({"pids": len(pids), "state": readable("/var/lib/deck/state/deck.db"), "deck": deck("deck.records_list", {"collection": "items"})[0]}))
 `
 
 // seen is what pidsScript saw.
 type seen struct {
 	Pids  int
-	Token bool
+	State bool
 	Deck  int
 }
 
@@ -171,31 +173,49 @@ func (b *bare) sh(user, script string) string {
 	return b.compose("exec", "-T", "-u", user, "deck", "sh", "-c", script)
 }
 
-// token is the token of the link deck logs.
-func (b *bare) token() string {
+// signIn pairs a browser by the link of the first device deck logs, from inside its container on localhost, and
+// gives the cookie of its session.
+func (b *bare) signIn() string {
 	b.t.Helper()
-	var token, logs string
+	var code, logs string
 	defer func() {
-		if token == "" {
+		if code == "" {
 			b.t.Logf("the log of deck:\n%s", logs)
 		}
 	}()
-	harness.Until(b.t, "the link with the token in the log of deck", func() bool {
+	harness.Until(b.t, "the link of the first device in the log of deck", func() bool {
 		logs = b.compose("logs", "deck")
-		if m := regexp.MustCompile(`url="https://localhost/\?token=([0-9a-f]+)"`).FindStringSubmatch(logs); m != nil {
-			token = m[1]
+		if m := regexp.MustCompile(`link="?https://localhost/#pair=([A-Za-z0-9_-]+)`).FindStringSubmatch(logs); m != nil {
+			code = m[1]
 		}
-		return token != ""
+		return code != ""
 	})
-	return token
+	if strings.Contains(logs, "token=") {
+		b.t.Fatalf("the log of deck carries no token:\n%s", logs)
+	}
+	const origin = "http://localhost:7700"
+	cookie, err := harness.NewPasskey().PairBy(func(step string, body any) (int, []byte, string, error) {
+		in, _ := json.Marshal(body)
+		out := b.compose("exec", "-T", "-u", "deck", "deck", "curl", "-s", "-i", "--max-time", "60", "-X", "POST", "-H", "Host: localhost:7700",
+			"-H", "Origin: "+origin, "-H", "Content-Type: application/json", "-d", string(in), "http://127.0.0.1:7700/auth/"+step)
+		resp, err := http.ReadResponse(bufio.NewReader(strings.NewReader(out)), nil)
+		if err != nil {
+			return 0, []byte(out), "", err
+		}
+		return harness.Answer(resp)
+	}, origin, code, "server test")
+	if err != nil {
+		b.t.Fatal(err)
+	}
+	return cookie
 }
 
-// call calls a command of deck from inside its container, as the owner.
-func (b *bare) call(token, command string, input any) json.RawMessage {
+// call calls a command of deck from inside its container, as the owner's browser signed in there.
+func (b *bare) call(cookie, command string, input any) json.RawMessage {
 	b.t.Helper()
 	body, _ := json.Marshal(input)
 	return json.RawMessage(b.compose("exec", "-T", "-u", "deck", "deck", "curl", "-s", "--max-time", "60", "-X", "POST",
-		"-H", harness.AuthorizationHeader(token), "-H", "Content-Type: application/json", "-d", string(body),
+		"-b", "deck="+cookie, "-H", "Origin: http://127.0.0.1:7700", "-H", "Content-Type: application/json", "-d", string(body),
 		"http://127.0.0.1:7700/api/commands/"+command))
 }
 
@@ -252,21 +272,21 @@ func (b *bare) codex(user, folder string) {
 	b.write(folder+"/config.toml", fmt.Sprintf(serverCodex, ip[0]), user)
 }
 
-// TestServerFromScratch is deck from compose.yaml with its three lines: the token in the log, HTTPS by Caddy, sign-in
-// links, Codex in its box passing its self-check, a script in its box that sees no other process nor deck's token.
+// TestServerFromScratch is deck from compose.yaml with its three lines: the link of the first device in the log, HTTPS
+// by Caddy, sign-in links, Codex passing its self-check, a script in its box that sees no other process nor deck's base.
 func TestServerFromScratch(t *testing.T) {
 	harness.Needs(t, "DECK_SERVER")
 	b := newBare(t)
 	b.files("compose.yaml", "seccomp.json", "deck-box.apparmor")
 	b.compose("up", "-d")
-	token := b.token()
+	token := b.signIn()
 
 	// Caddy's own certificate for localhost stands for the one it gets for a domain.
 	curl := func(args ...string) string {
 		return b.compose(append([]string{"exec", "-T", "deck", "curl", "-sk", "--max-time", "60", "--connect-to", "localhost:443:caddy:443",
 			"--connect-to", "localhost:8443:caddy:8443"}, args...)...)
 	}
-	if page := curl("https://localhost/?token=" + token); !strings.Contains(page, "<html") {
+	if page := curl("https://localhost/"); !strings.Contains(page, "<html") {
 		t.Fatalf("the first screen over HTTPS: %.300s", page)
 	}
 	if sb := curl("https://localhost:8443/sandbox.html"); !strings.Contains(sb, "localhost") {
@@ -286,8 +306,8 @@ func TestServerFromScratch(t *testing.T) {
 	b.call(token, "deck.provider_check", map[string]any{"provider": "codex"})
 	b.health(token, "provider:codex", "ok")
 
-	if state, errText, out := b.script(token); state != "done" || out.Pids == 0 || out.Pids > 5 || out.Token || out.Deck != 200 {
-		t.Fatalf("the script runs in its box, sees only its own processes and not deck's token, and calls deck: %s %s %+v", state, errText, out)
+	if state, errText, out := b.script(token); state != "done" || out.Pids == 0 || out.Pids > 5 || out.State || out.Deck != 200 {
+		t.Fatalf("the script runs in its box, sees only its own processes and not deck's base, and calls deck: %s %s %+v", state, errText, out)
 	}
 	if logs := b.compose("logs", "deck"); strings.Contains(logs, "panic") {
 		t.Fatalf("deck panicked:\n%s", logs)
@@ -301,7 +321,6 @@ func TestServerTakesOverTheVolumesOfV01(t *testing.T) {
 	b := newBare(t, "ghcr.io/teaarte/deck:v0.1.1")
 	b.write("/srv/deck/compose.yaml", fmt.Sprintf(composeV01, "v0.1.1"))
 	b.compose("up", "-d")
-	token := b.token()
 	b.sh("root", `set -e
 mkdir -p /home/agent/.claude /home/agent/.codex /var/lib/deck/work/left
 echo '{"claudeAiOauth":{"accessToken":"sk-ant-oat01-old","refreshToken":"sk-ant-ort01-old","expiresAt":4102444800000}}' > /home/agent/.claude/.credentials.json
@@ -312,9 +331,7 @@ chown -R agent:agent /home/agent /var/lib/deck/work/left`)
 
 	b.write("/srv/deck/compose.yaml", fmt.Sprintf(composeV01, "latest"))
 	b.compose("up", "-d")
-	if got := b.token(); got != token {
-		t.Fatalf("the token in the volume stays: %s, was %s", got, token)
-	}
+	token := b.signIn()
 	fix := b.health(token, "sandbox", "error")
 	for _, line := range []string{"seccomp=./seccomp.json", "systempaths=unconfined", "apparmor=deck-box", "apparmor_parser -r /etc/apparmor.d/deck-box"} {
 		if !strings.Contains(fix, line) {
@@ -338,7 +355,7 @@ stat -c '%U %n' work/left/file agents/claude/login/.credentials.json agents/code
 	b.health(token, "sandbox", "ok")
 	b.call(token, "deck.provider_check", map[string]any{"provider": "codex"})
 	b.health(token, "provider:codex", "ok")
-	if state, errText, out := b.script(token); state != "done" || out.Token || out.Deck != 200 {
+	if state, errText, out := b.script(token); state != "done" || out.State || out.Deck != 200 {
 		t.Fatalf("with its lines the script runs in its box: %s %s %+v", state, errText, out)
 	}
 	if logs := b.compose("logs", "deck"); strings.Contains(logs, "panic") {

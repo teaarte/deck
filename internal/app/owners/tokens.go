@@ -1,6 +1,6 @@
-// Package tokens keeps the automation tokens: a terminal agent, Shortcuts or a script acting as the master with
-// the commands its token lists.
-package tokens
+// Package owners keeps who may call deck as its owner: the devices of the owner with their pushes and pairing, the
+// automation tokens a terminal agent, Shortcuts or a script acts with, and the tokens deck lends its own browser.
+package owners
 
 import (
 	"context"
@@ -12,7 +12,9 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
+	"deck2/internal/auth"
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -24,12 +26,20 @@ const TokenPrefix = "deck_"
 
 var commandPattern = regexp.MustCompile(`^(\*|[a-z][a-z0-9-]*\.(\*|[a-z][a-z0-9_]*))$`)
 
-// Service keeps the tokens; Journal writes a call to the journal of the gateway.
+// Service keeps the devices and tokens; Journal writes a call to the journal of the gateway.
 type Service struct {
 	St      *store.Store
+	Now     func() time.Time
 	MCPBase string
 	loans   loans
 	Journal func(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params string)
+	// Code makes a code that pairs a device; Kick ends the open connections of a revoked device; Origins are the
+	// addresses of deck.
+	Code    func(workspace int64, kind, name string) (string, time.Time, error)
+	Kick    func(device int64)
+	Origins func() []auth.Origin
+	// PushNew pushes what came since the last push of a workspace.
+	PushNew func(ctx context.Context, workspace int64)
 }
 
 func tokenHash(raw string) string {
@@ -131,15 +141,19 @@ func (s *Service) tokenRevoke(ctx context.Context, act registry.Actor, in tokenR
 	return map[string]any{"revoked": in.Token}, nil
 }
 
-// Commands are the commands of tokens.
+// Commands are the commands of devices, pushes and tokens.
 func (s *Service) Commands() []*registry.Command {
+	return slices.Concat(s.deviceCommands(), s.pushCommands(), s.tokenCommands())
+}
+
+func (s *Service) tokenCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("token_create", "Create automation token",
 			"Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.",
 			registry.OwnerOnly, s.tokenCreate),
 		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens by name with their commands, never the tokens themselves; revoked ones too.",
-			registry.OwnerSide, s.tokensList).On("tokens").NoTokens(),
+			registry.OwnerSide, s.tokensList).On("devices").NoTokens(),
 		registry.Def("token_revoke", "Revoke token",
 			"Revokes an automation token; calls with it are refused from then on.",
 			registry.OwnerOnly, s.tokenRevoke).As(registry.External),

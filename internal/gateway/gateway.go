@@ -85,8 +85,6 @@ type Deps struct {
 	Asks     *ask.Broker
 	Bus      *events.Bus
 	Registry *registry.Registry
-	// Automation enables the MCP entry for automation tokens at /mcp.
-	Automation Automation
 }
 
 type Gateway struct {
@@ -97,11 +95,10 @@ type Gateway struct {
 	// clear is the one clearance of the registry: only the gateway lets a call that is not internal through.
 	clear registry.Clearance
 
-	mu         sync.Mutex
-	sessions   map[string]*entry
-	tokens     map[int64]*automationEntry
-	handler    http.Handler
-	automation Automation
+	mu       sync.Mutex
+	sessions map[string]*entry
+	tokens   map[int64]*automationEntry
+	handler  http.Handler
 }
 
 type entry struct {
@@ -118,7 +115,7 @@ type entry struct {
 }
 
 func New(cfg Config, deps Deps) *Gateway {
-	g := &Gateway{cfg: cfg, st: deps.Store, asks: deps.Asks, reg: deps.Registry, clear: deps.Registry.Clearance(), automation: deps.Automation,
+	g := &Gateway{cfg: cfg, st: deps.Store, asks: deps.Asks, reg: deps.Registry, clear: deps.Registry.Clearance(),
 		sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
 	bus := deps.Bus
 	g.handler = stateful(g.serverFor)

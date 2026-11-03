@@ -88,11 +88,12 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 	}
 }
 
-// TestCustomBlockFramesComeFromTheAddressTheClientCameBy: deck on every address names the second origin by the
-// address of the request; [::], 0.0.0.0 and [::1], which no CSP names, go to localhost.
+// TestCustomBlockFramesComeFromTheAddressTheClientCameBy: deck names the second origin of its address a request came
+// to; [::], 0.0.0.0 and [::1] go to localhost; an address that is not deck's gets neither.
 func TestCustomBlockFramesComeFromTheAddressTheClientCameBy(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.OnEveryAddress)
+	e.App.Auth.Origins().Add("https://deck.example.com", "https://deck.example.com:8443")
 	_, port, _ := net.SplitHostPort(strings.TrimPrefix(e.URL, "http://"))
 	_, side, _ := net.SplitHostPort(strings.TrimPrefix(e.Side, "http://"))
 	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
@@ -107,27 +108,35 @@ func TestCustomBlockFramesComeFromTheAddressTheClientCameBy(t *testing.T) {
 		return r
 	}
 	for _, host := range []string{"[::]", "0.0.0.0", "[::1]"} {
-		for _, path := range []string{"/?token=x#/p/web", "/custom"} {
+		for _, path := range []string{"/?shot=1#/p/web", "/custom"} {
 			r := get(e.URL+path, host+":"+port)
 			if want := "http://localhost:" + port + strings.Split(path, "#")[0]; r.StatusCode != http.StatusFound || r.Header.Get("Location") != want {
 				t.Fatalf("%s%s goes to %s: %d %q", host, path, want, r.StatusCode, r.Header.Get("Location"))
 			}
 		}
 	}
-	for _, host := range []string{"localhost", "192.168.0.157", "deck.lan"} {
-		main, sb := "http://"+host+":"+port, "http://"+host+":"+side
-		if got := get(e.URL+"/", host+":"+port).Header.Get("Content-Security-Policy"); !strings.HasPrefix(got, "frame-src 'self' "+sb+" blob:;") {
+	for host, at := range map[string][2]string{"localhost:" + port: {"http://localhost:" + port, "http://localhost:" + side},
+		"127.0.0.1:" + port: {"http://127.0.0.1:" + port, "http://127.0.0.1:" + side},
+		"deck.example.com":  {"https://deck.example.com", "https://deck.example.com:8443"}} {
+		main, sb := at[0], at[1]
+		if got := get(e.URL+"/", host).Header.Get("Content-Security-Policy"); !strings.HasPrefix(got, "frame-src 'self' "+sb+" blob:;") {
 			t.Fatalf("the client by %s frames the second origin by the same name: %q", host, got)
 		}
-		if r := get(e.URL+"/custom", host+":"+port); r.Header.Get("Location") != sb+"/sandbox.html" {
+		if r := get(e.URL+"/custom", host); r.Header.Get("Location") != sb+"/sandbox.html" {
 			t.Fatalf("the frame by %s goes to %s: %q", host, sb, r.Header.Get("Location"))
 		}
-		if got := get(e.Side+"/sandbox.html", host+":"+side).Header.Get("Content-Security-Policy"); !strings.HasSuffix(got, "frame-ancestors "+main) {
+		sideHost := strings.TrimPrefix(strings.TrimPrefix(sb, "http://"), "https://")
+		if got := get(e.Side+"/sandbox.html", sideHost).Header.Get("Content-Security-Policy"); !strings.HasSuffix(got, "frame-ancestors "+main) {
 			t.Fatalf("the proxy page by %s is framed only by the client by %s: %q", host, main, got)
 		}
 	}
-	if got := get(e.URL+"/", "[fd00::1]:"+port).Header.Get("Content-Security-Policy"); strings.Contains(got, "[") {
-		t.Fatalf("an IPv6 address, which no CSP names, stays out of it: %q", got)
+	for _, host := range []string{"192.168.0.157:" + port, "deck.lan:" + port, "[fd00::1]:" + port} {
+		if r := get(e.URL+"/custom", host); r.StatusCode != http.StatusMisdirectedRequest {
+			t.Fatalf("an address that is not deck's gets no frame: %s %d", host, r.StatusCode)
+		}
+		if r := get(e.Side+"/sandbox.html", strings.Replace(host, port, side, 1)); r.StatusCode != http.StatusNotFound {
+			t.Fatalf("nor the proxy page: %s %d", host, r.StatusCode)
+		}
 	}
 }
 

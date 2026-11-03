@@ -85,6 +85,23 @@ type Connection struct {
 	CreatedAt   string
 }
 
+type Device struct {
+	ID           int64
+	WorkspaceID  int64
+	Kind         string
+	Name         string
+	RpID         string
+	CredentialID []byte
+	UserHandle   []byte
+	Credential   string
+	PushEndpoint sql.NullString
+	PushP256dh   string
+	PushAuth     string
+	CreatedAt    string
+	SeenAt       sql.NullString
+	RevokedAt    sql.NullString
+}
+
 type Document struct {
 	ID          int64
 	WorkspaceID int64
@@ -331,16 +348,6 @@ type ProjectFolder struct {
 	CreatedAt string
 }
 
-type PushSubscription struct {
-	ID          int64
-	WorkspaceID int64
-	Device      string
-	Endpoint    string
-	P256dh      string
-	Auth        string
-	CreatedAt   string
-}
-
 type Record struct {
 	ID         int64
 	ProjectID  int64
@@ -365,6 +372,13 @@ type RecordSnapshot struct {
 	Revision     int64
 	Records      string
 	CreatedAt    string
+}
+
+type Session struct {
+	Hash      string
+	DeviceID  int64
+	CreatedAt string
+	SeenAt    string
 }
 
 type Setting struct {

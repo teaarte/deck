@@ -54,3 +54,8 @@ and bring the modules in line.
 - 2026-11-02: the thirds of a line a widget is laid in are said once, in the description of `widgets` in
   `deck.manifest_format_get`; the widgets skill names it instead of numbers. A read of deck answers in the language
   of the call (its `lang`, else the client's); nested reads need no `lang` of their own.
+- 2026-11-03: the owner signs in by devices: a browser pairs by a one-time link (`deck.pair_link`) and its passkey,
+  then calls with a cookie; `devices_list`, `device_rename`, `device_revoke`; there is no owner token. An automation
+  token calls only in the header `Authorization` (never in an address; ten wrong ones from an address and it waits);
+  the topic of `tokens_list` is `devices`. A page deck opens itself, such as `screen_capture`, reads with a cookie of
+  the caller that only reads. `push_subscribe` is of the device the call comes from and takes no `device`.

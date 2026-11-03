@@ -7,55 +7,22 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
-const addPushSubscription = `-- name: AddPushSubscription :one
-INSERT INTO push_subscription (workspace_id, device, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?)
-ON CONFLICT (endpoint) DO UPDATE SET workspace_id = excluded.workspace_id, device = excluded.device, p256dh = excluded.p256dh, auth = excluded.auth
-RETURNING id, workspace_id, device, endpoint, p256dh, auth, created_at
+const deletePush = `-- name: DeletePush :execrows
+UPDATE device SET push_endpoint = NULL, push_p256dh = '', push_auth = ''
+WHERE workspace_id = ? AND push_endpoint IS NOT NULL AND (push_endpoint = ?2 OR id = ?3)
 `
 
-type AddPushSubscriptionParams struct {
+type DeletePushParams struct {
 	WorkspaceID int64
-	Device      string
-	Endpoint    string
-	P256dh      string
-	Auth        string
-}
-
-func (q *Queries) AddPushSubscription(ctx context.Context, arg AddPushSubscriptionParams) (PushSubscription, error) {
-	row := q.db.QueryRowContext(ctx, addPushSubscription,
-		arg.WorkspaceID,
-		arg.Device,
-		arg.Endpoint,
-		arg.P256dh,
-		arg.Auth,
-	)
-	var i PushSubscription
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.Device,
-		&i.Endpoint,
-		&i.P256dh,
-		&i.Auth,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const deletePushSubscription = `-- name: DeletePushSubscription :execrows
-DELETE FROM push_subscription WHERE workspace_id = ? AND (endpoint = ?2 OR id = ?3)
-`
-
-type DeletePushSubscriptionParams struct {
-	WorkspaceID int64
-	Endpoint    string
+	Endpoint    sql.NullString
 	ID          int64
 }
 
-func (q *Queries) DeletePushSubscription(ctx context.Context, arg DeletePushSubscriptionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deletePushSubscription, arg.WorkspaceID, arg.Endpoint, arg.ID)
+func (q *Queries) DeletePush(ctx context.Context, arg DeletePushParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deletePush, arg.WorkspaceID, arg.Endpoint, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -64,7 +31,7 @@ func (q *Queries) DeletePushSubscription(ctx context.Context, arg DeletePushSubs
 
 const deleteStalePushMarks = `-- name: DeleteStalePushMarks :exec
 DELETE FROM mark WHERE mark.workspace_id = ?1 AND mark.name LIKE 'push:%' AND (NOT EXISTS (
-    SELECT 1 FROM push_subscription s WHERE s.workspace_id = mark.workspace_id AND mark.name LIKE 'push:' || s.id || ':%')
+    SELECT 1 FROM device s WHERE s.workspace_id = mark.workspace_id AND s.push_endpoint IS NOT NULL AND mark.name LIKE 'push:' || s.id || ':%')
   OR mark.name NOT LIKE 'push:%:ask' AND mark.name NOT LIKE 'push:%:notify')
 `
 
@@ -73,12 +40,27 @@ func (q *Queries) DeleteStalePushMarks(ctx context.Context, workspaceID int64) e
 	return err
 }
 
-const deleteWorkspacePushSubscriptions = `-- name: DeleteWorkspacePushSubscriptions :exec
-DELETE FROM push_subscription WHERE workspace_id = ?
+const deleteWorkspacePush = `-- name: DeleteWorkspacePush :exec
+UPDATE device SET push_endpoint = NULL, push_p256dh = '', push_auth = '' WHERE workspace_id = ?
 `
 
-func (q *Queries) DeleteWorkspacePushSubscriptions(ctx context.Context, workspaceID int64) error {
-	_, err := q.db.ExecContext(ctx, deleteWorkspacePushSubscriptions, workspaceID)
+func (q *Queries) DeleteWorkspacePush(ctx context.Context, workspaceID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspacePush, workspaceID)
+	return err
+}
+
+const dropPushEndpoint = `-- name: DropPushEndpoint :exec
+UPDATE device SET push_endpoint = NULL, push_p256dh = '', push_auth = '' WHERE push_endpoint = ?1 AND id != ?2
+`
+
+type DropPushEndpointParams struct {
+	Endpoint sql.NullString
+	ID       int64
+}
+
+// An endpoint is one device's: another that had it gives it up.
+func (q *Queries) DropPushEndpoint(ctx context.Context, arg DropPushEndpointParams) error {
+	_, err := q.db.ExecContext(ctx, dropPushEndpoint, arg.Endpoint, arg.ID)
 	return err
 }
 
@@ -192,27 +174,34 @@ func (q *Queries) ListNotesAfter(ctx context.Context, arg ListNotesAfterParams) 
 	return items, nil
 }
 
-const listPushSubscriptions = `-- name: ListPushSubscriptions :many
-SELECT id, workspace_id, device, endpoint, p256dh, auth, created_at FROM push_subscription WHERE workspace_id = ? ORDER BY id
+const listPushDevices = `-- name: ListPushDevices :many
+SELECT id, workspace_id, kind, name, rp_id, credential_id, user_handle, credential, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE workspace_id = ? AND push_endpoint IS NOT NULL AND revoked_at IS NULL ORDER BY id
 `
 
-func (q *Queries) ListPushSubscriptions(ctx context.Context, workspaceID int64) ([]PushSubscription, error) {
-	rows, err := q.db.QueryContext(ctx, listPushSubscriptions, workspaceID)
+func (q *Queries) ListPushDevices(ctx context.Context, workspaceID int64) ([]Device, error) {
+	rows, err := q.db.QueryContext(ctx, listPushDevices, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []PushSubscription
+	var items []Device
 	for rows.Next() {
-		var i PushSubscription
+		var i Device
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.Device,
-			&i.Endpoint,
-			&i.P256dh,
-			&i.Auth,
+			&i.Kind,
+			&i.Name,
+			&i.RpID,
+			&i.CredentialID,
+			&i.UserHandle,
+			&i.Credential,
+			&i.PushEndpoint,
+			&i.PushP256dh,
+			&i.PushAuth,
 			&i.CreatedAt,
+			&i.SeenAt,
+			&i.RevokedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -247,4 +236,45 @@ func (q *Queries) MaxNoteID(ctx context.Context, workspaceID int64) (int64, erro
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const setDevicePush = `-- name: SetDevicePush :one
+UPDATE device SET push_endpoint = ?, push_p256dh = ?, push_auth = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL
+RETURNING id, workspace_id, kind, name, rp_id, credential_id, user_handle, credential, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at
+`
+
+type SetDevicePushParams struct {
+	PushEndpoint sql.NullString
+	PushP256dh   string
+	PushAuth     string
+	ID           int64
+	WorkspaceID  int64
+}
+
+func (q *Queries) SetDevicePush(ctx context.Context, arg SetDevicePushParams) (Device, error) {
+	row := q.db.QueryRowContext(ctx, setDevicePush,
+		arg.PushEndpoint,
+		arg.PushP256dh,
+		arg.PushAuth,
+		arg.ID,
+		arg.WorkspaceID,
+	)
+	var i Device
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Kind,
+		&i.Name,
+		&i.RpID,
+		&i.CredentialID,
+		&i.UserHandle,
+		&i.Credential,
+		&i.PushEndpoint,
+		&i.PushP256dh,
+		&i.PushAuth,
+		&i.CreatedAt,
+		&i.SeenAt,
+		&i.RevokedAt,
+	)
+	return i, err
 }

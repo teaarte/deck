@@ -212,12 +212,12 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 		ClaudeCode string `json:"claude_code"`
 	}
 	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.owner_notify", "web.*"}}, &made)
-	harness.WaitEvent(t, stream, events.Event{Topic: "tokens"})
+	harness.WaitEvent(t, stream, events.Event{Topic: "devices"})
 	all, _ := json.Marshal([]any{e.Screen("", "settings", nil), e.Screen("mail", "settings", nil)})
 	if strings.Contains(string(all), "s3cret-value") || strings.Contains(string(all), made.Token) || !strings.Contains(made.ClaudeCode, made.Token) {
 		t.Fatalf("no secret value or token is on the screen after it was made: %s", all)
 	}
-	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Automation tokens", map[string]any{"topic": "tokens"})["rows"])
+	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Automation tokens", map[string]any{"topic": "devices"})["rows"])
 	if len(rows) != 1 || rows[0].Cells[0] != "shortcuts" || rows[0].Cells[2] != "deck.owner_notify, web.*" || rows[0].Cells[1] != "live" {
 		t.Fatalf("a token shows its name, commands and state: %+v", rows)
 	}
@@ -226,7 +226,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 		t.Fatalf("revoking asks the owner first: %+v", revoke)
 	}
 	e.Must(revoke["command"].(string), revoke["params"], nil)
-	harness.WaitEvent(t, stream, events.Event{Topic: "tokens"})
+	harness.WaitEvent(t, stream, events.Event{Topic: "devices"})
 	rows = harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Automation tokens", nil)["rows"])
 	if rows[0].Cells[1] != "revoked" || harness.HasVerb(rows[0].Actions, "revoke") {
 		t.Fatalf("a revoked token stays in the list without the button: %+v", rows)

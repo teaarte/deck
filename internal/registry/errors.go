@@ -37,3 +37,9 @@ func NotFound(format string, a ...any) error { return refused(http.StatusNotFoun
 
 // Conflict is a call made on a state that changed or ended since the caller read it.
 func Conflict(format string, a ...any) error { return refused(http.StatusConflict, format, a...) }
+
+// Unsigned is a call from no one deck knows: no token of deck and no signed-in device.
+func Unsigned(format string, a ...any) error { return refused(http.StatusUnauthorized, format, a...) }
+
+// Limited is a call from an address that used up its tries for a while.
+func Limited(format string, a ...any) error { return refused(http.StatusTooManyRequests, format, a...) }

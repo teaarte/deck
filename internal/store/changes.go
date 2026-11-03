@@ -86,9 +86,9 @@ var tables = map[string]table{
 	"health":            {"health", ofProject, nil},
 	"feed":              {"feed", ofProject, nil},
 	"setting":           {"settings", ofWorkspace, nil},
-	"push_subscription": {"settings", ofWorkspace, nil},
 	"layout":            {"settings", ofWorkspace, nil},
-	"automation_token":  {"tokens", ofWorkspace, nil},
+	"automation_token":  {"devices", ofWorkspace, nil},
+	"device":            {"devices", ofWorkspace, []string{"seen_at", "credential"}},
 	"chat_topic":        {"chat", ofWorkspace, nil},
 	"chat_message":      {"chat", ofTopic, nil},
 	"outbox":            {Outbox, ofDeck, []string{"tries", "error"}},
@@ -113,7 +113,7 @@ func Topics() []string {
 }
 
 // silent are the tables no screen shows, so their writes publish nothing; every other table is in tables.
-var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot", "record_mark"}
+var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot", "record_mark", "session"}
 
 // rowWrite is a row a transaction changed: the table and where the old and the new row are.
 type rowWrite struct {

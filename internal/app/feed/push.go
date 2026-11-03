@@ -85,7 +85,7 @@ func (s *Service) vapidKeys(workspace int64) (vapid, error) {
 	}
 	// Subscriptions made with the old key would fail now; their devices subscribe again.
 	return k, s.St.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		return q.DeleteWorkspacePushSubscriptions(ctx, workspace)
+		return q.DeleteWorkspacePush(ctx, workspace)
 	})
 }
 
@@ -105,68 +105,6 @@ func (s *Service) pushKey(ctx context.Context, act registry.Actor, _ struct{}) (
 	return pushKeyView{Key: k.Public}, err
 }
 
-type pushSubscribeIn struct {
-	Endpoint string `desc:"Push endpoint of the device"`
-	P256dh   string `desc:"Key of the subscription"`
-	Auth     string `desc:"Auth secret of the subscription"`
-	Device   string `opt:"" desc:"Name of the device"`
-}
-
-func (s *Service) pushSubscribe(ctx context.Context, act registry.Actor, in pushSubscribeIn) (any, error) {
-	switch {
-	case !strings.HasPrefix(in.Endpoint, "https://") && !strings.HasPrefix(in.Endpoint, "http://"):
-		return nil, registry.Invalid("a push endpoint is an http or https url")
-	case in.P256dh == "" || in.Auth == "":
-		return nil, registry.Invalid("a push subscription needs its keys p256dh and auth")
-	}
-	device := strings.TrimSpace(in.Device)
-	if device == "" {
-		device = "a device"
-	}
-	var row db.PushSubscription
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		before, err := q.ListPushSubscriptions(ctx, act.Workspace)
-		if err != nil {
-			return err
-		}
-		if len(before) == 0 {
-			// The first device starts from now, not from whatever came while no device listened.
-			if err := q.DeleteMarksWithPrefix(ctx, db.DeleteMarksWithPrefixParams{WorkspaceID: act.Workspace, Prefix: "push:"}); err != nil {
-				return err
-			}
-		}
-		row, err = q.AddPushSubscription(ctx, db.AddPushSubscriptionParams{WorkspaceID: act.Workspace, Device: untrusted.Cut(device, 80),
-			Endpoint: in.Endpoint, P256dh: in.P256dh, Auth: in.Auth})
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	s.PushNew(ctx, act.Workspace)
-	return map[string]any{"device": row.ID, "name": row.Device}, nil
-}
-
-type pushUnsubscribeIn struct {
-	Endpoint string `opt:"" desc:"Push endpoint of the device"`
-	Device   int64  `opt:"" desc:"Device id"`
-}
-
-func (s *Service) pushUnsubscribe(ctx context.Context, act registry.Actor, in pushUnsubscribeIn) (any, error) {
-	var n int64
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		n, err = q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: act.Workspace, Endpoint: in.Endpoint, ID: in.Device})
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	if n == 0 {
-		return nil, registry.NotFound("no such device")
-	}
-	return map[string]any{"removed": n}, nil
-}
-
 // pushReset makes a new key for pushes on the next use; the devices subscribed with the old one subscribe again.
 func (s *Service) pushReset(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
 	s.keyMu.Lock()
@@ -176,34 +114,12 @@ func (s *Service) pushReset(ctx context.Context, act registry.Actor, _ struct{})
 		return nil, err
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.DeleteWorkspacePushSubscriptions(ctx, act.Workspace)
+		return q.DeleteWorkspacePush(ctx, act.Workspace)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
-}
-
-// pushDeviceView is a device that gets pushes.
-type pushDeviceView struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	CreatedAt string `json:"created_at"`
-	// Remove is the button that stops its pushes.
-	Remove map[string]any `json:"remove"`
-}
-
-func (s *Service) pushDevices(ctx context.Context, act registry.Actor, _ struct{}) ([]pushDeviceView, error) {
-	rows, err := s.St.Q.ListPushSubscriptions(ctx, act.Workspace)
-	if err != nil {
-		return nil, err
-	}
-	out := []pushDeviceView{}
-	for _, r := range rows {
-		out = append(out, pushDeviceView{ID: r.ID, Name: r.Device, CreatedAt: r.CreatedAt,
-			Remove: map[string]any{"verb": "remove", "command": registry.Deck("push_unsubscribe"), "params": map[string]any{"device": r.ID}}})
-	}
-	return out, nil
 }
 
 // pushItem is one push and the cursor of its source once it is delivered; an empty push only moves the cursor.
@@ -268,7 +184,7 @@ func (s *Service) pushSources(say map[string]string, hidden bool) []pushSource {
 func (s *Service) PushNew(ctx context.Context, workspace int64) {
 	s.pushMu.Lock()
 	defer s.pushMu.Unlock()
-	subs, err := s.St.Q.ListPushSubscriptions(ctx, workspace)
+	subs, err := s.St.Q.ListPushDevices(ctx, workspace)
 	if err != nil {
 		return
 	}
@@ -316,7 +232,7 @@ func (s *Service) PushNew(ctx context.Context, workspace int64) {
 				it.msg.Badge = badge()
 				res, why := s.deliver(ctx, workspace, k, sub, it.msg)
 				if why != "" {
-					failed = append(failed, sub.Device+": "+why)
+					failed = append(failed, sub.Name+": "+why)
 					lasting = lasting || res != pushRetry
 				}
 				if res != pushDone {
@@ -382,13 +298,13 @@ const (
 
 // deliver sends one push to a device and says why it failed, if it did; a device the service no longer knows
 // goes away, one that refuses the push for good is only logged.
-func (s *Service) deliver(ctx context.Context, workspace int64, k vapid, sub db.PushSubscription, m pushMessage) (int, string) {
+func (s *Service) deliver(ctx context.Context, workspace int64, k vapid, sub db.Device, m pushMessage) (int, string) {
 	payload, _ := json.Marshal(m)
-	resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: sub.Endpoint,
-		Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}}, &webpush.Options{HTTPClient: egress.Push, Subscriber: "deck@example.com",
+	resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: sub.PushEndpoint.String,
+		Keys: webpush.Keys{P256dh: sub.PushP256dh, Auth: sub.PushAuth}}, &webpush.Options{HTTPClient: egress.Push, Subscriber: "deck@example.com",
 		VAPIDPublicKey: k.Public, VAPIDPrivateKey: k.Private, TTL: 3600, Urgency: webpush.UrgencyHigh})
 	if err != nil {
-		slog.Error("push", "device", sub.Device, "err", err)
+		slog.Error("push", "device", sub.Name, "err", err)
 		return pushRetry, err.Error()
 	}
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
@@ -400,7 +316,7 @@ func (s *Service) deliver(ctx context.Context, workspace int64, k vapid, sub db.
 	}
 	gone := func() {
 		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			_, err := q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: workspace, Endpoint: sub.Endpoint})
+			_, err := q.DeletePush(ctx, db.DeletePushParams{WorkspaceID: workspace, Endpoint: sub.PushEndpoint})
 			return err
 		})
 	}
@@ -412,13 +328,13 @@ func (s *Service) deliver(ctx context.Context, workspace int64, k vapid, sub db.
 		return pushGone, ""
 	case (code == http.StatusBadRequest || code == http.StatusForbidden) && otherKey(string(body)):
 		// The device subscribed with another key of deck: the subscription goes, and the device subscribes again.
-		slog.Error("push refused", "device", sub.Device, "status", status)
+		slog.Error("push refused", "device", sub.Name, "status", status)
 		gone()
 		return pushGone, "the push service refused the subscription: " + status + "; deck forgot it, turn pushes on again on this device in Settings → Advanced"
 	case code == http.StatusTooManyRequests || code >= 500:
 		return pushRetry, status
 	default:
-		slog.Error("push refused", "device", sub.Device, "status", status)
+		slog.Error("push refused", "device", sub.Name, "status", status)
 		return pushDone, "the push service refused it: " + status + "; turn pushes off and on again on this device in Settings → Advanced"
 	}
 }
@@ -436,17 +352,8 @@ func (s *Service) pushCommands() []*registry.Command {
 		registry.Read("push_key_get", "Push key",
 			"Returns the public key a device subscribes to the pushes of deck with.",
 			registry.OwnerOnly, s.pushKey).On("settings"),
-		registry.Def("push_subscribe", "Get pushes",
-			"Subscribes a device to pushes: what waits for the owner and the notes of the feed when no client is open.",
-			registry.OwnerOnly, s.pushSubscribe),
-		registry.Def("push_unsubscribe", "Stop pushes",
-			"Stops pushes to a device.",
-			registry.OwnerOnly, s.pushUnsubscribe),
 		registry.Def("push_key_reset", "Reset the push key",
 			"Makes a new key for pushes; every device subscribed with the old one has to subscribe again.",
 			registry.OwnerOnly, s.pushReset),
-		registry.Read("push_devices_list", "Devices",
-			"Lists the devices that get pushes.",
-			registry.OwnerOnly, s.pushDevices).On("settings"),
 	}
 }

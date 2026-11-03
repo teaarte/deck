@@ -143,7 +143,7 @@ needed only to rebuild the web client, which is embedded in the binary.
 
 ```bash
 go build -o deck ./cmd/deck             # add -tags tailnet to serve deck on your Tailscale network
-./deck                                  # prints the address with the access token; data in ~/.deck2
+./deck                                  # prints the address and, on a first start, the link that pairs a browser
 DECK_HOME=/tmp/deckhome ./deck          # another data folder
 ./deck -addr 127.0.0.1:7700             # the listen address (default); the next port serves custom blocks
 ./deck -tailscale deck                  # with the tag: join your tailnet as "deck" over HTTPS
@@ -161,8 +161,9 @@ stays as it is. deck.app and the Windows installer are updated whole by their la
 calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`. On start, deck migrates its
 database and the stored manifests.
 
-- **Phone.** Open deck's address in Safari or Chrome, enter the token once and add it to the home screen. Pushes and
-  sharing a link or a file into a module work as in a native app. Away from home, run deck with `-tailscale`.
+- **Phone.** Open a pairing link of deck (`deck.pair_link`) on the phone over https — your tailnet or your domain —,
+  make a passkey and add deck to the home screen. Pushes and sharing a link or a file into a module work as in a
+  native app. deck signs the owner in only over https and on localhost, never over plain http from the network.
 - **Desktop app.** `desktop/build.sh` builds `deck.app` for macOS and an installer for Windows, where deck runs in
   its own WSL2 distribution (not yet tried on a real Windows machine). The launcher lives in the tray and can start
   at login.
@@ -179,14 +180,14 @@ for f in compose.yaml seccomp.json deck-box.apparmor; do curl -fsSLO https://raw
 sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
 echo "DECK_DOMAIN=deck.example.com" > .env
 docker compose up -d
-docker compose logs deck | grep token     # the link with the access token
+docker compose logs deck | grep pair      # the link that pairs your first device
 ```
 
 Caddy in the same compose gets the HTTPS certificate. Open the link, then sign in to the agents in
 Settings → Models → **Sign in**: Codex shows a link and a code, Claude Code a link whose page gives the code to
 enter. Their logins and deck's data stay in the volume `deck`. Add `DECK_TAILSCALE=deck` to `.env` to also reach
-deck on your tailnet. Without a domain, reach deck through an SSH tunnel to `127.0.0.1:7700` of the server (Caddy
-then serves only a self-signed `localhost`, still behind the token). To update:
+deck on your tailnet. Without a domain, reach deck through an SSH tunnel to `127.0.0.1:7700` of the server and open
+it as `http://localhost:7700`, where a browser makes a passkey too. To update:
 `docker compose pull && docker compose up -d`.
 
 **What the container needs.** Every program of a module runs in a box of its own inside the container, built by

@@ -99,16 +99,20 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCapture
 	}
 	token := s.Lend(act, 2*time.Minute)
 	defer s.Return(token)
-	q := url.Values{"token": {token}, "shot": {"1"}}
+	q := url.Values{"shot": {"1"}}
 	if in.Theme != "" {
 		q.Set("theme", in.Theme)
 	}
 	if in.Scheme != "" {
 		q.Set("scheme", in.Scheme)
 	}
-	page := strings.TrimRight(s.Base, "/") + "/?" + q.Encode() + in.Address
-	// A phone's full-page picture leaves the frames of custom blocks blank, so its window grows to the page instead.
+	base := strings.TrimRight(s.Base, "/")
+	page := base + "/?" + q.Encode() + in.Address
+	// The page trades the token for a cookie that reads as the caller; a phone's full-page picture leaves the frames
+	// of custom blocks blank, so its window grows to the page instead.
 	code := fmt.Sprintf(`async (page) => {
+  const lent = await page.request.post(%q, { headers: { Authorization: %q } });
+  if (!lent.ok()) throw new Error('deck lent no cookie: ' + lent.status());
   await page.goto(%q);
   const drawn = await page.waitForFunction(%s, null, { timeout: 30000, polling: 100 });
   const ms = await drawn.jsonValue();
@@ -128,7 +132,7 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCapture
   }
   const error = await page.evaluate(() => document.querySelector('[data-screen-error]')?.innerText ?? '');
   return JSON.stringify({ ms: Math.round(ms), error, window, grown: tall > window.height });
-}`, page, ready, ready, device == "phone", ready)
+}`, base+"/auth/lend", "Bearer "+token, page, ready, ready, device == "phone", ready)
 	res, err := s.call(ctx, key, spec, "browser_run_code_unsafe", map[string]any{"code": code})
 	if err != nil {
 		return nil, err

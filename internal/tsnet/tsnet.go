@@ -74,7 +74,7 @@ func (n *Node) listen(port int) (net.Listener, error) {
 }
 
 func serve(ctx context.Context, ln net.Listener, h http.Handler) {
-	srv := &http.Server{Handler: h, ReadHeaderTimeout: 30 * time.Second}
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 64 << 10}
 	go func() {
 		<-ctx.Done()
 		_ = srv.Close()

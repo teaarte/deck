@@ -122,7 +122,7 @@ func TestTheMasterTakesAShotOfAScreen(t *testing.T) {
 func TestALentTokenOnlyReadsWhileItLasts(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	tok := e.App.Tokens.Lend(registry.Actor{Kind: registry.Master, Workspace: 1}, time.Minute)
+	tok := e.App.Owners.Lend(registry.Actor{Kind: registry.Master, Workspace: 1}, time.Minute)
 	if code, out := e.As(tok).Call("deck.screen_get", map[string]any{"screen": "settings"}); code != 200 {
 		t.Fatalf("a lent token reads a screen: %d %s", code, out)
 	}
@@ -132,7 +132,7 @@ func TestALentTokenOnlyReadsWhileItLasts(t *testing.T) {
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "x", "manifest": harness.PlainManifest}); code != 403 || !strings.Contains(string(out), "only reads") {
 		t.Fatalf("a lent token changes nothing: %d %s", code, out)
 	}
-	e.App.Tokens.Return(tok)
+	e.App.Owners.Return(tok)
 	if code, _ := e.As(tok).Call("deck.menu_get", map[string]any{}); code != 401 {
 		t.Fatalf("a returned token opens nothing: %d", code)
 	}

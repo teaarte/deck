@@ -171,8 +171,8 @@ func (d *pushDevice) decrypt(t *testing.T, body []byte) []byte {
 func (d *pushDevice) subscribe(e *harness.Env, srv *httptest.Server, name string) {
 	egress.AsPublic(srv.Listener.Addr().String())
 	b64 := base64.RawURLEncoding.EncodeToString
-	e.Must("deck.push_subscribe", map[string]any{"endpoint": srv.URL + "/push/" + name, "p256dh": b64(d.priv.PublicKey().Bytes()),
-		"auth": b64(d.auth), "device": name}, nil)
+	e.Device(name).Must("deck.push_subscribe", map[string]any{"endpoint": srv.URL + "/push/" + name, "p256dh": b64(d.priv.PublicKey().Bytes()),
+		"auth": b64(d.auth)}, nil)
 }
 
 // wait looks for what to push, as the loop of deck does every 30 seconds, until the device got n pushes.

@@ -3,7 +3,6 @@ package api
 import (
 	"cmp"
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,34 +19,35 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/auth"
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
-	"deck2/internal/store"
 	"deck2/internal/theme"
 	"deck2/internal/words"
 )
 
 type Server struct {
-	app   *app.App
-	token string
-	web   fs.FS
-	// pairs maps the port of the client to the port of its second origin.
-	pairs map[int]int
-	// proxied trusts X-Forwarded-Proto of the proxy deck is reached through.
-	proxied bool
-	// plain says the owner came from another machine over plain http since deck started.
+	app *app.App
+	web fs.FS
+	// origins are the addresses deck answers the owner at, each with its second origin.
+	origins *auth.Origins
+	// plain says the owner came by an address deck does not sign in at since deck started.
 	plain atomic.Bool
 }
 
-func New(a *app.App, token string, web fs.FS) *Server { return &Server{app: a, token: token, web: web} }
+func New(a *app.App, web fs.FS) *Server { return &Server{app: a, web: web, origins: a.Auth.Origins()} }
+
+// maxUpload is how much one upload of files may hold together.
+const maxUpload = 1 << 30
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/mcp/", loopbackOnly(s.app.Gateway))
-	mux.HandleFunc("/mcp", s.app.Gateway.ServeAutomation)
-	mux.Handle("/", s.local(s.framesOnly(http.FileServerFS(s.web))))
-	mux.Handle("GET /custom", s.local(http.HandlerFunc(s.custom)))
+	mux.HandleFunc("/mcp", s.automation)
+	mux.Handle("/", s.framesOnly(http.FileServerFS(s.web)))
+	mux.HandleFunc("GET /custom", s.custom)
+	s.rites(mux)
 
 	api := http.NewServeMux()
 	api.HandleFunc("POST /api/commands/{name}", s.invoke)
@@ -56,20 +56,15 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/files/{id}", s.download)
 	api.HandleFunc("GET /api/files/data/{project}/{path...}", s.downloadData)
 	api.HandleFunc("GET /api/files/theme/{name}/{file}", s.themePicture)
-	mux.Handle("/api/", s.auth(api))
-	return mux
+	mux.Handle("/api/", s.signed(api))
+	return s.hosted(mux)
 }
 
 // loopbackOnly serves the processes of this machine, which come from loopback or from deck's own address;
 // the tailnet and the network do not reach their tokens.
 func loopbackOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		host, _, _ := net.SplitHostPort(r.RemoteAddr)
-		self := ""
-		if la, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
-			self, _, _ = net.SplitHostPort(la.String())
-		}
-		if ip, err := netip.ParseAddr(host); err != nil || !ip.Unmap().IsLoopback() && host != self {
+		if !fromHere(r) {
 			http.NotFound(w, r)
 			return
 		}
@@ -77,65 +72,58 @@ func loopbackOnly(next http.Handler) http.Handler {
 	})
 }
 
+// fromHere says a request comes from this machine: from loopback or from deck's own address.
+func fromHere(r *http.Request) bool {
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	self := ""
+	if la, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+		self, _, _ = net.SplitHostPort(la.String())
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && (ip.Unmap().IsLoopback() || host == self)
+}
+
 type actorKey struct{}
 
-// auth takes the owner's token, or an automation token for the command endpoints; the token of an address, which
-// links and logs carry, opens only what a page reads.
-func (s *Server) auth(next http.Handler) http.Handler {
+// signed lets a call through as whom Who says it comes from.
+func (s *Server) signed(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := r.Header.Get("Authorization")
-		if got == "" && r.Method == http.MethodGet {
-			got = "Bearer " + r.URL.Query().Get("token")
-		}
-		act, lent := owner, false
-		if a, ok := s.app.Tokens.Lent(strings.TrimPrefix(got, "Bearer ")); ok {
-			act, lent = a, true
-		} else if s.token != "" && subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) == 1 {
-			s.reached(r)
-		} else {
-			var err error
-			if act, err = s.app.Tokens.Automation(r.Context(), strings.TrimPrefix(got, "Bearer ")); err != nil {
+		act, err := s.Who(r)
+		if err != nil {
+			status := fault.Status(err)
+			if status == http.StatusUnauthorized {
 				// The challenge tells a refused token of deck from a model's refused key a command answers with.
 				w.Header().Set("WWW-Authenticate", "Bearer")
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
 			}
+			refuse(w, r, err.Error(), status)
+			return
 		}
 		ctx := registry.WithLang(context.WithValue(r.Context(), actorKey{}, act), r.Header.Get("Deck-Lang"))
-		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, lentKey{}, lent)))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// reached tells deck the first time the owner comes from another machine over plain http; https to deck, to its
-// proxy or to a proxy on this machine such as tailscale serve is not plain.
-func (s *Server) reached(r *http.Request) {
-	name, _ := s.hostPort(r)
-	if ip, err := netip.ParseAddr(name); name == "localhost" || err == nil && ip.Unmap().IsLoopback() {
+// automation is the MCP entry of automation tokens: Who says whose token it is.
+func (s *Server) automation(w http.ResponseWriter, r *http.Request) {
+	act, err := s.Who(r)
+	if err == nil && act.Kind != registry.Token {
+		err = errUnsigned
+	}
+	if err != nil {
+		if fault.Status(err) == http.StatusUnauthorized {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+		}
+		refuse(w, r, err.Error(), fault.Status(err))
 		return
 	}
-	remote, _, _ := net.SplitHostPort(r.RemoteAddr)
-	ip, err := netip.ParseAddr(remote)
-	local := err == nil && ip.Unmap().IsLoopback()
-	if s.secure(r) || local && r.Header.Get("X-Forwarded-Proto") == "https" || !s.plain.CompareAndSwap(false, true) {
-		return
-	}
-	port := 0
-	if la, ok := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr); ok {
-		port = la.Port
-	}
-	s.app.Plain(name, port)
+	s.app.Gateway.ServeAutomation(w, r, act)
 }
-
-type lentKey struct{}
 
 func actor(r *http.Request) registry.Actor { return r.Context().Value(actorKey{}).(registry.Actor) }
 
-// lentTo says the request comes with a token deck lent its own browser: its caller's rights, reads only.
-func lentTo(r *http.Request) bool { return r.Context().Value(lentKey{}) == true }
-
 func (s *Server) ownerOnly(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if actor(r).Kind != registry.Owner && !lentTo(r) {
+		if act := actor(r); act.Kind != registry.Owner && !act.Looks {
 			refuse(w, r, "deck: automation tokens call commands only", http.StatusForbidden)
 			return
 		}
@@ -143,18 +131,12 @@ func (s *Server) ownerOnly(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-var owner = registry.Actor{Kind: registry.Owner, Workspace: store.DefaultWorkspace}
-
 func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 	body, err := registry.ReadBody(w, r)
 	if err != nil {
 		return
 	}
 	var out any
-	if lentTo(r) && !s.app.Tokens.Reads(r.PathValue("name")) {
-		refuse(w, r, readsOnly, http.StatusForbidden)
-		return
-	}
 	if act := actor(r); act.Kind == registry.Token {
 		out, err = s.app.Gateway.CallAs(r.Context(), act, r.PathValue("name"), body)
 	} else {
@@ -190,15 +172,16 @@ func refuse(w http.ResponseWriter, r *http.Request, text string, status int) {
 	http.Error(w, text, status)
 }
 
-// readsOnly refuses a write from a page deck opens itself.
+// readsOnly refuses a write from a caller that only reads, such as a page deck opens itself.
 const readsOnly = "deck: a page deck opens itself only reads"
 
 // upload takes the files of a multipart form for a project; commands then get them by id.
 func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
-	if lentTo(r) {
+	if actor(r).ReadOnly {
 		refuse(w, r, readsOnly, http.StatusForbidden)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)
 	mr, err := r.MultipartReader()
 	if err != nil {
 		refuse(w, r, "deck: send the files as multipart/form-data", http.StatusBadRequest)
@@ -282,15 +265,28 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	sub, cancel := s.app.Bus.Subscribe(actor(r).Workspace)
 	defer cancel()
+	// A revoked device loses its stream at once, a session that ended at the next ping.
+	ctx, release := s.app.Auth.Hold(r.Context(), actor(r).Device)
+	defer release()
+	alive := func() bool { return true }
+	if c, err := r.Cookie(cookieName(originOf(r))); err == nil && actor(r).Device != 0 {
+		alive = func() bool { return s.app.Auth.Alive(ctx, c.Value) }
+	}
+	if !alive() {
+		return
+	}
 	fmt.Fprint(w, ": ok\n\n")
 	flusher.Flush()
 	ping := time.NewTicker(pingEvery)
 	defer ping.Stop()
 	for {
 		select {
-		case <-r.Context().Done():
+		case <-ctx.Done():
 			return
 		case <-ping.C:
+			if !alive() {
+				return
+			}
 			fmt.Fprint(w, "event: ping\ndata: {}\n\n")
 			flusher.Flush()
 		case <-sub.Ready():

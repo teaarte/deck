@@ -27,12 +27,16 @@ type ceremony struct {
 	until   time.Time
 }
 
-// Begun is what a begun ceremony gives the browser, or the session of a device paired without a passkey.
+// Begun is what a begun ceremony gives the browser, or the session of a device signed in: a browser's in its cookie,
+// that of the launcher or a node as a key it sends in the header Authorization.
 type Begun struct {
 	Ceremony string `json:"ceremony,omitempty"`
 	Options  any    `json:"options,omitempty"`
 	Cookie   string `json:"-"`
+	Key      string `json:"key,omitempty"`
 	Device   int64  `json:"device,omitempty"`
+	// Kicked are the devices the pairing took the place of, whose open connections end once it is committed.
+	Kicked []int64 `json:"-"`
 }
 
 // owner is the owner as a device knows them: a user handle of the device's own, so the passkey of one device never
@@ -49,7 +53,7 @@ func (o owner) WebAuthnCredentials() []webauthn.Credential { return o.creds }
 
 func relying(o Origin) (*webauthn.WebAuthn, error) {
 	if !o.Passkeys() {
-		return nil, errors.New("deck: a browser makes passkeys only over https or on localhost; open deck there")
+		return nil, errors.New("deck: a browser signs in to deck only over https by a name; open deck at its https address")
 	}
 	return webauthn.New(&webauthn.Config{RPID: o.RPID(), RPDisplayName: "deck", RPOrigins: []string{o.Main}})
 }
@@ -83,7 +87,7 @@ func (a *Auth) finish(id string, o Origin) (ceremony, error) {
 }
 
 // PairBegin begins to pair a device by its code at an origin: a passkey ceremony for a browser; the launcher, on this
-// machine only, and a node pair at once with no passkey.
+// machine only, and a node pair at once with no passkey and get a key. A launcher takes the place of the one before.
 func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string, loopback bool) (Begun, error) {
 	a.mu.Lock()
 	c, err := a.take(raw, true)
@@ -160,17 +164,46 @@ func (a *Auth) PairFinish(ctx context.Context, o Origin, id, name string, body [
 		UserHandle: cer.handle, Credential: string(b)})
 }
 
-// device makes a device and its first session.
+// device makes a device and its first session; a code of no workspace pairs it in deck's first one.
 func (a *Auth) device(ctx context.Context, p db.CreateDeviceParams) (Begun, error) {
-	p.SeenAt = store.At(a.cfg.Now())
-	return store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
+	now := a.cfg.Now()
+	p.SeenAt = store.At(now)
+	b, err := store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
+		if p.WorkspaceID == 0 {
+			spaces, err := q.ListWorkspaces(ctx)
+			if err != nil || len(spaces) == 0 {
+				return Begun{}, errors.Join(err, ErrSignIn)
+			}
+			p.WorkspaceID = spaces[0]
+		}
+		var b Begun
+		if p.Kind == Launcher {
+			if err := q.DeleteKindSessions(ctx, db.DeleteKindSessionsParams{WorkspaceID: p.WorkspaceID, Kind: Launcher}); err != nil {
+				return Begun{}, err
+			}
+			gone, err := q.DeleteKind(ctx, db.DeleteKindParams{WorkspaceID: p.WorkspaceID, Kind: Launcher})
+			if err != nil {
+				return Begun{}, err
+			}
+			b.Kicked = gone
+		}
 		d, err := q.CreateDevice(ctx, p)
 		if err != nil {
 			return Begun{}, err
 		}
-		cookie, err := a.start(ctx, q, d.ID)
-		return Begun{Cookie: cookie, Device: d.ID}, err
+		raw, err := a.start(ctx, q, d.ID)
+		b.Device = d.ID
+		if p.Kind == Browser {
+			b.Cookie = raw
+		} else {
+			b.Key = raw
+		}
+		return b, err
 	})
+	for _, id := range b.Kicked {
+		a.Kick(id)
+	}
+	return b, err
 }
 
 // LoginBegin begins to sign in with a passkey of the origin; the browser offers those it has.

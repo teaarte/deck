@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -45,7 +46,8 @@ func freeAddr(t *testing.T) string {
 	return ""
 }
 
-// opens checks that deck, started, lets the window in at its address with the token, and stops with the launcher.
+// opens checks that deck, started, pairs the window by deck pair with a key in the fragment of its address, keeps it
+// while it signs in, and stops with the launcher.
 func opens(t *testing.T, d *Deck) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -53,18 +55,33 @@ func opens(t *testing.T, d *Deck) {
 	if err := d.Start(ctx); err != nil {
 		t.Fatalf("deck starts: %v", err)
 	}
-	u, err := d.URL(ctx)
-	if err != nil || !strings.HasPrefix(u, "http://"+d.Addr+"/?token=") {
-		t.Fatalf("the address of the window carries the token: %q %v", u, err)
+	if d.Signed(ctx) {
+		t.Fatal("a window not paired yet is not signed in")
 	}
-	token := u[strings.Index(u, "=")+1:]
-	req, _ := http.NewRequest(http.MethodPost, "http://"+d.Addr+"/api/commands/deck.menu_get", strings.NewReader("{}"))
-	req.Header.Set("Authorization", "Bearer "+token)
+	u, err := d.Pair(ctx)
+	if err != nil || !strings.HasPrefix(u, "http://"+d.Addr+"/#key=") {
+		t.Fatalf("the address of the window carries its key in the fragment: %q %v", u, err)
+	}
+	key := u[strings.Index(u, "=")+1:]
+	req, _ := http.NewRequest(http.MethodPost, "http://"+d.Addr+"/api/commands/deck.devices_list", strings.NewReader("{}"))
+	req.Header.Set("Authorization", "Bearer "+key)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil || res.StatusCode != http.StatusOK {
-		t.Fatalf("the token signs the owner in: %v %v", res, err)
+		t.Fatalf("the key signs the window in: %v %v", res, err)
 	}
+	b, _ := io.ReadAll(res.Body)
 	res.Body.Close()
+	if !strings.Contains(string(b), `"kind":"launcher"`) || !d.Signed(ctx) {
+		t.Fatalf("the window is the device of the launcher and stays signed in: %s", b)
+	}
+	if again, err := d.Pair(ctx); err != nil || again == u {
+		t.Fatalf("a window paired again gets a new key: %v", err)
+	}
+	req, _ = http.NewRequest(http.MethodPost, "http://"+d.Addr+"/api/commands/deck.menu_get", strings.NewReader("{}"))
+	req.Header.Set("Authorization", "Bearer "+key)
+	if res, err := http.DefaultClient.Do(req); err != nil || res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("the key before it signs nothing in: %v %v", res, err)
+	}
 	if err := (&Deck{Runner: d.Runner, Addr: d.Addr}).Start(ctx); err != nil {
 		t.Fatalf("a second launcher finds deck up and starts none: %v", err)
 	}
@@ -77,7 +94,7 @@ func opens(t *testing.T, d *Deck) {
 }
 
 // TestTheLauncherStartsDeckAndSignsTheWindowIn: on macOS the deck beside the launcher starts in its home, the window
-// gets its address with the owner's token, and quitting the launcher stops it.
+// gets its address with the key deck pair gave, and quitting the launcher stops it.
 func TestTheLauncherStartsDeckAndSignsTheWindowIn(t *testing.T) {
 	opens(t, &Deck{Runner: Local{Bin: built(t), Home: t.TempDir()}, Addr: freeAddr(t)})
 }
@@ -102,6 +119,7 @@ case "$1" in
 bash) for a; do shift; [ "$a" = ` + Bin + ` ] && a="` + built(t) + `"; set -- "$@" "$a"; done
   echo $$ > "` + dir + `/pid"; WSL_FAKE_LOGIN=1 exec "$@" ;;
 pkill) exec kill -TERM "$(cat "` + dir + `/pid")" ;;
+` + Bin + `) shift; exec "` + built(t) + `" "$@" ;;
 *) exec "$@" ;;
 esac
 `
@@ -156,32 +174,25 @@ echo "$3" > "` + dir + `/provision"
 	}
 }
 
-// TestTheLauncherSendsTheTokenOnlyToDeck: another program on deck's port is not taken for deck, and a deck of
-// another home that does not take the owner's token is said to be another.
-func TestTheLauncherSendsTheTokenOnlyToDeck(t *testing.T) {
-	home := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(home, "state"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	_ = os.WriteFile(filepath.Join(home, "state", "token"), []byte("owner"), 0o600)
-	var tokens []string
+// TestTheLauncherPairsOnlyWithItsDeck: another program on deck's port is not taken for deck, and a deck of another
+// home that does not take the code of deck pair is said to be another.
+func TestTheLauncherPairsOnlyWithItsDeck(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			_, _ = w.Write([]byte("<title>deck</title>"))
 			return
 		}
-		tokens = append(tokens, r.Header.Get("Authorization"))
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()
-	d := &Deck{Runner: Local{Bin: "/nonexistent", Home: home}, Addr: strings.TrimPrefix(srv.URL, "http://")}
+	d := &Deck{Runner: Local{Bin: built(t), Home: t.TempDir()}, Addr: strings.TrimPrefix(srv.URL, "http://")}
 	ctx := context.Background()
 	if !d.Up(ctx) {
 		t.Fatal("a server that answers as deck is up")
 	}
-	if _, err := d.URL(ctx); err == nil || !strings.Contains(err.Error(), "another deck") {
-		t.Fatalf("a deck that does not take the token is another: %v", err)
+	if _, err := d.Pair(ctx); err == nil || !strings.Contains(err.Error(), "another deck") {
+		t.Fatalf("a deck that does not take the code is another: %v", err)
 	}
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("<title>deck</title>")) }))
 	defer other.Close()

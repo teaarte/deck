@@ -1,6 +1,7 @@
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './theme/touch.css';
+import './lib/signin';
 import './lib/i18n';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

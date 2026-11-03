@@ -130,7 +130,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	e.Must("deck.theme_use", map[string]any{"name": "juce"}, nil)
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/#/deck/cockpit")
+	b.open(b.base + "/#/deck/cockpit")
 	b.until("the chat on the whole phone screen", `(() => { const i = document.querySelector('[data-chat-input]'); if (!i) return false;
 		const r = i.getBoundingClientRect(); return r.width > 300 && !document.querySelector('[data-chat-panel]') })()`)
 	b.until("the newest topic open on the phone", `document.querySelector('[data-message="master"]')`)
@@ -552,7 +552,7 @@ func TestRealBrowserChatStaysOnTheLastReply(t *testing.T) {
 	b.until("the feed at its last reply", bottom)
 	e.Must("deck.project_create", map[string]any{"name": "other", "prompt": "# Other.\n"}, nil)
 	b.until("the feed at its last reply after an event", bottom)
-	b.open(e.URL + "/#/p/groceries/board")
+	b.open(b.base + "/#/p/groceries/board")
 	b.until("the feed at its last reply after a move", bottom)
 	b.eval(`(location.reload(), '')`)
 	b.until("the chat after a reload", `document.querySelectorAll('[data-message="master"]').length === 6`)

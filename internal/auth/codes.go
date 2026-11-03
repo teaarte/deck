@@ -31,22 +31,28 @@ type code struct {
 	file      string
 }
 
-// Code makes a code that pairs one device of kind in the workspace for ten minutes; deck pair writes the same file.
+// Code makes a code that pairs one device of kind in the workspace for ten minutes.
 func (a *Auth) Code(workspace int64, kind, name string) (string, time.Time, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return WriteCode(a.cfg.Home, a.cfg.Now(), workspace, kind, name)
+}
+
+// WriteCode writes a code into the folder of codes of a home, as deck pair does while deck runs or not; workspace 0
+// is deck's first one.
+func WriteCode(h home.Layout, now time.Time, workspace int64, kind, name string) (string, time.Time, error) {
 	switch kind {
 	case Browser, Launcher, Node:
 	default:
 		return "", time.Time{}, errors.New("deck: a device is a browser, the launcher or a node")
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	raw, until := nonce.Token(), a.cfg.Now().Add(CodeLife)
+	raw, until := nonce.Token(), now.Add(CodeLife)
 	c := code{Hash: hash(raw), Until: until, Kind: kind, Name: name, Workspace: workspace}
-	if err := os.MkdirAll(a.cfg.Home.Pair(), 0o700); err != nil {
+	if err := os.MkdirAll(h.Pair(), 0o700); err != nil {
 		return "", time.Time{}, err
 	}
 	b, _ := json.Marshal(c)
-	return raw, until, home.WriteFile(filepath.Join(a.cfg.Home.Pair(), nonce.Hex(8)), b)
+	return raw, until, home.WriteFile(filepath.Join(h.Pair(), nonce.Hex(8)), b)
 }
 
 // take finds the code of raw and counts a try of it; a code past its time, or past its tries for a new try, is gone.

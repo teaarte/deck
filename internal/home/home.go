@@ -35,7 +35,11 @@ func (l Layout) Update() string { return l.state("update.json") }
 func (l Layout) Lock() string { return l.state("deck.lock") }
 
 // Pair holds the codes that pair a device, a file each, as deck pair writes them.
-func (l Layout) Pair() string  { return l.state("pair") }
+func (l Layout) Pair() string { return l.state("pair") }
+
+// Origins are the addresses deck serves at, as it last kept them for deck pair.
+func (l Layout) Origins() string { return l.state("origins.json") }
+
 func (l Layout) Files() string { return l.state("files") }
 
 // File is a stored file by its id.

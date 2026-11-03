@@ -36,7 +36,7 @@ func TestRealBrowserPressAnswersItsAsk(t *testing.T) {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
 		b.Open(e, "#/deck/cockpit")
 		b.until("the cockpit", `document.querySelector('[data-today-line]')`)
-		b.open(e.URL + "/?size=" + size.name + "#/p/picker/main")
+		b.open(b.base + "/?size=" + size.name + "#/p/picker/main")
 		b.until("the Apply button", `[...document.querySelectorAll('button')].some((x) => x.innerText === 'Apply')`)
 		b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Apply').click(), '')`)
 		b.until("the call of the run over the screen", `document.querySelector('[data-press-where]')?.innerText.includes('text of films:') && document.querySelector('[data-press-where]').innerText.includes('→ openrouter/qwen')

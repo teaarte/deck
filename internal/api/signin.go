@@ -19,7 +19,6 @@ func (s *Server) rites(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/login/begin", s.rite(s.loginBegin))
 	mux.HandleFunc("POST /auth/login/finish", s.rite(s.loginFinish))
 	mux.HandleFunc("POST /auth/logout", s.rite(s.logout))
-	mux.HandleFunc("POST /auth/lend", s.lend)
 }
 
 // riteIn is the body of a step of signing in.
@@ -56,7 +55,8 @@ func (s *Server) rite(step func(http.ResponseWriter, *http.Request, riteIn)) htt
 	}
 }
 
-// begun answers a step: the options of a ceremony for the browser, or the cookie of a device signed in.
+// begun answers a step: the options of a ceremony for the browser, the cookie of a browser signed in, or the key of
+// the launcher or a node.
 func (s *Server) begun(w http.ResponseWriter, r *http.Request, b auth.Begun, err error) {
 	if err != nil {
 		status := http.StatusForbidden
@@ -67,16 +67,14 @@ func (s *Server) begun(w http.ResponseWriter, r *http.Request, b auth.Begun, err
 		return
 	}
 	if b.Cookie != "" {
-		o := originOf(r)
-		http.SetCookie(w, &http.Cookie{Name: cookieName(o), Value: b.Cookie, Path: "/", MaxAge: int(auth.Longest.Seconds()),
-			HttpOnly: true, Secure: o.Secure(), SameSite: http.SameSiteStrictMode})
+		http.SetCookie(w, &http.Cookie{Name: cookieName, Value: b.Cookie, Path: "/", MaxAge: int(auth.Longest.Seconds()),
+			HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 	}
 	send(w, b)
 }
 
 func (s *Server) pairBegin(w http.ResponseWriter, r *http.Request, in riteIn) {
-	name, _ := hostPort(r.Host)
-	b, err := s.app.Auth.PairBegin(r.Context(), originOf(r), in.Code, fromHere(r) && (name == "localhost" || strings.HasPrefix(name, "127.")))
+	b, err := s.app.Auth.PairBegin(r.Context(), originOf(r), in.Code, local(r))
 	s.begun(w, r, b, err)
 }
 
@@ -95,13 +93,15 @@ func (s *Server) loginFinish(w http.ResponseWriter, r *http.Request, in riteIn) 
 	s.begun(w, r, b, err)
 }
 
-// logout ends the session of the cookie, or the loan it was traded for, and drops the cookie.
+// logout ends the session of the cookie or the key and drops the cookie.
 func (s *Server) logout(w http.ResponseWriter, r *http.Request, _ riteIn) {
-	o := originOf(r)
-	if c, err := r.Cookie(cookieName(o)); err == nil {
-		s.app.Owners.Return(c.Value)
-		p, signed := s.app.Auth.Session(r.Context(), c.Value)
-		if err := s.app.Auth.Logout(r.Context(), c.Value); err != nil {
+	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if c, err := r.Cookie(cookieName); err == nil && raw == "" {
+		raw = c.Value
+	}
+	if raw != "" {
+		p, signed := s.app.Auth.Session(r.Context(), raw)
+		if err := s.app.Auth.Logout(r.Context(), raw); err != nil {
 			fail(w, err)
 			return
 		}
@@ -109,26 +109,9 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, _ riteIn) {
 			s.app.Auth.Kick(p.Device)
 		}
 	}
-	http.SetCookie(w, &http.Cookie{Name: cookieName(o), Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: o.Secure(),
+	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: true,
 		SameSite: http.SameSiteStrictMode})
 	send(w, map[string]any{"ok": true})
-}
-
-// lend trades a token deck lent its own browser for a cookie of the same caller, which only reads: the page it opens
-// then reads its stream and files as the client does.
-func (s *Server) lend(w http.ResponseWriter, r *http.Request) {
-	if s.app.Auth.Misses.Over(s.clientIP(r)) {
-		refuse(w, r, errTries.Error(), http.StatusTooManyRequests)
-		return
-	}
-	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	cookie, ok := s.app.Owners.Trade(raw)
-	if !ok {
-		s.app.Auth.Misses.Allow(s.clientIP(r))
-		refuse(w, r, errUnsigned.Error(), http.StatusUnauthorized)
-		return
-	}
-	s.begun(w, r, auth.Begun{Cookie: cookie}, nil)
 }
 
 // within cuts a read of a body that outlasts d, as one who has not signed in may hold a connection with a slow one.

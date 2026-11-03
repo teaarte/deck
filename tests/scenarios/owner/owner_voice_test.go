@@ -205,8 +205,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	e.Must("deck.push_key_get", nil, &key)
 	d, srv := newPushDevice(t)
 	d.subscribe(e, srv, "iPhone")
-	var devices []struct{ Name string }
-	e.Must("deck.push_devices_list", nil, &devices)
+	devices := e.Pushed()
 	if len(devices) != 1 || devices[0].Name != "iPhone" {
 		t.Fatalf("the device is listed: %+v", devices)
 	}
@@ -252,9 +251,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	e.Must("deck.owner_notify", map[string]any{"project": "work", "text": "once more"}, nil)
 	e.Until("the gone device to go", func() bool {
 		e.App.Sweep(context.Background(), time.Now())
-		var ds []map[string]any
-		e.Must("deck.push_devices_list", nil, &ds)
-		return len(ds) == 0
+		return len(e.Pushed()) == 0
 	})
 }
 
@@ -381,8 +378,7 @@ func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
 	e.Must("deck.push_key_reset", nil, nil)
 	var after struct{ Key string }
 	e.Must("deck.push_key_get", nil, &after)
-	var devices []struct{ Name string }
-	e.Must("deck.push_devices_list", nil, &devices)
+	devices := e.Pushed()
 	if after.Key == before.Key || len(devices) != 0 {
 		t.Fatalf("a reset makes a new key and the old devices subscribe again: %v %+v", after.Key == before.Key, devices)
 	}
@@ -438,9 +434,7 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 
 // pushDevices is the count of the devices that get pushes.
 func pushDevices(e *harness.Env) int {
-	var ds []map[string]any
-	e.Must("deck.push_devices_list", nil, &ds)
-	return len(ds)
+	return len(e.Pushed())
 }
 
 // stoppedNotes is the count of the notes that pushes stopped.

@@ -41,7 +41,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.until("the imported draft", itemOf("code", "draft"))
 	b.reviewAndEnable("code")
 	e.Until("the enabled project", func() bool { return e.ProjectRow("code").Status == "enabled" })
-	b.open(e.URL + "/#/deck/settings?tab=Modules")
+	b.open(b.base + "/#/deck/settings?tab=Modules")
 	b.until("the enabled project", itemOf("code", ""))
 
 	tab := func(name string) {
@@ -62,7 +62,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 
 	e.Must("deck.record_upsert", map[string]any{"project": "code", "collection": "tasks",
 		"records": harness.Jsonl(map[string]any{"title": "Fix the login button", "status": "backlog"})}, nil)
-	b.open(e.URL + "/#/p/code/tasks")
+	b.open(b.base + "/#/p/code/tasks")
 	b.until("the task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Fix the login button'))`)
 	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('Fix the login button')).click(), '')`)
 	b.until("the form of the task", `document.querySelector('[data-form="deck.record_update"]')`)
@@ -73,7 +73,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 		e.Must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
 		return len(rs) == 1 && rs[0].Data["status"] == "ready"
 	})
-	b.open(e.URL + "/#/p/code/tasks")
+	b.open(b.base + "/#/p/code/tasks")
 	b.until("the ready task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.toLowerCase().includes('ready'))`)
 	b.shot("code-tasks")
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Run').click(), '')`)

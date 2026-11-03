@@ -48,7 +48,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
-		"text": fmt.Sprintf(customProbe, e.URL, e.Cookie(), evil.URL, evil.URL)}, nil)
+		"text": fmt.Sprintf(customProbe, e.URL, e.Key, evil.URL, evil.URL)}, nil)
 	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me"})}, nil)
 
@@ -170,7 +170,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	b.until("the saved field following the record again", `document.querySelector('[data-form="deck.record_update"] input[data-field="score"]')?.value === '7'`)
 
 	e.Project("inbox", harness.TestManifest([]string{harness.AgentCommand("keep", `{"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}`)}, nil))
-	b.open(e.URL + "/#/deck/cockpit")
+	b.open(b.base + "/#/deck/cockpit")
 	b.until("the service worker", `navigator.serviceWorker.controller`)
 	b.eval(`(() => { const f = document.createElement('form'); f.method = 'post'; f.action = '/share'; f.enctype = 'multipart/form-data';
 		const i = document.createElement('input'); i.type = 'file'; i.name = 'file'; const dt = new DataTransfer();
@@ -194,13 +194,13 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	}
 
 	e.Project("timed", harness.TestManifest([]string{harness.AgentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
-	b.open(e.URL + "/#/deck/schedule")
+	b.open(b.base + "/#/deck/schedule")
 	b.until("the schedule in words", `[...document.querySelectorAll('tr')].some((r) => r.innerText.toLowerCase().includes('timed') && r.innerText.includes('job') && r.innerText.includes('09:00') && !r.innerText.includes('0 9 * * *'))`)
 	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.toLowerCase().includes('timed') && r.innerText.includes('job')).querySelector('[data-verb=run_now]').click(), '')`)
 	e.Until("the run of the trigger", func() bool { return e.CountOf("job") == 1 })
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.shot("web2-schedule-phone")
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the screen on a phone", `document.querySelector('[data-form="web.score"]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the page fits the width of a phone: %s", got)

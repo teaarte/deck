@@ -45,8 +45,8 @@ func TestTheTilesStandWhereEachDevicePutThem(t *testing.T) {
 	if names, _ := e.SideMenu(); !slices.Equal(names, []string{"gamma", "alpha", "beta"}) {
 		t.Fatalf("the menu goes in the order of the newest layout: %v", names)
 	}
-	e.Refused("deck.layout_set", map[string]any{"device": "laptop", "columns": 4, "cards": `[{"id": "gamma", "x": 3, "y": 0, "w": 2, "h": 1}]`}, 422, "does not fit")
-	e.Refused("deck.layout_set", map[string]any{"device": "laptop", "columns": 4, "cards": `[{"id": "today", "x": 0, "y": 0, "w": 1, "h": 1}]`}, 422, "two cells")
+	e.Device("laptop").Refused("deck.layout_set", map[string]any{"columns": 4, "cards": `[{"id": "gamma", "x": 3, "y": 0, "w": 2, "h": 1}]`}, 422, "does not fit")
+	e.Device("laptop").Refused("deck.layout_set", map[string]any{"columns": 4, "cards": `[{"id": "today", "x": 0, "y": 0, "w": 1, "h": 1}]`}, 422, "two cells")
 	e.Place("desk", 3, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 2, H: 1}, harness.DeskCard{ID: "beta", X: 2, Y: 0, W: 1, H: 1})
 	if v := e.Desk("desk", 5); !v.Own || v.Columns != 3 {
 		t.Fatalf("a wider grid of a device takes its narrower layout as it is: %+v", v)

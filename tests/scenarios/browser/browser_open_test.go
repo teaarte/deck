@@ -73,6 +73,12 @@ type playwright struct {
 	t    *testing.T
 	sess *mcp.ClientSession
 	dir  string
+	kind string
+	// base is the address of deck the page signed in at: https in Chromium, by the cookie of its passkey; plain http
+	// in WebKit, by the key of a launcher.
+	base string
+	// paired says the virtual authenticator of the browser holds a passkey of deck.
+	paired bool
 }
 
 // Open starts the browser of a test on deck's client, after it checks that the embedded client is the build of web.
@@ -89,9 +95,19 @@ func newPlaywright(t *testing.T, browser ...string) *playwright {
 	if out == "" {
 		out = t.TempDir()
 	}
-	args := append(slices.Clone(app.DefaultBrowser[1:]), "--headless", "--isolated", "--caps=vision", "--output-dir", out)
+	args := append(slices.Clone(app.DefaultBrowser[1:]), "--headless", "--isolated", "--caps=vision", "--ignore-https-errors", "--output-dir", out)
+	kind := "chrome"
 	if len(browser) > 0 {
-		args = append(args, "--browser", browser[0])
+		kind = browser[0]
+		args = append(args, "--browser", kind)
+	} else {
+		// Chromium registers a service worker only from an origin whose certificate it takes, which the TLS of the test
+		// is not.
+		config := filepath.Join(t.TempDir(), "playwright.json")
+		if err := os.WriteFile(config, []byte(`{"browser": {"launchOptions": {"args": ["--ignore-certificate-errors"]}}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		args = append(args, "--config", config)
 	}
 	cmd := exec.Command(app.DefaultBrowser[0], args...)
 	cmd.SysProcAttr, cmd.Dir = &syscall.SysProcAttr{Setpgid: true}, out
@@ -117,7 +133,7 @@ func newPlaywright(t *testing.T, browser ...string) *playwright {
 			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		}
 	})
-	return &playwright{t: t, sess: sess, dir: out}
+	return &playwright{t: t, sess: sess, dir: out, kind: kind}
 }
 
 func (b *playwright) call(tool string, args map[string]any) string {
@@ -226,12 +242,61 @@ func itemOf(title, part string) string {
 	return `[...document.querySelectorAll('[data-item]')].find((x) => x.innerText.split('\n')[0].trim() === '` + title + `' && x.innerText.includes('` + part + `'))`
 }
 
-// Open opens deck of e as its owner, rest after the sign-in: more of the query, then the route of the client.
-func (b *playwright) Open(e *harness.Env, rest string) { b.open(e.OwnerURL(e.URL, rest)) }
+// Open opens deck of e as its owner with rest, more of the query then the route: Chromium signs in at deck's https
+// address with a passkey of its virtual authenticator, WebKit with a key as the launcher's window does.
+func (b *playwright) Open(e *harness.Env, rest string) {
+	b.t.Helper()
+	if b.kind == "webkit" {
+		b.OpenVia(e.URL, e, rest)
+		return
+	}
+	if base := e.Https(); b.base != base {
+		b.signIn(e, base, rest)
+		return
+	}
+	b.open(b.base + "/?owner=1" + rest)
+}
 
-// OpenVia is Open through a server before deck at base.
+// OpenVia is Open through a server before deck at base, as the launcher's window opens it; the page loads anew, as
+// an address that differs from the one before only after # would not load it.
 func (b *playwright) OpenVia(base string, e *harness.Env, rest string) {
+	b.t.Helper()
+	b.base = base
+	b.open("about:blank")
 	b.open(e.OwnerURL(base, rest))
+}
+
+// press clicks a button once the call has settled, so the tool does not wait out the stream of events the press
+// opens: it waits for each request the call starts within half a second.
+func (b *playwright) press(sel string) {
+	b.eval(`(setTimeout(() => document.querySelector('` + sel + `').click(), 700), '')`)
+}
+
+// signIn signs the browser in at base and opens rest: it pairs by a link of deck with a new passkey the first time,
+// as the owner's phone does, and signs in with that passkey after.
+func (b *playwright) signIn(e *harness.Env, base, rest string) {
+	b.t.Helper()
+	if !b.paired {
+		b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => {
+  globalThis.deckAuthn = await page.context().newCDPSession(page);
+  await globalThis.deckAuthn.send('WebAuthn.enable');
+  await globalThis.deckAuthn.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal',
+    hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
+}`})
+		var link struct{ Code string }
+		e.Must("deck.pair_link", map[string]any{"name": "the test's browser"}, &link)
+		query, route, _ := strings.Cut(rest, "#")
+		b.open(base + "/?owner=1" + query + "#pair=" + link.Code + route)
+		b.until("the page that pairs this browser", `document.querySelector('[data-signin="pair"]:not([disabled])')`)
+		b.press(`[data-signin="pair"]`)
+		b.paired = true
+	} else {
+		b.open(base + "/?owner=1" + rest)
+		b.until("the page that signs in", `document.querySelector('[data-signin="passkey"]')`)
+		b.press(`[data-signin="passkey"]`)
+	}
+	b.until("the client signed in", `!document.querySelector('[data-signin-page]') && document.querySelector('#root > *')`)
+	b.base = base
 }
 
 // file puts a file into a file input as picking it does.

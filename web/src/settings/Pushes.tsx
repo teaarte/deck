@@ -7,7 +7,7 @@ import { notifyError } from '../lib/notify';
 import { press, useBlockContext } from '../screen/press';
 import { pushSupported, reconcilePush, subscribePush, unsubscribePush, type Subscription } from './push';
 
-interface Device { id: number; name: string; remove: Action }
+interface Device { id: number; name: string; push: boolean; stop_push?: Action }
 
 // Pushes turns pushes of deck on and off for this device by the buttons of its block and lists every device that
 // gets them.
@@ -16,21 +16,20 @@ export function Pushes({ subscribe, unsubscribe }: { subscribe?: Action; unsubsc
   const ctx = useBlockContext();
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
-  const devices = useLiveRead<Device[]>('deck.push_devices_list', {}, []);
+  const devices = useLiveRead<Device[]>('deck.devices_list', {}, []).filter((d) => d.push && d.stop_push);
   const { key } = useLiveRead<{ key: string }>('deck.push_key_get', {}, { key: '' }, !pushSupported());
-  const device = navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.platform || 'a browser';
-  // tell presses a button with the subscription of this device, and its name when it subscribes; a refusal throws.
-  const tell = (act: Action | undefined, named = false) => async (sub: Subscription) => {
+  // tell presses a button with the subscription of this device; a refusal throws.
+  const tell = (act: Action | undefined) => async (sub: Subscription) => {
     if (!act) return;
-    const r = await press(ctx, act, named ? { ...sub, device } : { ...sub });
+    const r = await press(ctx, act, { ...sub });
     if (r.error) throw new Error(r.error);
   };
-  useEffect(() => { void reconcilePush(tell(subscribe, true)).then(setOn, () => setOn(false)); }, []);
+  useEffect(() => { void reconcilePush(tell(subscribe)).then(setOn, () => setOn(false)); }, []);
   const toggle = async () => {
     setBusy(true);
     try {
       if (on) await unsubscribePush(tell(unsubscribe));
-      else await subscribePush(key, tell(subscribe, true));
+      else await subscribePush(key, tell(subscribe));
       setOn(!on);
     } catch (e) {
       notifyError(e, t('Pushes on this device'));
@@ -39,7 +38,8 @@ export function Pushes({ subscribe, unsubscribe }: { subscribe?: Action; unsubsc
     }
   };
   const remove = async (d: Device) => {
-    const r = await press(ctx, d.remove);
+    if (!d.stop_push) return;
+    const r = await press(ctx, d.stop_push);
     if (r.error) notifyError(r.error, t('Pushes on this device'));
   };
   return (
@@ -54,7 +54,7 @@ export function Pushes({ subscribe, unsubscribe }: { subscribe?: Action; unsubsc
       {devices.map((d) => (
         <Group key={d.id} gap="xs" data-push-device>
           <Text size="xs">{d.name}</Text>
-          <Button size="compact-xs" variant="subtle" onClick={() => void remove(d)}>{d.remove.label}</Button>
+          <Button size="compact-xs" variant="subtle" onClick={() => void remove(d)}>{d.stop_push?.label}</Button>
         </Group>
       ))}
     </Stack>

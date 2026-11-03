@@ -56,17 +56,19 @@ type deskView struct {
 	Cards   []DeskCard
 }
 
+// Desk is the layout of the tiles a browser of the owner of that name shows for its columns.
 func (e *Env) Desk(device string, columns int) deskView {
 	e.T.Helper()
 	var v deskView
-	e.Must("deck.layout_get", map[string]any{"device": device, "columns": columns}, &v)
+	e.Device(device).Must("deck.layout_get", map[string]any{"columns": columns}, &v)
 	return v
 }
 
+// Place places the tiles on a browser of the owner of that name for its columns.
 func (e *Env) Place(device string, columns int, cards ...DeskCard) {
 	e.T.Helper()
 	raw, _ := json.Marshal(cards)
-	e.Must("deck.layout_set", map[string]any{"device": device, "columns": columns, "cards": string(raw)}, nil)
+	e.Device(device).Must("deck.layout_set", map[string]any{"columns": columns, "cards": string(raw)}, nil)
 }
 
 type MenuView struct {

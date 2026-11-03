@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import { token } from '../lib/api';
+import { useSignedOut } from '../lib/signin';
 import { theme, useLook } from '../theme/look';
 import '../theme/base.css';
 import { resolver } from '../theme/palette';
@@ -9,13 +9,14 @@ import { PreviewBar } from '../theme/PreviewBar';
 import { forced, usePreview, useWear, useWorn } from '../theme/worn';
 import { UndoToast } from '../ui/actions/undo';
 import { Shell } from './Shell';
-import { TokenPrompt } from './TokenPrompt';
+import { SignIn } from './SignIn';
 
 // Themed wears the theme of the whole deck with what this device keeps, and follows the system color scheme unless
 // the device or the theme picked one.
 export function Themed() {
   const look = useLook();
-  const signed = !!token();
+  const why = useSignedOut();
+  const signed = !why;
   useWear(signed);
   const worn = useWorn();
   const preview = usePreview();
@@ -25,7 +26,7 @@ export function Themed() {
       <Notifications position="top-center" />
       {signed && <PreviewBar />}
       <UndoToast />
-      {signed ? <Shell /> : <TokenPrompt />}
+      {signed ? <Shell /> : <SignIn why={why} />}
     </MantineProvider>
   );
 }

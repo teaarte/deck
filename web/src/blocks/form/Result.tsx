@@ -1,12 +1,15 @@
-import { Group, Stack, Table, Text } from '@mantine/core';
+import { Group, Image, Stack, Table, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { text } from '../../lib/format';
 import { kind, type Schema } from './schema';
 
-// Result draws what a command returned by its result schema: a number, a text, a list or a table.
+// Result draws what a command returned by its result schema: a number, a text, a picture, a list or a table.
 export function Result({ value, schema }: { value: unknown; schema?: Schema }) {
   const { t } = useTranslation();
   if (value === null || value === undefined) return <Text size="sm" c="dimmed">{t('Nothing to show')}</Text>;
+  if (typeof value === 'string' && schema?.contentMediaType?.startsWith('image/')) {
+    return <Image src={`data:${schema.contentMediaType};base64,${value}`} alt="" w={200} h={200} fit="contain" data-result="image" />;
+  }
   const k = schema ? kind(schema) : Array.isArray(value) ? 'array' : typeof value;
   if (k === 'array' && Array.isArray(value)) {
     const objects = value.every((v) => v && typeof v === 'object' && !Array.isArray(v));
@@ -33,7 +36,7 @@ export function Result({ value, schema }: { value: unknown; schema?: Schema }) {
         {Object.keys(o).map((key) => (
           <Group key={key} gap="sm" wrap="nowrap" align="flex-start">
             <Text size="sm" c="dimmed" w={140}>{schema?.properties?.[key]?.title || key}</Text>
-            {o[key] !== null && typeof o[key] === 'object'
+            {o[key] !== null && (typeof o[key] === 'object' || schema?.properties?.[key]?.contentMediaType)
               ? <Result value={o[key]} schema={schema?.properties?.[key]} />
               : <Text size="sm" className="deck-wrap">{text(o[key])}</Text>}
           </Group>

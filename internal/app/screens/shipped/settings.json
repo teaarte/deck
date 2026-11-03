@@ -152,6 +152,23 @@
               {"verb": "open", "screen": "settings", "params": {"tab": "Advanced"}, "when": "subject == 'push' && status != 'ok'"}
             ]}]}
       ]},
+      {"title": "Devices", "icon": "devices", "blocks": [
+        {"type": "dialog", "name": "pair", "title": "Pair a device", "icon": "qrcode", "blocks": [
+          {"type": "form", "command": "deck.pair_link", "keep_open": true}]},
+        {"type": "table", "title": "Devices", "source": {"from": "deck.devices_list", "where": "!revoked"}, "span": 2,
+          "description": "The browsers with their passkeys, the window of the launcher and the nodes that sign in to deck; a revoked one comes back only by a new link.",
+          "columns": [
+            {"label": "Name", "bind": "name"},
+            {"label": "Kind", "bind": "kind == 'launcher' ? 'launcher' : kind == 'node' ? 'node' : passkey ? 'browser' : 'pushes only'", "format": "tag", "tone": "passkey || kind != 'browser' ? 'ok' : 'warn'"},
+            {"label": "This device", "bind": "this ? '✓' : ''"},
+            {"label": "Pushes", "bind": "push ? 'on' : ''"},
+            {"label": "Seen", "bind": "seen_at", "format": "relative"}
+          ],
+          "actions": [
+            {"verb": "edit", "command": "deck.device_rename", "params": {"device": "=id"}, "input": "name"},
+            {"verb": "revoke", "confirm": true, "command": "deck.device_revoke", "params": {"device": "=id"}}
+          ]}
+      ]},
       {"title": "Advanced", "icon": "adjustments", "blocks": [
         {"type": "table", "title": "deck", "source": {"from": "deck.health_list", "where": "subject == 'update'"},
           "description": "The version of deck and whether a newer one is out; deck looks once a day.",

@@ -1,11 +1,16 @@
 package auth
 
 import (
+	"encoding/json"
+	"log/slog"
 	"net"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"sync"
+
+	"deck2/internal/home"
 )
 
 // Origin is an address the owner opens deck at, and the second origin of its custom blocks there.
@@ -26,15 +31,44 @@ func (o Origin) RPID() string {
 	return u.Hostname()
 }
 
-// Passkeys says a browser makes passkeys at the origin: https, or http on localhost; not by an IP address.
+// Passkeys says a browser of the owner signs in at the origin with a passkey and a cookie: over https by a name. On
+// plain http, localhost too, a cookie would reach every server of the host, so only the launcher's key signs in there.
 func (o Origin) Passkeys() bool {
-	return net.ParseIP(o.RPID()) == nil && (o.Secure() || o.RPID() == "localhost")
+	return o.Secure() && net.ParseIP(o.RPID()) == nil
 }
 
 // Origins are the addresses of deck; the tailnet adds its own once deck is on it.
 type Origins struct {
 	mu   sync.RWMutex
 	list []Origin
+	// file keeps the list for deck pair, which prints links while deck runs or not.
+	file string
+}
+
+// Keep writes the origins into file now and after each one added.
+func (o *Origins) Keep(file string) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.file = file
+	return o.write()
+}
+
+// write runs under o.mu.
+func (o *Origins) write() error {
+	if o.file == "" {
+		return nil
+	}
+	b, _ := json.Marshal(o.list)
+	return home.WriteFile(o.file, b)
+}
+
+// ReadOrigins are the origins a deck of the home kept, none when it never ran.
+func ReadOrigins(file string) []Origin {
+	var list []Origin
+	if b, err := os.ReadFile(file); err == nil {
+		_ = json.Unmarshal(b, &list)
+	}
+	return list
 }
 
 // NewOrigins are the origins given, the first the one deck names in its log and links.
@@ -46,6 +80,9 @@ func (o *Origins) Add(main, side string) {
 	defer o.mu.Unlock()
 	if !slices.ContainsFunc(o.list, func(x Origin) bool { return x.Main == main }) {
 		o.list = append(o.list, Origin{main, side})
+		if err := o.write(); err != nil {
+			slog.Error("keep the origins", "err", err)
+		}
 	}
 }
 
@@ -96,4 +133,16 @@ func sameHost(u *url.URL, host string) bool {
 	}
 	std := map[string]string{"http": "80", "https": "443"}[u.Scheme]
 	return u.Port() == "" && strings.EqualFold(net.JoinHostPort(u.Hostname(), std), host)
+}
+
+// Links are the addresses that pair a device by a code, at every origin where a browser makes a passkey; the code
+// is in the fragment, which no server and no log sees.
+func Links(origins []Origin, code string) []string {
+	var out []string
+	for _, o := range origins {
+		if o.Passkeys() {
+			out = append(out, strings.TrimRight(o.Main, "/")+"/#pair="+url.QueryEscape(code))
+		}
+	}
+	return out
 }

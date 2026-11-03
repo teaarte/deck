@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os/exec"
 	"strings"
 	"sync"
@@ -16,13 +17,13 @@ import (
 // Addr is where deck listens; the next port is the second origin of its custom blocks.
 const Addr = "127.0.0.1:7700"
 
-// Runner starts deck where it lives and reads its token there: the binary beside the launcher on macOS, the deck of
+// Runner starts deck where it lives and runs deck pair there: the binary beside the launcher on macOS, the deck of
 // its WSL distribution on Windows.
 type Runner interface {
 	// Command is deck started to listen on addr; it runs until stopped.
 	Command(addr string) *exec.Cmd
-	// Token is the access token of the owner deck keeps in its home.
-	Token(ctx context.Context) (string, error)
+	// Pair is what deck pair --device launcher prints: the link with a code that pairs the launcher's window.
+	Pair(ctx context.Context) (string, error)
 	// Version is the version of the deck it starts, as deck -version says it.
 	Version(ctx context.Context) (string, error)
 	// Stop asks the deck it started to stop; Kill ends it when it does not.
@@ -41,10 +42,11 @@ type Deck struct {
 	// Update runs when the deck the launcher started ends asking for an update; updating keeps deck down meanwhile.
 	Update   func()
 	updating bool
+	// key signs the window in; the launcher alone holds it besides the page, read and set by one reveal at a time.
+	key string
 }
 
-// Up says whether deck answers at its address and has started: its page, and its API asking for the token, so the
-// token goes to no other program on that port.
+// Up says whether deck answers at its address and has started: its page, and its API asking to sign in.
 func (d *Deck) Up(ctx context.Context) bool {
 	page, ok := d.get(ctx, "/")
 	if !ok || page.StatusCode != http.StatusOK {
@@ -127,28 +129,44 @@ func (d *Deck) Start(ctx context.Context) error {
 	return nil
 }
 
-// URL is the address of deck with the owner's token, which signs the window in; a deck that does not take the token
-// is another deck on that port.
-func (d *Deck) URL(ctx context.Context) (string, error) {
-	token, err := d.Runner.Token(ctx)
-	if err != nil {
-		return "", err
-	}
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return "", errors.New("deck has no token yet")
+// Signed says the key of the window still signs it in, so the window stays as it is.
+func (d *Deck) Signed(ctx context.Context) bool {
+	if d.key == "" {
+		return false
 	}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+d.Addr+"/api/commands/deck.menu_get", strings.NewReader("{}"))
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+d.key)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	res.Body.Close()
+	return res.StatusCode == http.StatusOK
+}
+
+// Pair pairs the window by the code deck pair wrote and gives the address it opens with its key in the fragment; a
+// deck that does not take the code is another deck on that port, of another home.
+func (d *Deck) Pair(ctx context.Context) (string, error) {
+	out, err := d.Runner.Pair(ctx)
+	_, code, ok := strings.Cut(strings.TrimSpace(out), "#pair=")
+	if err != nil || !ok {
+		return "", fmt.Errorf("deck pair: %s %v", strings.TrimSpace(out), err)
+	}
+	body, _ := json.Marshal(map[string]string{"code": code})
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+d.Addr+"/auth/pair/begin", bytes.NewReader(body))
+	req.Header.Set("Origin", "http://"+d.Addr)
+	req.Header.Set("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err
 	}
-	res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("another deck answers at %s: it does not take the owner's token", d.Addr)
+	defer res.Body.Close()
+	var b struct{ Key string }
+	if res.StatusCode != http.StatusOK || json.NewDecoder(res.Body).Decode(&b) != nil || b.Key == "" {
+		return "", fmt.Errorf("another deck answers at %s: it does not take the code of deck pair", d.Addr)
 	}
-	return "http://" + d.Addr + "/?token=" + url.QueryEscape(token), nil
+	d.key = b.Key
+	return "http://" + d.Addr + "/#key=" + b.Key, nil
 }
 
 // Stop stops the deck the launcher started, if it did, and ends it when it is not gone in a while.

@@ -55,19 +55,19 @@ func TestRealBrowserGlass(t *testing.T) {
 	style := func(sel, prop string) string {
 		return b.eval(`getComputedStyle(document.querySelector('` + sel + `')).` + prop)
 	}
-	b.open(e.URL + "/#/deck/settings")
+	b.open(b.base + "/#/deck/settings")
 	b.until("the tabs of settings", `document.querySelector('.mantine-Tabs-list')`)
 	if got := style(".mantine-Tabs-list", "backdropFilter"); got != "none" {
 		t.Fatalf("juce has no glass: %s", got)
 	}
-	b.open(e.URL + "/#/deck/look")
+	b.open(b.base + "/#/deck/look")
 	b.until("the look", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "glass")
 	b.look("scheme", "light")
 	b.until("the light glass theme", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'light'`)
 	b.until("the interface tab", `document.querySelector('[data-appearance]').offsetParent`)
 	b.shot("glass-look")
-	b.open(e.URL + "/#/deck/settings")
+	b.open(b.base + "/#/deck/settings")
 	b.until("the tabs of settings", `document.querySelector('.mantine-Tabs-list')`)
 	b.shot("glass-settings")
 	if got := style(".mantine-Tabs-list", "backdropFilter"); got == "none" {
@@ -77,7 +77,7 @@ func TestRealBrowserGlass(t *testing.T) {
 		t.Fatalf("the text of the tabs on the glass is AA: %.2f", got)
 	}
 
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the table and the custom block", `document.querySelector('[data-block] table') && document.querySelector('[data-custom]')`)
 	if got := b.eval(`document.documentElement.dataset.deckTheme + ' ' + JSON.parse(localStorage.getItem('deck-theme')).name`); got != "glass glass" {
 		t.Fatalf("the device keeps the last theme for the next load: %s", got)
@@ -103,11 +103,11 @@ func TestRealBrowserGlass(t *testing.T) {
 		t.Fatalf("the dropdown of a select is glass: %s", got)
 	}
 
-	b.open(e.URL + "/#/deck/look")
+	b.open(b.base + "/#/deck/look")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
 	b.look("scheme", "dark")
 	b.until("the dark scheme", `document.documentElement.dataset.mantineColorScheme === 'dark'`)
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the table", `document.querySelector('[data-block] table')`)
 	if got := b.eval(`(() => { const s = getComputedStyle(` + table + `); return s.backdropFilter + ' ' + /rgba|\/ 0?\./.test(s.backgroundColor) })()`); got != "none false" {
 		t.Fatalf("a dark block with a table stays solid: %s", got)
@@ -120,7 +120,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	b.shot("glass-dark")
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the table on a phone", `document.querySelector('[data-block] table')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the glass screen fits the width of a phone: %s", got)
@@ -154,7 +154,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	}
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	media("prefers-reduced-transparency", "reduce")
-	b.open(e.URL + "/#/deck/settings")
+	b.open(b.base + "/#/deck/settings")
 	b.until("no glass with reduced transparency", `matchMedia('(prefers-reduced-transparency: reduce)').matches && document.querySelector('.mantine-Tabs-list') && getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter === 'none'`)
 	if got := style(".mantine-Tabs-list", "backgroundColor"); got != "rgb(34, 34, 40)" {
 		t.Fatalf("the tabs are solid with reduced transparency: %s", got)
@@ -167,10 +167,10 @@ func TestRealBrowserGlass(t *testing.T) {
 	}
 	media("prefers-contrast", "no-preference")
 
-	b.open(e.URL + "/#/deck/look")
+	b.open(b.base + "/#/deck/look")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "default")
 	b.until("the default theme back", `document.documentElement.dataset.deckTheme === 'default'`)
-	b.open(e.URL + "/#/deck/settings")
+	b.open(b.base + "/#/deck/settings")
 	b.until("the tabs without glass", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter === 'none'`)
 }

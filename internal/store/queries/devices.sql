@@ -33,6 +33,16 @@ UPDATE device SET revoked_at = ?, push_endpoint = NULL, push_p256dh = '', push_a
 WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL;
 
 
+-- name: DeleteKindSessions :exec
+DELETE FROM session WHERE device_id IN (SELECT id FROM device WHERE workspace_id = ? AND kind = ?);
+
+
+-- name: DeleteKind :many
+-- Deletes the devices of a kind, such as the launcher before a new one.
+DELETE FROM device WHERE workspace_id = ? AND kind = ?
+RETURNING id;
+
+
 -- name: CreateSession :exec
 INSERT INTO session (hash, device_id, created_at, seen_at) VALUES (?, ?, ?, ?);
 

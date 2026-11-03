@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"slices"
+	"strconv"
 
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -34,8 +35,15 @@ type storedCard struct {
 }
 
 type layoutGetIn struct {
-	Device  string `desc:"The device, as it names itself"`
-	Columns int64  `desc:"How many columns of cells the grid has now"`
+	Columns int64 `desc:"How many columns of cells the grid has now"`
+}
+
+// deviceOf names the device of the call in the layouts; a call of no device has none of its own.
+func deviceOf(act registry.Actor) string {
+	if act.Device == 0 {
+		return ""
+	}
+	return strconv.FormatInt(act.Device, 10)
 }
 
 // layoutView is the layout a device shows: its own for the columns, else one it is derived from. Columns is that of
@@ -51,8 +59,9 @@ type layoutView struct {
 // layout is the layout of a device for its columns: its own, else its own of the nearest wider grid, then of the
 // nearest narrower one, else the newest of any device for the columns, else the order of its own or the newest.
 func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutGetIn) (layoutView, error) {
+	me := deviceOf(act)
 	out := layoutView{Cards: []card{}, Save: map[string]any{"label": "Arrange the tiles", "command": registry.Deck("layout_set"),
-		"params": map[string]any{"device": in.Device, "columns": in.Columns}, "input": "cards"}}
+		"params": map[string]any{"columns": in.Columns}, "input": "cards"}}
 	ls, err := s.St.Q.ListLayouts(ctx, act.Workspace)
 	if err != nil {
 		return out, err
@@ -69,19 +78,19 @@ func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutGetIn
 		}
 		return nil
 	}
-	l := pick(func(l db.Layout) bool { return l.Device == in.Device && l.Columns == in.Columns })
+	l := pick(func(l db.Layout) bool { return l.Device == me && l.Columns == in.Columns })
 	if l == nil {
-		l = nearest(ls, in.Device, in.Columns, true)
+		l = nearest(ls, me, in.Columns, true)
 	}
 	if l == nil {
-		l = nearest(ls, in.Device, in.Columns, false)
+		l = nearest(ls, me, in.Columns, false)
 	}
 	if l == nil {
 		l = pick(func(l db.Layout) bool { return l.Columns == in.Columns })
 	}
 	order := false
 	if l == nil {
-		if l = pick(func(l db.Layout) bool { return l.Device == in.Device }); l == nil {
+		if l = pick(func(l db.Layout) bool { return l.Device == me }); l == nil {
 			l = pick(func(l db.Layout) bool { return true })
 		}
 		order = true
@@ -89,7 +98,7 @@ func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutGetIn
 	if l == nil {
 		return out, nil
 	}
-	out.Columns, out.Own = l.Columns, l.Device == in.Device && !order
+	out.Columns, out.Own = l.Columns, l.Device == me && !order
 	for _, c := range stored(l.Cards) {
 		name, ok := names[c.ID]
 		if !ok {
@@ -112,7 +121,6 @@ func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutGetIn
 }
 
 type layoutSetIn struct {
-	Device  string `desc:"The device, as it names itself"`
 	Columns int64  `desc:"How many columns of cells the grid has"`
 	Cards   string `type:"json" desc:"The cards as a JSON list of {id, x, y, w, h} in cells: today or the name of a project"`
 }
@@ -123,8 +131,12 @@ func (s *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutSe
 	if err := json.Unmarshal([]byte(in.Cards), &cards); err != nil {
 		return nil, registry.Invalid("cards are a JSON list of {id, x, y, w, h}: %v", err)
 	}
-	if in.Device == "" || in.Columns < 1 || in.Columns > 24 {
-		return nil, registry.Invalid("a layout is of a device and of 1 to 24 columns")
+	me := deviceOf(act)
+	if me == "" {
+		return nil, registry.Refuse("the tiles are placed on a device of the owner, and this call comes from none")
+	}
+	if in.Columns < 1 || in.Columns > 24 {
+		return nil, registry.Invalid("a layout is of 1 to 24 columns")
 	}
 	names, err := s.projectNames(ctx, act.Workspace)
 	if err != nil {
@@ -134,7 +146,7 @@ func (s *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutSe
 	for id, name := range names {
 		ids[name] = id
 	}
-	paused, err := s.pausedCards(ctx, act.Workspace, in.Device, in.Columns, cards)
+	paused, err := s.pausedCards(ctx, act.Workspace, me, in.Columns, cards)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +174,7 @@ func (s *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutSe
 	}
 	raw, _ := json.Marshal(keep)
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetLayout(ctx, db.SetLayoutParams{WorkspaceID: act.Workspace, Device: in.Device, Columns: in.Columns, Cards: string(raw),
+		return q.SetLayout(ctx, db.SetLayoutParams{WorkspaceID: act.Workspace, Device: me, Columns: in.Columns, Cards: string(raw),
 			UpdatedAt: store.Time(s.Now())})
 	})
 	if err != nil {

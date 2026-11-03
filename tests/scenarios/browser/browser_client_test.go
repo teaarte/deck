@@ -37,7 +37,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 	asking := e.Run(p, "ask")
 	e.Until("the question", func() bool { return len(e.CockpitItems()) == 3 })
 
-	front := newFront(t, e.URL)
+	front := newFront(t, e)
 	b := Open(t)
 	b.OpenVia(front.URL, e, "#/deck/cockpit")
 	card := `document.querySelector('[data-focus-card]')`
@@ -194,8 +194,9 @@ func (f *frontServer) heal() {
 	f.mu.Unlock()
 }
 
-func newFront(t *testing.T, deck string) *frontServer {
+func newFront(t *testing.T, e *harness.Env) *frontServer {
 	t.Helper()
+	deck := e.URL
 	target, _ := url.Parse(deck)
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.FlushInterval = -1
@@ -290,6 +291,8 @@ func newFront(t *testing.T, deck string) *frontServer {
 		_, _ = w.Write(out)
 	}))
 	t.Cleanup(f.Close)
+	// deck answers at the front as at an address of its own, as at a proxy its -public names.
+	e.App.Auth.Origins().Add(f.URL, e.Side)
 	return f
 }
 
@@ -305,7 +308,7 @@ func TestRealBrowserClientKeepsWhatItShows(t *testing.T) {
 	var d struct{ ID int64 }
 	e.Must("deck.document_save", map[string]any{"project": "notes", "name": "plan.md", "kind": "doc", "text": "# Plan"}, &d)
 
-	front := newFront(t, e.URL)
+	front := newFront(t, e)
 	b := Open(t)
 	b.OpenVia(front.URL, e, "#/p/notes/main")
 	b.until("the project screen", `document.body.innerText.includes('All notes')`)

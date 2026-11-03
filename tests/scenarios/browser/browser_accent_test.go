@@ -45,14 +45,14 @@ func TestRealBrowserOneAccent(t *testing.T) {
 		b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 		b.until("the chat closed", `!document.querySelector('[data-chat-input]')?.checkVisibility()`)
 
-		b.open(e.URL + "/?theme=juce&scheme=light#/p/web/main")
+		b.open(b.base + "/?theme=juce&scheme=light#/p/web/main")
 		b.until("the screen of the module", `location.hash.startsWith('#/p/web/main') && document.querySelector('[data-block]')`)
 	}
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?theme=juce&scheme=light#/deck/apps")
+	b.open(b.base + "/?theme=juce&scheme=light#/deck/apps")
 	b.until("the decisions in words on the tile of Today", `document.querySelector('[data-app-tile][data-big] [data-widget]')?.innerText.includes('Decisions wait: 2')`)
 	b.shot("accent-cards")
-	b.open(e.URL + "/?theme=juce&scheme=light#/p/web/main")
+	b.open(b.base + "/?theme=juce&scheme=light#/p/web/main")
 	b.until("the master's button", `document.querySelector('[data-chat-toggle]')`)
 	if got := b.eval(`(() => { const m = document.querySelector('[data-chat-toggle]'); return String((m.dataset.variant === 'filled') === !!m.querySelector('[data-master-asks]')) })()`); got != "true" {
 		t.Fatalf("the master's button is filled only while its asks wait for the owner: %s", b.eval(`document.querySelector('[data-chat-toggle]').outerHTML`))

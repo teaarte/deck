@@ -41,11 +41,11 @@ func TestRealBrowserTheSidePanelOfAScreen(t *testing.T) {
 		t.Fatal("a pick reads the screen again in place, the panel stays")
 	}
 	b.shot("side")
-	b.open(e.URL + "/#/p/lab/lab?coin=ETH")
+	b.open(b.base + "/#/p/lab/lab?coin=ETH")
 	b.until("a link with a pick opens the screen narrowed", rows+` === 1 && document.querySelector('[data-side-filter="coin"]').value === 'ETH'`)
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/#/p/lab/lab")
+	b.open(b.base + "/#/p/lab/lab")
 	b.until("the button of the panel in the row of the tabs", `document.querySelector('[data-side-slot] [data-side-open]') && document.querySelector('[data-side-open]').getBoundingClientRect().right <= innerWidth && !document.querySelector('[data-side]')?.offsetParent`)
 	b.until("every trade", rows+` === 3`)
 	b.shot("side-phone")
@@ -80,7 +80,7 @@ func TestRealBrowserAFilterStartsOnItsDefault(t *testing.T) {
 	b.until("all picked, kept in the address", `/[?&]coin=(&|$)/.test(location.hash) && `+rows+` === 3 && document.querySelector('[data-side-filter="coin"]').value === 'All'`)
 	b.shot("side-default-all")
 	b.call("browser_navigate", map[string]any{"url": "about:blank"})
-	b.open(e.URL + "/#/p/lab/lab?coin=")
+	b.open(b.base + "/#/p/lab/lab?coin=")
 	b.until("a reload stays on all", rows+` === 3 && document.querySelector('[data-side-filter="coin"]').value === 'All'`)
 }
 

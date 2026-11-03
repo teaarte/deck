@@ -54,9 +54,17 @@ type Config struct {
 	Origins *auth.Origins
 }
 
+// wall is the clock of a deck given none.
+var wall = time.Now
+
+// PairCode writes a code that pairs a device into a home, as deck pair does whether deck runs or not.
+func PairCode(h home.Layout, kind, name string) (string, time.Time, error) {
+	return auth.WriteCode(h, wall(), 0, kind, name)
+}
+
 func (c *Config) defaults() {
 	if c.Now == nil {
-		c.Now = time.Now
+		c.Now = wall
 	}
 	if c.Origins == nil {
 		c.Origins = auth.NewOrigins()

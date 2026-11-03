@@ -52,9 +52,9 @@ func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
 		b.until("the cards", `document.querySelector('[data-cell="today"] [data-widget]') && document.querySelector('[data-cols]')`)
 		cols := int64(colsOf(b))
 		// The owner's own layout: the modules first, Today after them.
-		e.Place(b.eval(`localStorage.getItem('deck-device')`), int(cols), harness.DeskCard{ID: "lab2", X: 0, Y: 0, W: 1, H: 1}, harness.DeskCard{ID: "lab1", X: 0, Y: 1, W: 1, H: 1},
+		place(b, int(cols), harness.DeskCard{ID: "lab2", X: 0, Y: 0, W: 1, H: 1}, harness.DeskCard{ID: "lab1", X: 0, Y: 1, W: 1, H: 1},
 			harness.DeskCard{ID: "lab0", X: 0, Y: 2, W: 1, H: 1}, harness.DeskCard{ID: "today", X: 0, Y: 3, W: min(2, cols), H: 2})
-		b.open(e.URL + "/?reload=" + fmt.Sprint(size.w) + "#/")
+		b.open(b.base + "/?reload=" + fmt.Sprint(size.w) + "#/")
 		b.until("the cards with their views where the owner put them", `document.querySelectorAll('[data-cell] [data-widget] [data-screen]').length >= 4 &&
 			document.querySelector('[data-cell="lab2"]').getBoundingClientRect().y < document.querySelector('[data-cell="today"]').getBoundingClientRect().y`)
 		b.eval(`(location.hash = '#/p/lab1/main', '')`)
@@ -90,7 +90,7 @@ func TestRealBrowserThemeStylesTheCards(t *testing.T) {
 		width, height int
 	}{{"desktop", 1400, 900}, {"phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
-		b.open(e.URL + "/#/deck/apps")
+		b.open(b.base + "/#/deck/apps")
 		b.until("the cards theme worn", `document.documentElement.dataset.deckTheme === 'cards' && document.querySelector('[data-app-tile]:not([data-big])')`)
 		got := b.eval(`(() => { const c = document.querySelector('[data-app-tile]:not([data-big])'), big = document.querySelector('[data-app-tile][data-big]'), s = getComputedStyle(c);
 			const cells = [...document.querySelectorAll('[data-cell]')].map((x) => x.getBoundingClientRect()), meadow = document.querySelector('[data-meadow]');
@@ -203,17 +203,16 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 		b.Open(e, "#/")
 		b.until("the cards", `document.querySelector('[data-cell="today"] [data-widget]') && document.querySelector('[data-cols]')`)
 		cols := colsOf(b)
-		device := b.eval(`localStorage.getItem('deck-device')`)
 		if phone {
 			if cols != 2 {
 				t.Fatalf("a phone has two columns of cells: %d", cols)
 			}
 			// The phone placed its cards when its grid had one column: they go across both now.
-			e.Place(device, 1, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 1, H: 1}, harness.DeskCard{ID: "lab", X: 0, Y: 1, W: 1, H: 2}, harness.DeskCard{ID: "lab2", X: 0, Y: 3, W: 1, H: 1})
+			place(b, 1, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 1, H: 1}, harness.DeskCard{ID: "lab", X: 0, Y: 1, W: 1, H: 2}, harness.DeskCard{ID: "lab2", X: 0, Y: 3, W: 1, H: 1})
 		} else {
-			e.Place(device, cols, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 2, H: 1}, harness.DeskCard{ID: "lab", X: 2, Y: 0, W: 2, H: 2}, harness.DeskCard{ID: "lab2", X: 0, Y: 1, W: 2, H: 1})
+			place(b, cols, harness.DeskCard{ID: "today", X: 0, Y: 0, W: 2, H: 1}, harness.DeskCard{ID: "lab", X: 2, Y: 0, W: 2, H: 2}, harness.DeskCard{ID: "lab2", X: 0, Y: 1, W: 2, H: 1})
 		}
-		b.open(e.URL + "/?reload=" + look + "#/")
+		b.open(b.base + "/?reload=" + look + "#/")
 		b.until("the view of each size", `document.querySelector('[data-cell="lab"] [data-widget="2x2"]') && document.querySelector('[data-cell="lab2"] [data-widget="2x1"]') &&
 			document.querySelectorAll('[data-cell] [data-widget] [data-chart-block] svg').length >= 2`)
 		b.until("the 2x2 view whole, its chart grown to the stat under it", `(() => { const w = document.querySelector('[data-cell="lab"] [data-widget]');
@@ -233,7 +232,7 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 			t.Errorf("on a %s, the axes of the cards cut no label and name each date once: %s", look, got)
 		}
 		b.shot("tiles-" + look)
-		b.open(e.URL + "/?reload=" + look + "#/p/lab/main")
+		b.open(b.base + "/?reload=" + look + "#/p/lab/main")
 		b.until("the charts", `document.querySelectorAll('[data-chart-block] svg .recharts-yAxis').length >= 2`)
 		b.until("the button of the table in its head, no card of its own", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.startsWith('Prices') && x.querySelector('button')?.innerText === 'Collect now') &&
 			!document.querySelector('[data-block] > [data-actions]:only-child')`)
@@ -242,7 +241,7 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 			t.Errorf("on a %s, the axes of the screen cut no label and name each date once: %s", look, got)
 		}
 		b.shot("main-" + look)
-		b.open(e.URL + "/?reload=" + look + "#/p/lab/board")
+		b.open(b.base + "/?reload=" + look + "#/p/lab/board")
 		b.until("the board", `document.querySelectorAll('[data-lane] [data-card]').length === 3`)
 		b.until("the accent of the board on the first card at work, none on Done", `document.querySelectorAll('[data-board] [data-verb][data-variant="filled"], [data-board] button[data-variant="filled"]').length === 1 &&
 			document.querySelector('[data-lane="todo"] button[data-variant="filled"]') && !document.querySelector('[data-lane="done"] button[data-variant="filled"]')`)

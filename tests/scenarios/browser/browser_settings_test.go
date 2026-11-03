@@ -38,7 +38,7 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 	b.until("the paused project on its settings", itemOf("notes", "enabled, paused"))
 
 	e.Project("plain", harness.PlainManifest)
-	b.open(e.URL + "/#/p/plain/settings")
+	b.open(b.base + "/#/p/plain/settings")
 	b.until("the model of a command in a picker", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Work') && r.querySelector('input[data-pick="model"]')?.value === 'fake')`)
 	b.eval(`(document.querySelector('tr input[data-pick="model"]').click(), '')`)
 	b.until("the models it may run on", `[...document.querySelectorAll('[role=option]')].some((o) => o.textContent === 'fake')`)

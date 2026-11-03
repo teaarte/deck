@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -35,6 +34,13 @@ func main() {
 	if err := cleanEnv(); err != nil {
 		fmt.Fprintln(os.Stderr, "deck: restart with a clean environment:", err)
 		os.Exit(1)
+	}
+	if len(os.Args) > 1 && os.Args[1] == "pair" {
+		if err := pair(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "deck:", err)
+			os.Exit(1)
+		}
+		return
 	}
 	restart, err := run()
 	if err != nil {
@@ -82,16 +88,13 @@ func run() (*release.Restart, error) {
 	// What deck writes is its own.
 	syscall.Umask(0o077)
 
-	home := os.Getenv("DECK_HOME")
-	if home == "" {
-		h, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		home = filepath.Join(h, ".deck2")
+	layout, err := homeDir()
+	if err != nil {
+		return nil, err
 	}
+	home := string(layout)
 	// A second deck of the home would take the agents of the first for those a crash left, and kill them.
-	lock, err := lockHome(deckhome.Layout(home))
+	lock, err := lockHome(layout)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +119,13 @@ func run() (*release.Restart, error) {
 		for _, name := range []string{"localhost", "127.0.0.1"} {
 			origins.Add(fmt.Sprintf("http://%s:%d", name, port), fmt.Sprintf("http://%s:%d", name, port+1))
 		}
+	} else {
+		// deck's own browser opens its pages at the one address deck listens at; no browser signs in there.
+		base := "http://" + opened(a)
+		origins.Add(base, "http://"+net.JoinHostPort(a.IP.String(), strconv.Itoa(port+1)))
+	}
+	if err := origins.Keep(layout.Origins()); err != nil {
+		return nil, err
 	}
 	restarts := make(chan release.Restart, 1)
 	a, err := app.New(app.Config{
@@ -192,11 +202,7 @@ func run() (*release.Restart, error) {
 		os.Remove(p.Old)
 		os.Remove(a.Home.Update())
 	}
-	url := "http://" + opened(ln.Addr().(*net.TCPAddr))
-	if len(publics) > 0 {
-		url = publics[0]
-	}
-	slog.Info("deck listening", "url", url, "home", home)
+	slog.Info("deck listening", "url", "http://"+opened(ln.Addr().(*net.TCPAddr)), "public", strings.Join(publics, ","), "home", home)
 	// The first device pairs by a link in the log; deck pair makes the next ones.
 	links, err := a.Owners.Welcome(ctx, a.Auth.Signed(ctx))
 	if err != nil {
@@ -204,6 +210,9 @@ func run() (*release.Restart, error) {
 	}
 	for _, l := range links {
 		slog.Info("pair the first device", "link", l)
+	}
+	if !a.Auth.Signed(ctx) && len(links) == 0 {
+		slog.Info("no device is paired yet: a browser signs in only over https; start deck with -tailscale or -public, or open it in the window of the launcher")
 	}
 	if err := <-served; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return nil, err

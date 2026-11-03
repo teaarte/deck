@@ -30,7 +30,7 @@ func TestRealBrowserThemePictures(t *testing.T) {
 	}
 	e.Must("deck.theme_use", map[string]any{"name": "paper"}, nil)
 	for _, scheme := range []string{"light", "dark"} {
-		b.open(e.URL + "/?theme=paper&scheme=" + scheme + "#/")
+		b.open(b.base + "/?theme=paper&scheme=" + scheme + "#/")
 		b.until("the scene of Today and the pattern behind in "+scheme, `(() => { const p = document.querySelector('[data-backdrop-pattern]');
 			const scene = document.querySelector('[data-app-tile][data-big] [data-cover-img]');
 			return !!p && getComputedStyle(p).backgroundRepeat.startsWith('repeat') && !!scene && scene.complete && !document.querySelector('[data-backdrop-picture]') })()`)

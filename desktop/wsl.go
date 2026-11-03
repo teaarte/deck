@@ -41,8 +41,8 @@ func (w WSL) Command(addr string) *exec.Cmd {
 	return w.run("", "bash", "-lc", `exec "$0" "$@"`, "env", "DECK_LAUNCHER=1", Bin, "-addr", addr)
 }
 
-func (w WSL) Token(ctx context.Context) (string, error) {
-	out, err := w.run("", "sh", "-c", `cat "${DECK_HOME:-$HOME/.deck2}/state/token"`).Output()
+func (w WSL) Pair(ctx context.Context) (string, error) {
+	out, err := w.run("", Bin, "pair", "--device", "launcher").CombinedOutput()
 	return string(out), err
 }
 

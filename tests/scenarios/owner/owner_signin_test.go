@@ -14,13 +14,19 @@ import (
 	"deck2/tests/harness"
 )
 
+// secure sends a request to deck's https address with a cookie, as a browser there does.
+func secure(e *harness.Env, req *http.Request, cookie string) {
+	req.Host = strings.TrimPrefix(e.Https(), "https://")
+	req.AddCookie(&http.Cookie{Name: "__Host-deck", Value: cookie})
+}
+
 // stream opens the stream of events with a cookie and gives a channel closed when the stream ends.
 func stream(t *testing.T, e *harness.Env, cookie string) <-chan struct{} {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	req, _ := http.NewRequestWithContext(ctx, "GET", e.URL+"/api/events", nil)
-	req.AddCookie(&http.Cookie{Name: "deck", Value: cookie})
+	secure(e, req, cookie)
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || resp.StatusCode != 200 {
@@ -36,11 +42,12 @@ func stream(t *testing.T, e *harness.Env, cookie string) <-chan struct{} {
 	return ended
 }
 
-// call sends a command with a cookie of deck from a page of origin, as a browser of a device does.
+// call sends a command with a cookie of deck at its https address from a page of origin, as a browser of a device
+// does.
 func call(t *testing.T, e *harness.Env, cookie, origin, name string) (int, string) {
 	t.Helper()
 	req, _ := http.NewRequest("POST", e.URL+"/api/commands/"+name, strings.NewReader("{}"))
-	req.AddCookie(&http.Cookie{Name: "deck", Value: cookie})
+	secure(e, req, cookie)
 	if origin != "" {
 		req.Header.Set("Origin", origin)
 	}
@@ -65,13 +72,17 @@ type device struct {
 // pairSecond pairs one more browser by a link of pair_link and returns its passkey and cookie.
 func pairSecond(t *testing.T, e *harness.Env, name string) (*harness.Passkey, string) {
 	t.Helper()
-	var link struct{ Links []string }
+	e.Https()
+	var link struct {
+		Links []string
+		QR    string
+	}
 	e.Must("deck.pair_link", map[string]any{}, &link)
-	if len(link.Links) != 1 || !strings.HasPrefix(link.Links[0], e.Local+"/#pair=") {
-		t.Fatalf("a link pairs at the address where a browser makes passkeys, the code in its fragment: %v", link.Links)
+	if len(link.Links) != 1 || !strings.HasPrefix(link.Links[0], e.Https()+"/#pair=") || !strings.HasPrefix(link.QR, "iVBORw0KGgo") {
+		t.Fatalf("a link pairs at the https address, the code in its fragment, with its QR code: %v %.20s", link.Links, link.QR)
 	}
 	p := harness.NewPasskey()
-	cookie, err := p.Pair(e.URL, e.Local, harness.Code(link.Links[0]), name)
+	cookie, err := p.Pair(e.URL, e.Https(), harness.Code(link.Links[0]), name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,36 +95,36 @@ func TestADevicePairsByALinkAndSignsInWithItsPasskey(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	p, cookie := pairSecond(t, e, "phone")
-	if code, out := call(t, e, cookie, e.URL, "deck.menu_get"); code != 200 {
+	if code, out := call(t, e, cookie, e.Https(), "deck.menu_get"); code != 200 {
 		t.Fatalf("the paired browser calls commands: %d %s", code, out)
 	}
 	var ds []device
 	e.Must("deck.devices_list", map[string]any{}, &ds)
-	if len(ds) != 2 || !ds[0].This || ds[1].This || ds[1].Name != "phone" || ds[1].Kind != "browser" || !ds[1].Passkey {
-		t.Fatalf("both browsers are devices of the owner, the caller's marked: %+v", ds)
+	if len(ds) != 2 || !ds[0].This || ds[0].Kind != "launcher" || ds[1].This || ds[1].Name != "phone" || ds[1].Kind != "browser" || !ds[1].Passkey {
+		t.Fatalf("the launcher and the browser are devices of the owner, the caller's marked: %+v", ds)
 	}
 	ended := stream(t, e, cookie)
 	req, _ := http.NewRequest("POST", e.URL+"/auth/logout", nil)
-	req.Header.Set("Origin", e.URL)
-	req.AddCookie(&http.Cookie{Name: "deck", Value: cookie})
+	req.Header.Set("Origin", e.Https())
+	secure(e, req, cookie)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || resp.StatusCode != 200 {
 		t.Fatalf("the phone signs out: %v %v", resp, err)
 	}
 	resp.Body.Close()
 	harness.Receive(t, "the stream of the phone to end with its session", ended)
-	if code, _ := call(t, e, cookie, e.URL, "deck.menu_get"); code != 401 {
+	if code, _ := call(t, e, cookie, e.Https(), "deck.menu_get"); code != 401 {
 		t.Fatalf("a cookie signed out opens nothing: %d", code)
 	}
-	again, err := p.Login(e.URL, e.Local)
+	again, err := p.Login(e.URL, e.Https())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code, out := call(t, e, again, e.URL, "deck.devices_list"); code != 200 || !strings.Contains(out, `"name":"phone","kind":"browser","created_at"`) ||
+	if code, out := call(t, e, again, e.Https(), "deck.devices_list"); code != 200 || !strings.Contains(out, `"name":"phone","kind":"browser","created_at"`) ||
 		!strings.Contains(out[strings.Index(out, `"phone"`):], `"this":true`) {
 		t.Fatalf("the passkey signs the phone in again, as the phone: %d %s", code, out)
 	}
-	if _, err := harness.NewPasskey().Login(e.URL, e.Local); err == nil {
+	if _, err := harness.NewPasskey().Login(e.URL, e.Https()); err == nil {
 		t.Fatal("a passkey deck never paired signs nothing in")
 	}
 }
@@ -123,40 +134,43 @@ func TestADevicePairsByALinkAndSignsInWithItsPasskey(t *testing.T) {
 func TestACodePairsOnceWithinItsTimeAndTries(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
+	e.Https()
 	var link struct{ Code string }
 	e.Must("deck.pair_link", map[string]any{}, &link)
 	if len(link.Code) != 22 {
 		t.Fatalf("a code is 128 random bits: %q", link.Code)
 	}
-	if _, err := harness.NewPasskey().Pair(e.URL, e.Local, link.Code, "a"); err != nil {
+	if _, err := harness.NewPasskey().Pair(e.URL, e.Https(), link.Code, "a"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := harness.NewPasskey().Pair(e.URL, e.Local, link.Code, "b"); err == nil || !strings.Contains(err.Error(), "403") {
+	if _, err := harness.NewPasskey().Pair(e.URL, e.Https(), link.Code, "b"); err == nil || !strings.Contains(err.Error(), "403") {
 		t.Fatalf("a code pairs once: %v", err)
 	}
 	begin := func(n int) {
 		for range n {
-			if status, out, _, _ := harness.Rite(e.URL, e.Local, "pair/begin", map[string]any{"code": link.Code}); status != 200 {
+			if status, out, _, _ := harness.Rite(e.URL, e.Https(), "pair/begin", map[string]any{"code": link.Code}); status != 200 {
 				t.Fatalf("a code begins five ceremonies: %d %s", status, out)
 			}
 		}
 	}
 	e.Must("deck.pair_link", map[string]any{}, &link)
 	begin(4)
-	if _, err := harness.NewPasskey().Pair(e.URL, e.Local, link.Code, "fifth"); err != nil {
+	if _, err := harness.NewPasskey().Pair(e.URL, e.Https(), link.Code, "fifth"); err != nil {
 		t.Fatalf("the fifth try of a code pairs: %v", err)
 	}
 	e.Must("deck.pair_link", map[string]any{}, &link)
 	begin(5)
-	if status, _, _, _ := harness.Rite(e.URL, e.Local, "pair/begin", map[string]any{"code": link.Code}); status != 403 {
+	if status, _, _, _ := harness.Rite(e.URL, e.Https(), "pair/begin", map[string]any{"code": link.Code}); status != 403 {
 		t.Fatalf("the sixth try of a code is refused: %d", status)
 	}
 	e.Must("deck.pair_link", map[string]any{}, &link)
-	if status, out, _, _ := harness.Rite(e.URL, e.URL, "pair/begin", map[string]any{"code": link.Code}); status != 403 || !strings.Contains(string(out), "localhost") {
-		t.Fatalf("no passkey at an IP address; deck says where: %d %s", status, out)
+	for _, at := range []string{e.URL, e.Local} {
+		if status, out, _, _ := harness.Rite(e.URL, at, "pair/begin", map[string]any{"code": link.Code}); status != 403 || !strings.Contains(string(out), "https") {
+			t.Fatalf("no passkey over plain http, at localhost too; deck says where: %d %s", status, out)
+		}
 	}
 	e.Clock.Add(11 * time.Minute)
-	if _, err := harness.NewPasskey().Pair(e.URL, e.Local, link.Code, "late"); err == nil {
+	if _, err := harness.NewPasskey().Pair(e.URL, e.Https(), link.Code, "late"); err == nil {
 		t.Fatal("a code past ten minutes pairs nothing")
 	}
 	var ds []device
@@ -178,7 +192,7 @@ func TestARevokedDeviceLosesItsStreamAndItsCookie(t *testing.T) {
 	tablet := ds[len(ds)-1]
 	e.Must("deck.device_revoke", map[string]any{"device": tablet.ID}, nil)
 	harness.Receive(t, "a revoke to end the stream of the device", ended)
-	if code, _ := call(t, e, cookie, e.URL, "deck.menu_get"); code != 401 {
+	if code, _ := call(t, e, cookie, e.Https(), "deck.menu_get"); code != 401 {
 		t.Fatalf("the cookie of a revoked device opens nothing: %d", code)
 	}
 	e.Must("deck.menu_get", map[string]any{}, nil)
@@ -189,22 +203,22 @@ func TestARevokedDeviceLosesItsStreamAndItsCookie(t *testing.T) {
 	e.Refused("deck.device_revoke", map[string]any{"device": tablet.ID}, 404, "may still sign in")
 }
 
-// TestACookieCallsOnlyFromAPageOfDeck: a write with the owner's cookie comes only with the Origin of deck, not of the
-// second origin nor another site; a read only from a page of deck; the second origin sets no cookie.
+// TestACookieCallsOnlyFromAPageOfDeck: a cookie writes only from deck's https page and reads only from its pages; the
+// second origin sets none; on plain http, localhost too, no cookie signs in and deck names its https address.
 func TestACookieCallsOnlyFromAPageOfDeck(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	for _, origin := range []string{e.Side, "https://evil.example", ""} {
+	for _, origin := range []string{e.Side, e.URL, "https://evil.example", ""} {
 		if code, out := call(t, e, e.Cookie(), origin, "deck.menu_get"); code != 403 {
 			t.Fatalf("a call from %q is refused: %d %s", origin, code, out)
 		}
 	}
-	if code, out := call(t, e, e.Cookie(), e.URL, "deck.menu_get"); code != 200 {
+	if code, out := call(t, e, e.Cookie(), e.Https(), "deck.menu_get"); code != 200 {
 		t.Fatalf("a call from deck's page goes: %d %s", code, out)
 	}
 	for site, want := range map[string]int{"cross-site": 403, "same-site": 403, "same-origin": 200, "none": 200} {
 		req, _ := http.NewRequest("GET", e.URL+"/api/files/theme/juce/clouds.webp", nil)
-		req.AddCookie(&http.Cookie{Name: "deck", Value: e.Cookie()})
+		secure(e, req, e.Cookie())
 		req.Header.Set("Sec-Fetch-Site", site)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -216,7 +230,7 @@ func TestACookieCallsOnlyFromAPageOfDeck(t *testing.T) {
 		}
 	}
 	req, _ := http.NewRequest("GET", e.Side+"/sandbox.html", nil)
-	req.AddCookie(&http.Cookie{Name: "deck", Value: e.Cookie()})
+	req.AddCookie(&http.Cookie{Name: "__Host-deck", Value: e.Cookie()})
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -225,45 +239,86 @@ func TestACookieCallsOnlyFromAPageOfDeck(t *testing.T) {
 	if resp.StatusCode != 200 || resp.Header.Get("Set-Cookie") != "" {
 		t.Fatalf("the second origin serves its page and sets no cookie: %d %v", resp.StatusCode, resp.Header)
 	}
-}
-
-// TestALentTokenTradesForACookieThatOnlyReads: deck's own browser trades a lent token for a cookie that acts as the
-// caller of the loan and only reads; once the token is back the cookie opens nothing.
-func TestALentTokenTradesForACookieThatOnlyReads(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	tok := e.App.Owners.Lend(registry.Actor{Kind: registry.Owner, Workspace: 1}, time.Minute)
-	lend := func() *http.Response {
-		req, _ := http.NewRequest("POST", e.URL+"/auth/lend", nil)
-		harness.Bearer(tok)(req)
+	for _, name := range []string{"__Host-deck", "deck"} {
+		req, _ := http.NewRequest("POST", e.Local+"/api/commands/deck.menu_get", strings.NewReader("{}"))
+		req.AddCookie(&http.Cookie{Name: name, Value: e.Cookie()})
+		req.Header.Set("Origin", e.Local)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
+		b, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return resp
-	}
-	var cookie string
-	for _, c := range lend().Cookies() {
-		if c.Name == "deck" && c.HttpOnly && c.SameSite == http.SameSiteStrictMode {
-			cookie = c.Value
+		if resp.StatusCode != 401 || !strings.Contains(string(b), e.Https()) || !strings.Contains(string(b), "launcher") {
+			t.Fatalf("on http://localhost no cookie signs in, and deck names its https address: %d %s", resp.StatusCode, b)
 		}
 	}
-	if cookie == "" {
-		t.Fatal("a lent token trades for a cookie")
-	}
-	if code, out := call(t, e, cookie, e.URL, "deck.menu_get"); code != 200 {
-		t.Fatalf("the cookie reads the menu: %d %s", code, out)
-	}
-	if code, out := call(t, e, cookie, e.URL, "deck.pair_link"); code != 403 || !strings.Contains(out, "only reads") {
-		t.Fatalf("the cookie changes nothing: %d %s", code, out)
+}
+
+// TestALentTokenOnlyReads: a token deck lends its own browser acts as the caller of the loan in the header and only
+// reads; once it is back it opens nothing; no cookie is lent.
+func TestALentTokenOnlyReads(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	tok := e.App.Owners.Lend(registry.Actor{Kind: registry.Owner, Workspace: 1}, time.Minute)
+	e.As(tok).Must("deck.menu_get", map[string]any{}, nil)
+	if code, out := e.As(tok).Call("deck.pair_link", map[string]any{}); code != 403 || !strings.Contains(string(out), "only reads") {
+		t.Fatalf("a lent token changes nothing: %d %s", code, out)
 	}
 	e.App.Owners.Return(tok)
-	if code, _ := call(t, e, cookie, e.URL, "deck.menu_get"); code != 401 {
-		t.Fatalf("once the token is back its cookie opens nothing: %d", code)
+	if code, _ := e.As(tok).Call("deck.menu_get", map[string]any{}); code != 401 {
+		t.Fatalf("once the token is back it opens nothing: %d", code)
 	}
-	if resp := lend(); resp.StatusCode != 401 {
-		t.Fatalf("a token back trades for nothing: %d", resp.StatusCode)
+	req, _ := http.NewRequest("POST", e.URL+"/auth/lend", nil)
+	harness.Bearer(e.App.Owners.Lend(registry.Actor{Kind: registry.Owner, Workspace: 1}, time.Minute))(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode == 200 || len(resp.Cookies()) > 0 {
+		t.Fatalf("no cookie is lent: %d %v", resp.StatusCode, resp.Cookies())
+	}
+}
+
+// TestTheLauncherPairsOnThisMachineByAKey: the launcher pairs and calls only at deck's plain address on this machine,
+// with a key in the header and no cookie; a launcher paired again takes the place of the one before.
+func TestTheLauncherPairsOnThisMachineByAKey(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.App.Auth.Origins().Add("https://deck.example.test", "https://deck.example.test:8443")
+	code, _, err := e.App.Auth.Code(0, "launcher", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status, out, _, _ := harness.Rite(e.URL, "https://deck.example.test", "pair/begin", map[string]any{"code": code}); status != 403 || !strings.Contains(string(out), "machine") {
+		t.Fatalf("the launcher pairs only on the machine deck runs on: %d %s", status, out)
+	}
+	first := e.Key
+	status, out, cookie, _ := harness.Rite(e.URL, e.Local, "pair/begin", map[string]any{"code": code})
+	if status != 200 || cookie != "" || !strings.Contains(string(out), `"key"`) {
+		t.Fatalf("the launcher gets a key and no cookie: %d %s %q", status, out, cookie)
+	}
+	if code, _ := e.As(first).Call("deck.menu_get", map[string]any{}); code != 401 {
+		t.Fatalf("a launcher paired again takes the place of the one before: %d", code)
+	}
+	var ds []device
+	key := strings.Split(strings.Split(string(out), `"key":"`)[1], `"`)[0]
+	e.As(key).Must("deck.devices_list", map[string]any{}, &ds)
+	if len(ds) != 1 || !ds[0].This || ds[0].Kind != "launcher" {
+		t.Fatalf("the list has the new launcher alone: %+v", ds)
+	}
+	// tailscale serve on this machine brings every peer of the tailnet from loopback, to deck's https address.
+	req, _ := http.NewRequest("POST", e.URL+"/api/commands/deck.menu_get", strings.NewReader("{}"))
+	req.Host = "deck.example.test"
+	harness.Bearer(key)(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("the key of the launcher signs in only at deck's plain address on this machine: %d", resp.StatusCode)
 	}
 }
 
@@ -362,14 +417,25 @@ func TestThePushesOfADeckBeforeDevicesStayAsDevices(t *testing.T) {
 	if i < 0 || ds[i].ID != 7 || ds[i].Passkey || ds[i].Kind != "browser" {
 		t.Fatalf("the subscription is a device of its own with no passkey: %+v", ds)
 	}
-	var pushes []struct{ ID int64 }
-	e.Must("deck.push_devices_list", map[string]any{}, &pushes)
-	if len(pushes) != 1 || pushes[0].ID != 7 {
-		t.Fatalf("its pushes go on: %+v", pushes)
+	pushes := func() []int64 {
+		var ds []struct {
+			ID   int64
+			Push bool
+		}
+		e.Must("deck.devices_list", map[string]any{}, &ds)
+		var out []int64
+		for _, d := range ds {
+			if d.Push {
+				out = append(out, d.ID)
+			}
+		}
+		return out
+	}
+	if p := pushes(); len(p) != 1 || p[0] != 7 {
+		t.Fatalf("its pushes go on: %+v", p)
 	}
 	e.Must("deck.device_revoke", map[string]any{"device": 7}, nil)
-	e.Must("deck.push_devices_list", map[string]any{}, &pushes)
-	if len(pushes) != 0 {
-		t.Fatalf("a revoked device gets no pushes: %+v", pushes)
+	if p := pushes(); len(p) != 0 {
+		t.Fatalf("a revoked device gets no pushes: %+v", p)
 	}
 }

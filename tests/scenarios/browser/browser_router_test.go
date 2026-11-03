@@ -32,11 +32,11 @@ func TestRealBrowserRouter(t *testing.T) {
 	b.eval(`([...document.querySelectorAll('[data-dialog="rescore"] button')].find((x) => x.innerText.trim() === 'Run').click(), '')`)
 	b.until("the dialog closed after its form ran", `!document.querySelector('[data-dialog="rescore"] input') && !location.hash.includes('dialog')`)
 
-	b.open(e.URL + "/#/deck/settings")
+	b.open(b.base + "/#/deck/settings")
 	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Modules')`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Modules').click(), '')`)
 	b.until("the tab in the address", `decodeURIComponent(location.hash).includes('tab=Modules')`)
-	b.open(e.URL + "/#/deck/schedule")
+	b.open(b.base + "/#/deck/schedule")
 	b.until("the journal", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Runs')`)
 	b.eval(`(history.back(), '')`)
 	b.until("back on the tab picked before", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Modules')`)

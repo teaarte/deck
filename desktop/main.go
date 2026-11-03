@@ -122,17 +122,22 @@ func open(d *Deck, show bool) {
 		}
 	}
 	var window *application.WebviewWindow
+	// One reveal at a time: two at once would pair twice and load the key the second pairing took away.
+	var revealing sync.Mutex
 	reveal := func() {
 		go func() {
+			revealing.Lock()
+			defer revealing.Unlock()
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 			err := prepare(d.Runner, func(string) {})
 			if err == nil {
 				err = d.Start(ctx)
 			}
+			// A window still signed in stays as it is; else the launcher pairs it again.
 			var url string
-			if err == nil {
-				url, err = d.URL(ctx)
+			if err == nil && !d.Signed(ctx) {
+				url, err = d.Pair(ctx)
 			}
 			application.InvokeSync(func() {
 				if err != nil {
@@ -145,6 +150,8 @@ func open(d *Deck, show bool) {
 						window.Hide()
 						e.Cancel()
 					})
+				} else if url != "" {
+					window.SetURL(url)
 				}
 				window.Show()
 				window.Focus()

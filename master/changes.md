@@ -59,3 +59,7 @@ and bring the modules in line.
   token calls only in the header `Authorization` (never in an address; ten wrong ones from an address and it waits);
   the topic of `tokens_list` is `devices`. A page deck opens itself, such as `screen_capture`, reads with a cookie of
   the caller that only reads. `push_subscribe` is of the device the call comes from and takes no `device`.
+- 2026-11-03: `push_devices_list` is gone: `devices_list` says `push` of each device and gives its `stop_push` button.
+  `pair_link` answers with `qr`, a PNG of the first link (`contentMediaType: image/png`), and pairs a browser only at
+  an https address of deck. `layout_get` and `layout_set` take no `device`: the tiles are of the device of the call. A
+  page deck opens itself, such as `screen_capture`, reads with a lent token in the header, no cookie.

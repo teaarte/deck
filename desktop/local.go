@@ -21,9 +21,11 @@ func (l Local) Command(addr string) *exec.Cmd {
 	return cmd
 }
 
-func (l Local) Token(context.Context) (string, error) {
-	b, err := os.ReadFile(filepath.Join(l.Home, "state", "token"))
-	return string(b), err
+func (l Local) Pair(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(ctx, l.Bin, "pair", "--device", "launcher")
+	cmd.Env = append(os.Environ(), "DECK_HOME="+l.Home)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
 }
 
 func (l Local) Version(ctx context.Context) (string, error) {

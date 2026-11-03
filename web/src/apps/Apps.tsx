@@ -11,7 +11,6 @@ import { dropParam, href, useMoving, useRoute } from '../app/router';
 import { useLiveRead } from '../hooks/useLiveRead';
 import { useMenuData, type MenuEntry } from '../hooks/useMenu';
 import { useCover } from '../lib/covers';
-import { device } from '../lib/device';
 import { notifyError } from '../lib/notify';
 import { press } from '../screen/press';
 import { useWorn } from '../theme/worn';
@@ -133,8 +132,7 @@ export function Apps() {
   const cell = phone ? { ...measured, gap: measured.gap / 2 } : measured;
   // The narrowest grid still has two columns, as a phone: a card across it is two cells wide, a half one.
   const cols = Math.max(2, Math.floor((width + cell.gap) / (cell.min + cell.gap)));
-  const me = device();
-  const saved = useLiveRead<Saved>('deck.layout_get', { device: me, columns: cols }, EMPTY, !mounted);
+  const saved = useLiveRead<Saved>('deck.layout_get', { columns: cols }, EMPTY, !mounted);
   const ids = [TODAY, ...menu.projects.map((p) => p.project ?? '')];
   const [placing, setPlacing] = useState(route.params?.edit === '1');
   const [room, setRoom] = useState(0);

@@ -173,49 +173,54 @@ func (b *bare) sh(user, script string) string {
 	return b.compose("exec", "-T", "-u", user, "deck", "sh", "-c", script)
 }
 
-// signIn pairs a browser by the link of the first device deck logs, from inside its container on localhost, and
-// gives the cookie of its session.
+// signIn waits for the first link in the log of deck, which has no token, then pairs a browser at deck's https address
+// by a code of docker compose exec deck deck pair inside the container and gives the cookie of its session.
 func (b *bare) signIn() string {
 	b.t.Helper()
-	var code, logs string
+	var logs string
+	first := regexp.MustCompile(`link="?https://localhost/#pair=[A-Za-z0-9_-]+`)
 	defer func() {
-		if code == "" {
+		if !first.MatchString(logs) {
 			b.t.Logf("the log of deck:\n%s", logs)
 		}
 	}()
 	harness.Until(b.t, "the link of the first device in the log of deck", func() bool {
 		logs = b.compose("logs", "deck")
-		if m := regexp.MustCompile(`link="?https://localhost/#pair=([A-Za-z0-9_-]+)`).FindStringSubmatch(logs); m != nil {
-			code = m[1]
-		}
-		return code != ""
+		return first.MatchString(logs)
 	})
 	if strings.Contains(logs, "token=") {
 		b.t.Fatalf("the log of deck carries no token:\n%s", logs)
 	}
-	const origin = "http://localhost:7700"
+	out := b.compose("exec", "-T", "-u", "deck", "deck", "deck", "pair")
+	m := regexp.MustCompile(`https://localhost/#pair=([A-Za-z0-9_-]+)`).FindStringSubmatch(out)
+	if m == nil {
+		b.t.Fatalf("deck pair prints a link of deck's https address: %s", out)
+	}
 	cookie, err := harness.NewPasskey().PairBy(func(step string, body any) (int, []byte, string, error) {
 		in, _ := json.Marshal(body)
-		out := b.compose("exec", "-T", "-u", "deck", "deck", "curl", "-s", "-i", "--max-time", "60", "-X", "POST", "-H", "Host: localhost:7700",
+		out := b.compose("exec", "-T", "-u", "deck", "deck", "curl", "-s", "-i", "--max-time", "60", "-X", "POST", "-H", "Host: localhost",
 			"-H", "Origin: "+origin, "-H", "Content-Type: application/json", "-d", string(in), "http://127.0.0.1:7700/auth/"+step)
 		resp, err := http.ReadResponse(bufio.NewReader(strings.NewReader(out)), nil)
 		if err != nil {
 			return 0, []byte(out), "", err
 		}
 		return harness.Answer(resp)
-	}, origin, code, "server test")
+	}, origin, m[1], "server test")
 	if err != nil {
 		b.t.Fatal(err)
 	}
 	return cookie
 }
 
-// call calls a command of deck from inside its container, as the owner's browser signed in there.
+// origin is deck's https address in the test, by Caddy of its compose.
+const origin = "https://localhost"
+
+// call calls a command of deck from inside its container, as the owner's browser signed in at its https address.
 func (b *bare) call(cookie, command string, input any) json.RawMessage {
 	b.t.Helper()
 	body, _ := json.Marshal(input)
 	return json.RawMessage(b.compose("exec", "-T", "-u", "deck", "deck", "curl", "-s", "--max-time", "60", "-X", "POST",
-		"-b", "deck="+cookie, "-H", "Origin: http://127.0.0.1:7700", "-H", "Content-Type: application/json", "-d", string(body),
+		"-b", "__Host-deck="+cookie, "-H", "Host: localhost", "-H", "Origin: "+origin, "-H", "Content-Type: application/json", "-d", string(body),
 		"http://127.0.0.1:7700/api/commands/"+command))
 }
 
@@ -272,7 +277,7 @@ func (b *bare) codex(user, folder string) {
 	b.write(folder+"/config.toml", fmt.Sprintf(serverCodex, ip[0]), user)
 }
 
-// TestServerFromScratch is deck from compose.yaml with its three lines: the link of the first device in the log, HTTPS
+// TestServerFromScratch is deck from compose.yaml with its three lines: a link of deck pair, no token in the log, HTTPS
 // by Caddy, sign-in links, Codex passing its self-check, a script in its box that sees no other process nor deck's base.
 func TestServerFromScratch(t *testing.T) {
 	harness.Needs(t, "DECK_SERVER")

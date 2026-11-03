@@ -143,7 +143,8 @@ needed only to rebuild the web client, which is embedded in the binary.
 
 ```bash
 go build -o deck ./cmd/deck             # add -tags tailnet to serve deck on your Tailscale network
-./deck                                  # prints the address and, on a first start, the link that pairs a browser
+./deck                                  # prints the address and, until a device pairs, the link that pairs one
+./deck pair                             # a link that pairs one more device, whether deck runs or not
 DECK_HOME=/tmp/deckhome ./deck          # another data folder
 ./deck -addr 127.0.0.1:7700             # the listen address (default); the next port serves custom blocks
 ./deck -tailscale deck                  # with the tag: join your tailnet as "deck" over HTTPS
@@ -161,14 +162,17 @@ stays as it is. deck.app and the Windows installer are updated whole by their la
 calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`. On start, deck migrates its
 database and the stored manifests.
 
-- **Phone.** Open a pairing link of deck (`deck.pair_link`) on the phone over https — your tailnet or your domain —,
-  make a passkey and add deck to the home screen. Pushes and sharing a link or a file into a module work as in a
-  native app. deck signs the owner in only over https and on localhost, never over plain http from the network.
-  On `http://localhost` the browser sends deck's cookie to every server on localhost, whatever its port: a local
-  server you open in the same browser could act as you. Over https the cookie stays with deck's own address.
+- **Signing in.** A browser signs in to deck only over https — your tailnet or your domain — with a passkey: open a
+  link of `deck pair` (or of Settings → Devices on a device signed in, with its QR code for a phone) on the device
+  and make the passkey there. The link works once, within ten minutes. Settings → Devices lists every device, renames
+  and revokes them. On plain http, `localhost` too, deck gives no cookie: the browser would send it to every server
+  on localhost, whatever its port.
+- **Phone.** Pair it as above and add deck to the home screen. Pushes and sharing a link or a file into a module work
+  as in a native app.
 - **Desktop app.** `desktop/build.sh` builds `deck.app` for macOS and an installer for Windows, where deck runs in
   its own WSL2 distribution (not yet tried on a real Windows machine). The launcher lives in the tray and can start
-  at login.
+  at login; its window is a device of its own, paired by `deck pair --device launcher` on this machine only, its key
+  in the header, not a cookie.
 
 ## Server
 
@@ -183,13 +187,13 @@ sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_p
 echo "DECK_DOMAIN=deck.example.com" > .env
 docker compose up -d
 docker compose logs deck | grep pair      # the link that pairs your first device
+docker compose exec deck deck pair        # a link for the next one
 ```
 
 Caddy in the same compose gets the HTTPS certificate. Open the link, then sign in to the agents in
 Settings → Models → **Sign in**: Codex shows a link and a code, Claude Code a link whose page gives the code to
 enter. Their logins and deck's data stay in the volume `deck`. Add `DECK_TAILSCALE=deck` to `.env` to also reach
-deck on your tailnet. Without a domain, reach deck through an SSH tunnel to `127.0.0.1:7700` of the server and open
-it as `http://localhost:7700`, where a browser makes a passkey too. To update:
+deck on your tailnet; without a domain, that is the https address a browser pairs at. To update:
 `docker compose pull && docker compose up -d`.
 
 **What the container needs.** Every program of a module runs in a box of its own inside the container, built by

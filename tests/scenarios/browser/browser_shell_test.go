@@ -57,7 +57,7 @@ func TestRealBrowserShell(t *testing.T) {
 	if got := b.eval(`String(!document.querySelector('[data-apps-links]'))`); got != "true" {
 		t.Fatalf("no links under the tiles: %s", got)
 	}
-	b.open(e.URL + "/#/deck/schedule")
+	b.open(b.base + "/#/deck/schedule")
 	b.until("the schedule", `location.hash === '#/deck/schedule'`)
 	b.until("the tab named after its screen, with Deki for its icon", `/^(\(\d+\) )?Schedule · deck$/.test(document.title) && document.querySelector('link[rel=icon]').getAttribute('href') === '/favicon.png'`)
 	if got := b.eval(`(() => { const home = document.querySelector('[data-apps-home]').getBoundingClientRect(), deki = document.querySelector('[data-chat-toggle]').getBoundingClientRect();
@@ -99,7 +99,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-back]').click(), '')`)
 	b.until("back to the list", `location.hash === '#/p/web/main'`)
 
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the project screen", `document.querySelector('[data-block] table')`)
 	if got := b.eval(`(() => { const t = [...document.querySelectorAll('[data-block]')].find((x) => x.querySelector('table')); return String(t.scrollWidth <= t.clientWidth + 1) })()`); got != "true" {
 		t.Fatalf("a long word stays inside its block: %s", got)
@@ -110,7 +110,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the icons of a block and its button", `document.querySelector('[data-block-icon] [data-icon="notes"]') && document.querySelector('button [data-icon="arrow-right"]')`)
 	b.shot("shell-light")
 
-	b.open(e.URL + "/#/deck/spend?period=30 days")
+	b.open(b.base + "/#/deck/spend?period=30 days")
 	b.until("the stats and the chart of the spend", `[...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).length === 2 && [...document.querySelectorAll('[data-chart-block] svg')].some((x) => x.getBoundingClientRect().width > 0)`)
 	if got := b.eval(`String(new Set([...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).map((x) => Math.round(x.closest('[data-block]').getBoundingClientRect().top))).size)`); got != "1" {
 		t.Fatalf("the two numbers of the spend stand in one row: %s", got)
@@ -120,13 +120,13 @@ func TestRealBrowserShell(t *testing.T) {
 		const top = cells.filter((c) => Math.abs(c.top - cells[0].top) < 2); return String(Math.abs(top[top.length - 1].right - g.right) < 2) })()`); got != "true" {
 		t.Fatalf("the blocks of a row fill the width of the screen: %s", got)
 	}
-	b.open(e.URL + "/#/deck/schedule")
+	b.open(b.base + "/#/deck/schedule")
 	b.until("the schedule of a trigger in words", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.toLowerCase().includes('master') && r.innerText.includes('review'))`)
 	if got := b.eval(`[...document.querySelectorAll('td')].filter((x) => x.offsetParent && /^[0-9*\/,-]+( [0-9*\/,-]+){4}$/.test(x.innerText.trim())).map((x) => x.innerText).join('|')`); got != "" {
 		t.Fatalf("no schedule shows as cron: %s", got)
 	}
 	b.shot("shell-schedule")
-	b.open(e.URL + "/#/deck/settings?tab=Modules")
+	b.open(b.base + "/#/deck/settings?tab=Modules")
 	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Models')`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Models').click(), '')`)
 	b.until("the providers table", `[...document.querySelectorAll('[data-block] table')].some((x) => x.offsetParent)`)
@@ -134,7 +134,7 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("a header of a table keeps its words whole: %s", got)
 	}
 
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the project screen", `document.querySelector('[data-block] table')`)
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the chat island", `document.querySelector('[data-chat-panel] [data-chat-input]')`)
@@ -165,41 +165,41 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-full]').click(), '')`)
 	b.until("the screen back beside the chat", `document.querySelector('[data-main]').offsetParent`)
 
-	b.open(e.URL + "/#/deck/look")
+	b.open(b.base + "/#/deck/look")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
 	b.look("theme", "glass")
 	b.look("scheme", "dark")
 	b.until("the dark glass", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"]')`)
-	b.open(e.URL + "/#/deck/settings")
+	b.open(b.base + "/#/deck/settings")
 	b.until("the glass of the theme document on the tabs", `getComputedStyle(document.querySelector('.mantine-Tabs-list')).backdropFilter.includes('blur') && document.getElementById('deck-theme').textContent.includes('--theme-blur')`)
 	var worn struct{ Name string }
 	e.Must("deck.theme_get", map[string]any{}, &worn)
 	if worn.Name != "glass" {
 		t.Fatalf("the theme is the whole deck's, kept on the server: %+v", worn)
 	}
-	b.open(e.URL + "/#/deck/look")
+	b.open(b.base + "/#/deck/look")
 	b.until("the switch of the mascot", `document.querySelector('[data-look="mascot"]')`)
 	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)
 	b.until("no Deki anywhere once the mascot is off", `!document.querySelector('[data-deki]')`)
 	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the dark project screen", `document.querySelector('[data-block] table')`)
 	b.shot("shell-glass-dark")
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
-	b.open(e.URL + "/#/deck/cockpit")
+	b.open(b.base + "/#/deck/cockpit")
 	b.until("the dark cockpit", `document.querySelector('[data-today-line]') && document.querySelector('[data-grid] [data-block]')`)
 	b.shot("shell-glass-dark-cockpit")
-	b.open(e.URL + "/#/deck/look")
+	b.open(b.base + "/#/deck/look")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
 	b.look("scheme", "light")
 	b.eval(`(document.querySelector('[data-accent="grape"]').click(), '')`)
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the light glass", `document.querySelector('[data-block] table') && document.documentElement.dataset.mantineColorScheme === 'light'`)
 	b.shot("shell-glass-light")
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the tabs of the phone", `document.querySelector('[data-phone-tabs]') && document.querySelector('[data-block] table')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the screen fits the width of a phone: %s", got)
@@ -219,7 +219,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-tab="deki"]').click(), '')`)
 	b.until("Deki opens the chat as a sheet", `document.querySelector('[data-chat-phone] [data-chat-input]')`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
-	b.open(e.URL + "/#/deck/cockpit")
+	b.open(b.base + "/#/deck/cockpit")
 	b.until("the cockpit on a phone", `document.querySelector('[data-today-line]') && document.querySelector('[data-grid] [data-block]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the cockpit fits the width of a phone: %s", got)
@@ -229,7 +229,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
 	for _, look := range []string{"pixel light", "neon dark", "paper light", "default dark", "juce dark"} {
 		parts := strings.Fields(look)
-		b.open(e.URL + "/?theme=" + parts[0] + "&scheme=" + parts[1] + "#/p/web/main")
+		b.open(b.base + "/?theme=" + parts[0] + "&scheme=" + parts[1] + "#/p/web/main")
 		b.until("the preview of "+look, `document.documentElement.dataset.deckTheme === '`+parts[0]+`' && document.documentElement.dataset.mantineColorScheme === '`+parts[1]+`' && document.querySelector('[data-block] table')`)
 		b.shot("theme-" + parts[0] + "-" + parts[1])
 	}
@@ -250,9 +250,9 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("a block on the screen keeps its own background: %s", got)
 	}
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
-	b.open(e.URL + "/#/deck/settings?tab=Modules")
+	b.open(b.base + "/#/deck/settings?tab=Modules")
 	b.look("theme", "pixel")
-	b.open(e.URL + "/#/deck/settings?tab=Modules")
+	b.open(b.base + "/#/deck/settings?tab=Modules")
 	b.until("the projects of settings in pixels", `document.documentElement.dataset.deckTheme === 'pixel' && document.querySelector('[data-item] [data-actions]')`)
 	if got := b.eval(`(() => { const bs = [...document.querySelector('[data-item] [data-actions]').children].map((x) => x.getBoundingClientRect());
 		return String(bs.every((r, i) => i === 0 || r.left - bs[i - 1].right >= 6)) })()`); got != "true" {
@@ -266,14 +266,14 @@ func TestRealBrowserShell(t *testing.T) {
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-places]')?.innerText.includes('Настройки') && document.querySelector('[data-places]')?.innerText.includes('Сегодня') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Деки')`)
 	b.shot("shell-ru")
-	b.open(e.URL + "/#/deck/settings?tab=Health")
+	b.open(b.base + "/#/deck/settings?tab=Health")
 	b.until("a link to a tab opens it in any language", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.includes('Здоровье')`)
 	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Дополнительно')).click(), '')`)
 	b.until("the address names the tab as written", `/tab=Advanced$/.test(location.hash)`)
-	b.open(e.URL + "/#/deck/settings?tab=Advanced")
+	b.open(b.base + "/#/deck/settings?tab=Advanced")
 	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Сколько агентских процессов')`)
 	e.Must("deck.owner_notify", map[string]any{"project": "web", "text": "one more note"}, nil)
-	b.open(e.URL + "/#/deck/cockpit")
+	b.open(b.base + "/#/deck/cockpit")
 	readAll := `document.querySelector('[data-block] [data-verb="read_all"]')`
 	b.until("the button that reads every note in the head of the feed", readAll)
 	b.eval(`(` + readAll + `.click(), '')`)

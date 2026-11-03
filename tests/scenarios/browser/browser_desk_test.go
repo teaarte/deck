@@ -37,7 +37,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2); await page.mouse.down();
 		await page.mouse.move(r.x + r.width / 2 + 10, r.y + r.height * 2.6, { steps: 8 }); await page.mouse.move(room.x + r.width / 2, r.y + r.height * 2.6, { steps: 8 }); await page.mouse.up(); }`})
 	e.Until("the moved card kept", func() bool {
-		v := e.Desk(b.eval(`localStorage.getItem('deck-device')`), colsOf(b))
+		v := desk(b, colsOf(b))
 		for _, c := range v.Cards {
 			if c.ID == "beta" && c.Y >= 2 {
 				return v.Own
@@ -49,7 +49,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await page.mouse.down();
 		await page.mouse.move(h.x + 260, h.y + 40, { steps: 10 }); await page.mouse.up(); }`})
 	e.Until("the grown card kept", func() bool {
-		for _, c := range e.Desk(b.eval(`localStorage.getItem('deck-device')`), colsOf(b)).Cards {
+		for _, c := range desk(b, colsOf(b)).Cards {
 			if c.ID == "beta" && c.W >= 2 {
 				return true
 			}
@@ -68,7 +68,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 	if moved == before {
 		t.Fatalf("the card moved: %s", moved)
 	}
-	b.open(e.URL + "/?reload=1")
+	b.open(b.base + "/?reload=1")
 	b.until("the card where it was put after a reload", cell("beta")+` === '`+moved+`'`)
 	b.shot("desk")
 	cols := colsOf(b)
@@ -77,12 +77,12 @@ func TestRealBrowserTheDesk(t *testing.T) {
 	b.shot("desk-chat")
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.until("the grid as it was once the chat closes", cell("beta")+` === '`+moved+`'`)
-	if v := e.Desk(b.eval(`localStorage.getItem('deck-device')`), cols-1); v.Own && v.Columns == int64(cols-1) {
+	if v := desk(b, cols-1); v.Own && v.Columns == int64(cols-1) {
 		t.Fatalf("a narrower grid of the open chat is not saved: %+v", v)
 	}
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/?reload=2")
+	b.open(b.base + "/?reload=2")
 	b.until("the cards on a phone", `document.querySelector('[data-phone-tabs]') && document.querySelector('[data-cell="beta"]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the cards fit the phone: %s", got)
@@ -90,6 +90,37 @@ func TestRealBrowserTheDesk(t *testing.T) {
 	b.shot("desk-phone")
 	if !strings.Contains(b.eval(`document.querySelector('[data-cell="today"]').innerText`), "Today") {
 		t.Fatal("Today stays on the phone")
+	}
+}
+
+// pageCall calls a command of deck from the page, signed in as the client is, and gives what it answered.
+func pageCall(b *playwright, command string, input any) string {
+	b.t.Helper()
+	in, _ := json.Marshal(input)
+	return b.eval(fmt.Sprintf(`fetch('/api/commands/%s', { method: 'POST', body: %q,
+		headers: sessionStorage.getItem('deck-key') ? { Authorization: 'Bearer ' + sessionStorage.getItem('deck-key') } : {} }).then((r) => r.text())`, command, in))
+}
+
+// desk is the layout of the tiles deck keeps for the browser's own device.
+func desk(b *playwright, cols int) (v struct {
+	Columns int64
+	Own     bool
+	Cards   []harness.DeskCard
+}) {
+	b.t.Helper()
+	out := pageCall(b, "deck.layout_get", map[string]any{"columns": cols})
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		b.t.Fatalf("the layout of the page's device: %s", out)
+	}
+	return v
+}
+
+// place places the tiles of the browser's own device for its columns.
+func place(b *playwright, cols int, cards ...harness.DeskCard) {
+	b.t.Helper()
+	raw, _ := json.Marshal(cards)
+	if out := pageCall(b, "deck.layout_set", map[string]any{"columns": cols, "cards": string(raw)}); strings.HasPrefix(out, "deck:") {
+		b.t.Fatalf("the page places its tiles: %s", out)
 	}
 }
 

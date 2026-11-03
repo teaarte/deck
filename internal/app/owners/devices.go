@@ -2,10 +2,12 @@ package owners
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
+
+	"rsc.io/qr"
 
 	"deck2/internal/auth"
 	"deck2/internal/registry"
@@ -27,8 +29,9 @@ type deviceView struct {
 	Passkey bool `json:"passkey"`
 	Push    bool `json:"push"`
 	Revoked bool `json:"revoked"`
-	// Revoke is the button that signs the device out for good.
-	Revoke map[string]any `json:"revoke,omitempty"`
+	// Revoke is the button that signs the device out for good; StopPush the one that stops its pushes.
+	Revoke   map[string]any `json:"revoke,omitempty"`
+	StopPush map[string]any `json:"stop_push,omitempty"`
 }
 
 func (s *Service) devicesList(ctx context.Context, act registry.Actor, _ struct{}) ([]deviceView, error) {
@@ -42,6 +45,9 @@ func (s *Service) devicesList(ctx context.Context, act registry.Actor, _ struct{
 			Passkey: len(d.CredentialID) > 0, Push: d.PushEndpoint.Valid, Revoked: d.RevokedAt.Valid}
 		if !v.Revoked {
 			v.Revoke = map[string]any{"verb": "revoke", "command": registry.Deck("device_revoke"), "params": map[string]any{"device": d.ID}}
+		}
+		if v.Push {
+			v.StopPush = map[string]any{"verb": "remove", "command": registry.Deck("push_unsubscribe"), "params": map[string]any{"device": d.ID}}
 		}
 		out = append(out, v)
 	}
@@ -99,8 +105,10 @@ type pairLinkIn struct {
 	Name string `opt:"" desc:"Name of the device"`
 }
 
-// pairLinkView is a link that pairs one device in ten minutes, at every address of deck, and the code in it.
+// pairLinkView is a link that pairs one device in ten minutes, at every https address of deck, the code in it and
+// the QR code of the first link for a phone's camera.
 type pairLinkView struct {
+	QR    string   `json:"qr,omitempty" media:"image/png"`
 	Links []string `json:"links"`
 	Code  string   `json:"code"`
 	Until string   `json:"until"`
@@ -110,23 +118,20 @@ func (s *Service) pairLink(ctx context.Context, act registry.Actor, in pairLinkI
 	if in.Kind == "" {
 		in.Kind = auth.Browser
 	}
+	if in.Kind == auth.Browser && len(auth.Links(s.Origins(), "")) == 0 {
+		return nil, registry.Refuse("a browser pairs with deck only over https, and deck has no https address yet; see Health for how to give deck one")
+	}
 	code, until, err := s.Code(act.Workspace, in.Kind, untrusted.Cut(strings.TrimSpace(in.Name), 80))
 	if err != nil {
 		return nil, err
 	}
-	return pairLinkView{Links: Links(s.Origins(), code), Code: code, Until: store.Time(until)}, nil
-}
-
-// Links are the addresses that pair a device by a code, at every origin where a browser makes a passkey; the code
-// is in the fragment, which no server and no log sees.
-func Links(origins []auth.Origin, code string) []string {
-	var out []string
-	for _, o := range origins {
-		if o.Passkeys() {
-			out = append(out, strings.TrimRight(o.Main, "/")+"/#pair="+url.QueryEscape(code))
-		}
+	v := pairLinkView{Links: auth.Links(s.Origins(), code), Code: code, Until: store.Time(until)}
+	if in.Kind != auth.Browser {
+		v.Links = []string{}
+	} else if q, err := qr.Encode(v.Links[0], qr.M); err == nil {
+		v.QR = base64.StdEncoding.EncodeToString(q.PNG())
 	}
-	return out
+	return v, nil
 }
 
 // errNoDevice refuses a call that needs the device it came from when it came from none.
@@ -141,9 +146,9 @@ func (s *Service) deviceCommands() []*registry.Command {
 		registry.Def("device_revoke", "Revoke device",
 			"Signs a device of the owner out for good: its sessions, pushes and open pages end; it pairs again only by a new link.",
 			registry.OwnerOnly, s.deviceRevoke).As(registry.External),
-		registry.Def("pair_link", "Pair a device",
-			"Makes a link that pairs one more device of the owner within ten minutes, once; open it on the device.",
-			registry.OwnerOnly, s.pairLink).As(registry.External),
+		registry.Answers[pairLinkView](registry.Def("pair_link", "Pair a device",
+			"Makes a link that pairs one more device of the owner within ten minutes, once: open it on the device, or point its camera at the QR code.",
+			registry.OwnerOnly, s.pairLink).As(registry.External)),
 	}
 }
 
@@ -160,5 +165,5 @@ func (s *Service) Welcome(ctx context.Context, signed bool) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Links(s.Origins(), code), nil
+	return auth.Links(s.Origins(), code), nil
 }

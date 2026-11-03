@@ -107,12 +107,10 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCapture
 		q.Set("scheme", in.Scheme)
 	}
 	base := strings.TrimRight(s.Base, "/")
-	page := base + "/?" + q.Encode() + in.Address
-	// The page trades the token for a cookie that reads as the caller; a phone's full-page picture leaves the frames
-	// of custom blocks blank, so its window grows to the page instead.
+	// The page sends the token in the header, as the launcher's window does its key; a phone's full-page picture
+	// leaves the frames of custom blocks blank, so its window grows to the page instead.
+	page := base + "/?" + q.Encode() + "#key=" + token + strings.TrimPrefix(in.Address, "#")
 	code := fmt.Sprintf(`async (page) => {
-  const lent = await page.request.post(%q, { headers: { Authorization: %q } });
-  if (!lent.ok()) throw new Error('deck lent no cookie: ' + lent.status());
   await page.goto(%q);
   const drawn = await page.waitForFunction(%s, null, { timeout: 30000, polling: 100 });
   const ms = await drawn.jsonValue();
@@ -132,7 +130,7 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCapture
   }
   const error = await page.evaluate(() => document.querySelector('[data-screen-error]')?.innerText ?? '');
   return JSON.stringify({ ms: Math.round(ms), error, window, grown: tall > window.height });
-}`, base+"/auth/lend", "Bearer "+token, page, ready, ready, device == "phone", ready)
+}`, page, ready, ready, device == "phone", ready)
 	res, err := s.call(ctx, key, spec, "browser_run_code_unsafe", map[string]any{"code": code})
 	if err != nil {
 		return nil, err

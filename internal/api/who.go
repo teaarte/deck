@@ -19,28 +19,31 @@ var (
 	errTries    = registry.Limited("too many tries from this address; wait a few minutes")
 )
 
-// Who is the one place that says whom a call comes from: a token in the header Authorization, lent or of automation,
-// else the cookie of a signed-in device; with a cookie a write comes only from deck's origin, a read from its page.
+// Who is the one place that says whom a call comes from: a lent, launcher's or automation token in the header, else
+// a browser's cookie over https, a write with it only from deck's origin and a read from its page.
 func (s *Server) Who(r *http.Request) (registry.Actor, error) {
 	if raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+		if act, ok := s.app.Owners.Lent(raw); ok {
+			return act, nil
+		}
+		if p, ok := s.app.Auth.Session(r.Context(), raw); ok && p.Kind == auth.Launcher && local(r) {
+			return p.Actor(), nil
+		}
 		ip := s.clientIP(r)
 		if s.app.Auth.Misses.Over(ip) {
 			return registry.Actor{}, errTries
 		}
-		if act, ok := s.app.Owners.Lent(raw); ok {
-			return act, nil
-		}
 		act, err := s.app.Owners.Automation(r.Context(), raw)
 		if err != nil {
 			s.app.Auth.Misses.Allow(ip)
-			return registry.Actor{}, errUnsigned
+			return registry.Actor{}, s.unsigned(r)
 		}
 		return act, nil
 	}
 	o := originOf(r)
-	c, err := r.Cookie(cookieName(o))
-	if err != nil {
-		return registry.Actor{}, errUnsigned
+	c, err := r.Cookie(cookieName)
+	if err != nil || !o.Passkeys() {
+		return registry.Actor{}, s.unsigned(r)
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		if r.Header.Get("Origin") != o.Main {
@@ -49,23 +52,39 @@ func (s *Server) Who(r *http.Request) (registry.Actor, error) {
 	} else if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
 		return registry.Actor{}, errOrigin
 	}
-	if act, ok := s.app.Owners.Lent(c.Value); ok {
-		return act, nil
-	}
 	p, ok := s.app.Auth.Session(r.Context(), c.Value)
-	if !ok {
-		return registry.Actor{}, errUnsigned
+	if !ok || p.Kind != auth.Browser {
+		return registry.Actor{}, s.unsigned(r)
 	}
 	return p.Actor(), nil
 }
 
-// cookieName is the cookie of a session at an origin: __Host- over https, which keeps it to the one origin.
-func cookieName(o auth.Origin) string {
-	if o.Secure() {
-		return "__Host-deck"
+// unsigned refuses a call of no one; at an address where no browser signs in it names those where one does.
+func (s *Server) unsigned(r *http.Request) error {
+	if originOf(r).Passkeys() {
+		return errUnsigned
 	}
-	return "deck"
+	var at []string
+	for _, o := range s.origins.List() {
+		if o.Passkeys() {
+			at = append(at, o.Main)
+		}
+	}
+	if len(at) == 0 {
+		return registry.Unsigned("a browser signs in to deck only over https, and deck has no https address yet: open it in the window of the launcher, or see Health for how to give deck one")
+	}
+	return registry.Unsigned("a browser signs in to deck only over https: open %s, or the window of the launcher", strings.Join(at, " or "))
 }
+
+// local says a request comes from this machine to deck's plain address on it, as the launcher's window does; not
+// through a proxy here, such as tailscale serve, which comes from loopback to an https address.
+func local(r *http.Request) bool {
+	name, _ := hostPort(r.Host)
+	return fromHere(r) && !originOf(r).Secure() && (name == "localhost" || strings.HasPrefix(name, "127."))
+}
+
+// cookieName is the cookie of a browser's session, __Host- so it stays with the one https origin.
+const cookieName = "__Host-deck"
 
 type originKey struct{}
 
@@ -93,7 +112,7 @@ func (s *Server) hosted(next http.Handler) http.Handler {
 		o, ok := s.origins.Of(r.Host)
 		if !ok {
 			s.reached(r, name)
-			http.Error(w, "deck: deck signs the owner in only at its own addresses: open it over https or on localhost", http.StatusMisdirectedRequest)
+			http.Error(w, "deck: deck answers only at its own addresses: its https address, or localhost in the window of the launcher", http.StatusMisdirectedRequest)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), originKey{}, o)))

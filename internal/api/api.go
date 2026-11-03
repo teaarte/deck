@@ -252,6 +252,22 @@ func serveFile(w http.ResponseWriter, r *http.Request, name, typ string, file *o
 	http.ServeContent(w, r, "", time.Time{}, file)
 }
 
+// alive says the sign-in of a stream still lasts: a lent token until it is back, the session of a device until it ends
+// or the device is revoked, checked after the stream is held so a revoke meanwhile is not missed.
+func (s *Server) alive(r *http.Request) func(context.Context) bool {
+	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if c, err := r.Cookie(cookieName); err == nil && raw == "" {
+		raw = c.Value
+	}
+	if _, ok := s.app.Owners.Lent(raw); ok {
+		return func(context.Context) bool { _, ok := s.app.Owners.Lent(raw); return ok }
+	}
+	if actor(r).Device == 0 {
+		return func(context.Context) bool { return true }
+	}
+	return func(ctx context.Context) bool { return s.app.Auth.Alive(ctx, raw) }
+}
+
 // pingEvery is how often the live channel says it is there, so a client finds a channel that went dead.
 const pingEvery = 15 * time.Second
 
@@ -268,11 +284,8 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	// A revoked device loses its stream at once, a session that ended at the next ping.
 	ctx, release := s.app.Auth.Hold(r.Context(), actor(r).Device)
 	defer release()
-	alive := func() bool { return true }
-	if c, err := r.Cookie(cookieName(originOf(r))); err == nil && actor(r).Device != 0 {
-		alive = func() bool { return s.app.Auth.Alive(ctx, c.Value) }
-	}
-	if !alive() {
+	alive := s.alive(r)
+	if !alive(ctx) {
 		return
 	}
 	fmt.Fprint(w, ": ok\n\n")
@@ -284,7 +297,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-ping.C:
-			if !alive() {
+			if !alive(ctx) {
 				return
 			}
 			fmt.Fprint(w, "event: ping\ndata: {}\n\n")

@@ -1,4 +1,5 @@
-import { kindOf, PREVIEW, streamed, type Item } from './kinds';
+import { kindOf, PREVIEW, type Item } from './kinds';
+import { useSrc } from './useBlob';
 import { TypeIcon } from './TypeIcon';
 import s from './files.module.css';
 
@@ -7,11 +8,14 @@ import s from './files.module.css';
 export function Thumb({ it, size }: { it: Item; size: number }) {
   const kind = kindOf(it);
   const box = { width: size, height: size };
-  if (!it.error && kind === 'image' && (it.thumb || (it.size ?? 0) <= PREVIEW)) {
-    return <img className={s.thumb} style={{ ...box, background: it.color }} src={streamed(it.thumb ?? it.url)} alt="" loading="lazy" decoding="async" data-thumb="image" />;
+  const image = !it.error && kind === 'image' && (it.thumb || (it.size ?? 0) <= PREVIEW);
+  const video = !it.error && kind === 'video';
+  const src = useSrc(image ? it.thumb ?? it.url : video ? it.url : undefined);
+  if (image) {
+    return <img className={s.thumb} style={{ ...box, background: it.color }} src={src} alt="" loading="lazy" decoding="async" data-thumb="image" />;
   }
-  if (!it.error && kind === 'video') {
-    return <video className={s.thumb} style={box} src={streamed(it.url) + '#t=0.1'} preload="metadata" muted playsInline data-thumb="video" />;
+  if (video) {
+    return <video className={s.thumb} style={box} src={src && src + '#t=0.1'} preload="metadata" muted playsInline data-thumb="video" />;
   }
   return <span className={s.icon} style={box}><TypeIcon it={it} size={Math.round(size * 0.6)} /></span>;
 }

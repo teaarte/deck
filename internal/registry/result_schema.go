@@ -8,6 +8,12 @@ import (
 
 var rawType = reflect.TypeFor[json.RawMessage]()
 
+// Answers gives a command that is not a read the result schema of Out, so a form draws its answer by it.
+func Answers[Out any](c *Command) *Command {
+	c.Result, _ = json.Marshal(resultSchema(reflect.TypeFor[Out]()))
+	return c
+}
+
 func resultSchema(t reflect.Type) map[string]any {
 	if t == rawType {
 		return map[string]any{}
@@ -52,6 +58,9 @@ func resultFields(t reflect.Type, props map[string]any) {
 		props[name] = resultSchema(f.Type)
 		if e := f.Tag.Get("enum"); e != "" && f.Type.Kind() == reflect.String {
 			props[name] = map[string]any{"type": "string", "enum": strings.Split(e, "|")}
+		}
+		if m := f.Tag.Get("media"); m != "" && f.Type.Kind() == reflect.String {
+			props[name] = map[string]any{"type": "string", "contentMediaType": m, "contentEncoding": "base64"}
 		}
 	}
 }

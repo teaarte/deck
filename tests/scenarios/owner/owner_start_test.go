@@ -22,23 +22,38 @@ import (
 )
 
 type deckBinary struct {
-	cmd         *exec.Cmd
-	url, cookie string
-	said        func() []string
+	cmd      *exec.Cmd
+	bin      string
+	home     string
+	url, key string
+	said     func() []string
 }
 
 var (
 	listening = regexp.MustCompile(`url=(http://[^ ]+)`)
-	firstLink = regexp.MustCompile(`link="?(http://[^/]+)/#pair=([A-Za-z0-9_-]+)`)
+	firstLink = regexp.MustCompile(`link="?(https://[^/]+)/#pair=([A-Za-z0-9_-]+)`)
 )
 
-// startDeck builds deck, starts it on home with env added and waits until it listens.
-func startDeck(t *testing.T, home string, env ...string) *deckBinary {
+// buildDeck builds the binary of deck for a test.
+func buildDeck(t *testing.T) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "deck")
 	if out, err := exec.Command("go", "build", "-o", bin, filepath.Join(harness.Root, "cmd/deck")).CombinedOutput(); err != nil {
 		t.Fatalf("build deck: %v\n%s", err, out)
 	}
+	return bin
+}
+
+// startDeck builds deck, starts it on home with env added, waits until it listens and pairs a launcher by deck pair.
+func startDeck(t *testing.T, home string, env ...string) *deckBinary {
+	t.Helper()
+	return runDeck(t, buildDeck(t), home, nil, env...)
+}
+
+// runDeck starts the binary of deck on home with its args and env added, waits until it listens and pairs a launcher
+// by deck pair, as the launcher does.
+func runDeck(t *testing.T, bin, home string, args []string, env ...string) *deckBinary {
+	t.Helper()
 	// Agent CLIs that fail stand before the owner's, so a self-check never runs on the owner's accounts.
 	shims := t.TempDir()
 	for _, name := range []string{"claude", "codex"} {
@@ -46,7 +61,7 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 			t.Fatal(err)
 		}
 	}
-	cmd := exec.Command(bin, "-addr", "127.0.0.1:0")
+	cmd := exec.Command(bin, append([]string{"-addr", "127.0.0.1:0"}, args...)...)
 	cmd.Env = append(append(os.Environ(), "DECK_HOME="+home, "PATH="+shims+string(os.PathListSeparator)+os.Getenv("PATH")), env...)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -56,7 +71,7 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-	up, link := make(chan []string, 1), make(chan []string, 1)
+	up := make(chan []string, 1)
 	var mu sync.Mutex
 	var said []string
 	go func() {
@@ -68,38 +83,56 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 			if m := listening.FindStringSubmatch(sc.Text()); m != nil {
 				up <- m
 			}
-			if m := firstLink.FindStringSubmatch(sc.Text()); m != nil {
-				link <- m
-			}
 		}
 	}()
-	started := false
-	defer func() {
-		if !started {
-			mu.Lock()
-			defer mu.Unlock()
-			t.Logf("deck said:\n%s", strings.Join(said, "\n"))
-		}
-	}()
-	m := harness.Receive(t, "deck to start", up)
-	l := harness.Receive(t, "the link of the first device in the log", link)
-	started = true
-	cookie, err := harness.NewPasskey().Pair(m[1], l[1], l[2], "first")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &deckBinary{cmd: cmd, url: m[1], cookie: cookie, said: func() []string {
+	d := &deckBinary{cmd: cmd, bin: bin, home: home, said: func() []string {
 		mu.Lock()
 		defer mu.Unlock()
 		return slices.Clone(said)
 	}}
+	started := false
+	defer func() {
+		if !started {
+			t.Logf("deck said:\n%s", strings.Join(d.said(), "\n"))
+		}
+	}()
+	m := harness.Receive(t, "deck to start", up)
+	d.url = m[1]
+	if d.key, err = d.launcher(); err != nil {
+		t.Fatal(err)
+	}
+	started = true
+	return d
+}
+
+// pair runs deck pair on the home of d and gives what it printed.
+func (d *deckBinary) pair(args ...string) (string, error) {
+	cmd := exec.Command(d.bin, append([]string{"pair"}, args...)...)
+	cmd.Env = append(os.Environ(), "DECK_HOME="+d.home)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// launcher pairs a launcher by deck pair --device launcher and gives its key.
+func (d *deckBinary) launcher() (string, error) {
+	out, err := d.pair("--device", "launcher")
+	link := strings.TrimSpace(out)
+	if err != nil || !strings.Contains(link, "/#pair=") {
+		return "", fmt.Errorf("deck pair --device launcher: %s %v", out, err)
+	}
+	base, code, _ := strings.Cut(link, "/#pair=")
+	status, body, _, err := harness.Rite(base, base, "pair/begin", map[string]any{"code": code})
+	var b struct{ Key string }
+	if err != nil || status != 200 || json.Unmarshal(body, &b) != nil || b.Key == "" {
+		return "", fmt.Errorf("the launcher pairs at %s: %d %s %v", base, status, body, err)
+	}
+	return b.Key, nil
 }
 
 func (d *deckBinary) call(name string, in any) (int, string, error) {
 	b, _ := json.Marshal(in)
 	req, _ := http.NewRequest("POST", d.url+"/api/commands/"+name, bytes.NewReader(b))
-	req.AddCookie(&http.Cookie{Name: "deck", Value: d.cookie})
-	req.Header.Set("Origin", d.url)
+	harness.Bearer(d.key)(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, "", err
@@ -167,7 +200,10 @@ func TestTheHomeOfDeckIsOnlyTheOwnersAndItsLogHasNoToken(t *testing.T) {
 	}
 	d := startDeck(t, home)
 	if code, out, err := d.call("deck.menu_get", map[string]any{}); err != nil || code != 200 {
-		t.Fatalf("the first device pairs by the link in the log and calls: %d %s %v", code, out, err)
+		t.Fatalf("the launcher pairs by deck pair and calls: %d %s %v", code, out, err)
+	}
+	if !slices.ContainsFunc(d.said(), func(l string) bool { return strings.Contains(l, "no device is paired yet") }) {
+		t.Fatalf("deck with no https address says how a device pairs: %q", d.said())
 	}
 	if fi, err := os.Stat(home); err != nil || fi.Mode().Perm() != 0o700 {
 		t.Fatalf("the home is only the owner's: %v %v", fi, err)
@@ -179,5 +215,42 @@ func TestTheHomeOfDeckIsOnlyTheOwnersAndItsLogHasNoToken(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(deckhome.Layout(home).State(), "token")); err == nil {
 		t.Fatal("deck keeps no token of the owner")
+	}
+}
+
+// TestDeckPairPairsWhetherDeckRunsOrNot: deck pair writes a code deck takes while it runs and after a start; it prints
+// the links of deck's https addresses it kept, the first start logs one, and a used code pairs no second device.
+func TestDeckPairPairsWhetherDeckRunsOrNot(t *testing.T) {
+	t.Parallel()
+	home, bin := t.TempDir(), buildDeck(t)
+	public := "https://deck.example.test"
+	d := runDeck(t, bin, home, []string{"-public", public})
+	harness.Until(t, "the link of the first device in the log", func() bool {
+		return slices.ContainsFunc(d.said(), firstLink.MatchString)
+	})
+	out, err := d.pair("--name", "phone")
+	if err != nil || !strings.Contains(out, public+"/#pair=") {
+		t.Fatalf("deck pair prints the link of the https address while deck runs: %s %v", out, err)
+	}
+	if _, err := harness.NewPasskey().Pair(d.url, public, harness.Code(strings.TrimSpace(out[strings.Index(out, public):])), ""); err != nil {
+		t.Fatal(err)
+	}
+	_ = d.cmd.Process.Signal(syscall.SIGTERM)
+	_ = d.cmd.Wait()
+	stopped, err := d.pair()
+	if err != nil || !strings.Contains(stopped, public+"/#pair=") {
+		t.Fatalf("deck pair prints a link while deck is stopped: %s %v", stopped, err)
+	}
+	code := harness.Code(strings.TrimSpace(stopped[strings.Index(stopped, public):]))
+	d2 := runDeck(t, bin, home, []string{"-public", public})
+	if _, err := harness.NewPasskey().Pair(d2.url, public, code, "laptop"); err != nil {
+		t.Fatalf("a code deck pair wrote while deck was stopped pairs after its start: %v", err)
+	}
+	if _, err := harness.NewPasskey().Pair(d2.url, public, code, "again"); err == nil {
+		t.Fatal("a code pairs one device only")
+	}
+	if code, out, err := d2.call("deck.devices_list", map[string]any{}); err != nil || code != 200 ||
+		!strings.Contains(out, `"laptop"`) || !strings.Contains(out, `"phone"`) || strings.Count(out, `"kind":"launcher"`) != 1 {
+		t.Fatalf("the devices are the two browsers and the last launcher: %d %s %v", code, out, err)
 	}
 }

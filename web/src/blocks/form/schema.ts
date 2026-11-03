@@ -11,6 +11,7 @@ export interface Schema {
   description?: string;
   title?: string;
   writeOnly?: boolean;
+  contentMediaType?: string;
 }
 
 export const kind = (s: Schema) => (Array.isArray(s.type) ? s.type.find((x) => x !== 'null') : s.type) ?? '';

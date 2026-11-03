@@ -73,28 +73,6 @@ func (s *Service) pushUnsubscribe(ctx context.Context, act registry.Actor, in pu
 	return map[string]any{"removed": n}, nil
 }
 
-// pushDeviceView is a device that gets pushes.
-type pushDeviceView struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	CreatedAt string `json:"created_at"`
-	// Remove is the button that stops its pushes.
-	Remove map[string]any `json:"remove"`
-}
-
-func (s *Service) pushDevices(ctx context.Context, act registry.Actor, _ struct{}) ([]pushDeviceView, error) {
-	rows, err := s.St.Q.ListPushDevices(ctx, act.Workspace)
-	if err != nil {
-		return nil, err
-	}
-	out := []pushDeviceView{}
-	for _, r := range rows {
-		out = append(out, pushDeviceView{ID: r.ID, Name: r.Name, CreatedAt: r.CreatedAt,
-			Remove: map[string]any{"verb": "remove", "command": registry.Deck("push_unsubscribe"), "params": map[string]any{"device": r.ID}}})
-	}
-	return out, nil
-}
-
 func (s *Service) pushCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("push_subscribe", "Get pushes",
@@ -103,8 +81,5 @@ func (s *Service) pushCommands() []*registry.Command {
 		registry.Def("push_unsubscribe", "Stop pushes",
 			"Stops pushes to a device.",
 			registry.OwnerOnly, s.pushUnsubscribe),
-		registry.Read("push_devices_list", "Devices",
-			"Lists the devices that get pushes.",
-			registry.OwnerOnly, s.pushDevices).On("devices"),
 	}
 }

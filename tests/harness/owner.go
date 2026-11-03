@@ -3,7 +3,6 @@ package harness
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"io"
@@ -22,34 +21,46 @@ type Client struct {
 	owner bool
 }
 
-// owner signs a request as the owner's browser: the cookie of its session, from a page of the origin it calls.
+// owner signs a request as the owner's launcher: its key in the header Authorization.
 func (e *Env) owner(r *http.Request) {
-	r.AddCookie(&http.Cookie{Name: "deck", Value: e.cookie})
-	if r.Header.Get("Origin") == "" {
-		r.Header.Set("Origin", "http://"+cmp.Or(r.Host, r.URL.Host))
+	if r.Header.Get("Authorization") == "" {
+		r.Header.Set("Authorization", "Bearer "+e.Key)
 	}
-	r.Header.Set("Sec-Fetch-Site", "same-origin")
 }
 
-// Cookie is the cookie of the owner's session.
-func (e *Env) Cookie() string { return e.cookie }
+// Cookie is the cookie of the owner's browser, paired at the https address of deck on the first call.
+func (e *Env) Cookie() string {
+	e.T.Helper()
+	if e.cookie == "" {
+		e.Https()
+		var link struct{ Code string }
+		e.Must("deck.pair_link", map[string]any{"name": "the test's browser"}, &link)
+		e.Owner = NewPasskey()
+		var err error
+		if e.cookie, err = e.Owner.Pair(e.URL, e.Https(), link.Code, "the test's browser"); err != nil {
+			e.T.Fatal(err)
+		}
+	}
+	return e.cookie
+}
 
-// Device is the client of another browser of the owner, paired once under its name by a link of deck.
+// Device is the client of another browser of the owner, paired once under its name at the https address of deck.
 func (e *Env) Device(name string) Client {
 	e.T.Helper()
 	cookie, ok := e.devices[name]
 	if !ok {
+		e.Https()
 		var link struct{ Code string }
 		e.Must("deck.pair_link", map[string]any{"name": name}, &link)
 		var err error
-		if cookie, err = NewPasskey().Pair(e.URL, e.Local, link.Code, name); err != nil {
+		if cookie, err = NewPasskey().Pair(e.URL, e.Https(), link.Code, name); err != nil {
 			e.T.Fatal(err)
 		}
 		e.devices[name] = cookie
 	}
 	return Client{e, func(r *http.Request) {
-		r.AddCookie(&http.Cookie{Name: "deck", Value: cookie})
-		r.Header.Set("Origin", "http://"+cmp.Or(r.Host, r.URL.Host))
+		r.AddCookie(&http.Cookie{Name: "__Host-deck", Value: cookie})
+		e.secureHost(r)
 	}, false}
 }
 
@@ -64,10 +75,11 @@ func Bearer(token string) func(*http.Request) {
 // AuthorizationHeader is the header line of a token, as curl -H takes it.
 func AuthorizationHeader(token string) string { return "Authorization: Bearer " + token }
 
-// OwnerURL is the address the owner opens deck at, on base, with rest: more of the query, then the route of the
-// client.
+// OwnerURL is the address the launcher's window opens deck at, on base, with rest: more of the query, then the route
+// of the client; the key of the owner's launcher rides in the fragment, which no server sees.
 func (e *Env) OwnerURL(base, rest string) string {
-	return base + "/?owner=1" + rest
+	query, route, _ := strings.Cut(rest, "#")
+	return base + "/?owner=1" + query + "#key=" + e.Key + route
 }
 
 // In is the owner in a client that reads deck in lang, as the web client says with Deck-Lang.
@@ -213,4 +225,27 @@ func (e *Env) Events(ctx context.Context) <-chan events.Event {
 func (e *Env) Secret(project, name, value string) {
 	e.T.Helper()
 	e.Must("deck.secret_set", map[string]any{"project": project, "name": name, "value": value}, nil)
+}
+
+// PushDevice is a device of the owner that gets pushes.
+type PushDevice struct {
+	ID   int64
+	Name string
+}
+
+// Pushed are the devices of the owner that get pushes.
+func (e *Env) Pushed() []PushDevice {
+	e.T.Helper()
+	var ds []struct {
+		PushDevice
+		Push bool
+	}
+	e.Must("deck.devices_list", nil, &ds)
+	var out []PushDevice
+	for _, d := range ds {
+		if d.Push {
+			out = append(out, d.PushDevice)
+		}
+	}
+	return out
 }

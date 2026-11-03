@@ -61,7 +61,6 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 		b.Open(e, "")
 		b.until("the cards", `document.querySelector('[data-cell="today"] [data-widget]') && document.querySelector('[data-cols]')`)
 		cols := colsOf(b)
-		device := b.eval(`localStorage.getItem('deck-device')`)
 		today := int64(2)
 		if phone {
 			today = 1
@@ -77,8 +76,8 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 			x += w
 			row = max(row, h)
 		}
-		e.Place(device, cols, cards...)
-		b.open(e.URL + "/?reload=" + look)
+		place(b, cols, cards...)
+		b.open(b.base + "/?reload=" + look)
 		b.until("every card with its view", fmt.Sprintf(`document.querySelectorAll('[data-cell] [data-widget] [data-block]').length >= %d`, len(sizes)+1))
 		time.Sleep(time.Second)
 		b.shot("widgets-" + look)

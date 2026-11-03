@@ -378,8 +378,14 @@ func (a *App) Plain(address string, port int) {
 // address once it is on it.
 func (a *App) TailnetHealth(status, text, address string) {
 	a.Feed.Tailnet.Store(&address)
-	if address != "" {
+	if _, known := a.Auth.Origins().Named(address); address != "" && !known {
 		a.Auth.Origins().Add(address, address+":8443")
+		// The tailnet's https address is often the first a browser pairs at.
+		if links, err := a.Owners.Welcome(context.Background(), a.Auth.Signed(context.Background())); err == nil {
+			for _, l := range links {
+				slog.Info("pair the first device", "link", l)
+			}
+		}
 	}
 	if err := health.Write(context.Background(), a.Store, health.Of{}, health.Tailscale, status, text); err != nil {
 		slog.Error("write health", "err", err)

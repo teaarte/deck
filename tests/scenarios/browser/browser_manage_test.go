@@ -43,9 +43,9 @@ func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 	}{{"", 1280, 820}, {"-phone", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.width, "height": size.height})
 		b.Open(e, "#/deck/settings")
-		b.until("Models first, then Modules, Health and Advanced", `document.querySelector('[role=tab][aria-selected=true]')?.innerText.includes('Models') &&
-			[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.replace(/[0-9]/g, '').trim()).join(',') === 'Models,Modules,Health,Advanced'`)
-		b.open(e.URL + "/#/deck/settings?tab=Health")
+		b.until("Models first, then Modules, Health, Devices and Advanced", `document.querySelector('[role=tab][aria-selected=true]')?.innerText.includes('Models') &&
+			[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.replace(/[0-9]/g, '').trim()).join(',') === 'Models,Modules,Health,Devices,Advanced'`)
+		b.open(b.base + "/#/deck/settings?tab=Health")
 		b.until("the failure counted on its tab", `document.querySelector('[role=tab][aria-selected=true]')?.innerText.includes('Health') && document.querySelector('[data-tab-count="failures"]')?.innerText.trim() === '1'`)
 		b.until("what is broken with a way to run it again", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('the model is down') && [...x.querySelectorAll('button')].some((b) => b.innerText.includes('Run again')))`)
 		if got := b.eval(untitled); got != "true" {
@@ -53,27 +53,27 @@ func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 		}
 		fits("Health")
 		b.shot("manage-health" + size.name)
-		b.open(e.URL + "/#/deck/settings?tab=Models")
+		b.open(b.base + "/#/deck/settings?tab=Models")
 		b.until("who does what, the connections behind a button", `[...document.querySelectorAll('[data-block]')].some((x) => x.offsetParent && x.innerText.includes('Who does what')) && document.querySelector('[data-dialog-open="connections"]')`)
 		b.shot("manage-models" + size.name)
-		b.open(e.URL + "/#/deck/settings?tab=Modules")
+		b.open(b.base + "/#/deck/settings?tab=Modules")
 		b.until("the modules as cards", `document.querySelector('[data-cards] [data-item]')`)
 		fits("Modules")
 		b.shot("manage-modules" + size.name)
-		b.open(e.URL + "/#/deck/schedule")
+		b.open(b.base + "/#/deck/schedule")
 		b.until("what did not pass on top", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('work') && x.innerText.includes('Run again'))`)
 		fits("Schedule")
 		b.shot("manage-schedule" + size.name)
-		b.open(e.URL + "/#/deck/spend")
+		b.open(b.base + "/#/deck/spend")
 		b.until("the two numbers of the spend", `[...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).length === 2`)
 		b.shot("manage-spend" + size.name)
-		b.open(e.URL + "/#/deck/cockpit")
+		b.open(b.base + "/#/deck/cockpit")
 		b.until("Today begins with its first line and the date", `document.querySelector('[data-screen-head] [data-today-line]') && document.querySelector('[data-screen-head] [data-today-date]')`)
 		if got := b.eval(untitled); got != "true" {
 			t.Fatal("Today does not repeat its tab as a title")
 		}
 		b.shot("manage-today" + size.name)
-		b.open(e.URL + "/#/deck/files")
+		b.open(b.base + "/#/deck/files")
 		folder := `[...document.querySelectorAll('[data-place]')].find((x) => x.offsetParent && x.innerText.includes('inbox'))`
 		b.until("the folders of the modules with what they hold", folder+`?.querySelector('[data-place-meta]')`)
 		b.shot("manage-files" + size.name)

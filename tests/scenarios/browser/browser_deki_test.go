@@ -46,7 +46,7 @@ func TestRealBrowserDekiAndMotion(t *testing.T) {
 	}
 
 	b.eval(`(localStorage.setItem('deck-look', JSON.stringify({ motion: false })), '')`)
-	b.open(e.URL + "/?still=1#/")
+	b.open(b.base + "/?still=1#/")
 	b.until("the tiles without motion", `document.documentElement.dataset.deckMotion === 'off' && document.querySelector('[data-app=picker]')`)
 	b.eval(`(() => { window.moves = []; const go = document.startViewTransition.bind(document);
 		document.startViewTransition = (f) => { window.moves.push('move'); return go(f) }; return '' })()`)

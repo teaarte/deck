@@ -1,4 +1,4 @@
-import { authed, token } from '../../lib/api';
+import { authed } from '../../lib/api';
 import type { Data } from '../../lib/catalog.gen';
 
 export type Item = NonNullable<Data['files']>[number];
@@ -28,9 +28,6 @@ export function kindOf(it: Item): Kind {
   if (type.startsWith('text/') || TEXTS.some((t) => type.includes(t)) || TEXT_EXT.includes(ext)) return 'text';
   return 'other';
 }
-
-// streamed is the address of a file a tag of the page reads itself, with the token, as players do.
-export const streamed = (url = '') => url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token());
 
 // fetchText reads the start of a file as text, at most TEXT bytes, and says whether it goes on.
 export async function fetchText(url: string): Promise<{ text: string; cut: boolean }> {

@@ -143,11 +143,11 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	b.shot("settings-interface")
 
-	b.open(e.URL + "/#/deck/settings?tab=Modules")
+	b.open(b.base + "/#/deck/settings?tab=Modules")
 	b.until("the look kept on the device", `document.documentElement.dataset.mantineColorScheme === 'dark' && `+
 		root("--mantine-primary-color-filled")+` === `+root("--mantine-color-grape-filled")+` && `+root("--mantine-spacing-md")+`.includes('0.75')`)
 
-	b.open(e.URL + "/#/p/web/main")
+	b.open(b.base + "/#/p/web/main")
 	b.until("the custom block", `document.querySelector('[data-custom]')`)
 	dark := harness.HostTheme{Theme: "dark", Bg: b.eval(root("--mantine-color-body")), Ring: b.eval(root("--mantine-color-grape-filled")),
 		Radius: b.eval(root("--mantine-radius-md"))}
@@ -157,7 +157,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 
 	b.call("browser_tabs", map[string]any{"action": "new"})
-	b.open(e.URL + "/#/deck/look")
+	b.open(b.base + "/#/deck/look")
 	b.until("the appearance tab in the second tab", `document.querySelector('[data-appearance]')`)
 	b.look("scheme", "light")
 	b.until("the light scheme", `document.documentElement.dataset.mantineColorScheme === 'light'`)
@@ -180,12 +180,12 @@ func TestRealBrowserSettings(t *testing.T) {
 		b.until("the tab "+name, find)
 		b.eval(`(` + find + `.click(), '')`)
 	}
-	b.open(e.URL + "/#/deck/settings?tab=Modules")
+	b.open(b.base + "/#/deck/settings?tab=Modules")
 	b.until("the projects tab", itemOf("notes", "enabling grants"))
 	b.reviewAndEnable("notes")
 	e.Until("the enabled draft", func() bool { return e.ProjectRow("notes").Status == "enabled" })
 	b.shot("settings-draft")
-	b.open(e.URL + "/#/deck/settings?tab=Modules")
+	b.open(b.base + "/#/deck/settings?tab=Modules")
 	b.until("the enabled draft", itemOf("notes", "")+" && !"+itemOf("notes", "draft"))
 	if p := e.ProjectRow("notes"); p.Status != "enabled" {
 		t.Fatalf("enable on the projects tab turns the draft on: %+v", p)
@@ -240,12 +240,12 @@ func TestRealBrowserSettings(t *testing.T) {
 		b.shot("settings-" + strings.ToLower(name))
 	}
 	for name, at := range map[string]string{"schedule-runs": "schedule?tab=Runs", "spend": "spend", "files": "files", "settings-connections": "settings?tab=Models&dialog=connections"} {
-		b.open(e.URL + "/#/deck/" + at)
+		b.open(b.base + "/#/deck/" + at)
 		b.until("the screen "+at, `document.querySelector('[data-block]')`)
 		b.shot(name)
 	}
 
-	b.open(e.URL + "/#/p/web/settings")
+	b.open(b.base + "/#/p/web/settings")
 	row := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('Score') && r.querySelector('input[data-pick="model"]'))`
 	b.until("the commands of the project with their model", row)
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.locator('tr', {hasText: 'Score'}).locator('input[data-pick="model"]').click();
@@ -268,21 +268,21 @@ func TestRealBrowserSettings(t *testing.T) {
 	e.Until("the model picked in the row of the command", func() bool { return strings.HasPrefix(assigned(), "quiet,") })
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/#/deck/settings?tab=Modules")
+	b.open(b.base + "/#/deck/settings?tab=Modules")
 	tab("Modules")
 	b.until("the projects tab on a phone", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('web'))`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the projects tab fits the width of a phone: %s", got)
 	}
 	b.shot("settings-projects-phone")
-	b.open(e.URL + "/#/deck/look")
+	b.open(b.base + "/#/deck/look")
 	b.until("the appearance tab on a phone", `document.querySelector('[data-appearance]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("settings fit the width of a phone: %s", got)
 	}
 	b.shot("settings-phone")
 
-	b.open(e.URL + "/#/deck/settings?tab=Modules")
+	b.open(b.base + "/#/deck/settings?tab=Modules")
 	tab("Modules")
 	if names, _ := e.SideMenu(); !slices.Contains(names, "notes") {
 		t.Fatalf("the project is in the menu before the delete: %v", names)
@@ -371,7 +371,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 	e.Must("deck.documents_list", map[string]any{"project": "web"}, &ds)
 	for _, x := range ds {
 		if x.Name == "manifest.json" {
-			b.open(e.URL + "/#/p/web/document/" + fmt.Sprint(x.ID))
+			b.open(b.base + "/#/p/web/document/" + fmt.Sprint(x.ID))
 		}
 	}
 	b.until("the manifest as source", `document.querySelector('[data-document="manifest.json"] [data-source]')?.innerText.includes('"collections"')`)
@@ -380,7 +380,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 	}
 	for _, x := range ds {
 		if x.Name == "custom/chart.html" {
-			b.open(e.URL + "/#/p/web/document/" + fmt.Sprint(x.ID))
+			b.open(b.base + "/#/p/web/document/" + fmt.Sprint(x.ID))
 		}
 	}
 	b.until("the history of the custom block", `document.querySelector('[data-document="custom/chart.html"] [data-history]')`)
@@ -390,7 +390,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 		t.Fatal("a read-only document has no edit and no going back on screen")
 	}
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(e.URL + "/#/p/web/document/" + fmt.Sprint(d.ID))
+	b.open(b.base + "/#/p/web/document/" + fmt.Sprint(d.ID))
 	b.until("the page on a phone", `document.querySelector('[data-document] [data-markdown] h1')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("a document page fits the width of a phone: %s", got)
@@ -701,7 +701,7 @@ func TestRealBrowserTheChatOpensBesideTheScreenInANewTopic(t *testing.T) {
 	b.until("the chat beside the board", `document.querySelector('[data-chat-panel] [data-chat-input]') && document.querySelector('[data-board]')`)
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.until("the chat closed", `!document.querySelector('[data-chat-panel]')`)
-	b.open(e.URL + "/#/p/work/board?chat=new")
+	b.open(b.base + "/#/p/work/board?chat=new")
 	b.until("the chat from the address in a new topic, the microphone at hand", `document.querySelector('[data-chat-panel] [data-chat-input]') && !location.hash.includes('chat=') && !document.querySelector('[data-chat-panel] [data-message]') && document.activeElement?.matches('[data-mic]')`)
 }
 

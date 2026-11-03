@@ -57,7 +57,7 @@ func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 		if got := b.eval(english + `(document.querySelector('[data-cell="today"]'), ` + names + `)`); got != "" {
 			t.Errorf("Today's card on a %s has English words: %s", look, got)
 		}
-		b.open(e.URL + "/#/deck/cockpit")
+		b.open(b.base + "/#/deck/cockpit")
 		b.until("Today with what runs", `document.querySelector('[data-block] [data-since]')`)
 		time.Sleep(500 * time.Millisecond)
 		b.shot("russian-today-" + look)
@@ -67,7 +67,7 @@ func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 	}
 
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/#/")
+	b.open(b.base + "/#/")
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the topic of the work in the chat", `document.querySelector('[data-chat-panel] [data-told="done"]')`)
 	if got := b.eval(`document.querySelector('[data-told="done"] button').innerText`); got != "Открыть процесс" {

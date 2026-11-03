@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -22,15 +23,17 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// checkBuiltClient builds the client from its sources and fails when the embedded build is not that one.
-func checkBuiltClient(t *testing.T) {
-	t.Helper()
-	dir := filepath.Join(harness.Root, "web")
-	out := t.TempDir()
+// builtClient says once for the package what is wrong with the embedded client, empty when it is the build of web.
+var builtClient = sync.OnceValue(func() string {
+	out, err := os.MkdirTemp("", "deck-web-")
+	if err != nil {
+		return err.Error()
+	}
+	defer os.RemoveAll(out)
 	cmd := exec.Command("npm", "run", "build", "--", "--outDir", out, "--emptyOutDir")
-	cmd.Dir = dir
+	cmd.Dir = filepath.Join(harness.Root, "web")
 	if b, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("the web client builds: %v\n%s", err, b)
+		return fmt.Sprintf("the web client builds: %v\n%s", err, b)
 	}
 	built := map[string][]byte{}
 	_ = filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
@@ -48,12 +51,21 @@ func checkBuiltClient(t *testing.T) {
 		return nil
 	})
 	if len(built) != len(embedded) {
-		t.Fatalf("web/dist is stale: run npm run build in web (%d files built, %d embedded)", len(built), len(embedded))
+		return fmt.Sprintf("web/dist is stale: run npm run build in web (%d files built, %d embedded)", len(built), len(embedded))
 	}
 	for name, b := range built {
 		if !bytes.Equal(b, embedded[name]) {
-			t.Fatalf("web/dist is stale: run npm run build in web (%s differs)", name)
+			return fmt.Sprintf("web/dist is stale: run npm run build in web (%s differs)", name)
 		}
+	}
+	return ""
+})
+
+// checkBuiltClient fails when the embedded client is not the build of its sources, built once for the package.
+func checkBuiltClient(t *testing.T) {
+	t.Helper()
+	if why := builtClient(); why != "" {
+		t.Fatal(why)
 	}
 }
 
@@ -166,6 +178,9 @@ func (b *playwright) look(name, value string) {
 	b.until(name+" "+value, `document.querySelector('[data-look="`+name+`"][data-value="`+value+`"]')`)
 }
 
+// pageWait is how long the page has to show what a test waits for; a page shows it in seconds.
+const pageWait = 30 * time.Second
+
 func (b *playwright) until(what, cond string) {
 	b.t.Helper()
 	done := false
@@ -175,7 +190,7 @@ func (b *playwright) until(what, cond string) {
 			b.t.Logf("no %s in the page:\n%s", what, b.eval("document.body.innerText"))
 		}
 	}()
-	harness.Until(b.t, what+" in the page", func() bool {
+	harness.UntilWithin(b.t, pageWait, what+" in the page", func() bool {
 		out, failed := b.try("browser_evaluate", map[string]any{"function": "() => { const W = document.querySelector('[data-block]') ?? document; return String(!!(" + cond + ")) }"})
 		if failed && !strings.Contains(out, "Execution context was destroyed") {
 			done = true

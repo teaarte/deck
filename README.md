@@ -164,6 +164,8 @@ database and the stored manifests.
 - **Phone.** Open a pairing link of deck (`deck.pair_link`) on the phone over https — your tailnet or your domain —,
   make a passkey and add deck to the home screen. Pushes and sharing a link or a file into a module work as in a
   native app. deck signs the owner in only over https and on localhost, never over plain http from the network.
+  On `http://localhost` the browser sends deck's cookie to every server on localhost, whatever its port: a local
+  server you open in the same browser could act as you. Over https the cookie stays with deck's own address.
 - **Desktop app.** `desktop/build.sh` builds `deck.app` for macOS and an installer for Windows, where deck runs in
   its own WSL2 distribution (not yet tried on a real Windows machine). The launcher lives in the tray and can start
   at login.

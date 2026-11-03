@@ -15,6 +15,7 @@ const filledShown = `String([...document.querySelectorAll('.mantine-Button-root[
 // clouds only in moments: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserOneAccent -v.
 func TestRealBrowserOneAccent(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("web", harness.WebNotes)
 	for _, name := range []string{"first", "second"} {

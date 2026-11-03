@@ -72,10 +72,13 @@ func Serve() bool {
 	return true
 }
 
-// Main runs the tests of a package of scenarios; started as a fake, the test binary serves it instead.
-func Main(m *testing.M) {
+// Main runs the tests of a package of scenarios after before; started as a fake, the test binary serves it instead.
+func Main(m *testing.M, before ...func()) {
 	if Serve() {
 		return
+	}
+	for _, f := range before {
+		f()
 	}
 	trustTestTLS()
 	os.Exit(runWithFakes(m))

@@ -10,6 +10,7 @@ import (
 // lives in the address and back returns to it: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserRouter -v.
 func TestRealBrowserRouter(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.RoutedManifest)
 	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)

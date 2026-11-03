@@ -18,6 +18,7 @@ var refOf = regexp.MustCompile(`Send.{0,4} \[ref=(e\d+)\]`)
 // TestRealBrowser drives the real Playwright MCP server: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v
 func TestRealBrowser(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	var pixel, leaks atomic.Int32
 	router := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { pixel.Add(1) }))
 	t.Cleanup(router.Close)

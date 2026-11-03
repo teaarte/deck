@@ -40,6 +40,7 @@ const worstContrast = `(() => {
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserGlass(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Example("glass")
 	e.Example("default")

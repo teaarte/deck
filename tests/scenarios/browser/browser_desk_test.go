@@ -14,6 +14,7 @@ import (
 // reload; the open chat narrows the grid unsaved; a roomy card offers Deki's view; the phone fits its own.
 func TestRealBrowserTheDesk(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for _, name := range []string{"alpha", "beta"} {
 		e.Project(name, harness.PlainManifest)
@@ -135,6 +136,7 @@ func colsOf(b *playwright) int {
 // and draws again only its card.
 func TestRealBrowserTenWidgetsStayQuick(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for i := range 10 {
 		name := fmt.Sprintf("shelf%d", i)

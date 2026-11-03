@@ -44,6 +44,7 @@ setTimeout(() => { location.href = %q + "/self"; }, 300);
 // browser of Playwright MCP: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserWebClientII(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	evil := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("<p>out</p>")) })
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.WebNotesMark)

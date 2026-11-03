@@ -38,6 +38,7 @@ const fitsItsCard = `(() => {
 // line, number or button goes out of its card or wraps; Today of a low card keeps its last line whole.
 func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	sizes := [][2]int{{1, 1}, {2, 1}, {2, 2}, {3, 2}, {1, 2}, {3, 3}}

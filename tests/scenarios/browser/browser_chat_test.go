@@ -25,6 +25,7 @@ import (
 // a question answered in the feed, a turn stopped, and the panel on the whole screen of a phone.
 func TestRealBrowserMasterChat(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
 		case strings.Contains(c.Req.Prompt, "which list"):
@@ -157,6 +158,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 // server as WAV, and its text lands in the input, where the owner sends it.
 func TestRealBrowserVoice(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	heard := make(chan []byte, 1)
 	whisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f, _, err := r.FormFile("file")
@@ -240,6 +242,7 @@ func voiceEnv(t *testing.T, answer func(n int, wav []byte) (int, string)) *playw
 // minute while it goes on, and after Stop its whole text lands in the input in order.
 func TestRealBrowserVoiceOfMinutes(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	checkBuiltClient(t)
 	var seconds []float64
 	b := voiceEnv(t, func(n int, wav []byte) (int, string) {
@@ -261,6 +264,7 @@ func TestRealBrowserVoiceOfMinutes(t *testing.T) {
 // sends the same recording once more, whose text lands in the input.
 func TestRealBrowserVoiceKeptOnFailure(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	checkBuiltClient(t)
 	var got [][]byte
 	b := voiceEnv(t, func(n int, wav []byte) (int, string) {
@@ -286,6 +290,7 @@ func TestRealBrowserVoiceKeptOnFailure(t *testing.T) {
 // a failed one waits lands in the input, and Discard drops only the failed one.
 func TestRealBrowserVoiceAfterAFailedOne(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	checkBuiltClient(t)
 	b := voiceEnv(t, func(n int, wav []byte) (int, string) {
 		if n == 1 {
@@ -315,6 +320,7 @@ func TestRealBrowserVoiceAfterAFailedOne(t *testing.T) {
 // network, says why and takes a recording as a file, which reaches whisper as 16 kHz WAV.
 func TestRealBrowserVoiceWithoutAMicrophone(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	heard := make(chan []byte, 1)
 	whisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f, _, err := r.FormFile("file")
@@ -364,6 +370,7 @@ func TestRealBrowserVoiceWithoutAMicrophone(t *testing.T) {
 // it away; the message its waiting reply took has none.
 func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -410,6 +417,7 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 // one line that opens in place, and a message tells its model, cost and time on hover or a press.
 func TestRealBrowserChatInput(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "think long") {
 			c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Reading the list"})
@@ -531,6 +539,7 @@ const openedTurn = `(() => { const t = document.querySelector('[data-turn="runni
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserChatStaysOnTheLastReply -v.
 func TestRealBrowserChatStaysOnTheLastReply(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Text: "## Done\n\n" + strings.Repeat("A long line of the reply that takes room in the feed. ", 12)}
 	}))
@@ -569,6 +578,7 @@ func TestRealBrowserChatStaysOnTheLastReply(t *testing.T) {
 // module too: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserChatTopicsFollowTheModuleFilter -v.
 func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "ok"} }))
 	e.Project("web", harness.WebNotes)
 	e.MasterSaid(e.Say(0, "about web", map[string]any{"screen": `{"project":"web","screen":"main"}`}), 1)
@@ -631,6 +641,7 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 // on; gone on, its long result comes whole, folded with a button that shows all, on a computer and a phone.
 func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	long := strings.Repeat("Шаг сделан, одна фраза — одно дело. ", 90) + "Что заводить первым?"
 	var from atomic.Int64
 	var works atomic.Int32

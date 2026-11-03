@@ -14,6 +14,7 @@ import (
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserShell -v.
 func TestRealBrowserShell(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	hold := make(chan struct{})
 	t.Cleanup(func() { close(hold) })
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {

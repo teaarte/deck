@@ -14,6 +14,7 @@ import (
 // place, kept in the address; on a phone a button in the row of the tabs opens it in a sheet that stays open.
 func TestRealBrowserTheSidePanelOfAScreen(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Project("lab", strings.Replace(harness.SideManifest, `"screens": [`, `"menu": ["lab", "all"], "screens": [{"name": "all", "title": "All",
     "blocks": [{"type": "stat", "title": "All", "source": {"collection": "trades"}}]}, `, 1))
@@ -64,6 +65,7 @@ func TestRealBrowserTheSidePanelOfAScreen(t *testing.T) {
 // that the address keeps, so a reload stays on every row.
 func TestRealBrowserAFilterStartsOnItsDefault(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Project("lab", strings.Replace(harness.SideManifest, `"params": {"coin": "string", "side": "string"}`, `"params": {"coin": {"type": "string", "default": "COIN"}, "side": "string"}`, 1))
 	e.Must("deck.record_upsert", map[string]any{"project": "lab", "collection": "trades", "records": harness.Jsonl(
@@ -88,6 +90,7 @@ func TestRealBrowserAFilterStartsOnItsDefault(t *testing.T) {
 // result and opens its process.
 func TestRealBrowserAWorkTellsItsTopic(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	var from atomic.Int64
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "work" {

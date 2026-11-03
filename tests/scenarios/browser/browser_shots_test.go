@@ -21,6 +21,7 @@ import (
 // computer and as a phone, and the master gets the picture and how long it took.
 func TestRealBrowserTheMasterSeesAScreen(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	checkBuiltClient(t)
 	shots := make(chan string, 2)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -73,6 +74,7 @@ await app.connect();
 // it, its HTML whole and run.
 func TestRealBrowserAShotDrawsACustomBlock(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	checkBuiltClient(t)
 	shots := make(chan string, 1)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -141,6 +143,7 @@ await app.connect();
 // reads itself, on a computer and on a phone.
 func TestRealBrowserAShotWaitsForThePicturesACustomBlockReads(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	checkBuiltClient(t)
 	shots := make(chan string, 2)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {

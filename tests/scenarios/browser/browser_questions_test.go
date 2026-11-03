@@ -20,6 +20,7 @@ var longQuestion = "The groceries module keeps two lists, and the shop list has 
 // many answers, fit in the chat above the waiting turn on a computer and a phone, and each answer reaches the master.
 func TestRealBrowserMasterQuestions(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	opt := func(label, description string) map[string]any {
 		return map[string]any{"label": label, "description": description}
 	}

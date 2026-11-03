@@ -12,6 +12,7 @@ import (
 // shows the scene on the card of Today and repeats the tile behind the page, in both schemes.
 func TestRealBrowserThemePictures(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
 	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 820})

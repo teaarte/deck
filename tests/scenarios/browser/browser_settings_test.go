@@ -10,6 +10,7 @@ import (
 // commands with a picker of their model, its tools beside its folders, and its pause button pauses it.
 func TestRealBrowserProjectSettings(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", harness.NotesManifest)
 

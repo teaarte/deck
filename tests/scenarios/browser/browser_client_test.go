@@ -23,6 +23,7 @@ import (
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v (DECK_SCREENSHOTS=<dir> keeps screenshots).
 func TestRealBrowserWebClient(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	clock := &harness.Clock{At: time.Now()}
@@ -300,6 +301,7 @@ func newFront(t *testing.T, e *harness.Env) *frontServer {
 // draws no old screen, a document save does not overwrite a newer revision: DECK_REAL_BROWSER=1 go test -run TestRealBrowser
 func TestRealBrowserClientKeepsWhatItShows(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	svc := harness.NewService(t, nil)
 	e := harness.New(t)
 	e.Project("notes", harness.WebManifest(svc.URL))

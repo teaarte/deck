@@ -13,6 +13,7 @@ import (
 // Schedule; no screen repeats its tab; Files goes into a module and back by its steps, on a phone too.
 func TestRealBrowserTheScreensOfManagement(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Fail(fault.TaskFailed, "the model is down")
 	}))

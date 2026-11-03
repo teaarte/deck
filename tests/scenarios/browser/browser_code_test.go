@@ -11,6 +11,7 @@ import (
 // the code example, enable it, give it a repo folder, mark a task ready on its page and press Run.
 func TestRealBrowserCodeProject(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	repo := harness.RepoFolder(t)
 	module := harness.CodeModule(t, "")

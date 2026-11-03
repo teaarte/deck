@@ -17,6 +17,7 @@ import (
 // none of deck's host: the standard components pass its checks, a dialog reads its blocks, presses are A2UI actions.
 func TestRealBrowserForeignRenderer(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	dir := filepath.Join(harness.Root, "web")
 	out := t.TempDir()
 	build := exec.Command(filepath.Join(dir, "node_modules/.bin/vite"), "build", "foreign", "--outDir", out, "--emptyOutDir")

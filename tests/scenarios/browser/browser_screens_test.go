@@ -28,6 +28,7 @@ import (
 // before shows at once; an event that changes nothing draws nothing again.
 func TestRealBrowserStaysQuick(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.LightEnv(t)
 	var recs []harness.RecordRow
 	e.Must("deck.records_list", map[string]any{"project": "notes", "collection": "notes"}, &recs)
@@ -106,6 +107,7 @@ func themesSeen(e *harness.Env) []harness.HostTheme {
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserSettings(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	f := harness.NewACP(t)
 	if err := os.WriteFile(filepath.Join(f.Dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
@@ -310,6 +312,7 @@ func TestRealBrowserSettings(t *testing.T) {
 // list as text: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserDocuments(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	evil := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("GIF89a")) })
 	e := harness.New(t)
 	e.Project("web", harness.DocsManifest)
@@ -402,6 +405,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserJournal(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	pid := e.Project("web", harness.WebNotesMark)
 	if err := os.MkdirAll(filepath.Join(e.App.Home.Data(pid), "sub"), 0o700); err != nil {
@@ -456,6 +460,7 @@ func TestRealBrowserJournal(t *testing.T) {
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserRework(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	job := e.Run(p, "job")
@@ -478,6 +483,7 @@ func TestRealBrowserRework(t *testing.T) {
 // picked and what the owner typed in a form.
 func TestRealBrowserScreenKeepsItsStateOnReturn(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Project("web", strings.Replace(harness.WebNotes, `{"type": "form", "title": "Score a title", "command": "score"},`,
 		`{"type": "tabs", "tabs": [{"title": "Board", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},
@@ -508,6 +514,7 @@ func TestRealBrowserScreenKeepsItsStateOnReturn(t *testing.T) {
 // agent's message as markdown, all within the width of a phone.
 func TestRealBrowserLogReadsEasily(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	long := `{"id":1327,"project":"coin-estimate","command":"collect","state":"done","result":"` + strings.Repeat("a-long-value-without-spaces-", 20) + `"}`
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "mcp__deck__process_get", Text: `{"process":1327,"fields":["state","result"]}`})
@@ -535,6 +542,7 @@ func TestRealBrowserLogReadsEasily(t *testing.T) {
 // lane scrolls within the screen; on a phone the same button picks the lane.
 func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("work", harness.BoardManifest)
 	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
@@ -584,6 +592,7 @@ await app.callServerTool({ name: "web.mark", arguments: { text: JSON.stringify({
 // page outside it, and covers the screen when it asks for full screen.
 func TestRealBrowserCustomBlockOpensWindowsOfDeck(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	m := strings.Replace(harness.WebNotesMark, `{"type": "form", "title": "Score a title", "command": "score"},`,
 		`{"type": "form", "title": "Score a title", "command": "score"}, {"type": "dialog", "name": "note-help", "title": "Help", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},`, 1)
@@ -616,6 +625,7 @@ await app.connect();
 // reach its frame in the tool result beside its items.
 func TestRealBrowserCustomBlockGetsItsParams(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	chart := `"document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},`
 	e.Project("web", strings.NewReplacer(`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"kind": "string"}, "blocks": [`,
@@ -652,6 +662,7 @@ await app.callServerTool({ name: "web.mark", arguments: { text: JSON.stringify({
 // module, and cannot open a file of another module.
 func TestRealBrowserCustomBlockShowsAPictureOfItsModule(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	checkBuiltClient(t)
 	for _, browser := range [][]string{nil, {"webkit"}} {
 		t.Run(fmt.Sprint(browser), func(t *testing.T) { customPictureIn(t, browser...) })
@@ -690,6 +701,7 @@ func customPictureIn(t *testing.T, browser ...string) {
 // address with chat=new opens it in a new topic with the microphone at hand; no button of a module only opens it.
 func TestRealBrowserTheChatOpensBesideTheScreenInANewTopic(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("work", harness.BoardManifest)
 	e.Must("deck.record_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
@@ -709,6 +721,7 @@ func TestRealBrowserTheChatOpensBesideTheScreenInANewTopic(t *testing.T) {
 // or a frame of its own; it makes no frame by any way the guard names, each of which calls a STUN server of its own.
 func TestRealBrowserCustomBlockSendsNothingByWebRTC(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	ways := []string{"createElement", "createElementObject", "createElementNS", "createDocument", "innerHTML", "innerHTMLObject",
 		"outerHTML", "shadowInnerHTML", "insertAdjacentHTML", "setHTMLUnsafe", "shadowSetHTMLUnsafe", "write", "writeln",
 		"execCommand", "parseFromString", "createContextualFragment", "parseHTMLUnsafe", "xslt", "customElement",
@@ -847,6 +860,7 @@ var readableManifest = harness.Manifest(`{
 // a status as a badge with why as its hint; the rest opens under it without empty values.
 func TestRealBrowserReadableTable(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Project("ops", readableManifest)
 	now := time.Now().UTC().Format(time.RFC3339)

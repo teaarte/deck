@@ -16,6 +16,7 @@ import (
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserPressAnswersItsAsk -v.
 func TestRealBrowserPressAnswersItsAsk(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
@@ -63,6 +64,7 @@ const slowApplyScript = "import time\ntime.sleep(1.5)\n" + harness.ApplyScript
 // with nothing to answer; a busy button is blocked, a press again sends no second call: DECK_REAL_BROWSER=1.
 func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	for _, m := range []string{"qwen", "gemma"} {
@@ -129,6 +131,7 @@ func TestRealBrowserTenQuickPressesEachGetAnAnswer(t *testing.T) {
 // the dialog, and closes without reading the screen again.
 func TestRealBrowserFallbacksOpenAtOnce(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	for _, m := range []string{"qwen", "gemma"} {
@@ -159,6 +162,7 @@ func TestRealBrowserFallbacksOpenAtOnce(t *testing.T) {
 // it, with no reload.
 func TestRealBrowserANewAskComesToTodayLive(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)

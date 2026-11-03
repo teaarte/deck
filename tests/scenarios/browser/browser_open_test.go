@@ -91,9 +91,13 @@ func Open(t *testing.T, kind ...string) *playwright {
 // newPlaywright starts Playwright MCP headless, its screenshots in DECK_SCREENSHOTS when that is set.
 func newPlaywright(t *testing.T, browser ...string) *playwright {
 	t.Helper()
-	out := os.Getenv("DECK_SCREENSHOTS")
-	if out == "" {
-		out = t.TempDir()
+	// Each test keeps its pictures in a folder of its own, as tests run side by side.
+	out := t.TempDir()
+	if dir := os.Getenv("DECK_SCREENSHOTS"); dir != "" {
+		out = filepath.Join(dir, strings.ReplaceAll(t.Name(), "/", "-"))
+		if err := os.MkdirAll(out, 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	args := append(slices.Clone(app.DefaultBrowser[1:]), "--headless", "--isolated", "--caps=vision", "--ignore-https-errors", "--output-dir", out)
 	kind := "chrome"

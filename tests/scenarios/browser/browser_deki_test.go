@@ -10,6 +10,7 @@ import (
 // into its module's screen and back, still with the motion off: DECK_REAL_BROWSER=1, -run this test.
 func TestRealBrowserDekiAndMotion(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)

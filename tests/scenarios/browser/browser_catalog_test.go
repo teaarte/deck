@@ -21,6 +21,7 @@ import (
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
 func TestRealBrowserCatalog(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	e.Project("coin", harness.EstimateManifest)
 	made := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
@@ -90,6 +91,7 @@ func TestRealBrowserCatalog(t *testing.T) {
 // a download gives the same file.
 func TestRealBrowserMedia(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	id := e.Project("coin", harness.EstimateManifest)
 	var pic bytes.Buffer

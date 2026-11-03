@@ -14,6 +14,7 @@ import (
 // waits come in: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserCockpitHistory -v.
 func TestRealBrowserCockpitHistory(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	hold := make(chan struct{})
 	t.Cleanup(func() { close(hold) })
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -64,6 +65,7 @@ func TestRealBrowserCockpitHistory(t *testing.T) {
 // its icon, no menu on a tile; a tile opens its module and the way home goes back.
 func TestRealBrowserCards(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("notes", harness.NotesManifest)
 	e.Project("plain", harness.PlainManifest)

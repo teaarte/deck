@@ -18,6 +18,7 @@ const english = `((el, names) => (el?.innerText ?? '').split(/[^A-Za-z]+/).filte
 // stands over the input, the input has no ring in focus, a button reached by the keyboard has one.
 func TestRealBrowserRussianTodayAndChat(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	var from atomic.Int64
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {

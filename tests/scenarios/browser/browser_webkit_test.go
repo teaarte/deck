@@ -19,6 +19,7 @@ await app.connect();
 // second origin and gets the data of its source.
 func TestRealBrowserCustomBlockWorksInWebKit(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a"})}, nil)
@@ -39,6 +40,7 @@ func TestRealBrowserCustomBlockWorksInWebKit(t *testing.T) {
 // frame.
 func TestRealBrowserCustomBlockSaysWhatTheBrowserRefused(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",

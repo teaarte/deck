@@ -23,6 +23,7 @@ func lanAddress() string {
 // gets its data, the console has no word of the CSP or the sandbox; plain http from the network gets nothing.
 func TestRealBrowserCustomBlockOpensOnEveryAddress(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()), harness.OnEveryAddress)
 	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "a"})}, nil)

@@ -17,6 +17,7 @@ import (
 // moves or comes in; a card of another size settles softly.
 func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	for i := range 3 {
 		name := fmt.Sprintf("lab%d", i)
@@ -70,6 +71,7 @@ func TestRealBrowserTheTilesStandOnTheWayBack(t *testing.T) {
 // phone: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserThemeStylesTheCards -v.
 func TestRealBrowserThemeStylesTheCards(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("web", harness.WebNotes)
 	b := Open(t)
@@ -172,6 +174,7 @@ func console() string {
 // Today reads over its picture; axes cut and repeat no label; the board's accent is at work; a table has a head.
 func TestRealBrowserTilesAndCharts(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	e.Project("lab", labManifest)

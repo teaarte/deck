@@ -11,6 +11,7 @@ import (
 // cookie, makes a link with a QR code; a revoke signs it out; deck's http address says where a browser signs in.
 func TestRealBrowserSignsInWithAPasskey(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t)
 	b := Open(t)
 	b.Open(e, "#/deck/settings?tab=Devices")

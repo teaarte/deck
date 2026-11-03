@@ -10,6 +10,7 @@ import (
 // as a draft whose review names what it needs: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserFirstRun -v.
 func TestRealBrowserFirstRun(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})

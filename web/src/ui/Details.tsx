@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import s from './details.module.css';
 
 
-const TEXTS = { call: ['Show details', 'Hide the details'], text: ['Show in full', 'Hide'] };
+const TEXTS = { call: ['Details', 'Hide the details'], text: ['Show in full', 'Hide'] };
 // Details holds a long text folded under a button, or open from the start; of names what it is in the texts of the
 // button, a call by default.
 export function Details({ text, of = 'call', open: start }: { text: string; of?: 'call' | 'text'; open?: boolean }) {

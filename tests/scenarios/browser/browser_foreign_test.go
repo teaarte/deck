@@ -52,9 +52,9 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 	b.until("a press as an A2UI action named by its command with the button as its context",
 		`JSON.parse(document.querySelector('[data-foreign-actions]').innerText).some((a) => a.name === 'web.tell' && a.context.command === 'web.tell' && a.sourceComponentId === 'b1')`)
 
-	b.OpenVia(page.URL, e, "&screen=spend")
-	b.until("deck's tabs as stock Tabs", `document.querySelectorAll('.a2ui-tab-button').length === 3 && !document.body.hasAttribute('data-foreign-error')`)
+	b.OpenVia(page.URL, e, "&screen=settings")
+	b.until("deck's tabs as stock Tabs", `document.querySelectorAll('.a2ui-tab-button').length === 4 && !document.body.hasAttribute('data-foreign-error')`)
 	b.eval(`(document.querySelectorAll('.a2ui-tab-button')[2].click(), '')`)
-	b.until("the third tab with its chart", `document.querySelector('[data-chart-block]')`)
+	b.until("the third tab with its stats", `document.querySelector('[data-stat-block]')`)
 	b.shot("foreign-tabs")
 }

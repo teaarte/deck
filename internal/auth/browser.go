@@ -41,30 +41,44 @@ func Named(agent string) string {
 	return platform
 }
 
+// ErrUnknown refuses a passkey to a browser deck does not know as a device: a new one, a revoked one or one that lost
+// its mark; such a browser pairs by a link.
+var ErrUnknown = errors.New("deck: pair this device by a link from another device or by deck pair")
+
+// known is the device a browser's mark names while it may still sign in, in the workspace.
+func known(ctx context.Context, q *db.Queries, workspace int64, br Client) (db.Device, error) {
+	if br.Mark == "" {
+		return db.Device{}, ErrUnknown
+	}
+	d, err := q.DeviceByMark(ctx, marked(br.Mark))
+	if errors.Is(err, sql.ErrNoRows) || err == nil && workspace != 0 && d.WorkspaceID != workspace {
+		return db.Device{}, ErrUnknown
+	}
+	return d, err
+}
+
 // browser is the device of a browser signed in by a passkey: its own while its mark names one that may still sign
-// in, else a new one named as given or by its User-Agent; it gives the mark the browser keeps.
-func (a *Auth) browser(ctx context.Context, q *db.Queries, workspace, passkey int64, name string, br Client) (int64, string, error) {
+// in, else, if fresh, a new one named as given or by its User-Agent; it gives the mark the browser keeps.
+func (a *Auth) browser(ctx context.Context, q *db.Queries, workspace, passkey int64, name string, br Client, fresh bool) (int64, string, error) {
 	now := store.At(a.cfg.Now())
 	key := sql.NullInt64{Int64: passkey, Valid: passkey != 0}
-	if br.Mark != "" {
-		d, err := q.DeviceByMark(ctx, db.DeviceByMarkParams{Mark: marked(br.Mark), WorkspaceID: workspace})
-		if err == nil && d.PasskeyID != key {
-			// A session of another passkey ends here, so revoking that passkey leaves none of it.
-			err = q.DeleteDeviceSessions(ctx, d.ID)
-		}
-		if err == nil {
-			return d.ID, br.Mark, q.SignDevice(ctx, db.SignDeviceParams{PasskeyID: key, Mark: d.Mark, SeenAt: now, ID: d.ID})
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return 0, "", err
-		}
+	d, err := known(ctx, q, workspace, br)
+	if err == nil && d.PasskeyID != key {
+		// A session of another passkey ends here, so revoking that passkey leaves none of it.
+		err = q.DeleteDeviceSessions(ctx, d.ID)
+	}
+	if err == nil {
+		return d.ID, br.Mark, q.SignDevice(ctx, db.SignDeviceParams{PasskeyID: key, Mark: d.Mark, SeenAt: now, ID: d.ID})
+	}
+	if !errors.Is(err, ErrUnknown) || !fresh {
+		return 0, "", err
 	}
 	if name == "" {
 		name = Named(br.Agent)
 	}
 	mark := nonce.Token()
-	d, err := q.CreateDevice(ctx, db.CreateDeviceParams{WorkspaceID: workspace, Kind: Browser, Name: name, PasskeyID: key, Mark: marked(mark), SeenAt: now})
-	return d.ID, mark, err
+	made, err := q.CreateDevice(ctx, db.CreateDeviceParams{WorkspaceID: workspace, Kind: Browser, Name: name, PasskeyID: key, Mark: marked(mark), SeenAt: now})
+	return made.ID, mark, err
 }
 
 func marked(mark string) sql.NullString { return sql.NullString{String: hash(mark), Valid: true} }
@@ -94,7 +108,7 @@ func (a *Auth) Settle(ctx context.Context, raw string, br Client) (Principal, st
 		case !d.Mark.Valid || d.Mark.String != hash(mark):
 			// Which browser of the two the pushes of the device went to is unknown: each turns them on again.
 			if _, err = q.DeletePush(ctx, db.DeletePushParams{WorkspaceID: d.WorkspaceID, ID: d.ID}); err == nil {
-				p.Device, mark, err = a.browser(ctx, q, d.WorkspaceID, d.PasskeyID.Int64, "", br)
+				p.Device, mark, err = a.browser(ctx, q, d.WorkspaceID, d.PasskeyID.Int64, "", br, true)
 			}
 		}
 		if err != nil {

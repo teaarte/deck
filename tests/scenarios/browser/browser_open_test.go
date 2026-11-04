@@ -291,6 +291,8 @@ func (b *playwright) signIn(e *harness.Env, base, rest string) {
 		var link struct{ Code string }
 		e.Must("deck.pair_link", map[string]any{"name": "the test's browser"}, &link)
 		query, route, _ := strings.Cut(rest, "#")
+		// A page reads the code of a link as it loads, not on a change of its fragment.
+		b.open("about:blank")
 		b.open(base + "/?owner=1" + query + "#pair=" + link.Code + route)
 		b.until("the page that pairs this browser", `document.querySelector('[data-signin="pair"]:not([disabled])')`)
 		b.press(`[data-signin="pair"]`)

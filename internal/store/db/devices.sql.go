@@ -159,17 +159,12 @@ func (q *Queries) DeleteSessionsBefore(ctx context.Context, arg DeleteSessionsBe
 }
 
 const deviceByMark = `-- name: DeviceByMark :one
-SELECT id, workspace_id, kind, name, passkey_id, mark, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE mark = ? AND workspace_id = ? AND kind = 'browser' AND revoked_at IS NULL
+SELECT id, workspace_id, kind, name, passkey_id, mark, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE mark = ? AND kind = 'browser' AND revoked_at IS NULL
 `
 
-type DeviceByMarkParams struct {
-	Mark        sql.NullString
-	WorkspaceID int64
-}
-
 // The browser's own device, while it may still sign in.
-func (q *Queries) DeviceByMark(ctx context.Context, arg DeviceByMarkParams) (Device, error) {
-	row := q.db.QueryRowContext(ctx, deviceByMark, arg.Mark, arg.WorkspaceID)
+func (q *Queries) DeviceByMark(ctx context.Context, mark sql.NullString) (Device, error) {
+	row := q.db.QueryRowContext(ctx, deviceByMark, mark)
 	var i Device
 	err := row.Scan(
 		&i.ID,
@@ -335,6 +330,39 @@ func (q *Queries) PasskeyByCredential(ctx context.Context, arg PasskeyByCredenti
 		&i.RevokedAt,
 	)
 	return i, err
+}
+
+const passkeyCredentials = `-- name: PasskeyCredentials :many
+SELECT credential_id FROM passkey WHERE workspace_id = ? AND rp_id = ? AND revoked_at IS NULL ORDER BY id
+`
+
+type PasskeyCredentialsParams struct {
+	WorkspaceID int64
+	RpID        string
+}
+
+// The credentials a browser may already hold for deck at an address, while they may still sign in.
+func (q *Queries) PasskeyCredentials(ctx context.Context, arg PasskeyCredentialsParams) ([][]byte, error) {
+	rows, err := q.db.QueryContext(ctx, passkeyCredentials, arg.WorkspaceID, arg.RpID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items [][]byte
+	for rows.Next() {
+		var credential_id []byte
+		if err := rows.Scan(&credential_id); err != nil {
+			return nil, err
+		}
+		items = append(items, credential_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const passkeyDevices = `-- name: PasskeyDevices :many

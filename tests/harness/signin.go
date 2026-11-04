@@ -2,11 +2,13 @@ package harness
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/descope/virtualwebauthn"
@@ -133,6 +135,10 @@ func (p *Passkey) PairBy(send Send, origin, code, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if slices.Contains(opts.ExcludeCredentials, base64.RawURLEncoding.EncodeToString(p.cred.ID)) {
+		// The browser holds a passkey of deck already and refuses to make another, as a browser does.
+		return p.pairHeld(send, origin, code, name)
+	}
 	p.auth.Options.UserHandle = []byte(opts.UserID)
 	cred := virtualwebauthn.CreateAttestationResponse(rp(origin), p.auth, p.cred, *opts)
 	status, body, cookie, err := send("pair/finish", map[string]any{"ceremony": b.Ceremony, "name": name, "credential": json.RawMessage(cred)})
@@ -140,6 +146,28 @@ func (p *Passkey) PairBy(send Send, origin, code, name string) (string, error) {
 		return "", fmt.Errorf("pair/finish: %d %s %v", status, body, err)
 	}
 	p.auth.AddCredential(p.cred)
+	return cookie, nil
+}
+
+// pairHeld pairs the browser by the passkey it holds, as the client does once the browser refused to make another.
+func (p *Passkey) pairHeld(send Send, origin, code, name string) (string, error) {
+	status, body, _, err := send("pair/begin", map[string]any{"code": code, "held": true})
+	if err != nil || status != 200 {
+		return "", fmt.Errorf("pair/begin held: %d %s %v", status, body, err)
+	}
+	var b begun
+	if err := json.Unmarshal(body, &b); err != nil {
+		return "", err
+	}
+	opts, err := virtualwebauthn.ParseAssertionOptions(string(b.Options))
+	if err != nil {
+		return "", err
+	}
+	cred := virtualwebauthn.CreateAssertionResponse(rp(origin), p.auth, p.cred, *opts)
+	status, body, cookie, err := send("pair/finish", map[string]any{"ceremony": b.Ceremony, "name": name, "credential": json.RawMessage(cred)})
+	if err != nil || status != 200 || cookie == "" {
+		return "", fmt.Errorf("pair/finish held: %d %s %v", status, body, err)
+	}
 	return cookie, nil
 }
 

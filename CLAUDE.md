@@ -128,7 +128,7 @@ hold; look inside a package for the rest.
 - `tests/scenarios/<area>` — scenario tests through the real gateway with a fake provider, a package an area
   (`box`, `browser`, `chat`, `egress`, `modules`, `owner`, `providers`, `real`, `runs`), a file `<area>_<topic>_test.go`;
   `tests/lint` keeps their conventions (`internal/lint/tests.go`).
-- `.github` — `ci.yml` on every push and PR (checks, tests, race shards a package of scenarios each by `shard.sh` on Linux and macOS, `tests/linux`),
+- `.github` — `ci.yml` on every push and PR (checks, tests, race shards a package of scenarios each by `shard.sh` on Linux and all in one job on macOS, `tests/linux`),
   `image.yml` (the image on its changes and nightly), `release.yml` (a tag only of a green commit of master);
   `renovate.json` keeps the pinned base images, CLIs, modules and actions current.
 

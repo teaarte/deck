@@ -15,6 +15,15 @@ type device struct {
 	Revoked   bool
 }
 
+// unknown is the refusal of a passkey to a browser deck does not know as a device.
+const unknown = `document.querySelector('[data-signin-error]')?.innerText.includes('deck pair')`
+
+func passkeys(e *harness.Env) []struct{ ID int64 } {
+	var ks []struct{ ID int64 }
+	e.Must("deck.passkeys_list", map[string]any{}, &ks)
+	return ks
+}
+
 func devices(e *harness.Env) []device {
 	var ds []device
 	e.Must("deck.devices_list", map[string]any{}, &ds)
@@ -22,7 +31,7 @@ func devices(e *harness.Env) []device {
 }
 
 // TestRealBrowserSignsInWithAPasskey: Chromium pairs with a virtual passkey, signs in by it again as the same device,
-// makes a link with a QR code; a revoked device signs in anew, a revoked passkey not; localhost goes to deck.localhost.
+// makes a link with a QR code; a revoked device pairs anew only by a link, a revoked passkey not; localhost goes on.
 func TestRealBrowserSignsInWithAPasskey(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
@@ -59,10 +68,13 @@ func TestRealBrowserSignsInWithAPasskey(t *testing.T) {
 	e.Must("deck.device_revoke", map[string]any{"device": d.ID}, nil)
 	b.until("a revoked browser signed out", `document.querySelector('[data-signin="passkey"]')`)
 	b.press(`[data-signin="passkey"]`)
-	b.until("its passkey signs the browser in again", `!document.querySelector('[data-signin-page]') && document.querySelector('#root > *')`)
+	b.until("its passkey refused to the revoked browser, which pairs by a link", unknown)
+	b.shot("signin-unknown")
+	b.paired = false
+	b.signIn(e, e.Https(), "#/deck/settings?tab=Devices")
 	again := devices(e)[len(devices(e))-1]
-	if again.ID == d.ID || again.PasskeyID != d.PasskeyID || again.Revoked {
-		t.Fatalf("a revoked browser signs in again by its passkey only as a new device: %+v", devices(e))
+	if again.ID == d.ID || again.PasskeyID != d.PasskeyID || again.Revoked || len(passkeys(e)) != 2 {
+		t.Fatalf("a link pairs the revoked browser again by the passkey it holds, as a new device: %+v", devices(e))
 	}
 	e.Must("deck.passkey_revoke", map[string]any{"passkey": d.PasskeyID}, nil)
 	b.until("a browser of a revoked passkey signed out", `document.querySelector('[data-signin="passkey"]')`)
@@ -74,7 +86,7 @@ func TestRealBrowserSignsInWithAPasskey(t *testing.T) {
 }
 
 // TestRealBrowserTwoBrowsersOfOnePasskeyAreTwoDevices: a passkey copied to a second Chromium, as a synced one is, signs
-// it in as a device of its own; a revoke of one leaves the other, a revoke of the passkey signs both out.
+// it in only once a link paired it by that passkey, a device of its own; a revoke of one leaves the other.
 func TestRealBrowserTwoBrowsersOfOnePasskeyAreTwoDevices(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
@@ -96,12 +108,25 @@ func TestRealBrowserTwoBrowsersOfOnePasskeyAreTwoDevices(t *testing.T) {
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => {
   await page.deckAuthn.send('WebAuthn.addCredential', { authenticatorId: page.deckAuthnId, credential: ` + cred + ` });
 }`})
-	b.paired = true
-	b.signIn(e, e.Https(), "#/deck/settings?tab=Devices")
+	b.open(e.Https() + "/?owner=1#/deck/settings?tab=Devices")
+	b.until("the page that signs in", `document.querySelector('[data-signin="passkey"]')`)
+	b.press(`[data-signin="passkey"]`)
+	b.until("the synced passkey refused to a browser no link paired", unknown)
+	var link struct{ Code string }
+	e.Must("deck.pair_link", map[string]any{}, &link)
+	b.open("about:blank")
+	b.open(e.Https() + "/?owner=1#pair=" + link.Code + "/deck/settings?tab=Devices")
+	b.until("the page that pairs this browser", `document.querySelector('[data-signin="pair"]:not([disabled])')`)
+	b.press(`[data-signin="pair"]`)
+	b.until("the client signed in", `!document.querySelector('[data-signin-page]') && document.querySelector('#root > *')`)
+	b.base, b.paired = e.Https(), true
 	ds := devices(e)
 	first, second := ds[len(ds)-2], ds[len(ds)-1]
 	if first.Name != "the test's browser" || second.ID == first.ID || second.PasskeyID != first.PasskeyID || second.Name != "Mac — Chrome" {
-		t.Fatalf("the second browser signs in by the same passkey as a device of its own, named by its browser: %+v", ds)
+		t.Fatalf("the second browser pairs by the same passkey as a device of its own, named by its browser: %+v", ds)
+	}
+	if len(passkeys(e)) != 2 {
+		t.Fatalf("the link makes no second passkey in a browser that holds one: %+v", passkeys(e))
 	}
 	mark := `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes(%q) && r.innerText.includes('✓'))`
 	a.until("the first browser marked as this one", fmt.Sprintf(mark, "the test's browser"))

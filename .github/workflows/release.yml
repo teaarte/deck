@@ -25,8 +25,8 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           git merge-base --is-ancestor "$SHA" origin/master || { echo "$SHA is not a commit of master"; exit 1; }
-          # A run of ci still going is waited for, up to 40 minutes.
-          for _ in $(seq 80); do
+          # A run of ci still going is waited for, up to an hour.
+          for _ in $(seq 120); do
             runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --json status,conclusion)
             jq -e 'any(.[]; .conclusion == "success")' <<< "$runs" > /dev/null && exit 0
             jq -e 'length == 0 or any(.[]; .status != "completed")' <<< "$runs" > /dev/null || break

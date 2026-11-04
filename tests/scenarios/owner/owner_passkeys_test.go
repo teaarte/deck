@@ -1,6 +1,9 @@
 package owner
 
 import (
+	"io"
+	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -44,27 +47,65 @@ func subscribe(t *testing.T, c harness.Client, endpoint string) {
 	c.Must("deck.push_subscribe", map[string]any{"endpoint": endpoint, "p256dh": "k", "auth": "a"}, nil)
 }
 
-// TestOnePasskeySignsInEachBrowserAsADeviceOfItsOwn: a synced passkey signs each browser in as its own device with its
-// own pushes, revoked alone; revoking the passkey signs both out and refuses it.
+// pairLink pairs a browser by a new link of pair_link at deck's https address.
+func pairLink(t *testing.T, e *harness.Env, p *harness.Passkey) (string, error) {
+	t.Helper()
+	var link struct{ Code string }
+	e.Must("deck.pair_link", map[string]any{}, &link)
+	return p.Pair(e.URL, e.Https(), link.Code, "")
+}
+
+// refusedUnknown checks a passkey signs in no browser deck does not know as a device, and says how it pairs.
+func refusedUnknown(t *testing.T, e *harness.Env, p *harness.Passkey, why string) {
+	t.Helper()
+	_, err := p.Login(e.URL, e.Https())
+	if err == nil || !strings.Contains(err.Error(), "403") || !strings.Contains(err.Error(), "pair this device by a link from another device or by deck pair") {
+		t.Fatalf("%s: %v", why, err)
+	}
+	req, _ := http.NewRequest("POST", e.URL+"/auth/login/begin", strings.NewReader("{}"))
+	u, _ := url.Parse(e.Https())
+	req.Host = u.Host
+	req.Header.Set("Origin", e.Https())
+	req.Header.Set("Deck-Lang", "ru")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if b, _ := io.ReadAll(resp.Body); resp.StatusCode != 403 || !strings.Contains(string(b), "свяжите это устройство ссылкой с другого устройства") {
+		t.Fatalf("the refusal speaks the owner's language: %d %s", resp.StatusCode, b)
+	}
+}
+
+// TestOnePasskeySignsInEachBrowserAsADeviceOfItsOwn: a synced passkey signs in only a browser a link paired by it, a
+// device of its own with its own pushes, revoked alone; revoking the passkey signs both out and refuses it.
 func TestOnePasskeySignsInEachBrowserAsADeviceOfItsOwn(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	mac, macCookie := pairSecond(t, e, "Mac — Safari")
 	phone := mac.Synced()
 	phone.Agent = iPhone
-	phoneCookie, err := phone.Login(e.URL, e.Https())
+	before := browsers(t, e)
+	refusedUnknown(t, e, phone, "a passkey synced to a new browser does not sign it in")
+	if after := browsers(t, e); len(after) != len(before) {
+		t.Fatalf("a refused browser gets no device: %+v", after)
+	}
+	phoneCookie, err := pairLink(t, e, phone)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ds := browsers(t, e)
 	m, p := named(ds, "Mac — Safari"), named(ds, "iPhone — Safari")
 	if m.ID == 0 || p.ID == 0 || m.ID == p.ID || m.PasskeyID == 0 || m.PasskeyID != p.PasskeyID || p.Passkey != "Mac — Safari" {
-		t.Fatalf("the phone signs in by the Mac's passkey as a device of its own, named by its browser: %+v", ds)
+		t.Fatalf("a link pairs the phone by the Mac's passkey as a device of its own, named by its browser: %+v", ds)
 	}
 	var ks []passkey
 	e.Must("deck.passkeys_list", map[string]any{}, &ks)
-	if k := ks[slices.IndexFunc(ks, func(k passkey) bool { return k.ID == m.PasskeyID })]; k.Devices != 2 || !strings.HasPrefix(e.Https(), "https://"+k.Site) {
-		t.Fatalf("the passkey signs in two devices at its address: %+v", ks)
+	if k := ks[slices.IndexFunc(ks, func(k passkey) bool { return k.ID == m.PasskeyID })]; len(ks) != 2 || k.Devices != 2 || !strings.HasPrefix(e.Https(), "https://"+k.Site) {
+		t.Fatalf("the passkey the phone holds signs in two devices at its address, and no second one is made: %+v", ks)
+	}
+	if phoneCookie, err = phone.Login(e.URL, e.Https()); err != nil {
+		t.Fatalf("the paired phone signs in by the passkey: %v", err)
 	}
 
 	again, err := mac.Login(e.URL, e.Https())
@@ -98,12 +139,12 @@ func TestOnePasskeySignsInEachBrowserAsADeviceOfItsOwn(t *testing.T) {
 	if ds = browsers(t, e); !named(ds, "Mac — Safari").Push || named(ds, "iPhone — Safari").Push {
 		t.Fatalf("the Mac keeps its pushes, the phone has none: %+v", ds)
 	}
-	phoneCookie, err = phone.Login(e.URL, e.Https())
-	if err != nil {
+	refusedUnknown(t, e, phone, "the passkey does not sign the revoked phone in")
+	if phoneCookie, err = pairLink(t, e, phone); err != nil {
 		t.Fatal(err)
 	}
-	if ds = browsers(t, e); len(ds) != 4 || ds[3].Name != "iPhone — Safari" || ds[3].Revoked || ds[3].ID == p.ID {
-		t.Fatalf("the passkey signs the revoked phone in again only as a new device: %+v", ds)
+	if ds = browsers(t, e); len(ds) != 4 || ds[3].Name != "iPhone — Safari" || ds[3].Revoked || ds[3].ID == p.ID || ds[3].PasskeyID != m.PasskeyID {
+		t.Fatalf("a link pairs the revoked phone again as a new device of the same passkey: %+v", ds)
 	}
 
 	// A second passkey made in the Mac's browser signs it in as the same device and ends the sessions of the first.
@@ -158,7 +199,7 @@ func TestTheSessionsOfADeviceBeforePasskeysSettleOnTheirBrowsers(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	mac, macCookie := pairSecond(t, e, "MacBook")
-	phoneCookie, err := mac.Synced().Login(e.URL, e.Https())
+	phoneCookie, err := pairLink(t, e, mac.Synced())
 	if err != nil {
 		t.Fatal(err)
 	}

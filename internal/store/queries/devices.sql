@@ -9,7 +9,7 @@ SELECT * FROM device WHERE id = ? AND workspace_id = ?;
 
 -- name: DeviceByMark :one
 -- The browser's own device, while it may still sign in.
-SELECT * FROM device WHERE mark = ? AND workspace_id = ? AND kind = 'browser' AND revoked_at IS NULL;
+SELECT * FROM device WHERE mark = ? AND kind = 'browser' AND revoked_at IS NULL;
 
 
 -- name: ListDevices :many
@@ -43,6 +43,11 @@ RETURNING *;
 
 -- name: PasskeyByCredential :one
 SELECT * FROM passkey WHERE credential_id = ? AND user_handle = ? AND rp_id = ? AND revoked_at IS NULL;
+
+
+-- name: PasskeyCredentials :many
+-- The credentials a browser may already hold for deck at an address, while they may still sign in.
+SELECT credential_id FROM passkey WHERE workspace_id = ? AND rp_id = ? AND revoked_at IS NULL ORDER BY id;
 
 
 -- name: SetPasskeyCredential :exec

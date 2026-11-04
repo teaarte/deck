@@ -27,11 +27,14 @@ type riteIn struct {
 	Ceremony   string          `json:"ceremony"`
 	Name       string          `json:"name"`
 	Credential json.RawMessage `json:"credential"`
+	// Held pairs by a passkey the browser holds already rather than a new one.
+	Held bool `json:"held"`
 }
 
 // rite counts a try of signing in by address and takes a step only from a page of deck's origin.
 func (s *Server) rite(step func(http.ResponseWriter, *http.Request, riteIn)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(registry.WithLang(r.Context(), r.Header.Get("Deck-Lang")))
 		if !s.app.Auth.Tries.Allow(s.clientIP(r)) {
 			refuse(w, r, errTries.Error(), http.StatusTooManyRequests)
 			return
@@ -92,7 +95,7 @@ func client(r *http.Request) auth.Client {
 }
 
 func (s *Server) pairBegin(w http.ResponseWriter, r *http.Request, in riteIn) {
-	b, err := s.app.Auth.PairBegin(r.Context(), originOf(r), in.Code)
+	b, err := s.app.Auth.PairBegin(r.Context(), originOf(r), in.Code, in.Held)
 	s.begun(w, r, b, err)
 }
 
@@ -102,7 +105,7 @@ func (s *Server) pairFinish(w http.ResponseWriter, r *http.Request, in riteIn) {
 }
 
 func (s *Server) loginBegin(w http.ResponseWriter, r *http.Request, _ riteIn) {
-	b, err := s.app.Auth.LoginBegin(originOf(r))
+	b, err := s.app.Auth.LoginBegin(r.Context(), originOf(r), client(r))
 	s.begun(w, r, b, err)
 }
 

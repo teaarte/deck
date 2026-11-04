@@ -19,12 +19,14 @@ import (
 // ceremonyLife is how long a passkey ceremony waits for the browser.
 const ceremonyLife = 5 * time.Minute
 
-// ceremony is a passkey ceremony begun at an origin: of pairing by a code under a new user handle, or of signing in.
+// ceremony is a passkey ceremony begun at an origin: of pairing by a code under a new user handle or by a passkey the
+// browser holds already, or of signing in.
 type ceremony struct {
 	session webauthn.SessionData
 	origin  string
 	code    string
 	handle  []byte
+	held    bool
 	until   time.Time
 }
 
@@ -86,11 +88,12 @@ func (a *Auth) finish(id string, o Origin) (ceremony, error) {
 	return c, nil
 }
 
-// PairBegin begins to pair a device by its code at an origin: a passkey ceremony for a browser; a node pairs at once
-// with no passkey and gets a key.
-func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string) (Begun, error) {
+// PairBegin begins to pair a device by its code: a ceremony that makes a passkey deck has not, or, held, asks for one
+// the browser holds; a node pairs at once with no passkey and gets a key.
+func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string, held bool) (Begun, error) {
+	// The ceremony of a passkey held is the second half of the same try.
 	a.mu.Lock()
-	c, err := a.take(raw, true)
+	c, err := a.take(raw, !held)
 	a.mu.Unlock()
 	if err != nil {
 		return Begun{}, err
@@ -108,8 +111,29 @@ func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string) (Begun, erro
 	if err != nil {
 		return Begun{}, err
 	}
+	space, err := workspace(ctx, a.st.Q, c.Workspace)
+	if err != nil {
+		return Begun{}, err
+	}
+	ids, err := a.st.Q.PasskeyCredentials(ctx, db.PasskeyCredentialsParams{WorkspaceID: space, RpID: o.RPID()})
+	if err != nil {
+		return Begun{}, err
+	}
+	// A browser holding one of these refuses to make another; it pairs by the one it holds.
+	live := make([]protocol.CredentialDescriptor, len(ids))
+	for i, id := range ids {
+		live[i] = protocol.CredentialDescriptor{Type: protocol.PublicKeyCredentialType, CredentialID: id}
+	}
+	if held {
+		assertion, session, err := w.BeginDiscoverableLogin(webauthn.WithAllowedCredentials(live),
+			webauthn.WithUserVerification(protocol.VerificationPreferred))
+		if err != nil {
+			return Begun{}, err
+		}
+		return Begun{Ceremony: a.keep(ceremony{session: *session, origin: o.Main, code: raw, held: true}), Options: assertion}, nil
+	}
 	handle := []byte(nonce.Token())
-	creation, session, err := w.BeginRegistration(owner{handle: handle},
+	creation, session, err := w.BeginRegistration(owner{handle: handle}, webauthn.WithExclusions(live),
 		webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementRequired),
 		webauthn.WithAuthenticatorSelection(protocol.AuthenticatorSelection{ResidentKey: protocol.ResidentKeyRequirementRequired,
 			RequireResidentKey: protocol.ResidentKeyRequired(), UserVerification: protocol.VerificationPreferred}))
@@ -119,8 +143,8 @@ func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string) (Begun, erro
 	return Begun{Ceremony: a.keep(ceremony{session: *session, origin: o.Main, code: raw, handle: handle}), Options: creation}, nil
 }
 
-// PairFinish keeps the passkey the browser made in a pairing ceremony and signs the browser in by it, its device named
-// as the browser says; the code is spent.
+// PairFinish keeps the passkey the browser made in a pairing ceremony, or takes the one it held, and signs the browser
+// in by it, its device named as the browser says; the code is spent.
 func (a *Auth) PairFinish(ctx context.Context, o Origin, id, name string, br Client, body []byte) (Begun, error) {
 	cer, err := a.finish(id, o)
 	if err != nil {
@@ -129,6 +153,9 @@ func (a *Auth) PairFinish(ctx context.Context, o Origin, id, name string, br Cli
 	w, err := relying(o)
 	if err != nil {
 		return Begun{}, err
+	}
+	if cer.held {
+		return a.pairHeld(ctx, o, w, cer, name, br, body)
 	}
 	parsed, err := protocol.ParseCredentialCreationResponseBody(bytes.NewReader(body))
 	if err != nil {
@@ -164,13 +191,50 @@ func (a *Auth) PairFinish(ctx context.Context, o Origin, id, name string, br Cli
 		if err != nil {
 			return Begun{}, err
 		}
-		return a.signIn(ctx, q, space, key.ID, name, br)
+		return a.signIn(ctx, q, space, key.ID, name, br, true)
 	})
 }
 
-// signIn starts a session of a browser by a passkey on the browser's device.
-func (a *Auth) signIn(ctx context.Context, q *db.Queries, space, passkey int64, name string, br Client) (Begun, error) {
-	device, mark, err := a.browser(ctx, q, space, passkey, name, br)
+// pairHeld pairs a browser by a passkey of deck it holds already, as one synced to it: a new device of that passkey.
+func (a *Auth) pairHeld(ctx context.Context, o Origin, w *webauthn.WebAuthn, cer ceremony, name string, br Client, body []byte) (Begun, error) {
+	a.mu.Lock()
+	c, err := a.take(cer.code, false)
+	a.mu.Unlock()
+	if err != nil {
+		return Begun{}, err
+	}
+	key, cred, err := a.assert(ctx, o, w, cer, body)
+	if err != nil {
+		return Begun{}, err
+	}
+	// A passkey of another workspace leaves the code for the right one.
+	if space, err := workspace(ctx, a.st.Q, c.Workspace); err != nil || key.WorkspaceID != space {
+		return Begun{}, errors.Join(err, ErrSignIn)
+	}
+	a.mu.Lock()
+	err = a.spend(c)
+	a.mu.Unlock()
+	if err != nil {
+		return Begun{}, err
+	}
+	return store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
+		space, err := workspace(ctx, q, c.Workspace)
+		if err != nil {
+			return Begun{}, err
+		}
+		if key.WorkspaceID != space {
+			return Begun{}, ErrSignIn
+		}
+		if err := a.used(ctx, q, key, cred); err != nil {
+			return Begun{}, err
+		}
+		return a.signIn(ctx, q, space, key.ID, cmp.Or(name, c.Name), br, true)
+	})
+}
+
+// signIn starts a session of a browser by a passkey on the browser's device; a new device only if fresh.
+func (a *Auth) signIn(ctx context.Context, q *db.Queries, space, passkey int64, name string, br Client, fresh bool) (Begun, error) {
+	device, mark, err := a.browser(ctx, q, space, passkey, name, br, fresh)
 	if err != nil {
 		return Begun{}, err
 	}
@@ -207,10 +271,14 @@ func (a *Auth) device(ctx context.Context, p db.CreateDeviceParams) (Begun, erro
 	})
 }
 
-// LoginBegin begins to sign in with a passkey of the origin; the browser offers those it has.
-func (a *Auth) LoginBegin(o Origin) (Begun, error) {
+// LoginBegin begins to sign in with a passkey of the origin; the browser offers those it has. Only a browser deck knows
+// as a device signs in by a passkey; another pairs by a link.
+func (a *Auth) LoginBegin(ctx context.Context, o Origin, br Client) (Begun, error) {
 	w, err := relying(o)
 	if err != nil {
+		return Begun{}, err
+	}
+	if _, err := known(ctx, a.st.Q, 0, br); err != nil {
 		return Begun{}, err
 	}
 	assertion, session, err := w.BeginDiscoverableLogin(webauthn.WithUserVerification(protocol.VerificationPreferred))
@@ -223,16 +291,30 @@ func (a *Auth) LoginBegin(o Origin) (Begun, error) {
 // LoginFinish signs the browser in by the passkey that answered the ceremony, on the browser's device.
 func (a *Auth) LoginFinish(ctx context.Context, o Origin, id string, br Client, body []byte) (Begun, error) {
 	cer, err := a.finish(id, o)
-	if err != nil {
-		return Begun{}, err
+	if err != nil || cer.code != "" {
+		return Begun{}, ErrSignIn
 	}
 	w, err := relying(o)
 	if err != nil {
 		return Begun{}, err
 	}
+	key, cred, err := a.assert(ctx, o, w, cer, body)
+	if err != nil {
+		return Begun{}, err
+	}
+	return store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
+		if err := a.used(ctx, q, key, cred); err != nil {
+			return Begun{}, err
+		}
+		return a.signIn(ctx, q, key.WorkspaceID, key.ID, "", br, false)
+	})
+}
+
+// assert is the passkey of deck that answered a ceremony of signing in, with its credential as it is now.
+func (a *Auth) assert(ctx context.Context, o Origin, w *webauthn.WebAuthn, cer ceremony, body []byte) (db.Passkey, string, error) {
 	parsed, err := protocol.ParseCredentialRequestResponseBody(bytes.NewReader(body))
 	if err != nil {
-		return Begun{}, ErrSignIn
+		return db.Passkey{}, "", ErrSignIn
 	}
 	var key db.Passkey
 	_, cred, err := w.ValidatePasskeyLogin(func(rawID, handle []byte) (webauthn.User, error) {
@@ -248,17 +330,16 @@ func (a *Auth) LoginFinish(ctx context.Context, o Origin, id string, br Client, 
 		return owner{handle: k.UserHandle, creds: []webauthn.Credential{c}}, nil
 	}, cer.session, parsed)
 	if err != nil {
-		return Begun{}, ErrSignIn
+		return db.Passkey{}, "", ErrSignIn
 	}
 	b, _ := json.Marshal(cred)
-	return store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
-		// The passkey may have been revoked since the ceremony read it.
-		if _, err := q.PasskeyByCredential(ctx, db.PasskeyByCredentialParams{CredentialID: key.CredentialID, UserHandle: key.UserHandle, RpID: key.RpID}); err != nil {
-			return Begun{}, errors.Join(err, ErrSignIn)
-		}
-		if err := q.SetPasskeyCredential(ctx, db.SetPasskeyCredentialParams{Credential: string(b), SeenAt: store.At(a.cfg.Now()), ID: key.ID}); err != nil {
-			return Begun{}, err
-		}
-		return a.signIn(ctx, q, key.WorkspaceID, key.ID, "", br)
-	})
+	return key, string(b), nil
+}
+
+// used keeps the credential of a passkey that signed in, unless it was revoked since the ceremony read it.
+func (a *Auth) used(ctx context.Context, q *db.Queries, key db.Passkey, cred string) error {
+	if _, err := q.PasskeyByCredential(ctx, db.PasskeyByCredentialParams{CredentialID: key.CredentialID, UserHandle: key.UserHandle, RpID: key.RpID}); err != nil {
+		return errors.Join(err, ErrSignIn)
+	}
+	return q.SetPasskeyCredential(ctx, db.SetPasskeyCredentialParams{Credential: cred, SeenAt: store.At(a.cfg.Now()), ID: key.ID})
 }

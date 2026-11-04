@@ -51,7 +51,7 @@ func Rules(root string) ([]Violation, error) {
 			return err
 		}
 		if d.IsDir() {
-			if path != root && slices.Contains(append(skipDirs, "desktop", "tests"), d.Name()) {
+			if path != root && slices.Contains(append(skipDirs, "tests"), d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil

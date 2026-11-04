@@ -39,12 +39,11 @@ type Config struct {
 	SnapshotBudget int64
 	// Commands are more builtin commands, such as the probes of tests.
 	Commands []*registry.Command
-	// Releases is where deck finds its updates; Version and Variant are this build's, Launcher marks a deck its
-	// launcher updates, and Restart ends deck to take an update.
+	// Releases is where deck finds its updates; Version and Variant are this build's, and Restart ends deck to take
+	// an update.
 	Releases updates.Source
 	Version  string
 	Variant  string
-	Launcher bool
 	// Image is the container image deck runs from (DECK_IMAGE), which updates by a newer image.
 	Image   string
 	Restart func(release.Restart)

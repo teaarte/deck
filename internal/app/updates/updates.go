@@ -1,5 +1,5 @@
 // Package updates finds a newer release of deck once a day, tells the owner, and puts it in place at the owner's
-// press: the binary of this variant, checked against the signed list, or its launcher's update.
+// press: the binary of this variant, checked against the signed list.
 package updates
 
 import (
@@ -50,9 +50,8 @@ type Service struct {
 	Now     func() time.Time
 	Source  Source
 	Version string
-	// Variant is the binary of this build in a release; Launcher marks a deck its launcher updates.
-	Variant  string
-	Launcher bool
+	// Variant is the binary of this build in a release.
+	Variant string
 	// Image is the image of a deck that runs in a container: a newer one comes as a newer image, never in place.
 	Image string
 	// Exe is the binary of deck; Restart ends deck to take an update; Pending is where the update waits to be served.
@@ -209,7 +208,7 @@ func (s *Service) checkNow(ctx context.Context, _ registry.Actor, _ struct{}) (a
 	return s.out(), nil
 }
 
-// update puts the latest release in place and restarts deck in it; a launcher updates what it runs itself.
+// update puts the latest release in place and restarts deck in it.
 func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any, error) {
 	if s.Version == "dev" {
 		return nil, registry.Invalid("this deck is built from source; it updates with git pull and go build")
@@ -238,13 +237,6 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 	}
 	if !release.Newer(fs.Version, s.Version) {
 		return nil, registry.Invalid("%s is the latest release", s.Version)
-	}
-	if s.Launcher {
-		if !s.Go(func(context.Context) { time.Sleep(time.Second); s.Restart(release.Restart{Launcher: true}) }) {
-			return nil, registry.Conflict("deck is stopping; update it once it has started again")
-		}
-		done = true
-		return map[string]any{"version": fs.Version, "by": "launcher"}, nil
 	}
 	f, ok := fs.File(s.Variant)
 	if !ok {

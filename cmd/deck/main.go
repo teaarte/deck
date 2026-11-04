@@ -47,11 +47,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "deck:", err)
 		os.Exit(1)
 	}
-	switch {
-	case restart == nil:
-	case restart.Launcher:
-		os.Exit(release.LauncherCode)
-	default:
+	if restart != nil {
 		// deck stopped whole; it starts again in the new binary, or in the old one when that will not start.
 		err := syscall.Exec(restart.Exe, os.Args, os.Environ())
 		if rerr := os.Rename(restart.Old, restart.Exe); rerr == nil {
@@ -145,7 +141,7 @@ func run() (*release.Restart, error) {
 	a, err := app.New(app.Config{
 		Home: home, MCPBase: mcpBase(ln.Addr().(*net.TCPAddr)),
 		QuestionWait: 30 * time.Minute, ConfirmWait: 30 * time.Minute, ConfirmTTL: 24 * time.Hour,
-		Variant: release.Variant(tsnet.Built), Launcher: os.Getenv("DECK_LAUNCHER") != "", Image: os.Getenv("DECK_IMAGE"), Origins: origins,
+		Variant: release.Variant(tsnet.Built), Image: os.Getenv("DECK_IMAGE"), Origins: origins,
 		Restart: func(r release.Restart) {
 			select {
 			case restarts <- r:
@@ -246,7 +242,7 @@ func run() (*release.Restart, error) {
 // cleanEnv restarts deck with only the variables it needs: on macOS a confined program reads the
 // environment of every process of the owner.
 func cleanEnv() error {
-	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_HOME", "DECK_LAUNCHER", "DECK_ADDR", "DECK_TAILSCALE",
+	clean := sandbox.Kept("HOME", "TMPDIR", "XDG_", "CODEX_HOME", "DECK_HOME", "DECK_ADDR", "DECK_TAILSCALE",
 		"DECK_PUBLIC", "DECK_PROXY", "DECK_IMAGE")
 	if len(clean) == len(os.Environ()) {
 		return nil

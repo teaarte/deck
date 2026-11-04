@@ -98,8 +98,7 @@ func TestRealBrowserTheDesk(t *testing.T) {
 func pageCall(b *playwright, command string, input any) string {
 	b.t.Helper()
 	in, _ := json.Marshal(input)
-	return b.eval(fmt.Sprintf(`fetch('/api/commands/%s', { method: 'POST', body: %q,
-		headers: sessionStorage.getItem('deck-key') ? { Authorization: 'Bearer ' + sessionStorage.getItem('deck-key') } : {} }).then((r) => r.text())`, command, in))
+	return b.eval(fmt.Sprintf(`fetch('/api/commands/%s', { method: 'POST', body: %q }).then((r) => r.text())`, command, in))
 }
 
 // desk is the layout of the tiles deck keeps for the browser's own device.

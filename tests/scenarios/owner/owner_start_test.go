@@ -23,11 +23,12 @@ import (
 )
 
 type deckBinary struct {
-	cmd      *exec.Cmd
-	bin      string
-	home     string
-	url, key string
-	said     func() []string
+	cmd  *exec.Cmd
+	bin  string
+	home string
+	// url is deck by 127.0.0.1, here by deck.localhost, where cookie signs the owner's browser in.
+	url, here, cookie string
+	said              func() []string
 }
 
 var (
@@ -46,14 +47,14 @@ func buildDeck(t *testing.T) string {
 	return bin
 }
 
-// startDeck builds deck, starts it on home with env added, waits until it listens and pairs a launcher by deck pair.
+// startDeck builds deck, starts it on home with env added, waits until it listens and pairs a browser by deck pair.
 func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 	t.Helper()
 	return runDeck(t, buildDeck(t), home, nil, env...)
 }
 
-// runDeck starts the binary of deck on home with its args and env added, waits until it listens and pairs a launcher
-// by deck pair, as the launcher does.
+// runDeck starts the binary of deck on home with its args and env added, waits until it listens and pairs a browser
+// at deck.localhost by a link of deck pair.
 func runDeck(t *testing.T, bin, home string, args []string, env ...string) *deckBinary {
 	t.Helper()
 	// Agent CLIs that fail stand before the owner's, so a self-check never runs on the owner's accounts.
@@ -100,8 +101,8 @@ func runDeck(t *testing.T, bin, home string, args []string, env ...string) *deck
 	}()
 	m := harness.Receive(t, "deck to start", up)
 	// The log names deck.localhost, which a resolver of Linux may not know.
-	d.url = strings.Replace(m[1], "deck.localhost", "127.0.0.1", 1)
-	if d.key, err = d.launcher(); err != nil {
+	d.here, d.url = m[1], strings.Replace(m[1], "deck.localhost", "127.0.0.1", 1)
+	if d.cookie, err = d.browser(); err != nil {
 		t.Fatal(err)
 	}
 	started = true
@@ -116,26 +117,22 @@ func (d *deckBinary) pair(args ...string) (string, error) {
 	return string(out), err
 }
 
-// launcher pairs a launcher by deck pair --device launcher and gives its key.
-func (d *deckBinary) launcher() (string, error) {
-	out, err := d.pair("--device", "launcher")
-	link := strings.TrimSpace(out)
-	if err != nil || !strings.Contains(link, "/#pair=") {
-		return "", fmt.Errorf("deck pair --device launcher: %s %v", out, err)
+// browser pairs a browser at deck.localhost by a link of deck pair and gives its cookie.
+func (d *deckBinary) browser() (string, error) {
+	out, err := d.pair("--name", "the test's browser")
+	link := lineOf(out, d.here+"/#pair=")
+	if err != nil || link == "" {
+		return "", fmt.Errorf("deck pair: %s %v", out, err)
 	}
-	base, code, _ := strings.Cut(link, "/#pair=")
-	status, body, _, err := harness.Rite(base, base, "pair/begin", map[string]any{"code": code})
-	var b struct{ Key string }
-	if err != nil || status != 200 || json.Unmarshal(body, &b) != nil || b.Key == "" {
-		return "", fmt.Errorf("the launcher pairs at %s: %d %s %v", base, status, body, err)
-	}
-	return b.Key, nil
+	return harness.NewPasskey().Pair(d.url, d.here, harness.Code(link), "the test's browser")
 }
 
 func (d *deckBinary) call(name string, in any) (int, string, error) {
 	b, _ := json.Marshal(in)
 	req, _ := http.NewRequest("POST", d.url+"/api/commands/"+name, bytes.NewReader(b))
-	harness.Bearer(d.key)(req)
+	req.Host = strings.TrimPrefix(d.here, "http://")
+	req.Header.Set("Origin", d.here)
+	req.AddCookie(&http.Cookie{Name: harness.HereCookieName(d.here), Value: d.cookie})
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, "", err
@@ -206,7 +203,7 @@ func TestTheHomeOfDeckIsOnlyTheOwnersAndItsLogHasNoToken(t *testing.T) {
 	}
 	d := startDeck(t, home)
 	if code, out, err := d.call("deck.menu_get", map[string]any{}); err != nil || code != 200 {
-		t.Fatalf("the launcher pairs by deck pair and calls: %d %s %v", code, out, err)
+		t.Fatalf("a browser pairs by deck pair and calls: %d %s %v", code, out, err)
 	}
 	if !slices.ContainsFunc(d.said(), hereLink.MatchString) || !slices.ContainsFunc(d.said(), func(l string) bool { return strings.Contains(l, "url=http://deck.localhost:") }) {
 		t.Fatalf("deck with no https address names deck.localhost and logs a link there for the first device: %q", d.said())
@@ -256,8 +253,8 @@ func TestDeckPairPairsWhetherDeckRunsOrNot(t *testing.T) {
 		t.Fatal("a code pairs one device only")
 	}
 	if code, out, err := d2.call("deck.devices_list", map[string]any{}); err != nil || code != 200 ||
-		!strings.Contains(out, `"laptop"`) || !strings.Contains(out, `"phone"`) || strings.Count(out, `"kind":"launcher"`) != 1 {
-		t.Fatalf("the devices are the two browsers and the last launcher: %d %s %v", code, out, err)
+		!strings.Contains(out, `"laptop"`) || !strings.Contains(out, `"phone"`) || strings.Count(out, `"kind":"browser"`) != 4 {
+		t.Fatalf("the devices are the browsers of the test, the phone and the laptop: %d %s %v", code, out, err)
 	}
 }
 

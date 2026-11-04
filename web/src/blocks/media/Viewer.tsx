@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Fallback } from './Fallback';
 import { fetchText, kindOf, PREVIEW, type Item } from './kinds';
 import { Pdf } from './Pdf';
-import { useBlob, useSrc } from './useBlob';
+import { useBlob } from './useBlob';
 import s from './files.module.css';
 
 // Picture is a picture in full, from a copy the page made of it.
@@ -46,10 +46,9 @@ function Texty({ it, framed }: { it: Item; framed: boolean }) {
 
 // Player plays a video or a sound in the browser's own player.
 function Player({ it }: { it: Item }) {
-  const src = useSrc(it.url, it.type);
   return kindOf(it) === 'video'
-    ? <video src={src} controls playsInline preload="metadata" className={s.media} data-player="video" />
-    : <audio src={src} controls preload="metadata" className={s.media} data-player="audio" />;
+    ? <video src={it.url} controls playsInline preload="metadata" className={s.media} data-player="video" />
+    : <audio src={it.url} controls preload="metadata" className={s.media} data-player="audio" />;
 }
 
 // Viewer opens a file the way it can: the browser itself first, then deck's own, else its card with a download.

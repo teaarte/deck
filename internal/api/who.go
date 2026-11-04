@@ -20,15 +20,12 @@ var (
 	errTries    = registry.Limited("too many tries from this address; wait a few minutes")
 )
 
-// Who is the one place that says whom a call comes from: a lent, launcher's or automation token in the header, else
-// a browser's cookie over https, a write with it only from deck's origin and a read from its page.
+// Who is the one place that says whom a call comes from: a lent or automation token in the header, else a browser's
+// cookie at an origin where it signs in, a write with it only from deck's origin and a read from its page.
 func (s *Server) Who(r *http.Request) (registry.Actor, error) {
 	if raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
 		if act, ok := s.app.Owners.Lent(raw); ok {
 			return act, nil
-		}
-		if p, ok := s.app.Auth.Session(r.Context(), raw); ok && p.Kind == auth.Launcher && local(r) {
-			return p.Actor(), nil
 		}
 		ip := s.clientIP(r)
 		if s.app.Auth.Misses.Over(ip) {
@@ -75,13 +72,6 @@ func (s *Server) unsigned(r *http.Request) error {
 		return registry.Unsigned("a browser signs in to deck only over https or at deck.localhost on its machine, and deck has neither here: see Health for how to give deck an https address")
 	}
 	return registry.Unsigned("a browser signs in to deck at %s", strings.Join(at, " or "))
-}
-
-// local says a request comes from this machine to deck's plain address on it, as the launcher's window does; not
-// through a proxy here, such as tailscale serve, which comes from loopback to an https address.
-func local(r *http.Request) bool {
-	name, _ := hostPort(r.Host)
-	return fromHere(r) && !originOf(r).Secure() && (name == "localhost" || name == auth.HereName || strings.HasPrefix(name, "127."))
 }
 
 // cookieOf is the cookie of a browser's session at an origin: __Host- over https, so it stays with the one origin;

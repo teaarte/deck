@@ -255,7 +255,7 @@ func newFront(t *testing.T, e *harness.Env) *frontServer {
 			body = []byte(`{"screen": "cockpit"}`)
 		}
 		req, _ := http.NewRequest("POST", deck+r.URL.Path, bytes.NewReader(body))
-		req.Header = r.Header.Clone()
+		req.Header, req.Host = r.Header.Clone(), r.Host
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
@@ -292,8 +292,10 @@ func newFront(t *testing.T, e *harness.Env) *frontServer {
 		_, _ = w.Write(out)
 	}))
 	t.Cleanup(f.Close)
-	// deck answers at the front as at an address of its own, as at a proxy its -public names.
-	e.App.Auth.Origins().Add(f.URL, e.Side)
+	// The browser opens the front by deck.localhost, where its cookie signs it in; deck answers there as at an address
+	// of its own.
+	f.URL = strings.Replace(f.URL, "127.0.0.1", "deck.localhost", 1)
+	e.App.Auth.Origins().Add(f.URL, strings.Replace(e.Side, "127.0.0.1", "deck.localhost", 1))
 	return f
 }
 

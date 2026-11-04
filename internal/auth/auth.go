@@ -19,9 +19,8 @@ import (
 
 // Kinds of devices.
 const (
-	Browser  = "browser"
-	Launcher = "launcher"
-	Node     = "node"
+	Browser = "browser"
+	Node    = "node"
 )
 
 // Times of a session: it lasts a day after its last request, a week at most.

@@ -15,7 +15,7 @@ import (
 	"deck2/tests/harness"
 )
 
-// TestDeckFindsACLIInTheFolderOfItsInstallerOnAShortPath: started by a launcher or a service with a PATH of the system
+// TestDeckFindsACLIInTheFolderOfItsInstallerOnAShortPath: started by a service with a PATH of the system
 // alone, deck finds Claude Code in ~/.local/bin, checks it and gives the CLI that folder on its PATH.
 func TestDeckFindsACLIInTheFolderOfItsInstallerOnAShortPath(t *testing.T) {
 	owner := harness.OwnerHome(t)

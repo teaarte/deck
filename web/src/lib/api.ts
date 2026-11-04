@@ -1,11 +1,10 @@
 import i18n from './i18n';
-import { key, signOut } from './signin';
+import { signOut } from './signin';
 
-// authed is every request of the page to deck, by the browser's cookie or the page's key in the header; deck's own
-// refusal signs the page out, while a model's refused key is a 401 without the challenge.
+// authed is every request of the page to deck, by the browser's cookie; deck's own refusal signs the page out, while a
+// model's refused key is a 401 without the challenge.
 export async function authed(url: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  if (key()) headers.set('Authorization', 'Bearer ' + key());
   headers.set('Deck-Lang', i18n.language ?? '');
   const r = await fetch(url, { ...init, headers });
   if (r.status === 401 && r.headers.has('WWW-Authenticate')) signOut((await r.clone().text()).trim());

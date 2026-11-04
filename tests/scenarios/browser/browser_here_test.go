@@ -68,8 +68,8 @@ func TestRealBrowserSignsInAtDeckLocalhost(t *testing.T) {
 					n++
 				}
 			}
-			if n != 1 {
-				t.Fatalf("one browser paired: %+v", ds)
+			if n != 2 {
+				t.Fatalf("the browser paired once, beside the owner's of the test: %+v", ds)
 			}
 		})
 	}

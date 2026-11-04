@@ -1,5 +1,4 @@
-import { authed } from './api';
-import { key, signedOut } from './signin';
+import { signedOut } from './signin';
 import { createStore, useStore } from './store';
 
 // LiveEvent says a topic changed, in a project when it names one.
@@ -44,35 +43,6 @@ function byCookie(h: Heard): Channel {
   return { close: () => es.close() };
 }
 
-// byKey reads the stream as a response with the page's key in the header, which an EventSource cannot send.
-function byKey(h: Heard): Channel {
-  const ac = new AbortController();
-  void (async () => {
-    try {
-      const r = await authed('/api/events', { signal: ac.signal, headers: { Accept: 'text/event-stream' } });
-      if (!r.ok || !r.body) throw new Error(r.statusText);
-      h.open();
-      const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
-      let buf = '';
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += value;
-        for (let end = buf.indexOf('\n\n'); end >= 0; end = buf.indexOf('\n\n')) {
-          const lines = buf.slice(0, end).split('\n');
-          buf = buf.slice(end + 2);
-          if (lines.some((l) => l.startsWith('event:'))) h.ping();
-          else h.data(lines.filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trim()).join(''));
-        }
-      }
-    } catch {
-      // The stream failed or was closed; either way it is over.
-    }
-    if (!ac.signal.aborted) h.fail(true);
-  })();
-  return { close: () => ac.abort() };
-}
-
 // openSource keeps one live channel for every screen of the page and opens it again when it closes or falls silent;
 // a channel it replaced says nothing more.
 function openSource() {
@@ -88,7 +58,7 @@ function openSource() {
       openSource();
     }, SILENT);
   };
-  ch = (key() ? byKey : byCookie)({
+  ch = byCookie({
     open: () => {
       if (!mine()) return;
       heard();

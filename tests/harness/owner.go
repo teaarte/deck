@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -21,11 +22,30 @@ type Client struct {
 	owner bool
 }
 
-// owner signs a request as the owner's launcher: its key in the header Authorization.
+// owner signs a request as the owner's browser at deck.localhost: its cookie, from a page of deck there; a request
+// with a token in the header goes as it is, one with a Host of its own to that Host.
 func (e *Env) owner(r *http.Request) {
-	if r.Header.Get("Authorization") == "" {
-		r.Header.Set("Authorization", "Bearer "+e.Key)
+	if r.Header.Get("Authorization") != "" {
+		return
 	}
+	u, _ := url.Parse(e.Here)
+	if r.Host == r.URL.Host {
+		r.Host = u.Host
+	}
+	if r.Header.Get("Origin") == "" {
+		r.Header.Set("Origin", e.Here)
+	}
+	if r.Header.Get("Sec-Fetch-Site") == "" {
+		r.Header.Set("Sec-Fetch-Site", "same-origin")
+	}
+	r.AddCookie(&http.Cookie{Name: HereCookieName(e.Here), Value: e.HereCookie})
+}
+
+// HereCookieName is the name of deck's cookie at the deck.localhost address here: by its port, as a browser sends
+// cookies to every port.
+func HereCookieName(here string) string {
+	u, _ := url.Parse(here)
+	return "deck-" + u.Port()
 }
 
 // Cookie is the cookie of the owner's browser, paired at the https address of deck on the first call.
@@ -74,13 +94,6 @@ func Bearer(token string) func(*http.Request) {
 
 // AuthorizationHeader is the header line of a token, as curl -H takes it.
 func AuthorizationHeader(token string) string { return "Authorization: Bearer " + token }
-
-// OwnerURL is the address the launcher's window opens deck at, on base, with rest: more of the query, then the route
-// of the client; the key of the owner's launcher rides in the fragment, which no server sees.
-func (e *Env) OwnerURL(base, rest string) string {
-	query, route, _ := strings.Cut(rest, "#")
-	return base + "/?owner=1" + query + "#key=" + e.Key + route
-}
 
 // In is the owner in a client that reads deck in lang, as the web client says with Deck-Lang.
 func (e *Env) In(lang string) Client {

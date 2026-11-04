@@ -101,7 +101,7 @@ func (s *Service) deviceRevoke(ctx context.Context, act registry.Actor, in devic
 }
 
 type pairLinkIn struct {
-	Kind string `enum:"browser|launcher|node" opt:"" desc:"What pairs: a browser with its passkey, the window of the launcher or a node; a browser when left out"`
+	Kind string `enum:"browser|node" opt:"" desc:"What pairs: a browser with its passkey or a node; a browser when left out"`
 	Name string `opt:"" desc:"Name of the device"`
 }
 
@@ -140,7 +140,7 @@ var errNoDevice = errors.New("deck: this call comes from no device of the owner"
 func (s *Service) deviceCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("devices_list", "Devices",
-			"Lists the owner's devices: browsers with their passkeys, the window of the launcher and nodes, the one the call came from marked; revoked ones too.",
+			"Lists the owner's devices: browsers with their passkeys and nodes, the one the call came from marked; revoked ones too.",
 			registry.OwnerOnly, s.devicesList).On("devices"),
 		registry.Def("device_rename", "Rename device", "Renames a device of the owner.", registry.OwnerOnly, s.deviceRename),
 		registry.Def("device_revoke", "Revoke device",

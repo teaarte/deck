@@ -194,7 +194,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew}
 	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Owners.Lend, Return: a.Owners.Return,
 		Themed: a.Themes.Exists}
-	a.Updates = updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Launcher: cfg.Launcher, Image: cfg.Image,
+	a.Updates = updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Image: cfg.Image,
 		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: a.bg.Go,
 		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
 	a.Projects = project.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Home: h, Registry: a.Registry,

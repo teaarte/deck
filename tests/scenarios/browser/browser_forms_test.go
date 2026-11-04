@@ -21,7 +21,7 @@ let got;
 const data = new Promise((ok) => { app.ontoolresult = (r) => { got = r.structuredContent; ok(); }; });
 await app.connect();
 const tryFetch = (url, init) => fetch(url, init).then(() => "open", () => "blocked");
-const direct = await tryFetch(%q + "/api/commands/web.mark", { method: "POST", headers: { Authorization: "Bearer %s" }, body: "{}" });
+const direct = await tryFetch(%q + "/api/commands/web.mark", { method: "POST", credentials: "include", body: "{}" });
 const self = await tryFetch("/sandbox.html");
 let top = "open";
 try { void window.top.location.href; } catch { top = "blocked"; }
@@ -49,7 +49,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.WebNotesMark)
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
-		"text": fmt.Sprintf(customProbe, e.URL, e.Key, evil.URL, evil.URL)}, nil)
+		"text": fmt.Sprintf(customProbe, e.Here, evil.URL, evil.URL)}, nil)
 	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me"})}, nil)
 

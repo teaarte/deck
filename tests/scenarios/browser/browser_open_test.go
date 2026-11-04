@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/auth"
 	"deck2/tests/harness"
 	"deck2/web"
 
@@ -75,8 +77,8 @@ type playwright struct {
 	sess *mcp.ClientSession
 	dir  string
 	kind string
-	// base is the address of deck the page signed in at: https in Chromium, by the cookie of its passkey; plain http
-	// in WebKit, by the key of a launcher.
+	// base is the address of deck the page signed in at: deck.localhost by the cookie of the owner's browser, or an
+	// address a test paired the browser at with a passkey.
 	base string
 	// paired says the virtual authenticator of the browser holds a passkey of deck.
 	paired bool
@@ -247,28 +249,32 @@ func itemOf(title, part string) string {
 	return `[...document.querySelectorAll('[data-item]')].find((x) => x.innerText.split('\n')[0].trim() === '` + title + `' && x.innerText.includes('` + part + `'))`
 }
 
-// Open opens deck of e as its owner with rest, more of the query then the route: Chromium signs in at deck's https
-// address with a passkey of its virtual authenticator, WebKit with a key as the launcher's window does.
+// Open opens deck of e as its owner with rest, more of the query then the route, at deck.localhost, signed in by the
+// cookie of the owner's browser there.
 func (b *playwright) Open(e *harness.Env, rest string) {
 	b.t.Helper()
-	if b.kind == "webkit" {
-		b.OpenVia(e.URL, e, rest)
-		return
-	}
-	if base := e.Https(); b.base != base {
-		b.signIn(e, base, rest)
+	if b.base != e.Here {
+		b.OpenVia(e.Here, e, rest)
 		return
 	}
 	b.open(b.base + "/?owner=1" + rest)
 }
 
-// OpenVia is Open through a server before deck at base, as the launcher's window opens it; the page loads anew, as
-// an address that differs from the one before only after # would not load it.
+// OpenVia is Open at base, a server before deck at deck.localhost or an address that leads there; the page loads
+// anew, as an address that differs from the one before only after # would not load it.
 func (b *playwright) OpenVia(base string, e *harness.Env, rest string) {
 	b.t.Helper()
+	var cookies []string
+	for _, at := range []string{e.Here, base} {
+		u, _ := url.Parse(at)
+		cookies = append(cookies, fmt.Sprintf(`{ name: %q, value: %q, url: 'http://%s:%s', httpOnly: true, sameSite: 'Strict' }`,
+			harness.HereCookieName("http://"+auth.HereName+":"+u.Port()), e.HereCookie, auth.HereName, u.Port()))
+	}
+	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.context().addCookies([` + strings.Join(cookies, ", ") + `]); }`})
 	b.base = base
+	query, route, _ := strings.Cut(rest, "#")
 	b.open("about:blank")
-	b.open(e.OwnerURL(base, rest))
+	b.open(base + "/?owner=1" + query + "#" + route)
 }
 
 // press clicks a button once the call has settled, so the tool does not wait out the stream of events the press
@@ -282,7 +288,6 @@ func (b *playwright) press(sel string) {
 func (b *playwright) signIn(e *harness.Env, base, rest string) {
 	b.t.Helper()
 	if !b.paired {
-		b.authenticator()
 		var link struct{ Code string }
 		e.Must("deck.pair_link", map[string]any{"name": "the test's browser"}, &link)
 		query, route, _ := strings.Cut(rest, "#")

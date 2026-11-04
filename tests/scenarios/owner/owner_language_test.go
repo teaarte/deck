@@ -464,6 +464,11 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		project, command, _ := strings.Cut(c.Name, ".")
 		names[project], names[command] = true, true
 	}
+	var devices []struct{ Name string }
+	e.Must("deck.devices_list", map[string]any{}, &devices)
+	for _, d := range devices {
+		names[d.Name] = true
+	}
 	for _, n := range []string{"openai", "google", "anthropic", "deck", "Deki", "API", "CLI", "JSON", "MCP", "URL", "USD", "Claude", "Code",
 		"Codex", "POST", "Authorization", "Bearer", "effort", "options", "python", "node", "backups", "zip", "SearXNG"} {
 		names[n] = true

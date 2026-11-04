@@ -99,54 +99,6 @@ func (q *Queries) DeleteDeviceSessions(ctx context.Context, deviceID int64) erro
 	return err
 }
 
-const deleteKind = `-- name: DeleteKind :many
-DELETE FROM device WHERE workspace_id = ? AND kind = ?
-RETURNING id
-`
-
-type DeleteKindParams struct {
-	WorkspaceID int64
-	Kind        string
-}
-
-// Deletes the devices of a kind, such as the launcher before a new one.
-func (q *Queries) DeleteKind(ctx context.Context, arg DeleteKindParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, deleteKind, arg.WorkspaceID, arg.Kind)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const deleteKindSessions = `-- name: DeleteKindSessions :exec
-DELETE FROM session WHERE device_id IN (SELECT id FROM device WHERE workspace_id = ? AND kind = ?)
-`
-
-type DeleteKindSessionsParams struct {
-	WorkspaceID int64
-	Kind        string
-}
-
-func (q *Queries) DeleteKindSessions(ctx context.Context, arg DeleteKindSessionsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteKindSessions, arg.WorkspaceID, arg.Kind)
-	return err
-}
-
 const deleteSession = `-- name: DeleteSession :exec
 DELETE FROM session WHERE hash = ?
 `

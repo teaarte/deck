@@ -13,7 +13,8 @@ func TestRealBrowserSignsInWithAPasskey(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	b := Open(t)
-	b.Open(e, "#/deck/settings?tab=Devices")
+	b.authenticator()
+	b.signIn(e, e.Https(), "#/deck/settings?tab=Devices")
 	b.until("the browser among the devices, marked as this one", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('BROWSER') && r.innerText.includes('✓'))`)
 
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.context().clearCookies(); await page.reload(); }`})

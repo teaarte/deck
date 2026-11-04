@@ -44,6 +44,13 @@ func (s *Server) Sandbox() http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		_, _ = w.Write(b)
 	})
+	// The browser of deck's shots sends its token with every request, so a block's frame asks before it loads the
+	// library.
+	mux.HandleFunc("OPTIONS /ext-apps.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "authorization")
+		w.WriteHeader(http.StatusNoContent)
+	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Header.Del("Cookie")
 		w.Header().Set("Referrer-Policy", "no-referrer")

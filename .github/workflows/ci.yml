@@ -36,7 +36,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: gofmt
         run: |
-          out=$(gofmt -l cmd internal tests desktop)
+          out=$(gofmt -l cmd internal tests)
           [ -z "$out" ] || { echo "not formatted:"; echo "$out"; exit 1; }
       - run: go vet ./...
       - run: go test -count=1 ./tests/lint

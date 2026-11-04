@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { Alert, Group, Image, Loader, Modal, Stack, UnstyledButton } from '@mantine/core';
 import { Download } from './Download';
 import { type Item } from './kinds';
-import { useBlob, useSrc } from './useBlob';
+import { useBlob } from './useBlob';
 
 // Picture is a thumbnail that opens the picture in full; a wide one takes the width of its column. It shows the light
 // copy in its own proportions while the picture itself is read only to be opened.
 export function Picture({ it, wide }: { it: Item; wide?: boolean }) {
   const [open, setOpen] = useState(false);
-  const light = useSrc(it.thumb);
+  const light = it.thumb;
   const { src, error } = useBlob(light && !open ? undefined : it.url, it.type);
   if (error) return <Alert color="red" p="xs">{error}</Alert>;
   const shown = light ?? src;

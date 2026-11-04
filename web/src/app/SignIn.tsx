@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import i18n from '../lib/i18n';
 import { errorText } from '../lib/notify';
-import { pairCode, signedIn, wasKeyed } from '../lib/signin';
+import { pairCode, signedIn } from '../lib/signin';
 
 interface Begun { ceremony: string; options: { publicKey: never } }
 
@@ -55,9 +55,7 @@ export function SignIn({ why }: { why: string }) {
     await rite('login/finish', { ceremony: b.ceremony, credential });
   });
   let body;
-  if (wasKeyed()) {
-    body = <Text size="sm">{t('This window of the launcher is signed out: open deck again from the launcher.')}</Text>;
-  } else if (!secure) {
+  if (!secure) {
     body = <Text size="sm" data-signin-where>{why.trim() || t('A browser signs in to deck only over https, or at deck.localhost on the machine deck runs on: open this link there.')}</Text>;
   } else if (pairCode) {
     body = (

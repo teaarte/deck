@@ -1,5 +1,5 @@
 # A tag v* of a commit of master that ci made green pushes the server image to ghcr.io as the version and latest, then
-# releases deck's binaries, deck.app and the Windows installer with release.json signed by DECK_RELEASE_KEY.
+# releases deck's binaries with release.json signed by DECK_RELEASE_KEY.
 name: release
 
 on:
@@ -76,47 +76,8 @@ jobs:
           name: binaries
           path: dist/
 
-  mac:
-    needs: version
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: Build deck.app
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-          COMMIT: ${{ github.sha }}
-        run: desktop/build.sh mac
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: mac
-          path: desktop/dist/deck-macos.zip
-
-  windows:
-    needs: version
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version-file: go.mod
-          cache: false
-      - run: sudo apt-get update -q && sudo apt-get install -y -q nsis
-      - name: Build the Windows installer
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-          COMMIT: ${{ github.sha }}
-        run: desktop/build.sh windows
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: windows
-          path: desktop/dist/deck-setup.exe
-
   release:
-    needs: [version, binaries, mac, windows, manifest]
+    needs: [version, binaries, manifest]
     runs-on: ubuntu-latest
     environment: release
     permissions:

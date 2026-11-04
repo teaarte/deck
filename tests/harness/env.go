@@ -3,7 +3,6 @@ package harness
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http/httptest"
 	"path/filepath"
@@ -42,19 +41,20 @@ type Env struct {
 	Names   map[int64]string
 	// Probes counts the reads of deck.probe_list, a read every test deck has.
 	Probes *atomic.Int64
-	// Local is the address of deck by localhost, where only the launcher's window signs in; Here is deck.localhost,
-	// where a browser of this machine pairs and signs in.
+	// Local is the address of deck by localhost, where no browser signs in; Here is deck.localhost, where a browser
+	// of this machine pairs and signs in.
 	Local, Here string
-	// Key is the key of the owner's launcher, which the owner's calls carry; Owner is the passkey of the owner's
-	// browser and cookie its session, paired at the https address of the test on first use.
-	Key     string
-	Owner   *Passkey
-	cookie  string
-	devices map[string]string
-	secure  *secure
-	opts    []Option
-	wait    time.Duration
-	stop    func(wait bool)
+	// HereCookie is the cookie of the owner's browser at deck.localhost, which the owner's calls carry, of the passkey
+	// local; Owner and cookie are those of the owner's browser at the https address of the test, paired on first use.
+	HereCookie string
+	local      *Passkey
+	Owner      *Passkey
+	cookie     string
+	devices    map[string]string
+	secure     *secure
+	opts       []Option
+	wait       time.Duration
+	stop       func(wait bool)
 }
 
 type probeIn struct {
@@ -89,7 +89,8 @@ type setup struct {
 	wait      time.Duration
 	every     bool
 	proxies   []string
-	key       string
+	session   string
+	local     *Passkey
 	owner     *Passkey
 	cookie    string
 }
@@ -214,7 +215,7 @@ func New(t *testing.T, opts ...Option) *Env {
 	ts.Config.Handler = srv.Handler()
 	ts.Start()
 	e := &Env{T: t, App: a, URL: base, Side: "http://" + net.JoinHostPort("127.0.0.1", sidePort), Local: local, Here: here, Home: s.home, Fake: s.fake, Clock: s.clock, Names: map[int64]string{},
-		Browser: browser, Probes: probes, Key: s.key, Owner: s.owner, cookie: s.cookie, devices: map[string]string{}, opts: opts, wait: s.wait}
+		Browser: browser, Probes: probes, HereCookie: s.session, local: s.local, Owner: s.owner, cookie: s.cookie, devices: map[string]string{}, opts: opts, wait: s.wait}
 	var once sync.Once
 	e.stop = func(wait bool) {
 		once.Do(func() {
@@ -241,7 +242,7 @@ func New(t *testing.T, opts ...Option) *Env {
 		})
 	}
 	t.Cleanup(func() { e.stop(true) })
-	if e.Key == "" {
+	if e.HereCookie == "" {
 		e.pairOwner()
 	}
 	// The master looks into failed processes on a provider of its own, so tests of failures see only their calls.
@@ -268,7 +269,7 @@ func (e *Env) Restart(more ...Option) *Env {
 			opts = append(opts, func(s *setup) { s.providers, s.fake = nil, nil })
 		}
 	}
-	owner := func(s *setup) { s.key, s.owner, s.cookie = e.Key, e.Owner, e.cookie }
+	owner := func(s *setup) { s.session, s.local, s.owner, s.cookie = e.HereCookie, e.local, e.Owner, e.cookie }
 	e2 := New(e.T, append(append(opts, more...), WithHome(e.Home), owner)...)
 	for id, n := range e.Names {
 		e2.Names[id] = n
@@ -375,33 +376,26 @@ func closeBounded(t *testing.T, ts *httptest.Server) {
 	}
 }
 
-// pairOwner pairs the owner's launcher by a code deck pair writes, as the launcher does when it opens its window.
+// pairOwner pairs the owner's browser at deck.localhost by a code deck pair writes, with a passkey of its own.
 func (e *Env) pairOwner() {
 	e.T.Helper()
-	key, err := e.Launcher()
+	code, _, err := e.App.Auth.Code(0, auth.Browser, "Mac")
 	if err != nil {
 		e.T.Fatal(err)
 	}
-	e.Key = key
+	e.local = NewPasskey()
+	if e.HereCookie, err = e.local.Pair(e.URL, e.Here, code, "Mac"); err != nil {
+		e.T.Fatal(err)
+	}
 }
 
-// Launcher pairs a launcher on this machine as the launcher does and gives its key; it takes the place of the one
-// before.
-func (e *Env) Launcher() (string, error) {
-	code, _, err := e.App.Auth.Code(0, auth.Launcher, "")
-	if err != nil {
-		return "", err
-	}
-	status, body, _, err := Rite(e.URL, e.URL, "pair/begin", map[string]any{"code": code})
-	var b struct{ Key string }
-	if err != nil || status != 200 || json.Unmarshal(body, &b) != nil || b.Key == "" {
-		return "", fmt.Errorf("the launcher pairs: %d %s %v", status, body, err)
-	}
-	return b.Key, nil
-}
-
-// signIn signs the owner in again once the session of a call ran out: the launcher pairs again.
+// signIn signs the owner in again once the session of a call ran out, with the passkey, as the client does; a
+// browser revoked since pairs again.
 func (e *Env) signIn() {
 	e.T.Helper()
+	if s, err := e.local.Login(e.URL, e.Here); err == nil {
+		e.HereCookie = s
+		return
+	}
 	e.pairOwner()
 }

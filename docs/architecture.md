@@ -125,7 +125,7 @@ the client.
 
 ```bash
 go build -tags tailnet -o deck ./cmd/deck   # without the tag: no tailnet, a smaller binary
-DECK_HOME=/tmp/deckhome ./deck              # prints the URL with the access token (default home ~/.deck2)
+DECK_HOME=/tmp/deckhome ./deck              # prints http://deck.localhost:7700 and the first link (default home ~/.deck2)
 ./deck -tailscale deck                      # the same on your tailnet over HTTPS
 cd web && npm ci && npm run build           # type check and rebuild the embedded client (web/dist)
 sqlc generate                               # after editing internal/store/queries or migrations
@@ -135,24 +135,20 @@ To build for another Mac with Apple silicon:
 `GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -tags tailnet -trimpath -o deck ./cmd/deck` (the SQLite driver
 is pure Go). On start, deck migrates the database and the stored manifests to the current format.
 
-The desktop launcher (`desktop/`, Wails) is a separate Go module. deck itself knows nothing about it.
-`desktop/build.sh` makes `deck.app` and the Windows installer, which runs deck in a WSL2 distribution.
-
 **Releases and updates.** A tag `v*` runs `.github/workflows/release.yml`. It builds deck for macOS arm64 and Linux
-amd64/arm64, each with and without the tailnet, plus `deck-macos.zip` (deck.app) and `deck-setup.exe`.
+amd64/arm64, each with and without the tailnet.
 `cmd/deck-release` writes `release.json` with the size and sha256 of each file and signs it with the ed25519 key in
-the secret `DECK_RELEASE_KEY` of the GitHub environment `release`. The public key is `internal/release/release.pub`, built into deck and,
-as a copy, into the launcher. `-ldflags -X deck2/internal/release.Version=…` sets the version; `deck -version`
+the secret `DECK_RELEASE_KEY` of the GitHub environment `release`. The public key is `internal/release/release.pub`, built into deck. `-ldflags -X deck2/internal/release.Version=…` sets the version; `deck -version`
 prints it with the build. `internal/app/updates` reads the latest list once a day through `gateway.Fetch` and keeps
 the health row `update`. Its `deck.update_install` puts the binary of its build in place and restarts deck with
 `syscall.Exec` after a full stop. It takes a snapshot first and keeps the old binary until the new deck serves
-(`state/update.json`). A start that finds that update already tried goes back to the old binary. A deck started by the launcher (`DECK_LAUNCHER`) instead exits with code 75. The
-launcher then replaces deck.app whole, or on Windows runs the new installer silently.
+(`state/update.json`). A start that finds that update already tried goes back to the old binary.
 
 **Server image.** After the release the same workflow builds `Dockerfile` on native amd64 and arm64 runners and
-pushes `ghcr.io/teaarte/deck:<version>` and `:latest`. `compose.yaml` runs it with Caddy in front (`DECK_DOMAIN`,
-HTTPS on 443 and the second origin on 8443; deck takes `-public` and trusts `X-Forwarded-Proto`), optionally on the
-tailnet (`DECK_TAILSCALE`). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
+pushes `ghcr.io/teaarte/deck:<version>` and `:latest`. `compose.yaml` runs it on 127.0.0.1:7700 and 7701, where a browser of
+the machine opens deck at deck.localhost; with a domain (`DECK_DOMAIN` and the profile `domain`) Caddy is in front,
+HTTPS on 443 and the second origin on 8443, deck takes `-public` and X-Forwarded-For only from Caddy (`-proxy`);
+optionally on the tailnet (`DECK_TAILSCALE`). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
 Claude Code and Codex are signed in from Settings → Models (`deck.agent_login`), their logins live in the volume
 `agents`.
 
@@ -175,4 +171,4 @@ The runs against Codex, ACP agents on local models and package installs are list
 ## Stack
 
 Go · SQLite (modernc, sqlc, goose) · MCP (go-sdk) · React + Vite + Mantine v9 + A2UI v0.9 · MCP Apps
-(`@modelcontextprotocol/ext-apps`) · `sandbox-exec` / bubblewrap · tsnet · Wails (desktop launcher).
+(`@modelcontextprotocol/ext-apps`) · `sandbox-exec` / bubblewrap · tsnet.

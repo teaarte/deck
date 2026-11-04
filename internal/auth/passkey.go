@@ -28,15 +28,13 @@ type ceremony struct {
 }
 
 // Begun is what a begun ceremony gives the browser, or the session of a device signed in: a browser's in its cookie,
-// that of the launcher or a node as a key it sends in the header Authorization.
+// that of a node as a key it sends in the header Authorization.
 type Begun struct {
 	Ceremony string `json:"ceremony,omitempty"`
 	Options  any    `json:"options,omitempty"`
 	Cookie   string `json:"-"`
 	Key      string `json:"key,omitempty"`
 	Device   int64  `json:"device,omitempty"`
-	// Kicked are the devices the pairing took the place of, whose open connections end once it is committed.
-	Kicked []int64 `json:"-"`
 }
 
 // owner is the owner as a device knows them: a user handle of the device's own, so the passkey of one device never
@@ -86,9 +84,9 @@ func (a *Auth) finish(id string, o Origin) (ceremony, error) {
 	return c, nil
 }
 
-// PairBegin begins to pair a device by its code at an origin: a passkey ceremony for a browser; the launcher, on this
-// machine only, and a node pair at once with no passkey and get a key. A launcher takes the place of the one before.
-func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string, loopback bool) (Begun, error) {
+// PairBegin begins to pair a device by its code at an origin: a passkey ceremony for a browser; a node pairs at once
+// with no passkey and gets a key.
+func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string) (Begun, error) {
 	a.mu.Lock()
 	c, err := a.take(raw, true)
 	a.mu.Unlock()
@@ -96,9 +94,6 @@ func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string, loopback boo
 		return Begun{}, err
 	}
 	if c.Kind != Browser {
-		if c.Kind == Launcher && !loopback {
-			return Begun{}, errors.New("deck: the launcher pairs only on the machine deck runs on")
-		}
 		a.mu.Lock()
 		err := a.spend(c)
 		a.mu.Unlock()
@@ -168,7 +163,7 @@ func (a *Auth) PairFinish(ctx context.Context, o Origin, id, name string, body [
 func (a *Auth) device(ctx context.Context, p db.CreateDeviceParams) (Begun, error) {
 	now := a.cfg.Now()
 	p.SeenAt = store.At(now)
-	b, err := store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
+	return store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
 		if p.WorkspaceID == 0 {
 			spaces, err := q.ListWorkspaces(ctx)
 			if err != nil || len(spaces) == 0 {
@@ -176,23 +171,12 @@ func (a *Auth) device(ctx context.Context, p db.CreateDeviceParams) (Begun, erro
 			}
 			p.WorkspaceID = spaces[0]
 		}
-		var b Begun
-		if p.Kind == Launcher {
-			if err := q.DeleteKindSessions(ctx, db.DeleteKindSessionsParams{WorkspaceID: p.WorkspaceID, Kind: Launcher}); err != nil {
-				return Begun{}, err
-			}
-			gone, err := q.DeleteKind(ctx, db.DeleteKindParams{WorkspaceID: p.WorkspaceID, Kind: Launcher})
-			if err != nil {
-				return Begun{}, err
-			}
-			b.Kicked = gone
-		}
 		d, err := q.CreateDevice(ctx, p)
 		if err != nil {
 			return Begun{}, err
 		}
 		raw, err := a.start(ctx, q, d.ID)
-		b.Device = d.ID
+		b := Begun{Device: d.ID}
 		if p.Kind == Browser {
 			b.Cookie = raw
 		} else {
@@ -200,10 +184,6 @@ func (a *Auth) device(ctx context.Context, p db.CreateDeviceParams) (Begun, erro
 		}
 		return b, err
 	})
-	for _, id := range b.Kicked {
-		a.Kick(id)
-	}
-	return b, err
 }
 
 // LoginBegin begins to sign in with a passkey of the origin; the browser offers those it has.

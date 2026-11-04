@@ -82,14 +82,14 @@ func newBinary(version string) []byte {
 }
 
 // updateEnv is a deck of v0.1.0 whose binary is a file of the test, updated from the fake release.
-func updateEnv(t *testing.T, r *fakeRelease, launcher bool, script harness.Script) (*harness.Env, string, chan release.Restart) {
+func updateEnv(t *testing.T, r *fakeRelease, script harness.Script) (*harness.Env, string, chan release.Restart) {
 	exe := filepath.Join(t.TempDir(), "deck")
 	if err := harness.WriteProgram(exe, newBinary("v0.1.0")); err != nil {
 		t.Fatal(err)
 	}
 	restarts := make(chan release.Restart, 1)
 	e := harness.New(t, harness.WithAgent(script), harness.WithConfig(func(c *app.Config) {
-		c.Releases, c.Version, c.Variant, c.Launcher = r.source(), "v0.1.0", "deck-test", launcher
+		c.Releases, c.Version, c.Variant = r.source(), "v0.1.0", "deck-test"
 		c.Exe = func() (string, error) { return exe, nil }
 		c.Restart = func(rs release.Restart) { restarts <- rs }
 	}))
@@ -103,7 +103,7 @@ func TestDeckUpdatesItselfFromASignedRelease(t *testing.T) {
 	t.Parallel()
 	r := newRelease(t)
 	r.publish(t, "v0.2.0", map[string][]byte{"deck-test": newBinary("v0.2.0"), "deck-other": []byte("other")}, nil)
-	e, exe, restarts := updateEnv(t, r, false, nil)
+	e, exe, restarts := updateEnv(t, r, nil)
 	var v struct {
 		Version, Latest string
 		Newer           bool
@@ -148,7 +148,7 @@ func TestDeckUpdatesItselfFromASignedRelease(t *testing.T) {
 	if !pending || p.Version != "v0.2.0" || p.Old != rs.Old {
 		t.Fatalf("the update waits to be served, the old binary named: %+v", p)
 	}
-	if rs.Launcher || rs.Exe != exe || string(got) != string(newBinary("v0.2.0")) || string(old) != string(newBinary("v0.1.0")) {
+	if rs.Exe != exe || string(got) != string(newBinary("v0.2.0")) || string(old) != string(newBinary("v0.1.0")) {
 		t.Fatalf("the new binary stands in place of the old, which is kept: %+v %q %q", rs, got, old)
 	}
 }
@@ -171,7 +171,7 @@ func TestDeckRefusesAReleaseThatIsNotSigned(t *testing.T) {
 				r.files["deck-test"] = tc.served
 				r.mu.Unlock()
 			}
-			e, exe, restarts := updateEnv(t, r, false, nil)
+			e, exe, restarts := updateEnv(t, r, nil)
 			if status, body := e.Call("deck.update_install", nil); status < 400 {
 				t.Fatalf("the update is refused: %d %s", status, body)
 			}
@@ -184,28 +184,13 @@ func TestDeckRefusesAReleaseThatIsNotSigned(t *testing.T) {
 	}
 }
 
-// A deck its launcher runs asks the launcher to update it and replaces nothing itself.
-func TestDeckOfALauncherAsksTheLauncher(t *testing.T) {
-	t.Parallel()
-	r := newRelease(t)
-	r.publish(t, "v0.2.0", map[string][]byte{release.MacApp: []byte("zip")}, nil)
-	e, exe, restarts := updateEnv(t, r, true, nil)
-	e.Must("deck.update_install", nil, nil)
-	if rs := <-restarts; !rs.Launcher {
-		t.Fatalf("the launcher is asked: %+v", rs)
-	}
-	if got, _ := os.ReadFile(exe); string(got) != string(newBinary("v0.1.0")) {
-		t.Fatalf("deck replaced nothing itself: %q", got)
-	}
-}
-
 // Only the owner updates deck: neither the master nor an agent of a module may.
 func TestOnlyTheOwnerUpdatesDeck(t *testing.T) {
 	t.Parallel()
 	r := newRelease(t)
 	r.publish(t, "v0.2.0", map[string][]byte{"deck-test": newBinary("v0.2.0")}, nil)
 	said := make(chan string, 2)
-	e, exe, _ := updateEnv(t, r, false, func(ctx context.Context, c *harness.Call) provider.Result {
+	e, exe, _ := updateEnv(t, r, func(ctx context.Context, c *harness.Call) provider.Result {
 		out, bad := c.Tool(ctx, "update_install", map[string]any{})
 		if !bad {
 			out = "done: " + out

@@ -1,5 +1,4 @@
 import { kindOf, PREVIEW, type Item } from './kinds';
-import { useSrc } from './useBlob';
 import { TypeIcon } from './TypeIcon';
 import s from './files.module.css';
 
@@ -10,7 +9,7 @@ export function Thumb({ it, size }: { it: Item; size: number }) {
   const box = { width: size, height: size };
   const image = !it.error && kind === 'image' && (it.thumb || (it.size ?? 0) <= PREVIEW);
   const video = !it.error && kind === 'video';
-  const src = useSrc(image ? it.thumb ?? it.url : video ? it.url : undefined);
+  const src = image ? it.thumb ?? it.url : video ? it.url : undefined;
   if (image) {
     return <img className={s.thumb} style={{ ...box, background: it.color }} src={src} alt="" loading="lazy" decoding="async" data-thumb="image" />;
   }

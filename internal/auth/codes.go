@@ -42,9 +42,9 @@ func (a *Auth) Code(workspace int64, kind, name string) (string, time.Time, erro
 // is deck's first one.
 func WriteCode(h home.Layout, now time.Time, workspace int64, kind, name string) (string, time.Time, error) {
 	switch kind {
-	case Browser, Launcher, Node:
+	case Browser, Node:
 	default:
-		return "", time.Time{}, errors.New("deck: a device is a browser, the launcher or a node")
+		return "", time.Time{}, errors.New("deck: a device is a browser or a node")
 	}
 	raw, until := nonce.Token(), now.Add(CodeLife)
 	c := code{Hash: hash(raw), Until: until, Kind: kind, Name: name, Workspace: workspace}

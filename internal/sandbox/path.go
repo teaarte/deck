@@ -18,7 +18,7 @@ import (
 )
 
 // Path is the PATH deck finds programs on and gives the programs it starts: its own, then the login shell's, then
-// the folders installers put agent CLIs, uv, python and node in; a launcher or a service starts deck with a short one.
+// the folders installers put agent CLIs, uv, python and node in; a service starts deck with a short one.
 func Path() string {
 	dirs := filepath.SplitList(lookup("PATH"))
 	dirs = append(dirs, filepath.SplitList(login())...)

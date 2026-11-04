@@ -55,8 +55,8 @@ func (s *Server) rite(step func(http.ResponseWriter, *http.Request, riteIn)) htt
 	}
 }
 
-// begun answers a step: the options of a ceremony for the browser, the cookie of a browser signed in, or the key of
-// the launcher or a node.
+// begun answers a step: the options of a ceremony for the browser, the cookie of a browser signed in, or the key of a
+// node.
 func (s *Server) begun(w http.ResponseWriter, r *http.Request, b auth.Begun, err error) {
 	if err != nil {
 		status := http.StatusForbidden
@@ -74,7 +74,7 @@ func (s *Server) begun(w http.ResponseWriter, r *http.Request, b auth.Begun, err
 }
 
 func (s *Server) pairBegin(w http.ResponseWriter, r *http.Request, in riteIn) {
-	b, err := s.app.Auth.PairBegin(r.Context(), originOf(r), in.Code, local(r))
+	b, err := s.app.Auth.PairBegin(r.Context(), originOf(r), in.Code)
 	s.begun(w, r, b, err)
 }
 

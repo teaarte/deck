@@ -7,8 +7,10 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
 
 - Build: `go build -tags tailnet -o deck ./cmd/deck` (the owner's deck; without the tag there is no tailnet and
   `-tailscale` refuses to start); web client: `cd web && npm ci && npm run build` (type check + `web/dist`)
-- Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token; the next port is the second origin of
-  `custom` blocks); on the owner's tailnet: `./deck -tailscale deck` (sign-in link in the log and in health)
+- Run: `DECK_HOME=/tmp/deckhome ./deck` (prints http://deck.localhost:7700 and, until a device pairs, the link that
+  pairs one; `./deck pair` makes the next; the next port is the second origin of `custom` blocks); on the owner's
+  tailnet: `./deck -tailscale deck` (sign-in link in the log and in health); as the owner and everyone else installs
+  it: Docker + `compose.yaml` (README, "Install")
 - Tests: `go test -race -timeout 30m ./...` (one wait, `Until`, two minutes, ×4 under race or `DECK_TEST_SLOW`); the tailnet scenario only with the tag:
   `go test -tags tailnet ./tests/scenarios/owner -run TestPhoneReachesDeckOverTheTailnet`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios/real -run TestRealClaudeCode -v`
@@ -24,8 +26,6 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
 - deck's image from `compose.yaml` on a bare docker (docker in docker, Codex on a model of the test), and its update
   from the volumes of v0.1: `DECK_SERVER=1 go test ./tests/scenarios/real -run TestServer -v`; `compose.yaml` needs
   `seccomp.json` beside it and the AppArmor profile `deck-box.apparmor` loaded on a host with AppArmor
-- The desktop launcher (its own module): `cd desktop && go test ./...`; `desktop/build.sh` makes `deck.app` and the
-  Windows installer (`brew install makensis`)
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`
 - Regenerate the Codex protocol types from the installed CLI: `go generate ./internal/provider/codex`
 
@@ -105,8 +105,6 @@ hold; look inside a package for the rest.
   down, a domain only `internal/app` imports, a package in no layer is an error); the rules of Go (`rules.go`: os/exec
   only in sandbox, HTTP clients only in egress, file writes only in home, the environment only in cmd/deck, …) keep
   their current exceptions by file:line in `exceptions.go`, a list that only shrinks.
-- `desktop` — the launcher on the desktop (Wails, a Go module of its own): tray, window on deck's address, start at
-  login; on Windows deck runs in its WSL2 distribution `deck` (`docs/spikes/windows.md`). deck knows nothing of it.
 - `starters` — the modules deck offers on its first run, a folder each as `deck.project_export` makes it; data, no
   code of deck for any of them, roles rather than the connections of their author.
 - `master` — the built-in project master (manifest, prompts, skills) and `templates`, deck's texts for agents: the

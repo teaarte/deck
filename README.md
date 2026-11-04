@@ -222,22 +222,17 @@ DECK_HOME=/tmp/deckhome ./deck          # another data folder
 ./deck -tailscale deck                  # with the tag: join your tailnet as "deck" over HTTPS
 ```
 
-Releases are on [GitHub](https://github.com/teaarte/deck/releases): `deck-<os>-<arch>` (`-tailnet` with the tailnet),
-`deck-macos.zip` with deck.app and `deck-setup.exe` for Windows.
+Releases are on [GitHub](https://github.com/teaarte/deck/releases): `deck-<os>-<arch>` (`-tailnet` with the tailnet)
+and the image `ghcr.io/teaarte/deck`.
 
 **Updating.** A released deck looks for a new release once a day. When one is out, Settings → Advanced and a note in
 the feed show an **Update** button, which only the owner can press. deck downloads the build it was made from and
 checks it against `release.json`, whose ed25519 signature it checks with the key built into it. It takes a snapshot, puts the
 new binary in place and restarts; the agents go on in their sessions. If the new version never gets as far as
 serving, the next start goes back to the old one. If the signature or a sha256 does not match, deck
-stays as it is. deck.app and the Windows installer are updated whole by their launcher. A deck built from source
+stays as it is. A deck built from source
 calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`. On start, deck migrates its
 database and the stored manifests.
-
-- **Desktop app.** `desktop/build.sh` builds `deck.app` for macOS and an installer for Windows, where deck runs in
-  its own WSL2 distribution (not yet tried on a real Windows machine). The launcher lives in the tray and can start
-  at login; its window is a device of its own, paired by `deck pair --device launcher` on this machine only, its key
-  in the header, not a cookie.
 
 ## Status
 

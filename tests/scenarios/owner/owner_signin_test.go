@@ -101,8 +101,8 @@ func TestADevicePairsByALinkAndSignsInWithItsPasskey(t *testing.T) {
 	}
 	var ds []device
 	e.Must("deck.devices_list", map[string]any{}, &ds)
-	if len(ds) != 2 || !ds[0].This || ds[0].Kind != "launcher" || ds[1].This || ds[1].Name != "phone" || ds[1].Kind != "browser" || !ds[1].Passkey {
-		t.Fatalf("the launcher and the browser are devices of the owner, the caller's marked: %+v", ds)
+	if len(ds) != 2 || !ds[0].This || ds[0].Kind != "browser" || !ds[0].Passkey || ds[1].This || ds[1].Name != "phone" || ds[1].Kind != "browser" || !ds[1].Passkey {
+		t.Fatalf("both browsers are devices of the owner, the caller's marked: %+v", ds)
 	}
 	ended := stream(t, e, cookie)
 	req, _ := http.NewRequest("POST", e.URL+"/auth/logout", nil)
@@ -282,44 +282,25 @@ func TestALentTokenOnlyReads(t *testing.T) {
 	}
 }
 
-// TestTheLauncherPairsOnThisMachineByAKey: the launcher pairs and calls only at deck's plain address on this machine,
-// with a key in the header and no cookie; a launcher paired again takes the place of the one before.
-func TestTheLauncherPairsOnThisMachineByAKey(t *testing.T) {
+// TestADeviceIsABrowserOrANode: no code pairs a launcher any more; a node pairs at once with a key in the header and
+// no cookie, and its key calls no command of deck yet.
+func TestADeviceIsABrowserOrANode(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.App.Auth.Origins().Add("https://deck.example.test", "https://deck.example.test:8443")
-	code, _, err := e.App.Auth.Code(0, "launcher", "")
+	if _, _, err := e.App.Auth.Code(0, "launcher", ""); err == nil {
+		t.Fatal("no code pairs a launcher")
+	}
+	code, _, err := e.App.Auth.Code(0, "node", "mac")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status, out, _, _ := harness.Rite(e.URL, "https://deck.example.test", "pair/begin", map[string]any{"code": code}); status != 403 || !strings.Contains(string(out), "machine") {
-		t.Fatalf("the launcher pairs only on the machine deck runs on: %d %s", status, out)
-	}
-	first := e.Key
-	status, out, cookie, _ := harness.Rite(e.URL, e.Local, "pair/begin", map[string]any{"code": code})
+	status, out, cookie, _ := harness.Rite(e.URL, e.Here, "pair/begin", map[string]any{"code": code})
 	if status != 200 || cookie != "" || !strings.Contains(string(out), `"key"`) {
-		t.Fatalf("the launcher gets a key and no cookie: %d %s %q", status, out, cookie)
+		t.Fatalf("a node gets a key and no cookie: %d %s %q", status, out, cookie)
 	}
-	if code, _ := e.As(first).Call("deck.menu_get", map[string]any{}); code != 401 {
-		t.Fatalf("a launcher paired again takes the place of the one before: %d", code)
-	}
-	var ds []device
 	key := strings.Split(strings.Split(string(out), `"key":"`)[1], `"`)[0]
-	e.As(key).Must("deck.devices_list", map[string]any{}, &ds)
-	if len(ds) != 1 || !ds[0].This || ds[0].Kind != "launcher" {
-		t.Fatalf("the list has the new launcher alone: %+v", ds)
-	}
-	// tailscale serve on this machine brings every peer of the tailnet from loopback, to deck's https address.
-	req, _ := http.NewRequest("POST", e.URL+"/api/commands/deck.menu_get", strings.NewReader("{}"))
-	req.Host = "deck.example.test"
-	harness.Bearer(key)(req)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != 401 {
-		t.Fatalf("the key of the launcher signs in only at deck's plain address on this machine: %d", resp.StatusCode)
+	if code, _ := e.As(key).Call("deck.menu_get", map[string]any{}); code != 401 {
+		t.Fatalf("the key of a node calls no command of deck: %d", code)
 	}
 }
 
@@ -378,8 +359,8 @@ func TestDeckAnswersOnlyAtItsAddresses(t *testing.T) {
 	none := func(e *harness.Env) bool {
 		return !slices.ContainsFunc(e.Health(), func(h harness.HealthRow) bool { return h.Subject == "https" })
 	}
-	if code := open(e, strings.TrimPrefix(e.Local, "http://")); code != 200 {
-		t.Fatalf("deck answers on localhost: %d", code)
+	if code := open(e, strings.TrimPrefix(e.Here, "http://")); code != 200 {
+		t.Fatalf("deck answers at deck.localhost: %d", code)
 	}
 	if code := open(e, "localhost:1"); code != 421 || !none(e) {
 		t.Fatalf("another port of loopback gets nothing and no hint: %d", code)

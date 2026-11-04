@@ -59,7 +59,7 @@ func Layers(root string) ([]Violation, error) {
 			return err
 		}
 		if d.IsDir() {
-			if path != root && slices.Contains(append(skipDirs, "desktop", "tests", "docs"), d.Name()) {
+			if path != root && slices.Contains(append(skipDirs, "tests", "docs"), d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil

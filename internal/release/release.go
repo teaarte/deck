@@ -26,9 +26,6 @@ const (
 	// List is the list of the files; Signature its ed25519 signature in base64.
 	List      = "release.json"
 	Signature = "release.json.sig"
-	// MacApp is deck.app for macOS in a zip; Setup the installer for Windows.
-	MacApp = "deck-macos.zip"
-	Setup  = "deck-setup.exe"
 )
 
 //go:embed release.pub
@@ -136,15 +133,11 @@ func parse(v string) ([3]int, bool) {
 	return out, true
 }
 
-// Restart is how deck ends to take an update: in place, its binary at Exe new and the old one kept at Old until the
-// new one runs, or by its launcher, which updates what it runs.
+// Restart is how deck ends to take an update in place: its binary at Exe new and the old one kept at Old until the
+// new one runs.
 type Restart struct {
-	Launcher bool
 	Exe, Old string
 }
-
-// LauncherCode is the exit code with which deck asks its launcher to update it.
-const LauncherCode = 75
 
 // Pending is an update put in place whose deck has not served yet: a start that finds it tried starts the old binary.
 type Pending struct {

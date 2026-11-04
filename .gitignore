@@ -5,7 +5,6 @@
 .DS_Store
 /web/node_modules
 /web/tsconfig.tsbuildinfo
-/desktop/dist
 
 # docs stay on the owner's disk; git keeps only what README links to
 /docs/*

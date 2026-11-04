@@ -1,14 +1,11 @@
 package main
 
 import (
-	"cmp"
 	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"deck2/internal/app"
 	"deck2/internal/auth"
@@ -16,10 +13,10 @@ import (
 )
 
 // pair is deck pair: it writes a code that pairs one device where deck reads it, running or not, and prints the
-// links that carry it; the launcher takes its link from here.
+// links that carry it.
 func pair(args []string) error {
 	set := flag.NewFlagSet("deck pair", flag.ContinueOnError)
-	device := set.String("device", auth.Browser, "what pairs: browser, launcher or node")
+	device := set.String("device", auth.Browser, "what pairs: browser or node")
 	name := set.String("name", "", "the name of the device in the list of devices")
 	if err := set.Parse(args); err != nil {
 		return err
@@ -33,11 +30,7 @@ func pair(args []string) error {
 		return err
 	}
 	origins := auth.ReadOrigins(h.Origins())
-	switch *device {
-	case auth.Launcher:
-		fmt.Println(local(origins) + "/#pair=" + code)
-		return nil
-	case auth.Node:
+	if *device == auth.Node {
 		fmt.Println(code)
 		return nil
 	}
@@ -50,20 +43,6 @@ func pair(args []string) error {
 		fmt.Println(l)
 	}
 	return nil
-}
-
-// local is deck's address on this machine the launcher's window opens, from the origins deck kept or its -addr.
-func local(origins []auth.Origin) string {
-	for _, o := range origins {
-		if strings.HasPrefix(o.Main, "http://localhost:") {
-			return o.Main
-		}
-	}
-	_, port, err := net.SplitHostPort(cmp.Or(os.Getenv("DECK_ADDR"), "127.0.0.1:7700"))
-	if err != nil {
-		port = "7700"
-	}
-	return "http://localhost:" + port
 }
 
 // homeDir is deck's home: DECK_HOME, else .deck2 in the user's home.

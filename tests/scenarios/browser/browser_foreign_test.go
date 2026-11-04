@@ -38,11 +38,12 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 		files.ServeHTTP(w, r)
 	}))
 	t.Cleanup(page.Close)
-	e.App.Auth.Origins().Add(page.URL, e.Side)
+	at := strings.Replace(page.URL, "127.0.0.1", "deck.localhost", 1)
+	e.App.Auth.Origins().Add(at, strings.Replace(e.Side, "127.0.0.1", "deck.localhost", 1))
 
 	b := Open(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
-	b.OpenVia(page.URL, e, "&project=web&screen=main")
+	b.OpenVia(at, e, "&project=web&screen=main")
 	b.until("the screen drawn by the stock renderer", `document.querySelector('[data-foreign] [data-screen]') && !document.body.hasAttribute('data-foreign-error') && document.body.innerText.includes('alpha')`)
 	b.until("the dialog as a stock Modal with a stock Button of a stock Text", `[...document.querySelectorAll('.a2ui-modal-trigger button')].some((x) => x.innerText === 'Score again')`)
 	b.shot("foreign-screen")
@@ -54,7 +55,7 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 	b.until("a press as an A2UI action named by its command with the button as its context",
 		`JSON.parse(document.querySelector('[data-foreign-actions]').innerText).some((a) => a.name === 'web.tell' && a.context.command === 'web.tell' && a.sourceComponentId === 'b1')`)
 
-	b.OpenVia(page.URL, e, "&screen=settings")
+	b.OpenVia(at, e, "&screen=settings")
 	b.until("deck's tabs as stock Tabs", `document.querySelectorAll('.a2ui-tab-button').length === 5 && !document.body.hasAttribute('data-foreign-error')`)
 	b.eval(`(document.querySelectorAll('.a2ui-tab-button')[2].click(), '')`)
 	b.until("the third tab with its stats", `document.querySelector('[data-stat-block]')`)

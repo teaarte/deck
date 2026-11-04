@@ -52,7 +52,8 @@ func TestRealBrowserSignsInAtDeckLocalhost(t *testing.T) {
 			}
 			mu.Unlock()
 
-			b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.context().clearCookies(); }`})
+			// The session ends; the mark of the device stays, so the passkey signs the browser in as the same device.
+			b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.context().clearCookies({ name: /^deck-\d+$/ }); }`})
 			b.open(e.Here + "/")
 			b.until("the page that signs in with a passkey", `document.querySelector('[data-signin="passkey"]')`)
 			b.press(`[data-signin="passkey"]`)

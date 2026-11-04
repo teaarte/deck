@@ -171,7 +171,9 @@ Codex shows a link and a code, Claude Code a link whose page gives the code to e
 
 **Signing in.** A device pairs once by a link of `deck pair` (or of Settings → Devices on a device signed in, with its
 QR code for a phone) and makes a passkey there; the link works once, within ten minutes, and the passkey signs the
-device in from then on. Settings → Devices lists every device, renames and revokes them. On `http://localhost` deck
+device in from then on. A passkey synced to your other devices (iCloud Keychain, Google Password Manager) signs each
+browser in as a device of its own. Settings → Devices lists every device and passkey: revoking a device signs out that
+browser alone, revoking a passkey signs out every browser that used it. On `http://localhost` deck
 gives no cookie: the browser would send it to every server on localhost, whatever its port; deck sends a page opened
 there to `deck.localhost`. A cookie of `deck.localhost` goes to that name on any port too, so open no link to
 `deck.localhost` with another port.

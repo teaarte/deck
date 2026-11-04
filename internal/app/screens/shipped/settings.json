@@ -156,10 +156,11 @@
         {"type": "dialog", "name": "pair", "title": "Pair a device", "icon": "qrcode", "blocks": [
           {"type": "form", "command": "deck.pair_link", "keep_open": true}]},
         {"type": "table", "title": "Devices", "source": {"from": "deck.devices_list", "where": "!revoked"}, "span": 2,
-          "description": "The browsers with their passkeys and the nodes that sign in to deck; a revoked one comes back only by a new link.",
+          "description": "Each browser signed in to deck and each node; revoking one signs out only that one. A device of pushes only came before passkeys: revoke it if you do not know it.",
           "columns": [
             {"label": "Name", "bind": "name"},
-            {"label": "Kind", "bind": "kind == 'node' ? 'node' : passkey ? 'browser' : 'pushes only'", "format": "tag", "tone": "passkey || kind != 'browser' ? 'ok' : 'warn'"},
+            {"label": "Kind", "bind": "kind == 'node' ? 'node' : passkey != '' ? 'browser' : 'pushes only'", "format": "tag", "tone": "passkey != '' || kind != 'browser' ? 'ok' : 'warn'"},
+            {"label": "Passkey", "bind": "passkey"},
             {"label": "This device", "bind": "this ? '✓' : ''"},
             {"label": "Pushes", "bind": "push ? 'on' : ''"},
             {"label": "Seen", "bind": "seen_at", "format": "relative"}
@@ -167,6 +168,18 @@
           "actions": [
             {"verb": "edit", "command": "deck.device_rename", "params": {"device": "=id"}, "input": "name"},
             {"verb": "revoke", "confirm": true, "command": "deck.device_revoke", "params": {"device": "=id"}}
+          ]},
+        {"type": "table", "title": "Passkeys", "source": {"from": "deck.passkeys_list", "where": "!revoked"}, "span": 2,
+          "description": "A passkey synced to many browsers signs each in as a device of its own; revoking it signs all of them out, and it pairs again only by a new link.",
+          "columns": [
+            {"label": "Name", "bind": "name"},
+            {"label": "Address", "bind": "site"},
+            {"label": "Devices", "bind": "devices"},
+            {"label": "Seen", "bind": "seen_at", "format": "relative"}
+          ],
+          "actions": [
+            {"verb": "edit", "command": "deck.passkey_rename", "params": {"passkey": "=id"}, "input": "name"},
+            {"verb": "revoke", "confirm": true, "command": "deck.passkey_revoke", "params": {"passkey": "=id"}}
           ]}
       ]},
       {"title": "Advanced", "icon": "adjustments", "blocks": [

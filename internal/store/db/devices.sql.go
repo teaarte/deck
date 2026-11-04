@@ -10,32 +10,30 @@ import (
 	"database/sql"
 )
 
-const countSignedDevices = `-- name: CountSignedDevices :one
-SELECT COUNT(*) FROM device WHERE revoked_at IS NULL AND kind != 'browser' OR revoked_at IS NULL AND credential_id IS NOT NULL
+const countSigned = `-- name: CountSigned :one
+SELECT (SELECT COUNT(*) FROM passkey WHERE revoked_at IS NULL) + (SELECT COUNT(*) FROM device WHERE kind = 'node' AND revoked_at IS NULL)
 `
 
-// The devices that may still sign in, of every workspace.
-func (q *Queries) CountSignedDevices(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countSignedDevices)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+// The passkeys and nodes that may still sign in, of every workspace.
+func (q *Queries) CountSigned(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSigned)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createDevice = `-- name: CreateDevice :one
-INSERT INTO device (workspace_id, kind, name, rp_id, credential_id, user_handle, credential, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, workspace_id, kind, name, rp_id, credential_id, user_handle, credential, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at
+INSERT INTO device (workspace_id, kind, name, passkey_id, mark, seen_at) VALUES (?, ?, ?, ?, ?, ?)
+RETURNING id, workspace_id, kind, name, passkey_id, mark, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at
 `
 
 type CreateDeviceParams struct {
-	WorkspaceID  int64
-	Kind         string
-	Name         string
-	RpID         string
-	CredentialID []byte
-	UserHandle   []byte
-	Credential   string
-	SeenAt       sql.NullString
+	WorkspaceID int64
+	Kind        string
+	Name        string
+	PasskeyID   sql.NullInt64
+	Mark        sql.NullString
+	SeenAt      sql.NullString
 }
 
 func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Device, error) {
@@ -43,10 +41,8 @@ func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Dev
 		arg.WorkspaceID,
 		arg.Kind,
 		arg.Name,
-		arg.RpID,
-		arg.CredentialID,
-		arg.UserHandle,
-		arg.Credential,
+		arg.PasskeyID,
+		arg.Mark,
 		arg.SeenAt,
 	)
 	var i Device
@@ -55,13 +51,52 @@ func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Dev
 		&i.WorkspaceID,
 		&i.Kind,
 		&i.Name,
+		&i.PasskeyID,
+		&i.Mark,
+		&i.PushEndpoint,
+		&i.PushP256dh,
+		&i.PushAuth,
+		&i.CreatedAt,
+		&i.SeenAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const createPasskey = `-- name: CreatePasskey :one
+INSERT INTO passkey (workspace_id, name, rp_id, credential_id, user_handle, credential, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING id, workspace_id, name, rp_id, credential_id, user_handle, credential, created_at, seen_at, revoked_at
+`
+
+type CreatePasskeyParams struct {
+	WorkspaceID  int64
+	Name         string
+	RpID         string
+	CredentialID []byte
+	UserHandle   []byte
+	Credential   string
+	SeenAt       sql.NullString
+}
+
+func (q *Queries) CreatePasskey(ctx context.Context, arg CreatePasskeyParams) (Passkey, error) {
+	row := q.db.QueryRowContext(ctx, createPasskey,
+		arg.WorkspaceID,
+		arg.Name,
+		arg.RpID,
+		arg.CredentialID,
+		arg.UserHandle,
+		arg.Credential,
+		arg.SeenAt,
+	)
+	var i Passkey
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
 		&i.RpID,
 		&i.CredentialID,
 		&i.UserHandle,
 		&i.Credential,
-		&i.PushEndpoint,
-		&i.PushP256dh,
-		&i.PushAuth,
 		&i.CreatedAt,
 		&i.SeenAt,
 		&i.RevokedAt,
@@ -123,28 +158,26 @@ func (q *Queries) DeleteSessionsBefore(ctx context.Context, arg DeleteSessionsBe
 	return err
 }
 
-const deviceByCredential = `-- name: DeviceByCredential :one
-SELECT id, workspace_id, kind, name, rp_id, credential_id, user_handle, credential, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE credential_id = ? AND user_handle = ? AND rp_id = ? AND revoked_at IS NULL
+const deviceByMark = `-- name: DeviceByMark :one
+SELECT id, workspace_id, kind, name, passkey_id, mark, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE mark = ? AND workspace_id = ? AND kind = 'browser' AND revoked_at IS NULL
 `
 
-type DeviceByCredentialParams struct {
-	CredentialID []byte
-	UserHandle   []byte
-	RpID         string
+type DeviceByMarkParams struct {
+	Mark        sql.NullString
+	WorkspaceID int64
 }
 
-func (q *Queries) DeviceByCredential(ctx context.Context, arg DeviceByCredentialParams) (Device, error) {
-	row := q.db.QueryRowContext(ctx, deviceByCredential, arg.CredentialID, arg.UserHandle, arg.RpID)
+// The browser's own device, while it may still sign in.
+func (q *Queries) DeviceByMark(ctx context.Context, arg DeviceByMarkParams) (Device, error) {
+	row := q.db.QueryRowContext(ctx, deviceByMark, arg.Mark, arg.WorkspaceID)
 	var i Device
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
 		&i.Kind,
 		&i.Name,
-		&i.RpID,
-		&i.CredentialID,
-		&i.UserHandle,
-		&i.Credential,
+		&i.PasskeyID,
+		&i.Mark,
 		&i.PushEndpoint,
 		&i.PushP256dh,
 		&i.PushAuth,
@@ -156,7 +189,7 @@ func (q *Queries) DeviceByCredential(ctx context.Context, arg DeviceByCredential
 }
 
 const getDevice = `-- name: GetDevice :one
-SELECT id, workspace_id, kind, name, rp_id, credential_id, user_handle, credential, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE id = ? AND workspace_id = ?
+SELECT id, workspace_id, kind, name, passkey_id, mark, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE id = ? AND workspace_id = ?
 `
 
 type GetDeviceParams struct {
@@ -172,10 +205,8 @@ func (q *Queries) GetDevice(ctx context.Context, arg GetDeviceParams) (Device, e
 		&i.WorkspaceID,
 		&i.Kind,
 		&i.Name,
-		&i.RpID,
-		&i.CredentialID,
-		&i.UserHandle,
-		&i.Credential,
+		&i.PasskeyID,
+		&i.Mark,
 		&i.PushEndpoint,
 		&i.PushP256dh,
 		&i.PushAuth,
@@ -187,37 +218,148 @@ func (q *Queries) GetDevice(ctx context.Context, arg GetDeviceParams) (Device, e
 }
 
 const listDevices = `-- name: ListDevices :many
-SELECT id, workspace_id, kind, name, rp_id, credential_id, user_handle, credential, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE workspace_id = ? ORDER BY id
+SELECT d.id, d.workspace_id, d.kind, d.name, d.passkey_id, d.mark, d.push_endpoint, d.push_p256dh, d.push_auth, d.created_at, d.seen_at, d.revoked_at, COALESCE(p.name, '') AS passkey_name FROM device d LEFT JOIN passkey p ON p.id = d.passkey_id
+WHERE d.workspace_id = ? ORDER BY d.id
 `
 
-func (q *Queries) ListDevices(ctx context.Context, workspaceID int64) ([]Device, error) {
+type ListDevicesRow struct {
+	Device      Device
+	PasskeyName string
+}
+
+func (q *Queries) ListDevices(ctx context.Context, workspaceID int64) ([]ListDevicesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDevices, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Device
+	var items []ListDevicesRow
 	for rows.Next() {
-		var i Device
+		var i ListDevicesRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Kind,
-			&i.Name,
-			&i.RpID,
-			&i.CredentialID,
-			&i.UserHandle,
-			&i.Credential,
-			&i.PushEndpoint,
-			&i.PushP256dh,
-			&i.PushAuth,
-			&i.CreatedAt,
-			&i.SeenAt,
-			&i.RevokedAt,
+			&i.Device.ID,
+			&i.Device.WorkspaceID,
+			&i.Device.Kind,
+			&i.Device.Name,
+			&i.Device.PasskeyID,
+			&i.Device.Mark,
+			&i.Device.PushEndpoint,
+			&i.Device.PushP256dh,
+			&i.Device.PushAuth,
+			&i.Device.CreatedAt,
+			&i.Device.SeenAt,
+			&i.Device.RevokedAt,
+			&i.PasskeyName,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPasskeys = `-- name: ListPasskeys :many
+SELECT p.id, p.workspace_id, p.name, p.rp_id, p.credential_id, p.user_handle, p.credential, p.created_at, p.seen_at, p.revoked_at, (SELECT COUNT(*) FROM device d WHERE d.passkey_id = p.id AND d.revoked_at IS NULL) AS devices
+FROM passkey p WHERE p.workspace_id = ? ORDER BY p.id
+`
+
+type ListPasskeysRow struct {
+	Passkey Passkey
+	Devices int64
+}
+
+func (q *Queries) ListPasskeys(ctx context.Context, workspaceID int64) ([]ListPasskeysRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPasskeys, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPasskeysRow
+	for rows.Next() {
+		var i ListPasskeysRow
+		if err := rows.Scan(
+			&i.Passkey.ID,
+			&i.Passkey.WorkspaceID,
+			&i.Passkey.Name,
+			&i.Passkey.RpID,
+			&i.Passkey.CredentialID,
+			&i.Passkey.UserHandle,
+			&i.Passkey.Credential,
+			&i.Passkey.CreatedAt,
+			&i.Passkey.SeenAt,
+			&i.Passkey.RevokedAt,
+			&i.Devices,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const passkeyByCredential = `-- name: PasskeyByCredential :one
+SELECT id, workspace_id, name, rp_id, credential_id, user_handle, credential, created_at, seen_at, revoked_at FROM passkey WHERE credential_id = ? AND user_handle = ? AND rp_id = ? AND revoked_at IS NULL
+`
+
+type PasskeyByCredentialParams struct {
+	CredentialID []byte
+	UserHandle   []byte
+	RpID         string
+}
+
+func (q *Queries) PasskeyByCredential(ctx context.Context, arg PasskeyByCredentialParams) (Passkey, error) {
+	row := q.db.QueryRowContext(ctx, passkeyByCredential, arg.CredentialID, arg.UserHandle, arg.RpID)
+	var i Passkey
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.RpID,
+		&i.CredentialID,
+		&i.UserHandle,
+		&i.Credential,
+		&i.CreatedAt,
+		&i.SeenAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const passkeyDevices = `-- name: PasskeyDevices :many
+SELECT id FROM device WHERE passkey_id = ? AND workspace_id = ? AND revoked_at IS NULL
+`
+
+type PasskeyDevicesParams struct {
+	PasskeyID   sql.NullInt64
+	WorkspaceID int64
+}
+
+// The devices a passkey signed in last, while they may still sign in.
+func (q *Queries) PasskeyDevices(ctx context.Context, arg PasskeyDevicesParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, passkeyDevices, arg.PasskeyID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -246,8 +388,26 @@ func (q *Queries) RenameDevice(ctx context.Context, arg RenameDeviceParams) (int
 	return result.RowsAffected()
 }
 
+const renamePasskey = `-- name: RenamePasskey :execrows
+UPDATE passkey SET name = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL
+`
+
+type RenamePasskeyParams struct {
+	Name        string
+	ID          int64
+	WorkspaceID int64
+}
+
+func (q *Queries) RenamePasskey(ctx context.Context, arg RenamePasskeyParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, renamePasskey, arg.Name, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const revokeDevice = `-- name: RevokeDevice :execrows
-UPDATE device SET revoked_at = ?, push_endpoint = NULL, push_p256dh = '', push_auth = ''
+UPDATE device SET revoked_at = ?, mark = NULL, push_endpoint = NULL, push_p256dh = '', push_auth = ''
 WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL
 `
 
@@ -265,14 +425,33 @@ func (q *Queries) RevokeDevice(ctx context.Context, arg RevokeDeviceParams) (int
 	return result.RowsAffected()
 }
 
+const revokePasskey = `-- name: RevokePasskey :execrows
+UPDATE passkey SET revoked_at = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL
+`
+
+type RevokePasskeyParams struct {
+	RevokedAt   sql.NullString
+	ID          int64
+	WorkspaceID int64
+}
+
+func (q *Queries) RevokePasskey(ctx context.Context, arg RevokePasskeyParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokePasskey, arg.RevokedAt, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const sessionByHash = `-- name: SessionByHash :one
-SELECT s.created_at, s.seen_at, d.id, d.workspace_id, d.kind, d.name, d.rp_id, d.credential_id, d.user_handle, d.credential, d.push_endpoint, d.push_p256dh, d.push_auth, d.created_at, d.seen_at, d.revoked_at FROM session s JOIN device d ON d.id = s.device_id
+SELECT s.created_at, s.seen_at, s.settled, d.id, d.workspace_id, d.kind, d.name, d.passkey_id, d.mark, d.push_endpoint, d.push_p256dh, d.push_auth, d.created_at, d.seen_at, d.revoked_at FROM session s JOIN device d ON d.id = s.device_id
 WHERE s.hash = ? AND d.revoked_at IS NULL
 `
 
 type SessionByHashRow struct {
 	CreatedAt string
 	SeenAt    string
+	Settled   int64
 	Device    Device
 }
 
@@ -282,14 +461,13 @@ func (q *Queries) SessionByHash(ctx context.Context, hash string) (SessionByHash
 	err := row.Scan(
 		&i.CreatedAt,
 		&i.SeenAt,
+		&i.Settled,
 		&i.Device.ID,
 		&i.Device.WorkspaceID,
 		&i.Device.Kind,
 		&i.Device.Name,
-		&i.Device.RpID,
-		&i.Device.CredentialID,
-		&i.Device.UserHandle,
-		&i.Device.Credential,
+		&i.Device.PasskeyID,
+		&i.Device.Mark,
 		&i.Device.PushEndpoint,
 		&i.Device.PushP256dh,
 		&i.Device.PushAuth,
@@ -300,18 +478,54 @@ func (q *Queries) SessionByHash(ctx context.Context, hash string) (SessionByHash
 	return i, err
 }
 
-const setDeviceCredential = `-- name: SetDeviceCredential :exec
-UPDATE device SET credential = ?, seen_at = ? WHERE id = ?
+const setPasskeyCredential = `-- name: SetPasskeyCredential :exec
+UPDATE passkey SET credential = ?, seen_at = ? WHERE id = ?
 `
 
-type SetDeviceCredentialParams struct {
+type SetPasskeyCredentialParams struct {
 	Credential string
 	SeenAt     sql.NullString
 	ID         int64
 }
 
-func (q *Queries) SetDeviceCredential(ctx context.Context, arg SetDeviceCredentialParams) error {
-	_, err := q.db.ExecContext(ctx, setDeviceCredential, arg.Credential, arg.SeenAt, arg.ID)
+func (q *Queries) SetPasskeyCredential(ctx context.Context, arg SetPasskeyCredentialParams) error {
+	_, err := q.db.ExecContext(ctx, setPasskeyCredential, arg.Credential, arg.SeenAt, arg.ID)
+	return err
+}
+
+const settleSession = `-- name: SettleSession :exec
+UPDATE session SET device_id = ?, settled = 1 WHERE hash = ?
+`
+
+type SettleSessionParams struct {
+	DeviceID int64
+	Hash     string
+}
+
+func (q *Queries) SettleSession(ctx context.Context, arg SettleSessionParams) error {
+	_, err := q.db.ExecContext(ctx, settleSession, arg.DeviceID, arg.Hash)
+	return err
+}
+
+const signDevice = `-- name: SignDevice :exec
+UPDATE device SET passkey_id = ?, mark = ?, seen_at = ? WHERE id = ?
+`
+
+type SignDeviceParams struct {
+	PasskeyID sql.NullInt64
+	Mark      sql.NullString
+	SeenAt    sql.NullString
+	ID        int64
+}
+
+// A browser signed in again: by the passkey it signed in with, and its mark.
+func (q *Queries) SignDevice(ctx context.Context, arg SignDeviceParams) error {
+	_, err := q.db.ExecContext(ctx, signDevice,
+		arg.PasskeyID,
+		arg.Mark,
+		arg.SeenAt,
+		arg.ID,
+	)
 	return err
 }
 

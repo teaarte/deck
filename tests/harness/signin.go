@@ -12,14 +12,65 @@ import (
 	"github.com/descope/virtualwebauthn"
 )
 
-// Passkey is a passkey of a browser of the owner: a virtual authenticator that pairs and signs in as a browser does.
+// Passkey is a browser of the owner with its passkey: a virtual authenticator that pairs and signs in as a browser
+// does, keeping the mark of its device deck gives it.
 type Passkey struct {
 	auth virtualwebauthn.Authenticator
 	cred virtualwebauthn.Credential
+	mark string
+	// Agent is the User-Agent the browser sends, if any.
+	Agent string
 }
 
 func NewPasskey() *Passkey {
 	return &Passkey{auth: virtualwebauthn.NewAuthenticator(), cred: virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)}
+}
+
+// Synced is another browser with the same passkey, as a passkey synced by iCloud Keychain is: no mark of a device yet.
+func (p *Passkey) Synced() *Passkey { return &Passkey{auth: p.auth, cred: p.cred} }
+
+// Another is a new passkey in the same browser, which keeps the mark of its device.
+func (p *Passkey) Another() *Passkey {
+	n := NewPasskey()
+	n.mark, n.Agent = p.mark, p.Agent
+	return n
+}
+
+// Mark is the mark of its device the browser keeps.
+func (p *Passkey) Mark() string { return p.mark }
+
+// MarkCookie is the name of the cookie a browser at origin keeps the mark of its device in.
+func MarkCookie(origin string) string {
+	u, _ := url.Parse(origin)
+	if u.Scheme == "https" {
+		return "__Host-deck-device"
+	}
+	return "deck-" + u.Port() + "-device"
+}
+
+// step is a step of signing in sent as this browser: with the mark it keeps, keeping the mark deck gives.
+func (p *Passkey) step(base, origin, step string, body any) (int, []byte, string, error) {
+	b, _ := json.Marshal(body)
+	req, _ := http.NewRequest("POST", base+"/auth/"+step, bytes.NewReader(b))
+	u, _ := url.Parse(origin)
+	req.Host = u.Host
+	req.Header.Set("Origin", origin)
+	if p.mark != "" {
+		req.AddCookie(&http.Cookie{Name: MarkCookie(origin), Value: p.mark})
+	}
+	if p.Agent != "" {
+		req.Header.Set("User-Agent", p.Agent)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, nil, "", err
+	}
+	for _, c := range resp.Cookies() {
+		if c.Name == MarkCookie(origin) && c.Value != "" {
+			p.mark = c.Value
+		}
+	}
+	return Answer(resp)
 }
 
 // Send sends a step of signing in to deck and gives the status, the body and the cookie deck set.
@@ -46,7 +97,7 @@ func Answer(resp *http.Response) (int, []byte, string, error) {
 	out, _ := io.ReadAll(resp.Body)
 	cookie := ""
 	for _, c := range resp.Cookies() {
-		if (c.Name == "__Host-deck" || strings.HasPrefix(c.Name, "deck-")) && c.Value != "" {
+		if (c.Name == "__Host-deck" || strings.HasPrefix(c.Name, "deck-") && !strings.HasSuffix(c.Name, "-device")) && c.Value != "" {
 			cookie = c.Value
 		}
 	}
@@ -65,7 +116,7 @@ func rp(origin string) virtualwebauthn.RelyingParty {
 
 // Pair pairs the browser of the passkey by the code of a link at origin and returns the cookie of its session.
 func (p *Passkey) Pair(base, origin, code, name string) (string, error) {
-	return p.PairBy(func(step string, body any) (int, []byte, string, error) { return Rite(base, origin, step, body) }, origin, code, name)
+	return p.PairBy(func(step string, body any) (int, []byte, string, error) { return p.step(base, origin, step, body) }, origin, code, name)
 }
 
 // PairBy is Pair with the steps sent by send, such as from inside deck's container.
@@ -94,7 +145,7 @@ func (p *Passkey) PairBy(send Send, origin, code, name string) (string, error) {
 
 // Login signs the browser of the passkey in at origin and returns the cookie of its new session.
 func (p *Passkey) Login(base, origin string) (string, error) {
-	status, body, _, err := Rite(base, origin, "login/begin", map[string]any{})
+	status, body, _, err := p.step(base, origin, "login/begin", map[string]any{})
 	if err != nil || status != 200 {
 		return "", fmt.Errorf("login/begin: %d %s %v", status, body, err)
 	}
@@ -107,7 +158,7 @@ func (p *Passkey) Login(base, origin string) (string, error) {
 		return "", err
 	}
 	cred := virtualwebauthn.CreateAssertionResponse(rp(origin), p.auth, p.cred, *opts)
-	status, body, cookie, err := Rite(base, origin, "login/finish", map[string]any{"ceremony": b.Ceremony, "credential": json.RawMessage(cred)})
+	status, body, cookie, err := p.step(base, origin, "login/finish", map[string]any{"ceremony": b.Ceremony, "credential": json.RawMessage(cred)})
 	if err != nil || status != 200 || cookie == "" {
 		return "", fmt.Errorf("login/finish: %d %s %v", status, body, err)
 	}

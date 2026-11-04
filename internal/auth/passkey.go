@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -27,18 +28,19 @@ type ceremony struct {
 	until   time.Time
 }
 
-// Begun is what a begun ceremony gives the browser, or the session of a device signed in: a browser's in its cookie,
-// that of a node as a key it sends in the header Authorization.
+// Begun is what a begun ceremony gives the browser, or the session of a device signed in: a browser's in its cookie
+// with the mark of its device, that of a node as a key it sends in the header Authorization.
 type Begun struct {
 	Ceremony string `json:"ceremony,omitempty"`
 	Options  any    `json:"options,omitempty"`
 	Cookie   string `json:"-"`
+	Mark     string `json:"-"`
 	Key      string `json:"key,omitempty"`
 	Device   int64  `json:"device,omitempty"`
 }
 
-// owner is the owner as a device knows them: a user handle of the device's own, so the passkey of one device never
-// takes the place of another's in an authenticator, with that device's passkey.
+// owner is the owner as a passkey knows them: a user handle of the passkey's own, so one passkey never takes the place
+// of another in an authenticator.
 type owner struct {
 	handle []byte
 	creds  []webauthn.Credential
@@ -117,9 +119,9 @@ func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string) (Begun, erro
 	return Begun{Ceremony: a.keep(ceremony{session: *session, origin: o.Main, code: raw, handle: handle}), Options: creation}, nil
 }
 
-// PairFinish makes the device of a pairing ceremony with the passkey the browser made, named as the browser says, and
-// signs it in; the code is spent.
-func (a *Auth) PairFinish(ctx context.Context, o Origin, id, name string, body []byte) (Begun, error) {
+// PairFinish keeps the passkey the browser made in a pairing ceremony and signs the browser in by it, its device named
+// as the browser says; the code is spent.
+func (a *Auth) PairFinish(ctx context.Context, o Origin, id, name string, br Client, body []byte) (Begun, error) {
 	cer, err := a.finish(id, o)
 	if err != nil {
 		return Begun{}, err
@@ -151,38 +153,57 @@ func (a *Auth) PairFinish(ctx context.Context, o Origin, id, name string, body [
 	if name == "" {
 		name = c.Name
 	}
-	if name == "" {
-		name = "a browser"
-	}
 	b, _ := json.Marshal(cred)
-	return a.device(ctx, db.CreateDeviceParams{WorkspaceID: c.Workspace, Kind: Browser, Name: name, RpID: o.RPID(), CredentialID: cred.ID,
-		UserHandle: cer.handle, Credential: string(b)})
+	return store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
+		space, err := workspace(ctx, q, c.Workspace)
+		if err != nil {
+			return Begun{}, err
+		}
+		key, err := q.CreatePasskey(ctx, db.CreatePasskeyParams{WorkspaceID: space, Name: cmp.Or(name, Named(br.Agent)), RpID: o.RPID(),
+			CredentialID: cred.ID, UserHandle: cer.handle, Credential: string(b), SeenAt: store.At(a.cfg.Now())})
+		if err != nil {
+			return Begun{}, err
+		}
+		return a.signIn(ctx, q, space, key.ID, name, br)
+	})
 }
 
-// device makes a device and its first session; a code of no workspace pairs it in deck's first one.
+// signIn starts a session of a browser by a passkey on the browser's device.
+func (a *Auth) signIn(ctx context.Context, q *db.Queries, space, passkey int64, name string, br Client) (Begun, error) {
+	device, mark, err := a.browser(ctx, q, space, passkey, name, br)
+	if err != nil {
+		return Begun{}, err
+	}
+	cookie, err := a.start(ctx, q, device)
+	return Begun{Cookie: cookie, Mark: mark, Device: device}, err
+}
+
+// workspace is that of a code, or deck's first one for a code of none.
+func workspace(ctx context.Context, q *db.Queries, of int64) (int64, error) {
+	if of != 0 {
+		return of, nil
+	}
+	spaces, err := q.ListWorkspaces(ctx)
+	if err != nil || len(spaces) == 0 {
+		return 0, errors.Join(err, ErrSignIn)
+	}
+	return spaces[0], nil
+}
+
+// device makes a node and its first session, whose key it gives.
 func (a *Auth) device(ctx context.Context, p db.CreateDeviceParams) (Begun, error) {
-	now := a.cfg.Now()
-	p.SeenAt = store.At(now)
+	p.SeenAt = store.At(a.cfg.Now())
 	return store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
-		if p.WorkspaceID == 0 {
-			spaces, err := q.ListWorkspaces(ctx)
-			if err != nil || len(spaces) == 0 {
-				return Begun{}, errors.Join(err, ErrSignIn)
-			}
-			p.WorkspaceID = spaces[0]
+		var err error
+		if p.WorkspaceID, err = workspace(ctx, q, p.WorkspaceID); err != nil {
+			return Begun{}, err
 		}
 		d, err := q.CreateDevice(ctx, p)
 		if err != nil {
 			return Begun{}, err
 		}
 		raw, err := a.start(ctx, q, d.ID)
-		b := Begun{Device: d.ID}
-		if p.Kind == Browser {
-			b.Cookie = raw
-		} else {
-			b.Key = raw
-		}
-		return b, err
+		return Begun{Device: d.ID, Key: raw}, err
 	})
 }
 
@@ -199,8 +220,8 @@ func (a *Auth) LoginBegin(o Origin) (Begun, error) {
 	return Begun{Ceremony: a.keep(ceremony{session: *session, origin: o.Main}), Options: assertion}, nil
 }
 
-// LoginFinish signs in the device whose passkey answered the ceremony.
-func (a *Auth) LoginFinish(ctx context.Context, o Origin, id string, body []byte) (Begun, error) {
+// LoginFinish signs the browser in by the passkey that answered the ceremony, on the browser's device.
+func (a *Auth) LoginFinish(ctx context.Context, o Origin, id string, br Client, body []byte) (Begun, error) {
 	cer, err := a.finish(id, o)
 	if err != nil {
 		return Begun{}, err
@@ -213,28 +234,31 @@ func (a *Auth) LoginFinish(ctx context.Context, o Origin, id string, body []byte
 	if err != nil {
 		return Begun{}, ErrSignIn
 	}
-	var dev db.Device
+	var key db.Passkey
 	_, cred, err := w.ValidatePasskeyLogin(func(rawID, handle []byte) (webauthn.User, error) {
-		d, err := a.st.Q.DeviceByCredential(ctx, db.DeviceByCredentialParams{CredentialID: rawID, UserHandle: handle, RpID: o.RPID()})
+		k, err := a.st.Q.PasskeyByCredential(ctx, db.PasskeyByCredentialParams{CredentialID: rawID, UserHandle: handle, RpID: o.RPID()})
 		if err != nil {
 			return nil, err
 		}
 		var c webauthn.Credential
-		if err := json.Unmarshal([]byte(d.Credential), &c); err != nil {
+		if err := json.Unmarshal([]byte(k.Credential), &c); err != nil {
 			return nil, err
 		}
-		dev = d
-		return owner{handle: d.UserHandle, creds: []webauthn.Credential{c}}, nil
+		key = k
+		return owner{handle: k.UserHandle, creds: []webauthn.Credential{c}}, nil
 	}, cer.session, parsed)
 	if err != nil {
 		return Begun{}, ErrSignIn
 	}
 	b, _ := json.Marshal(cred)
 	return store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
-		if err := q.SetDeviceCredential(ctx, db.SetDeviceCredentialParams{Credential: string(b), SeenAt: store.At(a.cfg.Now()), ID: dev.ID}); err != nil {
+		// The passkey may have been revoked since the ceremony read it.
+		if _, err := q.PasskeyByCredential(ctx, db.PasskeyByCredentialParams{CredentialID: key.CredentialID, UserHandle: key.UserHandle, RpID: key.RpID}); err != nil {
+			return Begun{}, errors.Join(err, ErrSignIn)
+		}
+		if err := q.SetPasskeyCredential(ctx, db.SetPasskeyCredentialParams{Credential: string(b), SeenAt: store.At(a.cfg.Now()), ID: key.ID}); err != nil {
 			return Begun{}, err
 		}
-		cookie, err := a.start(ctx, q, dev.ID)
-		return Begun{Cookie: cookie, Device: dev.ID}, err
+		return a.signIn(ctx, q, key.WorkspaceID, key.ID, "", br)
 	})
 }

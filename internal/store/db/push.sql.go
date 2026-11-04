@@ -175,7 +175,7 @@ func (q *Queries) ListNotesAfter(ctx context.Context, arg ListNotesAfterParams) 
 }
 
 const listPushDevices = `-- name: ListPushDevices :many
-SELECT id, workspace_id, kind, name, rp_id, credential_id, user_handle, credential, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE workspace_id = ? AND push_endpoint IS NOT NULL AND revoked_at IS NULL ORDER BY id
+SELECT id, workspace_id, kind, name, passkey_id, mark, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE workspace_id = ? AND push_endpoint IS NOT NULL AND revoked_at IS NULL ORDER BY id
 `
 
 func (q *Queries) ListPushDevices(ctx context.Context, workspaceID int64) ([]Device, error) {
@@ -192,10 +192,8 @@ func (q *Queries) ListPushDevices(ctx context.Context, workspaceID int64) ([]Dev
 			&i.WorkspaceID,
 			&i.Kind,
 			&i.Name,
-			&i.RpID,
-			&i.CredentialID,
-			&i.UserHandle,
-			&i.Credential,
+			&i.PasskeyID,
+			&i.Mark,
 			&i.PushEndpoint,
 			&i.PushP256dh,
 			&i.PushAuth,
@@ -240,7 +238,7 @@ func (q *Queries) MaxNoteID(ctx context.Context, workspaceID int64) (int64, erro
 
 const setDevicePush = `-- name: SetDevicePush :one
 UPDATE device SET push_endpoint = ?, push_p256dh = ?, push_auth = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL
-RETURNING id, workspace_id, kind, name, rp_id, credential_id, user_handle, credential, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at
+RETURNING id, workspace_id, kind, name, passkey_id, mark, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at
 `
 
 type SetDevicePushParams struct {
@@ -265,10 +263,8 @@ func (q *Queries) SetDevicePush(ctx context.Context, arg SetDevicePushParams) (D
 		&i.WorkspaceID,
 		&i.Kind,
 		&i.Name,
-		&i.RpID,
-		&i.CredentialID,
-		&i.UserHandle,
-		&i.Credential,
+		&i.PasskeyID,
+		&i.Mark,
 		&i.PushEndpoint,
 		&i.PushP256dh,
 		&i.PushAuth,

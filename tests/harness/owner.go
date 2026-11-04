@@ -78,6 +78,12 @@ func (e *Env) Device(name string) Client {
 		}
 		e.devices[name] = cookie
 	}
+	return e.Signed(cookie)
+}
+
+// Signed is the client of a browser of the owner signed in at the https address of deck with the cookie of its
+// session.
+func (e *Env) Signed(cookie string) Client {
 	return Client{e, func(r *http.Request) {
 		r.AddCookie(&http.Cookie{Name: "__Host-deck", Value: cookie})
 		e.secureHost(r)

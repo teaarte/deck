@@ -272,6 +272,8 @@ func lineOf(out, prefix string) string {
 // deck on 127.0.0.1 refuses to start when another server holds that port at ::1.
 func TestDeckStartsNotWhenAnotherServerHoldsItsPortOnIPv6Loopback(t *testing.T) {
 	t.Parallel()
+	// deck is built first, so the free ports are taken a moment before it starts.
+	bin := buildDeck(t)
 	var other net.Listener
 	port := 0
 	// A port of ::1 whose neighbours deck takes are free.
@@ -299,7 +301,7 @@ func TestDeckStartsNotWhenAnotherServerHoldsItsPortOnIPv6Loopback(t *testing.T) 
 		t.Fatal("no free port")
 	}
 	defer other.Close()
-	cmd := exec.Command(buildDeck(t), "-addr", fmt.Sprintf("127.0.0.1:%d", port))
+	cmd := exec.Command(bin, "-addr", fmt.Sprintf("127.0.0.1:%d", port))
 	cmd.Env = append(os.Environ(), "DECK_HOME="+t.TempDir())
 	out, err := cmd.CombinedOutput()
 	if err == nil || !strings.Contains(string(out), "[::1]") {

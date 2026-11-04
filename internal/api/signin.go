@@ -70,7 +70,25 @@ func (s *Server) begun(w http.ResponseWriter, r *http.Request, b auth.Begun, err
 		http.SetCookie(w, &http.Cookie{Name: cookieOf(o), Value: b.Cookie, Path: "/", MaxAge: int(auth.Longest.Seconds()),
 			HttpOnly: true, Secure: o.Secure(), SameSite: http.SameSiteStrictMode})
 	}
+	keepMark(w, r, b.Mark)
 	send(w, b)
+}
+
+// keepMark gives a browser the mark of its device to keep.
+func keepMark(w http.ResponseWriter, r *http.Request, mark string) {
+	if o := originOf(r); mark != "" {
+		http.SetCookie(w, &http.Cookie{Name: markOf(o), Value: mark, Path: "/", MaxAge: int(auth.MarkLife.Seconds()),
+			HttpOnly: true, Secure: o.Secure(), SameSite: http.SameSiteStrictMode})
+	}
+}
+
+// client is what the browser of a request says of itself.
+func client(r *http.Request) auth.Client {
+	c := auth.Client{Agent: r.UserAgent()}
+	if m, err := r.Cookie(markOf(originOf(r))); err == nil {
+		c.Mark = m.Value
+	}
+	return c
 }
 
 func (s *Server) pairBegin(w http.ResponseWriter, r *http.Request, in riteIn) {
@@ -79,7 +97,7 @@ func (s *Server) pairBegin(w http.ResponseWriter, r *http.Request, in riteIn) {
 }
 
 func (s *Server) pairFinish(w http.ResponseWriter, r *http.Request, in riteIn) {
-	b, err := s.app.Auth.PairFinish(r.Context(), originOf(r), in.Ceremony, strings.TrimSpace(in.Name), in.Credential)
+	b, err := s.app.Auth.PairFinish(r.Context(), originOf(r), in.Ceremony, strings.TrimSpace(in.Name), client(r), in.Credential)
 	s.begun(w, r, b, err)
 }
 
@@ -89,7 +107,7 @@ func (s *Server) loginBegin(w http.ResponseWriter, r *http.Request, _ riteIn) {
 }
 
 func (s *Server) loginFinish(w http.ResponseWriter, r *http.Request, in riteIn) {
-	b, err := s.app.Auth.LoginFinish(r.Context(), originOf(r), in.Ceremony, in.Credential)
+	b, err := s.app.Auth.LoginFinish(r.Context(), originOf(r), in.Ceremony, client(r), in.Credential)
 	s.begun(w, r, b, err)
 }
 
@@ -106,7 +124,8 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, _ riteIn) {
 			fail(w, err)
 			return
 		}
-		if signed {
+		// A session of before devices were browsers may share its device with another browser's.
+		if signed && !p.Unsettled {
 			s.app.Auth.Kick(p.Device)
 		}
 	}

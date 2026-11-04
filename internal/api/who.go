@@ -22,7 +22,7 @@ var (
 
 // Who is the one place that says whom a call comes from: a lent or automation token in the header, else a browser's
 // cookie at an origin where it signs in, a write with it only from deck's origin and a read from its page.
-func (s *Server) Who(r *http.Request) (registry.Actor, error) {
+func (s *Server) Who(w http.ResponseWriter, r *http.Request) (registry.Actor, error) {
 	if raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
 		if act, ok := s.app.Owners.Lent(raw); ok {
 			return act, nil
@@ -54,6 +54,13 @@ func (s *Server) Who(r *http.Request) (registry.Actor, error) {
 	if !ok || p.Kind != auth.Browser {
 		return registry.Actor{}, s.unsigned(r)
 	}
+	if p.Unsettled {
+		var mark string
+		if p, mark, err = s.app.Auth.Settle(r.Context(), c.Value, client(r)); err != nil {
+			return registry.Actor{}, s.unsigned(r)
+		}
+		keepMark(w, r, mark)
+	}
 	return p.Actor(), nil
 }
 
@@ -73,6 +80,9 @@ func (s *Server) unsigned(r *http.Request) error {
 	}
 	return registry.Unsigned("a browser signs in to deck at %s", strings.Join(at, " or "))
 }
+
+// markOf is the cookie a browser keeps the mark of its device in, beside that of its session.
+func markOf(o auth.Origin) string { return cookieOf(o) + "-device" }
 
 // cookieOf is the cookie of a browser's session at an origin: __Host- over https, so it stays with the one origin;
 // at deck.localhost one named by the port, as a browser sends it to every port and another deck may listen on one.

@@ -18,19 +18,13 @@ async function rite(step: string, body: object): Promise<Begun> {
   return JSON.parse(text) as Begun;
 }
 
-// named is what this browser is called among the devices until the owner renames it.
-function named(): string {
-  const ua = navigator.userAgent;
-  return ['iPhone', 'iPad', 'Android', 'Mac', 'Windows', 'Linux'].find((n) => ua.includes(n === 'Mac' ? 'Macintosh' : n)) ?? 'Browser';
-}
-
 // SignIn is the page of a device not signed in: a link of deck pairs it with a new passkey, its passkey signs it in,
 // and the page opens the route after the code; over plain http it says where deck signs in.
 export function SignIn({ why }: { why: string }) {
   const { t } = useTranslation();
   // Browsers take deck.localhost to this machine and sign in there as over https.
   const secure = location.protocol === 'https:' || location.hostname.endsWith('.localhost');
-  const [name, setName] = useState(named);
+  const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const step = (run: () => Promise<void>) => async () => {
@@ -61,8 +55,9 @@ export function SignIn({ why }: { why: string }) {
     body = (
       <>
         <Text size="sm">{t('This link pairs this device with deck: it makes a passkey here, and the passkey signs the device in from then on.')}</Text>
-        <TextInput label={t('Name of this device')} value={name} onChange={(e) => setName(e.currentTarget.value)} data-signin-name />
-        <Button onClick={() => void pair()} loading={busy} disabled={!name.trim()} data-signin="pair">{t('Pair this device')}</Button>
+        <TextInput label={t('Name of this device')} description={t('Left empty, deck names it by its browser, such as iPhone — Safari.')}
+          value={name} onChange={(e) => setName(e.currentTarget.value)} data-signin-name />
+        <Button onClick={() => void pair()} loading={busy} data-signin="pair">{t('Pair this device')}</Button>
       </>
     );
   } else {

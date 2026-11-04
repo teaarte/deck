@@ -63,3 +63,7 @@ and bring the modules in line.
   `pair_link` answers with `qr`, a PNG of the first link (`contentMediaType: image/png`), and pairs a browser only at
   an https address of deck. `layout_get` and `layout_set` take no `device`: the tiles are of the device of the call. A
   page deck opens itself, such as `screen_capture`, reads with a lent token in the header, no cookie.
+- 2026-11-04: a passkey and a device are apart: a passkey synced to many browsers signs each in as a device of its
+  own, named by its browser. `devices_list` says `passkey` (the name of the passkey a browser signed in with) and
+  `passkey_id`; `passkeys_list`, `passkey_rename`, `passkey_revoke` (signs out every device of the passkey). A revoked
+  device signs in again by its passkey only as a new device.

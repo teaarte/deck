@@ -309,8 +309,8 @@ func (b *playwright) signIn(e *harness.Env, base, rest string) {
 //go:embed testdata/passkey.js
 var passkeyJS string
 
-// authenticator gives the browser a passkey authenticator that answers at once: Chromium's virtual one, in WebKit
-// one in the pages it opens next.
+// authenticator gives the browser a passkey authenticator that answers at once: Chromium's virtual one, kept on the
+// page, in WebKit one in the pages it opens next.
 func (b *playwright) authenticator() {
 	b.t.Helper()
 	if b.kind == "webkit" {
@@ -319,10 +319,11 @@ func (b *playwright) authenticator() {
 		return
 	}
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => {
-  globalThis.deckAuthn = await page.context().newCDPSession(page);
-  await globalThis.deckAuthn.send('WebAuthn.enable');
-  await globalThis.deckAuthn.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal',
-    hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
+  page.deckAuthn = await page.context().newCDPSession(page);
+  await page.deckAuthn.send('WebAuthn.enable');
+  const { authenticatorId } = await page.deckAuthn.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2',
+    transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
+  page.deckAuthnId = authenticatorId;
 }`})
 }
 

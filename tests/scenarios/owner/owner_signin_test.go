@@ -65,7 +65,7 @@ type device struct {
 	Name    string
 	Kind    string
 	This    bool
-	Passkey bool
+	Passkey string
 	Revoked bool
 }
 
@@ -101,7 +101,7 @@ func TestADevicePairsByALinkAndSignsInWithItsPasskey(t *testing.T) {
 	}
 	var ds []device
 	e.Must("deck.devices_list", map[string]any{}, &ds)
-	if len(ds) != 2 || !ds[0].This || ds[0].Kind != "browser" || !ds[0].Passkey || ds[1].This || ds[1].Name != "phone" || ds[1].Kind != "browser" || !ds[1].Passkey {
+	if len(ds) != 2 || !ds[0].This || ds[0].Kind != "browser" || ds[0].Passkey == "" || ds[1].This || ds[1].Name != "phone" || ds[1].Kind != "browser" || ds[1].Passkey != "phone" {
 		t.Fatalf("both browsers are devices of the owner, the caller's marked: %+v", ds)
 	}
 	ended := stream(t, e, cookie)
@@ -396,7 +396,7 @@ func TestThePushesOfADeckBeforeDevicesStayAsDevices(t *testing.T) {
 	var ds []device
 	e.Must("deck.devices_list", map[string]any{}, &ds)
 	i := slices.IndexFunc(ds, func(d device) bool { return d.Name == "old phone" })
-	if i < 0 || ds[i].ID != 7 || ds[i].Passkey || ds[i].Kind != "browser" {
+	if i < 0 || ds[i].ID != 7 || ds[i].Passkey != "" || ds[i].Kind != "browser" {
 		t.Fatalf("the subscription is a device of its own with no passkey: %+v", ds)
 	}
 	pushes := func() []int64 {

@@ -2,10 +2,12 @@ package owners
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"rsc.io/qr"
 
@@ -16,7 +18,7 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// deviceView is a device of the owner with the buttons of its row.
+// deviceView is a device of the owner — a browser or a node — with the buttons of its row.
 type deviceView struct {
 	ID        int64  `json:"id"`
 	Name      string `json:"name"`
@@ -25,10 +27,11 @@ type deviceView struct {
 	SeenAt    string `json:"seen_at,omitempty"`
 	// This marks the device the call came from.
 	This bool `json:"this"`
-	// Passkey says the device signs in with a passkey; a device of the pushes before pairing has none.
-	Passkey bool `json:"passkey"`
-	Push    bool `json:"push"`
-	Revoked bool `json:"revoked"`
+	// Passkey is the name of the passkey a browser signed in with last; a device of the pushes before pairing has none.
+	Passkey   string `json:"passkey"`
+	PasskeyID int64  `json:"passkey_id,omitempty"`
+	Push      bool   `json:"push"`
+	Revoked   bool   `json:"revoked"`
 	// Revoke is the button that signs the device out for good; StopPush the one that stops its pushes.
 	Revoke   map[string]any `json:"revoke,omitempty"`
 	StopPush map[string]any `json:"stop_push,omitempty"`
@@ -40,9 +43,10 @@ func (s *Service) devicesList(ctx context.Context, act registry.Actor, _ struct{
 		return nil, err
 	}
 	out := make([]deviceView, 0, len(ds))
-	for _, d := range ds {
+	for _, row := range ds {
+		d := row.Device
 		v := deviceView{ID: d.ID, Name: d.Name, Kind: d.Kind, CreatedAt: d.CreatedAt, SeenAt: d.SeenAt.String, This: d.ID == act.Device,
-			Passkey: len(d.CredentialID) > 0, Push: d.PushEndpoint.Valid, Revoked: d.RevokedAt.Valid}
+			Passkey: row.PasskeyName, PasskeyID: d.PasskeyID.Int64, Push: d.PushEndpoint.Valid, Revoked: d.RevokedAt.Valid}
 		if !v.Revoked {
 			v.Revoke = map[string]any{"verb": "revoke", "command": registry.Deck("device_revoke"), "params": map[string]any{"device": d.ID}}
 		}
@@ -80,14 +84,11 @@ type deviceRevokeIn struct {
 	Device int64 `desc:"Device id"`
 }
 
-// deviceRevoke signs a device out for good: its sessions and pushes end with the revoke, its open streams after it.
+// deviceRevoke signs a device out for good: its sessions and pushes end with the revoke, its open streams after it;
+// its passkey signs its browser in again only as a new device.
 func (s *Service) deviceRevoke(ctx context.Context, act registry.Actor, in deviceRevokeIn) (any, error) {
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		n, err := q.RevokeDevice(ctx, db.RevokeDeviceParams{RevokedAt: store.At(s.Now()), ID: in.Device, WorkspaceID: act.Workspace})
-		if err != nil || n == 0 {
-			return n, err
-		}
-		return n, q.DeleteDeviceSessions(ctx, in.Device)
+		return revoke(ctx, q, act.Workspace, in.Device, s.Now())
 	})
 	if err != nil {
 		return nil, err
@@ -98,6 +99,97 @@ func (s *Service) deviceRevoke(ctx context.Context, act registry.Actor, in devic
 	s.Kick(in.Device)
 	s.Journal(ctx, act, 0, registry.Deck("device_revoke"), registry.External, "done", fmt.Sprintf(`{"device": %d}`, in.Device))
 	return map[string]any{"revoked": in.Device}, nil
+}
+
+// revoke revokes a device and ends its sessions.
+func revoke(ctx context.Context, q *db.Queries, space, device int64, now time.Time) (int64, error) {
+	n, err := q.RevokeDevice(ctx, db.RevokeDeviceParams{RevokedAt: store.At(now), ID: device, WorkspaceID: space})
+	if err != nil || n == 0 {
+		return n, err
+	}
+	return n, q.DeleteDeviceSessions(ctx, device)
+}
+
+// passkeyView is a passkey of the owner: one synced to many browsers signs each in as a device of its own.
+type passkeyView struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Site      string `json:"site"`
+	Devices   int64  `json:"devices"`
+	CreatedAt string `json:"created_at"`
+	SeenAt    string `json:"seen_at,omitempty"`
+	Revoked   bool   `json:"revoked"`
+}
+
+func (s *Service) passkeysList(ctx context.Context, act registry.Actor, _ struct{}) ([]passkeyView, error) {
+	ks, err := s.St.Q.ListPasskeys(ctx, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]passkeyView, 0, len(ks))
+	for _, row := range ks {
+		k := row.Passkey
+		out = append(out, passkeyView{ID: k.ID, Name: k.Name, Site: k.RpID, Devices: row.Devices, CreatedAt: k.CreatedAt, SeenAt: k.SeenAt.String,
+			Revoked: k.RevokedAt.Valid})
+	}
+	return out, nil
+}
+
+type passkeyRenameIn struct {
+	Passkey int64  `desc:"Passkey id"`
+	Name    string `desc:"New name of the passkey"`
+}
+
+func (s *Service) passkeyRename(ctx context.Context, act registry.Actor, in passkeyRenameIn) (any, error) {
+	name := untrusted.Cut(strings.TrimSpace(in.Name), 80)
+	if name == "" {
+		return nil, registry.Invalid("a passkey needs a name")
+	}
+	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.RenamePasskey(ctx, db.RenamePasskeyParams{Name: name, ID: in.Passkey, WorkspaceID: act.Workspace})
+	})
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, registry.NotFound("no passkey %d", in.Passkey)
+	}
+	return map[string]any{"passkey": in.Passkey, "name": name}, nil
+}
+
+type passkeyRevokeIn struct {
+	Passkey int64 `desc:"Passkey id"`
+}
+
+// passkeyRevoke refuses a passkey from now on and revokes every device it signed in last.
+func (s *Service) passkeyRevoke(ctx context.Context, act registry.Actor, in passkeyRevokeIn) (any, error) {
+	var devices []int64
+	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		n, err := q.RevokePasskey(ctx, db.RevokePasskeyParams{RevokedAt: store.At(s.Now()), ID: in.Passkey, WorkspaceID: act.Workspace})
+		if err != nil || n == 0 {
+			return n, err
+		}
+		if devices, err = q.PasskeyDevices(ctx, db.PasskeyDevicesParams{PasskeyID: sql.NullInt64{Int64: in.Passkey, Valid: true}, WorkspaceID: act.Workspace}); err != nil {
+			return n, err
+		}
+		for _, d := range devices {
+			if _, err := revoke(ctx, q, act.Workspace, d, s.Now()); err != nil {
+				return n, err
+			}
+		}
+		return n, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, registry.NotFound("no passkey %d that may still sign in", in.Passkey)
+	}
+	for _, d := range devices {
+		s.Kick(d)
+	}
+	s.Journal(ctx, act, 0, registry.Deck("passkey_revoke"), registry.External, "done", fmt.Sprintf(`{"passkey": %d}`, in.Passkey))
+	return map[string]any{"revoked": in.Passkey, "devices": devices}, nil
 }
 
 type pairLinkIn struct {
@@ -140,12 +232,19 @@ var errNoDevice = errors.New("deck: this call comes from no device of the owner"
 func (s *Service) deviceCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("devices_list", "Devices",
-			"Lists the owner's devices: browsers with their passkeys and nodes, the one the call came from marked; revoked ones too.",
+			"Lists the owner's devices: each browser with the passkey it signed in with and each node, the one the call came from marked; revoked ones too.",
 			registry.OwnerOnly, s.devicesList).On("devices"),
 		registry.Def("device_rename", "Rename device", "Renames a device of the owner.", registry.OwnerOnly, s.deviceRename),
 		registry.Def("device_revoke", "Revoke device",
-			"Signs a device of the owner out for good: its sessions, pushes and open pages end; it pairs again only by a new link.",
+			"Signs a device of the owner out for good: its sessions, pushes and open pages end; its passkey signs that browser in again only as a new device.",
 			registry.OwnerOnly, s.deviceRevoke).As(registry.External),
+		registry.Read("passkeys_list", "Passkeys",
+			"Lists the owner's passkeys: one synced to many browsers signs each in as a device of its own; revoked ones too.",
+			registry.OwnerOnly, s.passkeysList).On("devices"),
+		registry.Def("passkey_rename", "Rename passkey", "Renames a passkey of the owner.", registry.OwnerOnly, s.passkeyRename),
+		registry.Def("passkey_revoke", "Revoke passkey",
+			"Refuses a passkey of the owner from now on and signs out every device it signed in.",
+			registry.OwnerOnly, s.passkeyRevoke).As(registry.External),
 		registry.Answers[pairLinkView](registry.Def("pair_link", "Pair a device",
 			"Makes a link that pairs one more device of the owner within ten minutes, once: open it on the device, or point its camera at the QR code.",
 			registry.OwnerOnly, s.pairLink).As(registry.External)),

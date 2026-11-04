@@ -1,5 +1,5 @@
 -- name: CreateDevice :one
-INSERT INTO device (workspace_id, kind, name, rp_id, credential_id, user_handle, credential, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO device (workspace_id, kind, name, passkey_id, mark, seen_at) VALUES (?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 
@@ -7,21 +7,24 @@ RETURNING *;
 SELECT * FROM device WHERE id = ? AND workspace_id = ?;
 
 
--- name: DeviceByCredential :one
-SELECT * FROM device WHERE credential_id = ? AND user_handle = ? AND rp_id = ? AND revoked_at IS NULL;
+-- name: DeviceByMark :one
+-- The browser's own device, while it may still sign in.
+SELECT * FROM device WHERE mark = ? AND workspace_id = ? AND kind = 'browser' AND revoked_at IS NULL;
 
 
 -- name: ListDevices :many
-SELECT * FROM device WHERE workspace_id = ? ORDER BY id;
+SELECT sqlc.embed(d), COALESCE(p.name, '') AS passkey_name FROM device d LEFT JOIN passkey p ON p.id = d.passkey_id
+WHERE d.workspace_id = ? ORDER BY d.id;
 
 
--- name: CountSignedDevices :one
--- The devices that may still sign in, of every workspace.
-SELECT COUNT(*) FROM device WHERE revoked_at IS NULL AND kind != 'browser' OR revoked_at IS NULL AND credential_id IS NOT NULL;
+-- name: CountSigned :one
+-- The passkeys and nodes that may still sign in, of every workspace.
+SELECT (SELECT COUNT(*) FROM passkey WHERE revoked_at IS NULL) + (SELECT COUNT(*) FROM device WHERE kind = 'node' AND revoked_at IS NULL);
 
 
--- name: SetDeviceCredential :exec
-UPDATE device SET credential = ?, seen_at = ? WHERE id = ?;
+-- name: SignDevice :exec
+-- A browser signed in again: by the passkey it signed in with, and its mark.
+UPDATE device SET passkey_id = ?, mark = ?, seen_at = ? WHERE id = ?;
 
 
 -- name: RenameDevice :execrows
@@ -29,8 +32,39 @@ UPDATE device SET name = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS N
 
 
 -- name: RevokeDevice :execrows
-UPDATE device SET revoked_at = ?, push_endpoint = NULL, push_p256dh = '', push_auth = ''
+UPDATE device SET revoked_at = ?, mark = NULL, push_endpoint = NULL, push_p256dh = '', push_auth = ''
 WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL;
+
+
+-- name: CreatePasskey :one
+INSERT INTO passkey (workspace_id, name, rp_id, credential_id, user_handle, credential, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING *;
+
+
+-- name: PasskeyByCredential :one
+SELECT * FROM passkey WHERE credential_id = ? AND user_handle = ? AND rp_id = ? AND revoked_at IS NULL;
+
+
+-- name: SetPasskeyCredential :exec
+UPDATE passkey SET credential = ?, seen_at = ? WHERE id = ?;
+
+
+-- name: ListPasskeys :many
+SELECT sqlc.embed(p), (SELECT COUNT(*) FROM device d WHERE d.passkey_id = p.id AND d.revoked_at IS NULL) AS devices
+FROM passkey p WHERE p.workspace_id = ? ORDER BY p.id;
+
+
+-- name: RenamePasskey :execrows
+UPDATE passkey SET name = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL;
+
+
+-- name: RevokePasskey :execrows
+UPDATE passkey SET revoked_at = ? WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL;
+
+
+-- name: PasskeyDevices :many
+-- The devices a passkey signed in last, while they may still sign in.
+SELECT id FROM device WHERE passkey_id = ? AND workspace_id = ? AND revoked_at IS NULL;
 
 
 -- name: CreateSession :exec
@@ -38,8 +72,12 @@ INSERT INTO session (hash, device_id, created_at, seen_at) VALUES (?, ?, ?, ?);
 
 
 -- name: SessionByHash :one
-SELECT s.created_at, s.seen_at, sqlc.embed(d) FROM session s JOIN device d ON d.id = s.device_id
+SELECT s.created_at, s.seen_at, s.settled, sqlc.embed(d) FROM session s JOIN device d ON d.id = s.device_id
 WHERE s.hash = ? AND d.revoked_at IS NULL;
+
+
+-- name: SettleSession :exec
+UPDATE session SET device_id = ?, settled = 1 WHERE hash = ?;
 
 
 -- name: TouchSession :exec

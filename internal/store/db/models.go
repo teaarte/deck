@@ -90,10 +90,8 @@ type Device struct {
 	WorkspaceID  int64
 	Kind         string
 	Name         string
-	RpID         string
-	CredentialID []byte
-	UserHandle   []byte
-	Credential   string
+	PasskeyID    sql.NullInt64
+	Mark         sql.NullString
 	PushEndpoint sql.NullString
 	PushP256dh   string
 	PushAuth     string
@@ -264,6 +262,19 @@ type Outbox struct {
 	Path      string
 }
 
+type Passkey struct {
+	ID           int64
+	WorkspaceID  int64
+	Name         string
+	RpID         string
+	CredentialID []byte
+	UserHandle   []byte
+	Credential   string
+	CreatedAt    string
+	SeenAt       sql.NullString
+	RevokedAt    sql.NullString
+}
+
 type Picture struct {
 	ID        int64
 	ProjectID int64
@@ -379,6 +390,7 @@ type Session struct {
 	DeviceID  int64
 	CreatedAt string
 	SeenAt    string
+	Settled   int64
 }
 
 type Setting struct {

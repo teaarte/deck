@@ -92,7 +92,7 @@ type actorKey struct{}
 // signed lets a call through as whom Who says it comes from.
 func (s *Server) signed(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		act, err := s.Who(r)
+		act, err := s.Who(w, r)
 		if err != nil {
 			status := fault.Status(err)
 			if status == http.StatusUnauthorized {
@@ -109,7 +109,7 @@ func (s *Server) signed(next http.Handler) http.Handler {
 
 // automation is the MCP entry of automation tokens: Who says whose token it is.
 func (s *Server) automation(w http.ResponseWriter, r *http.Request) {
-	act, err := s.Who(r)
+	act, err := s.Who(w, r)
 	if err == nil && act.Kind != registry.Token {
 		err = errUnsigned
 	}

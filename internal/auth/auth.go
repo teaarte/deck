@@ -1,5 +1,5 @@
-// Package auth signs the owner's devices in: codes that pair a device, passkeys by origin, the sessions of their
-// cookies, the limits of tries by address and the live connections a revoked device loses.
+// Package auth signs the owner's devices in: codes that pair a device, passkeys by origin, a device for each browser,
+// the sessions of their cookies, the limits of tries by address and the live connections a revoked device loses.
 package auth
 
 import (
@@ -68,6 +68,8 @@ type Principal struct {
 	Device    int64
 	Workspace int64
 	Kind      string
+	// Unsettled marks a session of before devices were browsers, which Settle puts on its browser's device.
+	Unsettled bool
 }
 
 // Actor is the owner on the device.
@@ -115,7 +117,7 @@ func (a *Auth) Session(ctx context.Context, raw string) (Principal, bool) {
 				q.TouchDevice(ctx, db.TouchDeviceParams{SeenAt: store.At(now), ID: row.Device.ID}))
 		})
 	}
-	return Principal{Device: row.Device.ID, Workspace: row.Device.WorkspaceID, Kind: row.Device.Kind}, true
+	return Principal{Device: row.Device.ID, Workspace: row.Device.WorkspaceID, Kind: row.Device.Kind, Unsettled: row.Settled == 0}, true
 }
 
 // Alive says the session of a cookie lasts, without renewing it: an open stream holds no session up.
@@ -135,8 +137,8 @@ func (a *Auth) Logout(ctx context.Context, raw string) error {
 	return a.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteSession(ctx, hash(raw)) })
 }
 
-// Signed says a device may sign in already, so deck needs no first link.
+// Signed says a passkey or a node may sign in already, so deck needs no first link.
 func (a *Auth) Signed(ctx context.Context) bool {
-	n, err := a.st.Q.CountSignedDevices(ctx)
+	n, err := a.st.Q.CountSigned(ctx)
 	return err != nil || n > 0
 }

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/url"
@@ -31,10 +32,27 @@ func (o Origin) RPID() string {
 	return u.Hostname()
 }
 
-// Passkeys says a browser of the owner signs in at the origin with a passkey and a cookie: over https by a name. On
-// plain http, localhost too, a cookie would reach every server of the host, so only the launcher's key signs in there.
+// Passkeys says a browser of the owner signs in at the origin with a passkey and a cookie: over https by a name, or
+// at deck.localhost on this machine. On http://localhost a cookie would reach every server of the host.
 func (o Origin) Passkeys() bool {
-	return o.Secure() && net.ParseIP(o.RPID()) == nil
+	return o.Secure() && net.ParseIP(o.RPID()) == nil || o.Here()
+}
+
+// Here says the origin is deck's name on this machine, which browsers take to loopback and hold a secure context.
+func (o Origin) Here() bool {
+	return strings.HasPrefix(o.Main, "http://") && strings.EqualFold(o.RPID(), HereName)
+}
+
+// HereName is the name of deck on the machine it runs on; a cookie of it reaches no other server of localhost.
+const HereName = "deck.localhost"
+
+// Here are deck's origins on this machine at a port, its name first, and localhost and 127.0.0.1, which lead to it.
+func Here(port int) []Origin {
+	var out []Origin
+	for _, name := range []string{HereName, "localhost", "127.0.0.1"} {
+		out = append(out, Origin{fmt.Sprintf("http://%s:%d", name, port), fmt.Sprintf("http://%s:%d", name, port+1)})
+	}
+	return out
 }
 
 // Origins are the addresses of deck; the tailnet adds its own once deck is on it.
@@ -135,13 +153,15 @@ func sameHost(u *url.URL, host string) bool {
 	return u.Port() == "" && strings.EqualFold(net.JoinHostPort(u.Hostname(), std), host)
 }
 
-// Links are the addresses that pair a device by a code, at every origin where a browser makes a passkey; the code
-// is in the fragment, which no server and no log sees.
+// Links are the addresses that pair a device by a code, at every origin where a browser makes a passkey, the https
+// ones first, as another device opens those; the code is in the fragment, which no server and no log sees.
 func Links(origins []Origin, code string) []string {
 	var out []string
-	for _, o := range origins {
-		if o.Passkeys() {
-			out = append(out, strings.TrimRight(o.Main, "/")+"/#pair="+url.QueryEscape(code))
+	for _, secure := range []bool{true, false} {
+		for _, o := range origins {
+			if o.Passkeys() && o.Secure() == secure {
+				out = append(out, strings.TrimRight(o.Main, "/")+"/#pair="+url.QueryEscape(code))
+			}
 		}
 	}
 	return out

@@ -36,36 +36,39 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 		t.Fatalf("a custom block gets its HTML, the items of its source and its buttons: %+v", v)
 	}
 
-	r0, err := http.Get(e.URL + "/")
-	if err != nil {
-		t.Fatal(err)
+	// The client by deck.localhost, its second origin by the same name.
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	side := strings.Replace(e.Side, "127.0.0.1", "deck.localhost", 1)
+	get := func(base, path string) *http.Response {
+		u := strings.Replace(base, "127.0.0.1", "deck.localhost", 1)
+		req, _ := http.NewRequest(http.MethodGet, base+path, nil)
+		req.Host = strings.TrimPrefix(u, "http://")
+		r, err := noFollow.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
 	}
-	r0.Body.Close()
-	if got := r0.Header.Get("Content-Security-Policy"); got != "frame-src 'self' "+e.Side+" blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'" {
+	r := get(e.URL, "/")
+	r.Body.Close()
+	if got := r.Header.Get("Content-Security-Policy"); got != "frame-src 'self' "+side+" blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'" {
 		t.Fatalf("the client's frames stay on its origins, so a block cannot move its frame to the network, and its pictures and sound stay on deck: %q", got)
 	}
-	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	r, err := noFollow.Get(e.URL + "/custom")
-	if err != nil {
-		t.Fatal(err)
-	}
+	r = get(e.URL, "/custom")
 	r.Body.Close()
-	if r.StatusCode != http.StatusFound || r.Header.Get("Location") != e.Side+"/sandbox.html" {
+	if r.StatusCode != http.StatusFound || r.Header.Get("Location") != side+"/sandbox.html" {
 		t.Fatalf("the frame goes to the second origin: %d %s", r.StatusCode, r.Header.Get("Location"))
 	}
-	r, err = http.Get(e.Side + "/sandbox.html")
-	if err != nil {
-		t.Fatal(err)
-	}
+	r = get(e.Side, "/sandbox.html")
 	page, _ := io.ReadAll(r.Body)
 	r.Body.Close()
 	csp := r.Header.Get("Content-Security-Policy")
-	for _, want := range []string{"connect-src 'none'", "default-src 'none'", "form-action 'none'", "frame-ancestors " + e.URL, "script-src 'self' " + e.Side + " 'unsafe-inline'"} {
+	for _, want := range []string{"connect-src 'none'", "default-src 'none'", "form-action 'none'", "frame-ancestors " + e.Here, "script-src 'self' " + side + " 'unsafe-inline'"} {
 		if !strings.Contains(csp, want) {
 			t.Fatalf("the proxy page keeps the block off the network: %q lacks %q", csp, want)
 		}
 	}
-	if !strings.Contains(string(page), `const host = "`+e.URL+`"`) {
+	if !strings.Contains(string(page), `const host = "`+e.Here+`"`) {
 		t.Fatalf("the proxy talks only to the client's origin: %s", page)
 	}
 	for _, path := range []string{"/api/commands", "/api/events", "/", "/mcp"} {
@@ -78,7 +81,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 			t.Fatalf("the second origin has no API: %s gives %d", path, r.StatusCode)
 		}
 	}
-	r, err = http.Get(e.Side + "/ext-apps.js")
+	r, err := http.Get(e.Side + "/ext-apps.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +92,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 }
 
 // TestCustomBlockFramesComeFromTheAddressTheClientCameBy: deck names the second origin of its address a request came
-// to; [::], 0.0.0.0 and [::1] go to localhost; an address that is not deck's gets neither.
+// to; localhost, loopback, [::] and 0.0.0.0 go to deck.localhost; an address that is not deck's gets neither.
 func TestCustomBlockFramesComeFromTheAddressTheClientCameBy(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.OnEveryAddress)
@@ -107,17 +110,16 @@ func TestCustomBlockFramesComeFromTheAddressTheClientCameBy(t *testing.T) {
 		r.Body.Close()
 		return r
 	}
-	for _, host := range []string{"[::]", "0.0.0.0", "[::1]"} {
+	for _, host := range []string{"[::]", "0.0.0.0", "[::1]", "localhost", "127.0.0.1"} {
 		for _, path := range []string{"/?shot=1#/p/web", "/custom"} {
 			r := get(e.URL+path, host+":"+port)
-			if want := "http://localhost:" + port + strings.Split(path, "#")[0]; r.StatusCode != http.StatusFound || r.Header.Get("Location") != want {
+			if want := e.Here + strings.Split(path, "#")[0]; r.StatusCode != http.StatusFound || r.Header.Get("Location") != want {
 				t.Fatalf("%s%s goes to %s: %d %q", host, path, want, r.StatusCode, r.Header.Get("Location"))
 			}
 		}
 	}
-	for host, at := range map[string][2]string{"localhost:" + port: {"http://localhost:" + port, "http://localhost:" + side},
-		"127.0.0.1:" + port: {"http://127.0.0.1:" + port, "http://127.0.0.1:" + side},
-		"deck.example.com":  {"https://deck.example.com", "https://deck.example.com:8443"}} {
+	for host, at := range map[string][2]string{"deck.localhost:" + port: {e.Here, "http://deck.localhost:" + side},
+		"deck.example.com": {"https://deck.example.com", "https://deck.example.com:8443"}} {
 		main, sb := at[0], at[1]
 		if got := get(e.URL+"/", host).Header.Get("Content-Security-Policy"); !strings.HasPrefix(got, "frame-src 'self' "+sb+" blob:;") {
 			t.Fatalf("the client by %s frames the second origin by the same name: %q", host, got)

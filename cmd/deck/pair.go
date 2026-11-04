@@ -43,7 +43,7 @@ func pair(args []string) error {
 	}
 	links := auth.Links(origins, code)
 	if len(links) == 0 {
-		return errors.New("a browser pairs with deck only over https, and deck has no https address yet: start it with -tailscale or -public, then run deck pair again")
+		return errors.New("a browser pairs with deck only over https or at deck.localhost on its machine, and deck has neither: start it once on loopback, or with -tailscale or -public, then run deck pair again")
 	}
 	fmt.Printf("Open one of these links on the device by %s, once:\n", until.Format("15:04"))
 	for _, l := range links {

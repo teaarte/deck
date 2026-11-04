@@ -105,8 +105,8 @@ type pairLinkIn struct {
 	Name string `opt:"" desc:"Name of the device"`
 }
 
-// pairLinkView is a link that pairs one device in ten minutes, at every https address of deck, the code in it and
-// the QR code of the first link for a phone's camera.
+// pairLinkView is a link that pairs one device in ten minutes, at every address of deck where a browser makes a
+// passkey, the code in it and the QR code of the first https link for a phone's camera.
 type pairLinkView struct {
 	QR    string   `json:"qr,omitempty" media:"image/png"`
 	Links []string `json:"links"`
@@ -119,7 +119,7 @@ func (s *Service) pairLink(ctx context.Context, act registry.Actor, in pairLinkI
 		in.Kind = auth.Browser
 	}
 	if in.Kind == auth.Browser && len(auth.Links(s.Origins(), "")) == 0 {
-		return nil, registry.Refuse("a browser pairs with deck only over https, and deck has no https address yet; see Health for how to give deck one")
+		return nil, registry.Refuse("a browser pairs with deck only over https or at deck.localhost on its machine, and deck has neither here; see Health for how to give deck an https address")
 	}
 	code, until, err := s.Code(act.Workspace, in.Kind, untrusted.Cut(strings.TrimSpace(in.Name), 80))
 	if err != nil {
@@ -128,7 +128,7 @@ func (s *Service) pairLink(ctx context.Context, act registry.Actor, in pairLinkI
 	v := pairLinkView{Links: auth.Links(s.Origins(), code), Code: code, Until: store.Time(until)}
 	if in.Kind != auth.Browser {
 		v.Links = []string{}
-	} else if q, err := qr.Encode(v.Links[0], qr.M); err == nil {
+	} else if q, err := qr.Encode(v.Links[0], qr.M); err == nil && strings.HasPrefix(v.Links[0], "https://") {
 		v.QR = base64.StdEncoding.EncodeToString(q.PNG())
 	}
 	return v, nil

@@ -136,14 +136,86 @@ What the module needs and what it may do once enabled.</sub></td>
 </tr>
 </table>
 
-## Install and run
+## Install
 
-macOS or Linux, Go 1.27, and at least one agent CLI (`claude` or `codex`) or an ACP agent on a local model. Node is
-needed only to rebuild the web client, which is embedded in the binary.
+One way for every machine: Docker with compose and deck's image, with Claude Code, Codex, uv and a browser inside.
+On Linux, Docker Engine; on a Mac, [OrbStack](https://orbstack.dev) or Docker Desktop; on Windows, Docker Desktop
+(not tried yet: GitHub's Windows runners do not run Linux containers, so no test covers it).
+
+```bash
+mkdir deck && cd deck
+for f in compose.yaml seccomp.json deck-box.apparmor; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/master/$f; done
+# Ubuntu and Debian, once: the AppArmor profile the container runs under
+sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
+docker compose up -d
+docker compose logs deck | grep pair      # the link that pairs your first device
+docker compose exec deck deck pair        # a link for the next one
+```
+
+deck starts with Docker and after a restart of the machine (`restart: unless-stopped`); its data and the logins of
+the agents stay in the volume `deck`. Open the link, then sign in to the agents in Settings → Models → **Sign in**:
+Codex shows a link and a code, Claude Code a link whose page gives the code to enter. To update:
+`docker compose pull && docker compose up -d`.
+
+**Open deck.**
+
+- **On this machine** — <http://deck.localhost:7700>. Browsers take `deck.localhost` to this machine and treat it as
+  secure, so a passkey works there without https; its cookie goes to no other server of the machine. Tried in
+  Chromium (Chrome, Edge) and WebKit (Safari); Firefox is not tried yet.
+- **From your phone and other devices** — over https only. Either Tailscale: install it on the machine with deck and
+  run `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701`, then start deck with
+  `-public https://<machine>.<tailnet>.ts.net` (in `.env`: `DECK_DOMAIN=<machine>.<tailnet>.ts.net`); Tailscale is
+  needed on the device you open deck from too. Or your own domain, below.
+- **As an app window** — in Safari, File → Add to Dock; in Chrome or Edge, Install deck from the address bar. On a
+  phone, add deck to the home screen: pushes and sharing a link or a file into a module work as in a native app.
+
+**Signing in.** A device pairs once by a link of `deck pair` (or of Settings → Devices on a device signed in, with its
+QR code for a phone) and makes a passkey there; the link works once, within ten minutes, and the passkey signs the
+device in from then on. Settings → Devices lists every device, renames and revokes them. On `http://localhost` deck
+gives no cookie: the browser would send it to every server on localhost, whatever its port; deck sends a page opened
+there to `deck.localhost`. A cookie of `deck.localhost` goes to that name on any port too, so open no link to
+`deck.localhost` with another port.
+
+**A server with a domain.** On a Linux server (amd64 or arm64) with a domain name pointing at it and ports 80, 443 and
+8443 open, put two lines in `.env` before `docker compose up -d`; Caddy in the same compose then gets the HTTPS
+certificate and serves deck at that name, with no Tailscale:
+
+```bash
+printf 'DECK_DOMAIN=deck.example.com\nCOMPOSE_PROFILES=domain\n' > .env
+```
+
+Add `DECK_TAILSCALE=deck` to `.env` to also reach deck on your tailnet from deck's own node. A server set up before
+Caddy came under the profile has only `DECK_DOMAIN` in `.env`: add `COMPOSE_PROFILES=domain` when you download the new
+`compose.yaml`, or Caddy no longer starts (deck says so in its log).
+
+**What the container needs.** Every program of a module runs in a box of its own inside the container, built by
+bubblewrap as on any Linux. For that `compose.yaml` gives the container three lines, and nothing else is loosened:
+`seccomp=./seccomp.json` (Docker's default profile with `clone`, `unshare`, `mount`, `umount2` and `pivot_root`
+allowed), `systempaths=unconfined` (so a box mounts its own `/proc`) and `apparmor=deck-box` (Docker's
+`docker-default` with `mount` and `pivot_root` allowed). A host without AppArmor ignores the last line; on a host with
+AppArmor where the profile is not loaded, Docker does not start the container and says the profile is not found.
+Without these lines deck starts no foreign program, and Settings → Health says which line is missing. Tried on Ubuntu 22.04 and
+24.04 with Docker, rootless Docker and OrbStack; Docker Desktop and SELinux hosts (Fedora, RHEL) are not tried yet.
+
+**Trying Docker Desktop on Windows.** Install Docker Desktop with the WSL 2 backend, download the three files into a
+folder and run `docker compose up -d` there (skip the AppArmor step). deck works when Settings → Health shows the box
+`ok`, a script of a starter module runs, and the link of `docker compose logs deck` pairs at http://deck.localhost:7700
+in Edge or Chrome.
+
+**Updating from v0.1.** v0.1 ran agents as a user `agent` with their logins in a volume `agents`. Update the image
+first, with the old `compose.yaml`: on its first start the new image copies the logins into deck's volume. deck then
+starts no foreign program and says why; download the three files above, load the profile and run
+`docker compose up -d` again. The volume `deck_agents` is no longer used: `docker volume rm deck_agents`. A new
+`compose.yaml` before the new image leaves the logins behind, and the agents need to sign in again.
+
+## Without Docker
+
+For developing deck: macOS or Linux, Go 1.27, and at least one agent CLI (`claude` or `codex`) or an ACP agent on a
+local model. Node is needed only to rebuild the web client, which is embedded in the binary.
 
 ```bash
 go build -o deck ./cmd/deck             # add -tags tailnet to serve deck on your Tailscale network
-./deck                                  # prints the address and, until a device pairs, the link that pairs one
+./deck                                  # prints http://deck.localhost:7700 and, until a device pairs, the link that pairs one
 ./deck pair                             # a link that pairs one more device, whether deck runs or not
 DECK_HOME=/tmp/deckhome ./deck          # another data folder
 ./deck -addr 127.0.0.1:7700             # the listen address (default); the next port serves custom blocks
@@ -162,54 +234,10 @@ stays as it is. deck.app and the Windows installer are updated whole by their la
 calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`. On start, deck migrates its
 database and the stored manifests.
 
-- **Signing in.** A browser signs in to deck only over https — your tailnet or your domain — with a passkey: open a
-  link of `deck pair` (or of Settings → Devices on a device signed in, with its QR code for a phone) on the device
-  and make the passkey there. The link works once, within ten minutes. Settings → Devices lists every device, renames
-  and revokes them. On plain http, `localhost` too, deck gives no cookie: the browser would send it to every server
-  on localhost, whatever its port.
-- **Phone.** Pair it as above and add deck to the home screen. Pushes and sharing a link or a file into a module work
-  as in a native app.
 - **Desktop app.** `desktop/build.sh` builds `deck.app` for macOS and an installer for Windows, where deck runs in
   its own WSL2 distribution (not yet tried on a real Windows machine). The launcher lives in the tray and can start
   at login; its window is a device of its own, paired by `deck pair --device launcher` on this machine only, its key
   in the header, not a cookie.
-
-## Server
-
-deck runs on a Linux server (amd64 or arm64) from its image, with Claude Code, Codex, uv and a browser inside. You
-need Docker with compose, and a domain name pointing at the server, with ports 80, 443 and 8443 open:
-
-```bash
-mkdir deck && cd deck
-for f in compose.yaml seccomp.json deck-box.apparmor; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/master/$f; done
-# Ubuntu and Debian, once: the AppArmor profile the container runs under
-sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
-echo "DECK_DOMAIN=deck.example.com" > .env
-docker compose up -d
-docker compose logs deck | grep pair      # the link that pairs your first device
-docker compose exec deck deck pair        # a link for the next one
-```
-
-Caddy in the same compose gets the HTTPS certificate. Open the link, then sign in to the agents in
-Settings → Models → **Sign in**: Codex shows a link and a code, Claude Code a link whose page gives the code to
-enter. Their logins and deck's data stay in the volume `deck`. Add `DECK_TAILSCALE=deck` to `.env` to also reach
-deck on your tailnet; without a domain, that is the https address a browser pairs at. To update:
-`docker compose pull && docker compose up -d`.
-
-**What the container needs.** Every program of a module runs in a box of its own inside the container, built by
-bubblewrap as on any Linux. For that `compose.yaml` gives the container three lines, and nothing else is loosened:
-`seccomp=./seccomp.json` (Docker's default profile with `clone`, `unshare`, `mount`, `umount2` and `pivot_root`
-allowed), `systempaths=unconfined` (so a box mounts its own `/proc`) and `apparmor=deck-box` (Docker's
-`docker-default` with `mount` and `pivot_root` allowed). A host without AppArmor ignores the last line; on a host with
-AppArmor where the profile is not loaded, Docker does not start the container and says the profile is not found.
-Without these lines deck starts no foreign program, and Settings → Health says which line is missing. Tried on Ubuntu 22.04 and
-24.04 with Docker, rootless Docker and OrbStack; Docker Desktop and SELinux hosts (Fedora, RHEL) are not tried yet.
-
-**Updating from v0.1.** v0.1 ran agents as a user `agent` with their logins in a volume `agents`. Update the image
-first, with the old `compose.yaml`: on its first start the new image copies the logins into deck's volume. deck then
-starts no foreign program and says why; download the three files above, load the profile and run
-`docker compose up -d` again. The volume `deck_agents` is no longer used: `docker volume rm deck_agents`. A new
-`compose.yaml` before the new image leaves the logins behind, and the agents need to sign in again.
 
 ## Status
 

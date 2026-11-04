@@ -1054,7 +1054,7 @@
   "Name of the device": "Имя устройства",
   "What pairs: a browser with its passkey, the window of the launcher or a node; a browser when left out": "Что связывается: браузер со своим ключом доступа, окно лаунчера или узел; без указания — браузер",
   "This window of the launcher is signed out: open deck again from the launcher.": "Это окно лаунчера вышло из deck: откройте deck снова из лаунчера.",
-  "A browser signs in to deck only over https: open this link at the https address of deck, or deck in the window of the launcher.": "Браузер входит в deck только по https: откройте эту ссылку на https-адресе deck или откройте deck в окне лаунчера.",
+  "A browser signs in to deck only over https, or at deck.localhost on the machine deck runs on: open this link there.": "Браузер входит в deck только по https или по адресу deck.localhost на машине, где работает deck: откройте эту ссылку там.",
   "This link pairs this device with deck: it makes a passkey here, and the passkey signs the device in from then on.": "Эта ссылка связывает устройство с deck: здесь появится ключ доступа, и дальше устройство входит по нему.",
   "Name of this device": "Имя этого устройства",
   "Pair this device": "Связать это устройство",

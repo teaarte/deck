@@ -114,8 +114,8 @@ func TestATrialTakesNoReservedFieldIntoItsInput(t *testing.T) {
 func TestEveryCommandOfDeckItsTextsNameIsOne(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	// Types of a failure, files of deck and a block of the client, not commands.
-	others := []string{"deck.tools", "deck.internal", "deck.restart", "deck.stopped", "deck.db", "deck.lock", "deck.app", "deck.unknown"}
+	// Types of a failure, files of deck, a block of the client and deck's name on its machine, not commands.
+	others := []string{"deck.tools", "deck.internal", "deck.restart", "deck.stopped", "deck.db", "deck.lock", "deck.app", "deck.unknown", "deck.localhost"}
 	name := regexp.MustCompile(`\bdeck\.[a-z][a-z0-9_]*\b[^(.]`)
 	seen := map[string]string{}
 	for _, dir := range []string{"internal", "cmd", "master", "skills", "starters", "schemas", "web/src", "web/foreign"} {

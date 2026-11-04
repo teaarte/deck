@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -32,6 +33,7 @@ type deckBinary struct {
 var (
 	listening = regexp.MustCompile(`url=(http://[^ ]+)`)
 	firstLink = regexp.MustCompile(`link="?(https://[^/]+)/#pair=([A-Za-z0-9_-]+)`)
+	hereLink  = regexp.MustCompile(`link="?(http://deck\.localhost:[0-9]+)/#pair=([A-Za-z0-9_-]+)`)
 )
 
 // buildDeck builds the binary of deck for a test.
@@ -97,7 +99,8 @@ func runDeck(t *testing.T, bin, home string, args []string, env ...string) *deck
 		}
 	}()
 	m := harness.Receive(t, "deck to start", up)
-	d.url = m[1]
+	// The log names deck.localhost, which a resolver of Linux may not know.
+	d.url = strings.Replace(m[1], "deck.localhost", "127.0.0.1", 1)
 	if d.key, err = d.launcher(); err != nil {
 		t.Fatal(err)
 	}
@@ -198,12 +201,15 @@ func TestTheHomeOfDeckIsOnlyTheOwnersAndItsLogHasNoToken(t *testing.T) {
 	if err := os.MkdirAll(deckhome.Layout(home).State(), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	d := startDeck(t, home)
 	if code, out, err := d.call("deck.menu_get", map[string]any{}); err != nil || code != 200 {
 		t.Fatalf("the launcher pairs by deck pair and calls: %d %s %v", code, out, err)
 	}
-	if !slices.ContainsFunc(d.said(), func(l string) bool { return strings.Contains(l, "no device is paired yet") }) {
-		t.Fatalf("deck with no https address says how a device pairs: %q", d.said())
+	if !slices.ContainsFunc(d.said(), hereLink.MatchString) || !slices.ContainsFunc(d.said(), func(l string) bool { return strings.Contains(l, "url=http://deck.localhost:") }) {
+		t.Fatalf("deck with no https address names deck.localhost and logs a link there for the first device: %q", d.said())
 	}
 	if fi, err := os.Stat(home); err != nil || fi.Mode().Perm() != 0o700 {
 		t.Fatalf("the home is only the owner's: %v %v", fi, err)
@@ -229,10 +235,10 @@ func TestDeckPairPairsWhetherDeckRunsOrNot(t *testing.T) {
 		return slices.ContainsFunc(d.said(), firstLink.MatchString)
 	})
 	out, err := d.pair("--name", "phone")
-	if err != nil || !strings.Contains(out, public+"/#pair=") {
-		t.Fatalf("deck pair prints the link of the https address while deck runs: %s %v", out, err)
+	if err != nil || !strings.Contains(out, public+"/#pair=") || !hereLink.MatchString("link="+lineOf(out, "http://deck.localhost:")) {
+		t.Fatalf("deck pair prints the links of the https address and of deck.localhost while deck runs: %s %v", out, err)
 	}
-	if _, err := harness.NewPasskey().Pair(d.url, public, harness.Code(strings.TrimSpace(out[strings.Index(out, public):])), ""); err != nil {
+	if _, err := harness.NewPasskey().Pair(d.url, public, harness.Code(lineOf(out, public)), ""); err != nil {
 		t.Fatal(err)
 	}
 	_ = d.cmd.Process.Signal(syscall.SIGTERM)
@@ -241,7 +247,7 @@ func TestDeckPairPairsWhetherDeckRunsOrNot(t *testing.T) {
 	if err != nil || !strings.Contains(stopped, public+"/#pair=") {
 		t.Fatalf("deck pair prints a link while deck is stopped: %s %v", stopped, err)
 	}
-	code := harness.Code(strings.TrimSpace(stopped[strings.Index(stopped, public):]))
+	code := harness.Code(lineOf(stopped, public))
 	d2 := runDeck(t, bin, home, []string{"-public", public})
 	if _, err := harness.NewPasskey().Pair(d2.url, public, code, "laptop"); err != nil {
 		t.Fatalf("a code deck pair wrote while deck was stopped pairs after its start: %v", err)
@@ -252,5 +258,54 @@ func TestDeckPairPairsWhetherDeckRunsOrNot(t *testing.T) {
 	if code, out, err := d2.call("deck.devices_list", map[string]any{}); err != nil || code != 200 ||
 		!strings.Contains(out, `"laptop"`) || !strings.Contains(out, `"phone"`) || strings.Count(out, `"kind":"launcher"`) != 1 {
 		t.Fatalf("the devices are the two browsers and the last launcher: %d %s %v", code, out, err)
+	}
+}
+
+// lineOf is the line of out that starts with prefix.
+func lineOf(out, prefix string) string {
+	for line := range strings.Lines(out) {
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimSpace(line)
+		}
+	}
+	return ""
+}
+
+// TestDeckStartsNotWhenAnotherServerHoldsItsPortOnIPv6Loopback: browsers of macOS open deck.localhost at ::1 first, so
+// deck on 127.0.0.1 refuses to start when another server holds that port at ::1.
+func TestDeckStartsNotWhenAnotherServerHoldsItsPortOnIPv6Loopback(t *testing.T) {
+	t.Parallel()
+	var other net.Listener
+	port := 0
+	// A port of ::1 whose neighbours deck takes are free.
+	for try := 0; port == 0 && try < 20; try++ {
+		ln, err := net.Listen("tcp", "[::1]:0")
+		if err != nil {
+			t.Skip("no IPv6 loopback here")
+		}
+		p := ln.Addr().(*net.TCPAddr).Port
+		free := true
+		for _, at := range []string{fmt.Sprintf("127.0.0.1:%d", p), fmt.Sprintf("127.0.0.1:%d", p+1), fmt.Sprintf("[::1]:%d", p+1)} {
+			if l, err := net.Listen("tcp", at); err == nil {
+				l.Close()
+			} else {
+				free = false
+			}
+		}
+		if free {
+			other, port = ln, p
+		} else {
+			ln.Close()
+		}
+	}
+	if other == nil {
+		t.Fatal("no free port")
+	}
+	defer other.Close()
+	cmd := exec.Command(buildDeck(t), "-addr", fmt.Sprintf("127.0.0.1:%d", port))
+	cmd.Env = append(os.Environ(), "DECK_HOME="+t.TempDir())
+	out, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "[::1]") {
+		t.Fatalf("deck refuses to start and names [::1]: %v %s", err, out)
 	}
 }

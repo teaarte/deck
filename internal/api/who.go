@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -41,7 +42,7 @@ func (s *Server) Who(r *http.Request) (registry.Actor, error) {
 		return act, nil
 	}
 	o := originOf(r)
-	c, err := r.Cookie(cookieName)
+	c, err := r.Cookie(cookieOf(o))
 	if err != nil || !o.Passkeys() {
 		return registry.Actor{}, s.unsigned(r)
 	}
@@ -71,20 +72,27 @@ func (s *Server) unsigned(r *http.Request) error {
 		}
 	}
 	if len(at) == 0 {
-		return registry.Unsigned("a browser signs in to deck only over https, and deck has no https address yet: open it in the window of the launcher, or see Health for how to give deck one")
+		return registry.Unsigned("a browser signs in to deck only over https or at deck.localhost on its machine, and deck has neither here: see Health for how to give deck an https address")
 	}
-	return registry.Unsigned("a browser signs in to deck only over https: open %s, or the window of the launcher", strings.Join(at, " or "))
+	return registry.Unsigned("a browser signs in to deck at %s", strings.Join(at, " or "))
 }
 
 // local says a request comes from this machine to deck's plain address on it, as the launcher's window does; not
 // through a proxy here, such as tailscale serve, which comes from loopback to an https address.
 func local(r *http.Request) bool {
 	name, _ := hostPort(r.Host)
-	return fromHere(r) && !originOf(r).Secure() && (name == "localhost" || strings.HasPrefix(name, "127."))
+	return fromHere(r) && !originOf(r).Secure() && (name == "localhost" || name == auth.HereName || strings.HasPrefix(name, "127."))
 }
 
-// cookieName is the cookie of a browser's session, __Host- so it stays with the one https origin.
-const cookieName = "__Host-deck"
+// cookieOf is the cookie of a browser's session at an origin: __Host- over https, so it stays with the one origin;
+// at deck.localhost one named by the port, as a browser sends it to every port and another deck may listen on one.
+func cookieOf(o auth.Origin) string {
+	if o.Secure() {
+		return "__Host-deck"
+	}
+	u, _ := url.Parse(o.Main)
+	return "deck-" + u.Port()
+}
 
 type originKey struct{}
 
@@ -104,19 +112,36 @@ func (s *Server) hosted(next http.Handler) http.Handler {
 			return
 		}
 		name, port := hostPort(r.Host)
-		if ip, err := netip.ParseAddr(strings.Trim(name, "[]")); err == nil && (ip.IsUnspecified() || ip.Is6() && ip.IsLoopback()) &&
-			(r.Method == http.MethodGet || r.Method == http.MethodHead) {
-			http.Redirect(w, r, "http://"+net.JoinHostPort("localhost", strconv.Itoa(port))+r.URL.RequestURI(), http.StatusFound)
+		if here := s.here(r, name, port); here != "" {
+			http.Redirect(w, r, here+r.URL.RequestURI(), http.StatusFound)
 			return
 		}
 		o, ok := s.origins.Of(r.Host)
 		if !ok {
 			s.reached(r, name)
-			http.Error(w, "deck: deck answers only at its own addresses: its https address, or localhost in the window of the launcher", http.StatusMisdirectedRequest)
+			http.Error(w, "deck: deck answers only at its own addresses: its https address, or deck.localhost on its machine", http.StatusMisdirectedRequest)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), originKey{}, o)))
 	})
+}
+
+// here is deck.localhost at the port of a page opened by localhost or a loopback address, where no browser signs in,
+// or [::] and 0.0.0.0, which a CSP does not name; empty for the rest and for calls of the API, MCP and signing in.
+func (s *Server) here(r *http.Request, name string, port int) string {
+	p := r.URL.Path
+	if r.Method != http.MethodGet && r.Method != http.MethodHead || port == 0 || p == "/mcp" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/auth/") {
+		return ""
+	}
+	ip, err := netip.ParseAddr(strings.Trim(name, "[]"))
+	if name != "localhost" && (err != nil || !ip.IsLoopback() && !ip.IsUnspecified()) {
+		return ""
+	}
+	here := "http://" + net.JoinHostPort(auth.HereName, strconv.Itoa(port))
+	if _, ok := s.origins.Named(here); !ok {
+		return ""
+	}
+	return here
 }
 
 // reached tells deck the first time the owner comes by an address deck does not sign in at, such as plain http from
@@ -141,12 +166,12 @@ func hostPort(host string) (string, int) {
 	return name, port
 }
 
-// clientIP is the address a request comes from: the one a proxy of deck saw, when it came for an https address of
-// deck over plain http from this machine or deck's private network, as through Caddy of deck's compose.
+// clientIP is the address a request comes from: the one a proxy saw, when the request came from this machine, as
+// through tailscale serve, or from a proxy deck was told of, as Caddy of deck's compose.
 func (s *Server) clientIP(r *http.Request) string {
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
 	ip, err := netip.ParseAddr(host)
-	if err != nil || !(ip.Unmap().IsLoopback() || ip.Unmap().IsPrivate()) || r.TLS != nil || !originOf(r).Secure() {
+	if err != nil || r.TLS != nil || !ip.Unmap().IsLoopback() && !s.proxies.Has(r.Context(), ip.Unmap()) {
 		return host
 	}
 	fwd := r.Header.Values("X-Forwarded-For")

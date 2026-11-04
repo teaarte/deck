@@ -1,14 +1,13 @@
 package browser
 
 import (
-	"strings"
 	"testing"
 
 	"deck2/tests/harness"
 )
 
 // TestRealBrowserSignsInWithAPasskey: Chromium pairs by a link with a virtual passkey, signs in by it without a
-// cookie, makes a link with a QR code; a revoke signs it out; deck's http address says where a browser signs in.
+// cookie, makes a link with a QR code; a revoke signs it out; deck by localhost goes to deck.localhost.
 func TestRealBrowserSignsInWithAPasskey(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
@@ -44,8 +43,5 @@ func TestRealBrowserSignsInWithAPasskey(t *testing.T) {
 	b.until("a passkey of a revoked device refused", `document.querySelector('[data-signin-error]')`)
 
 	b.open(e.Local + "/")
-	b.until("deck's http address says where a browser signs in", `document.querySelector('[data-signin-where]')`)
-	if got := b.eval(`document.querySelector('[data-signin-where]').innerText`); !strings.Contains(got, e.Https()) || !strings.Contains(got, "launcher") {
-		t.Fatalf("the page names deck's https address and the launcher: %q", got)
-	}
+	b.until("deck by localhost goes to deck.localhost, where a browser signs in", `location.origin === '`+e.Here+`' && document.querySelector('[data-signin="passkey"]')`)
 }

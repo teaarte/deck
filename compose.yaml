@@ -1,6 +1,7 @@
-# deck on a server: put DECK_DOMAIN (a name of this server) in .env, run docker compose up -d, and open the link
-# that pairs the first device from docker compose logs deck. seccomp.json and deck-box.apparmor lie beside it; README, "Server",
-# says the rest.
+# deck: docker compose up -d, then open the link that pairs the first device from docker compose logs deck; on this
+# machine deck is http://deck.localhost:7700. On a server with a domain put DECK_DOMAIN (its name) and
+# COMPOSE_PROFILES=domain in .env, and Caddy serves deck over https there. seccomp.json and deck-box.apparmor lie
+# beside it; README, "Install", says the rest.
 name: deck
 services:
   deck:
@@ -15,6 +16,8 @@ services:
       - apparmor=deck-box
     environment:
       DECK_PUBLIC: ${DECK_DOMAIN:+https://${DECK_DOMAIN}}
+      # deck takes X-Forwarded-For only from Caddy below.
+      DECK_PROXY: caddy
       DECK_TAILSCALE: ${DECK_TAILSCALE:-}
       TZ: ${TZ:-}
     ports:
@@ -25,6 +28,8 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    # Only with a domain: on one computer deck takes no port 80 or 443.
+    profiles: [domain]
     ports:
       - "80:80"
       - "443:443"

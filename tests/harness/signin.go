@@ -46,7 +46,7 @@ func Answer(resp *http.Response) (int, []byte, string, error) {
 	out, _ := io.ReadAll(resp.Body)
 	cookie := ""
 	for _, c := range resp.Cookies() {
-		if strings.HasSuffix(c.Name, "deck") && c.Value != "" {
+		if (c.Name == "__Host-deck" || strings.HasPrefix(c.Name, "deck-")) && c.Value != "" {
 			cookie = c.Value
 		}
 	}

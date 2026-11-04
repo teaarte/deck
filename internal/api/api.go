@@ -33,10 +33,14 @@ type Server struct {
 	// origins are the addresses deck answers the owner at, each with its second origin.
 	origins *auth.Origins
 	// plain says the owner came by an address deck does not sign in at since deck started.
-	plain atomic.Bool
+	plain   atomic.Bool
+	proxies *proxies
 }
 
-func New(a *app.App, web fs.FS) *Server { return &Server{app: a, web: web, origins: a.Auth.Origins()} }
+// New serves a; proxies are those besides loopback whose X-Forwarded-For deck takes: addresses, networks or names.
+func New(a *app.App, web fs.FS, proxies []string) *Server {
+	return &Server{app: a, web: web, origins: a.Auth.Origins(), proxies: newProxies(proxies, a.Cfg.Now)}
+}
 
 // maxUpload is how much one upload of files may hold together.
 const maxUpload = 1 << 30
@@ -256,7 +260,7 @@ func serveFile(w http.ResponseWriter, r *http.Request, name, typ string, file *o
 // or the device is revoked, checked after the stream is held so a revoke meanwhile is not missed.
 func (s *Server) alive(r *http.Request) func(context.Context) bool {
 	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if c, err := r.Cookie(cookieName); err == nil && raw == "" {
+	if c, err := r.Cookie(cookieOf(originOf(r))); err == nil && raw == "" {
 		raw = c.Value
 	}
 	if _, ok := s.app.Owners.Lent(raw); ok {

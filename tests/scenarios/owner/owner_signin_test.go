@@ -78,8 +78,9 @@ func pairSecond(t *testing.T, e *harness.Env, name string) (*harness.Passkey, st
 		QR    string
 	}
 	e.Must("deck.pair_link", map[string]any{}, &link)
-	if len(link.Links) != 1 || !strings.HasPrefix(link.Links[0], e.Https()+"/#pair=") || !strings.HasPrefix(link.QR, "iVBORw0KGgo") {
-		t.Fatalf("a link pairs at the https address, the code in its fragment, with its QR code: %v %.20s", link.Links, link.QR)
+	if len(link.Links) != 2 || !strings.HasPrefix(link.Links[0], e.Https()+"/#pair=") || !strings.HasPrefix(link.Links[1], e.Here+"/#pair=") ||
+		!strings.HasPrefix(link.QR, "iVBORw0KGgo") {
+		t.Fatalf("a link pairs at the https address and at deck.localhost, the code in its fragment, with the QR code of the first: %v %.20s", link.Links, link.QR)
 	}
 	p := harness.NewPasskey()
 	cookie, err := p.Pair(e.URL, e.Https(), harness.Code(link.Links[0]), name)
@@ -249,8 +250,8 @@ func TestACookieCallsOnlyFromAPageOfDeck(t *testing.T) {
 		}
 		b, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		if resp.StatusCode != 401 || !strings.Contains(string(b), e.Https()) || !strings.Contains(string(b), "launcher") {
-			t.Fatalf("on http://localhost no cookie signs in, and deck names its https address: %d %s", resp.StatusCode, b)
+		if resp.StatusCode != 401 || !strings.Contains(string(b), e.Https()) || !strings.Contains(string(b), e.Here) {
+			t.Fatalf("on http://localhost no cookie signs in, and deck names its https address and deck.localhost: %d %s", resp.StatusCode, b)
 		}
 	}
 }

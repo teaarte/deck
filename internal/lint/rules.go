@@ -25,7 +25,7 @@ type rule struct {
 var rules = []rule{
 	{"now", "the wall clock outside the clock of deck: take Now of the config", []string{"internal/", "cmd/"}, nil, timeNow},
 	{"go", "a bare go statement in a domain: run it through Go of the background", []string{"internal/app/"}, nil, goStmt},
-	// fault names its types deck.<kind> and home its files deck.db, neither a command.
+	// fault names its types deck.<kind> and home its files deck.db, neither a command; deck.localhost is a host.
 	{"deck", "a name of deck's command written out: take registry.Deck or registry.IsBuiltin", []string{"internal/", "cmd/"},
 		[]string{"internal/registry/", "internal/fault/", "internal/home/", "internal/lint/"}, deckName},
 	{"refusal", "a refusal built by hand: take a constructor of registry or a failure of fault", []string{"internal/", "cmd/"},
@@ -154,7 +154,7 @@ func deckName(f *ast.File, fset *token.FileSet) []int {
 	var out []int
 	ast.Inspect(f, func(n ast.Node) bool {
 		if l, ok := n.(*ast.BasicLit); ok && l.Kind == token.STRING {
-			if v, err := strconv.Unquote(l.Value); err == nil && strings.HasPrefix(v, "deck.") {
+			if v, err := strconv.Unquote(l.Value); err == nil && strings.HasPrefix(v, "deck.") && v != "deck.localhost" {
 				out = append(out, fset.Position(l.Pos()).Line)
 			}
 		}

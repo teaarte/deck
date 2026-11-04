@@ -84,12 +84,14 @@ type seen struct {
 type bare struct {
 	t    *testing.T
 	name string
+	// origin is the address of deck its owner signs in at: https by Caddy with a domain, deck.localhost without.
+	origin string
 }
 
 // newBare starts a bare docker with deck's image, Caddy's of compose.yaml and the images named.
 func newBare(t *testing.T, images ...string) *bare {
 	t.Helper()
-	b := &bare{t: t}
+	b := &bare{t: t, origin: "https://localhost"}
 	spec, err := os.ReadFile(filepath.Join(harness.Root, "compose.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +122,7 @@ func newBare(t *testing.T, images ...string) *bare {
 	}
 	b.in("mkdir", "-p", "/srv/deck")
 	b.host("docker", "cp", bin, b.name+":/srv/scenarios.test")
-	b.write("/srv/deck/.env", "DECK_DOMAIN=localhost\n")
+	b.write("/srv/deck/.env", "DECK_DOMAIN=localhost\nCOMPOSE_PROFILES=domain\n")
 	b.write("/srv/deck/compose.override.yaml", serverOverride)
 	return b
 }
@@ -173,12 +175,12 @@ func (b *bare) sh(user, script string) string {
 	return b.compose("exec", "-T", "-u", user, "deck", "sh", "-c", script)
 }
 
-// signIn waits for the first link in the log of deck, which has no token, then pairs a browser at deck's https address
-// by a code of docker compose exec deck deck pair inside the container and gives the cookie of its session.
+// signIn waits for the first link in the log of deck, which has no token, then pairs a browser at deck's origin by a
+// code of docker compose exec deck deck pair inside the container and gives the cookie of its session.
 func (b *bare) signIn() string {
 	b.t.Helper()
 	var logs string
-	first := regexp.MustCompile(`link="?https://localhost/#pair=[A-Za-z0-9_-]+`)
+	first := regexp.MustCompile(`link="?` + regexp.QuoteMeta(b.origin) + `/#pair=[A-Za-z0-9_-]+`)
 	defer func() {
 		if !first.MatchString(logs) {
 			b.t.Logf("the log of deck:\n%s", logs)
@@ -192,35 +194,42 @@ func (b *bare) signIn() string {
 		b.t.Fatalf("the log of deck carries no token:\n%s", logs)
 	}
 	out := b.compose("exec", "-T", "-u", "deck", "deck", "deck", "pair")
-	m := regexp.MustCompile(`https://localhost/#pair=([A-Za-z0-9_-]+)`).FindStringSubmatch(out)
+	m := regexp.MustCompile(regexp.QuoteMeta(b.origin) + `/#pair=([A-Za-z0-9_-]+)`).FindStringSubmatch(out)
 	if m == nil {
-		b.t.Fatalf("deck pair prints a link of deck's https address: %s", out)
+		b.t.Fatalf("deck pair prints a link of %s: %s", b.origin, out)
 	}
 	cookie, err := harness.NewPasskey().PairBy(func(step string, body any) (int, []byte, string, error) {
 		in, _ := json.Marshal(body)
-		out := b.compose("exec", "-T", "-u", "deck", "deck", "curl", "-s", "-i", "--max-time", "60", "-X", "POST", "-H", "Host: localhost",
-			"-H", "Origin: "+origin, "-H", "Content-Type: application/json", "-d", string(in), "http://127.0.0.1:7700/auth/"+step)
+		out := b.compose("exec", "-T", "-u", "deck", "deck", "curl", "-s", "-i", "--max-time", "60", "-X", "POST", "-H", "Host: "+b.originHost(),
+			"-H", "Origin: "+b.origin, "-H", "Content-Type: application/json", "-d", string(in), "http://127.0.0.1:7700/auth/"+step)
 		resp, err := http.ReadResponse(bufio.NewReader(strings.NewReader(out)), nil)
 		if err != nil {
 			return 0, []byte(out), "", err
 		}
 		return harness.Answer(resp)
-	}, origin, m[1], "server test")
+	}, b.origin, m[1], "server test")
 	if err != nil {
 		b.t.Fatal(err)
 	}
 	return cookie
 }
 
-// origin is deck's https address in the test, by Caddy of its compose.
-const origin = "https://localhost"
+// originHost is the Host of deck's origin.
+func (b *bare) originHost() string {
+	return strings.TrimPrefix(strings.TrimPrefix(b.origin, "https://"), "http://")
+}
 
-// call calls a command of deck from inside its container, as the owner's browser signed in at its https address.
+// call calls a command of deck from inside its container, as the owner's browser signed in at deck's origin.
 func (b *bare) call(cookie, command string, input any) json.RawMessage {
 	b.t.Helper()
+	// deck's cookie at deck.localhost is named by its port.
+	name := "deck-" + b.origin[strings.LastIndex(b.origin, ":")+1:]
+	if strings.HasPrefix(b.origin, "https://") {
+		name = "__Host-deck"
+	}
 	body, _ := json.Marshal(input)
 	return json.RawMessage(b.compose("exec", "-T", "-u", "deck", "deck", "curl", "-s", "--max-time", "60", "-X", "POST",
-		"-b", "__Host-deck="+cookie, "-H", "Host: localhost", "-H", "Origin: "+origin, "-H", "Content-Type: application/json", "-d", string(body),
+		"-b", name+"="+cookie, "-H", "Host: "+b.originHost(), "-H", "Origin: "+b.origin, "-H", "Content-Type: application/json", "-d", string(body),
 		"http://127.0.0.1:7700/api/commands/"+command))
 }
 
@@ -313,6 +322,36 @@ func TestServerFromScratch(t *testing.T) {
 
 	if state, errText, out := b.script(token); state != "done" || out.Pids == 0 || out.Pids > 5 || out.State || out.Deck != 200 {
 		t.Fatalf("the script runs in its box, sees only its own processes and not deck's base, and calls deck: %s %s %+v", state, errText, out)
+	}
+	if logs := b.compose("logs", "deck"); strings.Contains(logs, "panic") {
+		t.Fatalf("deck panicked:\n%s", logs)
+	}
+}
+
+// TestServerOnOneComputer is deck from compose.yaml with no domain: no Caddy and no port 80 or 443, deck on loopback,
+// the first link at deck.localhost in its log, a browser pairing and calling there, a script in its box.
+func TestServerOnOneComputer(t *testing.T) {
+	harness.Needs(t, "DECK_SERVER")
+	b := newBare(t)
+	b.origin = "http://deck.localhost:7700"
+	b.write("/srv/deck/.env", "")
+	b.files("compose.yaml", "seccomp.json", "deck-box.apparmor")
+	b.compose("up", "-d")
+	if running := b.compose("ps", "--services", "--status", "running"); strings.Contains(running, "caddy") || !strings.Contains(running, "deck") {
+		t.Fatalf("without a domain only deck runs: %s", running)
+	}
+	if ports := b.in("docker", "ps", "--format", "{{.Ports}}"); strings.Contains(ports, ":80->") || strings.Contains(ports, ":443->") ||
+		!strings.Contains(ports, "127.0.0.1:7700") {
+		t.Fatalf("deck takes 7700 and 7701 on loopback, nothing 80 or 443: %s", ports)
+	}
+	token := b.signIn()
+	harness.Until(t, "the first screen by deck.localhost on the published port", func() bool {
+		out, err := exec.Command("docker", "exec", b.name, "wget", "-qO-", "--header", "Host: deck.localhost:7700", "http://127.0.0.1:7700/").CombinedOutput()
+		return err == nil && strings.Contains(string(out), "<html")
+	})
+	b.health(token, "sandbox", "ok")
+	if state, errText, out := b.script(token); state != "done" || out.State || out.Deck != 200 {
+		t.Fatalf("the script runs in its box: %s %s %+v", state, errText, out)
 	}
 	if logs := b.compose("logs", "deck"); strings.Contains(logs, "panic") {
 		t.Fatalf("deck panicked:\n%s", logs)

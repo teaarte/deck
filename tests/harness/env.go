@@ -42,8 +42,9 @@ type Env struct {
 	Names   map[int64]string
 	// Probes counts the reads of deck.probe_list, a read every test deck has.
 	Probes *atomic.Int64
-	// Local is the address of deck by localhost, where only the launcher's window signs in.
-	Local string
+	// Local is the address of deck by localhost, where only the launcher's window signs in; Here is deck.localhost,
+	// where a browser of this machine pairs and signs in.
+	Local, Here string
 	// Key is the key of the owner's launcher, which the owner's calls carry; Owner is the passkey of the owner's
 	// browser and cookie its session, paired at the https address of the test on first use.
 	Key     string
@@ -87,6 +88,7 @@ type setup struct {
 	after     []func(*Env)
 	wait      time.Duration
 	every     bool
+	proxies   []string
 	key       string
 	owner     *Passkey
 	cookie    string
@@ -145,6 +147,22 @@ func WithWait(d time.Duration) Option {
 // OnEveryAddress serves deck on every address of the machine, as -addr 0.0.0.0:7700 does; Env.URL stays loopback.
 func OnEveryAddress(s *setup) { s.every = true }
 
+// WithProxies names the proxies before deck whose X-Forwarded-For it takes besides loopback, as -proxy does.
+func WithProxies(list ...string) Option {
+	return func(s *setup) { s.proxies = list }
+}
+
+// LAN is an IPv4 address of this machine on its network, empty when it has none.
+func LAN() string {
+	addrs, _ := net.InterfaceAddrs()
+	for _, a := range addrs {
+		if n, ok := a.(*net.IPNet); ok && n.IP.To4() != nil && !n.IP.IsLoopback() && !n.IP.IsLinkLocalUnicast() {
+			return n.IP.String()
+		}
+	}
+	return ""
+}
+
 // New starts deck for a test: its API on a local port, the master paused and on a quiet provider of its own.
 func New(t *testing.T, opts ...Option) *Env {
 	t.Helper()
@@ -165,6 +183,7 @@ func New(t *testing.T, opts ...Option) *Env {
 	port, sidePort := strconv.Itoa(ts.Listener.Addr().(*net.TCPAddr).Port), strconv.Itoa(side.Listener.Addr().(*net.TCPAddr).Port)
 	base := "http://" + net.JoinHostPort("127.0.0.1", port)
 	local := "http://" + net.JoinHostPort("localhost", port)
+	here := "http://" + net.JoinHostPort(auth.HereName, port)
 	browser := t.TempDir()
 	self := Fakes
 	c := app.Config{Home: s.home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second,
@@ -172,7 +191,8 @@ func New(t *testing.T, opts ...Option) *Env {
 	probes := &atomic.Int64{}
 	c.Commands = []*registry.Command{probe(probes)}
 	c.Origins = auth.NewOrigins(auth.Origin{Main: base, Side: "http://" + net.JoinHostPort("127.0.0.1", sidePort)},
-		auth.Origin{Main: local, Side: "http://" + net.JoinHostPort("localhost", sidePort)})
+		auth.Origin{Main: local, Side: "http://" + net.JoinHostPort("localhost", sidePort)},
+		auth.Origin{Main: here, Side: "http://" + net.JoinHostPort(auth.HereName, sidePort)})
 	c.Sandbox = sandbox.New(deckhome.Layout(s.home))
 	c.Sandbox.Also.Read, c.Sandbox.Also.Write = []string{self}, []string{browser}
 	for _, f := range s.cfg {
@@ -188,12 +208,12 @@ func New(t *testing.T, opts ...Option) *Env {
 		t.Fatal(err)
 	}
 	a.Asks.Poll = 20 * time.Millisecond
-	srv := api.New(a, web.FS())
+	srv := api.New(a, web.FS(), s.proxies)
 	side.Config.Handler = srv.Sandbox()
 	side.Start()
 	ts.Config.Handler = srv.Handler()
 	ts.Start()
-	e := &Env{T: t, App: a, URL: base, Side: "http://" + net.JoinHostPort("127.0.0.1", sidePort), Local: local, Home: s.home, Fake: s.fake, Clock: s.clock, Names: map[int64]string{},
+	e := &Env{T: t, App: a, URL: base, Side: "http://" + net.JoinHostPort("127.0.0.1", sidePort), Local: local, Here: here, Home: s.home, Fake: s.fake, Clock: s.clock, Names: map[int64]string{},
 		Browser: browser, Probes: probes, Key: s.key, Owner: s.owner, cookie: s.cookie, devices: map[string]string{}, opts: opts, wait: s.wait}
 	var once sync.Once
 	e.stop = func(wait bool) {

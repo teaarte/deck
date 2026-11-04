@@ -66,9 +66,9 @@ func (s *Server) begun(w http.ResponseWriter, r *http.Request, b auth.Begun, err
 		refuse(w, r, err.Error(), status)
 		return
 	}
-	if b.Cookie != "" {
-		http.SetCookie(w, &http.Cookie{Name: cookieName, Value: b.Cookie, Path: "/", MaxAge: int(auth.Longest.Seconds()),
-			HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
+	if o := originOf(r); b.Cookie != "" {
+		http.SetCookie(w, &http.Cookie{Name: cookieOf(o), Value: b.Cookie, Path: "/", MaxAge: int(auth.Longest.Seconds()),
+			HttpOnly: true, Secure: o.Secure(), SameSite: http.SameSiteStrictMode})
 	}
 	send(w, b)
 }
@@ -95,8 +95,9 @@ func (s *Server) loginFinish(w http.ResponseWriter, r *http.Request, in riteIn) 
 
 // logout ends the session of the cookie or the key and drops the cookie.
 func (s *Server) logout(w http.ResponseWriter, r *http.Request, _ riteIn) {
+	o := originOf(r)
 	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if c, err := r.Cookie(cookieName); err == nil && raw == "" {
+	if c, err := r.Cookie(cookieOf(o)); err == nil && raw == "" {
 		raw = c.Value
 	}
 	if raw != "" {
@@ -109,7 +110,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, _ riteIn) {
 			s.app.Auth.Kick(p.Device)
 		}
 	}
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: true,
+	http.SetCookie(w, &http.Cookie{Name: cookieOf(o), Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: o.Secure(),
 		SameSite: http.SameSiteStrictMode})
 	send(w, map[string]any{"ok": true})
 }

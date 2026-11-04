@@ -8,17 +8,6 @@ import (
 	"deck2/tests/harness"
 )
 
-// lanAddress is an IPv4 address of this machine on its network, empty when it has none.
-func lanAddress() string {
-	addrs, _ := net.InterfaceAddrs()
-	for _, a := range addrs {
-		if n, ok := a.(*net.IPNet); ok && n.IP.To4() != nil && !n.IP.IsLoopback() && !n.IP.IsLinkLocalUnicast() {
-			return n.IP.String()
-		}
-	}
-	return ""
-}
-
 // TestRealBrowserCustomBlockOpensOnEveryAddress: deck on every address, by [::] (Chrome) or localhost: the custom block
 // gets its data, the console has no word of the CSP or the sandbox; plain http from the network gets nothing.
 func TestRealBrowserCustomBlockOpensOnEveryAddress(t *testing.T) {
@@ -58,7 +47,7 @@ func TestRealBrowserCustomBlockOpensOnEveryAddress(t *testing.T) {
 				}
 			}
 		}
-		if lan := lanAddress(); lan != "" {
+		if lan := harness.LAN(); lan != "" {
 			b.open("http://" + lan + ":" + port + "/")
 			b.until(kind+" by the network to get deck's refusal", `document.body.innerText.includes('deck answers only at its own addresses')`)
 		}

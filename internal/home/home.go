@@ -3,7 +3,9 @@
 package home
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,6 +117,10 @@ func Open(dir string) (Layout, error) {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return "", err
 		}
+	}
+	// The owner's token of a deck before passkeys signs no one in.
+	if err := os.Remove(l.state("token")); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", err
 	}
 	return l, nil
 }

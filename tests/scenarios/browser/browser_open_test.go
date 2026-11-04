@@ -3,6 +3,7 @@ package browser
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -281,12 +282,7 @@ func (b *playwright) press(sel string) {
 func (b *playwright) signIn(e *harness.Env, base, rest string) {
 	b.t.Helper()
 	if !b.paired {
-		b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => {
-  globalThis.deckAuthn = await page.context().newCDPSession(page);
-  await globalThis.deckAuthn.send('WebAuthn.enable');
-  await globalThis.deckAuthn.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal',
-    hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
-}`})
+		b.authenticator()
 		var link struct{ Code string }
 		e.Must("deck.pair_link", map[string]any{"name": "the test's browser"}, &link)
 		query, route, _ := strings.Cut(rest, "#")
@@ -301,6 +297,28 @@ func (b *playwright) signIn(e *harness.Env, base, rest string) {
 	}
 	b.until("the client signed in", `!document.querySelector('[data-signin-page]') && document.querySelector('#root > *')`)
 	b.base = base
+}
+
+// passkeyJS is an authenticator in the page for WebKit, which Playwright gives no virtual one.
+//
+//go:embed testdata/passkey.js
+var passkeyJS string
+
+// authenticator gives the browser a passkey authenticator that answers at once: Chromium's virtual one, in WebKit
+// one in the pages it opens next.
+func (b *playwright) authenticator() {
+	b.t.Helper()
+	if b.kind == "webkit" {
+		js, _ := json.Marshal(passkeyJS)
+		b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.context().addInitScript(` + string(js) + `); }`})
+		return
+	}
+	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => {
+  globalThis.deckAuthn = await page.context().newCDPSession(page);
+  await globalThis.deckAuthn.send('WebAuthn.enable');
+  await globalThis.deckAuthn.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal',
+    hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
+}`})
 }
 
 // file puts a file into a file input as picking it does.

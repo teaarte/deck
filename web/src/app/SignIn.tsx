@@ -28,7 +28,8 @@ function named(): string {
 // and the page opens the route after the code; over plain http it says where deck signs in.
 export function SignIn({ why }: { why: string }) {
   const { t } = useTranslation();
-  const secure = location.protocol === 'https:';
+  // Browsers take deck.localhost to this machine and sign in there as over https.
+  const secure = location.protocol === 'https:' || location.hostname.endsWith('.localhost');
   const [name, setName] = useState(named);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -57,7 +58,7 @@ export function SignIn({ why }: { why: string }) {
   if (wasKeyed()) {
     body = <Text size="sm">{t('This window of the launcher is signed out: open deck again from the launcher.')}</Text>;
   } else if (!secure) {
-    body = <Text size="sm" data-signin-where>{why.trim() || t('A browser signs in to deck only over https: open this link at the https address of deck, or deck in the window of the launcher.')}</Text>;
+    body = <Text size="sm" data-signin-where>{why.trim() || t('A browser signs in to deck only over https, or at deck.localhost on the machine deck runs on: open this link there.')}</Text>;
   } else if (pairCode) {
     body = (
       <>

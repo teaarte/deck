@@ -47,6 +47,9 @@ func (l Layout) Node() string    { return l.state("node") }
 func (l Layout) NodeKey() string { return l.state("node", "joined.json") }
 func (l Layout) NodeLog() string { return l.state("node", "node.log") }
 
+// NodeAllowed lists what the node lets deck use on its machine, as its owner wrote it.
+func (l Layout) NodeAllowed() string { return l.state("node", "allowed") }
+
 func (l Layout) Files() string { return l.state("files") }
 
 // File is a stored file by its id.

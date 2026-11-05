@@ -80,3 +80,28 @@ func Load(h home.Layout) (Joined, error) {
 	}
 	return j, nil
 }
+
+// Move moves the key of a node and its list of what it allows from the folder from to to, when to has no key yet;
+// moved says it did.
+func Move(from, to home.Layout) (moved bool, err error) {
+	if _, err := os.Stat(to.NodeKey()); !errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	for _, f := range []func(home.Layout) string{home.Layout.NodeAllowed, home.Layout.NodeKey} {
+		b, err := os.ReadFile(f(from))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return moved, err
+		}
+		if err := home.WriteFile(f(to), b); err != nil {
+			return moved, err
+		}
+		if err := os.Remove(f(from)); err != nil {
+			return moved, err
+		}
+		moved = true
+	}
+	return moved, nil
+}

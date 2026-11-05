@@ -2,6 +2,7 @@ package owner
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 
 	"deck2/internal/node"
 	"deck2/tests/harness"
@@ -68,7 +70,7 @@ func TestAModelOfANodeIsCalledThroughItsNode(t *testing.T) {
 	t.Parallel()
 	api := nodeModels(t, "from the node")
 	e := harness.New(t)
-	n := e.Node("Mac")
+	n := e.Node("Mac", api.URL)
 	if h := e.WaitHealth("node:Mac", "ok"); !strings.Contains(h.Error, "no connection goes through it yet") {
 		t.Fatalf("a node with no connection says how to give it one: %+v", h)
 	}
@@ -109,7 +111,7 @@ func TestANodeOffHandsItsCallsToTheNextModel(t *testing.T) {
 	t.Parallel()
 	local, cloud := nodeModels(t, "from the node"), nodeModels(t, "from the cloud")
 	e := harness.New(t)
-	n := e.Node("Mac")
+	n := e.Node("Mac", local.URL)
 	e.Must("deck.connection_set", map[string]any{"name": "local", "api": "openai", "url": local.URL + "/v1", "local": true, "node": "Mac"}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": cloud.URL + "/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "local", "model": "qwen", "name": "small", "kind": "text"}, nil)
@@ -151,7 +153,7 @@ func TestARevokedNodeLosesItsConnectionAndItsKeyOpensNothing(t *testing.T) {
 	t.Parallel()
 	api := nodeModels(t, "from the node")
 	e := harness.New(t)
-	n := e.Node("Mac")
+	n := e.Node("Mac", api.URL)
 	e.Must("deck.connection_set", map[string]any{"name": "local", "api": "openai", "url": api.URL + "/v1", "local": true, "node": "Mac"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "local", "model": "qwen", "name": "small", "kind": "text"}, nil)
 	e.WaitHealth("node:Mac", "ok")
@@ -165,7 +167,7 @@ func TestARevokedNodeLosesItsConnectionAndItsKeyOpensNothing(t *testing.T) {
 		!strings.Contains(string(out), "the node Mac is not connected to deck") || len(asked(api)) != 0 {
 		t.Fatalf("a call of the revoked node's model reaches nothing: %d %s", code, out)
 	}
-	ok, err := node.Connect(context.Background(), n.Joined)
+	ok, err := node.Connect(context.Background(), n.Joined, n.Serving)
 	if ok || !errors.Is(err, node.ErrRefused) {
 		t.Fatalf("deck refuses the key of a revoked node: %v %v", ok, err)
 	}
@@ -211,7 +213,8 @@ func TestANodeJoinsByItsCommandAndComesBackAfterDeckRestarts(t *testing.T) {
 	if err != nil || len(join) != 5 || join[4] != "--install" {
 		t.Fatalf("deck pair --node gives the command to run on the node: %v %s", err, out)
 	}
-	n := exec.Command(bin, "-join", join[2], join[3])
+	port := api.URL[strings.LastIndex(api.URL, ":")+1:]
+	n := exec.Command(bin, "-join", join[2], join[3], "--allow", port+",claude-code")
 	n.Env = append(os.Environ(), "DECK_HOME="+nodeHome)
 	stderr, err := n.StderrPipe()
 	if err != nil {
@@ -260,6 +263,9 @@ func TestANodeJoinsByItsCommandAndComesBackAfterDeckRestarts(t *testing.T) {
 	if fi, err := os.Stat(filepath.Join(nodeHome, "state", "node", "joined.json")); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Fatalf("the key of the node is its user's alone: %v %v", fi, err)
 	}
+	if b, err := os.ReadFile(filepath.Join(nodeHome, "state", "node", "allowed")); err != nil || !strings.Contains(string(b), port+",claude-code") {
+		t.Fatalf("the node keeps what its owner allows in its own file: %s %v", b, err)
+	}
 	for _, in := range []map[string]any{
 		{"name": "local", "api": "openai", "url": api.URL + "/v1", "local": true, "node": "Mac"},
 	} {
@@ -280,5 +286,190 @@ func TestANodeJoinsByItsCommandAndComesBackAfterDeckRestarts(t *testing.T) {
 	harness.Until(t, "the node to connect to deck started again", func() bool { return online(d2) })
 	if got := ask(d2); got != "from the node" {
 		t.Fatalf("the node's model answers after deck started again: %q", got)
+	}
+}
+
+// TestANodeServesOnlyThePortsItsOwnerAllows: a call to a port the node's owner did not allow is refused on the node,
+// goes to the next model, and health says what to add; an edit of the node's list holds at once, deck never widens it.
+func TestANodeServesOnlyThePortsItsOwnerAllows(t *testing.T) {
+	t.Parallel()
+	local, cloud := nodeModels(t, "from the node"), nodeModels(t, "from the cloud")
+	e := harness.New(t)
+	n := e.Node("Mac")
+	e.Must("deck.connection_set", map[string]any{"name": "local", "api": "openai", "url": local.URL + "/v1", "local": true, "node": "Mac"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": cloud.URL + "/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "local", "model": "qwen", "name": "small", "kind": "text"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "cloud", "model": "qwen", "name": "big", "kind": "text", "call_usd": 0.01}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"small", "big"}}, nil)
+	ask := func() string {
+		var said struct{ Text string }
+		e.Must("deck.model_call", map[string]any{"kind": "text", "prompt": "hi"}, &said)
+		return said.Text
+	}
+	if got := ask(); got != "from the cloud" {
+		t.Fatalf("a call to a port the node does not allow goes to the next model: %q", got)
+	}
+	if len(asked(local)) != 0 {
+		t.Fatalf("the node passes nothing to a port its owner did not allow: %+v", asked(local))
+	}
+	port := local.URL[strings.LastIndex(local.URL, ":")+1:]
+	h := e.WaitHealth("node:Mac", "warning")
+	if !strings.Contains(h.Error, "port "+port+" is not allowed on it") || !strings.Contains(h.Error, "--install --allow "+port) {
+		t.Fatalf("health says which port to allow on the node: %+v", h)
+	}
+	if code, out := e.Call("deck.model_call", map[string]any{"kind": "text", "model": "small", "prompt": "hi"}); code == http.StatusOK ||
+		!strings.Contains(string(out), "port "+port+" is not allowed on the node Mac") {
+		t.Fatalf("a call of the model alone says the node refused its port: %d %s", code, out)
+	}
+	n.Allow(local.URL)
+	if got := ask(); got != "from the node" {
+		t.Fatalf("the port allowed in the node's list, its model answers: %q", got)
+	}
+}
+
+// freezer passes a connection to deck until it freezes: then nothing goes either way and nothing closes, as when the
+// machine of a node sleeps.
+type freezer struct {
+	ln     net.Listener
+	frozen chan struct{}
+	once   sync.Once
+}
+
+func newFreezer(t *testing.T, to string) *freezer {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &freezer{ln: ln, frozen: make(chan struct{})}
+	gone := make(chan struct{})
+	t.Cleanup(func() { close(gone); _ = ln.Close() })
+	// The node asks for deck at the freezer's address; deck answers only at its own.
+	host := []byte("Host: " + strings.TrimPrefix(f.URL(), "http://"))
+	pass := func(dst, src net.Conn, first bool) {
+		buf := make([]byte, 32<<10)
+		for {
+			k, err := src.Read(buf)
+			if first && k > 0 {
+				first = false
+				b := bytes.Replace(buf[:k], host, []byte("Host: "+to), 1)
+				k = copy(buf, b)
+			}
+			select {
+			case <-f.frozen:
+				<-gone
+				return
+			default:
+			}
+			if k > 0 {
+				if _, werr := dst.Write(buf[:k]); werr != nil {
+					return
+				}
+			}
+			if err != nil {
+				_ = dst.Close()
+				return
+			}
+		}
+	}
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			d, err := net.Dial("tcp", to)
+			if err != nil {
+				_ = c.Close()
+				continue
+			}
+			go pass(d, c, true)
+			go pass(c, d, false)
+		}
+	}()
+	return f
+}
+
+func (f *freezer) URL() string { return "http://" + f.ln.Addr().String() }
+func (f *freezer) freeze()     { f.once.Do(func() { close(f.frozen) }) }
+
+// TestANodeGoneSilentBeforeItsAnswerHandsTheCallOn: the machine of a node falls asleep with a call on it and its
+// connection stays open; deck's pings find it gone and the call goes to the next model rather than failing.
+func TestANodeGoneSilentBeforeItsAnswerHandsTheCallOn(t *testing.T) {
+	t.Parallel()
+	cloud := nodeModels(t, "from the cloud")
+	var f *freezer
+	local := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			f.freeze()
+			time.Sleep(time.Minute)
+			return 200, "application/json", harness.ChatText("from the node")
+		},
+	})
+	e := harness.New(t)
+	f = newFreezer(t, strings.TrimPrefix(e.URL, "http://"))
+	n := e.PairNode("Mac")
+	n.Joined.Deck = f.URL()
+	n.Allow(local.URL)
+	n.Start()
+	e.Must("deck.connection_set", map[string]any{"name": "local", "api": "openai", "url": local.URL + "/v1", "local": true, "node": "Mac"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": cloud.URL + "/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "local", "model": "qwen", "name": "small", "kind": "text"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "cloud", "model": "qwen", "name": "big", "kind": "text", "call_usd": 0.01}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"small", "big"}}, nil)
+	e.Until("the node to connect", func() bool { return connectionOf(e, "local").Online })
+	var said struct{ Text string }
+	e.Must("deck.model_call", map[string]any{"kind": "text", "prompt": "hi"}, &said)
+	if said.Text != "from the cloud" {
+		t.Fatalf("the call on a node gone silent goes to the next model: %+v", said)
+	}
+	if c := connectionOf(e, "local"); c.Online {
+		t.Fatalf("a node gone silent is offline: %+v", c)
+	}
+}
+
+// TestANodeKeepsAFolderApartFromDecks: a node's folder is .deck2-node, apart from the folder and lock of a deck on the
+// same machine; the key of a node joined before, in deck's .deck2, moves there.
+func TestANodeKeepsAFolderApartFromDecks(t *testing.T) {
+	t.Parallel()
+	bin := buildDeck(t)
+	user := t.TempDir()
+	old := filepath.Join(user, ".deck2", "state", "node", "joined.json")
+	if err := os.MkdirAll(filepath.Dir(old), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(old, []byte(`{"deck":"http://127.0.0.1:9","key":"k","device":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	n := exec.Command(bin, "-join", "http://127.0.0.1:9")
+	n.Env = append(slices.DeleteFunc(os.Environ(), func(kv string) bool { return strings.HasPrefix(kv, "DECK_HOME=") || strings.HasPrefix(kv, "HOME=") }),
+		"HOME="+user)
+	out, err := n.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := n.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = n.Process.Kill(); _ = n.Wait() })
+	lines := make(chan string, 10)
+	go func() {
+		sc := bufio.NewScanner(out)
+		for sc.Scan() {
+			lines <- sc.Text()
+		}
+	}()
+	moved := harness.Receive(t, "the node to say its key moved", lines)
+	if !strings.Contains(moved, "moved from "+filepath.Join(user, ".deck2", "state", "node")+" to "+filepath.Join(user, ".deck2-node", "state", "node")) {
+		t.Fatalf("the node says where its key went: %s", moved)
+	}
+	if nothing := harness.Receive(t, "the node to say what deck may use", lines); !strings.Contains(nothing, "Deck may use nothing on this machine yet") ||
+		!strings.Contains(nothing, "--allow") {
+		t.Fatalf("a node that allows nothing says how to allow: %s", nothing)
+	}
+	if _, err := os.Stat(filepath.Join(user, ".deck2-node", "state", "node", "joined.json")); err != nil {
+		t.Fatalf("the key is in the node's own folder: %v", err)
+	}
+	if _, err := os.Stat(old); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("no key is left in deck's folder: %v", err)
 	}
 }

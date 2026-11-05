@@ -222,11 +222,16 @@ but its own loopback, and its key opens nothing of deck but that connection.
    Mac`), or pair a node in Settings → Devices. It prints a command with a code that works once, within ten minutes.
 2. On the node's machine, with the binary of [the release](https://github.com/teaarte/deck/releases) for it, run that
    command: `deck -join https://deck.example.com <code> --install` (for deck on the same Mac,
-   `deck -join http://127.0.0.1:7700 <code> --install`). It pairs, keeps the key in `~/.deck2/state/node/joined.json`
+   `deck -join http://127.0.0.1:7700 <code> --install`), with `--allow` and what deck may use there: the ports of its
+   models and the agents, such as `--allow 8178,8190,claude-code`. The node keeps that list itself, in
+   `~/.deck2-node/state/node/allowed` (one edit there holds at once); deck never widens it, and a call to a port not on
+   it is refused, with a row in Settings → Health of what to add. It pairs, keeps the key in
+   `~/.deck2-node/state/node/joined.json`
    (readable by you alone) and installs a service that starts the node when you sign in and keeps it connected: a
    LaunchAgent `deck-node` on macOS (`~/Library/LaunchAgents`), a unit of systemd of your user on Linux
    (`~/.config/systemd/user/deck-node.service`; on a server without a session of yours, `loginctl enable-linger`).
-   Its log is `~/.deck2/state/node/node.log`. Without `--install` the node runs in the terminal until Ctrl-C.
+   Its log is `~/.deck2-node/state/node/node.log`; the node's folder is apart from that of a deck on the same machine
+   (a node joined before into `~/.deck2` moves its key there with `deck -join <address> --install --allow …` once). Without `--install` the node runs in the terminal until Ctrl-C.
    `deck -join --uninstall` stops and removes the service; revoking the node in Settings → Devices ends its connection
    at once and refuses its key.
 3. In Settings → Models → Connections set **Node** of each connection the node's machine serves, its address as on

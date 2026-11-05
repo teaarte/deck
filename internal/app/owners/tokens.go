@@ -43,7 +43,7 @@ type Service struct {
 	PushNew func(ctx context.Context, workspace int64)
 	// Node is the state of the connection of a node; Probe asks a node which addresses of its machine answer.
 	Node  func(device int64) node.State
-	Probe func(ctx context.Context, device int64, addresses []string) ([]string, error)
+	Probe func(ctx context.Context, device int64, addresses []string) (node.Probed, error)
 	Go    func(func(ctx context.Context)) bool
 }
 

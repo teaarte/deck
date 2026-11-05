@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,12 +37,21 @@ type Joined struct {
 	Version string `json:"-"`
 }
 
+// Serving is what a node serves deck: what its owner allows, read at each call so an edit of its file holds at once,
+// and the agents it runs, nil for none.
+type Serving struct {
+	Allowed func() Allowed
+	Agents  http.Handler
+	// Has are the agents the node runs for deck: those allowed and found on its machine.
+	Has func() []string
+}
+
 // Run keeps the node connected to deck with its key until ctx ends: it connects again after a pause that grows
 // while deck is not there, and serves deck's calls to the services of its machine.
-func Run(ctx context.Context, j Joined) {
+func Run(ctx context.Context, j Joined, s Serving) {
 	pause := firstPause
 	for ctx.Err() == nil {
-		connected, err := Connect(ctx, j)
+		connected, err := Connect(ctx, j, s)
 		if ctx.Err() != nil {
 			return
 		}
@@ -64,7 +74,7 @@ func Run(ctx context.Context, j Joined) {
 
 // Connect opens the connection of the node to deck and serves deck's calls over it until it breaks; connected says
 // deck took it.
-func Connect(ctx context.Context, j Joined) (connected bool, err error) {
+func Connect(ctx context.Context, j Joined, s Serving) (connected bool, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(j.Deck, "/")+"/auth/node", nil)
 	if err != nil {
 		return false, err
@@ -73,6 +83,9 @@ func Connect(ctx context.Context, j Joined) (connected bool, err error) {
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", Upgrade)
 	req.Header.Set(VersionHeader, j.Version)
+	if s.Has != nil {
+		req.Header.Set(AgentsHeader, strings.Join(s.Has(), ","))
+	}
 	resp, err := egress.ToDeck.RoundTrip(req)
 	if err != nil {
 		return false, err
@@ -94,7 +107,7 @@ func Connect(ctx context.Context, j Joined) (connected bool, err error) {
 	conn := &upgraded{ReadWriteCloser: rw, gone: make(chan struct{})}
 	var p http.Protocols
 	p.SetUnencryptedHTTP2(true)
-	srv := &http.Server{Handler: Handler(), Protocols: &p, HTTP2: egress.NodeHTTP2}
+	srv := &http.Server{Handler: Handler(s), Protocols: &p, HTTP2: egress.NodeHTTP2}
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(&single{conn: conn}) }()
 	select {
@@ -106,9 +119,9 @@ func Connect(ctx context.Context, j Joined) (connected bool, err error) {
 	return true, errors.New("the connection to deck ended")
 }
 
-// Handler serves deck's calls on a node: a call to an address of its machine, or the probe of the addresses that
-// answer; the node reaches nothing beyond its own loopback.
-func Handler() http.Handler {
+// Handler serves deck's calls on a node: a call to an address of its machine on a port its owner allows, the probe
+// of the addresses that answer, or a turn of an agent; the node reaches nothing beyond its own loopback.
+func Handler(s Serving) http.Handler {
 	proxy := &httputil.ReverseProxy{Transport: egress.Loopback, FlushInterval: -1,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			target, _ := url.Parse(pr.In.Header.Get(TargetHeader))
@@ -121,7 +134,15 @@ func Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		target := r.Header.Get(TargetHeader)
 		if target == "" && r.Method == http.MethodPost && r.URL.Path == probePath {
-			answerProbe(w, r)
+			answerProbe(w, r, s.allowed())
+			return
+		}
+		if target == "" && strings.HasPrefix(r.URL.Path, AgentPath) {
+			if s.Agents == nil {
+				http.Error(w, "deck node: this node runs no agents", http.StatusNotFound)
+				return
+			}
+			s.Agents.ServeHTTP(w, r)
 			return
 		}
 		u, err := url.Parse(target)
@@ -129,12 +150,26 @@ func Handler() http.Handler {
 			http.Error(w, "deck node: a call names an address of this machine, such as http://127.0.0.1:8178", http.StatusBadRequest)
 			return
 		}
+		if port, err := portOf(u.Scheme, u.Port()); err != nil || !s.allowed().Port(port) {
+			w.Header().Set(DeniedHeader, u.Port())
+			http.Error(w, fmt.Sprintf("deck node: port %s is not allowed on this node", u.Port()), http.StatusForbidden)
+			return
+		}
 		proxy.ServeHTTP(w, r)
 	})
 }
 
-// answerProbe says which of the addresses deck asks about take a connection on this machine.
-func answerProbe(w http.ResponseWriter, r *http.Request) {
+// allowed is what the owner of the node allows now.
+func (s Serving) allowed() Allowed {
+	if s.Allowed == nil {
+		return Allowed{}
+	}
+	return s.Allowed()
+}
+
+// answerProbe says which of the addresses deck asks about take a connection on this machine, and which are on ports
+// the node does not allow.
+func answerProbe(w http.ResponseWriter, r *http.Request, allowed Allowed) {
 	var in probe
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&in); err != nil {
 		http.Error(w, "deck node: "+err.Error(), http.StatusBadRequest)
@@ -144,6 +179,11 @@ func answerProbe(w http.ResponseWriter, r *http.Request) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for _, a := range in.Addresses {
+		_, port, _ := net.SplitHostPort(a)
+		if p, err := strconv.Atoi(port); err != nil || !allowed.Port(p) {
+			out.Denied = append(out.Denied, a)
+			continue
+		}
 		wg.Go(func() {
 			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 			defer cancel()

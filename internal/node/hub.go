@@ -22,11 +22,17 @@ import (
 // Upgrade is the protocol a node asks its connection to deck to become: HTTP/2, deck the client.
 const Upgrade = "deck-node"
 
-// Headers of the calls deck sends a node: the address of its machine a call goes to, the version of the node.
+// Headers between deck and a node: the address of its machine a call goes to, the version of the node, the agents it
+// runs, and the port of a call it refused as one its owner does not allow.
 const (
 	TargetHeader  = "Deck-Node-Target"
 	VersionHeader = "Deck-Node-Version"
+	AgentsHeader  = "Deck-Node-Agents"
+	DeniedHeader  = "Deck-Node-Denied"
 )
+
+// AgentPath begins the calls of the turns of agents a node runs.
+const AgentPath = "/.deck/agent/"
 
 // probePath is the call that asks a node which addresses of its machine answer.
 const probePath = "/.deck/probe"
@@ -48,6 +54,7 @@ type link struct {
 	since   time.Time
 	address string
 	version string
+	agents  []string
 	gone    chan struct{}
 	once    sync.Once
 }
@@ -71,6 +78,8 @@ type State struct {
 	Since   time.Time
 	Address string
 	Version string
+	// Agents are the agents the node runs for deck, as it said when it connected.
+	Agents []string
 }
 
 // State is the state of the connection of a node.
@@ -78,7 +87,7 @@ func (h *Hub) State(device int64) State {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if l := h.links[device]; l != nil {
-		return State{Online: true, Since: l.since, Address: l.address, Version: l.version}
+		return State{Online: true, Since: l.since, Address: l.address, Version: l.version, Agents: l.agents}
 	}
 	return State{Since: h.left[device]}
 }
@@ -106,6 +115,11 @@ func (h *Hub) Serve(ctx context.Context, w http.ResponseWriter, r *http.Request,
 		return
 	}
 	l := &link{cc: cc, since: h.now(), address: address, version: r.Header.Get(VersionHeader), gone: make(chan struct{})}
+	for _, a := range strings.Split(r.Header.Get(AgentsHeader), ",") {
+		if a = strings.TrimSpace(a); agentName.MatchString(a) {
+			l.agents = append(l.agents, a)
+		}
+	}
 	cc.SetStateHook(func(cc *http.ClientConn) {
 		if cc.Err() != nil {
 			l.went()
@@ -173,6 +187,11 @@ func Offline(name string) error {
 	return &net.OpError{Op: "dial", Net: "node", Err: fmt.Errorf("the node %s is not connected to deck", name)}
 }
 
+// Denied is a call the node refused, as its owner does not allow its port: no model got it, so the next one takes it.
+func Denied(name, port string) error {
+	return &net.OpError{Op: "dial", Net: "node", Err: fmt.Errorf("port %s is not allowed on the node %s: on its machine add it with deck -join <deck's address> --install --allow %s", port, name, port)}
+}
+
 // Transport carries calls over the connection of a node to the address of its machine they name; name says the
 // node in a failure.
 func (h *Hub) Transport(device int64, name string) http.RoundTripper {
@@ -200,39 +219,49 @@ func (t *through) RoundTrip(req *http.Request) (*http.Response, error) {
 	out.URL = &url.URL{Scheme: "http", Host: "node", Path: req.URL.Path, RawPath: req.URL.RawPath, RawQuery: req.URL.RawQuery}
 	out.Host = "node"
 	resp, err := l.cc.RoundTrip(out)
-	if err != nil && l.cc.Err() != nil {
+	if err != nil && req.Context().Err() == nil {
+		// The connection broke before the answer, as when the machine of the node sleeps: the next model takes it.
 		return nil, errors.Join(Offline(t.name), err)
+	}
+	if err == nil && resp.StatusCode == http.StatusForbidden && resp.Header.Get(DeniedHeader) != "" {
+		_ = resp.Body.Close()
+		t.h.changed(t.device, true)
+		return nil, Denied(t.name, resp.Header.Get(DeniedHeader))
 	}
 	return resp, err
 }
 
+// Probed are the addresses of the machine of a node that answer, and those on ports its owner does not allow.
+type Probed struct{ Up, Denied []string }
+
 // Probe asks a node which of the addresses of its machine answer.
-func (h *Hub) Probe(ctx context.Context, device int64, addresses []string) ([]string, error) {
+func (h *Hub) Probe(ctx context.Context, device int64, addresses []string) (Probed, error) {
 	h.mu.Lock()
 	l := h.links[device]
 	h.mu.Unlock()
 	if l == nil {
-		return nil, errors.New("deck: the node is not connected")
+		return Probed{}, errors.New("deck: the node is not connected")
 	}
 	b, _ := json.Marshal(probe{Addresses: addresses})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://node"+probePath, strings.NewReader(string(b)))
 	if err != nil {
-		return nil, err
+		return Probed{}, err
 	}
 	resp, err := l.cc.RoundTrip(req)
 	if err != nil {
-		return nil, err
+		return Probed{}, err
 	}
 	defer resp.Body.Close()
 	var out probe
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
-		return nil, err
+		return Probed{}, err
 	}
-	return out.Up, nil
+	return Probed{Up: out.Up, Denied: out.Denied}, nil
 }
 
 // probe is the call of Probe and its answer.
 type probe struct {
 	Addresses []string `json:"addresses,omitempty"`
 	Up        []string `json:"up"`
+	Denied    []string `json:"denied,omitempty"`
 }

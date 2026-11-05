@@ -92,21 +92,31 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 			addrs = append(addrs, hostPort(c.Url))
 		}
 		pctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		up, err := s.Probe(pctx, device, addrs)
+		got, err := s.Probe(pctx, device, addrs)
 		cancel()
-		var serves, silent []string
+		var serves, silent, ports []string
 		for _, c := range conns {
-			if err == nil && !slices.Contains(up, hostPort(c.Url)) {
+			switch at := hostPort(c.Url); {
+			case err == nil && slices.Contains(got.Denied, at):
+				if _, port, _ := net.SplitHostPort(at); !slices.Contains(ports, port) {
+					ports = append(ports, port)
+				}
+			case err == nil && !slices.Contains(got.Up, at):
 				silent = append(silent, c.Name)
-			} else {
+			default:
 				serves = append(serves, c.Name)
 			}
 		}
-		text = fmt.Sprintf("node %s is online since %s; it serves %s", d.Name, at, strings.Join(serves, ", "))
+		text = fmt.Sprintf("node %s is online since %s; it serves %s", d.Name, at, cmp.Or(strings.Join(serves, ", "), "nothing"))
 		if len(silent) > 0 {
 			status = health.Warning
 			text = fmt.Sprintf("node %s is online since %s; it serves %s, and %s do not answer on its machine", d.Name, at,
 				cmp.Or(strings.Join(serves, ", "), "nothing"), strings.Join(silent, ", "))
+		}
+		if len(ports) > 0 {
+			status = health.Warning
+			text = fmt.Sprintf("node %s is online since %s; port %s is not allowed on it: on its machine add it with deck -join %s --install --allow %s",
+				d.Name, at, strings.Join(ports, ", "), cmp.Or(st.Address, s.deckAddress()), strings.Join(ports, ","))
 		}
 	default:
 		status = health.Warning

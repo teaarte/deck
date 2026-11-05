@@ -24,14 +24,15 @@ type service struct {
 	start, stop       [][]string
 }
 
-// serviceOf is the service of the node of h at address; the label of a home besides the user's own deck2 names it.
+// serviceOf is the service of the node of h at address; the label of a home besides the user's own .deck2-node names
+// it.
 func serviceOf(h deckhome.Layout, exe, address string) (service, error) {
 	user, err := os.UserHomeDir()
 	if err != nil {
 		return service{}, err
 	}
 	label := "deck-node"
-	if filepath.Clean(string(h)) != filepath.Join(user, ".deck2") {
+	if filepath.Clean(string(h)) != filepath.Join(user, ".deck2-node") {
 		sum := sha256.Sum256([]byte(filepath.Clean(string(h))))
 		label += "." + hex.EncodeToString(sum[:4])
 	}

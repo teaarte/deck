@@ -274,6 +274,21 @@ func TestDeckStartsNotWhenAnotherServerHoldsItsPortOnIPv6Loopback(t *testing.T) 
 	t.Parallel()
 	// deck is built first, so the free ports are taken a moment before it starts.
 	bin := buildDeck(t)
+	// Another process may take a port of 127.0.0.1 between the check and the start: then the try is again.
+	for try := 0; ; try++ {
+		out, err := holdIPv6AndStart(t, bin)
+		if err != nil && strings.Contains(out, "[::1]") {
+			return
+		}
+		if try == 4 || !strings.Contains(out, "listen tcp 127.0.0.1:") {
+			t.Fatalf("deck refuses to start and names [::1]: %v %s", err, out)
+		}
+	}
+}
+
+// holdIPv6AndStart holds a port of ::1 whose neighbours deck takes are free and starts deck on that port of 127.0.0.1.
+func holdIPv6AndStart(t *testing.T, bin string) (string, error) {
+	t.Helper()
 	var other net.Listener
 	port := 0
 	// A port of ::1 whose neighbours deck takes are free.
@@ -304,7 +319,5 @@ func TestDeckStartsNotWhenAnotherServerHoldsItsPortOnIPv6Loopback(t *testing.T) 
 	cmd := exec.Command(bin, "-addr", fmt.Sprintf("127.0.0.1:%d", port))
 	cmd.Env = append(os.Environ(), "DECK_HOME="+t.TempDir())
 	out, err := cmd.CombinedOutput()
-	if err == nil || !strings.Contains(string(out), "[::1]") {
-		t.Fatalf("deck refuses to start and names [::1]: %v %s", err, out)
-	}
+	return string(out), err
 }

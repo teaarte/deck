@@ -144,7 +144,8 @@ func (q *Queries) DeleteSession(ctx context.Context, hash string) error {
 }
 
 const deleteSessionsBefore = `-- name: DeleteSessionsBefore :exec
-DELETE FROM session WHERE seen_at < ?1 OR created_at < ?2
+DELETE FROM session WHERE (session.seen_at < ?1 OR session.created_at < ?2)
+    AND session.device_id NOT IN (SELECT d.id FROM device d WHERE d.kind = 'node')
 `
 
 type DeleteSessionsBeforeParams struct {
@@ -152,7 +153,8 @@ type DeleteSessionsBeforeParams struct {
 	Created string
 }
 
-// The sessions no request can renew any more: seen before the first time, or begun before the second.
+// The sessions no request can renew any more: seen before the first time, or begun before the second; the key of a
+// node lasts until the node is revoked.
 func (q *Queries) DeleteSessionsBefore(ctx context.Context, arg DeleteSessionsBeforeParams) error {
 	_, err := q.db.ExecContext(ctx, deleteSessionsBefore, arg.Seen, arg.Created)
 	return err
@@ -259,6 +261,47 @@ func (q *Queries) ListDevices(ctx context.Context, workspaceID int64) ([]ListDev
 	return items, nil
 }
 
+const listNodes = `-- name: ListNodes :many
+SELECT id, workspace_id, kind, name, passkey_id, mark, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE kind = 'node' ORDER BY id
+`
+
+// The nodes of every workspace, revoked ones too.
+func (q *Queries) ListNodes(ctx context.Context) ([]Device, error) {
+	rows, err := q.db.QueryContext(ctx, listNodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Device
+	for rows.Next() {
+		var i Device
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Kind,
+			&i.Name,
+			&i.PasskeyID,
+			&i.Mark,
+			&i.PushEndpoint,
+			&i.PushP256dh,
+			&i.PushAuth,
+			&i.CreatedAt,
+			&i.SeenAt,
+			&i.RevokedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPasskeys = `-- name: ListPasskeys :many
 SELECT p.id, p.workspace_id, p.name, p.rp_id, p.credential_id, p.user_handle, p.credential, p.created_at, p.seen_at, p.revoked_at, (SELECT COUNT(*) FROM device d WHERE d.passkey_id = p.id AND d.revoked_at IS NULL) AS devices
 FROM passkey p WHERE p.workspace_id = ? ORDER BY p.id
@@ -302,6 +345,30 @@ func (q *Queries) ListPasskeys(ctx context.Context, workspaceID int64) ([]ListPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const nodeByID = `-- name: NodeByID :one
+SELECT id, workspace_id, kind, name, passkey_id, mark, push_endpoint, push_p256dh, push_auth, created_at, seen_at, revoked_at FROM device WHERE id = ? AND kind = 'node'
+`
+
+func (q *Queries) NodeByID(ctx context.Context, id int64) (Device, error) {
+	row := q.db.QueryRowContext(ctx, nodeByID, id)
+	var i Device
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Kind,
+		&i.Name,
+		&i.PasskeyID,
+		&i.Mark,
+		&i.PushEndpoint,
+		&i.PushP256dh,
+		&i.PushAuth,
+		&i.CreatedAt,
+		&i.SeenAt,
+		&i.RevokedAt,
+	)
+	return i, err
 }
 
 const passkeyByCredential = `-- name: PasskeyByCredential :one

@@ -44,7 +44,7 @@ func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 		`DROP INDEX process_finished`, `ALTER TABLE process DROP COLUMN allows`, `ALTER TABLE process DROP COLUMN wrote`,
 		`ALTER TABLE process DROP COLUMN submitted_at`,
 		`DROP INDEX feed_line`, `DROP INDEX feed_run`, `ALTER TABLE feed DROP COLUMN line_id`, `ALTER TABLE feed DROP COLUMN what`,
-		`DELETE FROM goose_db_version WHERE version_id >= 46`,
+		`ALTER TABLE connection DROP COLUMN node_id`, `DELETE FROM goose_db_version WHERE version_id >= 46`,
 	}, harness.BeforeDevices...) {
 		if _, err := st.DB.Exec(q); err != nil {
 			t.Fatalf("%s: %v", q, err)

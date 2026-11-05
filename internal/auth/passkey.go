@@ -89,8 +89,8 @@ func (a *Auth) finish(id string, o Origin) (ceremony, error) {
 }
 
 // PairBegin begins to pair a device by its code: a ceremony that makes a passkey deck has not, or, held, asks for one
-// the browser holds; a node pairs at once with no passkey and gets a key.
-func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string, held bool) (Begun, error) {
+// the browser holds; a node pairs at once with no passkey and gets a key, named by the code or by name it gives.
+func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string, held bool, name string) (Begun, error) {
 	// The ceremony of a passkey held is the second half of the same try.
 	a.mu.Lock()
 	c, err := a.take(raw, !held)
@@ -105,7 +105,7 @@ func (a *Auth) PairBegin(ctx context.Context, o Origin, raw string, held bool) (
 		if err != nil {
 			return Begun{}, err
 		}
-		return a.device(ctx, db.CreateDeviceParams{WorkspaceID: c.Workspace, Kind: c.Kind, Name: c.Name})
+		return a.device(ctx, db.CreateDeviceParams{WorkspaceID: c.Workspace, Kind: c.Kind, Name: cmp.Or(c.Name, name, c.Kind)})
 	}
 	w, err := relying(o)
 	if err != nil {

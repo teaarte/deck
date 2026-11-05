@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"deck2/internal/auth"
 	"deck2/internal/registry"
+	"deck2/internal/untrusted"
 )
 
 // rites are the only entries of deck that are not commands: signing in comes before any actor is known.
@@ -19,6 +21,31 @@ func (s *Server) rites(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/login/begin", s.rite(s.loginBegin))
 	mux.HandleFunc("POST /auth/login/finish", s.rite(s.loginFinish))
 	mux.HandleFunc("POST /auth/logout", s.rite(s.logout))
+	mux.HandleFunc("GET /auth/node", s.node)
+}
+
+// node holds the connection of a node signed in by its key, until it breaks or the node is revoked.
+func (s *Server) node(w http.ResponseWriter, r *http.Request) {
+	ip := s.clientIP(r)
+	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if s.app.Auth.Misses.Over(ip) {
+		refuse(w, r, errTries.Error(), http.StatusTooManyRequests)
+		return
+	}
+	p, ok := s.app.Auth.NodeKey(r.Context(), raw)
+	if raw == "" || !ok {
+		s.app.Auth.Misses.Allow(ip)
+		refuse(w, r, "deck: this node is not paired with deck, or it was revoked: pair it again with deck pair --node", http.StatusUnauthorized)
+		return
+	}
+	// Held before the key is read again, a revoke between the two still ends the connection.
+	ctx, release := s.app.Auth.Hold(context.Background(), p.Device)
+	defer release()
+	if _, ok := s.app.Auth.NodeKey(r.Context(), raw); !ok {
+		refuse(w, r, "deck: this node is not paired with deck, or it was revoked: pair it again with deck pair --node", http.StatusUnauthorized)
+		return
+	}
+	s.app.Nodes.Serve(ctx, w, r, p.Device, originOf(r).Main)
 }
 
 // riteIn is the body of a step of signing in.
@@ -95,7 +122,7 @@ func client(r *http.Request) auth.Client {
 }
 
 func (s *Server) pairBegin(w http.ResponseWriter, r *http.Request, in riteIn) {
-	b, err := s.app.Auth.PairBegin(r.Context(), originOf(r), in.Code, in.Held)
+	b, err := s.app.Auth.PairBegin(r.Context(), originOf(r), in.Code, in.Held, untrusted.Flat(in.Name, 80))
 	s.begun(w, r, b, err)
 }
 

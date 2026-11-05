@@ -5,6 +5,7 @@ package work
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -45,6 +46,10 @@ type Service struct {
 	Exists func(ctx context.Context, workspace int64, name string) bool
 	// Installed says deck finds the program of an ACP agent.
 	Installed func(agent string) bool
+	// Node carries the calls of a connection over the connection of the node that serves it; Online says the node
+	// is connected.
+	Node   func(device int64) http.RoundTripper
+	Online func(device int64) bool
 	// Go runs work beside the calls; false once deck stops.
 	Go func(func(context.Context)) bool
 

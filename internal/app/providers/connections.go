@@ -2,8 +2,12 @@ package providers
 
 import (
 	"context"
+	"database/sql"
+	"net/url"
 	"strings"
 
+	"deck2/internal/auth"
+	"deck2/internal/egress"
 	"deck2/internal/models"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -17,6 +21,7 @@ type connectionSetIn struct {
 	URL   string `desc:"Base URL of the API, such as https://openrouter.ai/api/v1"`
 	Key   string `type:"secret" opt:"" desc:"The API key; deck keeps it apart from the secrets of modules, and a connection changed without it keeps its own"`
 	Local bool   `opt:"" desc:"The models run on the owner's own hardware"`
+	Node  string `opt:"" desc:"The node whose machine serves the address, by its name in Devices, such as a Mac whose models listen on 127.0.0.1; empty when deck reaches the address itself"`
 }
 
 func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
@@ -31,9 +36,13 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == models.APICLI {
 		return nil, registry.Invalid("connection %s is the %s CLI on the owner's subscription, which deck keeps itself; name another one", in.Name, in.Name)
 	}
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	node, err := s.nodeOf(ctx, act.Workspace, in.Node, in.URL)
+	if err != nil {
+		return nil, err
+	}
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: in.API, Url: in.URL,
-			Local: store.Bool(in.Local)})
+			Local: store.Bool(in.Local), NodeID: node})
 		return err
 	})
 	if err != nil {
@@ -45,6 +54,34 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 		}
 	}
 	return map[string]any{"connection": in.Name, "key": in.Key != ""}, nil
+}
+
+// nodeOf is the node of a workspace by its name, which serves only the addresses of its own machine; none for no name.
+func (s *Service) nodeOf(ctx context.Context, workspace int64, name, address string) (sql.NullInt64, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return sql.NullInt64{}, nil
+	}
+	if u, err := url.Parse(address); err != nil || !egress.IsLoopback(u.Hostname()) {
+		return sql.NullInt64{}, registry.Invalid("a node serves only the addresses of its own machine, such as http://127.0.0.1:8178; %q is not one", address)
+	}
+	devices, err := s.St.Q.ListDevices(ctx, workspace)
+	if err != nil {
+		return sql.NullInt64{}, err
+	}
+	var found []int64
+	for _, d := range devices {
+		if d.Device.Kind == auth.Node && !d.Device.RevokedAt.Valid && d.Device.Name == name {
+			found = append(found, d.Device.ID)
+		}
+	}
+	switch len(found) {
+	case 0:
+		return sql.NullInt64{}, registry.NotFound("no node %q among the devices; pair one with deck pair --node", name)
+	case 1:
+		return sql.NullInt64{Int64: found[0], Valid: true}, nil
+	}
+	return sql.NullInt64{}, registry.Invalid("%d nodes are named %q; rename one in Devices", len(found), name)
 }
 
 type connectionDeleteIn struct {

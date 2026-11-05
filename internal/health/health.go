@@ -84,6 +84,9 @@ const (
 // Provider is the subject of a provider of agent turns, of the machine.
 func Provider(name string) string { return "provider:" + name }
 
+// Node is the subject of a node of a workspace.
+func Node(name string) string { return "node:" + name }
+
 // Agent is the subject of an ACP agent of the machine.
 func Agent(name string) string { return "agent:" + name }
 

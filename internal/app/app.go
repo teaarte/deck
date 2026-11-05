@@ -40,6 +40,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/mcphost"
+	"deck2/internal/node"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -66,8 +67,10 @@ type App struct {
 	Feed      feed.Service
 	Chats     chat.Service
 	// Auth signs the owner's devices in; Owners keeps the devices, their pushes and the tokens.
-	Auth      *auth.Auth
-	Owners    owners.Service
+	Auth   *auth.Auth
+	Owners owners.Service
+	// Nodes holds the connections of the nodes that serve deck the models of their machines.
+	Nodes     *node.Hub
 	Secrets   secrets.Service
 	Settings  settings.Service
 	Themes    themes.Service
@@ -169,7 +172,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Work = work.Service{St: st, Now: cfg.Now, Home: h, Hold: a.Files.Hold, VideoPoll: cfg.VideoPoll, VideoCeiling: cfg.VideoCeiling,
 		Key: a.Secrets.Key, Resolve: a.Tools.Resolve, Invoke: a.Registry.Invoke, Builtin: builtin, Provider: a.Providers.Provider,
 		All: a.Providers.All, Off: a.Providers.Off, Up: a.Providers.Up, Health: a.Providers.Health, Exists: a.Providers.Exists,
-		Installed: a.Providers.Installed, Go: a.bg.Go}
+		Installed: a.Providers.Installed, Node: a.nodeTransport,
+		Online: func(device int64) bool { return a.Nodes.State(device).Online }, Go: a.bg.Go}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP,
@@ -190,8 +194,9 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
 	a.Auth = auth.New(auth.Config{Now: cfg.Now, Home: h, Origins: cfg.Origins}, auth.Deps{Store: st})
+	a.Nodes = node.NewHub(cfg.Now, a.Owners.NodeChanged)
 	a.Owners = owners.Service{St: st, Now: cfg.Now, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal, Code: a.Auth.Code, Kick: a.Auth.Kick,
-		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew}
+		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew, Node: a.Nodes.State, Probe: a.Nodes.Probe, Go: a.bg.Go}
 	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Owners.Lend, Return: a.Owners.Return,
 		Themed: a.Themes.Exists}
 	a.Updates = updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Variant: cfg.Variant, Image: cfg.Image,
@@ -226,6 +231,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Health.Follow(a.Bus)
 	a.Answers.Follow(a.Bus)
 	a.Files.Follow(a.Bus)
+	a.Owners.FollowNodes(a.Bus)
 	a.Health.Derive(a.ctx, 0, nil)
 	if err := a.Updates.Mark(a.ctx); err != nil {
 		return nil, err
@@ -258,6 +264,7 @@ func (a *App) Close() error {
 // takes it before the server goes.
 func (a *App) Stop() {
 	a.stopOnce.Do(func() {
+		a.Nodes.Close()
 		a.Runner.Shutdown()
 		a.cancel()
 		a.bg.stop()
@@ -302,6 +309,16 @@ func (a *App) Run(ctx context.Context, every time.Duration) {
 	}
 	a.Chats.PumpChats(ctx)
 	a.bg.Go(func(ctx context.Context) { a.Loop(ctx, every) })
+	a.bg.Go(a.Owners.Nodes)
+}
+
+// nodeTransport carries the calls of a connection over the connection of its node, named in a failure by its name.
+func (a *App) nodeTransport(device int64) http.RoundTripper {
+	name := fmt.Sprint(device)
+	if d, err := a.Store.Q.NodeByID(context.Background(), device); err == nil {
+		name = d.Name
+	}
+	return a.Nodes.Transport(device, name)
 }
 
 // Sweep checks every deadline against now, then pushes and runs the daily cleanup and snapshot.

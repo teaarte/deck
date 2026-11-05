@@ -42,6 +42,11 @@ func (l Layout) Pair() string { return l.state("pair") }
 // Origins are the addresses deck serves at, as it last kept them for deck pair.
 func (l Layout) Origins() string { return l.state("origins.json") }
 
+// Node is the folder of deck on a machine that serves another deck as its node: its key of that deck, its log.
+func (l Layout) Node() string    { return l.state("node") }
+func (l Layout) NodeKey() string { return l.state("node", "joined.json") }
+func (l Layout) NodeLog() string { return l.state("node", "node.log") }
+
 func (l Layout) Files() string { return l.state("files") }
 
 // File is a stored file by its id.

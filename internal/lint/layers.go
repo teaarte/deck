@@ -21,7 +21,7 @@ var layers = [][]string{
 	{".", "internal/fault", "internal/nonce", "internal/untrusted", "internal/events", "internal/release", "internal/home", "internal/words",
 		"internal/store/db", "internal/lint", "internal/provider/codex/gen", "master", "schemas", "skills", "starters", "web"},
 	{"internal/store", "internal/registry", "internal/theme", "internal/egress"},
-	{"internal/manifest", "internal/health", "internal/ask", "internal/files", "internal/sandbox", "internal/auth"},
+	{"internal/manifest", "internal/health", "internal/ask", "internal/files", "internal/sandbox", "internal/auth", "internal/node"},
 	{"internal/docs", "internal/boxes", "internal/script", "internal/trigger", "internal/provider", "internal/mcphost"},
 	{"internal/gateway", "internal/models", "internal/provider/acp", "internal/provider/claudecode", "internal/provider/codex",
 		"internal/screen", "internal/access"},

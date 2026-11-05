@@ -386,6 +386,8 @@ func TestThePushesOfADeckBeforeDevicesStayAsDevices(t *testing.T) {
 	e := harness.New(t)
 	// A base an older deck left: pushes had subscriptions of their own.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 59`)
+	// Nor had its connections a node.
+	e.SQL(`ALTER TABLE connection DROP COLUMN node_id`)
 	// Nor had it the devices of the owner.
 	for _, q := range harness.BeforeDevices {
 		e.SQL(q)

@@ -210,6 +210,33 @@ starts no foreign program and says why; download the three files above, load the
 `docker compose up -d` again. The volume `deck_agents` is no longer used: `docker volume rm deck_agents`. A new
 `compose.yaml` before the new image leaves the logins behind, and the agents need to sign in again.
 
+## Node
+
+deck in a container — on a server, or on a Mac in OrbStack or Docker Desktop — does not reach the models of a machine
+that listen on its own `127.0.0.1` (whisper, servers of pictures, music and speech, Ollama, SearXNG), nor a Mac's
+GPU. A **node** serves them: the same `deck` binary on that machine, outside Docker, holds one connection out to deck
+and carries deck's calls to its loopback. It needs no Tailscale and opens no port; it reaches nothing of its network
+but its own loopback, and its key opens nothing of deck but that connection.
+
+1. On deck's machine run `deck pair --node --name Mac` (in Docker: `docker compose exec deck deck pair --node --name
+   Mac`), or pair a node in Settings → Devices. It prints a command with a code that works once, within ten minutes.
+2. On the node's machine, with the binary of [the release](https://github.com/teaarte/deck/releases) for it, run that
+   command: `deck -join https://deck.example.com <code> --install` (for deck on the same Mac,
+   `deck -join http://127.0.0.1:7700 <code> --install`). It pairs, keeps the key in `~/.deck2/state/node/joined.json`
+   (readable by you alone) and installs a service that starts the node when you sign in and keeps it connected: a
+   LaunchAgent `deck-node` on macOS (`~/Library/LaunchAgents`), a unit of systemd of your user on Linux
+   (`~/.config/systemd/user/deck-node.service`; on a server without a session of yours, `loginctl enable-linger`).
+   Its log is `~/.deck2/state/node/node.log`. Without `--install` the node runs in the terminal until Ctrl-C.
+   `deck -join --uninstall` stops and removes the service; revoking the node in Settings → Devices ends its connection
+   at once and refuses its key.
+3. In Settings → Models → Connections set **Node** of each connection the node's machine serves, its address as on
+   that machine, such as `http://127.0.0.1:8178` for whisper.
+
+While the node is off, a call of its model goes at once to the next model of its fallbacks; Settings → Health has a row
+of each node: online or not since when, what it serves, and the command to run on its machine. A big answer of a
+model of a node, a picture or a sound, comes to deck as it streams and is kept there; the row `disk` of Health warns
+before deck's disk fills.
+
 ## Without Docker
 
 For developing deck: macOS or Linux, Go 1.27, and at least one agent CLI (`claude` or `codex`) or an ACP agent on a

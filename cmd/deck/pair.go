@@ -17,9 +17,13 @@ import (
 func pair(args []string) error {
 	set := flag.NewFlagSet("deck pair", flag.ContinueOnError)
 	device := set.String("device", auth.Browser, "what pairs: browser or node")
+	node := set.Bool("node", false, "pair a node, the same as -device node")
 	name := set.String("name", "", "the name of the device in the list of devices")
 	if err := set.Parse(args); err != nil {
 		return err
+	}
+	if *node {
+		*device = auth.Node
 	}
 	h, err := homeDir()
 	if err != nil {
@@ -31,7 +35,14 @@ func pair(args []string) error {
 	}
 	origins := auth.ReadOrigins(h.Origins())
 	if *device == auth.Node {
-		fmt.Println(code)
+		joins := auth.Joins(origins, code)
+		if len(joins) == 0 {
+			joins = []string{"deck -join <deck's https address> " + code + " --install"}
+		}
+		fmt.Printf("On the node's machine run one of these by %s, once:\n", until.Format("15:04"))
+		for _, j := range joins {
+			fmt.Println(j)
+		}
 		return nil
 	}
 	links := auth.Links(origins, code)

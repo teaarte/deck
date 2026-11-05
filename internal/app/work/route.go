@@ -128,14 +128,19 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 // video is a job the server queues itself.
 var queuedKinds = []string{RoleImage, RoleMusic, RoleTTS, RoleSTT}
 
-// target is the API of connection c with key; every connection, a local service's too, goes through one transport.
-func target(c db.Connection, key string) models.Target {
-	return models.Target{URL: c.Url, API: c.Api, Key: key, Transport: egress.Direct}
+// target is the API of connection c with key; every connection, a local service's too, goes through one transport,
+// that of a connection a node serves over the connection of the node.
+func (s *Service) target(c db.Connection, key string) models.Target {
+	t := models.Target{URL: c.Url, API: c.Api, Key: key, Transport: egress.Direct}
+	if c.NodeID.Valid {
+		t.Transport = s.Node(c.NodeID.Int64)
+	}
+	return t
 }
 
 // hop is where a call of model m goes, with deck's key.
 func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (models.Hop, error) {
-	h := models.Hop{Target: target(c, s.Key(workspace, c.Name)), Connection: c.Name, Name: m.Name, Model: m.Model,
+	h := models.Hop{Target: s.target(c, s.Key(workspace, c.Name)), Connection: c.Name, Name: m.Name, Model: m.Model,
 		Local: c.Local != 0, Free: m.Free != 0, Queue: c.Local != 0 && slices.Contains(queuedKinds, m.Kind)}
 	if m.Kind == RoleText {
 		h.TPM, h.Context = m.Tpm, m.Context

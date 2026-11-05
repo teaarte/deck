@@ -83,6 +83,7 @@ type Connection struct {
 	KeySecret   string
 	Local       int64
 	CreatedAt   string
+	NodeID      sql.NullInt64
 }
 
 type Device struct {

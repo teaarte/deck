@@ -2,7 +2,7 @@
   "name": "settings",
   "icon": "settings",
   "title": "Settings",
-  "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string", "tpm": "number", "context": "number"},
+  "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "node": "string", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string", "tpm": "number", "context": "number"},
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Models", "icon": "cpu", "blocks": [
@@ -15,21 +15,23 @@
               "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing' && status != 'off'"}, "value": "name"}}}]},
         {"type": "dialog", "name": "connections", "title": "Connections", "icon": "plug", "blocks": [
           {"type": "table", "title": "Connections", "source": {"from": "deck.models_list", "rows": "connections"},
-            "description": "Where deck reaches models: an API or a server of this machine, with its address and key.",
+            "description": "Where deck reaches models: an API, a server of this machine or one of a node's machine, with its address and key.",
             "empty": "No connections yet: add one with the address of a model API and its key",
             "columns": [
               {"label": "Name", "bind": "name"},
               {"label": "API", "bind": "api", "format": "tag"},
               {"label": "Models", "bind": "models"},
               {"label": "Address", "bind": "url", "format": "copy"},
-              {"label": "Key", "bind": "key", "format": "tag", "tone": "key == 'set' ? 'ok' : 'muted'"}
+              {"label": "Key", "bind": "key", "format": "tag", "tone": "key == 'set' ? 'ok' : 'muted'"},
+              {"label": "Node", "bind": "node ?? ''", "format": "tag", "tone": "(node ?? '') == '' ? '' : online ? 'ok' : 'warn'"}
             ],
             "actions": [
-              {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=name", "api": "=api", "url": "=url", "local": "=local"}, "when": "api != 'cli'"},
+              {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=name", "api": "=api", "url": "=url", "local": "=local", "node": "=node ?? ''"}, "when": "api != 'cli'"},
               {"verb": "remove", "confirm": true, "command": "deck.connection_delete", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
             ]},
           {"type": "form", "title": "Add or change a connection", "command": "deck.connection_set", "description": "Where models are reached: the API, its address and key; deck keeps the key apart, and no module reads it.",
-            "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "local": "=param.local"}}]},
+            "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "local": "=param.local", "node": "=param.node"},
+            "choices": {"node": {"source": {"from": "deck.devices_list", "where": "kind == 'node' && !revoked"}, "value": "name"}}}]},
         {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
           {"type": "form", "command": "deck.assignment_set", "description": "The first model does the work; the next ones take it while the first is down or refuses.",
             "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},

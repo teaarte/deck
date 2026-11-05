@@ -67,3 +67,7 @@ and bring the modules in line.
   own, named by its browser. `devices_list` says `passkey` (the name of the passkey a browser signed in with) and
   `passkey_id`; `passkeys_list`, `passkey_rename`, `passkey_revoke` (signs out every device of the passkey). A revoked
   device signs in again by its passkey only as a new device.
+- 2026-11-05: a connection may be served by a node, a machine of the owner joined to deck by `deck -join`: its models
+  listen on that machine's loopback and deck calls them over the node's connection. `models_list` says `node` (its
+  name) and `online` of each connection; while the node is off a call of its model goes to the next model of the
+  fallbacks. A module calls such a model as any other, by its name or role: no manifest names a node.

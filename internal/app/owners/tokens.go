@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"deck2/internal/auth"
+	"deck2/internal/node"
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -40,6 +41,10 @@ type Service struct {
 	Origins func() []auth.Origin
 	// PushNew pushes what came since the last push of a workspace.
 	PushNew func(ctx context.Context, workspace int64)
+	// Node is the state of the connection of a node; Probe asks a node which addresses of its machine answer.
+	Node  func(device int64) node.State
+	Probe func(ctx context.Context, device int64, addresses []string) ([]string, error)
+	Go    func(func(ctx context.Context)) bool
 }
 
 func tokenHash(raw string) string {

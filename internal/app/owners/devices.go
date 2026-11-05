@@ -202,6 +202,8 @@ type pairLinkIn struct {
 type pairLinkView struct {
 	QR    string   `json:"qr,omitempty" media:"image/png"`
 	Links []string `json:"links"`
+	// Join are the commands that pair a node and start it as a service, run on the node's machine.
+	Join  []string `json:"join,omitempty"`
 	Code  string   `json:"code"`
 	Until string   `json:"until"`
 }
@@ -219,7 +221,7 @@ func (s *Service) pairLink(ctx context.Context, act registry.Actor, in pairLinkI
 	}
 	v := pairLinkView{Links: auth.Links(s.Origins(), code), Code: code, Until: store.Time(until)}
 	if in.Kind != auth.Browser {
-		v.Links = []string{}
+		v.Links, v.Join = []string{}, auth.Joins(s.Origins(), code)
 	} else if q, err := qr.Encode(v.Links[0], qr.M); err == nil && strings.HasPrefix(v.Links[0], "https://") {
 		v.QR = base64.StdEncoding.EncodeToString(q.PNG())
 	}

@@ -102,5 +102,16 @@ DELETE FROM session WHERE device_id = ?;
 
 
 -- name: DeleteSessionsBefore :exec
--- The sessions no request can renew any more: seen before the first time, or begun before the second.
-DELETE FROM session WHERE seen_at < sqlc.arg(seen) OR created_at < sqlc.arg(created);
+-- The sessions no request can renew any more: seen before the first time, or begun before the second; the key of a
+-- node lasts until the node is revoked.
+DELETE FROM session WHERE (session.seen_at < sqlc.arg(seen) OR session.created_at < sqlc.arg(created))
+    AND session.device_id NOT IN (SELECT d.id FROM device d WHERE d.kind = 'node');
+
+
+-- name: ListNodes :many
+-- The nodes of every workspace, revoked ones too.
+SELECT * FROM device WHERE kind = 'node' ORDER BY id;
+
+
+-- name: NodeByID :one
+SELECT * FROM device WHERE id = ? AND kind = 'node';

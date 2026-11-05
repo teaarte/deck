@@ -166,3 +166,19 @@ func Links(origins []Origin, code string) []string {
 	}
 	return out
 }
+
+// Joins are the commands that pair a node by a code and start it as a service of its machine: at every https origin,
+// and at 127.0.0.1 for a node on deck's own machine; a key never crosses a network over plain http.
+func Joins(origins []Origin, code string) []string {
+	var out []string
+	for _, secure := range []bool{true, false} {
+		for _, o := range origins {
+			u, err := url.Parse(o.Main)
+			if err != nil || o.Secure() != secure || !secure && u.Hostname() != "127.0.0.1" {
+				continue
+			}
+			out = append(out, "deck -join "+strings.TrimRight(o.Main, "/")+" "+code+" --install")
+		}
+	}
+	return out
+}

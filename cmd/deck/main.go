@@ -35,6 +35,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, "deck: restart with a clean environment:", err)
 		os.Exit(1)
 	}
+	if len(os.Args) > 1 && (os.Args[1] == "-join" || os.Args[1] == "--join") {
+		if err := join(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "deck:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "pair" {
 		if err := pair(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "deck:", err)

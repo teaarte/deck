@@ -7,10 +7,16 @@ SELECT * FROM connection WHERE workspace_id = ? AND name = ?;
 
 
 -- name: AddConnection :one
-INSERT INTO connection (workspace_id, name, api, url, local)
-VALUES (sqlc.arg(workspace_id), sqlc.arg(name), sqlc.arg(api), sqlc.arg(url), sqlc.arg(local))
-ON CONFLICT (workspace_id, name) DO UPDATE SET api = excluded.api, url = excluded.url, local = excluded.local
+INSERT INTO connection (workspace_id, name, api, url, local, node_id)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(name), sqlc.arg(api), sqlc.arg(url), sqlc.arg(local), sqlc.narg(node_id))
+ON CONFLICT (workspace_id, name) DO UPDATE SET api = excluded.api, url = excluded.url, local = excluded.local,
+    node_id = excluded.node_id
 RETURNING *;
+
+
+-- name: NodeConnections :many
+-- The connections a node serves.
+SELECT * FROM connection WHERE node_id = ? ORDER BY name;
 
 
 -- name: DeleteConnection :execrows

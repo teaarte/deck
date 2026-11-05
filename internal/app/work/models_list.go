@@ -127,7 +127,13 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		return out, err
 	}
 	for _, c := range conns {
-		v := connectionView{Name: c.Name, API: c.Api, URL: c.Url, Key: "none", Local: c.Local != 0}
+		v := connectionView{Name: c.Name, API: c.Api, URL: c.Url, Key: "none", Local: c.Local != 0, Online: true}
+		if c.NodeID.Valid {
+			v.Online = s.Online(c.NodeID.Int64)
+			if d, err := s.St.Q.NodeByID(ctx, c.NodeID.Int64); err == nil {
+				v.Node = d.Name
+			}
+		}
 		if strings.ContainsAny(c.Url, "@?#") {
 			v.URL = "(an address with a key in it; set it again without)"
 		}
@@ -313,6 +319,9 @@ type connectionView struct {
 	Key    string `json:"key" enum:"set|none"`
 	Local  bool   `json:"local"`
 	Models int64  `json:"models"`
+	// Node is the node whose machine serves the address, Online whether it is connected now.
+	Node   string `json:"node,omitempty"`
+	Online bool   `json:"online"`
 }
 
 // agentView is a program models run in: a built-in provider or an ACP agent, with its version and health; an ACP

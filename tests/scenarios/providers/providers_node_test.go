@@ -27,9 +27,8 @@ func hasModel(e *harness.Env, name string) bool {
 	return false
 }
 
-// TestAnAgentOnANodeAsksAndHandsItsResultInThroughDeck: codex@Mac runs on the node in the node's own folder, its
-// question reaches the owner and its result comes in with result_submit, both through deck; the files it wrote come
-// back to deck, and nothing of deck's keys is in its command line or environment.
+// TestAnAgentOnANodeAsksAndHandsItsResultInThroughDeck: codex@Mac asks and hands its result in through deck from the
+// node's own folder; its files come back to deck, and no key of deck is in its command line or environment.
 func TestAnAgentOnANodeAsksAndHandsItsResultInThroughDeck(t *testing.T) {
 	own, onNode := harness.NewCodex(t), harness.NewCodex(t)
 	t.Setenv("CODEX_HOME", t.TempDir())

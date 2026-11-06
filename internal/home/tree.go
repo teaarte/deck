@@ -8,9 +8,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-
-	"deck2/internal/nonce"
+	"strconv"
+	"sync/atomic"
 )
+
+// unpacked numbers the files Unpack writes apart before they move into place.
+var unpacked atomic.Int64
 
 // Unpack writes the folders and regular files of a tar under dir by their names, each file whole, never past dir nor
 // through a link in it; take refuses a name the caller does not expect, and nothing else of the tar is written.
@@ -57,7 +60,7 @@ func unpackFile(root *os.Root, at string, r io.Reader, mode os.FileMode) error {
 	if err := root.MkdirAll(filepath.Dir(at), 0o700); err != nil {
 		return err
 	}
-	tmp := filepath.Join(filepath.Dir(at), ".tmp-"+nonce.Hex(8))
+	tmp := filepath.Join(filepath.Dir(at), ".tmp-"+strconv.Itoa(os.Getpid())+"-"+strconv.FormatInt(unpacked.Add(1), 10))
 	f, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
 		return err

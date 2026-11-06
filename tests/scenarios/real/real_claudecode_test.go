@@ -81,8 +81,10 @@ func realCLI(t *testing.T) {
 
 // realHome is a folder of deck for a test of the real CLI. In a box of its own the CLI signs in once per deck, so on
 // Linux DECK_REAL_CLI names the folder of a login deck made (agents/claude/login), which every home of a test shares.
-func realHome(t *testing.T) string {
-	home := t.TempDir()
+func realHome(t *testing.T) string { return realHomeAt(t, t.TempDir()) }
+
+// realHomeAt makes home a folder of deck for a test of the real CLI.
+func realHomeAt(t *testing.T, home string) string {
 	if !sandbox.Homed() {
 		return home
 	}

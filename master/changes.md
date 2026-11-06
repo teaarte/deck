@@ -71,3 +71,10 @@ and bring the modules in line.
   listen on that machine's loopback and deck calls them over the node's connection. `models_list` says `node` (its
   name) and `online` of each connection; while the node is off a call of its model goes to the next model of the
   fallbacks. A module calls such a model as any other, by its name or role: no manifest names a node.
+- 2026-11-06: an agent may run on a node: `claude-code@Mac`, `<model of a CLI>@Mac` or `<model in an ACP agent>@Mac`
+  is the same agent on the node's machine, on its sign-in, a provider of its own in `models_list` (`node` names the
+  node) while the node is online and runs it. Assign it to agent commands as any other, with fallbacks; a manifest
+  never names a node. Its turn works in the node's copy of the turn's folders (run, results, data), and the files it
+  changed come back to deck at the end of the turn; a project folder of deck's machine stays out of its reach, so
+  such a turn goes to the next agent. A node gone in the middle of a turn is waited for a few minutes, then the work
+  goes to the next agent of the assignment. A node serves only the ports and agents its owner allows there.

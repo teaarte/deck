@@ -242,6 +242,18 @@ of each node: online or not since when, what it serves, and the command to run o
 model of a node, a picture or a sound, comes to deck as it streams and is kept there; the row `disk` of Health warns
 before deck's disk fills.
 
+### Agents on a node
+
+A node runs the agents of deck on its own machine and sign-in, such as Claude Code on the owner's subscription of a
+Mac while deck lives on a server. Allow them on the node (`--allow claude-code,codex`, or an ACP agent such as
+`goose`); deck then offers `claude-code@Mac` (and each model of the CLI `@Mac`) in Settings → Models while the node is
+online, and an assignment picks it as any other agent, with fallbacks. Sign the CLI of the node in from deck: the
+sign-in of `claude-code@Mac` runs on the node, its link comes to deck. A turn on a node works in the node's copy of the
+turn's folders (up to 2 GB), reaches deck's tools, questions and the model of an ACP agent through deck by the node's
+key, and brings the files it changed back to deck at its end; a turn in a project folder of deck's machine goes to the
+next agent. If the node goes away in the middle of a turn, the turn waits for it three minutes (a row in the feed
+says so), goes on in its session if the node comes back, and otherwise goes to the next agent of the assignment.
+
 ## Without Docker
 
 For developing deck: macOS or Linux, Go 1.27, and at least one agent CLI (`claude` or `codex`) or an ACP agent on a

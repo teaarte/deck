@@ -76,10 +76,10 @@ type frame struct {
 
 // ended is how a turn on a node ended: its result and the error of its run, as a failure of deck's or in words.
 type ended struct {
-	Result provider.Result   `json:"result"`
-	Error  string            `json:"error,omitempty"`
-	Fault  *fault.F          `json:"fault,omitempty"`
-	Killed *provider.Killed  `json:"killed,omitempty"`
+	Result provider.Result  `json:"result"`
+	Error  string           `json:"error,omitempty"`
+	Fault  *fault.F         `json:"fault,omitempty"`
+	Killed *provider.Killed `json:"killed,omitempty"`
 }
 
 // errorOf is the error of a run as a node tells it.

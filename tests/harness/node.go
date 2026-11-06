@@ -22,7 +22,7 @@ type Node struct {
 	// Serving is what the node runs; its Allowed is what Allow set.
 	Serving node.Serving
 	// Home is the folder of a node that runs agents: their homes and the folders of its turns.
-	Home string
+	Home    string
 	mu      sync.Mutex
 	allowed node.Allowed
 	stop    context.CancelFunc

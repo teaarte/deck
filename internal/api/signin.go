@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"deck2/internal/auth"
+	"deck2/internal/node"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
 )
@@ -22,6 +23,26 @@ func (s *Server) rites(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/login/finish", s.rite(s.loginFinish))
 	mux.HandleFunc("POST /auth/logout", s.rite(s.logout))
 	mux.HandleFunc("GET /auth/node", s.node)
+	mux.HandleFunc(node.SidePath, s.nodeSide)
+}
+
+// nodeSide serves a node's call of deck's side of a turn it runs, by the node's key: deck's MCP server of the turn
+// and the model of an agent in it.
+func (s *Server) nodeSide(w http.ResponseWriter, r *http.Request) {
+	ip := s.clientIP(r)
+	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if s.app.Auth.Misses.Over(ip) {
+		refuse(w, r, errTries.Error(), http.StatusTooManyRequests)
+		return
+	}
+	p, ok := s.app.Auth.NodeKey(r.Context(), raw)
+	if raw == "" || !ok {
+		s.app.Auth.Misses.Allow(ip)
+		refuse(w, r, "deck: this node is not paired with deck, or it was revoked: pair it again with deck pair --node", http.StatusUnauthorized)
+		return
+	}
+	r.Header.Del("Authorization")
+	s.app.Nodes.ServeSide(w, r, p.Device)
 }
 
 // node holds the connection of a node signed in by its key, until it breaks or the node is revoked.

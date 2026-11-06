@@ -35,6 +35,10 @@ type logLine struct {
 // event appends a top-level provider event to the process log and moves its last output time, at most once a second;
 // a thought or message without text, such as a thinking block a model keeps to itself, is no line.
 func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e provider.Event) {
+	if e.Kind == provider.EventWarning {
+		r.warnOf(ctx, processID, e.Text, e.Title)
+		e.Kind, e.Title = provider.EventStderr, ""
+	}
 	r.sign(processID, e)
 	if (e.Kind == provider.EventThought || e.Kind == provider.EventMessage) && strings.TrimSpace(e.Text) == "" {
 		return

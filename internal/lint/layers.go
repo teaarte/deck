@@ -25,7 +25,7 @@ var layers = [][]string{
 	{"internal/docs", "internal/boxes", "internal/script", "internal/trigger", "internal/provider", "internal/mcphost"},
 	{"internal/gateway", "internal/models", "internal/provider/acp", "internal/provider/claudecode", "internal/provider/codex",
 		"internal/screen", "internal/access"},
-	{"internal/process", "internal/tools"},
+	{"internal/process", "internal/tools", "internal/provider/remote"},
 	{domains + "*"},
 	{"internal/app"},
 	{"internal/api"},

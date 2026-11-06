@@ -31,6 +31,9 @@ type Config struct {
 	Browser []string
 	// SelfCheckCeiling bounds a self-check of a built-in provider.
 	SelfCheckCeiling time.Duration
+	// NodeWait is how long a turn whose node went away waits for it before it goes to the next agent; 3 minutes when
+	// zero.
+	NodeWait time.Duration
 	// VideoPoll is how often deck asks after a job of a video model, VideoCeiling how long it waits for one.
 	VideoPoll, VideoCeiling time.Duration
 	// Progress is how often a long call of a tool tells an agent that asked for it that it still runs.

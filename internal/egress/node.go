@@ -28,6 +28,16 @@ var ToDeck = func() *http.Transport {
 		TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: time.Minute, IdleConnTimeout: time.Minute}
 }()
 
+// FromNode is the transport of a node's calls of deck's side of the turns it runs, at deck's address: an answer may
+// wait for the owner as long as the call of a tool does.
+var FromNode = func() *http.Transport {
+	var p http.Protocols
+	p.SetHTTP1(true)
+	p.SetHTTP2(true)
+	return &http.Transport{Proxy: nil, Protocols: &p, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: NodePing}).DialContext,
+		TLSHandshakeTimeout: 10 * time.Second, IdleConnTimeout: time.Minute, ForceAttemptHTTP2: true}
+}()
+
 // NodeConn is deck's side of the connection a node opened: HTTP/2 without TLS over it, deck the client, the node
 // serving the calls deck sends.
 func NodeConn(ctx context.Context, conn net.Conn) (*http.ClientConn, error) {

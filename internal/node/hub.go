@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"deck2/internal/egress"
+	"deck2/internal/nonce"
 )
 
 // Upgrade is the protocol a node asks its connection to deck to become: HTTP/2, deck the client.
@@ -46,6 +47,7 @@ type Hub struct {
 	// left is when each node that was connected went, for as long as deck runs.
 	left   map[int64]time.Time
 	closed bool
+	sides  map[string]side
 }
 
 // link is a node connected: deck's client over its connection, since when, by which address of deck.
@@ -264,4 +266,72 @@ type probe struct {
 	Addresses []string `json:"addresses,omitempty"`
 	Up        []string `json:"up"`
 	Denied    []string `json:"denied,omitempty"`
+}
+
+// Agent carries the calls of the turns of agents to a node, by their paths on it.
+func (h *Hub) Agent(device int64, name string) http.RoundTripper {
+	return &agentCalls{h: h, device: device, name: name}
+}
+
+type agentCalls struct {
+	h      *Hub
+	device int64
+	name   string
+}
+
+func (t *agentCalls) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.h.mu.Lock()
+	l := t.h.links[t.device]
+	t.h.mu.Unlock()
+	if l == nil {
+		if req.Body != nil {
+			_ = req.Body.Close()
+		}
+		return nil, Offline(t.name)
+	}
+	out := req.Clone(req.Context())
+	out.URL = &url.URL{Scheme: "http", Host: "node", Path: req.URL.Path, RawQuery: req.URL.RawQuery}
+	out.Host = "node"
+	return l.cc.RoundTrip(out)
+}
+
+// side is deck's side of a turn a node runs: the node it was given to and what serves it.
+type side struct {
+	device  int64
+	handler http.Handler
+}
+
+// Side gives deck's side of a turn on a node a token the node names in its calls; end takes it back. Only the node it
+// was given to reaches it.
+func (h *Hub) Side(device int64, handler http.Handler) (tok string, end func()) {
+	tok = nonce.Hex(16)
+	h.mu.Lock()
+	if h.sides == nil {
+		h.sides = map[string]side{}
+	}
+	h.sides[tok] = side{device: device, handler: handler}
+	h.mu.Unlock()
+	return tok, func() {
+		h.mu.Lock()
+		delete(h.sides, tok)
+		h.mu.Unlock()
+	}
+}
+
+// SidePath begins the calls a node makes of deck's side of its turns: SidePath<token>/<path on the side>.
+const SidePath = "/auth/node/side/"
+
+// ServeSide serves a call of the node device to deck's side of one of its turns.
+func (h *Hub) ServeSide(w http.ResponseWriter, r *http.Request, device int64) {
+	tok, rest, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, SidePath), "/")
+	h.mu.Lock()
+	s, ok := h.sides[tok]
+	h.mu.Unlock()
+	if !ok || s.device != device || tok == "" {
+		http.Error(w, "deck: no turn of this node has that side", http.StatusNotFound)
+		return
+	}
+	r = r.Clone(r.Context())
+	r.URL.Path, r.URL.RawPath = "/"+rest, ""
+	s.handler.ServeHTTP(w, r)
 }

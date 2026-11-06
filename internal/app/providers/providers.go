@@ -16,6 +16,7 @@ import (
 	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
+	"deck2/internal/provider/remote"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/store"
@@ -53,6 +54,11 @@ type Service struct {
 	View       func(ctx context.Context, m db.Model, connection string) any
 	// Unassign takes a model out of every assignment of a workspace, in the transaction of its removal.
 	Unassign func(ctx context.Context, q *db.Queries, workspace int64, name string) error
+	// Nodes are the connections of the nodes, whose agents run turns there; NodeWait is how long a turn whose node
+	// went away waits for it, Low hears that files a turn brought back from a node fill deck's disk.
+	Nodes    remote.Hub
+	NodeWait time.Duration
+	Low      func(ctx context.Context, text string)
 
 	mu    sync.Mutex
 	check map[string]*checks
@@ -72,6 +78,9 @@ func (s *Service) Named(ctx context.Context, projectID int64, name string) (prov
 func (s *Service) Provider(ctx context.Context, workspace int64, name string) (provider.Provider, error) {
 	if pv := s.builtinNamed(name); pv != nil {
 		return pv, nil
+	}
+	if base, node, ok := atNode(name); ok {
+		return s.onNode(ctx, workspace, base, node)
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -165,11 +174,16 @@ func (s *Service) All(ctx context.Context, workspace int64) ([]provider.Provider
 			out = append(out, pv)
 		}
 	}
-	return out, nil
+	return append(out, s.onNodes(ctx, workspace, out)...), nil
 }
 
-// Agent is a built-in provider by name; nil when there is none.
-func (s *Service) Agent(name string) provider.Provider { return s.builtinNamed(name) }
+// Agent is a built-in provider by name, on a node too, such as claude-code@Mac; nil when there is none.
+func (s *Service) Agent(name string) provider.Provider {
+	if base, _, ok := atNode(name); ok && s.builtinNamed(base) != nil {
+		return s.named(s.Ctx, name)
+	}
+	return s.builtinNamed(name)
+}
 
 func (s *Service) builtinNamed(name string) provider.Provider {
 	for _, pv := range s.Builtin {

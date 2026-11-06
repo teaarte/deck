@@ -152,6 +152,9 @@ func (l Layout) Results(process int64) string { return l.work("runs", fmt.Sprint
 func (l Layout) RunWork(process int64) string { return l.work("runs", fmt.Sprint(process), "work") }
 func (l Layout) Stream(process int64) string  { return l.work("runs", fmt.Sprint(process), "stream") }
 
+// Mirror is where a node keeps the folders of deck a turn of session works in, by their paths under deck's folder.
+func (l Layout) Mirror(session string) string { return l.work("mirror", session) }
+
 // Projects holds a folder per project: its data, which its scripts and agents keep, and the folders of its MCP servers.
 func (l Layout) Projects() string             { return l.work("projects") }
 func (l Layout) Project(project int64) string { return l.work("projects", fmt.Sprint(project)) }

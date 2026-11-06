@@ -84,6 +84,8 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 	at := since.Local().Format("2006-01-02 15:04")
 	status, text := health.OK, ""
 	switch {
+	case st.Online && len(conns) == 0 && len(st.Agents) > 0:
+		text = fmt.Sprintf("node %s is online since %s; it runs the agents %s", d.Name, at, strings.Join(st.Agents, ", "))
 	case st.Online && len(conns) == 0:
 		text = fmt.Sprintf("node %s is online since %s; no connection goes through it yet: set it as the node of a connection in Settings → Models → Connections", d.Name, at)
 	case st.Online:

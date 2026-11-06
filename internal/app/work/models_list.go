@@ -52,6 +52,8 @@ type modelView struct {
 	Used  bool   `json:"used"`
 	// Provider is the group it stands in: the subscriptions, else its connection.
 	Provider string `json:"provider"`
+	// Node is the node an agent runs on, such as claude-code@Mac on Mac; empty for one of deck's machine.
+	Node string `json:"node,omitempty"`
 }
 
 // lastCheck fills in the state of a model: of its last self-check in an agent, else of its last call.
@@ -161,6 +163,10 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context}
 		s.lastCheck(ctx, act.Workspace, &v)
 		s.offStatus(ctx, act.Workspace, &v)
+		out.Models = append(out.Models, v)
+	}
+	for _, v := range s.onNodes(ctx, act.Workspace, out.Models) {
+		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}
 	for i := range out.Models {

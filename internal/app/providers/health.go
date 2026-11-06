@@ -9,6 +9,9 @@ import (
 
 // Up reports whether a new start may pick a provider: not in a self-check, a limit, a lost login or an error.
 func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
+	if s.away(ctx, workspace, name) {
+		return false
+	}
 	h, err := s.Health(ctx, workspace, name)
 	return err != nil || h.Status != health.Checking && h.Status != health.Paused && h.Status != health.Error &&
 		h.Status != health.NeedsLogin
@@ -17,6 +20,9 @@ func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
 // Goes reports whether a turn already started may run on a provider: not in a self-check, a broken adapter or a
 // limit; a lost login or a weak model holds no turn.
 func (s *Service) Goes(ctx context.Context, workspace int64, name string) bool {
+	if s.away(ctx, workspace, name) {
+		return false
+	}
 	h, err := s.Health(ctx, workspace, name)
 	return err != nil || h.Status != health.Checking && !down(h)
 }

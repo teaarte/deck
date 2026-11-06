@@ -2,11 +2,16 @@ package harness
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"strconv"
 	"sync"
 
+	deckhome "deck2/internal/home"
 	"deck2/internal/node"
+	"deck2/internal/provider"
+	"deck2/internal/provider/remote"
+	"deck2/internal/sandbox"
 )
 
 // Node is a node of a test deck on this machine: paired by a code of pair_link, it runs until Stop or the end of the
@@ -16,6 +21,8 @@ type Node struct {
 	Joined node.Joined
 	// Serving is what the node runs; its Allowed is what Allow set.
 	Serving node.Serving
+	// Home is the folder of a node that runs agents: their homes and the folders of its turns.
+	Home string
 	mu      sync.Mutex
 	allowed node.Allowed
 	stop    context.CancelFunc
@@ -52,6 +59,23 @@ func (e *Env) PairNode(name string) *Node {
 	}
 	e.T.Cleanup(n.Stop)
 	return n
+}
+
+// RunAgents makes the node run the turns of deck's agents, each on the provider build makes for its spec in the
+// node's own folder, an ACP agent on api, deck's proxy of its model; it comes before Start, after a change of Joined.
+func (n *Node) RunAgents(build func(spec remote.Spec, home string, api func(provider.ModelHooks) http.Handler) provider.Provider) {
+	n.e.T.Helper()
+	back, err := node.ServeBack(n.Joined)
+	if err != nil {
+		n.e.T.Fatal(err)
+	}
+	n.e.T.Cleanup(back.Close)
+	n.Home = n.e.T.TempDir()
+	srv := &remote.Server{Home: deckhome.Layout(n.Home), Sandbox: sandbox.New(deckhome.Layout(n.Home)), Back: back.URL, Allowed: n.Serving.Allowed,
+		Build: func(spec remote.Spec, api func(provider.ModelHooks) http.Handler) (provider.Provider, error) {
+			return build(spec, n.Home, api), nil
+		}}
+	n.Serving.Agents, n.Serving.Has = srv, srv.Has
 }
 
 // Allow sets what the owner of the node allows, as an edit of its file: URLs by their ports, and agents.

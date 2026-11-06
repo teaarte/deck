@@ -164,7 +164,18 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted}
 	a.Snapshots = snapshots.Service{St: st, Emit: a.Bus.Emit, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
 		Expire: a.Records.Expire}
+	a.Nodes = node.NewHub(cfg.Now, func(device int64, online bool) {
+		a.Owners.NodeChanged(device, online)
+		if online {
+			a.bg.Go(a.Runner.Wake)
+		}
+	})
 	a.Providers = providers.Service{St: st, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+		Nodes: a.Nodes, NodeWait: cfg.NodeWait, Low: func(ctx context.Context, text string) {
+			if err := health.Write(ctx, st, health.Of{}, health.Disk, health.Warning, text); err != nil {
+				slog.Error("write health", "err", err)
+			}
+		},
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, WriteKey: a.Secrets.WriteKey, Wake: a.Runner.Wake,
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: builtin, Ctx: a.ctx, Go: a.bg.Go, TurnModel: a.Work.TurnModel, Catalog: a.Work.Catalog, CheckFiles: a.Work.CheckFiles,
@@ -194,7 +205,6 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
 	a.Auth = auth.New(auth.Config{Now: cfg.Now, Home: h, Origins: cfg.Origins}, auth.Deps{Store: st})
-	a.Nodes = node.NewHub(cfg.Now, a.Owners.NodeChanged)
 	a.Owners = owners.Service{St: st, Now: cfg.Now, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal, Code: a.Auth.Code, Kick: a.Auth.Kick,
 		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew, Node: a.Nodes.State, Probe: a.Nodes.Probe, Go: a.bg.Go}
 	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Owners.Lend, Return: a.Owners.Return,

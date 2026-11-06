@@ -77,6 +77,8 @@ const (
 	EventStderr     = "stderr"
 	// EventDenied is a call the agent's own permission rules or auto mode refused, with why.
 	EventDenied = "denied"
+	// EventWarning is deck's word to the owner about the turn, in the feed too; Title is the health row it is of.
+	EventWarning = "warning"
 )
 
 // ToolStatus maps the end state of a tool call to completed or failed.

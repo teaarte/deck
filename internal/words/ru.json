@@ -1071,6 +1071,7 @@
   "node %s is online since %s; it serves %s": "узел %s в сети с %s; через него работают %s",
   "node %s is online since %s; it serves %s, and %s do not answer on its machine": "узел %s в сети с %s; через него работают %s, а %s на его машине не отвечают",
   "node %s is online since %s; no connection goes through it yet: set it as the node of a connection in Settings → Models → Connections": "узел %s в сети с %s; через него пока не идёт ни одно подключение: укажите его узлом подключения в Настройки → Модели → Подключения",
+  "node %s is online since %s; it runs the agents %s": "узел %s в сети с %s; на нём работают агенты %s",
   "node %s is online since %s; port %s is not allowed on it: on its machine add it with deck -join %s --install --allow %s": "узел %s в сети с %s; порт %s на нём не разрешён: на его машине добавьте его командой deck -join %s --install --allow %s",
   "node %s is offline since %s. On its machine run deck -join %s --install": "узел %s не в сети с %s. На его машине выполните deck -join %s --install",
   "node %s is offline since %s; the calls of %s go to the next model of their fallbacks. On its machine run deck -join %s --install": "узел %s не в сети с %s; вызовы %s уходят следующей модели их цепочки. На его машине выполните deck -join %s --install",

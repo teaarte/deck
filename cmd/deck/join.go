@@ -13,7 +13,9 @@ import (
 
 	deckhome "deck2/internal/home"
 	"deck2/internal/node"
+	"deck2/internal/provider/remote"
 	"deck2/internal/release"
+	"deck2/internal/sandbox"
 )
 
 // join is deck -join: it pairs this machine with deck as a node by a code of deck pair --node, installs or removes
@@ -101,7 +103,15 @@ func join(args []string) error {
 	}
 	defer lock.Close()
 	j.Version = release.Version
-	node.Run(ctx, j, node.Serving{Allowed: func() node.Allowed { return node.ReadAllowed(h) }})
+	back, err := node.ServeBack(j)
+	if err != nil {
+		return err
+	}
+	defer back.Close()
+	sb := sandbox.New(h)
+	sb.Reap()
+	agents := &remote.Server{Home: h, Sandbox: sb, Back: back.URL, Allowed: func() node.Allowed { return node.ReadAllowed(h) }}
+	node.Run(ctx, j, node.Serving{Allowed: agents.Allowed, Agents: agents, Has: agents.Has})
 	return nil
 }
 

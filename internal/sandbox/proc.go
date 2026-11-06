@@ -20,15 +20,27 @@ type Proc struct {
 	Stdin  io.WriteCloser
 	Stdout io.ReadCloser
 
-	cmd    *exec.Cmd
+	pid    int
+	signal func(syscall.Signal)
 	door   *Door
 	done   chan struct{}
 	err    error
 	killed atomic.Bool
 }
 
+// Remote is the Proc of a program that runs on another machine, such as a node: its stdin, its signal, and the error
+// of its end once done has it.
+func Remote(stdin io.WriteCloser, signal func(syscall.Signal), done <-chan error) *Proc {
+	p := &Proc{Stdin: stdin, signal: signal, done: make(chan struct{})}
+	go func() {
+		p.err = <-done
+		close(p.done)
+	}()
+	return p
+}
+
 func start(cmd *exec.Cmd, door *Door, o IO) (*Proc, error) {
-	p := &Proc{cmd: cmd, door: door, done: make(chan struct{})}
+	p := &Proc{door: door, done: make(chan struct{})}
 	theirs := slices.Clone(cmd.ExtraFiles)
 	fail := func(err error) (*Proc, error) {
 		for _, f := range theirs {
@@ -66,6 +78,10 @@ func start(cmd *exec.Cmd, door *Door, o IO) (*Proc, error) {
 	}
 	cmd.Stderr, theirs, copies = w, append(theirs, w), append(copies, c)
 	err = cmd.Start()
+	if err == nil {
+		p.pid = cmd.Process.Pid
+		p.signal = func(sig syscall.Signal) { _ = syscall.Kill(-p.pid, sig) }
+	}
 	for _, f := range theirs {
 		_ = f.Close()
 	}
@@ -90,8 +106,8 @@ func start(cmd *exec.Cmd, door *Door, o IO) (*Proc, error) {
 	return p, nil
 }
 
-// Pid is the process id of the box, the id of its group.
-func (p *Proc) Pid() int { return p.cmd.Process.Pid }
+// Pid is the process id of the box, the id of its group; 0 for one on another machine.
+func (p *Proc) Pid() int { return p.pid }
 
 // Done is closed once the program exited, its group is killed and its output is in.
 func (p *Proc) Done() <-chan struct{} { return p.done }
@@ -112,7 +128,7 @@ func (p *Proc) Signal(sig syscall.Signal) {
 	if sig == syscall.SIGTERM || sig == syscall.SIGKILL {
 		p.killed.Store(true)
 	}
-	_ = syscall.Kill(-p.cmd.Process.Pid, sig)
+	p.signal(sig)
 }
 
 // Kill ends the box at once.

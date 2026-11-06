@@ -65,7 +65,34 @@ func (s *Service) book(ctx context.Context, workspace int64, tr func(string) str
 		b.add(modelView{Name: m.Name, Connection: r.Connection.Name, Kind: m.Kind, Agent: m.Agent, InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd),
 			CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0, Subscription: m.Subscription != 0})
 	}
+	base := make([]modelView, 0, len(b.order))
+	for _, n := range b.order {
+		base = append(base, b.models[n])
+	}
+	for _, v := range s.onNodes(ctx, workspace, base) {
+		b.add(v)
+	}
 	return b
+}
+
+// onNodes are the agents of a workspace on its nodes, each as the agent of base it runs there, named name@node.
+func (s *Service) onNodes(ctx context.Context, workspace int64, base []modelView) []modelView {
+	all, _ := s.All(ctx, workspace)
+	var out []modelView
+	for _, pv := range all {
+		name := pv.Name()
+		i := strings.LastIndex(name, "@")
+		if i <= 0 {
+			continue
+		}
+		for _, b := range base {
+			if b.Name == name[:i] {
+				b.Name, b.Node, b.Builtin = name, name[i+1:], false
+				out = append(out, b)
+			}
+		}
+	}
+	return out
 }
 
 func (b *Book) add(v modelView) {

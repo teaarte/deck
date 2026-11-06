@@ -117,7 +117,7 @@ func (s *Service) Recheck(name string, at time.Time) {
 // provider holds its turns until it ends. One cut short by a limit or a login keeps no version, so it reruns.
 func (s *Service) startCheck(name string, force bool) bool {
 	sc, ok := s.named(s.Ctx, name).(provider.SelfChecker)
-	if !ok {
+	if !ok || s.awayAnywhere(s.Ctx, name) {
 		return false
 	}
 	s.mu.Lock()
@@ -250,8 +250,11 @@ func errText(err error) string {
 	return err.Error()
 }
 
-// onCLI reports whether a provider is a model of an agent CLI on the owner's subscription.
+// onCLI reports whether a provider is a model of an agent CLI on the owner's subscription, on a node too.
 func (s *Service) onCLI(ctx context.Context, name string) bool {
+	if base, _, ok := atNode(name); ok {
+		name = base
+	}
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)
 	for _, ws := range spaces {
 		if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name}); err == nil {

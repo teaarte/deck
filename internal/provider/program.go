@@ -15,9 +15,14 @@ type Killed struct {
 	Program string
 	Signal  syscall.Signal
 	Stderr  string
+	// Why says what ended it other than a signal, such as a node gone.
+	Why string
 }
 
 func (k *Killed) Error() string {
+	if k.Why != "" {
+		return k.Why
+	}
 	text := fmt.Sprintf("%s was killed by %s from outside: not deck, a stop of the owner or the ceiling", k.Program, SignalName(k.Signal))
 	if k.Signal == syscall.SIGKILL {
 		text = fmt.Sprintf("%s; the system kills so when memory runs out", text)

@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -151,11 +152,12 @@ func TestAnAgentWhoseNodeWentAwayWaitsThenGoesToTheNextAgent(t *testing.T) {
 func TestAnAgentWhoseNodeComesBackGoesOnInItsSession(t *testing.T) {
 	t.Parallel()
 	e, own, onNode, n := claudeOnNode(t, time.Minute)
-	onNode.Before(`[ "$n" = 1 ] && sleep 60`)
+	onNode.Before(`[ "$n" = 1 ] && { echo cut > before-the-cut.txt; sleep 60; }`)
 	p := e.Project("plain", harness.PlainManifest)
 	e.UseModels("plain.work", "claude-code@Mac", "claude-code")
 	id := e.Run(p, "work")
-	e.Until("the turn to start on the node", func() bool { return onNode.Calls() == 1 })
+	cut := filepath.Join(deckhome.Layout(n.Home).Mirror(e.Session(id)), "work", "runs", harness.Itoa(id), "work", "before-the-cut.txt")
+	e.Until("the turn on the node to write its first file", func() bool { _, err := os.Stat(cut); return err == nil })
 	n.Stop()
 	e.WaitNote("the turn of claude-code@Mac waits up to 1m0s for it")
 	n.Start()
@@ -167,6 +169,9 @@ func TestAnAgentWhoseNodeComesBackGoesOnInItsSession(t *testing.T) {
 	}
 	if s, ok := harness.Flag(onNode.Call(2).Args, "--resume"); !ok || s != e.Session(id) {
 		t.Fatalf("the turn goes on in its session: %v", onNode.Call(2).Args)
+	}
+	if b, err := os.ReadFile(filepath.Join(deckhome.Layout(e.Home).RunWork(id), "before-the-cut.txt")); err != nil || string(b) != "cut\n" {
+		t.Fatalf("what the turn did on the node before it went away stays: %q %v", b, err)
 	}
 }
 
@@ -239,5 +244,34 @@ func TestTheCLIOfANodeSignsInByALinkFromDeck(t *testing.T) {
 	})
 	if _, err := os.Stat(filepath.Join(own.Dir, "signed-in")); err == nil {
 		t.Fatal("the CLI of deck's own machine did not sign in")
+	}
+}
+
+// TestFilesFromANodeNeverGoThroughALinkOnDeck: a link a program of the project left in its data leads into deck's
+// state; what the agent on the node writes under that name never reaches deck's state.
+func TestFilesFromANodeNeverGoThroughALinkOnDeck(t *testing.T) {
+	t.Parallel()
+	e, _, onNode, _ := claudeOnNode(t, time.Minute)
+	p := e.Project("plain", harness.PlainManifest)
+	h := deckhome.Layout(e.Home)
+	if err := os.MkdirAll(h.Data(p), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../../../../state", filepath.Join(h.Data(p), "x")); err != nil {
+		t.Fatal(err)
+	}
+	onNode.Before(`mkdir -p ../../../projects/` + harness.Itoa(p) + `/data/x && echo evil > ../../../projects/` + harness.Itoa(p) + `/data/x/evil.txt`)
+	e.UseModels("plain.work", "claude-code@Mac")
+	id := e.Run(p, "work")
+	e.WaitState(id, "done", "error")
+	if _, err := os.Stat(filepath.Join(h.State(), "evil.txt")); err == nil {
+		t.Fatal("a file of the node went through a link into deck's state")
+	}
+	said := false
+	for _, l := range e.Log(id) {
+		said = said || strings.Contains(fmt.Sprint(l["text"]), "goes through a link")
+	}
+	if !said {
+		t.Fatalf("the turn says which file did not come back: %v", e.Log(id))
 	}
 }

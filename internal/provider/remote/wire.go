@@ -112,6 +112,12 @@ func (e ended) err() error {
 	return nil
 }
 
+// checkCall asks a node for the self-check of an agent, an ACP agent on deck's side of the check.
+type checkCall struct {
+	Spec Spec   `json:"spec"`
+	Side string `json:"side"`
+}
+
 // check is a self-check as a node tells it.
 type check struct {
 	Version     string  `json:"version,omitempty"`

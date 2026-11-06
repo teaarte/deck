@@ -48,6 +48,8 @@ type Hub struct {
 	left   map[int64]time.Time
 	closed bool
 	sides  map[string]side
+	// Denied hears that a node refused a call to a port its owner does not allow.
+	Denied func(device int64)
 }
 
 // link is a node connected: deck's client over its connection, since when, by which address of deck.
@@ -227,7 +229,9 @@ func (t *through) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	if err == nil && resp.StatusCode == http.StatusForbidden && resp.Header.Get(DeniedHeader) != "" {
 		_ = resp.Body.Close()
-		t.h.changed(t.device, true)
+		if t.h.Denied != nil {
+			t.h.Denied(t.device)
+		}
 		return nil, Denied(t.name, resp.Header.Get(DeniedHeader))
 	}
 	return resp, err

@@ -163,7 +163,9 @@ func (p *Provider) Run(ctx context.Context, req provider.Request) (provider.Resu
 		return provider.Result{}, errors.New("remote: the session id must be assigned by deck")
 	}
 	if !p.online() {
-		return p.gone(ctx, req, "is not connected")
+		if back, res, err := p.wait(ctx, req, "is not connected"); !back {
+			return res, err
+		}
 	}
 	cwd, dirs, data, roots, err := p.roots(req)
 	if err != nil {
@@ -180,43 +182,67 @@ func (p *Provider) Run(ctx context.Context, req provider.Request) (provider.Resu
 	if n := size(files); n > sendLimit {
 		return p.unavailable("the folders of the turn hold %d MB, more than the %d MB deck hands a node", n>>20, sendLimit>>20), nil
 	}
-	if err := p.send(ctx, req.SessionID, roots, files); err != nil {
+	for tried := false; ; tried = true {
+		err := p.send(ctx, req.SessionID, roots, files)
 		var r *refused
 		switch {
+		case err == nil:
 		case ctx.Err() != nil:
 			return provider.Result{}, ctx.Err()
-		case errors.As(err, &r):
-			return p.unavailable("node %s did not take the files of the turn: %s", p.cfg.Node, r.text), nil
+		case errors.As(err, &r) || tried:
+			return p.unavailable("node %s did not take the files of the turn: %v", p.cfg.Node, err), nil
+		default:
+			// Nothing ran on the node yet: once it is back, the turn starts as it would have.
+			if back, res, err := p.wait(ctx, req, "went away ("+err.Error()+")"); !back {
+				return res, err
+			}
+			continue
 		}
-		return p.lost(ctx, req, err)
+		break
 	}
-	side, end := p.cfg.Hub.Side(p.cfg.Device, p.side(gw, req))
+	side, end := p.cfg.Hub.Side(p.cfg.Device, p.side(gw, req.OnUsage))
 	defer end()
 	st := start{Spec: p.cfg.Spec, Side: side, Root: string(p.cfg.Home), Request: request{
 		Project: req.Project, Cwd: cwd, Repo: req.Repo, Prompt: req.Prompt, ResultSchema: req.ResultSchema, Skills: req.Skills,
-		MCP: gw.Path, Dirs: dirs, Data: data, Hosts: req.Hosts, GPU: req.GPU, AllowedTools: req.AllowedTools,
+		MCP: "/mcp", Dirs: dirs, Data: data, Hosts: req.Hosts, GPU: req.GPU, AllowedTools: req.AllowedTools,
 		PermissionMCP: req.PermissionMCP, SessionID: req.SessionID, Resume: req.Resume, Live: req.Live != nil}}
 	res, err, vanished := p.turn(ctx, req, st)
 	if vanished != nil {
-		return p.lost(ctx, req, vanished)
+		what := "went away during the turn (" + vanished.Error() + ")"
+		back, res, err := p.wait(ctx, req, what)
+		if !back {
+			return res, err
+		}
+		// What the turn did on the node before it went away comes to deck before the turn goes on in its session.
+		p.bring(context.WithoutCancel(ctx), req, roots)
+		return provider.Result{}, &provider.Killed{Program: p.Name(), Signal: syscall.SIGHUP,
+			Why: fmt.Sprintf("node %s %s and came back", p.cfg.Node, what)}
 	}
 	p.bring(context.WithoutCancel(ctx), req, roots)
 	return res, err
 }
 
-// side is deck's side of a turn on the node: its MCP server, and the model of an ACP agent.
-func (p *Provider) side(gw *url.URL, req provider.Request) http.Handler {
-	mcp := provider.MCP(gw)
-	var model http.Handler
+// side is deck's side of a turn on the node: its MCP server at /mcp, whose token stays on deck, and the model of an
+// ACP agent; gw is nil for a self-check.
+func (p *Provider) side(gw *url.URL, usage func(provider.Usage)) http.Handler {
+	var mcp, model http.Handler
+	if gw != nil {
+		mcp = provider.MCP(gw)
+	}
 	if p.cfg.Model != nil {
-		model = http.StripPrefix("/model", p.cfg.Model(provider.ModelHooks{Usage: req.OnUsage, Answer: func(provider.Answer) {}}))
+		model = http.StripPrefix("/model", p.cfg.Model(provider.ModelHooks{Usage: usage, Answer: func(provider.Answer) {}}))
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if model != nil && strings.HasPrefix(r.URL.Path, "/model/") {
+		switch {
+		case model != nil && strings.HasPrefix(r.URL.Path, "/model/"):
 			model.ServeHTTP(w, r)
-			return
+		case mcp != nil && r.URL.Path == "/mcp":
+			r = r.Clone(r.Context())
+			r.URL.Path, r.URL.RawPath = gw.Path, ""
+			mcp.ServeHTTP(w, r)
+		default:
+			http.Error(w, "deck: not found", http.StatusNotFound)
 		}
-		mcp.ServeHTTP(w, r)
 	})
 }
 
@@ -277,10 +303,11 @@ func (p *Provider) turn(ctx context.Context, req provider.Request, st start) (re
 					}
 					mu.Lock()
 					takes = append(takes, m.Taken)
-					mu.Unlock()
-					if write(frame{Live: &m.Text}) != nil {
+					if _, err := in.Write(append(mustJSON(frame{Live: &m.Text}), '\n')); err != nil {
+						takes = takes[:len(takes)-1]
 						go func() { m.Taken <- false }()
 					}
+					mu.Unlock()
 				}
 			}
 		}()
@@ -304,6 +331,10 @@ func (p *Provider) turn(ctx context.Context, req provider.Request, st start) (re
 		}
 		switch {
 		case f.Event != nil:
+			if f.Event.Kind == provider.EventWarning {
+				// Only deck speaks in the feed; a node's word stays in the log of the turn.
+				f.Event.Kind, f.Event.Title = provider.EventStderr, ""
+			}
 			req.Emit(*f.Event)
 		case f.Usage != nil && req.OnUsage != nil:
 			req.OnUsage(*f.Usage)
@@ -321,13 +352,9 @@ func (p *Provider) turn(ctx context.Context, req provider.Request, st start) (re
 	}
 }
 
-// lost is a turn whose node went away: it waits for the node, then goes on in its session, as a turn killed from
-// outside does; a node that does not come back hands the turn to the next agent.
-func (p *Provider) lost(ctx context.Context, req provider.Request, why error) (provider.Result, error) {
-	return p.gone(ctx, req, "went away during the turn ("+why.Error()+")")
-}
-
-func (p *Provider) gone(ctx context.Context, req provider.Request, what string) (provider.Result, error) {
+// wait waits for a node that is gone, as the feed says; back is false when it did not come back in time, with the
+// outcome of the turn then: the next agent takes it.
+func (p *Provider) wait(ctx context.Context, req provider.Request, what string) (back bool, res provider.Result, err error) {
 	req.Emit(provider.Event{Kind: provider.EventWarning, Title: health.Node(p.cfg.Node),
 		Text: fmt.Sprintf("node %s %s; the turn of %s waits up to %s for it, then goes to the next agent", p.cfg.Node, what, p.Name(), p.cfg.Wait)})
 	deadline := time.NewTimer(p.cfg.Wait)
@@ -337,14 +364,13 @@ func (p *Provider) gone(ctx context.Context, req provider.Request, what string) 
 	for !p.online() {
 		select {
 		case <-ctx.Done():
-			return provider.Result{}, ctx.Err()
+			return false, provider.Result{}, ctx.Err()
 		case <-deadline.C:
-			return p.unavailable("node %s %s and did not come back in %s", p.cfg.Node, what, p.cfg.Wait), nil
+			return false, p.unavailable("node %s %s and did not come back in %s", p.cfg.Node, what, p.cfg.Wait), nil
 		case <-tick.C:
 		}
 	}
-	return provider.Result{}, &provider.Killed{Program: p.Name(), Signal: syscall.SIGHUP,
-		Why: fmt.Sprintf("node %s %s and came back", p.cfg.Node, what)}
+	return true, provider.Result{}, nil
 }
 
 // bring takes the files the turn changed back from the node, unless deck's disk would not hold them.
@@ -371,7 +397,7 @@ func (p *Provider) bring(ctx context.Context, req provider.Request, roots []stri
 	if syscall.Statfs(string(p.cfg.Home), &fs) == nil {
 		free := int64(fs.Bavail) * int64(fs.Bsize)
 		if free-listed.Size < keepFree {
-			text := fmt.Sprintf("the files of a turn on node %s (%d MB) do not fit the disk of deck (%d MB free); they stay on the node until its next turn of the session", p.cfg.Node, listed.Size>>20, free>>20)
+			text := fmt.Sprintf("the files of a turn on node %s (%d MB) do not fit the disk of deck (%d MB free); the next turn of the session on the node starts from deck's copy", p.cfg.Node, listed.Size>>20, free>>20)
 			p.low(ctx, text)
 			p.say(req, "deck: %s", text)
 			return
@@ -415,9 +441,11 @@ func (p *Provider) say(req provider.Request, format string, a ...any) {
 	req.Emit(provider.Event{Kind: provider.EventStderr, Text: fmt.Sprintf(format, a...)})
 }
 
-// SelfCheck runs the self-check of the agent on the node.
+// SelfCheck runs the self-check of the agent on the node, an ACP agent on deck's proxy of its model.
 func (p *Provider) SelfCheck(ctx context.Context) provider.Check {
-	b, _ := json.Marshal(p.cfg.Spec)
+	side, end := p.cfg.Hub.Side(p.cfg.Device, p.side(nil, nil))
+	defer end()
+	b, _ := json.Marshal(checkCall{Spec: p.cfg.Spec, Side: side})
 	resp, err := p.call(ctx, http.MethodPost, checkPath, nil, bytes.NewReader(b))
 	if err != nil {
 		return provider.Check{Err: fmt.Errorf("node %s: %w", p.cfg.Node, err)}
@@ -468,3 +496,8 @@ func (p *Provider) Login(ctx context.Context, o sandbox.IO) (*sandbox.Proc, erro
 
 // exitTrailer tells how a program a node ran for deck ended: ok, or its failure.
 const exitTrailer = "Deck-Exit"
+
+func mustJSON(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}

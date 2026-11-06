@@ -9,7 +9,10 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
+
+	"deck2/internal/home"
 )
 
 // stamp tells whether a file changed: its size and the time of its last write.
@@ -66,7 +69,10 @@ func pack(w io.Writer, dir string, names []string) error {
 	defer root.Close()
 	tw := tar.NewWriter(w)
 	for _, n := range slices.Sorted(slices.Values(names)) {
-		f, err := root.Open(n)
+		if home.Plain(root, n) != nil {
+			continue
+		}
+		f, err := root.OpenFile(n, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 		if err != nil {
 			continue
 		}

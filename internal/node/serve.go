@@ -128,6 +128,11 @@ func Handler(s Serving) http.Handler {
 			pr.SetURL(target)
 			pr.Out.Header.Del(TargetHeader)
 		},
+		// Only the node itself says a port is not allowed, never a service behind it.
+		ModifyResponse: func(resp *http.Response) error {
+			resp.Header.Del(DeniedHeader)
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			http.Error(w, "deck node: "+err.Error(), http.StatusBadGateway)
 		}}

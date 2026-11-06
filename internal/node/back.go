@@ -6,11 +6,16 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
+	"regexp"
 	"strings"
 	"time"
 
 	"deck2/internal/egress"
 )
+
+// sideToken is the shape of the token of deck's side of a turn.
+var sideToken = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // Back is deck's side of the turns a node runs, at an address of the node's own loopback: a call of
 // <URL>/<token>/<path> goes to the side of that turn on deck, by the key of the node.
@@ -38,7 +43,15 @@ func ServeBack(j Joined) (*Back, error) {
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			http.Error(w, "deck node: deck is not reached: "+err.Error(), http.StatusBadGateway)
 		}}
-	b := &Back{URL: "http://" + ln.Addr().String(), srv: &http.Server{Handler: proxy, ReadHeaderTimeout: 10 * time.Second}}
+	only := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tok, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+		if r.Header.Get("Upgrade") != "" || path.Clean(r.URL.Path) != r.URL.Path || !sideToken.MatchString(tok) {
+			http.Error(w, "deck node: a call of deck's side names the token of a turn", http.StatusNotFound)
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	})
+	b := &Back{URL: "http://" + ln.Addr().String(), srv: &http.Server{Handler: only, ReadHeaderTimeout: 10 * time.Second}}
 	go func() { _ = b.srv.Serve(ln) }()
 	return b, nil
 }

@@ -111,6 +111,7 @@ func join(args []string) error {
 	sb := sandbox.New(h)
 	sb.Reap()
 	agents := &remote.Server{Home: h, Sandbox: sb, Back: back.URL, Allowed: func() node.Allowed { return node.ReadAllowed(h) }}
+	agents.Sweep()
 	node.Run(ctx, j, node.Serving{Allowed: agents.Allowed, Agents: agents, Has: agents.Has})
 	return nil
 }

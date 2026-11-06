@@ -51,6 +51,9 @@ type running struct {
 // programs are the programs of the CLI agents deck runs, by the agent.
 var programs = map[string]string{"claude-code": "claude", "codex": "codex"}
 
+// Sweep removes the folders of turns a node before this one left.
+func (s *Server) Sweep() { _ = os.RemoveAll(filepath.Dir(s.Home.Mirror("x"))) }
+
 // Has are the agents the node runs for deck: allowed by its owner and found on its machine.
 func (s *Server) Has() []string {
 	var out []string
@@ -181,6 +184,11 @@ func (s *Server) take(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	// A turn of the session cut off with its connection may still be ending; its folders are not taken from under it.
+	if _, _, err := s.ended(r.Context(), sess); err != nil && !errors.Is(err, errNoTurn) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
 	dir := s.Home.Mirror(sess)
 	if err := os.RemoveAll(dir); err != nil {
 		http.Error(w, "deck node: "+err.Error(), http.StatusInternalServerError)
@@ -215,8 +223,10 @@ func (s *Server) take(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// ended waits for the turn of a session to end and gives what it was handed.
-func (s *Server) ended(ctx context.Context, sess string) (*running, error) {
+var errNoTurn = errors.New("deck node: no turn of this session left files here")
+
+// ended waits for the turn of a session to end and gives the files it was handed and their folders.
+func (s *Server) ended(ctx context.Context, sess string) (map[string]stamp, []string, error) {
 	s.mu.Lock()
 	t := s.turns[sess]
 	var done chan struct{}
@@ -225,29 +235,31 @@ func (s *Server) ended(ctx context.Context, sess string) (*running, error) {
 	}
 	s.mu.Unlock()
 	if t == nil {
-		return nil, errors.New("deck node: no turn of this session left files here")
+		return nil, nil, errNoTurn
 	}
 	select {
 	case <-done:
 	case <-time.After(time.Minute):
-		return nil, errors.New("deck node: the turn of this session has not ended")
+		return nil, nil, errors.New("deck node: the turn of this session has not ended")
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, nil, ctx.Err()
 	}
-	return t, nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return t.before, t.roots, nil
 }
 
 // changes are the files a turn of a session changed and those it removed.
 func (s *Server) changes(ctx context.Context, sess string) (names, gone []string, n int64, err error) {
-	t, err := s.ended(ctx, sess)
+	before, roots, err := s.ended(ctx, sess)
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	now, err := walk(s.Home.Mirror(sess), t.roots)
+	now, err := walk(s.Home.Mirror(sess), roots)
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	names, gone = changed(t.before, now)
+	names, gone = changed(before, now)
 	for _, name := range names {
 		n += now[name].Size
 	}
@@ -334,6 +346,13 @@ func (s *Server) turn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "deck node: deck handed no files of this turn", http.StatusConflict)
 		return
 	}
+	select {
+	case <-t.done:
+	default:
+		s.mu.Unlock()
+		http.Error(w, "deck node: a turn of this session still runs", http.StatusConflict)
+		return
+	}
 	done := make(chan struct{})
 	t.done = done
 	s.mu.Unlock()
@@ -413,13 +432,13 @@ func (s *Server) turn(w http.ResponseWriter, r *http.Request) {
 
 // check runs the self-check of an agent on the node.
 func (s *Server) check(w http.ResponseWriter, r *http.Request) {
-	var spec Spec
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&spec); err != nil {
-		http.Error(w, "deck node: "+err.Error(), http.StatusBadRequest)
+	var in checkCall
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&in); err != nil || !sessionName.MatchString(in.Side) {
+		http.Error(w, "deck node: a self-check names its agent and deck's side", http.StatusBadRequest)
 		return
 	}
 	var out check
-	pv, err := s.build(spec, "")
+	pv, err := s.build(in.Spec, in.Side)
 	if err != nil {
 		out.Error = err.Error()
 	} else if sc, ok := pv.(provider.SelfChecker); ok {

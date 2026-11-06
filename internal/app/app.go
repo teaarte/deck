@@ -170,6 +170,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			a.bg.Go(a.Runner.Wake)
 		}
 	})
+	a.Nodes.Denied = func(device int64) { a.Owners.NodeChanged(device, true) }
 	a.Providers = providers.Service{St: st, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		Nodes: a.Nodes, NodeWait: cfg.NodeWait, Low: func(ctx context.Context, text string) {
 			if err := health.Write(ctx, st, health.Of{}, health.Disk, health.Warning, text); err != nil {

@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync/atomic"
 )
 
@@ -40,6 +41,9 @@ func Unpack(dir string, r io.Reader, take func(name string) bool) error {
 			return fmt.Errorf("%q is outside the folders it may write", h.Name)
 		}
 		at := filepath.FromSlash(name)
+		if err := Plain(root, at); err != nil {
+			return err
+		}
 		switch h.Typeflag {
 		case tar.TypeDir:
 			err = root.MkdirAll(at, 0o700)
@@ -92,8 +96,30 @@ func RemoveIn(dir string, names []string) error {
 		if !filepath.IsLocal(at) {
 			return fmt.Errorf("%q is outside %s", n, dir)
 		}
+		if err := Plain(root, at); err != nil {
+			return err
+		}
 		if err := root.RemoveAll(at); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// Plain refuses a name under root whose path holds a link: a link that stays inside root still leads elsewhere than
+// its name says, such as from the data of a project into deck's state.
+func Plain(root *os.Root, name string) error {
+	parts := strings.Split(filepath.ToSlash(name), "/")
+	for i := range parts {
+		fi, err := root.Lstat(filepath.FromSlash(strings.Join(parts[:i+1], "/")))
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%q goes through a link", name)
 		}
 	}
 	return nil

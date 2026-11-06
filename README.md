@@ -251,7 +251,8 @@ online, and an assignment picks it as any other agent, with fallbacks. Sign the 
 sign-in of `claude-code@Mac` runs on the node, its link comes to deck. A turn on a node works in the node's copy of the
 turn's folders (up to 2 GB), reaches deck's tools, questions and the model of an ACP agent through deck by the node's
 key, and brings the files it changed back to deck at its end; a turn in a project folder of deck's machine goes to the
-next agent. If the node goes away in the middle of a turn, the turn waits for it three minutes (a row in the feed
+next agent. On macOS the CLIs run outside a box until deck moves into a Linux container there, so an agent allowed on a
+Mac node acts as its user: allow it only on a machine you trust deck with. If the node goes away in the middle of a turn, the turn waits for it three minutes (a row in the feed
 says so), goes on in its session if the node comes back, and otherwise goes to the next agent of the assignment.
 
 ## Without Docker

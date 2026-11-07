@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -138,6 +139,9 @@ func (m *Machine) wait(ctx context.Context, emit func(provider.Event), what, the
 	return true, nil
 }
 
+// bringing keeps the files of one run coming back apart from those of another.
+var bringing sync.Mutex
+
 // bring takes the files a run changed back from the node, unless deck's disk would not hold them; a file that changed
 // on deck since it was sent, as by another run of the project, stays deck's, and say tells the run's log which.
 func (m *Machine) bring(ctx context.Context, session string, roots []string, sent map[string]stamp, say func(string)) {
@@ -172,6 +176,9 @@ func (m *Machine) bring(ctx context.Context, session string, roots []string, sen
 			m.low(ctx, fmt.Sprintf("the disk is almost full: the files of a run on node %s took %d MB, %d MB are free", m.Node, listed.Size>>20, (free-listed.Size)>>20))
 		}
 	}
+	// Two runs coming back at once check and write deck's files one after the other.
+	bringing.Lock()
+	defer bringing.Unlock()
 	var moved []string
 	changed := func(name string) bool {
 		now, there := stampOf(string(m.Home), name)

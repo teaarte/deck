@@ -63,8 +63,17 @@ func (s *Sandbox) check() error {
 			return errors.New("bubblewrap is not installed; install the package bubblewrap (apt install bubblewrap)")
 		}
 	}
-	args := append(append([]string{"--die-with-parent", "--new-session", "--unshare-all"}, roots()...), "--proc", "/proc", "--dev", "/dev", "--", "true")
-	out, err := exec.Command(prog, args...).CombinedOutput()
+	root, err := os.Open("/")
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	// A box mounts its folders by what deck opened: --ro-bind-fd, of bubblewrap 0.6 and later.
+	args := append(append([]string{"--die-with-parent", "--new-session", "--unshare-all"}, roots()...), "--proc", "/proc", "--dev", "/dev",
+		"--ro-bind-fd", "3", "/mnt", "--", "true")
+	cmd := exec.Command(prog, args...)
+	cmd.ExtraFiles = []*os.File{root}
+	out, err := cmd.CombinedOutput()
 	if err == nil {
 		return nil
 	}
@@ -77,6 +86,8 @@ func (s *Sandbox) check() error {
 		why = "the seccomp profile refuses namespaces (seccomp=./seccomp.json is missing); "
 	case strings.Contains(said, "RTM_NEWADDR"), strings.Contains(said, "Failed to make / slave"), strings.Contains(said, "Creating new namespace failed"):
 		why = "AppArmor refuses namespaces (the profile deck-box is not in force); "
+	case strings.Contains(said, "bind-fd"):
+		return fmt.Errorf("bwrap %s is too old: deck needs bubblewrap 0.6 or later, which mounts a folder by what deck opened", prog)
 	}
 	return fmt.Errorf("bwrap does not build a box here: %s; %s%s", said, why, Fix)
 }
@@ -212,7 +223,7 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, pinned []*os
 	for at, p := range b.Shared {
 		// What is shared is deck's own and never a link a program put there.
 		if fi, err := os.Lstat(p); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) && filepath.IsAbs(at) {
-			mounts = append(mounts, mount{"--bind", real(p), at, at})
+			mounts = append(mounts, mount{"--bind", real(p), at, real(at)})
 		}
 	}
 	// The links along the paths come first, then the paths, shallow before deep, so a path inside another keeps its

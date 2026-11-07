@@ -211,6 +211,20 @@ starts no foreign program and says why; download the three files above, load the
 `docker compose up -d` again. The volume `deck_agents` is no longer used: `docker volume rm deck_agents`. A new
 `compose.yaml` before the new image leaves the logins behind, and the agents need to sign in again.
 
+**Moving from deck without Docker.** A deck that ran as a binary (`~/.deck2`) moves into the volume whole: its data,
+devices and passkeys, secrets, the homes of the CLIs, and its tailnet's state, so it keeps its address there.
+
+1. Stop that deck and keep a copy of its folder: `cp -a ~/.deck2 ~/.deck2-backup-$(date +%F)`.
+2. Beside `compose.yaml`, with `DECK_TAILSCALE=<its name on the tailnet>` in `.env` if it was on one, run
+   `sh move-to-docker.sh ~/.deck2` (download it as the files above). Run again, it brings the folder over anew.
+3. `docker compose up -d`, then sign in at <http://deck.localhost:7700> and on the tailnet with the same devices.
+4. deck in the container sees no folder and no model of the machine: pair a node on it (below), set **Node** of the
+   connections at `127.0.0.1`, and in each module's settings, Access, remove the folders of deck's machine and add them
+   again on the node. The CLIs of the image sign in once in Settings → Models, or the node's agents take the turns
+   (`claude-code@Mac`).
+
+To go back, `docker compose down` and start the old binary on `~/.deck2`, which the move leaves as it was.
+
 ## Node
 
 deck in a container — on a server, or on a Mac in OrbStack or Docker Desktop — does not reach the models of a machine

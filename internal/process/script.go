@@ -109,7 +109,18 @@ func (r *Runner) onNode(ctx context.Context, t turn) bool {
 		return false
 	}
 	place, err := r.deps.ScriptsAt(ctx, t.project)
-	return err == nil && place.On != nil
+	return err == nil && place.On != nil && !r.callsItself(ctx, t.process)
+}
+
+// callsItself says a run was called, directly or not, by a run of its own command, which waits for it.
+func (r *Runner) callsItself(ctx context.Context, id int64) bool {
+	p, err := r.st.Q.GetProcess(ctx, id)
+	for at := p; err == nil && at.ParentID.Valid; {
+		if at, err = r.st.Q.GetProcess(ctx, at.ParentID.Int64); err == nil && at.Command == p.Command && at.ProjectID == p.ProjectID {
+			return true
+		}
+	}
+	return false
 }
 
 // refused adds to the failure of a script deck's error answers to its calls; a failure it did not name takes the

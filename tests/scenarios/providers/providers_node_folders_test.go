@@ -284,7 +284,7 @@ func TestAFolderGoesOnlyFromTheMachineItIsOn(t *testing.T) {
 }
 
 // TestScriptsOnANodeKeepEveryChangeOfTheirData: the scripts of a node work on a copy of the data of their project, so
-// runs of a command that may run side by side take turns there, and a file deck changed meanwhile stays deck's.
+// runs of a command that may run side by side take turns there but for one it called, and a changed file stays deck's.
 func TestScriptsOnANodeKeepEveryChangeOfTheirData(t *testing.T) {
 	t.Parallel()
 	data := folderOf(t, "x")
@@ -293,6 +293,15 @@ func TestScriptsOnANodeKeepEveryChangeOfTheirData(t *testing.T) {
 	e.SaveScript("count", "scripts/main.py", harness.PythonLib+`
 import time
 inp = json.load(sys.stdin)
+if inp.get("use") == "parent":
+    st, out = deck("count.read", {"allowed": inp["allowed"], "use": "child"})
+    for _ in range(300):
+        _, child = deck("deck.process_get", {"process": out["process"]})
+        if child["state"] in ("done", "error"):
+            break
+        time.sleep(0.1)
+    print(json.dumps({"child": child["state"]}))
+    sys.exit(0)
 at = os.path.join(os.environ["DECK_DATA"], "count.txt")
 n = int(open(at).read()) if os.path.exists(at) else 0
 if inp.get("use") == "wait":
@@ -330,5 +339,9 @@ print(json.dumps({"n": n + 1}))
 	}
 	if log := fmt.Sprint(e.Log(id)); !strings.Contains(log, "count.txt") || !strings.Contains(log, "stay as they are on deck") {
 		t.Fatalf("the log of the run says which of its changes are lost: %s", log)
+	}
+	p = e.WaitState(e.Start("count", "read", map[string]any{"allowed": data, "use": "parent"}), "done", "error")
+	if p.State != "done" || !strings.Contains(string(p.Result), `"child":"done"`) {
+		t.Fatalf("a run that calls its own command does not wait for itself: %+v %s", p, p.Result)
 	}
 }

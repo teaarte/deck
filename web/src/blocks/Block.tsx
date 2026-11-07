@@ -1,8 +1,8 @@
-import { useContext, type ReactNode } from 'react';
+import { useContext, useRef, useState, type ReactNode } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { Alert, Anchor, Badge, Card, Group, Stack, Text } from '@mantine/core';
+import { Alert, Anchor, Badge, Card, Group, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { IconAlertTriangle, IconInbox } from '@tabler/icons-react';
+import { IconAlertTriangle, IconChevronRight, IconInbox } from '@tabler/icons-react';
 import type { Data } from '../lib/catalog.gen';
 import s from './blocks.module.css';
 import { IconTitle } from '../ui/IconTitle';
@@ -19,12 +19,15 @@ export type Span = 1 | 2 | 'full';
 // Bare is a block without its frame: in a row after its title, or plain with its title for screen readers alone.
 export type Bare = 'row' | 'plain' | undefined;
 
-// Block is the frame of a block: its title with the buttons of its head, icon, description, filters, the state of its
-// data, its own look of nothing when it has one, and how many items its limit left out, which a press reads more of.
-export function Block({ title, icon, span, description, data, context, empty, bare, children }: {
-  title?: string; icon?: string; span?: Span; description?: string; data?: Data; context?: ComponentContext;
+// Block is the frame of a block: title, head buttons, icon, description, filters, state, own look of nothing, how many
+// items its limit left out; a collapsed one is its title until a press opens it, then with how many it holds.
+export function Block({ title, icon, span, description, collapsed, data, context, empty, bare, children }: {
+  title?: string; icon?: string; span?: Span; description?: string; collapsed?: boolean; data?: Data; context?: ComponentContext;
   empty?: (d: Data) => ReactNode; bare?: Bare; children: (d: Data) => ReactNode;
 }) {
+  const [open, setOpen] = useState(!collapsed);
+  // The first open reads the block and keeps it read with the screen from then on, though data cached may show already.
+  const asked = useRef(false);
   const { t } = useTranslation();
   const old = !useLive();
   // A title the tab or the dialog around says already is not said again.
@@ -64,6 +67,33 @@ export function Block({ title, icon, span, description, data, context, empty, ba
         {named && <Text size="sm" fw={700} c="dimmed" className={s.bareTitle}>{named}</Text>}
         {body}
       </section>
+    );
+  }
+  if (collapsed && title) {
+    const count = data?.items?.length ?? data?.rows?.length;
+    const head = (
+      <UnstyledButton className={s.fold} aria-expanded={open} data-fold={open ? 'open' : 'closed'} onClick={() => {
+        if (!open && !asked.current && context) {
+          asked.current = true;
+          readBlock(context, 'unfold');
+        }
+        setOpen(!open);
+      }}>
+        <IconChevronRight size={18} className={s.foldChevron} />
+        <IconTitle order={3} className={s.blockTitle} title={named ?? title} icon={icon} size={18} block />
+        {count !== undefined && data?.state !== 'error' && <Badge variant="light" color="gray" data-fold-count>{count}{data?.more ? '+' : ''}</Badge>}
+      </UnstyledButton>
+    );
+    if (!open) return <Card padding="lg" className={s.block} data-block data-collapsed data-span={String(span ?? 1)}>{head}</Card>;
+    return (
+      <Card padding="lg" className={s.block} data-block data-collapsed="open" data-span={String(span ?? 1)}>
+        <Stack gap="sm">
+          {head}
+          {description && <Text size="sm" c="dimmed" lh={1.5} data-description>{description}</Text>}
+          <Filters filters={data?.filters} context={context} />
+          {body}
+        </Stack>
+      </Card>
     );
   }
   return (

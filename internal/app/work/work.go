@@ -64,7 +64,7 @@ type Service struct {
 
 // Commands are the commands of the work: assignments, calls of models, the web of agents and speech to text.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.listCommands(), s.assignmentCommands(), s.callCommands(), s.webCommands(), s.transcribeCommands())
+	return slices.Concat(s.listCommands(), s.assignmentCommands(), s.replaceCommands(), s.callCommands(), s.webCommands(), s.transcribeCommands())
 }
 
 // plainOf is the flag of a model whose API takes no reasoning back, kept while deck runs.

@@ -87,8 +87,8 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	}
 
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Who does what", nil)["rows"])
-	i := slices.IndexFunc(rows, func(r harness.ScreenRow) bool { return r.Cells[1] == "image" })
-	if i < 0 || rows[i].Cells[0] != "deck" || rows[i].Cells[2] != "router/x/pic" || rows[i].Cells[3] != "$0.04 a call" || !harness.HasVerb(rows[i].Actions, "remove") {
+	i := slices.IndexFunc(rows, func(r harness.ScreenRow) bool { return r.Cells[0] == "deck · image" })
+	if i < 0 || rows[i].Cells[1] != "router/x/pic" || rows[i].Cells[2] != "$0.04 a call" || !harness.HasVerb(rows[i].Actions, "remove") {
 		t.Fatalf("the assignments show which models do which work and which one does it now: %+v", rows)
 	}
 	if pick := harness.Verb(t, rows[i].Actions, "model"); fmt.Sprint(pick["options"]) != "[router/x/pic]" || fmt.Sprint(pick["groups"]) != "[router]" {
@@ -101,7 +101,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 			acp = &models[i]
 		}
 	}
-	if acp == nil || models[0].Title != "fake" || acp.Group != "router" {
+	if acp == nil || models[0].Title != "fake" || acp.Group != "router" || !strings.Contains(acp.Logo, "router") {
 		t.Fatalf("the models are the built-in providers and the models of connections, by provider: %+v", models)
 	}
 	whole := acp.Details
@@ -112,15 +112,15 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	if !strings.Contains(fmt.Sprint(agents), "goose --version") {
 		t.Fatalf("the agents show why one gives no version: %+v", agents)
 	}
-	conns := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Connections", nil)["rows"])
-	if len(conns) != 4 || conns[2].Cells[0] != "router" || conns[3].Cells[0] != "whisper" || fmt.Sprint(harness.Verb(t, conns[3].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
-		t.Fatalf("the connections tab lists the connections, the whisper of deck too, and edits each as it is: %+v", conns)
+	conns := harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Connections", nil)["items"])
+	if len(conns) != 4 || conns[2].Title != "router" || conns[3].Title != "whisper" || fmt.Sprint(harness.Verb(t, conns[3].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
+		t.Fatalf("the connections lists the connections, the whisper of deck too, and edits each as it is: %+v", conns)
 	}
-	if conns[0].Cells[0] != "claude-code" || conns[1].Cells[0] != "codex" || len(conns[0].Actions)+len(conns[1].Actions) != 0 {
+	if conns[0].Title != "claude-code" || conns[1].Title != "codex" || len(conns[0].Actions)+len(conns[1].Actions) != 0 || conns[0].Text != "the CLI on the subscription" {
 		t.Fatalf("the connections of the CLIs are deck's own, with no edit or remove: %+v", conns[:2])
 	}
-	if conns[2].Cells[4] != "set" || conns[3].Cells[4] != "none" {
-		t.Fatalf("a connection shows whether deck keeps a key of it, never the key: %+v", conns)
+	if conns[2].Meta != "Key set" || conns[3].Meta != "No key" || conns[2].Text != "deck reaches it itself" {
+		t.Fatalf("a connection shows where its models run and whether deck keeps a key of it, never the key: %+v", conns)
 	}
 }
 

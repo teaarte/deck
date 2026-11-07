@@ -16,6 +16,7 @@ import { Cover } from '../ui/Cover';
 import { Deadline } from '../ui/Deadline';
 import { Details } from '../ui/Details';
 import { NamedIcon } from '../ui/NamedIcon';
+import { Logo } from '../ui/logo/Logo';
 import { QuestionPicker } from '../ui/QuestionPicker';
 import { opener, rowOpen } from '../ui/rowOpen';
 import type { Data } from '../lib/catalog.gen';
@@ -190,6 +191,7 @@ const TONES: Record<string, typeof IconCheck> = { ok: IconCheck, warn: IconAlert
 // mark is the icon of a line: its own, else that of its tone, so a tone is not color alone.
 function mark(it: Item) {
   const Tone = it.tone ? TONES[it.tone] : undefined;
+  if (it.logo) return <span className={s.itemIcon} data-logo-of={it.logo}><Logo names={it.logo} size={18} /></span>;
   return it.icon ? <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={17} /></span>
     : Tone ? <span className={s.itemIcon} data-tone-icon><Tone size={17} /></span> : null;
 }

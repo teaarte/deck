@@ -76,6 +76,8 @@ type Request struct {
 	Block string
 	// Pages are how many times its limit a block shows, by block id; the owner asks for more a page at a time.
 	Pages map[string]int
+	// Open are the collapsed blocks the owner opened, by id: the others are read when opened, by a read of their block.
+	Open map[string]bool
 }
 
 // Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.

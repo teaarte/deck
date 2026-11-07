@@ -470,7 +470,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		names[d.Name] = true
 	}
 	for _, n := range []string{"openai", "google", "anthropic", "deck", "Deki", "API", "CLI", "JSON", "MCP", "URL", "USD", "Claude", "Code",
-		"Codex", "POST", "Authorization", "Bearer", "effort", "options", "python", "node", "backups", "zip", "SearXNG"} {
+		"Codex", "POST", "Authorization", "Bearer", "effort", "options", "python", "node", "backups", "zip", "SearXNG", "Goose", "pair"} {
 		names[n] = true
 	}
 	shownKeys := []string{"cells", "details", "title", "text", "meta", "label", "labels", "description", "empty", "price", "why", "question", "line", "say"}

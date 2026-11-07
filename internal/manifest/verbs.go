@@ -10,22 +10,22 @@ type button struct{ Label, Icon string }
 
 // verbs are the built-in buttons of deck's screens and data: a button names one instead of a label.
 var verbs = map[string]button{
-	"close": {"Close", ""}, "edit": {"Edit", "pencil"}, "replace": {"Replace", "replace"}, "models": {"Models", ""},
-	"model": {"Model", ""}, "fallbacks": {"Fallbacks", ""}, "try": {"Try", "flask"}, "set": {"Set", "key"},
-	"answer": {"Answer", "message"}, "allow": {"Allow", "check"}, "allow_always": {"Always allow here", ""},
-	"deny": {"Deny", "x"}, "deny_because": {"Deny because…", ""}, "retry": {"Retry", "refresh"},
-	"mark_done": {"Count as done", "check"}, "mark_read": {"Mark read", "check"}, "read_all": {"Read all", ""},
-	"mark": {"Mark", ""}, "new_session": {"New session", ""}, "continue": {"Continue", "player-play"},
-	"sign_in": {"Sign in", "login"}, "signed_in": {"Signed in", ""}, "undo": {"Undo", "arrow-back-up"},
-	"stop": {"Stop", "player-stop"}, "check": {"Check", ""}, "open": {"Open", "arrow-up-right"},
-	"run_now": {"Run now", "player-play"}, "pause": {"Pause", "player-pause"}, "restore": {"Bring back", ""},
-	"resume": {"Resume", "player-play"}, "turn_off": {"Turn off", ""}, "turn_on": {"Enable", ""},
-	"send": {"Send", "send"}, "rework": {"Send back for rework", ""}, "enable": {"Enable project", ""},
-	"review": {"Review and enable", ""}, "export": {"Export", ""}, "revoke": {"Revoke", ""},
+	"close": {"Close", "x"}, "edit": {"Edit", "pencil"}, "replace": {"Replace", "replace"}, "models": {"Models", "cpu"},
+	"model": {"Change the model", "switch-horizontal"}, "fallbacks": {"Fallbacks", "list-numbers"}, "try": {"Try", "flask"}, "set": {"Set", "key"},
+	"answer": {"Answer", "message"}, "allow": {"Allow", "check"}, "allow_always": {"Always allow here", "checks"},
+	"deny": {"Deny", "x"}, "deny_because": {"Deny because…", "message-x"}, "retry": {"Retry", "refresh"},
+	"mark_done": {"Count as done", "check"}, "mark_read": {"Mark read", "check"}, "read_all": {"Read all", "checks"},
+	"mark": {"Mark", "bookmark"}, "new_session": {"New session", "message-plus"}, "continue": {"Continue", "player-play"},
+	"sign_in": {"Sign in", "login"}, "signed_in": {"Signed in", "check"}, "undo": {"Undo", "arrow-back-up"},
+	"stop": {"Stop", "player-stop"}, "check": {"Check", "stethoscope"}, "open": {"Open", "arrow-up-right"},
+	"run_now": {"Run now", "player-play"}, "pause": {"Pause", "player-pause"}, "restore": {"Bring back", "arrow-back-up"},
+	"resume": {"Resume", "player-play"}, "turn_off": {"Turn off", "power"}, "turn_on": {"Enable", "power"},
+	"send": {"Send", "send"}, "rework": {"Send back for rework", "repeat"}, "enable": {"Enable project", "player-play"},
+	"review": {"Review and enable", "eye-check"}, "export": {"Export", "file-export"}, "revoke": {"Revoke", "ban"},
 	"remove": {"Remove", "trash"}, "delete": {"Delete", "trash"}, "download": {"Download", "download"},
-	"cancel": {"Cancel", ""}, "archive": {"Archive", "archive"}, "tell": {"Tell it", "message"},
-	"reset_push": {"Reset the push key", ""}, "settings": {"Settings", "settings"}, "unarchive": {"Bring back", ""},
-	"revert": {"Back to this", ""}, "save": {"Save", ""}, "use": {"Use", ""},
+	"cancel": {"Cancel", "x"}, "archive": {"Archive", "archive"}, "tell": {"Tell it", "message"},
+	"reset_push": {"Reset the push key", "bell-x"}, "settings": {"Settings", "settings"}, "unarchive": {"Bring back", "archive-off"},
+	"revert": {"Back to this", "history"}, "save": {"Save", "device-floppy"}, "use": {"Use", "check"},
 }
 
 // IsVerb says deck has a built-in button of this name.

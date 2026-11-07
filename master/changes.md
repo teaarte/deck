@@ -84,3 +84,7 @@ and bring the modules in line.
   them there, the others on deck, without a field of the manifest. Data, records and files stay on deck; what a script
   on a node changed in its run folder and the data of the module comes back at its end. The node allows a folder by
   its path (`--allow ~/lab/data`); a folder off its list is refused with what to add.
+- 2026-11-07: a block may stand `"collapsed": true` — folded under its title, read once the owner opens it — for what
+  is seldom needed below what the owner acts on. A line of a list takes `logo` (words naming a model, its maker or
+  provider: the client draws its mark in place of the icon, else the first letter), a column the format `logo`.
+  Buttons of deck's verbs wear an icon each.

@@ -14,6 +14,7 @@ type blockForm struct {
 	Description string         `json:"description"`
 	DeckOnly    bool           `json:"deck_only"`
 	Block       map[string]any `json:"block"`
+	Properties  map[string]any `json:"properties"`
 }
 
 // catalog is the screen catalog: each component with a block form is a block type, and so is each container block
@@ -119,6 +120,9 @@ func format() []byte {
 		props["when"] = map[string]any{"$ref": "#/$defs/when"}
 		props["icon"] = map[string]any{"$ref": "#/$defs/icon"}
 		props["description"] = map[string]any{"type": "string", "description": "A line under the title that says what the block is for and how to use it."}
+		if _, ok := c.Properties["collapsed"]; ok {
+			props["collapsed"] = map[string]any{"type": "boolean", "description": "The block stands folded under its title, which opens it, such as a list seldom needed below what the owner acts on."}
+		}
 		props["span"] = map[string]any{"enum": []any{1, 2, "full"}, "description": "Cells of the grid of the screen the block takes; tables, lists, forms, documents, logs, chats, custom blocks, tabs and columns take the full width by default, charts two cells, the rest one."}
 		rules, _ := form["description"].(string)
 		form["properties"], form["type"], form["additionalProperties"] = props, "object", false

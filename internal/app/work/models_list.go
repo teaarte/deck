@@ -54,6 +54,12 @@ type modelView struct {
 	Provider string `json:"provider"`
 	// Node is the node an agent runs on, such as claude-code@Mac on Mac; empty for one of deck's machine.
 	Node string `json:"node,omitempty"`
+	// Projects is how many modules some work of goes to it, deck's own defaults apart; Places that work, first or as a
+	// fallback.
+	Projects int      `json:"projects"`
+	Places   []string `json:"places,omitempty"`
+	// UsedIn says in words how many modules it is in, empty for none.
+	UsedIn string `json:"used_in,omitempty"`
 }
 
 // lastCheck fills in the state of a model: of its last self-check in an agent, else of its last call.
@@ -76,6 +82,8 @@ type modelsView struct {
 	// Work is every command of a project that runs on a model and every kind of work of its scripts, with the model
 	// each runs on; without a project, of every project and then the defaults of each kind of work.
 	Work []workView `json:"work"`
+	// Waits are what of the models waits for the owner, the broken first.
+	Waits []waitView `json:"waits"`
 }
 
 // choiceView is the models of deck that could do a kind of work, in the order deck lists them, with the group of each.
@@ -141,6 +149,16 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		}
 		if s.Key(act.Workspace, c.Name) != "" {
 			v.Key = "set"
+		}
+		switch {
+		case v.Node != "" && v.Online:
+			v.Where = tr(fmt.Sprintf("through node %s", v.Node))
+		case v.Node != "":
+			v.Where = tr(fmt.Sprintf("through node %s, away now", v.Node))
+		case c.Api == "cli":
+			v.Where = tr("the CLI on the subscription")
+		default:
+			v.Where = tr("deck reaches it itself")
 		}
 		for _, m := range models {
 			if m.Model.ConnectionID == c.ID {
@@ -218,9 +236,24 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		w = b.Grouped(w)
 		out.Choices = append(out.Choices, choiceView{Role: role, Models: w.Choices, Groups: w.ChoiceGroups})
 	}
+	places := placesOf(out.Work, tr)
 	for i := range out.Models {
 		out.Models[i].Price, out.Models[i].Used = Price(out.Models[i], tr), used[out.Models[i].Name]
 		out.Models[i].Error = tr(out.Models[i].Error)
+		p := places[out.Models[i].Name]
+		n := len(p.projects)
+		if p.projects[""] {
+			n--
+		}
+		out.Models[i].Projects, out.Models[i].Places = n, p.places
+		switch {
+		case n == 1:
+			out.Models[i].UsedIn = tr("in one module")
+		case n > 1:
+			out.Models[i].UsedIn = tr(fmt.Sprintf("in %d modules", n))
+		case p.projects[""]:
+			out.Models[i].UsedIn = tr("default")
+		}
 	}
 	// By provider, and in each those that work goes to first.
 	slices.SortStableFunc(out.Models, func(a, b modelView) int {
@@ -229,7 +262,40 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	for i := range out.Agents {
 		out.Agents[i].Error = tr(out.Agents[i].Error)
 	}
+	out.Waits = waits(&out, tr)
 	return out, nil
+}
+
+type placed struct {
+	projects map[string]bool
+	places   []string
+}
+
+// placesOf are, by model, the modules and the work that goes to it, first or as a fallback.
+func placesOf(work []workView, tr func(string) string) map[string]placed {
+	out := map[string]placed{}
+	for _, w := range work {
+		names := w.Models
+		if len(names) == 0 && w.Model != "" {
+			names = []string{w.Model}
+		}
+		for i, name := range names {
+			p := out[name]
+			if p.projects == nil {
+				p.projects = map[string]bool{}
+			}
+			p.projects[w.Project] = true
+			place := cmp.Or(w.ProjectTitle, "deck") + " · " + w.Title
+			if i > 0 {
+				place += " (" + tr("fallback") + ")"
+			}
+			if !slices.Contains(p.places, place) {
+				p.places = append(p.places, place)
+			}
+			out[name] = p
+		}
+	}
+	return out
 }
 
 // uses fills in the uses of the projects the caller reaches, all of them or only pid, with the work of pid, and says
@@ -328,6 +394,8 @@ type connectionView struct {
 	// Node is the node whose machine serves the address, Online whether it is connected now.
 	Node   string `json:"node,omitempty"`
 	Online bool   `json:"online"`
+	// Where says in words where its models run: deck's machine, or a node and whether it is away.
+	Where string `json:"where"`
 }
 
 // agentView is a program models run in: a built-in provider or an ACP agent, with its version and health; an ACP

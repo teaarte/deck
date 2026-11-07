@@ -186,7 +186,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 			comp[part] = map[string]any{"path": "/" + id + "-" + part}
 		}
 	}
-	if r.req.Topic != "" && (!follows(b, r.deck(), r.req.Topic) || !r.reads(b, r.req.Changed)) || !r.wanted(id) {
+	if r.req.Topic != "" && (!follows(b, r.deck(), r.req.Topic) || !r.reads(b, r.req.Changed)) || !r.wanted(id) || r.folded(id, b) {
 		return
 	}
 	if k.parted {
@@ -291,6 +291,12 @@ func (r *renderer) wanted(id string) bool {
 		return false
 	}
 	return r.req.Block == "" || r.within(id)
+}
+
+// folded says a block is collapsed and not opened, so its data waits for a read of it or of a block inside it; a read
+// of a block around it, such as a tab shown, leaves it folded.
+func (r *renderer) folded(id string, b manifest.Block) bool {
+	return b.Collapsed && !r.every && !r.req.Open[id] && r.req.Block != id && !strings.HasPrefix(r.req.Block, id+"-")
 }
 
 // whenUnder says whether a block of id or inside it shows by a when, which may change what the screen holds.

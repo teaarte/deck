@@ -140,6 +140,28 @@ func (e *Env) ScreenMessages(project, screen string, extra map[string]any) []map
 	}
 	var msgs []map[string]json.RawMessage
 	e.Must("deck.screen_get", in, &msgs)
+	// The collapsed blocks are read as the owner opens them, unless the read says which are open.
+	if in["open"] != nil || in["block"] != nil {
+		return msgs
+	}
+	var folded []string
+	for _, m := range msgs {
+		var uc struct{ Components []map[string]any }
+		if json.Unmarshal(m["updateComponents"], &uc) == nil {
+			for _, c := range uc.Components {
+				if c["collapsed"] == true {
+					folded = append(folded, c["id"].(string))
+				}
+			}
+		}
+	}
+	if len(folded) == 0 {
+		return msgs
+	}
+	ids, _ := json.Marshal(folded)
+	in["open"] = string(ids)
+	msgs = nil
+	e.Must("deck.screen_get", in, &msgs)
 	return msgs
 }
 
@@ -337,12 +359,14 @@ type ListItem struct {
 	Actions   []map[string]any `json:"actions"`
 	Group     string           `json:"group"`
 	Tone      string           `json:"tone"`
+	Logo      string           `json:"logo"`
 }
 
-// AllModels are the cards of the models of Settings, in their order.
+// AllModels are the cards of the models of Settings, those in use and then the others, each in their order.
 func (e *Env) AllModels(extra map[string]any) []ListItem {
 	e.T.Helper()
-	return BlockData[[]ListItem](e.T, e.SettingsBlock("All models", extra)["items"])
+	return append(BlockData[[]ListItem](e.T, e.SettingsBlock("Models in use", extra)["items"]),
+		BlockData[[]ListItem](e.T, e.SettingsBlock("Models not in use", extra)["items"])...)
 }
 
 func (e *Env) CockpitItems() []ListItem {
@@ -451,6 +475,10 @@ func (e *Env) ScreenBlock(project, screen, title string, extra map[string]any) m
 		e.T.Fatalf("%s has no block %q", screen, title)
 	}
 	extra = Merge(extra, shown)
+	// The block looked at is open, as the owner opens a collapsed one to see it.
+	if extra["open"] == nil {
+		extra["open"] = `["` + id + `"]`
+	}
 	if extra["topic"] == nil {
 		return e.Screen(project, screen, extra)[id]
 	}

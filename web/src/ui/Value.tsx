@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { formatted, show, tagColor, toneColor, type Shown } from '../lib/format';
 import { useClock } from '../hooks/useClock';
 import s_ from './value.module.css';
+import { Logo } from './logo/Logo';
 
 // Copied is a text with a button that copies it, shown on hover or a tap.
 function Copied({ text }: { text: string }) {
@@ -41,6 +42,7 @@ export function Value({ v, s, tone, hint }: { v: unknown; s: Shown; tone?: strin
     return <Tooltip label={hint.length > 280 ? hint.slice(0, 280) + '…' : hint} multiline maw={360} withArrow events={{ hover: true, focus: true, touch: true }}>{badge}</Tooltip>;
   }
   const text = formatted(v, s);
+  if (s.format === 'logo' && text !== '') return <span className={s_.logo} data-format="logo"><Logo names={text} size={16} />{text}</span>;
   if (s.format === 'copy' && text !== '') return <Copied text={text} />;
   if (!s.format && !color) return text;
   return (

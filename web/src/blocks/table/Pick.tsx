@@ -5,10 +5,11 @@ import { show } from '../../lib/format';
 import { choiceData, choices } from '../../ui/actions/ActionInput';
 import { Failed } from '../../ui/actions/Failed';
 import { usePress } from '../../ui/actions/usePress';
+import { Logo } from '../../ui/logo/Logo';
 
 // Pick is a cell that is the input of a button of its row: it shows the value by its label, and a pick presses the
 // button with it.
-export function Pick({ act, value }: { act: Action; value: unknown }) {
+export function Pick({ act, value, logo }: { act: Action; value: unknown; logo?: boolean }) {
   const { busy, label, send, error, clear } = usePress(act);
   // The value picked shows at once, with a loader while it goes.
   const [picked, setPicked] = useState('');
@@ -20,6 +21,7 @@ export function Pick({ act, value }: { act: Action; value: unknown }) {
       <div onClick={(e) => e.stopPropagation()}>
         <Select size="xs" variant="filled" data={data} value={now || null} aria-label={label} disabled={busy} allowDeselect={false}
           rightSection={busy ? <Loader size={14} /> : undefined} data-busy={busy || undefined}
+          leftSection={logo && now ? <Logo names={now} size={16} /> : undefined}
           comboboxProps={{ withinPortal: true, width: 'max-content' }} miw={140} maw={280} data-pick={act.pick}
           onChange={(v) => { if (v && v !== now) { setPicked(v); void send({ [act.input!]: v }); } }} />
       </div>

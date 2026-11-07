@@ -284,7 +284,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 	if !strings.Contains(string(msgs), "Install modules only from authors you know") {
 		t.Fatalf("under the warning not to install modules of unknown authors: %s", msgs)
 	}
-	enable := fmt.Sprintf(`{"command":"deck.project_enable","params":{"project":"links-shared","revision":%d},"primary":true,"verb":"enable","label":"Enable project"}`, rev)
+	enable := fmt.Sprintf(`{"command":"deck.project_enable","params":{"project":"links-shared","revision":%d},"primary":true,"verb":"enable","label":"Enable project","icon":"player-play"}`, rev)
 	if !strings.Contains(string(b), enable) {
 		t.Fatalf("its button enables the revision the owner read: %s", b)
 	}

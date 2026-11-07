@@ -29,6 +29,7 @@ type screenGetIn struct {
 	Sub     string `opt:"" desc:"Key of the tab shown inside a tab; the first without one"`
 	Block   string `opt:"" desc:"Id of a block: only the data of it and of the blocks inside it"`
 	Pages   string `type:"json" opt:"" desc:"How many pages of its limit a block shows, as JSON: block id to a number"`
+	Open    string `type:"json" opt:"" desc:"Ids of the collapsed blocks the owner opened, as a JSON list; the others are read when opened"`
 	Widget  string `opt:"" desc:"The size of a card of the tiles, such as 2x1: of a project the largest view of its widgets it fits, of deck its screen, each filling the card"`
 }
 
@@ -38,6 +39,16 @@ func (s *Service) screenGet(ctx context.Context, act registry.Actor, in screenGe
 	if strings.TrimSpace(in.Pages) != "" {
 		if err := json.Unmarshal([]byte(in.Pages), &req.Pages); err != nil {
 			return nil, registry.Invalid("pages: a JSON object of block id to a number: %v", err)
+		}
+	}
+	if strings.TrimSpace(in.Open) != "" {
+		var ids []string
+		if err := json.Unmarshal([]byte(in.Open), &ids); err != nil {
+			return nil, registry.Invalid("open: a JSON list of block ids: %v", err)
+		}
+		req.Open = map[string]bool{}
+		for _, id := range ids {
+			req.Open[id] = true
 		}
 	}
 	if strings.TrimSpace(in.Filter) != "" {

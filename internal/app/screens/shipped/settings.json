@@ -13,46 +13,24 @@
               "tpm": "=param.tpm", "context": "=param.context"},
             "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
               "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing' && status != 'off'"}, "value": "name"}}}]},
-        {"type": "dialog", "name": "connections", "title": "Connections", "icon": "plug", "blocks": [
-          {"type": "table", "title": "Connections", "source": {"from": "deck.models_list", "rows": "connections"},
-            "description": "Where deck reaches models: an API, a server of this machine or one of a node's machine, with its address and key.",
-            "empty": "No connections yet: add one with the address of a model API and its key",
-            "columns": [
-              {"label": "Name", "bind": "name"},
-              {"label": "API", "bind": "api", "format": "tag"},
-              {"label": "Models", "bind": "models"},
-              {"label": "Address", "bind": "url", "format": "copy"},
-              {"label": "Key", "bind": "key", "format": "tag", "tone": "key == 'set' ? 'ok' : 'muted'"},
-              {"label": "Node", "bind": "node ?? ''", "format": "tag", "tone": "(node ?? '') == '' ? '' : online ? 'ok' : 'warn'"}
-            ],
-            "actions": [
-              {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=name", "api": "=api", "url": "=url", "local": "=local", "node": "=node ?? ''"}, "when": "api != 'cli'"},
-              {"verb": "remove", "confirm": true, "command": "deck.connection_delete", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
-            ]},
-          {"type": "form", "title": "Add or change a connection", "command": "deck.connection_set", "description": "Where models are reached: the API, its address and key; deck keeps the key apart, and no module reads it.",
+        {"type": "dialog", "name": "connections", "title": "Add a connection", "icon": "plug", "blocks": [
+          {"type": "form", "command": "deck.connection_set", "description": "The address of a model API and its key, kept apart from modules. A server of a Mac on 127.0.0.1 is reached through its node.",
             "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "local": "=param.local", "node": "=param.node"},
             "choices": {"node": {"source": {"from": "deck.devices_list", "where": "kind == 'node' && !revoked"}, "value": "name"}}}]},
         {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
           {"type": "form", "command": "deck.assignment_set", "description": "The first model does the work; the next ones take it while the first is down or refuses.",
             "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
             "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models"}, "value": "name"}}}]},
-        {"type": "table", "title": "Who does what", "source": {"from": "deck.models_list", "rows": "work"}, "filter": ["kind", "project"],
-          "description": "Each module in a row: what it does and the model it runs on; the one picked here comes first.",
-          "empty": "Nothing of deck runs on a model yet",
-          "columns": [
-            {"label": "Module", "bind": "project_title ?? 'deck'"},
-            {"label": "What", "bind": "title"},
-            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-            {"label": "Price", "bind": "price ?? ''"},
-            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"},
-            {"label": "Then", "bind": "len(models ?? []) > 1 ? join(models[1:], ' → ') : ''"}
-          ],
+        {"type": "list", "title": "Waiting for you", "icon": "bell", "source": {"from": "deck.models_list", "rows": "waits"},
+          "empty": "All works: the models answer and the agents are signed in",
+          "item": {"title": "title", "text": "text ?? ''", "icon": "icon", "tone": "tone", "logo": "logo ?? ''", "details": "why ?? nil"},
           "actions": [
-            {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
-            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project != '' ? project : nil", "command": "=command ?? nil"},
-              "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
-            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=command ?? ''", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"},
-            {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}, "when": "kind == 'default' && own"}
+            {"verb": "sign_in", "primary": true, "command": "deck.agent_login", "params": {"provider": "=agent"}, "when": "kind == 'sign_in'"},
+            {"verb": "replace", "primary": true, "command": "deck.model_replace", "params": {"model": "=model", "role": "=role"}, "input": "to", "options": "=choices", "groups": "=groups", "when": "kind == 'down'"},
+            {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "kind == 'down'"},
+            {"label": "Add the key", "icon": "key", "primary": true, "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=connection.name", "api": "=connection.api", "url": "=connection.url", "local": "=connection.local", "node": "=connection.node ?? ''"}, "when": "kind == 'key'"},
+            {"label": "Devices", "icon": "devices", "primary": true, "screen": "settings", "params": {"tab": "Devices"}, "when": "kind == 'node'"},
+            {"label": "Agents", "icon": "robot", "primary": true, "screen": "settings", "params": {"tab": "Advanced"}, "when": "kind == 'install'"}
           ]},
         {"type": "table", "title": "Sign in to agents", "source": {"from": "deck.agent_logins_list"},
           "empty": "No sign-in waits; Sign in on an agent that needs one gives its link here",
@@ -67,19 +45,64 @@
             {"label": "Enter the code", "icon": "key", "command": "deck.agent_login_finish", "params": {"provider": "=provider"}, "input": "code", "when": "paste && (error ?? '') == ''"},
             {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=provider"}, "when": "(error ?? '') != ''"}
           ]},
-        {"type": "list", "title": "All models", "cards": true, "empty": "No models yet: add a connection, then its models; Deki can propose them in the chat", "source": {"from": "deck.models_list", "rows": "models"}, "filter": ["kind", "connection", "status"],
-          "description": "Every model deck reaches, by provider: the subscriptions first, then each connection; those that work goes to first, the others dimmed.",
-          "item": {"title": "name", "text": "price", "meta": "agent != nil && agent != '' ? 'agent' : kind", "group": "provider",
-            "icon": "status == nil ? 'circle-dashed' : nil", "details": "status == nil ? 'No work has gone to it yet' : error",
-            "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status != nil ? 'warn' : used ? '' : 'muted'"},
+        {"type": "table", "title": "Who does what", "icon": "route", "source": {"from": "deck.models_list", "rows": "work"}, "filter": ["kind", "project"],
+          "description": "Each module's work and its model; pick another in the row. Agent work needs an agent: Claude Code, Codex or Goose on your model.",
+          "empty": "Nothing of deck runs on a model yet",
+          "columns": [
+            {"label": "What", "bind": "(project_title ?? 'deck') + ' · ' + title"},
+            {"label": "Model", "bind": "model ?? ''", "pick": "model", "format": "logo"},
+            {"label": "Price", "bind": "price ?? ''"},
+            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"},
+            {"label": "Fallbacks", "bind": "len(models ?? []) > 1 ? join(models[1:], ' → ') : ''"}
+          ],
+          "actions": [
+            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project != '' ? project : nil", "command": "=command ?? nil"},
+              "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
+            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=command ?? ''", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"},
+            {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}, "when": "kind == 'default' && own"}
+          ]},
+        {"type": "list", "title": "Models in use", "icon": "cpu", "collapsed": true, "cards": true, "source": {"from": "deck.models_list", "rows": "models", "where": "used"}, "filter": ["kind", "connection", "status"],
+          "description": "By provider; a model's details say where it works.",
+          "empty": "No model does any work yet",
+          "item": {"title": "name", "text": "join(filter([used_in ?? '', price], # != ''), ' · ')", "meta": "agent != nil && agent != '' ? 'agent' : kind", "group": "provider",
+            "logo": "name + ' ' + (model ?? '') + ' ' + connection",
+            "details": "(error ?? '') != '' ? error : len(places ?? []) > 0 ? join(places, '; ') : status == nil ? 'No work has gone to it yet' : nil",
+            "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' || status == 'off' ? 'muted' : status != nil ? 'warn' : nil"},
           "actions": [
             {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=name"}, "when": "builtin && (status == 'needs_login' || status == 'error' || status == 'warning')"},
-            {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != ''"},
+            {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != '' && status != 'missing'"},
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "tts", "model": "=name", "text": "This is a short check of the voice."}, "when": "kind == 'tts'"},
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "text", "model": "=name", "prompt": "This is a short check of the model: reply with the one word ok."}, "when": "kind == 'text' && (agent ?? '') == ''"},
+            {"verb": "turn_off", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "true"}, "when": "builtin && status != 'off' && status != 'missing'"},
+            {"verb": "turn_on", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"},
             {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
               "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''", "tpm": "=tpm ?? 0", "context": "=context ?? 0"}, "when": "!builtin"},
             {"verb": "remove", "confirm": true, "command": "deck.model_delete", "params": {"name": "=name"}, "when": "!builtin"}
+          ]},
+        {"type": "list", "title": "Models not in use", "icon": "archive", "collapsed": true, "cards": true, "source": {"from": "deck.models_list", "rows": "models", "where": "!used"}, "filter": ["kind", "connection", "status"],
+          "description": "No work goes to these: assign one in Who does what, or remove it. For agent work, add a text model again with the agent goose.",
+          "empty": "Every model does some work",
+          "item": {"title": "name", "text": "price", "meta": "agent != nil && agent != '' ? 'agent' : kind", "group": "provider",
+            "logo": "name + ' ' + (model ?? '') + ' ' + connection",
+            "details": "(error ?? '') != '' ? error : status == nil ? 'No work has gone to it yet' : nil",
+            "tone": "status == 'error' ? 'error' : 'muted'"},
+          "actions": [
+            {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != '' && status != 'missing'"},
+            {"verb": "check", "command": "deck.model_call", "params": {"kind": "text", "model": "=name", "prompt": "This is a short check of the model: reply with the one word ok."}, "when": "kind == 'text' && (agent ?? '') == ''"},
+            {"verb": "turn_on", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"},
+            {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
+              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''", "tpm": "=tpm ?? 0", "context": "=context ?? 0"}, "when": "!builtin"},
+            {"verb": "remove", "confirm": true, "command": "deck.model_delete", "params": {"name": "=name"}, "when": "!builtin"}
+          ]},
+        {"type": "list", "title": "Connections", "icon": "plug", "collapsed": true, "source": {"from": "deck.models_list", "rows": "connections"},
+          "description": "An API on the web, a server of deck's machine, or one of a Mac through its node (deck pair --node). claude-code@Mac is Claude Code on that Mac, by its sign-in.",
+          "empty": "No connections yet: add one with the address of a model API and its key",
+          "item": {"title": "name", "text": "where", "meta": "api == 'cli' ? '' : key == 'set' ? 'Key set' : 'No key'", "logo": "name + ' ' + url",
+            "details": "api == 'cli' ? nil : url",
+            "tone": "(node ?? '') != '' && !online ? 'warn' : nil"},
+          "actions": [
+            {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=name", "api": "=api", "url": "=url", "local": "=local", "node": "=node ?? ''"}, "when": "api != 'cli'"},
+            {"verb": "remove", "confirm": true, "command": "deck.connection_delete", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
           ]}
       ]},
       {"title": "Modules", "icon": "folders", "blocks": [

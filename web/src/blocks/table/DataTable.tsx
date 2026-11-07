@@ -39,7 +39,7 @@ export function DataTable({ columns, rows, searched }: { columns: Column[]; rows
   const opens = rows.some(more);
   const cell = (r: Row, j: number) => {
     const pick = pickOf(r, j);
-    if (pick) return <Pick act={pick} value={r.cells[j]} />;
+    if (pick) return <Pick act={pick} value={r.cells[j]} logo={columns[j]?.format === 'logo'} />;
     return <Value v={r.cells[j]} s={columns[j] ?? {}} tone={r.tones?.[j]} hint={columns[j]?.format === 'tag' ? r.details?.[j] : undefined} />;
   };
   return (
@@ -48,7 +48,7 @@ export function DataTable({ columns, rows, searched }: { columns: Column[]; rows
         <TextInput size="xs" mb="sm" maw={280} leftSection={<IconSearch size={14} />} placeholder={t('Search')}
           value={v.query} onChange={(e) => v.search(e.currentTarget.value)} data-table-search />
       )}
-      <Table.ScrollContainer minWidth={Math.min(720, 150 * main.length + (acts ? 140 : 0))}>
+      <Table.ScrollContainer minWidth={Math.min(720, 150 * main.length + (acts ? (phone ? 56 : 140) : 0))}>
         <Table highlightOnHover verticalSpacing="sm" className={s.table}>
           <Table.Thead>
             <Table.Tr>
@@ -87,7 +87,7 @@ export function DataTable({ columns, rows, searched }: { columns: Column[]; rows
                       </Table.Td>
                     )}
                     {main.map((j) => <Table.Td key={j}>{pickOf(r, j) ? cell(r, j) : <Cell>{cell(r, j)}</Cell>}</Table.Td>)}
-                    {acts && <Table.Td className={s.rowActions}><Actions actions={own(r)} max={2} quiet={i > 0} /></Table.Td>}
+                    {acts && <Table.Td className={s.rowActions}><Actions actions={own(r)} max={2} lead={phone} quiet={i > 0} /></Table.Td>}
                   </Table.Tr>
                   {open && (
                     <Table.Tr className={s.more} data-row-more>

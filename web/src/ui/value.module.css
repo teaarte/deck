@@ -15,3 +15,9 @@
 .copy:focus .copyButton {
   opacity: 1;
 }
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

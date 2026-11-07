@@ -92,6 +92,34 @@
   background: var(--mantine-color-green-0);
 }
 
+/* A logo keeps its own colors on a plain disc; the tone of its line is a dot on its edge. */
+.itemIcon[data-logo-of] {
+  position: relative;
+  color: var(--mantine-color-text);
+  background: var(--mantine-color-body);
+  box-shadow: inset 0 0 0 1px var(--deck-line, var(--mantine-color-default-border));
+}
+
+.itemIcon[data-logo-of] [data-logo-letter] {
+  background: none;
+}
+
+:is(.item, .fitLine)[data-tone] .itemIcon[data-logo-of]::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--mantine-radius-xl);
+  box-shadow: 0 0 0 2px var(--mantine-color-body);
+}
+
+:is(.item, .fitLine)[data-tone='ok'] .itemIcon[data-logo-of]::after { background: var(--mantine-color-green-6); }
+:is(.item, .fitLine)[data-tone='warn'] .itemIcon[data-logo-of]::after { background: var(--mantine-color-coral-6); }
+:is(.item, .fitLine)[data-tone='error'] .itemIcon[data-logo-of]::after { background: var(--mantine-color-red-6); }
+:is(.item, .fitLine)[data-tone='muted'] .itemIcon[data-logo-of] { opacity: 0.55; }
+
 .itemTitle {
   font-size: 15px;
   letter-spacing: -0.005em;

@@ -363,8 +363,14 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		if got := paths("", "settings", topic, "Health", "checks"); !slices.Contains(got, "/b0-2-2-0") {
 			t.Fatalf("%s reads every check in its open dialog: %v", topic, got)
 		}
-		if got := paths("", "settings", topic, "Models", "connections"); !slices.Contains(got, "/b0-0-1-0") {
-			t.Fatalf("%s reads the connections in their open dialog: %v", topic, got)
+		var open []string
+		for _, m := range e.ScreenMessages("", "settings", map[string]any{"topic": topic, "tab": "Models", "open": `["b0-0-8"]`}) {
+			var dm struct{ Path string }
+			_ = json.Unmarshal(m["updateDataModel"], &dm)
+			open = append(open, dm.Path)
+		}
+		if !slices.Contains(open, "/b0-0-8") || slices.Contains(open, "/b0-0-6") {
+			t.Fatalf("%s reads the connections once opened, and no collapsed block the owner did not open: %v", topic, open)
 		}
 	}
 	if got := paths("", "settings", "documents"); !slices.Contains(got, "/b0-1-3") {

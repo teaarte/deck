@@ -16,11 +16,11 @@ import (
 
 type connectionSetIn struct {
 	Name  string `desc:"Connection name: lowercase letters, digits and '-'"`
-	API   string `json:"api" enum:"openai|google|anthropic|raw" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token"`
+	API   string `json:"api" enum:"openai|google|anthropic|raw" opt:"" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token; without it, by the address"`
 	URL   string `desc:"Base URL of the API, such as https://openrouter.ai/api/v1"`
 	Key   string `type:"secret" opt:"" desc:"The API key; deck keeps it apart from the secrets of modules, and a connection changed without it keeps its own"`
 	Local bool   `opt:"" desc:"The models run on the owner's own hardware"`
-	Node  string `opt:"" desc:"The node whose machine serves the address, by its name in Devices, such as a Mac whose models listen on 127.0.0.1; empty when deck reaches the address itself"`
+	Node  string `opt:"" desc:"Where it runs: empty when deck reaches the address itself; the name of a node in Devices, such as Mac, for a server of that machine on 127.0.0.1"`
 }
 
 func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
@@ -34,6 +34,9 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 	}
 	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == models.APICLI {
 		return nil, registry.Invalid("connection %s is the %s CLI on the owner's subscription, which deck keeps itself; name another one", in.Name, in.Name)
+	}
+	if in.API == "" {
+		in.API = apiOf(in.URL)
 	}
 	node, err := s.nodeOf(ctx, act.Workspace, in.Node, in.URL)
 	if err != nil {
@@ -53,6 +56,21 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 		}
 	}
 	return map[string]any{"connection": in.Name, "key": in.Key != ""}, nil
+}
+
+// apiOf is the API an address speaks: anthropic and google at their own hosts, openai at any other.
+func apiOf(address string) string {
+	u, err := url.Parse(address)
+	if err != nil {
+		return "openai"
+	}
+	switch host := u.Hostname(); {
+	case host == "api.anthropic.com":
+		return "anthropic"
+	case host == "generativelanguage.googleapis.com":
+		return "google"
+	}
+	return "openai"
 }
 
 // nodeOf is the node of a workspace by its name, which serves only the addresses of its own machine; none for no name.

@@ -226,3 +226,32 @@
   display: flex;
   justify-content: flex-end;
 }
+
+/* The head of a collapsed block opens it; its chevron turns while open. */
+.fold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.fold .blockTitle {
+  margin: 0;
+}
+
+.foldChevron {
+  flex: none;
+  color: var(--mantine-color-dimmed);
+  transition: transform 150ms ease;
+}
+
+.fold[data-fold='open'] .foldChevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foldChevron {
+    transition: none;
+  }
+}

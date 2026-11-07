@@ -42,11 +42,15 @@ export function useScreen(route: Route, shownNow = true) {
   const key = place.current && placeKey(place.current.route) === placeKey(route) ? place.current.key : placeKey(route);
   place.current = { key, route };
   const whole = wholeKey(route);
+  // folds are the collapsed blocks the owner opened, by the key of the screen, read with it from then on.
+  const folds = useRef(new Map<string, Set<string>>());
 
   useEffect(() => {
     let gone = false;
     const picked: Record<string, Record<string, string>> = {};
     const pages: Record<string, number> = {};
+    const opened = folds.current.get(key) ?? new Set<string>();
+    folds.current.set(key, opened);
     const input = (extra: Record<string, unknown> = {}) => {
       const r = routeRef.current;
       const params = serverParams(r);
@@ -59,6 +63,7 @@ export function useScreen(route: Route, shownNow = true) {
         ...(r.params?.widget ? { widget: r.params.widget } : {}),
         ...(Object.keys(picked).length ? { filter: JSON.stringify(picked) } : {}),
         ...(Object.keys(pages).length ? { pages: JSON.stringify(pages) } : {}),
+        ...(opened.size ? { open: JSON.stringify([...opened]) } : {}),
         ...extra,
       };
     };
@@ -89,6 +94,10 @@ export function useScreen(route: Route, shownNow = true) {
         }
         case 'more':
           pages[block] = (pages[block] ?? 1) + 1;
+          return readBlock(block);
+        case 'unfold':
+          if (opened.has(block)) return;
+          opened.add(block);
           return readBlock(block);
         case 'dialog':
           return readBlock(block, { dialog: String(c.dialog ?? '') });

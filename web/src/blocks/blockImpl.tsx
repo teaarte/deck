@@ -15,7 +15,7 @@ export const api = (name: string): ComponentApi => {
   return c;
 };
 
-export type BlockProps = { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
+export type BlockProps = { title?: string; icon?: string; span?: Span; description?: string; collapsed?: boolean; data?: Data };
 
 // Look is how a block of the catalog stands apart from the frame: its own look of nothing, no frame at all, or a frame
 // of its own that draws the state of its data itself, before it comes too.
@@ -29,7 +29,7 @@ export function blockImpl<P = object>(name: string, body: (p: BlockProps & P, d:
     if (look.own) return <BlockContext.Provider value={context}>{body(p, p.data!, context)}</BlockContext.Provider>;
     return (
       <BlockContext.Provider value={context}>
-        <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data} context={context}
+        <Block title={p.title} icon={p.icon} span={p.span} description={p.description} collapsed={p.collapsed} data={p.data} context={context}
           empty={look.empty && ((d) => look.empty!(p, d))} bare={look.bare?.(p, p.data)}>{(d) => body(p, d, context)}</Block>
       </BlockContext.Provider>
     );

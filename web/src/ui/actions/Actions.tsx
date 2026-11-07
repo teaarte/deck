@@ -6,15 +6,15 @@ import type { Action } from '../../lib/catalog.gen';
 import { ActionButton } from './ActionButton';
 import { actionKeys, useVisibleActions } from './useVisibleActions';
 
-// Actions are the buttons of an item, the primary first; past max the rest wait in a menu. quiet, for every item of a
-// block but its first, keeps a primary light: one accent on a screen.
-export function Actions({ actions, max = 3, quiet }: { actions?: Action[]; max?: number; quiet?: boolean }) {
+// Actions are the buttons of an item, the primary first; past max the rest wait in a menu, past the first with lead.
+// quiet, for every item of a block but its first, keeps a primary light: one accent on a screen.
+export function Actions({ actions, max = 3, quiet, lead }: { actions?: Action[]; max?: number; quiet?: boolean; lead?: boolean }) {
   const { t } = useTranslation();
   const more = useId();
   const shown = useVisibleActions(actions);
   if (!shown.length) return null;
   const sorted = [...shown.filter((a) => a.primary), ...shown.filter((a) => !a.primary)];
-  const cut = sorted.length > max ? max - 1 : sorted.length;
+  const cut = lead ? 1 : sorted.length > max ? max - 1 : sorted.length;
   const rest = sorted.slice(cut);
   const keys = actionKeys(sorted);
   return (

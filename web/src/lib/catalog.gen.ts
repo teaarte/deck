@@ -394,6 +394,10 @@ export interface Data {
      */
     group?: string;
     cover?: Picture;
+    /**
+     * words naming a model, its maker or provider; the client draws the mark of the first it knows in place of the icon, else the first letter
+     */
+    logo?: string;
     questions?: Question[];
     actions?: Action[];
   }[];
@@ -1428,6 +1432,10 @@ export interface TableProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   columns: {
     label: string;
@@ -1448,6 +1456,10 @@ export interface ListProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   cards?: boolean;
   focus?: boolean;
@@ -1461,6 +1473,10 @@ export interface CardProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   data?: Data;
 }
@@ -1472,6 +1488,10 @@ export interface StatProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   format?: string;
   currency?: string;
@@ -1485,6 +1505,10 @@ export interface ChartProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   kind?: string;
   format?: string;
@@ -1499,6 +1523,10 @@ export interface MediaProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   data?: Data;
 }
@@ -1510,6 +1538,10 @@ export interface FilterProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   /**
    * the param of the screen the pick sets
@@ -1525,6 +1557,10 @@ export interface ActionsProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   data?: Data;
 }
@@ -1536,6 +1572,10 @@ export interface LogProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   data?: Data;
 }
@@ -1547,6 +1587,10 @@ export interface FormProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   data?: Data;
 }
@@ -1558,6 +1602,10 @@ export interface AppearanceProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   part?: "look" | "pushes";
   data?: Data;
@@ -1570,6 +1618,10 @@ export interface DocumentProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   data?: Data;
 }
@@ -1581,6 +1633,10 @@ export interface CustomProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   data?: Data;
 }
@@ -1592,6 +1648,10 @@ export interface ChatProps {
   title?: string;
   icon?: string;
   span?: 1 | 2 | "full";
+  /**
+   * The block stands folded under its title, which opens it; for what is seldom needed.
+   */
+  collapsed?: boolean;
   description?: string;
   data?: Data;
   topics?: Data;

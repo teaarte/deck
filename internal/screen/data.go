@@ -402,7 +402,7 @@ func (r *renderer) list(b manifest.Block, items []map[string]any, out map[string
 		}
 		r.setTone(line, b.Item.Tone, it)
 		for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta, "since": b.Item.Since,
-			"icon": b.Item.Icon, "details": b.Item.Details, "questions": b.Item.Questions, "kind": b.Item.Kind, "group": b.Item.Group} {
+			"icon": b.Item.Icon, "details": b.Item.Details, "questions": b.Item.Questions, "kind": b.Item.Kind, "group": b.Item.Group, "logo": b.Item.Logo} {
 			if e == "" {
 				continue
 			}

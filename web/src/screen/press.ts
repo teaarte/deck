@@ -38,7 +38,7 @@ export async function press(ctx: ComponentContext | undefined, a: Action, input?
 
 // readBlock asks the screen for the data of a block again: by a filter picked, the next page, a dialog opened, a tab
 // shown.
-export function readBlock(ctx: ComponentContext, kind: 'filter' | 'more' | 'dialog' | 'tab', context: Record<string, unknown> = {}) {
+export function readBlock(ctx: ComponentContext, kind: 'filter' | 'more' | 'dialog' | 'tab' | 'unfold', context: Record<string, unknown> = {}) {
   void ctx.dispatchAction({ event: { name: kind, context: { block: ctx.componentModel.id, ...context } } });
 }
 

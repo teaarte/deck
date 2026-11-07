@@ -352,11 +352,13 @@ type Block struct {
 	// Description is a line under the title of the block.
 	Description string `json:"description,omitempty"`
 	// When is an expression over the record of the page and rows; where it does not hold the block is left out.
-	When    string   `json:"when,omitempty"`
-	Source  *Source  `json:"source,omitempty"`
-	Columns []Column `json:"columns,omitempty"`
-	Fields  []Column `json:"fields,omitempty"`
-	Item    *Item    `json:"item,omitempty"`
+	When string `json:"when,omitempty"`
+	// Collapsed folds the block under its title until the owner opens it.
+	Collapsed bool     `json:"collapsed,omitempty"`
+	Source    *Source  `json:"source,omitempty"`
+	Columns   []Column `json:"columns,omitempty"`
+	Fields    []Column `json:"fields,omitempty"`
+	Item      *Item    `json:"item,omitempty"`
 	// Kind, X and Series draw a chart: x and each y are expressions over an item.
 	Kind   string   `json:"kind,omitempty"`
 	X      string   `json:"x,omitempty"`
@@ -478,6 +480,8 @@ type Item struct {
 	Kind string `json:"kind,omitempty"`
 	// Group is an expression giving the heading a line stands under; the lines of a group come together.
 	Group string `json:"group,omitempty"`
+	// Logo is an expression giving words that name a model, its maker or provider, whose mark the client draws.
+	Logo string `json:"logo,omitempty"`
 	// File is the file of a line of a media block: a stored file id or a path in the data folder.
 	File string `json:"file,omitempty"`
 	// Cover is a picture shown on a card or a folder tile: a stored file id, a path in the data folder or a cover

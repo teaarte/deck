@@ -72,7 +72,7 @@ Deki lives in a side chat next to any screen and sees what you are looking at, s
 For those who want to know how it holds together; the full picture is in
 [docs/architecture.md](docs/architecture.md).
 
-- **One binary, one door.** About 50k lines of Go with SQLite and the React client embedded. Buttons, the API,
+- **One binary, one door.** About 70k lines of Go with SQLite and the React client embedded. Buttons, the API,
   schedules, scripts and agents all call the same commands through one registry, so rights, confirmations, the
   journal and the undo are enforced in exactly one place.
 - **MCP-native.** Every agent process gets its own deck MCP server: the commands it may call as tools, questions and
@@ -98,7 +98,7 @@ For those who want to know how it holds together; the full picture is in
 - **Any agent behind one interface.** The Claude Code CLI, the Codex app-server (its protocol generated from the
   installed CLI) and any ACP agent such as Goose on a local model. A refused or silent turn goes to the next model
   of the assignment; a CLI that is not installed is simply off.
-- **Tested end to end.** About 900 scenario tests through the real registry and gateway on a real SQLite with a fake
+- **Tested end to end.** About 1,000 scenario tests through the real registry and gateway on a real SQLite with a fake
   provider; behind flags, the same against the real Claude Code, Codex, a local model and a real browser at desktop
   and phone sizes. Provider adapters are contract-tested on recorded streams.
 
@@ -145,7 +145,7 @@ On Linux, Docker Engine; on a Mac, [OrbStack](https://orbstack.dev) or Docker De
 
 ```bash
 mkdir deck && cd deck
-for f in compose.yaml seccomp.json deck-box.apparmor; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/master/$f; done
+for f in compose.yaml seccomp.json deck-box.apparmor move-to-docker.sh; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/master/$f; done
 # Ubuntu and Debian, once: the AppArmor profile the container runs under
 sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
 docker compose up -d
@@ -155,18 +155,21 @@ docker compose exec deck deck pair        # a link for the next one
 
 deck starts with Docker and after a restart of the machine (`restart: unless-stopped`); its data and the logins of
 the agents stay in the volume `deck`. Open the link, then sign in to the agents in Settings → Models → **Sign in**:
-Codex shows a link and a code, Claude Code a link whose page gives the code to enter. To update:
-`docker compose pull && docker compose up -d`.
+Codex shows a link and a code, Claude Code a link whose page gives the code to enter. The models of the machine
+itself (Ollama, whisper and other local servers) and its folders reach deck in the container through a [node](#node).
+To update: `docker compose pull && docker compose up -d`; when a release is out, Settings → Advanced and the feed say
+so.
 
 **Open deck.**
 
 - **On this machine** — <http://deck.localhost:7700>. Browsers take `deck.localhost` to this machine and treat it as
   secure, so a passkey works there without https; its cookie goes to no other server of the machine. Tried in
   Chromium (Chrome, Edge) and WebKit (Safari); Firefox is not tried yet.
-- **From your phone and other devices** — over https only. Either Tailscale: install it on the machine with deck and
-  run `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701`, then start deck with
-  `-public https://<machine>.<tailnet>.ts.net` (in `.env`: `DECK_DOMAIN=<machine>.<tailnet>.ts.net`); Tailscale is
-  needed on the device you open deck from too. Or your own domain, below.
+- **From your phone and other devices** — over https only. Either Tailscale: put `DECK_TAILSCALE=deck` in `.env`,
+  and deck joins your tailnet itself as `https://deck.<tailnet>.ts.net` (the sign-in link is in its log); or install
+  Tailscale on the machine and run `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701`, with
+  `DECK_DOMAIN=<machine>.<tailnet>.ts.net` in `.env`. Tailscale is needed on the device you open deck from too. Or
+  your own domain, below.
 - **As an app window** — in Safari, File → Add to Dock; in Chrome or Edge, Install deck from the address bar. On a
   phone, add deck to the home screen: pushes and sharing a link or a file into a module work as in a native app.
 
@@ -216,7 +219,7 @@ devices and passkeys, secrets, the homes of the CLIs, and its tailnet's state, s
 
 1. Stop that deck and keep a copy of its folder: `cp -a ~/.deck2 ~/.deck2-backup-$(date +%F)`.
 2. Beside `compose.yaml`, with `DECK_TAILSCALE=<its name on the tailnet>` in `.env` if it was on one, run
-   `sh move-to-docker.sh ~/.deck2` (download it as the files above). Run again, it brings the folder over anew.
+   `sh move-to-docker.sh ~/.deck2`. Run again, it brings the folder over anew.
 3. `docker compose up -d`, then sign in at <http://deck.localhost:7700> and on the tailnet with the same devices.
 4. deck in the container sees no folder and no model of the machine: pair a node on it (below), set **Node** of the
    connections at `127.0.0.1`, and in each module's settings, Access, remove the folders of deck's machine and add them
@@ -314,7 +317,8 @@ DECK_HOME=/tmp/deckhome ./deck          # another data folder
 Releases are on [GitHub](https://github.com/teaarte/deck/releases): `deck-<os>-<arch>` (`-tailnet` with the tailnet)
 and the image `ghcr.io/teaarte/deck`.
 
-**Updating.** A released deck looks for a new release once a day. When one is out, Settings → Advanced and a note in
+**Updating.** A released binary looks for a new release once a day (deck in Docker says so too, and updates by
+`docker compose pull`). When one is out, Settings → Advanced and a note in
 the feed show an **Update** button, which only the owner can press. deck downloads the build it was made from and
 checks it against `release.json`, whose ed25519 signature it checks with the key built into it. It takes a snapshot, puts the
 new binary in place and restarts; the agents go on in their sessions. If the new version never gets as far as
@@ -325,8 +329,9 @@ database and the stored manifests.
 
 ## Status
 
-deck is a personal project in daily use by its author: one owner per deck, macOS first, Linux and the server image tested in docker.
-It changes fast; the database and manifests are migrated on start.
+deck is a personal project in daily use by its author, on a Mac in OrbStack with a node for the Mac's models and
+folders: one owner per deck, the same image on a server and on one computer. It changes fast; the database and
+manifests are migrated on start.
 
 ## License
 

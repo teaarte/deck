@@ -52,12 +52,20 @@ one place.
   https. deck cuts every secret, in any echoed form, out of answers, errors, health and the journal.
 - **Files.** What a run leaves in its results folder becomes stored files of its process or record. A process may
   delete only the files its own run made; that is a line of "done without you" with an undo.
-- **Sandbox.** Scripts, MCP servers and ACP agents run under `sandbox-exec` on macOS or bubblewrap on Linux. The
-  only network path is the `Door` to deck's proxy. A process sees its own folder, the folders the owner granted
-  and the environment deck gives it. deck's image builds the same boxes with bubblewrap inside the container: deck
-  runs as `deck` without capabilities, and `compose.yaml` gives the container `seccomp.json`,
+- **Sandbox.** Every foreign program — a script, an MCP server, Claude Code, Codex, an ACP agent — runs through
+  one function, `sandbox.Run(Box)`: bubblewrap on Linux and in deck's image, `sandbox-exec` on a Mac node (and a
+  deck without Docker on a Mac). The only network path is the `Door` to deck's proxy. A process sees its own folder,
+  the folders the owner granted and the environment deck gives it; bubblewrap mounts each folder by the file deck
+  opened, through links of the system only, so a folder turned into a link after deck checked it leads nowhere. In
+  the image deck runs as `deck` without capabilities, and `compose.yaml` gives the container `seccomp.json`,
   `systempaths=unconfined` and the AppArmor profile `deck-box`; without them deck starts no foreign program and
   health names the lines.
+- **Nodes.** deck in a container reaches the models, agents and folders of another machine through a node: the same
+  binary there (`deck -join … --install`) holds one outgoing connection, over which deck speaks HTTP/2 to it. The
+  node keeps its own list of what deck may use (ports of its loopback, agents, folders). A model connection with a
+  node goes through it; a turn of `<agent>@<node>` or of a folder of the node runs there in the node's box, with a
+  copy of its run folder and the module's data, which come back to deck at its end; the scripts of a module whose
+  folders are on a node run there too. A node away makes a call go to the next model and a turn or script wait.
 - **Screens are data.** The server resolves a stored screen into [A2UI](https://github.com/google/A2UI) messages
   from a block catalog (`schemas/catalog.json`): tables, lists and boards, cards, forms, stats, charts, media, a
   file manager, tabs, columns and dialogs. A screen can also have a side panel. The client only draws them, and a
@@ -90,7 +98,7 @@ A module is a manifest, documents (prompts, skills), scripts and screens. It con
 
 ```json
 {
-  "version": 13,
+  "version": 16,
   "title": "Reading list",
   "collections": [{"name": "items", "key": "title", "description": "An article.",
     "schema": {"type": "object", "properties": {"title": {"type": "string"},
@@ -149,8 +157,9 @@ pushes `ghcr.io/teaarte/deck:<version>` and `:latest`. `compose.yaml` runs it on
 the machine opens deck at deck.localhost; with a domain (`DECK_DOMAIN` and the profile `domain`) Caddy is in front,
 HTTPS on 443 and the second origin on 8443, deck takes `-public` and X-Forwarded-For only from Caddy (`-proxy`);
 optionally on the tailnet (`DECK_TAILSCALE`). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
-Claude Code and Codex are signed in from Settings → Models (`deck.agent_login`), their logins live in the volume
-`agents`.
+Claude Code and Codex are signed in from Settings → Models (`deck.agent_login`); their logins live in the volume
+`deck`, one for all projects (`agents/<cli>/login`). `move-to-docker.sh` brings the folder of a deck that ran
+without Docker into that volume.
 
 ## Tests
 

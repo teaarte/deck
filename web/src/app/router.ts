@@ -105,8 +105,10 @@ document.addEventListener('click', (e) => { if ((e.target as Element | null)?.cl
 export function go(r: Route) {
   const now = route.get();
   if (r.params?.dialog && screenOf(r) === screenOf(now)) {
+    // A button inside the dialog open gives it new params: the screen is read again with them, the dialog stays open.
     const mine = Object.keys(r.params).filter((k) => !LOCAL.includes(k) && r.params![k] !== now.params?.[k]);
-    if (mine.length) held.set(screenOf(r), new Set(mine));
+    if (r.params.dialog === now.params?.dialog) held.delete(screenOf(r));
+    else if (mine.length) held.set(screenOf(r), new Set(mine));
   }
   location.hash = href(r);
   moved();

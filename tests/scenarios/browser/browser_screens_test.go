@@ -456,8 +456,7 @@ func TestRealBrowserJournal(t *testing.T) {
 	b.shot("journal-phone")
 }
 
-// TestRealBrowserRework sends a finished agent back with a remark from its page:
-// DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v.
+// TestRealBrowserRework sends a finished agent back with a remark and a file from the box under its log.
 func TestRealBrowserRework(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
@@ -467,14 +466,14 @@ func TestRealBrowserRework(t *testing.T) {
 	e.WaitState(job, "done")
 	b := Open(t)
 	b.Open(e, "#/deck/process/"+fmt.Sprint(job))
-	b.until("the rework button", `document.querySelector('[data-verb="rework"]')`)
-	b.eval(`(document.querySelector('[data-verb="rework"]').click(), '')`)
-	b.until("the remark field", `document.querySelector('input[placeholder="What to change"]')`)
+	b.until("the remark field under the log", `document.querySelector('input[placeholder="What to change"][data-log-say]')`)
+	b.file(`document.querySelector('[data-log-say-box] input[type=file]')`, "notes.txt", "keep it short")
+	b.until("the file attached", `document.querySelector('[data-log-files]')?.innerText.includes('notes.txt')`)
 	b.type_(`document.querySelector('input[placeholder="What to change"]')`, "shorter, please")
-	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Send').click(), '')`)
-	e.Until("the second turn with the remark", func() bool {
+	b.eval(`(document.querySelector('[data-log-say-box] button[aria-label="Send"]').click(), '')`)
+	e.Until("the second turn with the remark and the file", func() bool {
 		cs := e.Fake.Calls()
-		return len(cs) == 2 && strings.Contains(cs[1].Prompt, "shorter, please")
+		return len(cs) == 2 && strings.Contains(cs[1].Prompt, "shorter, please") && strings.Contains(cs[1].Prompt, "notes.txt")
 	})
 	e.WaitState(job, "done")
 }

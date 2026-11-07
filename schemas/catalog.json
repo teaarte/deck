@@ -197,7 +197,7 @@
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "collapsed": {"type": "boolean", "description": "The block stands folded under its title, which opens it; for what is seldom needed."},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "lines: [{at, kind, id, title, status, text, delete}], newest first; since and say while it runs"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "lines: [{at, kind, id, title, status, text, delete}], newest first; since while it runs; say, and attach, the project whose uploads its message may carry"}
       }
     },
     "form": {
@@ -454,7 +454,8 @@
             "delete": {"$ref": "#/$defs/action", "description": "deletes a message of the owner the agent has not taken"}}
         }},
         "since": {"type": "string", "description": "when a process still going started"},
-        "say": {"$ref": "#/$defs/action", "description": "writes to the agent of a process still going"}
+        "say": {"$ref": "#/$defs/action", "description": "writes to the agent of a process: a message while it goes, a rework once it ended"},
+        "attach": {"type": "string", "description": "the project whose uploads a message of say may carry as its files"}
       }
     }
   }

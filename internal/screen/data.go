@@ -235,12 +235,12 @@ func (r *renderer) log(id string, b manifest.Block) (map[string]any, bool, error
 		return nil, true, err
 	}
 	out := map[string]any{"state": "ready", "lines": page["lines"]}
-	for _, k := range []string{"since", "say"} {
+	for _, k := range []string{"since", "say", "attach"} {
 		if page[k] != nil {
 			out[k] = page[k]
 		}
 	}
-	if lines, _ := page["lines"].([]any); len(lines) == 0 && page["since"] == nil {
+	if lines, _ := page["lines"].([]any); len(lines) == 0 && page["since"] == nil && page["say"] == nil {
 		return empty(out, b), true, nil
 	}
 	return out, true, nil

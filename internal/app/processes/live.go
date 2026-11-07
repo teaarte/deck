@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strconv"
 	"strings"
 
 	"deck2/internal/process"
@@ -42,8 +43,29 @@ func (s *Service) terminal(ctx context.Context, p db.Process) string {
 }
 
 type processTellIn struct {
-	Process int64  `type:"process" desc:"Process id"`
-	Text    string `type:"text" desc:"The message"`
+	Process int64    `type:"process" desc:"Process id"`
+	Text    string   `type:"text" desc:"The message"`
+	Files   []string `type:"file[]" opt:"" desc:"Uploads of the project of the process the owner attaches; the agent gets read-only copies"`
+}
+
+// give puts read-only copies of uploads of a process's project in its input folder and says where, for its message.
+func (s *Service) give(ctx context.Context, processID int64, files []string) (string, error) {
+	if len(files) == 0 {
+		return "", nil
+	}
+	ids := make([]int64, 0, len(files))
+	for _, f := range files {
+		id, err := strconv.ParseInt(f, 10, 64)
+		if err != nil {
+			return "", registry.Invalid("a file is the id of an upload: %q", f)
+		}
+		ids = append(ids, id)
+	}
+	given, err := s.Runner.Give(ctx, processID, ids)
+	if err != nil {
+		return "", registry.Invalid("%v", err)
+	}
+	return given, nil
 }
 
 // processTell gives the owner's message to an agent process at work: into its turn when the provider takes
@@ -55,13 +77,18 @@ func (s *Service) processTell(ctx context.Context, act registry.Actor, in proces
 	}
 	text := strings.TrimSpace(in.Text)
 	switch {
-	case text == "":
+	case text == "" && len(in.Files) == 0:
 		return nil, registry.Invalid("the message is empty")
 	case p.Kind != process.KindAgent:
 		return nil, registry.Invalid("process %d is a %s; only an agent takes a message", p.ID, p.Kind)
 	case p.FinishedAt.Valid:
 		return nil, registry.Invalid("process %d has finished; send it back with a remark instead", p.ID)
 	}
+	given, err := s.give(ctx, p.ID, in.Files)
+	if err != nil {
+		return nil, err
+	}
+	text = strings.TrimSpace(text + "\n\n" + given)
 	delivered := ""
 	switch s.Runner.Say(ctx, p.ID, "deck: the owner wrote while you work:\n"+text) {
 	case process.Taken:

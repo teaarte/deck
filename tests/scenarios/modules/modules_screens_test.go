@@ -416,7 +416,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 
 	harness.NewCatalogCheck(t).Messages(t, e.ScreenMessages("", "process", map[string]any{"record": id}))
 	data := e.Screen("", "process", map[string]any{"record": id})
-	lines := harness.BlockData[[]map[string]string](t, data["b1"]["lines"])
+	lines := harness.BlockData[[]map[string]string](t, data["b2"]["lines"])
 	if len(lines) != 4 || lines[3]["kind"] != "thought" || lines[2]["kind"] != "tool" || lines[2]["id"] != "t1" || lines[2]["title"] != "Read" ||
 		lines[1]["kind"] != "tool_update" || lines[1]["id"] != "t1" || lines[1]["status"] != "failed" || len(lines[0]["text"]) > 4100 {
 		t.Fatalf("the log keeps the words of ACP, newest first, and cuts long text: %v", lines)
@@ -428,20 +428,20 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		}
 		Actions []map[string]any
 	}](t, data["b0"]["value"])
-	say := harness.BlockData[map[string]any](t, data["b1"]["say"])
+	say := harness.BlockData[map[string]any](t, data["b2"]["say"])
 	if len(card.Actions) != 1 || card.Actions[0]["verb"] != "stop" || say["command"] != "deck.process_tell" || say["input"] != "text" ||
-		harness.BlockData[string](t, data["b1"]["since"]) == "" {
+		harness.BlockData[string](t, data["b2"]["since"]) == "" {
 		t.Fatalf("the page of a running process offers stop, and its log a message to it and how long it runs: %+v %v", card, say)
 	}
 	e.Must("deck.process_tell", map[string]any{"process": id, "text": "look at b too"}, nil)
 	data = e.Screen("", "process", map[string]any{"record": id})
-	owner := harness.BlockData[[]map[string]any](t, data["b1"]["lines"])[0]
+	owner := harness.BlockData[[]map[string]any](t, data["b2"]["lines"])[0]
 	del, _ := owner["delete"].(map[string]any)
 	if owner["kind"] != "owner" || owner["text"] != "look at b too" || owner["status"] != "waiting" || del == nil {
 		t.Fatalf("the owner's message is the newest line, waiting with its delete: %v", owner)
 	}
 	e.Must(del["command"].(string), del["params"].(map[string]any), nil)
-	if first := harness.BlockData[[]map[string]any](t, e.Screen("", "process", map[string]any{"record": id})["b1"]["lines"])[0]; first["kind"] == "owner" {
+	if first := harness.BlockData[[]map[string]any](t, e.Screen("", "process", map[string]any{"record": id})["b2"]["lines"])[0]; first["kind"] == "owner" {
 		t.Fatalf("a message the agent did not take is deleted: %v", first)
 	}
 	running := e.CockpitRunning()

@@ -1,5 +1,6 @@
-import { Group, Stack, Text } from '@mantine/core';
-import type { CardValue } from '../lib/catalog.gen';
+import { Group, Spoiler, Stack, Text } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
+import type { CardValue, Data } from '../lib/catalog.gen';
 import { Actions } from '../ui/actions/Actions';
 import { Markdown } from '../ui/Markdown';
 import { Value } from '../ui/Value';
@@ -8,10 +9,18 @@ import { blockImpl } from './blockImpl';
 type Field = CardValue['fields'][number];
 
 // short are fields that fit a line of their own kind: tags and times.
-const short = (f: Field) => !f.markdown && ['tag', 'relative', 'date', 'datetime'].includes(f.format ?? '');
+const short = (f: Field) => !f.markdown && ['tag', 'relative', 'date', 'datetime', 'logo'].includes(f.format ?? '');
 
-// card draws the fields of one record: the short ones in one line, the rest label by value, and its buttons.
-export const card = blockImpl('card', (_, d) => {
+// LONG is how many characters a value shows before it folds under Show more.
+const LONG = 400;
+const long = (v: unknown) => typeof v === 'string' && v.length > LONG;
+
+// card draws the fields of one record: the short ones in one line, the rest label by value, a long one folded, and
+// its buttons.
+export const card = blockImpl('card', (_, d) => <Card d={d} />);
+
+function Card({ d }: { d: Data }) {
+  const { t } = useTranslation();
   const v = (d.value ?? {}) as Partial<CardValue>;
   const fields = v.fields ?? [];
   const inline = fields.filter(short);
@@ -36,11 +45,15 @@ export const card = blockImpl('card', (_, d) => {
         ) : (
           <Group key={f.label} gap="sm" wrap="nowrap" align="flex-start">
             <Text size="sm" c="dimmed" w={120}>{f.label}</Text>
-            <Text size="sm" component="div"><Value v={f.value} s={f} tone={f.tone} /></Text>
+            {long(f.value)
+              ? <Spoiler maxHeight={96} showLabel={t('Show more')} hideLabel={t('Show less')} miw={0} style={{ flex: 1 }} data-card-long>
+                <Text size="sm" component="div" className="deck-pre"><Value v={f.value} s={f} tone={f.tone} /></Text>
+              </Spoiler>
+              : <Text size="sm" component="div"><Value v={f.value} s={f} tone={f.tone} /></Text>}
           </Group>
         )
       ))}
       <Actions actions={v.actions} />
     </Stack>
   );
-});
+}

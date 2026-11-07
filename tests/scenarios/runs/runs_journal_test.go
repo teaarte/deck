@@ -75,7 +75,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 
 	check.Messages(t, e.ScreenMessages("", "process", map[string]any{"record": tell}))
 	page := e.Screen("", "process", map[string]any{"record": tell})
-	if rows := harness.BlockData[[]harness.ScreenRow](t, page["b3"]["rows"]); len(rows) != 2 || rows[1].Cells[1] != "web.publish" || rows[1].Cells[2] != "waiting" || rows[0].Cells[2] != "rejected" || rows[0].Details[2] != "the owner said no" {
+	if rows := harness.BlockData[[]harness.ScreenRow](t, page["b4"]["rows"]); len(rows) != 2 || rows[1].Cells[1] != "web.publish" || rows[1].Cells[2] != "waiting" || rows[0].Cells[2] != "rejected" || rows[0].Details[2] != "the owner said no" {
 		t.Fatalf("the page of a run lists the calls it made with their outcomes: %+v", rows)
 	}
 
@@ -184,7 +184,7 @@ func TestTheJournalFollowsCallsAndSpendLive(t *testing.T) {
 	for _, at := range []struct {
 		topic, screen string
 		params        map[string]any
-	}{{"calls", "process", map[string]any{"record": score}}, {"usage", "spend", nil}} {
+	}{{"calls", "process", map[string]any{"record": score, "open": `["b4"]`}}, {"usage", "spend", nil}} {
 		params := map[string]any{"topic": at.topic}
 		maps.Copy(params, at.params)
 		msgs := e.ScreenMessages("", at.screen, params)

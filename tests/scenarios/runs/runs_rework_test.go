@@ -15,8 +15,8 @@ import (
 	"deck2/tests/harness"
 )
 
-// TestProcessPageSendsAFinishedAgentBackForReworkWithARemark: a finished agent process has a rework button that
-// asks for the remark; it resumes the same session with it. Open processes and scripts have none.
+// TestProcessPageSendsAFinishedAgentBackForReworkWithARemark: under an agent's log the owner writes a message with files
+// while it works, a rework with a remark and files once it ended, which resumes the session; a script has no box.
 func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 	t.Parallel()
 	release := make(chan struct{}, 1)
@@ -31,41 +31,52 @@ func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 	}))
 
 	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("job", ""), harness.AgentCommand("hold", "")}, nil))
-	cardActions := func(id int64) []map[string]any {
+	type box struct {
+		Say    map[string]any
+		Attach string
+	}
+	say := func(id int64) box {
 		t.Helper()
-		v := harness.BlockData[struct{ Actions []map[string]any }](t, e.Screen("", "process", map[string]any{"record": id})["b0"]["value"])
-		return v.Actions
+		d := e.Screen("", "process", map[string]any{"record": id})["b2"]
+		var b box
+		_ = json.Unmarshal(d["say"], &b.Say)
+		_ = json.Unmarshal(d["attach"], &b.Attach)
+		return b
 	}
 	held := e.Run(p, "hold")
 	e.Until("the held process to run", func() bool { return e.Proc(held).State == "running" })
-	if harness.HasVerb(cardActions(held), "rework") || !harness.HasVerb(cardActions(held), "stop") {
-		t.Fatalf("an open process is stopped, not sent back: %+v", cardActions(held))
+	if b := say(held); b.Say["command"] != "deck.process_tell" || b.Attach != "jobs" {
+		t.Fatalf("an agent at work takes a message with files of its project: %+v", b)
 	}
+	note := e.Upload("jobs", "note.txt", "text/plain", "keep it short")
+	e.Must("deck.process_tell", map[string]any{"process": held, "text": "one more thing", "files": []string{fmt.Sprint(note)}}, nil)
+	e.Must("deck.process_tell", map[string]any{"process": held, "text": "", "files": []string{fmt.Sprint(note)}}, nil)
 	release <- struct{}{}
 	e.WaitState(held, "done")
 
 	job := e.Run(p, "job")
 	e.WaitState(job, "done")
-	rework := harness.Verb(t, cardActions(job), "rework")
-	if rework["input"] != "remark" || rework["command"] != "deck.process_rework" || rework["primary"] != true {
-		t.Fatalf("rework asks for the remark and sends it back: %+v", rework)
+	b := say(job)
+	if b.Say["input"] != "remark" || b.Say["command"] != "deck.process_rework" {
+		t.Fatalf("a finished agent takes a rework with the remark: %+v", b)
 	}
-	params := rework["params"].(map[string]any)
-	params["remark"] = "shorter, please"
-	e.Must(rework["command"].(string), params, nil)
-	e.Until("the second turn", func() bool { return len(e.Fake.Calls()) == 3 })
+	params := b.Say["params"].(map[string]any)
+	params["remark"], params["files"] = "shorter, please", []string{fmt.Sprint(note)}
+	e.Must(b.Say["command"].(string), params, nil)
+	e.Until("the turn of the rework", func() bool { return e.Proc(job).State == "done" && len(e.Fake.Calls()) >= 3 })
 	e.WaitState(job, "done")
-	last := e.Fake.Calls()[2]
-	if !last.Resume || !strings.Contains(last.Prompt, "shorter, please") {
-		t.Fatalf("rework resumes the session with the remark: %+v", last)
+	calls := e.Fake.Calls()
+	last := calls[len(calls)-1]
+	if !last.Resume || !strings.Contains(last.Prompt, "shorter, please") || !strings.Contains(last.Prompt, "note.txt") {
+		t.Fatalf("rework resumes the session with the remark and the file given: %+v", last)
 	}
 
 	e.Project("tools", harness.ScriptManifest("take", "", ""))
 	e.SaveScript("tools", "scripts/main.py", "import json\nprint(json.dumps({}))\n")
 	s := e.Start("tools", "take", nil)
 	e.WaitState(s, "done")
-	if harness.HasVerb(cardActions(s), "rework") {
-		t.Fatalf("a script has no session to send back: %+v", cardActions(s))
+	if b := say(s); b.Say != nil {
+		t.Fatalf("a script has no session to write to: %+v", b)
 	}
 }
 

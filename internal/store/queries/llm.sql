@@ -59,3 +59,10 @@ FROM llm_call l JOIN process p ON p.id = l.process_id
 WHERE l.workspace_id = sqlc.arg(workspace_id) AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR p.project_id = sqlc.arg(project_id))
     AND (CAST(sqlc.arg(command) AS TEXT) = '' OR p.command = sqlc.arg(command))
 ORDER BY l.id DESC LIMIT 20;
+
+
+-- name: ProcessSpeed :one
+-- Only calls through deck's proxy: a CLI reports the time of its whole turn, tools and waits in it.
+SELECT CAST(COALESCE(SUM(gen_ai_usage_output_tokens), 0) AS INTEGER) AS tokens, CAST(COALESCE(SUM(duration_ms), 0) AS INTEGER) AS ms,
+    COUNT(*) AS calls
+FROM llm_call WHERE process_id = ? AND connection_id IS NOT NULL AND duration_ms > 0 AND gen_ai_usage_output_tokens > 0;

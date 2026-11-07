@@ -1115,5 +1115,7 @@
   "By provider; a model's details say where it works.": "По провайдерам; в подробностях модели — где она работает.",
   "Puts a model in place of another in every work of a kind that goes to that one first, such as a model that is down, where each takes its models from; the replaced one leaves those assignments.": "Ставит модель вместо другой во всех работах этого вида, где та стоит первой, — например, вместо неработающей, — там, откуда работа берёт модели; заменённая уходит из этих назначений.",
   "you are here": "вы здесь",
-  "Revoke this browser: you sign out for good": "Отозвать этот браузер: вы выйдете из deck насовсем"
+  "Revoke this browser: you sign out for good": "Отозвать этот браузер: вы выйдете из deck насовсем",
+  "Speed, tokens a second": "Скорость, токенов в секунду",
+  "Input and result": "Ввод и результат"
 }

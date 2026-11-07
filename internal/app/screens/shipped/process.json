@@ -5,25 +5,30 @@
   "record": "process",
   "blocks": [
     {"type": "card", "fields": [
-      {"label": "Module", "bind": "project", "format": "tag"},
       {"label": "State", "bind": "word", "format": "tag", "tone": "tone ?? ''"},
-      {"label": "Model", "bind": "provider", "format": "tag"},
+      {"label": "Module", "bind": "project", "format": "tag"},
+      {"label": "Model", "bind": "provider", "format": "logo"},
       {"label": "Started", "bind": "started_at", "format": "relative"},
+      {"label": "Speed, tokens a second", "bind": "(speed ?? 0) == 0 ? nil : speed", "format": "number"},
       {"label": "Error", "bind": "error"},
       {"label": "Failure type", "bind": "(error_type ?? '') == '' ? nil : error_type + ' · ' + whose", "format": "tag", "tone": "'error'"},
-      {"label": "Details", "bind": "(error_details ?? '') == '' ? nil : error_details"},
       {"label": "Continues", "bind": "(follows ?? 0) == 0 ? nil : '#' + string(follows)"},
-      {"label": "Continued by", "bind": "len(followed_by ?? []) == 0 ? nil : join(map(followed_by, '#' + string(#)), ', ')"},
-      {"label": "Input", "bind": "input == nil ? nil : toJSON(input)"},
-      {"label": "Result", "bind": "result == nil ? nil : toJSON(result)"}
+      {"label": "Continued by", "bind": "len(followed_by ?? []) == 0 ? nil : join(map(followed_by, '#' + string(#)), ', ')"}
     ],
     "actions": [
-      {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"},
-      {"verb": "rework", "primary": true, "command": "deck.process_rework", "params": {"process": "=id"}, "input": "remark", "when": "kind == 'agent' && (session_id ?? '') != '' && (finished_at ?? '') != ''"}
+      {"verb": "model", "primary": true, "command": "deck.assignment_set", "params": {"role": "=work.role", "project": "=project", "command": "=command"},
+        "input": "model", "options": "=work.choices", "groups": "=work.choice_groups", "when": "work != nil"},
+      {"verb": "retry", "command": "deck.process_retry", "params": {"process": "=id"}, "when": "retry ?? false"},
+      {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
+    ]},
+    {"type": "card", "title": "Input and result", "icon": "braces", "collapsed": true, "fields": [
+      {"label": "Input", "bind": "input == nil ? nil : toJSON(input)"},
+      {"label": "Result", "bind": "result == nil ? nil : toJSON(result)"},
+      {"label": "Details", "bind": "(error_details ?? '') == '' ? nil : error_details"}
     ]},
     {"type": "log", "title": "Log", "icon": "list-details", "source": {"from": "deck.process_chat_get", "input": {"process": "=id"}},
       "empty": "Nothing in the log: a script logs only what it writes to stderr, a tool or a model call nothing; its input and result are above"},
-    {"type": "table", "title": "What it left", "icon": "package", "source": {"from": "deck.process_left_list", "input": {"process": "=id"}},
+    {"type": "table", "title": "What it left", "icon": "package", "collapsed": true, "source": {"from": "deck.process_left_list", "input": {"process": "=id"}},
       "when": "(trial ?? false) && len(rows) > 0",
       "description": "The records, files of deck and changes of documents the trial and the processes it started made; what a script or an agent wrote into the data folder of the project is not listed and is not undone.",
       "columns": [
@@ -35,7 +40,7 @@
         {"verb": "delete", "command": "deck.record_delete", "params": {"record": "=id"}, "when": "kind == 'record'"},
         {"verb": "delete", "confirm": true, "command": "deck.file_delete", "params": {"file": "=id"}, "when": "kind == 'file'"}
       ]},
-    {"type": "table", "title": "Calls of the gateway", "icon": "arrows-exchange", "source": {"from": "deck.calls_list", "input": {"process": "=id"}},
+    {"type": "table", "title": "Calls of the gateway", "icon": "arrows-exchange", "collapsed": true, "source": {"from": "deck.calls_list", "input": {"process": "=id"}},
       "description": "The tools and commands this run called through deck, and how each ended.",
       "empty": "It called nothing through deck",
       "columns": [

@@ -39,6 +39,8 @@ type Service struct {
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// Lookup is a command of the registry by its full name.
 	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
+	// Works is the work of the commands of a workspace in a language: its model and the models that could take it.
+	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 }
 
 // Commands are the commands of processes.
@@ -97,9 +99,14 @@ type processView struct {
 	Topic string `json:"topic,omitempty"`
 	// Models are the models of deck's settings the process called, and CostUSD what they cost, nil when one has no
 	// price; SubscriptionUSD is what the calls on a subscription would cost, an estimate out of the money spent.
-	Models          []string `json:"models,omitempty"`
-	CostUSD         *float64 `json:"cost_usd,omitempty"`
-	SubscriptionUSD *float64 `json:"subscription_usd,omitempty"`
+	Models []string `json:"models,omitempty"`
+	// Speed is how fast its models answered, output tokens a second over its calls that say so; Calls how many.
+	Speed float64 `json:"speed,omitempty"`
+	Calls int64   `json:"calls,omitempty"`
+	// Work is the work of its command now: the model it goes to and those that could take it, for a change of model.
+	Work            *provider.Work `json:"work,omitempty"`
+	CostUSD         *float64       `json:"cost_usd,omitempty"`
+	SubscriptionUSD *float64       `json:"subscription_usd,omitempty"`
 	// Record is the record the input field record names, with its title; Since when an open process last started
 	// work and Long that it works more than twice as long as its command usually takes.
 	Record      int64  `json:"record,omitempty"`
@@ -343,6 +350,20 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	}
 	v.Models = modelsOf(calls)
 	v.CostUSD, v.SubscriptionUSD = process.Spent(calls, func(c db.ListProcessModelCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
+	if sp, err := s.St.Q.ProcessSpeed(ctx, store.ID(p.ID)); err == nil && sp.Ms > 0 {
+		v.Speed, v.Calls = math.Round(float64(sp.Tokens)*10000/float64(sp.Ms))/10, sp.Calls
+	}
+	// A process among those that did not work may run again, and on another model when it ran on one.
+	if s.stillFailed(ctx, s.St.Q, act, p) == nil {
+		if c, err := s.Lookup(ctx, act.Workspace, project.Name+"."+p.Command); err == nil {
+			v.Retry = slices.Contains(c.Callers, registry.Owner)
+		}
+		if p.Kind == process.KindAgent || p.Kind == process.KindModel {
+			if w := s.Works(ctx, project.WorkspaceID, registry.Lang(ctx))(p.ProjectID, p.Command); w.Role != "" && len(w.Choices) > 0 {
+				v.Work = &w
+			}
+		}
+	}
 	if p.Trial != 0 {
 		if v.Left, err = process.LeftBy(ctx, s.St.Q, p.ID); err != nil {
 			return processView{}, err
@@ -398,15 +419,20 @@ func (s *Service) processStop(ctx context.Context, act registry.Actor, in proces
 }
 
 type processReworkIn struct {
-	Process int64  `type:"process" desc:"Process id"`
-	Remark  string `type:"text" opt:"" desc:"What to change; without it a process that failed goes on where it stopped"`
+	Process int64    `type:"process" desc:"Process id"`
+	Remark  string   `type:"text" opt:"" desc:"What to change; without it a process that failed goes on where it stopped"`
+	Files   []string `type:"file[]" opt:"" desc:"Uploads of the project of the process the owner attaches; the agent gets read-only copies"`
 }
 
 func (s *Service) processRework(ctx context.Context, act registry.Actor, in processReworkIn) (any, error) {
 	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
-	if err := s.Runner.Rework(ctx, in.Process, in.Remark); err != nil {
+	given, err := s.give(ctx, in.Process, in.Files)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Runner.Rework(ctx, in.Process, strings.TrimSpace(in.Remark+"\n\n"+given)); err != nil {
 		return nil, err
 	}
 	return process.Started{Process: in.Process}, nil

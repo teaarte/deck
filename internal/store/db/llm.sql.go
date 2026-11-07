@@ -151,6 +151,26 @@ func (q *Queries) LogModelCall(ctx context.Context, arg LogModelCallParams) erro
 	return err
 }
 
+const processSpeed = `-- name: ProcessSpeed :one
+SELECT CAST(COALESCE(SUM(gen_ai_usage_output_tokens), 0) AS INTEGER) AS tokens, CAST(COALESCE(SUM(duration_ms), 0) AS INTEGER) AS ms,
+    COUNT(*) AS calls
+FROM llm_call WHERE process_id = ? AND connection_id IS NOT NULL AND duration_ms > 0 AND gen_ai_usage_output_tokens > 0
+`
+
+type ProcessSpeedRow struct {
+	Tokens int64
+	Ms     int64
+	Calls  int64
+}
+
+// Only calls through deck's proxy: a CLI reports the time of its whole turn, tools and waits in it.
+func (q *Queries) ProcessSpeed(ctx context.Context, processID sql.NullInt64) (ProcessSpeedRow, error) {
+	row := q.db.QueryRowContext(ctx, processSpeed, processID)
+	var i ProcessSpeedRow
+	err := row.Scan(&i.Tokens, &i.Ms, &i.Calls)
+	return i, err
+}
+
 const recentRequestTokens = `-- name: RecentRequestTokens :many
 SELECT l.gen_ai_usage_input_tokens + l.gen_ai_usage_cache_read_input_tokens + l.gen_ai_usage_cache_creation_input_tokens AS tokens
 FROM llm_call l JOIN process p ON p.id = l.process_id

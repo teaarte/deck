@@ -466,6 +466,10 @@ export interface Data {
    */
   since?: string;
   say?: Action3;
+  /**
+   * the project whose uploads a message of say may carry as its files
+   */
+  attach?: string;
 }
 /**
  * A button: a command call or a move to a screen. verb names a built-in label the client translates.

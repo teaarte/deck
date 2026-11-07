@@ -20,6 +20,8 @@ type processChatView struct {
 	Lines []map[string]any `json:"lines"`
 	Since string           `json:"since,omitempty"`
 	Say   map[string]any   `json:"say,omitempty"`
+	// Attach is the project whose uploads a message to the process may carry, as files of say.
+	Attach string `json:"attach,omitempty"`
 }
 
 type processChatGetIn struct {
@@ -73,11 +75,18 @@ func (s *Service) processChat(ctx context.Context, act registry.Actor, in proces
 		}
 		return 0
 	})
-	if !p.FinishedAt.Valid {
+	if project, err := s.St.Q.GetProject(ctx, p.ProjectID); err == nil && p.Kind == process.KindAgent {
+		v.Attach = project.Name
+	}
+	switch {
+	case !p.FinishedAt.Valid:
 		v.Since = p.StartedAt
 		if p.Kind == process.KindAgent {
 			v.Say = map[string]any{"verb": "send", "command": registry.Deck("process_tell"), "params": map[string]any{"process": p.ID}, "input": "text"}
 		}
+	// A finished agent with its session takes a message as a rework of it.
+	case p.Kind == process.KindAgent && p.SessionID != "":
+		v.Say = map[string]any{"verb": "rework", "command": registry.Deck("process_rework"), "params": map[string]any{"process": p.ID}, "input": "remark"}
 	}
 	return v, nil
 }

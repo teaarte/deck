@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { ActionIcon, Badge, Code, Group, Spoiler, Stack, Text, TextInput } from '@mantine/core';
-import { IconActivity, IconSend } from '@tabler/icons-react';
+import { useRef, useState } from 'react';
+import { ActionIcon, Badge, CloseButton, Code, Group, Spoiler, Stack, Text, TextInput } from '@mantine/core';
+import { IconActivity, IconAlertTriangle, IconBan, IconBulb, IconMessage, IconPaperclip, IconSend, IconTerminal2, IconTool } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Action, Data } from '../lib/catalog.gen';
 import { formatted } from '../lib/format';
@@ -12,6 +12,7 @@ import { Markdown } from '../ui/Markdown';
 import { blockImpl } from './blockImpl';
 import s from './log.module.css';
 import { locale } from '../lib/i18n';
+import { useAttachments } from '../chat/useAttachments';
 
 type Line = NonNullable<Data['lines']>[number];
 
@@ -63,20 +64,48 @@ function Live({ since, steps }: { since: string; steps: number }) {
   );
 }
 
-// Say is the line the owner writes to the agent of a process still going.
-function Say({ act }: { act: Action }) {
+// Say is the line the owner writes to the agent of a process, a message while it goes or a rework once it ended, with
+// files of the project attached when it says which.
+function Say({ act, project }: { act: Action; project?: string }) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   const { busy, send, error, clear } = usePress(act);
-  const go = () => {
-    if (!text.trim()) return;
-    void send({ [act.input ?? 'text']: text }).then((r) => { if (r && !r.error) setText(''); });
+  const files = useAttachments(() => undefined, project);
+  const pick = useRef<HTMLInputElement>(null);
+  const [failed, setFailed] = useState('');
+  // A rework may go with nothing: a process that failed goes on where it stopped.
+  const go = async () => {
+    if (!text.trim() && !files.files.length && act.verb !== 'rework') return;
+    let ids: string[] | undefined;
+    try {
+      ids = await files.ids();
+    } catch (e) {
+      setFailed((e as Error).message);
+      return;
+    }
+    void send({ [act.input ?? 'text']: text, ...(ids?.length ? { files: ids } : {}) }).then((r) => {
+      if (r && !r.error) {
+        setText('');
+        files.clear();
+      }
+    });
   };
   return (
-    <Failed error={error} onClose={clear}>
-      <TextInput size="sm" value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder={t('Write to the agent')} data-log-say
-        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); } }}
-        rightSection={<ActionIcon variant="subtle" loading={busy} onClick={go} aria-label={t('Send')}><IconSend size={15} /></ActionIcon>} />
+    <Failed error={error || failed} onClose={() => { clear(); setFailed(''); }}>
+      <Stack gap={6} data-log-say-box>
+        <TextInput size="sm" value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder={t(act.verb === 'rework' ? 'What to change' : 'Write to the agent')} data-log-say
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void go(); } }}
+          leftSection={project ? <ActionIcon variant="subtle" color="gray" onClick={() => pick.current?.click()} aria-label={t('Attach files')} data-log-attach><IconPaperclip size={15} /></ActionIcon> : undefined}
+          rightSection={<ActionIcon variant="subtle" loading={busy} onClick={() => void go()} aria-label={t('Send')}><IconSend size={15} /></ActionIcon>} />
+        {project && <input ref={pick} type="file" multiple hidden onChange={(e) => { files.attach(Array.from(e.currentTarget.files ?? [])); e.currentTarget.value = ''; }} />}
+        {files.files.length > 0 && (
+          <Group gap={6} data-log-files>
+            {files.files.map((f, i) => (
+              <Badge key={i} variant="light" color="gray" tt="none" rightSection={<CloseButton size="xs" onClick={() => files.remove(i)} aria-label={t('Remove')} />}>{f.name}</Badge>
+            ))}
+          </Group>
+        )}
+      </Stack>
     </Failed>
   );
 }
@@ -84,6 +113,8 @@ function Say({ act }: { act: Action }) {
 // Owner is a message of the owner among the lines, with whether the agent took it and, while not, its delete.
 // STATUS and KINDS are the words of the state of a message of the owner and of the kind of a line.
 const STATUS: Record<string, string> = { waiting: 'not taken yet', taken: 'taken', running: 'going' };
+// MARKS are the icons of the kinds of lines.
+const MARKS: Record<string, typeof IconTool> = { message: IconMessage, thought: IconBulb, tool: IconTool, stderr: IconTerminal2, denied: IconBan, warning: IconAlertTriangle };
 const KINDS: Record<string, string> = { message: 'Agent', thought: 'Thinking', tool: 'Tool', rate_limit: 'Limit', stderr: 'stderr', denied: 'Refused', owner: 'You', deck: 'deck' };
 
 function Owner({ l }: { l: Line }) {
@@ -109,19 +140,21 @@ function LogLines({ d }: { d: Data }) {
   return (
     <Stack gap="sm">
       {d.since && <Live since={d.since} steps={lines.filter((l) => l.kind === 'tool').length} />}
-      {d.say && <Say act={d.say} />}
+      {d.say && <Say act={d.say} project={d.attach} />}
       {lines.filter((l) => l.kind !== 'tool_update' || !l.id).map((l, i) => {
         if (l.kind === 'owner') return <Owner key={i} l={l} />;
         const end = l.kind === 'tool' && l.id ? done.get(l.id) : undefined;
+        const Mark = MARKS[l.kind];
         return (
           <Stack key={i} gap={4} miw={0} data-line={l.kind}>
             <Group gap="xs" wrap="nowrap" miw={0}>
-              <Badge size="xs" variant="light" color={end?.status === 'failed' || l.kind === 'denied' ? 'red' : 'gray'} className="deck-fixed">{t(KINDS[l.kind] ?? l.kind)}</Badge>
+              <Badge size="xs" variant="light" color={end?.status === 'failed' || l.kind === 'denied' ? 'red' : 'gray'} className="deck-fixed"
+                leftSection={Mark ? <Mark size={11} stroke={2} /> : undefined}>{t(KINDS[l.kind] ?? l.kind)}</Badge>
               {l.title && <Text size="xs" ff="monospace" truncate>{l.title}</Text>}
               <At at={l.at} />
             </Group>
-            {l.text && (l.kind === 'message' ? <Markdown text={l.text} />
-              : l.kind === 'thought' ? <Text size="sm" c="dimmed" fs="italic" lineClamp={4} className="deck-pre">{l.text}</Text>
+            {l.text && (l.kind === 'message' ? <Spoiler maxHeight={260} showLabel={t('Show more')} hideLabel={t('Show less')}><Markdown text={l.text} /></Spoiler>
+              : l.kind === 'thought' ? <Spoiler maxHeight={72} showLabel={t('Show more')} hideLabel={t('Show less')}><Text size="sm" c="dimmed" fs="italic" className="deck-pre">{l.text}</Text></Spoiler>
               : <Raw text={l.text} mark="data-tool-input" />)}
             {end?.text && <Raw text={end.text} mark="data-tool-result" />}
           </Stack>

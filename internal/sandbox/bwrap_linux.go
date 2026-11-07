@@ -158,8 +158,9 @@ func roots() []string {
 // mounted by the files pinned opens, which bwrap takes from fd 4 on and closes.
 func allowed(b Box, door *Door, env []string) (args, argv []string, pinned []*os.File, err error) {
 	args = append([]string{"--die-with-parent", "--new-session", "--unshare-all"}, roots()...)
+	// A box on the network of the machine resolves names as the machine does; the others reach out by their door.
 	if b.HostNet {
-		args = append(args, "--share-net")
+		args = append(args, "--share-net", "--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf")
 	}
 	for _, e := range etc {
 		args = append(args, "--ro-bind-try", "/etc/"+e, "/etc/"+e)

@@ -162,7 +162,12 @@ func TestAllowsComeOnlyFromAButtonDeckDrew(t *testing.T) {
 		t.Fatalf("the button carries its calls signed by deck: %q", signed)
 	}
 
-	for what, allows := range map[string]string{"bare": calls, "forged": "00" + signed[2:], "of another": "ab." + calls} {
+	// A forged signature differs from the signed one in its first two characters, whatever they were.
+	forged := "00" + signed[2:]
+	if strings.HasPrefix(signed, "00") {
+		forged = "ff" + signed[2:]
+	}
+	for what, allows := range map[string]string{"bare": calls, "forged": forged, "of another": "ab." + calls} {
 		code, out := e.Call("picker.apply", map[string]any{"id": params["id"], "allows": allows})
 		if code < 400 || !strings.Contains(string(out), "only with a button deck drew") {
 			t.Fatalf("allows %s is refused: %d %s", what, code, out)

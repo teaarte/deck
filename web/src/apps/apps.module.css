@@ -199,7 +199,25 @@
 
 .card[data-plain] {
   color: var(--mantine-color-text);
-  background: var(--deck-island-bg, var(--mantine-color-body));
+  background: var(--deck-widget-card, var(--deck-widget-card-auto));
+}
+
+/* A view over the cover of its module stands on a veil of the island, its head on the picture. */
+.card[data-veiled] .body {
+  justify-content: flex-start;
+  z-index: 2;
+}
+
+.card[data-veiled] .widgetHead {
+  text-shadow: var(--deck-tile-text-shadow);
+}
+
+.card[data-veiled] .widget {
+  padding: 6px 8px;
+  color: var(--mantine-color-text);
+  border-radius: var(--mantine-radius-md);
+  background: color-mix(in srgb, var(--deck-island-bg, var(--mantine-color-body)) 84%, transparent);
+  backdrop-filter: blur(10px);
 }
 
 .card[data-plain] .body {

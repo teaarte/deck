@@ -13,6 +13,7 @@ import (
 
 func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
 	ids := make([]string, 0, len(bs))
+	before := false
 	for i, b := range bs {
 		id := fmt.Sprintf("%s%d", prefix, i)
 		holds, err := r.holds(id, b)
@@ -23,6 +24,14 @@ func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
 		r.block(id, b)
 		if _, ok := r.data[id]; ok && err != nil {
 			r.data[id] = map[string]any{"state": "error", "error": "when: " + err.Error()}
+		}
+		// A block with nothing in it that is not the first of its place stands out of sight: an empty one is of no
+		// use but to say why a screen is empty.
+		if b.Type != "dialog" {
+			if d, ok := r.data[id].(map[string]any); ok && before && !r.fitting && d["state"] == "empty" && len(b.Head) == 0 && len(b.Filter)+len(b.Search) == 0 && !b.Collapsed {
+				d["quiet"] = true
+			}
+			before = true
 		}
 		if r.fitting {
 			r.left -= r.took(id, b)

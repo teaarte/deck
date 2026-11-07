@@ -37,6 +37,8 @@ export function Block({ title, icon, span, description, collapsed, data, context
   tally('block');
   let body: ReactNode;
   const own = data?.state === 'empty' && !fit ? empty?.(data) : undefined;
+  // An empty block the server says is of no use stands out of sight.
+  if (data?.state === 'empty' && data.quiet && !fit) return null;
   if (!data) body = <Pending text={t('Loading…')} />;
   else if (data.state === 'error' && fit) {
     body = <Group gap={8} wrap="nowrap" c="red" className={s.fitLine} title={data.error}><IconAlertTriangle size={18} /><Text size="sm" truncate>{t('The source failed')}</Text></Group>;

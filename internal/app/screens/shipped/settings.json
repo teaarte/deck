@@ -45,16 +45,12 @@
             {"label": "Enter the code", "icon": "key", "command": "deck.agent_login_finish", "params": {"provider": "=provider"}, "input": "code", "when": "paste && (error ?? '') == ''"},
             {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=provider"}, "when": "(error ?? '') != ''"}
           ]},
-        {"type": "table", "title": "Who does what", "icon": "route", "source": {"from": "deck.models_list", "rows": "work"}, "filter": ["kind", "project", "model"],
-          "description": "Each module's work and its model; pick another in the row. Agent work needs an agent: Claude Code, Codex or Goose on your model.",
+        {"type": "list", "title": "Who does what", "icon": "route", "cards": true, "source": {"from": "deck.models_list", "rows": "work"}, "filter": ["kind", "project", "model"],
+          "description": "Each module's work and its model; change it on its card. Agent work needs an agent: Claude Code, Codex or Goose on your model.",
           "empty": "Nothing of deck runs on a model yet",
-          "columns": [
-            {"label": "What", "bind": "(project_title ?? 'deck') + ' · ' + title"},
-            {"label": "Model", "bind": "model ?? ''", "pick": "model", "format": "logo"},
-            {"label": "Price", "bind": "price ?? ''"},
-            {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"},
-            {"label": "Fallbacks", "bind": "len(models ?? []) > 1 ? join(models[1:], ' → ') : ''"}
-          ],
+          "item": {"title": "title", "text": "model ?? ''", "meta": "price ?? ''", "group": "project_title ?? 'deck'", "logo": "model ?? ''",
+            "details": "(why ?? '') != '' ? why : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
+            "tone": "(why ?? '') != '' ? 'warn' : nil"},
           "actions": [
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project != '' ? project : nil", "command": "=command ?? nil"},
               "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
@@ -94,7 +90,7 @@
               "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''", "tpm": "=tpm ?? 0", "context": "=context ?? 0"}, "when": "!builtin"},
             {"verb": "remove", "confirm": true, "command": "deck.model_delete", "params": {"name": "=name"}, "when": "!builtin"}
           ]},
-        {"type": "list", "title": "Connections", "icon": "plug", "collapsed": true, "source": {"from": "deck.models_list", "rows": "connections"},
+        {"type": "list", "title": "Connections", "icon": "plug", "collapsed": true, "cards": true, "source": {"from": "deck.models_list", "rows": "connections"},
           "description": "An API on the web, a server of deck's machine, or one of a Mac through its node (deck pair --node). claude-code@Mac is Claude Code on that Mac, by its sign-in.",
           "empty": "No connections yet: add one with the address of a model API and its key",
           "item": {"title": "name", "text": "where", "meta": "api == 'cli' ? '' : key == 'set' ? 'Key set' : 'No key'", "logo": "name + ' ' + url",
@@ -144,7 +140,7 @@
           ]}
       ]},
       {"title": "Health", "icon": "heartbeat", "count": "failures", "blocks": [
-        {"type": "list", "title": "Broken now", "icon": "alert-triangle", "span": "full", "source": {"from": "deck.feed_list", "input": {"kind": "failure"}},
+        {"type": "list", "cards": true, "title": "Broken now", "icon": "alert-triangle", "span": "full", "source": {"from": "deck.feed_list", "input": {"kind": "failure"}},
           "empty": "Everything works",
           "item": {"title": "text", "text": "error", "since": "created_at", "tone": "'error'",
             "icon": "(process ?? 0) != 0 ? 'player-play' : 'heartbeat'",
@@ -182,7 +178,7 @@
         {"type": "dialog", "name": "pair", "title": "Pair a device", "icon": "qrcode", "blocks": [
           {"type": "form", "command": "deck.pair_link", "keep_open": true}]},
         {"type": "table", "title": "Devices", "icon": "devices", "source": {"from": "deck.devices_list", "where": "!revoked"}, "span": 2,
-          "description": "Each browser signed in to deck and each node; revoking one signs out only that one. A device of pushes only came before passkeys: revoke it if you do not know it.",
+          "description": "Each browser you signed in from, and each node: a computer of yours that lends deck its models, agents and folders (paired by deck pair --node). Revoking one signs out only that one.",
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "Kind", "bind": "kind == 'node' ? 'node' : passkey != '' ? 'browser' : 'pushes only'", "format": "tag", "tone": "passkey != '' || kind != 'browser' ? 'ok' : 'warn'"},
@@ -196,8 +192,8 @@
             {"verb": "revoke", "confirm": true, "command": "deck.device_revoke", "params": {"device": "=id"}, "when": "!this"},
             {"label": "Revoke this browser: you sign out for good", "icon": "ban", "confirm": true, "command": "deck.device_revoke", "params": {"device": "=id"}, "when": "this"}
           ]},
-        {"type": "table", "title": "Passkeys", "icon": "fingerprint", "source": {"from": "deck.passkeys_list", "where": "!revoked"}, "span": 2,
-          "description": "A passkey synced to many browsers signs each in as a device of its own; revoking it signs all of them out, and it pairs again only by a new link.",
+        {"type": "table", "title": "Passkeys", "icon": "fingerprint", "collapsed": true, "source": {"from": "deck.passkeys_list", "where": "!revoked"}, "span": 2,
+          "description": "A passkey is the key your device keeps instead of a password (by a fingerprint or a face). One synced to several browsers signs each in as a device of its own; revoking it signs all of them out.",
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "Address", "bind": "site"},
@@ -207,7 +203,25 @@
           "actions": [
             {"verb": "edit", "command": "deck.passkey_rename", "params": {"passkey": "=id"}, "input": "name"},
             {"verb": "revoke", "confirm": true, "command": "deck.passkey_revoke", "params": {"passkey": "=id"}}
-          ]}
+          ]},
+        {"type": "appearance", "title": "Pushes", "icon": "bell-ringing", "part": "pushes", "span": 2,
+          "description": "deck sends a push when something waits for you or a module tells you; each device turns them on for itself.",
+          "actions": [
+            {"label": "Get pushes here", "command": "deck.push_subscribe"},
+            {"label": "Stop pushes here", "command": "deck.push_unsubscribe"}
+          ]},
+        {"type": "table", "title": "Text of pushes", "icon": "bell", "collapsed": true, "source": {"from": "deck.settings_list", "where": "name == 'push_text'"},
+          "description": "On a locked screen a push shows its text, or only the module it is of.",
+          "columns": [
+            {"label": "Setting", "bind": "title"},
+            {"label": "Value", "bind": "value == 'hidden' ? 'only the module' : 'the text'"}
+          ],
+          "actions": [
+            {"label": "Hide the text", "icon": "eye-off", "command": "deck.setting_set", "params": {"name": "push_text", "value": "hidden"}, "when": "value != 'hidden'"},
+            {"label": "Show the text", "icon": "eye", "command": "deck.setting_set", "params": {"name": "push_text", "value": "full"}, "when": "value == 'hidden'"}
+          ]},
+        {"type": "actions", "title": "Push key", "icon": "key", "collapsed": true, "description": "A new key stops the pushes of every device until each turns them on again.",
+          "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_key_reset"}]}
       ]},
       {"title": "Advanced", "icon": "adjustments", "blocks": [
         {"type": "table", "title": "deck", "icon": "info-circle", "source": {"from": "deck.health_list", "where": "subject == 'update'"},
@@ -255,25 +269,7 @@
           ],
           "actions": [
             {"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "=id"}, "when": "!revoked"}
-          ]},
-        {"type": "appearance", "title": "Pushes", "icon": "bell-ringing", "part": "pushes", "span": 2,
-          "description": "deck sends a push when something waits for you or a module tells you; each device turns them on for itself.",
-          "actions": [
-            {"label": "Get pushes here", "command": "deck.push_subscribe"},
-            {"label": "Stop pushes here", "command": "deck.push_unsubscribe"}
-          ]},
-        {"type": "table", "title": "Text of pushes", "icon": "bell", "source": {"from": "deck.settings_list", "where": "name == 'push_text'"},
-          "description": "On a locked screen a push shows its text, or only the module it is of.",
-          "columns": [
-            {"label": "Setting", "bind": "title"},
-            {"label": "Value", "bind": "value == 'hidden' ? 'only the module' : 'the text'"}
-          ],
-          "actions": [
-            {"label": "Hide the text", "icon": "eye-off", "command": "deck.setting_set", "params": {"name": "push_text", "value": "hidden"}, "when": "value != 'hidden'"},
-            {"label": "Show the text", "icon": "eye", "command": "deck.setting_set", "params": {"name": "push_text", "value": "full"}, "when": "value == 'hidden'"}
-          ]},
-        {"type": "actions", "title": "Push key", "icon": "key", "description": "A new key stops the pushes of every device until each turns them on again.",
-          "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_key_reset"}]}
+          ]}
       ]}
     ]}
   ]

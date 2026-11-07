@@ -2,7 +2,7 @@
   "name": "settings",
   "icon": "adjustments",
   "title": "Settings",
-  "params": {"name": "string", "command": "string"},
+  "params": {"name": "string", "command": "string", "folder": "string", "path": "string", "node": "string"},
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Module", "icon": "box", "blocks": [
@@ -29,55 +29,64 @@
             {"type": "form", "command": "deck.cover_draw", "fixed": ["project"], "values": {"project": "=param.name"},
               "description": "The master draws the pictures of the schemes of the theme in use in its mood. Without a model it takes a free one of deck.",
               "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + (free ? ' · free' : '')"}}}]},
-          {"type": "media", "title": "Covers", "icon": "photo", "description": "The picture of the module's card in each theme, light and dark; the card shows the one of the theme in use, else one for every theme, else any.",
+          {"type": "media", "title": "Covers", "icon": "photo", "collapsed": true, "description": "The picture of the module's card in each theme, light and dark; the card shows the one of the theme in use, else one for every theme, else any.",
             "source": {"from": "deck.project_covers_list"},
             "item": {"file": "file", "title": "title + ' · ' + (scheme == 'dark' ? 'dark scheme' : 'light scheme') + (shown ? ' · ' + 'on the card' : '')"},
             "empty": "The card has no picture yet: it shows the icon of the module.",
             "actions": [
               {"verb": "delete", "confirm": true, "command": "deck.project_cover_set", "params": {"project": "=project", "theme": "=theme", "scheme": "=scheme", "remove": "true"}}
             ]},
-          {"type": "table", "title": "Commands", "icon": "terminal-2", "source": {"from": "deck.commands_list", "input": {"fields": ["name", "title", "executor", "tool", "cron", "trigger", "own_paused"]}, "where": "tool == ''", "sort": "name"},
-            "description": "What the module can do and when it runs by itself.",
+          {"type": "table", "title": "What runs by itself", "icon": "repeat", "source": {"from": "deck.triggers_list", "sort": "order"},
+            "description": "In the order of a day: each command by the time it runs, and under it the commands that run after it, in their order; its model is picked in its row.",
             "columns": [
-              {"label": "Command", "bind": "title"},
-              {"label": "When", "bind": "cron ?? ''", "format": "cron"}
+              {"label": "What", "bind": "step > 0 ? repeat('\u00a0\u00a0', step - 1) + '↳ ' + title : title"},
+              {"label": "Model", "bind": "model ?? ''", "pick": "model", "format": "logo"},
+              {"label": "When", "bind": "kind == 'cron' ? spec : every ?? spec", "format": "cron"},
+              {"label": "Result", "bind": "paused || draft || (held ?? false) ? word : last_word ?? ''", "format": "tag",
+                "tone": "paused || draft || (held ?? false) ? 'muted' : (failure ?? '') != '' ? 'error' : last_tone ?? ''", "details": "(failure ?? '') != '' ? failure : last_at ?? nil"}
             ],
             "actions": [
-              {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
-              {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=trigger", "paused": "false"}, "when": "(trigger ?? 0) != 0 && (own_paused ?? false)"},
-              {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=trigger", "paused": "true"}, "when": "(trigger ?? 0) != 0 && !(own_paused ?? false)"},
-              {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "=name"}, "when": "executor != ''"}
+              {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
+              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
+              {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!paused && !draft"},
+              {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
+              {"verb": "open", "screen": "process", "project": "", "record": "=last_process", "when": "last_process != 0"}
             ]},
-          {"type": "table", "title": "Models", "icon": "cpu", "when": "len(rows) > 0", "source": {"from": "deck.models_list", "rows": "work"},
-            "description": "The model each command and each kind of work of its scripts runs on; pick one here for this module.",
-            "columns": [
-              {"label": "What", "bind": "command != nil ? title : role"},
-              {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-              {"label": "Chosen", "bind": "own ? 'here' : 'default'", "format": "tag", "tone": "own ? 'ok' : 'muted'"},
-              {"label": "Price", "bind": "price ?? ''"},
-              {"label": "Why not the first", "bind": "why ?? ''", "tone": "(why ?? '') != '' ? 'warn' : ''"}
-            ],
+          {"type": "list", "title": "Commands", "icon": "terminal-2", "cards": true, "collapsed": true,
+            "source": {"from": "deck.commands_list", "input": {"fields": ["name", "title", "description", "executor", "tool", "cron", "document", "model"]}, "where": "tool == ''", "sort": "name"},
+            "description": "What the module can do; try one, or open the file of its script or prompt.",
+            "item": {"title": "title", "text": "description ?? ''", "meta": "(cron ?? '') != '' ? 'by schedule' : executor", "logo": "model ?? ''"},
             "actions": [
-              {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"},
+              {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "=name"}, "when": "executor != ''"},
+              {"label": "Open the file", "icon": "file-code", "screen": "document", "record": "=document", "when": "(document ?? 0) != 0"}
+            ]},
+          {"type": "list", "title": "Models", "icon": "cpu", "cards": true, "source": {"from": "deck.models_list", "rows": "work"},
+            "description": "The model each command and each kind of work of its scripts runs on; change it on its card.",
+            "item": {"title": "command != nil ? title : role", "text": "join(filter([model ?? '', price ?? ''], # != ''), ' · ')", "meta": "own ? 'chosen here' : 'default'", "logo": "model ?? ''",
+              "details": "(why ?? '') != '' ? why : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
+              "tone": "(why ?? '') != '' ? 'warn' : nil"},
+            "actions": [
               {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command ?? ''"},
-                "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"}
+                "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
+              {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"}
             ]}
       ]},
       {"title": "Access", "icon": "key", "blocks": [
           {"type": "dialog", "name": "folder", "title": "Add a folder", "icon": "folder-plus", "primary": true, "blocks": [
             {"type": "form", "command": "deck.folder_add",
               "choices": {"node": {"source": {"from": "deck.devices_list", "where": "kind == 'node' && !revoked"}, "value": "name"}}}]},
+          {"type": "dialog", "name": "edit-folder", "title": "Change the folder", "icon": "folder-cog", "blocks": [
+            {"type": "form", "command": "deck.folder_add", "fixed": ["name", "node", "replace"],
+              "values": {"name": "=param.folder", "path": "=param.path", "node": "=param.node", "replace": "=true"},
+              "description": "Another path for this folder; its agent commands work in the new one from their next run."}]},
           {"type": "dialog", "name": "secret", "title": "Set a secret", "icon": "key", "blocks": [
             {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
-          {"type": "table", "title": "Folders", "icon": "folder", "source": {"from": "deck.folders_list"},
+          {"type": "list", "title": "Folders", "icon": "folder", "cards": true, "source": {"from": "deck.folders_list"},
             "description": "Folders on disk its agent commands work in, such as a repository, on deck's machine or on that of a node; only you add one.",
             "empty": "No folders; add one for commands that work on the files of a repository",
-            "columns": [
-              {"label": "Name", "bind": "name"},
-              {"label": "Path", "bind": "path", "format": "copy"},
-              {"label": "Node", "bind": "node"}
-            ],
+            "item": {"title": "name", "text": "path", "meta": "join(filter([node != '' ? node : 'deck', repo ? 'git' : ''], # != ''), ' · ')", "icon": "repo ? 'git-branch' : 'folder'"},
             "actions": [
+              {"verb": "edit", "screen": "settings", "params": {"dialog": "edit-folder", "folder": "=name", "path": "=path", "node": "=node"}},
               {"verb": "remove", "confirm": true, "command": "deck.folder_delete", "params": {"name": "=name", "node": "=node"}}
             ]},
           {"type": "table", "title": "Secrets", "icon": "key", "source": {"from": "deck.secrets_list"},
@@ -95,26 +104,19 @@
             ]}
       ]},
       {"title": "Health", "icon": "heartbeat", "blocks": [
-          {"type": "table", "title": "Health", "icon": "heartbeat", "source": {"from": "deck.health_list"}, "filter": ["kind", "status"],
+          {"type": "list", "title": "Health", "icon": "heartbeat", "cards": true, "source": {"from": "deck.health_list"}, "filter": ["kind", "status"],
             "description": "What deck checks of the module, with why one fails.",
-            "columns": [
-              {"label": "What", "bind": "subject == kind ? kind : subject"},
-              {"label": "Status", "bind": "status", "format": "tag", "details": "error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
-              {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-              {"label": "Since", "bind": "updated_at", "format": "relative"}
-            ],
+            "item": {"title": "subject == kind ? kind : subject", "text": "error ?? ''", "since": "updated_at", "logo": "model ?? ''",
+              "meta": "model ?? ''", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'",
+              "icon": "status == 'ok' ? 'circle-check' : 'alert-triangle'"},
             "actions": [
               {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
               {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
               {"verb": "check", "command": "deck.program_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}
             ]},
-          {"type": "table", "title": "Failed runs", "icon": "alert-triangle", "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(failure ?? '') != ''", "sort": "command"},
+          {"type": "list", "title": "Failed runs", "icon": "alert-triangle", "cards": true, "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(failure ?? '') != ''", "sort": "command"},
             "description": "What runs by itself and failed its last run; change its model and run it again.",
-            "columns": [
-              {"label": "Command", "bind": "title"},
-              {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-              {"label": "Last result", "bind": "last_word ?? ''", "format": "tag", "tone": "last_tone ?? ''", "details": "failure"}
-            ],
+            "item": {"title": "title", "text": "failure", "meta": "model ?? ''", "logo": "model ?? ''", "tone": "'error'", "icon": "'alert-triangle'"},
             "actions": [
               {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
               {"verb": "run_now", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},

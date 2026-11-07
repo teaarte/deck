@@ -457,10 +457,14 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 	for _, m := range models.Models {
 		names[m.Name], names[m.Model], names[m.Agent] = true, true, true
 	}
-	var cmds []struct{ Name string }
+	var cmds []struct{ Name, Description string }
 	e.Must("deck.commands_list", nil, &cmds)
 	for _, c := range cmds {
 		names[c.Name] = true
+		// The description of a module's command is the module's own text.
+		for _, w := range strings.Fields(c.Description) {
+			names[strings.Trim(w, ".:—-")] = names[strings.Trim(w, ".:—-")] || !strings.HasPrefix(c.Name, "deck.")
+		}
 		project, command, _ := strings.Cut(c.Name, ".")
 		names[project], names[command] = true, true
 	}

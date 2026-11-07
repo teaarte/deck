@@ -27,6 +27,7 @@
 [data-app-tile] {
   --deck-tile-auto: linear-gradient(135deg, hsl(var(--hue) 70% 55%), hsl(calc(var(--hue) + 50) 75% 40%));
   --deck-tile-veil-auto: rgb(from var(--deck-tile-text) calc(255 - r) calc(255 - g) calc(255 - b) / 0.6);
+  --deck-widget-card-auto: color-mix(in srgb, hsl(var(--hue) 70% 55%) 14%, var(--deck-island-bg, var(--mantine-color-body)));
 }
 
 body {

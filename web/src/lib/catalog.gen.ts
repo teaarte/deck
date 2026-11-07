@@ -409,6 +409,10 @@ export interface Data {
    * how many items the limit of the source left out of a list or a table
    */
   more?: number;
+  /**
+   * an empty block that is not the first of its place, which the client leaves out of sight
+   */
+  quiet?: boolean;
   value?: unknown;
   /**
    * The buttons of a stat; a click on it runs the first that opens a screen.

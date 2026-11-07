@@ -146,11 +146,38 @@ func (b *Book) Grouped(w provider.Work) provider.Work {
 	}
 	w.Choices = slices.Clone(w.Choices)
 	slices.SortStableFunc(w.Choices, func(x, y string) int { return cmp.Compare(at(x), at(y)) })
+	// A group says whether its models cost money: the paid ones of a provider stand after its free ones.
+	first := map[string]int{}
+	for _, c := range w.Choices {
+		if _, ok := first[b.models[c].Provider]; !ok {
+			first[b.models[c].Provider] = len(first)
+		}
+	}
+	slices.SortStableFunc(w.Choices, func(x, y string) int {
+		return cmp.Or(cmp.Compare(first[b.models[x].Provider], first[b.models[y].Provider]), cmp.Compare(costRank(b.models[x]), costRank(b.models[y])))
+	})
 	w.ChoiceGroups = make([]string, len(w.Choices))
 	for i, c := range w.Choices {
 		w.ChoiceGroups[i] = b.models[c].Provider
+		// The subscriptions say what they are by their group already.
+		if r := costRank(b.models[c]); r != 1 {
+			w.ChoiceGroups[i] += " · " + b.tr(costWord[r])
+		}
 	}
 	return w
+}
+
+// costWord says what a model costs: free, on a subscription, or money a call.
+var costWord = []string{"free", "subscription", "paid"}
+
+func costRank(m modelView) int {
+	switch {
+	case m.Subscription:
+		return 1
+	case m.Free || m.Local && m.InputUSD == nil && m.OutputUSD == nil && m.CallUSD == nil:
+		return 0
+	}
+	return 2
 }
 
 // Price is the price of a model of the book, empty for one it lacks.

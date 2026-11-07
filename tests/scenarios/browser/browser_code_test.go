@@ -56,9 +56,9 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.until("the folder form", form("deck.folder_add", "path"))
 	b.type_(form("deck.folder_add", "path"), repo)
 	submit("deck.folder_add")
-	b.until("the folder in the folders of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('my-repo') && r.innerText.includes('`+repo+`'))`)
+	b.until("the folder in the folders of the project", `[...document.querySelectorAll('[data-item]')].some((r) => r.innerText.includes('my-repo') && r.innerText.includes('`+repo+`'))`)
 	tab("Module")
-	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Run') && r.querySelector('input[data-pick="model"]'))`)
+	b.until("the commands of the project with their model", `[...document.querySelectorAll('[data-item]')].some((r) => r.innerText.includes('Run') && r.querySelector('[data-verb="model"]'))`)
 	b.shot("code-settings")
 
 	e.Must("deck.record_upsert", map[string]any{"project": "code", "collection": "tasks",

@@ -369,7 +369,7 @@ func (cs *colors) pairs(scheme string) (map[string]float64, error) {
 			return nil, err
 		}
 	}
-	for _, pair := range [][3]string{{"tile-text", "cockpit", "tile-shade"}, {"tile-text", "tile", "tile-shade"}, {"toast-text", "toast", ""}} {
+	for _, pair := range [][3]string{{"tile-text", "cockpit", "tile-shade"}, {"tile-text", "tile", "tile-shade"}, {"toast-text", "toast", ""}, {"text", "widget-card", ""}} {
 		if cs.tokens[pair[1]] == "" {
 			continue
 		}

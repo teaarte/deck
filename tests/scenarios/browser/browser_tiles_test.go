@@ -190,6 +190,8 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 		map[string]any{"title": "Doing now", "order": 3, "status": "doing"})}, nil)
 	e.Project("lab2", labManifest)
 	e.Must("deck.record_upsert", map[string]any{"project": "lab2", "collection": "prices", "records": harness.Jsonl(prices...)}, nil)
+	cover := e.Upload("lab", "cover.png", "image/png", console())
+	e.Must("deck.project_cover_set", map[string]any{"project": "lab", "file": fmt.Sprint(cover)}, nil)
 	e.Must("deck.theme_save", map[string]any{"name": "pult", "text": `{"version": 1, "title": {"en": "Pult"}, "mood": "m", "accent": "orange"}`}, nil)
 	for _, scheme := range []string{"light", "dark"} {
 		id := e.Upload("master", "cockpit.png", "image/png", console())
@@ -228,6 +230,10 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 			const g = w.querySelector('[data-grid]'); const r = g.getBoundingClientRect(); const cells = [...g.children].map((c) => [c, c.getBoundingClientRect()]);
 			return cells[0][1].left === r.left && cells[1][1].left === r.left && cells[1][0].querySelector('[data-chart-block]') && cells[2][1].left >= r.right - 1 && cells[2][0].inert &&
 				w.querySelector('[data-widget-left-out]')?.getAttribute('aria-label').includes('Open trades') })()`)
+		b.until("a view over the cover of its module on a veil, one without a cover on a color of its own", `(() => {
+			const lab = document.querySelector('[data-module=lab]'), lab2 = document.querySelector('[data-module=lab2]');
+			return lab.hasAttribute('data-veiled') && lab.querySelector('[data-cover-img][data-shown]') && getComputedStyle(lab.querySelector('[data-widget]')).backdropFilter.includes('blur') &&
+				!lab2.hasAttribute('data-veiled') && !['rgb(255, 255, 255)', 'rgba(0, 0, 0, 0)'].includes(getComputedStyle(lab2).backgroundColor) })()`)
 		b.until("Today's lines on a veil over the picture", `(() => { const ls = [...document.querySelectorAll('[data-cell="today"] [data-item]')];
 			return ls.length > 0 && ls.every((l) => /^(rgba\(0, 0, 0, 0.6\)|color\(srgb 0 0 0 \/ 0.6\))$/.test(getComputedStyle(l).backgroundColor)) })()`)
 		time.Sleep(time.Second)

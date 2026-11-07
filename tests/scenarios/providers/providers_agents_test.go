@@ -86,12 +86,12 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("a model changed without its kind and price keeps them: %+v", kept)
 	}
 
-	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Who does what", nil)["rows"])
-	i := slices.IndexFunc(rows, func(r harness.ScreenRow) bool { return r.Cells[0] == "deck · image" })
-	if i < 0 || rows[i].Cells[1] != "router/x/pic" || rows[i].Cells[2] != "$0.04 a call" || !harness.HasVerb(rows[i].Actions, "remove") {
+	rows := harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Who does what", nil)["items"])
+	i := slices.IndexFunc(rows, func(r harness.ListItem) bool { return r.Group == "deck" && r.Title == "image" })
+	if i < 0 || rows[i].Text != "router/x/pic" || rows[i].Meta != "$0.04 a call" || rows[i].Logo != "router/x/pic" || !harness.HasVerb(rows[i].Actions, "remove") {
 		t.Fatalf("the assignments show which models do which work and which one does it now: %+v", rows)
 	}
-	if pick := harness.Verb(t, rows[i].Actions, "model"); fmt.Sprint(pick["options"]) != "[router/x/pic]" || fmt.Sprint(pick["groups"]) != "[router]" {
+	if pick := harness.Verb(t, rows[i].Actions, "model"); fmt.Sprint(pick["options"]) != "[router/x/pic]" || fmt.Sprint(pick["groups"]) != "[router · paid]" {
 		t.Fatalf("the models a row picks from stand under their provider: %+v", pick)
 	}
 	var acp *harness.ListItem

@@ -581,31 +581,35 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	e.Must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"cloud-image"}}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"cloud-image"}}, nil)
 	e.Project("pics", harness.ScriptManifest("media", "", `, "models": ["@image"]`))
-	pics := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("pics", "settings", "Models", nil)["rows"])
-	if len(pics) != 2 || fmt.Sprint(pics[1].Cells[:3]...) != "imagecloud-imagedefault" {
+	cards := func(project string) []harness.ListItem {
+		return harness.BlockData[[]harness.ListItem](t, e.ScreenBlock(project, "settings", "Models", nil)["items"])
+	}
+	line := func(c harness.ListItem) string { return c.Title + " " + c.Text + " · " + c.Meta }
+	pics := cards("pics")
+	if len(pics) != 2 || line(pics[1]) != "image cloud-image · $0.03 a call · default" {
 		t.Fatalf("a kind of work on the model deck's settings give everywhere is the default, not the module's own: %+v", pics)
 	}
-	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("films", "settings", "Models", nil)["rows"])
-	if len(rows) != 2 || fmt.Sprint(rows[0].Cells[0], rows[0].Cells[2]) != "Publishdefault" || fmt.Sprint(rows[1].Cells...) != "imagelocal-imageherefree" {
+	rows := cards("films")
+	if len(rows) != 2 || rows[0].Title != "Publish" || rows[0].Meta != "default" || line(rows[1]) != "image local-image · free · chosen here" {
 		t.Fatalf("the settings of a module show the models of its commands and scripts and only its own: %+v", rows)
 	}
 	rows = rows[1:]
-	plain := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("plain", "settings", "Models", nil)["rows"])
-	if len(plain) != 1 || fmt.Sprint(plain[0].Cells[0], plain[0].Cells[2]) != "Workdefault" || plain[0].Cells[1] == "" {
+	plain := cards("plain")
+	if len(plain) != 1 || plain[0].Title != "Work" || plain[0].Meta != "default" || plain[0].Text == "" {
 		t.Fatalf("a command runs on a model, the default one when the module picked none: %+v", plain)
 	}
-	pick := rows[0].Actions[slices.IndexFunc(rows[0].Actions, func(a map[string]any) bool { return a["verb"] == "model" })]
-	if fmt.Sprint(pick["options"]) != "[cloud-image local-image]" {
-		t.Fatalf("the model is picked from the models of its kind: %v", pick)
+	pick := harness.Verb(t, rows[0].Actions, "model")
+	if fmt.Sprint(pick["options"]) != "[local-image cloud-image]" || fmt.Sprint(pick["groups"]) != "[media · free media · paid]" {
+		t.Fatalf("the model is picked from the models of its kind, the free ones of a provider first, each group saying so: %v", pick)
 	}
 	params := pick["params"].(map[string]any)
 	params["model"] = "cloud-image"
 	e.Must(pick["command"].(string), params, nil)
-	rows = harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("films", "settings", "Models", nil)["rows"])[1:]
+	rows = cards("films")[1:]
 	var list harness.ModelsOut
 	e.Must("deck.models_list", map[string]any{"project": "films"}, &list)
-	if fmt.Sprint(rows[0].Cells...) != "imagecloud-imagehere$0.03 a call" || fmt.Sprint(list.Assignments[0].Models) != "[cloud-image local-image]" {
-		t.Fatalf("a picked model goes first and the one before stays its fallback: %v %+v", rows[0].Cells, list.Assignments)
+	if line(rows[0]) != "image cloud-image · $0.03 a call · chosen here" || fmt.Sprint(list.Assignments[0].Models) != "[cloud-image local-image]" {
+		t.Fatalf("a picked model goes first and the one before stays its fallback: %v %+v", line(rows[0]), list.Assignments)
 	}
 }
 

@@ -16,9 +16,9 @@ func TestRealBrowserEditsAConnection(t *testing.T) {
 	b.Open(e, "#/deck/settings?tab=Models")
 	b.until("the connections, collapsed", `[...document.querySelectorAll('[data-fold=closed]')].some((x) => x.innerText.includes('Connections'))`)
 	b.eval(`([...document.querySelectorAll('[data-fold=closed]')].find((x) => x.innerText.includes('Connections')).click(), '')`)
-	row := `[...document.querySelectorAll('[data-item]')].find((x) => x.offsetParent && x.innerText.includes('whisper'))`
+	row := `[...document.querySelectorAll('[data-collapsed=open] [data-item]')].find((x) => x.offsetParent && x.innerText.includes('whisper'))`
 	b.until("the connection, once opened", row)
-	b.eval(`([...` + row + `.querySelectorAll('button')].find((x) => /edit/i.test(x.innerText + x.getAttribute('aria-label'))).click(), '')`)
+	b.eval(pressIn(row, "edit"))
 	b.until("the form filled with the connection", `[...document.querySelectorAll('input')].some((x) => x.offsetParent && x.value === 'http://127.0.0.1:8178/inference')`)
 }
 
@@ -49,7 +49,7 @@ func TestRealBrowserTheModelsTabActsFirst(t *testing.T) {
 		b.eval(`((f) => (f.dataset.fold === 'closed' && f.click(), ''))([...document.querySelectorAll('[data-fold]')].find((x) => x.innerText.includes('Models in use')))`)
 		b.until(size.name+": the models in use open with the mark of their maker", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('claude-haiku') && x.querySelector('[data-logo] svg'))`)
 		if size.name == "desktop" {
-			b.until("the picker of a row wears the mark of its model", `[...document.querySelectorAll('[data-pick] , [data-pick] ~ *')].length > 0 && document.querySelector('td [data-logo] svg')`)
+			b.until("a card of who does what wears the mark of its model", `[...document.querySelectorAll('[data-block]')].find((x) => x.innerText.toUpperCase().includes('WHO DOES WHAT'))?.querySelector('[data-item] [data-logo] svg')`)
 		}
 		b.until(size.name+": nothing goes past the edge", `document.documentElement.scrollWidth <= window.innerWidth + 1`)
 		b.shot("models-" + size.name)

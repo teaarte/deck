@@ -438,6 +438,7 @@
           }
         }},
         "more": {"type": "integer", "description": "how many items the limit of the source left out of a list or a table"},
+        "quiet": {"type": "boolean", "description": "an empty block that is not the first of its place, which the client leaves out of sight"},
         "value": {},
         "actions": {"type": "array", "description": "The buttons of a stat; a click on it runs the first that opens a screen.", "items": {"$ref": "#/$defs/action"}},
         "files": {"type": "array", "items": {

@@ -82,6 +82,7 @@ type folderAddIn struct {
 	Path    string `desc:"Absolute path of the folder, on the machine of the node when one is named"`
 	Name    string `opt:"" desc:"Folder name in the project; the folder's own name when omitted"`
 	Node    string `opt:"" desc:"The node whose machine holds the folder, by its name in Devices; deck's own machine when omitted. A git repository may have a clone on each machine under one name"`
+	Replace bool   `opt:"" desc:"Changes the folder of this name on that machine instead of adding one"`
 }
 
 // probeWait is how long deck waits for a node to say what a folder of its machine is.
@@ -132,6 +133,15 @@ func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAd
 	}
 	var f db.ProjectFolder
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if in.Replace {
+			n, err := q.RemoveProjectFolderOn(ctx, db.RemoveProjectFolderOnParams{ProjectID: p.ID, Name: name, NodeID: device})
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return registry.NotFound("project %s has no folder %s on that machine to change", p.Name, name)
+			}
+		}
 		have, err := q.ListProjectFolders(ctx, p.ID)
 		if err != nil {
 			return err

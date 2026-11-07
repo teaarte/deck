@@ -25,6 +25,8 @@ type commandView struct {
 	Files       []string `json:"files"`
 	Executor    string   `json:"executor"`
 	Tool        string   `json:"tool"`
+	// Document is the module's file its script or prompt is, which its page shows.
+	Document int64 `json:"document,omitempty"`
 	// OwnerOnly marks a command the master sees but only the owner calls, by its form at Form: a screen address,
 	// <project> standing for the project, that FormParams after ? fill in.
 	OwnerOnly  bool     `json:"owner_only,omitempty"`
@@ -119,6 +121,7 @@ func (s *Service) commandsList(ctx context.Context, act registry.Actor, in comma
 	}
 	work := s.Works(ctx, act.Workspace, registry.Lang(ctx))
 	manifests := map[int64]*manifest.Manifest{}
+	projects := map[int64]db.Project{}
 	out := []commandView{}
 	for _, c := range cmds {
 		if builtin && c.ProjectID != 0 || pid != 0 && c.ProjectID != pid {
@@ -134,6 +137,7 @@ func (s *Service) commandsList(ctx context.Context, act registry.Actor, in comma
 			if m, ok = manifests[c.ProjectID]; !ok {
 				if p, err := s.St.Q.GetProject(ctx, c.ProjectID); err == nil {
 					m, _ = docs.Manifest(ctx, s.St.Q, p)
+					projects[c.ProjectID] = p
 				}
 				manifests[c.ProjectID] = m
 			}
@@ -161,6 +165,15 @@ func (s *Service) commandsList(ctx context.Context, act registry.Actor, in comma
 				}
 				if r.Executor == "agent" || r.Executor == "model" {
 					r.Work = work(c.ProjectID, short)
+				}
+				file := mc.Executor.PromptFile
+				if sc := m.Script(mc.Executor.Script); sc != nil {
+					file = sc.File
+				}
+				if file != "" && !master {
+					if d, err := docs.Find(ctx, s.St.Q, docs.Ref{Scope: docs.ProjectScope(projects[c.ProjectID]), Name: file}); err == nil {
+						r.Document = d.ID
+					}
 				}
 			case slices.ContainsFunc(m.Tools.HTTP, func(t manifest.HTTPTool) bool { return t.Name == short }):
 				r.Tool = "http"
@@ -211,7 +224,7 @@ func formOf(command, project string, m *manifest.Manifest) (string, []string) {
 func (s *Service) commandsListCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("commands_list", "Commands",
-			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. project deck selects built-in commands; omit project for all commands. The model of a command, its choices and price, and its schedule only by fields (model, models, choices, choice_groups, price, why, role, cron, trigger, own_paused); command_describe gives its input.",
+			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. project deck selects built-in commands; omit project for all commands. The model of a command, its choices and price, its schedule and the document of its script or prompt only by fields (model, models, choices, choice_groups, price, why, role, cron, trigger, own_paused, document); command_describe gives its input.",
 			registry.OwnerSide, s.commandsList).On("projects", "tools", "assignments", "models", "triggers", "health", "documents").
 			Brief("name", "title", "description", "project", "files", "executor", "tool", "owner_only", "form", "form_params"),
 		registry.Read("command_describe", "Describe command",

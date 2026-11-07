@@ -20,7 +20,8 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 	item := itemOf("notes", "")
 	b.until("the project in the Projects tab", item)
 	b.eval(pressIn(item, "settings"))
-	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Collect'))`)
+	b.until("the commands of the project, unfolded", unfold("Commands"))
+	b.until("the commands as cards", `[...document.querySelectorAll('[data-item]')].some((r) => r.innerText.includes('Collect'))`)
 	b.shot("project-settings")
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.textContent.includes('Access')).click(), '')`)
 	b.until("the folders and secrets of the project", `[...document.querySelectorAll('button')].some((x) => x.textContent.includes('Add a folder'))`)
@@ -40,8 +41,11 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 
 	e.Project("plain", harness.PlainManifest)
 	b.open(b.base + "/#/p/plain/settings")
-	b.until("the model of a command in a picker", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Work') && r.querySelector('input[data-pick="model"]')?.value === 'fake')`)
-	b.eval(`(document.querySelector('tr input[data-pick="model"]').click(), '')`)
+	card := `[...document.querySelectorAll('[data-item]')].find((r) => r.innerText.includes('Work') && r.innerText.includes('fake') && r.querySelector('[data-verb="model"]'))`
+	b.until("the model of a command on its card, with its change", card)
+	b.eval(`(` + card + `.querySelector('[data-verb="model"]').click(), '')`)
+	b.until("the picker of the model", `document.querySelector('[data-options]')`)
+	b.eval(`(document.querySelector('[data-options]').click(), '')`)
 	b.until("the models it may run on", `[...document.querySelectorAll('[role=option]')].some((o) => o.textContent === 'fake')`)
 	b.shot("project-settings-pick")
 }

@@ -222,7 +222,8 @@ export function Apps() {
     if (view) {
       // A view with nothing to show gives way to the cover of the module, as a card without a view.
       return (
-        <Tile to={open(p)} title={p.title} seed={id} plain data={{ 'data-module': id }} extra={ask}
+        <Tile to={open(p)} title={p.title} seed={id} plain={!cover} cover={cover} color={dark ? p.cover_dark_color || p.cover_color : p.cover_color || p.cover_dark_color}
+          data={{ 'data-module': id, ...(cover ? { 'data-veiled': '' } : {}) }} extra={ask}
           art={<span className={s.emptyCover} aria-hidden>{cover ? <CoverImg at={cover} /> : <span className={s.icon}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={24} /></span>}
             <Title order={3} className={s.title}>{p.title}</Title></span>}>
           <span className={s.widgetHead}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={16} /><Text size="sm" fw={700} lineClamp={2} lh={1.25}>{p.title}</Text></span>

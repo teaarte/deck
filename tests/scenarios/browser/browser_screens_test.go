@@ -248,9 +248,10 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 
 	b.open(b.base + "/#/p/web/settings")
-	row := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('Score') && r.querySelector('input[data-pick="model"]'))`
+	row := `[...document.querySelectorAll('[data-item]')].find((r) => r.innerText.includes('Score') && r.querySelector('[data-verb="model"]'))`
 	b.until("the commands of the project with their model", row)
-	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.locator('tr', {hasText: 'Score'}).locator('input[data-pick="model"]').click();
+	b.eval(`(` + row + `.querySelector('[data-verb="model"]').click(), '')`)
+	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.locator('[data-options]').click();
 		await page.locator('[role=option][value="quiet"]:visible').click(); }`})
 	assigned := func() string {
 		var m struct {

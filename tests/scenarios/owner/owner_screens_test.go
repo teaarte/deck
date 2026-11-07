@@ -8,7 +8,7 @@ import (
 )
 
 // lightScreens are the most a whole read of each screen of deck may weigh on lightEnv, in bytes.
-var lightScreens = map[string]int{"settings": 31_000, "files": 25_000, "spend": 10_000, "schedule": 10_000, "cockpit": 10_000, "chat": 10_000}
+var lightScreens = map[string]int{"settings": 32_500, "files": 25_000, "spend": 10_000, "schedule": 10_000, "cockpit": 10_000, "chat": 10_000}
 
 // TestTheScreensOfDeckStayLight: a whole read of each screen of deck stays within its weight on a working week, the
 // tabs not shown, the collapsed blocks, the pages and the light copies left out.

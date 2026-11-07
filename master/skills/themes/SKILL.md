@@ -22,7 +22,9 @@ asks, as a theme of its own name.
    each kept for its theme: `deck.cover_draw` without a module draws those this theme lacks.
 4. The cards of modules have their own tokens: `cockpit` (the cockpit's card; the accent by default), `tile` (a
    card without a cover), `tile-shade`, `tile-text`, `tile-veil` (under each line of Today over its picture; empty
-   for the color opposite to `tile-text`), `tile-icon`, `tile-shadow`, `tile-lift`, and of their grid
+   for the color opposite to `tile-text`), `widget-card` (a card that shows the view of its module without a cover;
+   a soft color by the module's name when empty — give each theme its own rather than white; with a cover the view
+   stands on a veil over it), `tile-icon`, `tile-shadow`, `tile-lift`, and of their grid
    `tile-min`, `tile-height`, `tile-gap` (one cell: a card stands on whole cells); classes `.widget` (the view of a
    module in its card), `.left-out` (the mark of the blocks a card has no room for) and `.placing` (a card while the
    owner places the tiles); `meadow` is the ground at the foot of the page, `toast` and `toast-text` the note with

@@ -429,7 +429,7 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 	if len(project) != 1 || project[0].Title != "notes" || !strings.HasPrefix(project[0].Meta, "enabled") || !harness.HasVerb(project[0].Actions, "pause") || !harness.HasVerb(project[0].Actions, "delete") {
 		t.Fatalf("the settings show the project with its buttons: %+v", project)
 	}
-	if c := cells("Commands"); len(c) != 1 || c[0][0] != "Collect" {
+	if c := harness.BlockData[[]harness.ListItem](t, e.ScreenBlock("notes", "settings", "Commands", nil)["items"]); len(c) != 1 || c[0].Title != "Collect" {
 		t.Fatalf("the commands of the project with the model that does their work: %v", c)
 	}
 	if c := cells("Tools"); len(c) != 1 || c[0][0] != "notes.post" || c[0][1] != "http" {
@@ -673,5 +673,67 @@ func TestLookIsAPlaceOfItsOwn(t *testing.T) {
 	raw, _ := json.Marshal(e.ScreenMessages("", "look", nil))
 	if !strings.Contains(string(raw), `"component":"appearance"`) || !strings.Contains(string(raw), `"topics":[]`) {
 		t.Fatalf("Look holds the appearance and names its topics, none: %s", raw)
+	}
+}
+
+// TestTheSettingsOfAModuleAreCardsThatChangeItsModelFoldersAndOpenItsFiles: a card for each work with its model, a
+// folder changed in place, a command with the file of its script; an empty block below another stays out of sight.
+func TestTheSettingsOfAModuleAreCardsThatChangeItsModelFoldersAndOpenItsFiles(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("tools", "scripts/main.py", "print('{}')\n")
+	var cmds []struct {
+		Name     string
+		Document int64
+	}
+	e.Must("deck.commands_list", map[string]any{"project": "tools", "fields": []string{"name", "document"}}, &cmds)
+	docs := map[string]int64{}
+	for _, c := range cmds {
+		docs[c.Name] = c.Document
+	}
+	if docs["tools.collect"] == 0 || docs["tools.publish"] != 0 {
+		t.Fatalf("a script command names the file of its script, an agent with its prompt inline none: %v", docs)
+	}
+	collect := harness.FindItem(t, harness.BlockData[[]harness.ListItem](t, e.ScreenBlock("tools", "settings", "Commands", nil)["items"]), "Run")
+	if i := slices.IndexFunc(collect.Actions, func(a map[string]any) bool { return a["screen"] == "document" }); i < 0 || collect.Actions[i]["record"] != float64(docs["tools.collect"]) {
+		t.Fatalf("a script command opens the page of its file: %+v", collect.Actions)
+	}
+	work := harness.BlockData[[]harness.ListItem](t, e.ScreenBlock("tools", "settings", "Models", nil)["items"])
+	publish := harness.FindItem(t, work, "Publish")
+	if !harness.HasVerb(publish.Actions, "model") || publish.Logo == "" {
+		t.Fatalf("the work of a module is a card with its model's mark and the model to change: %+v", publish)
+	}
+
+	e.Must("deck.folder_add", map[string]any{"project": "tools", "path": harness.RepoFolder(t), "name": "repo"}, nil)
+	moved := t.TempDir()
+	e.Must("deck.folder_add", map[string]any{"project": "tools", "path": moved, "name": "repo", "replace": true}, nil)
+	var folders []struct{ Name, Path string }
+	e.Must("deck.folders_list", map[string]any{"project": "tools"}, &folders)
+	if real, _ := filepath.EvalSymlinks(moved); len(folders) != 1 || folders[0].Path != real {
+		t.Fatalf("a folder changes its path in place: %+v", folders)
+	}
+	e.Refused("deck.folder_add", map[string]any{"project": "tools", "path": moved, "name": "nope", "replace": true}, 404, "no folder nope")
+	edit := e.Button("tools", "settings", map[string]any{"tab": "Access"}, "", map[string]any{"dialog": "edit-folder"})
+	params, _ := json.Marshal(edit["params"])
+	form := ""
+	for _, d := range e.Screen("tools", "settings", map[string]any{"tab": "Access", "dialog": "edit-folder", "params": string(params)}) {
+		if strings.Contains(string(d["value"]), `"name":"deck.folder_add"`) && strings.Contains(string(d["value"]), `"replace"`) {
+			form = string(d["value"])
+		}
+	}
+	if !strings.Contains(form, `"name":"repo"`) || !strings.Contains(form, `"path":"`+filepath.ToSlash(folders[0].Path)+`"`) || !strings.Contains(form, `"replace":true`) {
+		t.Fatalf("the edit of a folder opens its form on its name and path, to change it in place: %s %s", params, form)
+	}
+	items := harness.BlockData[[]harness.ListItem](t, e.ScreenBlock("tools", "settings", "Folders", nil)["items"])
+	if len(items) != 1 || !harness.HasVerb(items[0].Actions, "edit") {
+		t.Fatalf("a folder is a card with its edit: %+v", items)
+	}
+
+	if quiet := string(e.SettingsBlock("Sign in to agents", nil)["quiet"]); quiet != "true" {
+		t.Fatalf("an empty block below another stays out of sight: %s", quiet)
+	}
+	if quiet := string(e.SettingsBlock("Waiting for you", nil)["quiet"]); quiet == "true" {
+		t.Fatalf("the first block of a tab says why it is empty: %s", quiet)
 	}
 }

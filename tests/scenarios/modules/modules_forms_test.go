@@ -52,14 +52,14 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 	}
 
 	var cmds []string
-	for _, r := range harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "settings", "Models", nil)["rows"]) {
+	for _, r := range harness.BlockData[[]harness.ListItem](t, e.ScreenBlock("web", "settings", "Models", nil)["items"]) {
 		if !harness.HasVerb(r.Actions, "model") {
 			continue
 		}
 		pick := harness.Verb(t, r.Actions, "model")
 		params, _ := pick["params"].(map[string]any)
-		if pick["command"] != "deck.assignment_set" || pick["pick"] != "model" || params["role"] != "agent" {
-			t.Fatalf("the model of an agent command is picked in its row: %+v", pick)
+		if pick["command"] != "deck.assignment_set" || pick["input"] != "model" || params["role"] != "agent" {
+			t.Fatalf("the model of an agent command is picked on its card: %+v", pick)
 		}
 		cmds = append(cmds, "web."+params["command"].(string))
 	}
@@ -75,7 +75,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 	if a := e.Button("", "settings", map[string]any{"dialog": "connections"}, "", map[string]any{"dialog": "connections", "name": "router"}); a["params"].(map[string]any)["key"] != nil {
 		t.Fatalf("the edit of a connection never carries its key: %+v", a)
 	}
-	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("web", "settings", "Models", nil)["rows"])
+	rows := harness.BlockData[[]harness.ListItem](t, e.ScreenBlock("web", "settings", "Models", nil)["items"])
 	if opts, _ := json.Marshal(harness.Verb(t, rows[0].Actions, "model")["options"]); !strings.Contains(string(opts), "fake") || strings.Contains(string(opts), "whisper") {
 		t.Fatalf("the model of an agent command is picked from the models that run agents, not those of another kind: %s", opts)
 	}

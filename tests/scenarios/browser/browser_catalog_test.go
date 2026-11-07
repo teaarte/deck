@@ -75,7 +75,9 @@ func TestRealBrowserCatalog(t *testing.T) {
 
 	e.Project("fresh", strings.ReplaceAll(harness.EstimateManifest, `"title": "COIN"`, `"title": "Fresh"`))
 	b.Open(e, "#/p/fresh/main")
-	b.until("the words of empty blocks", `[...document.querySelectorAll('[data-empty]')].map(x => x.innerText).join('|') === 'No prices yet|No estimates yet|Nothing here|No prices yet'`)
+	// Only the first block says why the screen is empty; the empty ones below it stand out of sight, leaving no room.
+	b.until("the words of the first empty block alone", `[...document.querySelectorAll('[data-empty]')].map(x => x.innerText).join('|') === 'No prices yet' &&
+		[...document.querySelectorAll('[data-grid] > *')].every((c) => c.childElementCount === 0 ? getComputedStyle(c).display === 'none' : true)`)
 	b.shot("catalog-empty")
 	if b.eval(`String(document.body.innerText.includes('Missed'))`) != "false" {
 		t.Fatal("a block whose when does not hold is not drawn")

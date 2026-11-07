@@ -229,10 +229,12 @@ func (b *playwright) shot(name string) {
 	b.call("browser_take_screenshot", map[string]any{"filename": fmt.Sprintf("web-%s.png", name), "fullPage": true})
 }
 
-// pressIn clicks the button of a verb in a row or an item, also when it waits in the row's more menu.
+// pressIn clicks the button of a verb in a row or an item, also in its more menu, or the item that opens by it.
 func pressIn(scope, verb string) string {
 	return `(() => { const s = ` + scope + `; let b = s.querySelector('[data-verb="` + verb + `"]');
-		if (!b) { const m = s.querySelector('[data-more]'); m.click(); b = document.querySelector('[data-more-menu="' + m.dataset.more + '"] [data-verb="` + verb + `"]'); }
+		const m = !b && s.querySelector('[data-more]');
+		if (m) { m.click(); b = document.querySelector('[data-more-menu="' + m.dataset.more + '"] [data-verb="` + verb + `"]'); }
+		if (!b) b = s;
 		b.click(); return '' })()`
 }
 

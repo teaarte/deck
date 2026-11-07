@@ -70,6 +70,16 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 			})
 		}
 	}
+	// A model of an ACP agent not on this machine is not installed rather than red: its checks before go.
+	spaces, _ := s.St.Q.ListWorkspaces(ctx)
+	for _, ws := range spaces {
+		rows, _ := s.St.Q.ListModels(ctx, ws)
+		for _, r := range rows {
+			if r.Model.Agent != "" && r.Connection.Api != models.APICLI && !s.Installed(r.Model.Agent) {
+				s.clearCheck(ctx, r.Model.Name)
+			}
+		}
+	}
 	for _, pv := range s.checked(ctx) {
 		if s.onCLI(ctx, pv.Name()) {
 			continue
@@ -82,6 +92,22 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 			s.startCheck(pv.Name(), false)
 		}
 	}
+}
+
+// uninstalled says a provider is a model of an ACP agent not on this machine, and takes away its checks before.
+func (s *Service) uninstalled(ctx context.Context, pv provider.Provider) bool {
+	a, ok := pv.(interface{ AgentName() string })
+	if !ok || s.Installed(a.AgentName()) {
+		return false
+	}
+	s.clearCheck(ctx, pv.Name())
+	return true
+}
+
+func (s *Service) clearCheck(ctx context.Context, name string) {
+	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return health.Clear(ctx, q, health.Of{}, health.Provider(name))
+	})
 }
 
 // Broke checks a provider whose turn failed or lost its login, unless it was checked within selfCheckRetry; a red
@@ -118,6 +144,9 @@ func (s *Service) Recheck(name string, at time.Time) {
 func (s *Service) startCheck(name string, force bool) bool {
 	sc, ok := s.named(s.Ctx, name).(provider.SelfChecker)
 	if !ok || s.awayAnywhere(s.Ctx, name) {
+		return false
+	}
+	if s.uninstalled(s.Ctx, sc.(provider.Provider)) {
 		return false
 	}
 	s.mu.Lock()

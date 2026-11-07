@@ -180,3 +180,39 @@ func TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls(t *testing.T) {
 		t.Fatal("the red row of the calls of the model goes once it runs in an agent")
 	}
 }
+
+// TestAModelOfAnAgentNotInstalledSaysSo: a model of goose on a machine without goose, as deck's image was before it
+// had goose, is not installed in the models list and in its check, and no red self-check of "an unknown version".
+func TestAModelOfAnAgentNotInstalledSaysSo(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	llm := harness.AcpLLM(t)
+	e := harness.New(t, harness.WithConfig(func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.Dir, "goose")}
+		c.Sandbox.Also.Write = append(c.Sandbox.Also.Write, f.Dir)
+	}))
+	e.MustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose"})
+	e.Until("the first check ends", func() bool {
+		h, err := health.Get(t.Context(), e.App.Store.Q, health.Of{}, "provider:acp")
+		return f.Calls() >= 1 && err == nil && h.Status != "checking"
+	})
+	if err := os.Remove(filepath.Join(f.Dir, "goose")); err != nil {
+		t.Fatal(err)
+	}
+	e.App.Providers.Checks(t.Context(), time.Now())
+	e.Until("the model of goose is not installed", func() bool {
+		var m struct{ Models []struct{ Name, Status string } }
+		e.Must("deck.models_list", nil, &m)
+		for _, x := range m.Models {
+			if x.Name == "acp" {
+				return x.Status == "missing"
+			}
+		}
+		return false
+	})
+	for _, h := range e.Health() {
+		if strings.Contains(h.Error, "an unknown version") || h.Subject == "provider:acp" && h.Status == "error" {
+			t.Fatalf("a model of an agent not installed has a red self-check: %+v", h)
+		}
+	}
+}

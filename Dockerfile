@@ -1,9 +1,11 @@
-# deck on a server, and on a Mac in Apple's container: deck with the tailnet, Claude Code, Codex, uv and a browser;
+# deck on a server, and on a Mac in Docker: deck with the tailnet, Claude Code, Codex, Goose, uv and a browser;
 # every foreign program runs in a box of its own (bubblewrap). compose.yaml runs it; see README, "Server".
 
 # The versions of the CLIs, which tests/linux builds its image with too.
 ARG CLAUDE_VERSION=2.1.281
 ARG CODEX_VERSION=0.165.0
+# Goose, the ACP agent that runs agent turns on any model of deck's settings.
+ARG GOOSE_VERSION=1.53.0
 
 FROM --platform=$BUILDPLATFORM golang:1.27-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS build
 ARG TARGETOS TARGETARCH VERSION=dev COMMIT=
@@ -18,13 +20,16 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -tags tailnet -trim
 FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
 
 FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
-ARG CLAUDE_VERSION CODEX_VERSION
+ARG CLAUDE_VERSION CODEX_VERSION GOOSE_VERSION TARGETARCH
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates git curl openssh-client python3 bubblewrap socat \
        chromium chromium-sandbox fonts-liberation fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /opt/google/chrome && ln -s /usr/bin/chromium /opt/google/chrome/chrome \
     && npm install -g @anthropic-ai/claude-code@$CLAUDE_VERSION @openai/codex@$CODEX_VERSION && npm cache clean --force \
+    && arch=$(case "$TARGETARCH" in arm64) echo aarch64;; *) echo x86_64;; esac) \
+    && curl -fsSL "https://github.com/block/goose/releases/download/v$GOOSE_VERSION/goose-$arch-unknown-linux-gnu.tar.gz" \
+       | tar -xz -C /usr/local/bin ./goose && chmod 755 /usr/local/bin/goose && goose --version \
     && useradd --uid 1002 --user-group --create-home --shell /bin/bash deck \
     && mkdir -p /var/lib/deck && chown deck:deck /var/lib/deck && chmod 700 /var/lib/deck
 COPY --from=uv /uv /uvx /usr/local/bin/

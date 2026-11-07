@@ -41,6 +41,19 @@
     },
     {
       "customType": "regex",
+      "description": "The version of Goose deck's image installs",
+      "managerFilePatterns": [
+        "/^Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG GOOSE_VERSION=(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "block/goose",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
       "description": "The version of sqlc ci checks the generated code with",
       "managerFilePatterns": [
         "/^\\.github/workflows/ci\\.yml$/"

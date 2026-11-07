@@ -28,6 +28,9 @@ func (s *Service) base(ctx context.Context, workspace int64, name string) provid
 
 // Off is why a provider of a workspace takes no work: health.Missing or health.Off; empty when it is on.
 func (s *Service) Off(ctx context.Context, workspace int64, name string) string {
+	if agent := s.acpAgent(ctx, workspace, name); agent != "" && !s.Installed(agent) {
+		return health.Missing
+	}
 	pv := s.base(ctx, workspace, name)
 	if pv == nil {
 		return ""
@@ -39,6 +42,15 @@ func (s *Service) Off(ctx context.Context, workspace int64, name string) string 
 		return health.Off
 	}
 	return ""
+}
+
+// acpAgent is the ACP agent a model of deck's settings runs in, such as goose; empty for any other provider.
+func (s *Service) acpAgent(ctx context.Context, workspace int64, name string) string {
+	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
+	if err != nil || row.Connection.Api == models.APICLI {
+		return ""
+	}
+	return row.Model.Agent
 }
 
 // resting says a built-in provider is checked by no workspace: its program is missing, or every workspace turned it

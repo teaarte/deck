@@ -139,15 +139,20 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 				d.Name, at, strings.Join(ports, ", "), address, strings.Join(ports, ","))
 		}
 		var holds, denied []string
+		if err != nil && len(folders) > 0 {
+			status = health.Warning
+			text = fmt.Sprintf("%s; it did not say what of its folders deck may use: %v", text, err)
+			folders = nil
+		}
 		for _, f := range folders {
 			got := got.Folders[f.Path]
 			switch {
-			case err != nil || got.Real != "":
+			case got.Real != "":
 				holds = append(holds, f.Project+" "+f.Name)
 			case got.Denied:
 				status = health.Warning
-				if !slices.Contains(denied, f.Path) {
-					denied = append(denied, f.Path)
+				if q := "'" + f.Path + "'"; !slices.Contains(denied, q) {
+					denied = append(denied, q)
 				}
 			default:
 				status = health.Warning

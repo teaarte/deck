@@ -243,6 +243,15 @@ type Subscribed interface {
 	OnSubscription()
 }
 
+// AtNode splits the name of a provider on a node, such as claude-code@Mac, into the provider and the node.
+func AtNode(name string) (base, node string, ok bool) {
+	i := strings.LastIndex(name, "@")
+	if i <= 0 || i == len(name)-1 {
+		return "", "", false
+	}
+	return name[:i], name[i+1:], true
+}
+
 // Noded is a provider whose turns run on a node, by the device of the node.
 type Noded interface {
 	NodeOf() int64

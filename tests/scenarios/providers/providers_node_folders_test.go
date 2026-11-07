@@ -128,19 +128,27 @@ func TestAFolderItsNodeDoesNotAllowIsRefused(t *testing.T) {
 	data, other := folderOf(t, "blue 101"), folderOf(t, "secret")
 	e, n := scriptsOnNode(t, time.Minute, data)
 	e.Refused("deck.folder_add", map[string]any{"project": "lab", "path": other, "node": "Mac"}, 422,
-		"folder "+other+" is not allowed on this node: on its machine add it with deck -join <deck's address> --install --allow "+other)
+		"folder "+other+" is not allowed on this node: on its machine add it with deck -join <deck's address> --install --allow '"+other+"'")
+	e.Refused("deck.folder_add", map[string]any{"project": "lab", "path": filepath.Join(other, "gone"), "node": "Mac"}, 422, "is not allowed on this node")
+	// A list that holds the folder of the node still keeps it out, however a path spells it.
+	n.Allow(data, filepath.Dir(n.Home))
+	upper := filepath.Join(filepath.Dir(n.Home), strings.ToUpper(filepath.Base(n.Home)))
+	for _, path := range []string{n.Home, filepath.Join(n.Home, "state"), upper} {
+		e.Refused("deck.folder_add", map[string]any{"project": "lab", "path": path, "node": "Mac"}, 422, "")
+	}
 	e.Refused("deck.folder_add", map[string]any{"project": "lab", "path": n.Home, "node": "Mac"}, 422, "a folder of deck on this machine")
+	n.Allow(data)
 	e.Must("deck.folder_add", map[string]any{"project": "lab", "path": data, "name": "data", "node": "Mac"}, nil)
 	n.Allow(data, other)
 	e.Refused("deck.folder_add", map[string]any{"project": "lab", "path": other, "name": "data", "node": "Mac"}, 422, "already has a folder named data")
 	n.Allow()
 	id := e.Start("lab", "read", map[string]any{"allowed": data})
 	e.WaitState(id, "done", "error")
-	if p := failure(e, id); p.State != "error" || p.ErrorType != "rights.denied" || !strings.Contains(p.Error, "--allow "+data) {
+	if p := failure(e, id); p.State != "error" || p.ErrorType != "rights.denied" || !strings.Contains(p.Error, "--allow '"+data+"'") {
 		t.Fatalf("the node refuses the script of a folder its owner took off the list: %+v", p)
 	}
 	h := e.WaitHealth("node:Mac", "warning")
-	if !strings.Contains(h.Error, "folder "+data+" is not allowed on it") || !strings.Contains(h.Error, "--install --allow "+data) {
+	if !strings.Contains(h.Error, "folder '"+data+"' is not allowed on it") || !strings.Contains(h.Error, "--install --allow '"+data+"'") {
 		t.Fatalf("the health of the node says which folder its owner adds: %+v", h)
 	}
 }

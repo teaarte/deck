@@ -1086,5 +1086,6 @@
   "%s; folder %s of %s is not on its machine: %s": "%s; папки %s модуля %s нет на его машине: %s",
   "%s; folder %s is not allowed on it: on its machine add it with deck -join %s --install --allow %s": "%s; папка %s на нём не разрешена: на его машине добавьте её командой deck -join %s --install --allow %s",
   "%s; it holds the folders %s": "%s; на нём папки %s",
-  "%s; the turns and scripts of its folders wait for it": "%s; ходы и скрипты его папок ждут его"
+  "%s; the turns and scripts of its folders wait for it": "%s; ходы и скрипты его папок ждут его",
+  "%s; it did not say what of its folders deck may use: %v": "%s; он не сказал, какие из его папок доступны deck: %v"
 }

@@ -131,39 +131,62 @@ func expand(p string) (string, error) {
 type NotAllowed struct{ Path string }
 
 func (e *NotAllowed) Error() string {
-	return fmt.Sprintf("folder %s is not allowed on this node: on its machine add it with deck -join <deck's address> --install --allow %s", e.Path, e.Path)
+	return fmt.Sprintf("folder %s is not allowed on this node: on its machine add it with deck -join <deck's address> --install --allow '%s'", e.Path, e.Path)
 }
 
-// Folder is the real path of a folder of this machine its owner allows deck: one of Paths or inside one that is not,
-// and is not inside, any of own, the folders of the node and of a deck on its machine.
+// Folder is the real path of a folder of the list or inside one that neither holds nor is in any of own; a path off the
+// list gets one answer, there or not, and folders compare as files, however a case-insensitive disk spells them.
 func (a Allowed) Folder(path string, own []string) (string, error) {
+	no := &NotAllowed{Path: path}
 	if !filepath.IsAbs(path) {
-		return "", fmt.Errorf("%q is no absolute folder", path)
+		return "", no
+	}
+	if !a.holds(filepath.Clean(path)) {
+		return "", no
 	}
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return "", fmt.Errorf("folder %s is not on this machine", path)
 	}
+	if !a.holds(real) {
+		return "", no
+	}
 	if fi, err := os.Stat(real); err != nil || !fi.IsDir() {
 		return "", fmt.Errorf("%s on this machine is not a folder", path)
 	}
 	for _, o := range own {
-		for _, n := range home.Names(o) {
-			if home.Overlap(n, real) {
-				return "", fmt.Errorf("folder %s holds or is inside %s, a folder of deck on this machine", path, o)
-			}
+		if within(o, real) || within(real, o) {
+			return "", fmt.Errorf("folder %s holds or is inside a folder of deck on this machine", path)
 		}
 	}
+	return real, nil
+}
+
+// holds says path is one of the folders of the list or inside one.
+func (a Allowed) holds(path string) bool {
 	for _, p := range a.Paths {
-		at, err := expand(p)
-		if err != nil {
-			continue
-		}
-		if r, err := filepath.EvalSymlinks(at); err == nil && home.Within(r, real) {
-			return real, nil
+		if at, err := expand(p); err == nil && within(at, path) {
+			return true
 		}
 	}
-	return "", &NotAllowed{Path: path}
+	return false
+}
+
+// within says path is the folder dir or lies inside it, by the files themselves: path or one of the folders above it
+// is dir.
+func within(dir, path string) bool {
+	d, err := os.Stat(dir)
+	if err != nil {
+		return false
+	}
+	for p := path; ; p = filepath.Dir(p) {
+		if fi, err := os.Stat(p); err == nil && os.SameFile(d, fi) {
+			return true
+		}
+		if filepath.Dir(p) == p {
+			return false
+		}
+	}
 }
 
 // Port says the node lets deck call port of its loopback.

@@ -52,7 +52,7 @@ func TestANodeProcessRunsTheScriptOfItsFolder(t *testing.T) {
 inp = json.load(sys.stdin)
 print(json.dumps({"text": open(os.path.join(inp["allowed"], "notes.txt")).read(), "cwd": os.getcwd()}))
 `)
-	e.Refused("deck.folder_add", map[string]any{"project": "lab", "path": nodeHome, "node": "Mac"}, 422, "a folder of deck on this machine")
+	e.Refused("deck.folder_add", map[string]any{"project": "lab", "path": nodeHome, "node": "Mac"}, 422, "is not allowed on this node")
 	e.Must("deck.folder_add", map[string]any{"project": "lab", "path": data, "name": "data", "node": "Mac"}, nil)
 	p := e.WaitState(e.Start("lab", "read", map[string]any{"allowed": data}), "done", "error")
 	var got struct{ Text, Cwd string }

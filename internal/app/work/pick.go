@@ -115,7 +115,7 @@ func (s *Service) atFolder(ctx context.Context, p db.Project, cmd *manifest.Comm
 		}
 	}
 	for _, pv := range fits {
-		if _, at, ok := remote.Split(pv.Name()); ok {
+		if _, at, ok := provider.AtNode(pv.Name()); ok {
 			if slices.Contains(nodes, at) {
 				add(pv)
 			}

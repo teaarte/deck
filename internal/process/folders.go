@@ -7,8 +7,18 @@ import (
 	"log/slog"
 
 	"deck2/internal/fault"
+	"deck2/internal/provider"
 	"deck2/internal/store/db"
 )
+
+// lockOf is the key of the lock of a project folder: its path, and the node of the provider of a folder of another
+// machine than deck's, whose clone the turns of deck's machine never share.
+func lockOf(folder, pv string) string {
+	if _, node, ok := provider.AtNode(pv); ok {
+		return node + ":" + folder
+	}
+	return folder
+}
 
 // holdFolder takes the lock of the folder a turn works in, or leaves the turn waiting for it; it reports
 // whether the turn goes on. The check and the wait are one transaction, so a release cannot slip between them.

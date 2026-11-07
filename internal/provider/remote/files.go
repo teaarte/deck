@@ -21,7 +21,8 @@ type stamp struct {
 	Mod  time.Time
 }
 
-// walk lists the regular files of the folders roots under dir by their names, never through a link.
+// walk lists the regular files of the folders roots under dir by their names, never through a link nor into the caches
+// of a project.
 func walk(dir string, roots []string) (map[string]stamp, error) {
 	out := map[string]stamp{}
 	root, err := os.OpenRoot(dir)
@@ -33,6 +34,9 @@ func walk(dir string, roots []string) (map[string]stamp, error) {
 		err := fs.WalkDir(root.FS(), r, func(p string, d fs.DirEntry, err error) error {
 			if errors.Is(err, fs.ErrNotExist) {
 				return nil
+			}
+			if err == nil && d.IsDir() && cache(p) {
+				return fs.SkipDir
 			}
 			if err != nil || !d.Type().IsRegular() {
 				return err
@@ -49,6 +53,11 @@ func walk(dir string, roots []string) (map[string]stamp, error) {
 		}
 	}
 	return out, nil
+}
+
+// cache says p is the folder of caches in the data of a project: the caches of programs stay on each machine.
+func cache(p string) bool {
+	return path.Base(p) == ".cache" && path.Base(path.Dir(p)) == "data" && strings.HasPrefix(p, "work/projects/")
 }
 
 // size is what the files of a list hold together.

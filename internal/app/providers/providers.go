@@ -81,7 +81,7 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	if pv := s.builtinNamed(name); pv != nil {
 		return pv, nil
 	}
-	if base, node, ok := remote.Split(name); ok {
+	if base, node, ok := provider.AtNode(name); ok {
 		return s.onNode(ctx, workspace, base, node)
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
@@ -181,7 +181,7 @@ func (s *Service) All(ctx context.Context, workspace int64) ([]provider.Provider
 
 // Agent is a built-in provider by name, on a node too, such as claude-code@Mac; nil when there is none.
 func (s *Service) Agent(name string) provider.Provider {
-	if base, _, ok := remote.Split(name); ok && s.builtinNamed(base) != nil {
+	if base, _, ok := provider.AtNode(name); ok && s.builtinNamed(base) != nil {
 		return s.named(s.Ctx, name)
 	}
 	return s.builtinNamed(name)

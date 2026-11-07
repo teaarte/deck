@@ -16,6 +16,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/node"
 	"deck2/internal/process"
+	"deck2/internal/provider"
 	"deck2/internal/provider/remote"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -106,6 +107,9 @@ func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAd
 		}
 		if _, err := home.Abs(in.Path); err != nil {
 			return nil, registry.Invalid("%v", err)
+		}
+		if strings.Contains(in.Path, ",") {
+			return nil, registry.Invalid("a node allows no folder whose path holds a comma, as its list parts them by commas: %s", in.Path)
 		}
 		pctx, cancel := context.WithTimeout(ctx, probeWait)
 		got, err := s.Probe(pctx, device, nil, []string{in.Path})
@@ -235,9 +239,9 @@ func (s *Service) named(ctx context.Context, p db.Project, f manifest.Folder) ([
 	return out, nil
 }
 
-// Folder is the real path of the project folder an agent command works in on the machine of provider, checked to
+// Folder is the real path of the project folder an agent command works in on the machine of provider pv, checked to
 // still be there on deck's; a node checks one of its own as the turn starts there.
-func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder, provider string) (string, error) {
+func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder, pv string) (string, error) {
 	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return "", err
@@ -248,7 +252,7 @@ func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder
 	}
 	var device int64
 	machine := "deck's machine"
-	if _, at, ok := remote.Split(provider); ok {
+	if _, at, ok := provider.AtNode(pv); ok {
 		if device, err = s.Node(ctx, p.WorkspaceID, at); err != nil {
 			return "", err
 		}
@@ -256,7 +260,7 @@ func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder
 	}
 	i := slices.IndexFunc(rows, func(r db.ProjectFolder) bool { return r.NodeID == device })
 	if i < 0 {
-		return "", registry.Invalid("folder %s of project %s is not on %s, where %s runs: %s", rows[0].Name, p.Name, machine, provider, s.machines(ctx, rows))
+		return "", registry.Invalid("folder %s of project %s is not on %s, where %s runs: %s", rows[0].Name, p.Name, machine, pv, s.machines(ctx, rows))
 	}
 	if device != 0 {
 		return rows[i].Path, nil
@@ -315,7 +319,7 @@ func (s *Service) Paths(ctx context.Context, projectID, device int64) []string {
 }
 
 // ScriptsAt is where the scripts of a project run: on deck while each of its folders is on deck's machine, else on a
-// node that holds every folder deck's machine does not, the first of them online.
+// node that holds every one of them, the first such online; a script sees the folders of one machine.
 func (s *Service) ScriptsAt(ctx context.Context, projectID int64) (process.Place, error) {
 	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
@@ -325,32 +329,23 @@ func (s *Service) ScriptsAt(ctx context.Context, projectID int64) (process.Place
 	if err != nil {
 		return process.Place{}, err
 	}
-	onDeck := map[string]bool{}
-	for _, f := range fs {
-		if f.NodeID == 0 {
-			onDeck[f.Name] = true
-		}
+	all := names(fs)
+	holds := func(device int64) bool {
+		return !slices.ContainsFunc(all, func(name string) bool {
+			return !slices.ContainsFunc(fs, func(f db.ProjectFolder) bool { return f.Name == name && f.NodeID == device })
+		})
 	}
-	// nodes are those that hold every folder deck's machine does not, in the order of their first folder.
-	var nodes []int64
-	first := true
-	for _, name := range names(fs) {
-		if onDeck[name] {
-			continue
-		}
-		var has []int64
-		for _, f := range fs {
-			if f.Name == name && f.NodeID != 0 && (first || slices.Contains(nodes, f.NodeID)) {
-				has = append(has, f.NodeID)
-			}
-		}
-		nodes, first = has, false
-		if len(nodes) == 0 {
-			return process.Place{}, registry.Invalid("the folders of project %s are on different machines, and its scripts run on one: put them on one node in the settings of the module, Access", p.Name)
-		}
-	}
-	if first {
+	if holds(0) {
 		return process.Place{Folders: s.Paths(ctx, projectID, 0)}, nil
+	}
+	var nodes []int64
+	for _, f := range fs {
+		if f.NodeID != 0 && !slices.Contains(nodes, f.NodeID) && holds(f.NodeID) {
+			nodes = append(nodes, f.NodeID)
+		}
+	}
+	if len(nodes) == 0 {
+		return process.Place{}, registry.Invalid("the folders of project %s are on different machines, and its scripts run on one: put them on one node in the settings of the module, Access", p.Name)
 	}
 	device := nodes[0]
 	for _, d := range nodes {

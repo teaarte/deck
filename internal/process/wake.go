@@ -116,11 +116,12 @@ func (r *Runner) wake(ctx context.Context) {
 			}
 			busy[key] = true
 		case StateWaitingFolder:
-			if busy["folder:"+p.Folder] || !r.folderFree(ctx, p.Folder) {
-				busy["folder:"+p.Folder] = true
+			lock := lockOf(p.Folder, p.Provider)
+			if busy["folder:"+lock] || !r.folderFree(ctx, lock) {
+				busy["folder:"+lock] = true
 				continue
 			}
-			busy["folder:"+p.Folder] = true
+			busy["folder:"+lock] = true
 		}
 		if ok, err := r.claim(ctx, p.ID, p.State); err != nil || !ok {
 			s.release(ctx)

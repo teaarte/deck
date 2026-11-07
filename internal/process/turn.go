@@ -124,7 +124,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 			fail(fault.New(fault.ProgramMissing, fmt.Sprintf("deck: the project folder %s is gone or moved", t.folder)))
 			return nil, false
 		}
-		if !r.holdFolder(ctx, *t, t.folder) {
+		if !r.holdFolder(ctx, *t, lockOf(t.folder, pv.Name())) {
 			return nil, false
 		}
 	}

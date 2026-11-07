@@ -111,7 +111,7 @@ func (s *Service) onNodes(ctx context.Context, workspace int64, base []provider.
 
 // away says a provider runs on a node that is not connected now.
 func (s *Service) away(ctx context.Context, workspace int64, name string) bool {
-	_, node, ok := remote.Split(name)
+	_, node, ok := provider.AtNode(name)
 	if !ok || s.Nodes == nil {
 		return false
 	}
@@ -121,7 +121,7 @@ func (s *Service) away(ctx context.Context, workspace int64, name string) bool {
 
 // awayAnywhere says a provider runs on a node not connected now, in whichever workspace has it.
 func (s *Service) awayAnywhere(ctx context.Context, name string) bool {
-	if _, _, ok := remote.Split(name); !ok {
+	if _, _, ok := provider.AtNode(name); !ok {
 		return false
 	}
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)

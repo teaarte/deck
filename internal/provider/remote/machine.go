@@ -33,15 +33,6 @@ type Machine struct {
 	Denied func(device int64)
 }
 
-// Split splits the name of a provider on a node, such as claude-code@Mac, into the provider and the node.
-func Split(name string) (base, node string, ok bool) {
-	i := strings.LastIndex(name, "@")
-	if i <= 0 || i == len(name)-1 {
-		return "", "", false
-	}
-	return name[:i], name[i+1:], true
-}
-
 func (m *Machine) online() bool { return m.Hub.State(m.Device).Online }
 
 func (m *Machine) wait0() time.Duration {

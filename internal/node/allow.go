@@ -95,7 +95,9 @@ func (a Allowed) String() string {
 // Empty says the node allows deck nothing.
 func (a Allowed) Empty() bool { return len(a.Ports)+len(a.Agents)+len(a.Paths) == 0 }
 
-func isPath(w string) bool { return strings.HasPrefix(w, "/") || w == "~" || strings.HasPrefix(w, "~/") }
+func isPath(w string) bool {
+	return strings.HasPrefix(w, "/") || w == "~" || strings.HasPrefix(w, "~/")
+}
 
 // cleanPath is a folder of the list as its owner wrote it, cleaned.
 func cleanPath(w string) (string, error) {

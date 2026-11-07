@@ -67,7 +67,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 		}
 		env, secrets = append(env, k+"="+v), append(secrets, used...)
 	}
-	folders, err := x.Store.Q.ListProjectFolders(ctx, p.ID)
+	folders, err := x.Store.Q.ListMachineFolders(ctx, db.ListMachineFoldersParams{ProjectID: p.ID})
 	if err != nil {
 		return mcphost.Spec{}, err
 	}

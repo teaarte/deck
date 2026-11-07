@@ -13,6 +13,7 @@ import (
 
 	"deck2/internal/files"
 	"deck2/internal/home"
+	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -50,6 +51,9 @@ type Service struct {
 	// is connected.
 	Node   func(device int64) http.RoundTripper
 	Online func(device int64) bool
+	// FolderNodes are the nodes that hold the folder of a project an agent command works in, and whether deck's
+	// machine holds it too.
+	FolderNodes func(ctx context.Context, projectID int64, f manifest.Folder) (nodes []string, deck bool, err error)
 	// Go runs work beside the calls; false once deck stops.
 	Go func(func(context.Context)) bool
 

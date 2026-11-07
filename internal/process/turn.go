@@ -114,8 +114,13 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		return nil, false
 	}
 	t.folder = p.Folder
+	var node int64
+	if n, ok := pv.(provider.Noded); ok {
+		node = n.NodeOf()
+	}
 	if t.folder != "" {
-		if real, err := filepath.EvalSymlinks(t.folder); err != nil || real != t.folder {
+		// The node checks a folder of its own machine as the turn starts there.
+		if real, err := filepath.EvalSymlinks(t.folder); node == 0 && (err != nil || real != t.folder) {
 			fail(fault.New(fault.ProgramMissing, fmt.Sprintf("deck: the project folder %s is gone or moved", t.folder)))
 			return nil, false
 		}
@@ -137,7 +142,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	if t.folder != "" {
 		work = t.folder
 		_, err := os.Stat(filepath.Join(work, ".git"))
-		repo = err == nil
+		repo = err == nil && node == 0
 	} else if err := os.MkdirAll(work, 0o700); err != nil {
 		fail(fault.Of(err))
 		return nil, false
@@ -165,19 +170,14 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	a.run, a.tools = u, r.gw.Tools(u.tok)
 	tok, stream := u.tok, u.stream
 	a.cleanup = func() { u.close(r) }
-	var read []string
-	if folders, err := r.st.Q.ListProjectFolders(ctx, t.project); err == nil {
-		for _, f := range folders {
-			read = append(read, f.Path)
-		}
-	}
+	read := r.deps.Folders(ctx, t.project, node)
 	var box sandbox.Box
 	if now, err := docs.For(ctx, r.st.Q, registry.Actor{}, t.project); err == nil {
 		box = boxes.For(sandbox.KindAgent, now, read)
 	}
 	processID := t.process
 	a.req = provider.Request{
-		Project: t.project, Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
+		Project: t.project, Cwd: work, Repo: repo, Folder: t.folder != "", Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
 		SessionID: t.session, Resume: t.resume, Dirs: []string{a.data, r.cfg.Home.Results(processID)}, Data: a.data, Read: read, Hosts: box.Hosts, GPU: box.GPU,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },

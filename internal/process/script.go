@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"deck2/internal/fault"
@@ -50,30 +51,36 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	defer u.close(r)
-	side, end := r.scripts.Sandbox.Side(r.gw.Handler(u.tok))
-	defer end()
 	input, inDir, err := r.inputFiles(bg, t.cmd, t.project, id, t.input, false)
 	if err != nil {
 		fail(fault.New(fault.InputInvalid, err.Error()))
 		return
 	}
-	folders, err := r.st.Q.ListProjectFolders(bg, t.project)
+	place, err := r.deps.ScriptsAt(bg, t.project)
 	if err != nil {
-		fail(fault.Of(err))
+		fail(fault.OfCall(err))
 		return
 	}
-	var paths []string
-	for _, f := range folders {
-		paths = append(paths, f.Path)
-	}
-	box := boxes.For(sandbox.KindScript, granted, paths)
-	box.Mark, box.Deck = r.scripts.Sandbox.Mark(sandbox.KindScript, fmt.Sprint(id)), side
 	job := script.Job{Project: t.project, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: r.runDir(id),
-		Stdin: []byte(input), Box: box, Token: u.tok, Read: []string{inDir},
+		Stdin: []byte(input), Box: boxes.For(sandbox.KindScript, granted, place.Folders), Token: u.tok, Read: []string{inDir},
 		OnLine:  func(line string) { r.event(bg, id, u.stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}
-	out, err := r.scripts.Run(ctx, job)
+	var out []byte
+	if place.On != nil {
+		// The token of the script stays on deck: its side puts it in the calls the node brings by the node's key.
+		gw := r.gw.Handler(u.tok)
+		side := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			req.Header.Set("Authorization", "Bearer "+u.tok)
+			gw.ServeHTTP(w, req)
+		})
+		out, err = place.On.Run(ctx, job, side, func(e provider.Event) { r.event(bg, id, u.stream, e) })
+	} else {
+		side, end := r.scripts.Sandbox.Side(r.gw.Handler(u.tok))
+		job.Box.Mark, job.Box.Deck = r.scripts.Sandbox.Mark(sandbox.KindScript, fmt.Sprint(id)), side
+		out, err = r.scripts.Run(ctx, job)
+		end()
+	}
 	r.setGroup(bg, id, 0)
 	if r.cutRun(bg, ctx, u) {
 		return

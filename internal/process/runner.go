@@ -1,6 +1,7 @@
 package process
 
 import (
+	"net/http"
 	"cmp"
 	"context"
 	"database/sql"
@@ -141,6 +142,17 @@ type liveTurn struct {
 	watch *watch
 }
 
+// Elsewhere runs scripts on another machine than deck's: side is deck's side of a script, emit tells the feed.
+type Elsewhere interface {
+	Run(ctx context.Context, j script.Job, side http.Handler, emit func(provider.Event)) ([]byte, error)
+}
+
+// Place is where the scripts of a project run: On, nil for deck's own machine, and the folders of the project there.
+type Place struct {
+	On      Elsewhere
+	Folders []string
+}
+
 // Deps are what the runner takes from the rest of deck.
 type Deps struct {
 	Store   *store.Store
@@ -171,8 +183,12 @@ type Deps struct {
 	Skills func(ctx context.Context, projectID int64, names []string) (map[string]string, error)
 	// Servers starts the MCP servers of a project whose tools deck has not listed yet.
 	Servers func(ctx context.Context, projectID int64)
-	// Folder is the real path of the project folder an agent command works in.
-	Folder func(ctx context.Context, projectID int64, f manifest.Folder) (string, error)
+	// Folder is the real path of the project folder an agent command works in, on the machine of its provider.
+	Folder func(ctx context.Context, projectID int64, f manifest.Folder, provider string) (string, error)
+	// Folders are the paths of the folders of a project on the machine of a node, deck's own for 0.
+	Folders func(ctx context.Context, projectID, node int64) []string
+	// ScriptsAt is where the scripts of a project run: on the node that holds its folders, else on deck.
+	ScriptsAt func(ctx context.Context, projectID int64) (Place, error)
 	// Memory is the memory a fresh session of the process gets, as data; empty when there is none.
 	Memory func(ctx context.Context, p db.Process) (string, error)
 	// Programs looks for the programs of the scripts of a project again and writes the health of its commands.

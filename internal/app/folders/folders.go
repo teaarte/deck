@@ -1,4 +1,5 @@
-// Package folders keeps the folders on disk a project's agent commands work in and its scripts and MCP servers read.
+// Package folders keeps the folders on disk a project's agent commands work in and its scripts and MCP servers read,
+// on deck's machine or on that of a node.
 package folders
 
 import (
@@ -6,11 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
+	"time"
 
 	"deck2/internal/access"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
+	"deck2/internal/node"
+	"deck2/internal/process"
+	"deck2/internal/provider/remote"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -21,12 +27,21 @@ import (
 type Service struct {
 	St   *store.Store
 	Home home.Layout
+	// Node is the node of a workspace by its name; Probe asks a node about the folders of its machine; Online says a
+	// node is connected now.
+	Node   func(ctx context.Context, workspace int64, name string) (int64, error)
+	Probe  func(ctx context.Context, device int64, addresses, paths []string) (node.Probed, error)
+	Online func(device int64) bool
+	// Scripts runs scripts on a node.
+	Scripts func(device int64, name string) *remote.Scripts
 }
 
-// Row is a folder of a project by its name.
+// Row is a folder of a project by its name, on deck's machine or on that of Node; a repository may be on several.
 type Row struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
+	Node string `json:"node"`
+	Repo bool   `json:"repo"`
 }
 
 // realFolder is the real path of an existing folder outside deck's own.
@@ -63,18 +78,46 @@ func defaultFolderName(path string) string {
 
 type folderAddIn struct {
 	Project string `type:"project" desc:"Project name"`
-	Path    string `desc:"Absolute path of the folder"`
+	Path    string `desc:"Absolute path of the folder, on the machine of the node when one is named"`
 	Name    string `opt:"" desc:"Folder name in the project; the folder's own name when omitted"`
+	Node    string `opt:"" desc:"The node whose machine holds the folder, by its name in Devices; deck's own machine when omitted. A git repository may have a clone on each machine under one name"`
 }
+
+// probeWait is how long deck waits for a node to say what a folder of its machine is.
+const probeWait = 10 * time.Second
 
 func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAddIn) (any, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	real, err := s.realFolder(in.Path)
-	if err != nil {
-		return nil, err
+	var real string
+	var device int64
+	repo := false
+	if in.Node == "" {
+		if real, err = s.realFolder(in.Path); err != nil {
+			return nil, err
+		}
+		_, err := os.Stat(filepath.Join(real, ".git"))
+		repo = err == nil
+	} else {
+		if device, err = s.Node(ctx, p.WorkspaceID, in.Node); err != nil {
+			return nil, err
+		}
+		if _, err := home.Abs(in.Path); err != nil {
+			return nil, registry.Invalid("%v", err)
+		}
+		pctx, cancel := context.WithTimeout(ctx, probeWait)
+		got, err := s.Probe(pctx, device, nil, []string{in.Path})
+		cancel()
+		if err != nil {
+			return nil, registry.Invalid("node %s is not connected: a folder of its machine is added while it is online", in.Node)
+		}
+		f := got.Folders[in.Path]
+		if f.Real == "" {
+			return nil, registry.Invalid("node %s: %s", in.Node, f.Error)
+		}
+		real, repo = f.Real, f.Repo
 	}
 	name := in.Name
 	if name == "" {
@@ -90,25 +133,26 @@ func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAd
 			return err
 		}
 		for _, h := range have {
-			if h.Name == name {
-				return registry.Invalid("project %s already has a folder named %s (%s)", p.Name, name, h.Path)
+			if h.Name == name && (h.NodeID == device || h.Repo == 0 || !repo) {
+				return registry.Invalid("project %s already has a folder named %s (%s); only a git repository has a clone on each machine under one name", p.Name, name, h.Path)
 			}
-			if h.Path == real {
+			if h.Path == real && h.NodeID == device {
 				return registry.Invalid("project %s already has folder %s as %s", p.Name, real, h.Name)
 			}
 		}
-		f, err = q.AddProjectFolder(ctx, db.AddProjectFolderParams{ProjectID: p.ID, Name: name, Path: real})
+		f, err = q.AddProjectFolder(ctx, db.AddProjectFolderParams{ProjectID: p.ID, Name: name, Path: real, NodeID: device, Repo: store.Bool(repo)})
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"project": p.Name, "name": f.Name, "path": f.Path}, nil
+	return map[string]any{"project": p.Name, "name": f.Name, "path": f.Path, "node": in.Node, "repo": repo}, nil
 }
 
 type folderDeleteIn struct {
 	Project string `type:"project" desc:"Project name"`
 	Name    string `desc:"Folder name in the project"`
+	Node    string `opt:"" desc:"The node whose clone of a repository goes; every machine's when omitted"`
 }
 
 func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folderDeleteIn) (any, error) {
@@ -116,7 +160,16 @@ func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folde
 	if err != nil {
 		return nil, err
 	}
+	var device int64
+	if in.Node != "" {
+		if device, err = s.Node(ctx, p.WorkspaceID, in.Node); err != nil {
+			return nil, err
+		}
+	}
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		if in.Node != "" {
+			return q.RemoveProjectFolderOn(ctx, db.RemoveProjectFolderOnParams{ProjectID: p.ID, Name: in.Name, NodeID: device})
+		}
 		return q.RemoveProjectFolder(ctx, db.RemoveProjectFolderParams{ProjectID: p.ID, Name: in.Name})
 	})
 	if err != nil {
@@ -131,46 +184,193 @@ func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folde
 // List are the folders of a project.
 func (s *Service) List(ctx context.Context, projectID int64) ([]Row, error) {
 	fs, err := s.St.Q.ListProjectFolders(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	names := s.nodeNames(ctx)
 	out := make([]Row, 0, len(fs))
 	for _, f := range fs {
-		out = append(out, Row{Name: f.Name, Path: f.Path})
+		out = append(out, Row{Name: f.Name, Path: f.Path, Node: names[f.NodeID], Repo: f.Repo != 0})
 	}
-	return out, err
+	return out, nil
 }
 
-// Folder is the real path of the project folder an agent command works in, checked to still be there.
-func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder) (string, error) {
+// nodeNames are the names of the nodes by their devices.
+func (s *Service) nodeNames(ctx context.Context) map[int64]string {
+	out := map[int64]string{}
+	if nodes, err := s.St.Q.ListNodes(ctx); err == nil {
+		for _, d := range nodes {
+			out[d.ID] = d.Name
+		}
+	}
+	return out
+}
+
+// named are the machines of the folder of a project an agent command works in: one row a machine.
+func (s *Service) named(ctx context.Context, p db.Project, f manifest.Folder) ([]db.ProjectFolder, error) {
+	fs, err := s.St.Q.ListProjectFolders(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	name := f.Name
+	if name == "" {
+		switch all := names(fs); len(all) {
+		case 0:
+			return nil, registry.Invalid("project %s has no folder yet; the owner adds one in the settings of the module, Access", p.Name)
+		case 1:
+			name = all[0]
+		default:
+			return nil, registry.Invalid("project %s has %d folders; the command has to name one in folder", p.Name, len(all))
+		}
+	}
+	var out []db.ProjectFolder
+	for _, x := range fs {
+		if x.Name == name {
+			out = append(out, x)
+		}
+	}
+	if len(out) == 0 {
+		return nil, registry.Invalid("project %s has no folder %s; the owner adds it in the settings of the module, Access", p.Name, name)
+	}
+	return out, nil
+}
+
+// Folder is the real path of the project folder an agent command works in on the machine of provider, checked to
+// still be there on deck's; a node checks one of its own as the turn starts there.
+func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder, provider string) (string, error) {
 	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return "", err
 	}
-	fs, err := s.St.Q.ListProjectFolders(ctx, projectID)
+	rows, err := s.named(ctx, p, f)
 	if err != nil {
 		return "", err
 	}
-	var path string
-	switch {
-	case f.Name != "":
-		for _, x := range fs {
-			if x.Name == f.Name {
-				path = x.Path
-			}
+	var device int64
+	machine := "deck's machine"
+	if _, at, ok := remote.Split(provider); ok {
+		if device, err = s.Node(ctx, p.WorkspaceID, at); err != nil {
+			return "", err
 		}
-		if path == "" {
-			return "", registry.Invalid("project %s has no folder %s; the owner adds it in the settings of the module, Access", p.Name, f.Name)
-		}
-	case len(fs) == 0:
-		return "", registry.Invalid("project %s has no folder yet; the owner adds one in the settings of the module, Access", p.Name)
-	case len(fs) > 1:
-		return "", registry.Invalid("project %s has %d folders; the command has to name one in folder", p.Name, len(fs))
-	default:
-		path = fs[0].Path
+		machine = "node " + at
 	}
-	real, err := s.realFolder(path)
+	i := slices.IndexFunc(rows, func(r db.ProjectFolder) bool { return r.NodeID == device })
+	if i < 0 {
+		return "", registry.Invalid("folder %s of project %s is not on %s, where %s runs: %s", rows[0].Name, p.Name, machine, provider, s.machines(ctx, rows))
+	}
+	if device != 0 {
+		return rows[i].Path, nil
+	}
+	real, err := s.realFolder(rows[i].Path)
 	if err != nil {
-		return "", registry.Invalid("folder %s of project %s is gone or moved: %v", path, p.Name, err)
+		return "", registry.Invalid("folder %s of project %s is gone or moved: %v", rows[i].Path, p.Name, err)
 	}
 	return real, nil
+}
+
+// machines says where the rows of a folder are.
+func (s *Service) machines(ctx context.Context, rows []db.ProjectFolder) string {
+	names := s.nodeNames(ctx)
+	var on []string
+	for _, r := range rows {
+		if r.NodeID == 0 {
+			on = append(on, "deck's machine")
+		} else {
+			on = append(on, "node "+names[r.NodeID])
+		}
+	}
+	return "it is on " + strings.Join(on, ", ")
+}
+
+// Nodes are the nodes that hold the folder of a project an agent command works in, by their names, and whether
+// deck's own machine holds it too.
+func (s *Service) Nodes(ctx context.Context, projectID int64, f manifest.Folder) (nodes []string, deck bool, err error) {
+	p, err := s.St.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, false, err
+	}
+	rows, err := s.named(ctx, p, f)
+	if err != nil {
+		return nil, false, err
+	}
+	names := s.nodeNames(ctx)
+	for _, r := range rows {
+		if r.NodeID == 0 {
+			deck = true
+		} else if n := names[r.NodeID]; n != "" {
+			nodes = append(nodes, n)
+		}
+	}
+	return nodes, deck, nil
+}
+
+// Paths are the paths of the folders of a project on the machine of a node, deck's own for 0.
+func (s *Service) Paths(ctx context.Context, projectID, device int64) []string {
+	fs, _ := s.St.Q.ListMachineFolders(ctx, db.ListMachineFoldersParams{ProjectID: projectID, NodeID: device})
+	var out []string
+	for _, f := range fs {
+		out = append(out, f.Path)
+	}
+	return out
+}
+
+// ScriptsAt is where the scripts of a project run: on deck while each of its folders is on deck's machine, else on a
+// node that holds every folder deck's machine does not, the first of them online.
+func (s *Service) ScriptsAt(ctx context.Context, projectID int64) (process.Place, error) {
+	p, err := s.St.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return process.Place{}, err
+	}
+	fs, err := s.St.Q.ListProjectFolders(ctx, projectID)
+	if err != nil {
+		return process.Place{}, err
+	}
+	onDeck := map[string]bool{}
+	for _, f := range fs {
+		if f.NodeID == 0 {
+			onDeck[f.Name] = true
+		}
+	}
+	// nodes are those that hold every folder deck's machine does not, in the order of their first folder.
+	var nodes []int64
+	first := true
+	for _, name := range names(fs) {
+		if onDeck[name] {
+			continue
+		}
+		var has []int64
+		for _, f := range fs {
+			if f.Name == name && f.NodeID != 0 && (first || slices.Contains(nodes, f.NodeID)) {
+				has = append(has, f.NodeID)
+			}
+		}
+		nodes, first = has, false
+		if len(nodes) == 0 {
+			return process.Place{}, registry.Invalid("the folders of project %s are on different machines, and its scripts run on one: put them on one node in the settings of the module, Access", p.Name)
+		}
+	}
+	if first {
+		return process.Place{Folders: s.Paths(ctx, projectID, 0)}, nil
+	}
+	device := nodes[0]
+	for _, d := range nodes {
+		if s.Online(d) {
+			device = d
+			break
+		}
+	}
+	return process.Place{On: s.Scripts(device, s.nodeNames(ctx)[device]), Folders: s.Paths(ctx, projectID, device)}, nil
+}
+
+// names are the names of folders in their order, each once.
+func names(fs []db.ProjectFolder) []string {
+	var out []string
+	for _, f := range fs {
+		if !slices.Contains(out, f.Name) {
+			out = append(out, f.Name)
+		}
+	}
+	return out
 }
 
 type foldersListIn struct {
@@ -189,10 +389,10 @@ func (s *Service) foldersList(ctx context.Context, act registry.Actor, in folder
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("folders_list", "Folders",
-			"Lists the folders on disk a project's agent commands work in.",
+			"Lists the folders on disk a project's agent commands work in, each on deck's machine or on that of a node.",
 			registry.OwnerOnly, s.foldersList).On("folders"),
 		registry.Def("folder_add", "Add a folder",
-			"Gives a project a folder on disk: its agent commands with folder work in it, its scripts and MCP servers read it; only the owner, since it lets agents write there.",
+			"Gives a project a folder on disk: its agent commands with folder work in it, its scripts and MCP servers read it; only the owner, since it lets agents write there. A folder of a node is on its machine: the turns and scripts that use it run there, and the node allows the folder with deck -join --allow.",
 			registry.OwnerOnly, s.folderAdd),
 		registry.Def("folder_delete", "Remove folder",
 			"Takes a folder from a project; the folder on disk stays as it is.",

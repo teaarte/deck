@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"strings"
 
-	"deck2/internal/auth"
 	"deck2/internal/egress"
 	"deck2/internal/models"
 	"deck2/internal/registry"
@@ -65,23 +64,11 @@ func (s *Service) nodeOf(ctx context.Context, workspace int64, name, address str
 	if u, err := url.Parse(address); err != nil || !egress.IsLoopback(u.Hostname()) {
 		return sql.NullInt64{}, registry.Invalid("a node serves only the addresses of its own machine, such as http://127.0.0.1:8178; %q is not one", address)
 	}
-	devices, err := s.St.Q.ListDevices(ctx, workspace)
+	device, err := s.NodeNamed(ctx, workspace, name)
 	if err != nil {
 		return sql.NullInt64{}, err
 	}
-	var found []int64
-	for _, d := range devices {
-		if d.Device.Kind == auth.Node && !d.Device.RevokedAt.Valid && d.Device.Name == name {
-			found = append(found, d.Device.ID)
-		}
-	}
-	switch len(found) {
-	case 0:
-		return sql.NullInt64{}, registry.NotFound("no node %q among the devices; pair one with deck pair --node", name)
-	case 1:
-		return sql.NullInt64{Int64: found[0], Valid: true}, nil
-	}
-	return sql.NullInt64{}, registry.Invalid("%d nodes are named %q; rename one in Devices", len(found), name)
+	return sql.NullInt64{Int64: device, Valid: true}, nil
 }
 
 type connectionDeleteIn struct {

@@ -357,6 +357,8 @@ type ProjectFolder struct {
 	ProjectID int64
 	Name      string
 	Path      string
+	NodeID    int64
+	Repo      int64
 	CreatedAt string
 }
 

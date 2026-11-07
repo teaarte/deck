@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 
 	deckhome "deck2/internal/home"
@@ -25,6 +26,7 @@ type Node struct {
 	Home    string
 	mu      sync.Mutex
 	allowed node.Allowed
+	srv     *remote.Server
 	stop    context.CancelFunc
 	done    chan struct{}
 }
@@ -65,24 +67,45 @@ func (e *Env) PairNode(name string) *Node {
 // node's own folder, an ACP agent on api, deck's proxy of its model; it comes before Start, after a change of Joined.
 func (n *Node) RunAgents(build func(spec remote.Spec, home string, api func(provider.ModelHooks) http.Handler) provider.Provider) {
 	n.e.T.Helper()
+	srv := n.serve()
+	srv.Build = func(spec remote.Spec, api func(provider.ModelHooks) http.Handler) (provider.Provider, error) {
+		return build(spec, n.Home, api), nil
+	}
+}
+
+// RunScripts makes the node run the scripts of deck's projects whose folders are on its machine, in its own box; it
+// comes before Start.
+func (n *Node) RunScripts() {
+	n.e.T.Helper()
+	n.serve()
+}
+
+// serve is the server of the turns and scripts of the node, made once.
+func (n *Node) serve() *remote.Server {
+	if n.srv != nil {
+		return n.srv
+	}
 	back, err := node.ServeBack(n.Joined)
 	if err != nil {
 		n.e.T.Fatal(err)
 	}
 	n.e.T.Cleanup(back.Close)
 	n.Home = n.e.T.TempDir()
-	srv := &remote.Server{Home: deckhome.Layout(n.Home), Sandbox: sandbox.New(deckhome.Layout(n.Home)), Back: back.URL, Allowed: n.Serving.Allowed,
-		Build: func(spec remote.Spec, api func(provider.ModelHooks) http.Handler) (provider.Provider, error) {
-			return build(spec, n.Home, api), nil
-		}}
-	n.Serving.Agents, n.Serving.Has = srv, srv.Has
+	n.Serving.Own = []string{n.Home, n.e.Home}
+	n.srv = &remote.Server{Home: deckhome.Layout(n.Home), Sandbox: sandbox.New(deckhome.Layout(n.Home)), Back: back.URL,
+		Allowed: n.Serving.Allowed, Folder: n.Serving.Folder}
+	n.Serving.Agents, n.Serving.Has = n.srv, n.srv.Has
+	return n.srv
 }
 
-// Allow sets what the owner of the node allows, as an edit of its file: URLs by their ports, and agents.
+// Allow sets what the owner of the node allows, as an edit of its file: URLs by their ports, folders by their paths,
+// and agents.
 func (n *Node) Allow(allow ...string) {
 	var a node.Allowed
 	for _, s := range allow {
-		if u, err := url.Parse(s); err == nil && u.Port() != "" {
+		if strings.HasPrefix(s, "/") {
+			a.Paths = append(a.Paths, s)
+		} else if u, err := url.Parse(s); err == nil && u.Port() != "" {
 			p, _ := strconv.Atoi(u.Port())
 			a.Ports = append(a.Ports, p)
 		} else {

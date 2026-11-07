@@ -78,3 +78,9 @@ and bring the modules in line.
   changed come back to deck at the end of the turn; a project folder of deck's machine stays out of its reach, so
   such a turn goes to the next agent. A node gone in the middle of a turn is waited for a few minutes, then the work
   goes to the next agent of the assignment. A node serves only the ports and agents its owner allows there.
+- 2026-11-07: a project folder can be on a node (`folder_add` with `node`; `folders_list` gives `node` and `repo`): an
+  agent command in such a folder runs on the agent of that node in the folder itself, a git repository may have a
+  clone on each machine under one name; the scripts of a module whose folders are on a node run on that node and read
+  them there, the others on deck, without a field of the manifest. Data, records and files stay on deck; what a script
+  on a node changed in its run folder and the data of the module comes back at its end. The node allows a folder by
+  its path (`--allow ~/lab/data`); a folder off its list is refused with what to add.

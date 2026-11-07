@@ -1,13 +1,25 @@
 -- name: AddProjectFolder :one
-INSERT INTO project_folder (project_id, name, path) VALUES (?, ?, ?) RETURNING *;
+INSERT INTO project_folder (project_id, name, path, node_id, repo) VALUES (?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: ListProjectFolders :many
-SELECT * FROM project_folder WHERE project_id = ? ORDER BY name;
+SELECT * FROM project_folder WHERE project_id = ? ORDER BY name, node_id;
+
+
+-- name: ListMachineFolders :many
+SELECT * FROM project_folder WHERE project_id = ? AND node_id = ? ORDER BY name;
+
+
+-- name: ListNodeFolders :many
+SELECT f.*, p.name AS project FROM project_folder f JOIN project p ON p.id = f.project_id WHERE f.node_id = ? ORDER BY p.name, f.name;
 
 
 -- name: RemoveProjectFolder :execrows
 DELETE FROM project_folder WHERE project_id = ? AND name = ?;
+
+
+-- name: RemoveProjectFolderOn :execrows
+DELETE FROM project_folder WHERE project_id = ? AND name = ? AND node_id = ?;
 
 
 -- name: DropStaleFolderLocks :exec
@@ -31,4 +43,4 @@ DELETE FROM folder_lock WHERE process_id = ?;
 
 
 -- name: ListWorkspaceFolderPaths :many
-SELECT f.path FROM project_folder f JOIN project p ON p.id = f.project_id WHERE p.workspace_id = ? ORDER BY f.path;
+SELECT f.path FROM project_folder f JOIN project p ON p.id = f.project_id WHERE p.workspace_id = ? AND f.node_id = 0 ORDER BY f.path;

@@ -15,6 +15,7 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
+	"deck2/internal/provider/remote"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -252,7 +253,7 @@ func errText(err error) string {
 
 // onCLI reports whether a provider is a model of an agent CLI on the owner's subscription, on a node too.
 func (s *Service) onCLI(ctx context.Context, name string) bool {
-	if base, _, ok := atNode(name); ok {
+	if base, _, ok := remote.Split(name); ok {
 		name = base
 	}
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)

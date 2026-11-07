@@ -18,7 +18,9 @@ type Request struct {
 	Project int64
 	Cwd     string
 	// Repo means Cwd is a code repository: its own instructions load, those of the folders above do not.
-	Repo         bool
+	Repo bool
+	// Folder means Cwd is a folder of the project, on the machine of the provider.
+	Folder       bool
 	Prompt       string
 	ResultSchema json.RawMessage
 	// Skills are AgentSkills files by path, "<skill>/SKILL.md" and the rest of each skill folder.
@@ -239,6 +241,11 @@ type Check struct {
 // Subscribed is a provider that runs on the owner's subscription: what its calls would cost is only an estimate.
 type Subscribed interface {
 	OnSubscription()
+}
+
+// Noded is a provider whose turns run on a node, by the device of the node.
+type Noded interface {
+	NodeOf() int64
 }
 
 // Model is a model a CLI lists: the names it answers to, the efforts it takes, and why deck's turns cannot run on

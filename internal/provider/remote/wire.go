@@ -8,18 +8,23 @@ import (
 	"time"
 
 	"deck2/internal/fault"
+	"deck2/internal/manifest"
 	"deck2/internal/node"
 	"deck2/internal/provider"
 )
 
 // Paths of the calls deck makes of a node about its agents.
 const (
-	turnPath  = node.AgentPath + "turn"
-	filesPath = node.AgentPath + "files"
-	gonePath  = node.AgentPath + "gone"
-	checkPath = node.AgentPath + "check"
-	loginPath = node.AgentPath + "login"
+	turnPath   = node.AgentPath + "turn"
+	filesPath  = node.AgentPath + "files"
+	gonePath   = node.AgentPath + "gone"
+	checkPath  = node.AgentPath + "check"
+	loginPath  = node.AgentPath + "login"
+	scriptPath = node.AgentPath + "script"
 )
+
+// folderHeader marks a refusal of a node of a folder its owner did not allow.
+const folderHeader = "Deck-Node-Folder"
 
 // Spec is the provider a node builds for a turn: an agent, the model of deck's settings it runs and its effort, and
 // for an ACP agent what deck's settings give it.
@@ -35,10 +40,13 @@ type Spec struct {
 	CheckCeiling time.Duration `json:"check_ceiling,omitempty"`
 }
 
-// request is a turn as deck hands it to a node: its folders by their paths under deck's folder.
+// request is a turn as deck hands it to a node: its folders by their paths under deck's folder, or Folder, the folder
+// of its project on the node's machine it works in, and Read, those it reads there.
 type request struct {
 	Project      int64             `json:"project"`
-	Cwd          string            `json:"cwd"`
+	Cwd          string            `json:"cwd,omitempty"`
+	Folder       string            `json:"folder,omitempty"`
+	Read         []string          `json:"read,omitempty"`
 	Repo         bool              `json:"repo,omitempty"`
 	Prompt       string            `json:"prompt"`
 	ResultSchema json.RawMessage   `json:"result_schema,omitempty"`
@@ -110,6 +118,35 @@ func (e ended) err() error {
 		return errors.New(e.Error)
 	}
 	return nil
+}
+
+// scriptCall is a script deck hands a node: its run folder by its path under deck's folder, the folders of its
+// project it reads on the node's machine, and deck's side of it by its token.
+type scriptCall struct {
+	Project int64           `json:"project"`
+	Script  manifest.Script `json:"script"`
+	Source  string          `json:"source"`
+	Dir     string          `json:"dir"`
+	Stdin   []byte          `json:"stdin,omitempty"`
+	Hosts   []string        `json:"hosts,omitempty"`
+	GPU     bool            `json:"gpu,omitempty"`
+	Folders []string        `json:"folders,omitempty"`
+	Read    []string        `json:"read,omitempty"`
+	Side    string          `json:"side"`
+	Session string          `json:"session"`
+}
+
+// scriptFrame is one line of a script on a node: a line of its stderr, and at last how it ended, its stdout or its
+// failure.
+type scriptFrame struct {
+	Line *string     `json:"line,omitempty"`
+	Done *scriptDone `json:"done,omitempty"`
+}
+
+type scriptDone struct {
+	Out   []byte   `json:"out,omitempty"`
+	Error string   `json:"error,omitempty"`
+	Fault *fault.F `json:"fault,omitempty"`
 }
 
 // checkCall asks a node for the self-check of an agent, an ACP agent on deck's side of the check.

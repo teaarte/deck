@@ -250,10 +250,33 @@ Mac while deck lives on a server. Allow them on the node (`--allow claude-code,c
 online, and an assignment picks it as any other agent, with fallbacks. Sign the CLI of the node in from deck: the
 sign-in of `claude-code@Mac` runs on the node, its link comes to deck. A turn on a node works in the node's copy of the
 turn's folders (up to 2 GB), reaches deck's tools, questions and the model of an ACP agent through deck by the node's
-key, and brings the files it changed back to deck at its end; a turn in a project folder of deck's machine goes to the
-next agent. On macOS the CLIs run outside a box until deck moves into a Linux container there, so an agent allowed on a
+key, and brings the files it changed back to deck at its end; a turn in a project folder runs on the machine of that
+folder (below). On macOS the CLIs run outside a box until deck moves into a Linux container there, so an agent allowed on a
 Mac node acts as its user: allow it only on a machine you trust deck with. If the node goes away in the middle of a turn, the turn waits for it three minutes (a row in the feed
 says so), goes on in its session if the node comes back, and otherwise goes to the next agent of the assignment.
+
+### Folders on a node
+
+A project folder can be on a node's machine, such as a repository or a folder of data deck in a container does not
+see. Allow the folder on the node with its path, as `--allow 8178,claude-code,~/code/repo,~/lab/data` (a path begins
+with `/` or `~`, and allows what is inside it; the node's own folder and `~/.deck2` are never allowed), then add it to
+the module in its settings, Access, naming the node. deck asks the node whether the folder is there and allowed:
+a folder not on its list is refused with what to add, and once the owner takes one off the list later, the turn or
+script that needs it is refused and Settings → Health says the same in the row of the node.
+
+- An agent command that works in a folder of a node runs on the agent of that node (`claude-code@Mac` for an
+  assignment of `claude-code`), in the folder itself; what it commits or pushes stays in that repository. A git
+  repository may have a clone on each machine, deck's too, under one name: the turn goes where a clone is, an online
+  one first. Any other folder is on one machine.
+- The scripts of a module whose folders are on a node run on that node, in its box, reading them; scripts of a module
+  whose folders are on deck's machine, or that has none, run on deck. No field of the manifest says where: the folders
+  do.
+- The data of the module, its records and files stay on deck: a script or a turn on a node gets a copy of its run
+  folder and of the module's data, and what it changed comes back to deck at its end (Health `disk` warns before deck's
+  disk fills).
+- While the node is off, a turn or script of its folder waits for it a few minutes (the feed and the row of the node
+  say so), runs once it is back, and otherwise a turn goes to the next agent and a script fails saying the node did not
+  come back.
 
 ## Without Docker
 

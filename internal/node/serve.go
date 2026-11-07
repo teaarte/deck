@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,7 +46,12 @@ type Serving struct {
 	Agents  http.Handler
 	// Has are the agents the node runs for deck: those allowed and found on its machine.
 	Has func() []string
+	// Own are the folders of the node and of a deck on its machine, which no folder deck uses holds or is in.
+	Own []string
 }
+
+// Folder is the real path of a folder of the node's machine its owner allows deck.
+func (s Serving) Folder(path string) (string, error) { return s.allowed().Folder(path, s.Own) }
 
 // Run keeps the node connected to deck with its key until ctx ends: it connects again after a pause that grows
 // while deck is not there, and serves deck's calls to the services of its machine.
@@ -139,7 +146,7 @@ func Handler(s Serving) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		target := r.Header.Get(TargetHeader)
 		if target == "" && r.Method == http.MethodPost && r.URL.Path == probePath {
-			answerProbe(w, r, s.allowed())
+			answerProbe(w, r, s)
 			return
 		}
 		if target == "" && strings.HasPrefix(r.URL.Path, AgentPath) {
@@ -172,15 +179,32 @@ func (s Serving) allowed() Allowed {
 	return s.Allowed()
 }
 
-// answerProbe says which of the addresses deck asks about take a connection on this machine, and which are on ports
-// the node does not allow.
-func answerProbe(w http.ResponseWriter, r *http.Request, allowed Allowed) {
+// answerProbe says which of the addresses deck asks about take a connection on this machine, which are on ports
+// the node does not allow, and what of the folders it asks about deck may use.
+func answerProbe(w http.ResponseWriter, r *http.Request, s Serving) {
 	var in probe
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&in); err != nil {
 		http.Error(w, "deck node: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	allowed := s.allowed()
 	out := probe{Up: []string{}}
+	for _, p := range in.Paths {
+		if out.Folders == nil {
+			out.Folders = map[string]Folder{}
+		}
+		real, err := allowed.Folder(p, s.Own)
+		var no *NotAllowed
+		switch {
+		case errors.As(err, &no):
+			out.Folders[p] = Folder{Denied: true, Error: err.Error()}
+		case err != nil:
+			out.Folders[p] = Folder{Error: err.Error()}
+		default:
+			_, git := os.Stat(filepath.Join(real, ".git"))
+			out.Folders[p] = Folder{Real: real, Repo: git == nil}
+		}
+	}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for _, a := range in.Addresses {

@@ -10,7 +10,9 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/provider/remote"
 	"deck2/internal/registry"
+	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
 
@@ -81,11 +83,68 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 	if err != nil {
 		return 0, nil, false, err
 	}
-	place, requires := p.Name+"."+cmd.Name, cmd.Requires
 	names, err := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, cmd.Name, RoleAgent)
 	if err != nil {
 		return 0, nil, false, err
 	}
+	fits, assigned, err := s.choices(ctx, p, cmd, names)
+	if err != nil {
+		return 0, nil, false, err
+	}
+	if fits, err = s.atFolder(ctx, p, cmd, fits); err != nil {
+		return 0, nil, false, err
+	}
+	return p.WorkspaceID, fits, assigned, nil
+}
+
+// atFolder are the providers of fits that run where the folder of an agent command is: on deck's machine, or each
+// on the nodes that hold it, as claude-code@Mac.
+func (s *Service) atFolder(ctx context.Context, p db.Project, cmd *manifest.Command, fits []provider.Provider) ([]provider.Provider, error) {
+	if cmd.Executor.Folder.IsZero() || s.FolderNodes == nil {
+		return fits, nil
+	}
+	nodes, deck, err := s.FolderNodes(ctx, p.ID, cmd.Executor.Folder)
+	if err != nil {
+		// A start says what is wrong with the folder itself.
+		return fits, nil
+	}
+	var out []provider.Provider
+	add := func(pv provider.Provider) {
+		if !slices.ContainsFunc(out, func(o provider.Provider) bool { return o.Name() == pv.Name() }) {
+			out = append(out, pv)
+		}
+	}
+	for _, pv := range fits {
+		if _, at, ok := remote.Split(pv.Name()); ok {
+			if slices.Contains(nodes, at) {
+				add(pv)
+			}
+			continue
+		}
+		if deck {
+			add(pv)
+		}
+		for _, n := range nodes {
+			if on, err := s.Provider(ctx, p.WorkspaceID, remote.Name(pv.Name(), n)); err == nil && len(on.Caps().Missing(cmd.Requires)) == 0 {
+				add(on)
+			}
+		}
+	}
+	switch {
+	case len(out) > 0:
+	case len(nodes) == 0:
+		return nil, registry.Invalid("deck: the folder of %s.%s is on deck's machine, where none of its models runs", p.Name, cmd.Name)
+	default:
+		return nil, registry.Invalid("deck: the folder of %s.%s is on node %s, where none of its models runs; the node runs an agent its owner allows with deck -join --allow, such as claude-code",
+			p.Name, cmd.Name, strings.Join(nodes, ", "))
+	}
+	return out, nil
+}
+
+// choices are the providers that run and have what a command requires, at least one: those of its assignment names
+// in order, else all with the suggestion of the manifest first; assigned says they come from an assignment.
+func (s *Service) choices(ctx context.Context, p db.Project, cmd *manifest.Command, names []string) ([]provider.Provider, bool, error) {
+	place, requires := p.Name+"."+cmd.Name, cmd.Requires
 	var fits []provider.Provider
 	if len(names) > 0 {
 		var why []string
@@ -106,13 +165,13 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 			fits = append(fits, pv)
 		}
 		if len(fits) == 0 {
-			return 0, nil, false, registry.Invalid("%s", strings.Join(why, "; "))
+			return nil, false, registry.Invalid("%s", strings.Join(why, "; "))
 		}
-		return p.WorkspaceID, fits, true, nil
+		return fits, true, nil
 	}
 	all, err := s.All(ctx, p.WorkspaceID)
 	if err != nil {
-		return 0, nil, false, err
+		return nil, false, err
 	}
 	if i := slices.IndexFunc(all, func(pv provider.Provider) bool { return pv.Name() == cmd.Provider }); i > 0 {
 		suggested := all[i]
@@ -124,9 +183,9 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 		}
 	}
 	if len(fits) == 0 {
-		return 0, nil, false, registry.Invalid("no provider fits %s, which requires %s; %s", place, strings.Join(requires, ", "), s.change(ctx, p.WorkspaceID, requires))
+		return nil, false, registry.Invalid("no provider fits %s, which requires %s; %s", place, strings.Join(requires, ", "), s.change(ctx, p.WorkspaceID, requires))
 	}
-	return p.WorkspaceID, fits, false, nil
+	return fits, false, nil
 }
 
 // change says where the owner changes the model of a command: the models of the workspace that have what it

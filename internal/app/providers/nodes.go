@@ -13,17 +13,8 @@ import (
 	"deck2/internal/store/db"
 )
 
-// atNode splits the name of a provider on a node, such as claude-code@Mac, into the provider and the node.
-func atNode(name string) (base, node string, ok bool) {
-	i := strings.LastIndex(name, "@")
-	if i <= 0 || i == len(name)-1 {
-		return "", "", false
-	}
-	return name[:i], name[i+1:], true
-}
-
-// nodeNamed is the node of a workspace by its name.
-func (s *Service) nodeNamed(ctx context.Context, workspace int64, name string) (int64, error) {
+// NodeNamed is the node of a workspace by its name.
+func (s *Service) NodeNamed(ctx context.Context, workspace int64, name string) (int64, error) {
 	nodes, err := s.St.Q.ListNodes(ctx)
 	if err != nil {
 		return 0, err
@@ -48,7 +39,7 @@ func (s *Service) onNode(ctx context.Context, workspace int64, base, name string
 	if strings.Contains(base, "@") || s.Nodes == nil {
 		return nil, registry.NotFound("no provider %q", base+"@"+name)
 	}
-	device, err := s.nodeNamed(ctx, workspace, name)
+	device, err := s.NodeNamed(ctx, workspace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +47,7 @@ func (s *Service) onNode(ctx context.Context, workspace int64, base, name string
 	if err != nil {
 		return nil, err
 	}
-	cfg := remote.Config{Spec: remote.Spec{Agent: base, Name: base}, Base: pv, Node: name, Device: device, Hub: s.Nodes, Home: s.Home,
-		Wait: s.NodeWait, Low: s.Low}
+	cfg := remote.Config{Spec: remote.Spec{Agent: base, Name: base}, Base: pv, Machine: s.machine(device, name)}
 	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: base}); err == nil {
 		m, c := row.Model, row.Connection
 		cfg.Spec.Agent, cfg.Spec.Model = m.Agent, m.Model
@@ -72,6 +62,16 @@ func (s *Service) onNode(ctx context.Context, workspace int64, base, name string
 		}
 	}
 	return remote.New(cfg), nil
+}
+
+// machine is the node device named name, as its turns and scripts reach it.
+func (s *Service) machine(device int64, name string) remote.Machine {
+	return remote.Machine{Node: name, Device: device, Hub: s.Nodes, Home: s.Home, Wait: s.NodeWait, Low: s.Low, Denied: s.NodeDenied}
+}
+
+// Scripts runs scripts on the node device named name.
+func (s *Service) Scripts(device int64, name string) *remote.Scripts {
+	return &remote.Scripts{Machine: s.machine(device, name)}
 }
 
 // agentOf is the agent a provider of a workspace runs in: a built-in CLI by its name, a model by its agent.
@@ -111,17 +111,17 @@ func (s *Service) onNodes(ctx context.Context, workspace int64, base []provider.
 
 // away says a provider runs on a node that is not connected now.
 func (s *Service) away(ctx context.Context, workspace int64, name string) bool {
-	_, node, ok := atNode(name)
+	_, node, ok := remote.Split(name)
 	if !ok || s.Nodes == nil {
 		return false
 	}
-	device, err := s.nodeNamed(ctx, workspace, node)
+	device, err := s.NodeNamed(ctx, workspace, node)
 	return err != nil || !s.Nodes.State(device).Online
 }
 
 // awayAnywhere says a provider runs on a node not connected now, in whichever workspace has it.
 func (s *Service) awayAnywhere(ctx context.Context, name string) bool {
-	if _, _, ok := atNode(name); !ok {
+	if _, _, ok := remote.Split(name); !ok {
 		return false
 	}
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)

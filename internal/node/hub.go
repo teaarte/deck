@@ -237,18 +237,31 @@ func (t *through) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
-// Probed are the addresses of the machine of a node that answer, and those on ports its owner does not allow.
-type Probed struct{ Up, Denied []string }
+// Probed are the addresses of the machine of a node that answer, those on ports its owner does not allow, and the
+// folders deck asked about.
+type Probed struct {
+	Up, Denied []string
+	Folders    map[string]Folder
+}
 
-// Probe asks a node which of the addresses of its machine answer.
-func (h *Hub) Probe(ctx context.Context, device int64, addresses []string) (Probed, error) {
+// Folder is a folder of the machine of a node as the node tells deck: its real path and whether it is a git
+// repository, or why deck may not use it, Denied when its owner did not allow it.
+type Folder struct {
+	Real   string `json:"real,omitempty"`
+	Repo   bool   `json:"repo,omitempty"`
+	Denied bool   `json:"denied,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+// Probe asks a node which of the addresses of its machine answer and what of its folders paths deck may use.
+func (h *Hub) Probe(ctx context.Context, device int64, addresses, paths []string) (Probed, error) {
 	h.mu.Lock()
 	l := h.links[device]
 	h.mu.Unlock()
 	if l == nil {
 		return Probed{}, errors.New("deck: the node is not connected")
 	}
-	b, _ := json.Marshal(probe{Addresses: addresses})
+	b, _ := json.Marshal(probe{Addresses: addresses, Paths: paths})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://node"+probePath, strings.NewReader(string(b)))
 	if err != nil {
 		return Probed{}, err
@@ -262,14 +275,16 @@ func (h *Hub) Probe(ctx context.Context, device int64, addresses []string) (Prob
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
 		return Probed{}, err
 	}
-	return Probed{Up: out.Up, Denied: out.Denied}, nil
+	return Probed{Up: out.Up, Denied: out.Denied, Folders: out.Folders}, nil
 }
 
 // probe is the call of Probe and its answer.
 type probe struct {
-	Addresses []string `json:"addresses,omitempty"`
-	Up        []string `json:"up"`
-	Denied    []string `json:"denied,omitempty"`
+	Addresses []string          `json:"addresses,omitempty"`
+	Paths     []string          `json:"paths,omitempty"`
+	Up        []string          `json:"up"`
+	Denied    []string          `json:"denied,omitempty"`
+	Folders   map[string]Folder `json:"folders,omitempty"`
 }
 
 // Agent carries the calls of the turns of agents to a node, by their paths on it.

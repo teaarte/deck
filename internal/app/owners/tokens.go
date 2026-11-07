@@ -41,9 +41,10 @@ type Service struct {
 	Origins func() []auth.Origin
 	// PushNew pushes what came since the last push of a workspace.
 	PushNew func(ctx context.Context, workspace int64)
-	// Node is the state of the connection of a node; Probe asks a node which addresses of its machine answer.
+	// Node is the state of the connection of a node; Probe asks a node which addresses of its machine answer and what
+	// of its folders deck may use.
 	Node  func(device int64) node.State
-	Probe func(ctx context.Context, device int64, addresses []string) (node.Probed, error)
+	Probe func(ctx context.Context, device int64, addresses, paths []string) (node.Probed, error)
 	Go    func(func(ctx context.Context)) bool
 }
 

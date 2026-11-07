@@ -76,6 +76,10 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 	if err != nil {
 		return
 	}
+	folders, err := s.St.Q.ListNodeFolders(ctx, device)
+	if err != nil {
+		return
+	}
 	st := s.Node(device)
 	since := st.Since
 	if since.IsZero() {
@@ -83,18 +87,25 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 	}
 	at := since.Local().Format("2006-01-02 15:04")
 	status, text := health.OK, ""
+	address := cmp.Or(st.Address, s.deckAddress())
 	switch {
-	case st.Online && len(conns) == 0 && len(st.Agents) > 0:
+	case st.Online && len(conns) == 0 && len(folders) == 0 && len(st.Agents) > 0:
 		text = fmt.Sprintf("node %s is online since %s; it runs the agents %s", d.Name, at, strings.Join(st.Agents, ", "))
-	case st.Online && len(conns) == 0:
+	case st.Online && len(conns) == 0 && len(folders) == 0:
 		text = fmt.Sprintf("node %s is online since %s; no connection goes through it yet: set it as the node of a connection in Settings → Models → Connections", d.Name, at)
 	case st.Online:
 		addrs := make([]string, 0, len(conns))
 		for _, c := range conns {
 			addrs = append(addrs, hostPort(c.Url))
 		}
+		paths := make([]string, 0, len(folders))
+		for _, f := range folders {
+			if !slices.Contains(paths, f.Path) {
+				paths = append(paths, f.Path)
+			}
+		}
 		pctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		got, err := s.Probe(pctx, device, addrs)
+		got, err := s.Probe(pctx, device, addrs, paths)
 		cancel()
 		var serves, silent, ports []string
 		for _, c := range conns {
@@ -109,7 +120,14 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 				serves = append(serves, c.Name)
 			}
 		}
-		text = fmt.Sprintf("node %s is online since %s; it serves %s", d.Name, at, cmp.Or(strings.Join(serves, ", "), "nothing"))
+		switch {
+		case len(conns) == 0 && len(st.Agents) > 0:
+			text = fmt.Sprintf("node %s is online since %s; it runs the agents %s", d.Name, at, strings.Join(st.Agents, ", "))
+		case len(conns) == 0:
+			text = fmt.Sprintf("node %s is online since %s", d.Name, at)
+		default:
+			text = fmt.Sprintf("node %s is online since %s; it serves %s", d.Name, at, cmp.Or(strings.Join(serves, ", "), "nothing"))
+		}
 		if len(silent) > 0 {
 			status = health.Warning
 			text = fmt.Sprintf("node %s is online since %s; it serves %s, and %s do not answer on its machine", d.Name, at,
@@ -118,11 +136,33 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 		if len(ports) > 0 {
 			status = health.Warning
 			text = fmt.Sprintf("node %s is online since %s; port %s is not allowed on it: on its machine add it with deck -join %s --install --allow %s",
-				d.Name, at, strings.Join(ports, ", "), cmp.Or(st.Address, s.deckAddress()), strings.Join(ports, ","))
+				d.Name, at, strings.Join(ports, ", "), address, strings.Join(ports, ","))
+		}
+		var holds, denied []string
+		for _, f := range folders {
+			got := got.Folders[f.Path]
+			switch {
+			case err != nil || got.Real != "":
+				holds = append(holds, f.Project+" "+f.Name)
+			case got.Denied:
+				status = health.Warning
+				if !slices.Contains(denied, f.Path) {
+					denied = append(denied, f.Path)
+				}
+			default:
+				status = health.Warning
+				text = fmt.Sprintf("%s; folder %s of %s is not on its machine: %s", text, f.Name, f.Project, got.Error)
+			}
+		}
+		if len(denied) > 0 {
+			text = fmt.Sprintf("%s; folder %s is not allowed on it: on its machine add it with deck -join %s --install --allow %s",
+				text, strings.Join(denied, ", "), address, strings.Join(denied, ","))
+		}
+		if len(holds) > 0 {
+			text = fmt.Sprintf("%s; it holds the folders %s", text, strings.Join(holds, ", "))
 		}
 	default:
 		status = health.Warning
-		address := cmp.Or(st.Address, s.deckAddress())
 		names := make([]string, 0, len(conns))
 		for _, c := range conns {
 			names = append(names, c.Name)
@@ -131,6 +171,9 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 		if len(names) > 0 {
 			text = fmt.Sprintf("node %s is offline since %s; the calls of %s go to the next model of their fallbacks. On its machine run deck -join %s --install",
 				d.Name, at, strings.Join(names, ", "), address)
+		}
+		if len(folders) > 0 {
+			text = fmt.Sprintf("%s; the turns and scripts of its folders wait for it", text)
 		}
 	}
 	if err := health.Write(ctx, s.St, of, subject, status, text); err != nil {

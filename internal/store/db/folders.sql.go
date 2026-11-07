@@ -10,23 +10,33 @@ import (
 )
 
 const addProjectFolder = `-- name: AddProjectFolder :one
-INSERT INTO project_folder (project_id, name, path) VALUES (?, ?, ?) RETURNING id, project_id, name, path, created_at
+INSERT INTO project_folder (project_id, name, path, node_id, repo) VALUES (?, ?, ?, ?, ?) RETURNING id, project_id, name, path, node_id, repo, created_at
 `
 
 type AddProjectFolderParams struct {
 	ProjectID int64
 	Name      string
 	Path      string
+	NodeID    int64
+	Repo      int64
 }
 
 func (q *Queries) AddProjectFolder(ctx context.Context, arg AddProjectFolderParams) (ProjectFolder, error) {
-	row := q.db.QueryRowContext(ctx, addProjectFolder, arg.ProjectID, arg.Name, arg.Path)
+	row := q.db.QueryRowContext(ctx, addProjectFolder,
+		arg.ProjectID,
+		arg.Name,
+		arg.Path,
+		arg.NodeID,
+		arg.Repo,
+	)
 	var i ProjectFolder
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
 		&i.Name,
 		&i.Path,
+		&i.NodeID,
+		&i.Repo,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -52,8 +62,95 @@ func (q *Queries) FolderLockHolder(ctx context.Context, path string) (int64, err
 	return process_id, err
 }
 
+const listMachineFolders = `-- name: ListMachineFolders :many
+SELECT id, project_id, name, path, node_id, repo, created_at FROM project_folder WHERE project_id = ? AND node_id = ? ORDER BY name
+`
+
+type ListMachineFoldersParams struct {
+	ProjectID int64
+	NodeID    int64
+}
+
+func (q *Queries) ListMachineFolders(ctx context.Context, arg ListMachineFoldersParams) ([]ProjectFolder, error) {
+	rows, err := q.db.QueryContext(ctx, listMachineFolders, arg.ProjectID, arg.NodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectFolder
+	for rows.Next() {
+		var i ProjectFolder
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Name,
+			&i.Path,
+			&i.NodeID,
+			&i.Repo,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodeFolders = `-- name: ListNodeFolders :many
+SELECT f.id, f.project_id, f.name, f.path, f.node_id, f.repo, f.created_at, p.name AS project FROM project_folder f JOIN project p ON p.id = f.project_id WHERE f.node_id = ? ORDER BY p.name, f.name
+`
+
+type ListNodeFoldersRow struct {
+	ID        int64
+	ProjectID int64
+	Name      string
+	Path      string
+	NodeID    int64
+	Repo      int64
+	CreatedAt string
+	Project   string
+}
+
+func (q *Queries) ListNodeFolders(ctx context.Context, nodeID int64) ([]ListNodeFoldersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listNodeFolders, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNodeFoldersRow
+	for rows.Next() {
+		var i ListNodeFoldersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Name,
+			&i.Path,
+			&i.NodeID,
+			&i.Repo,
+			&i.CreatedAt,
+			&i.Project,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectFolders = `-- name: ListProjectFolders :many
-SELECT id, project_id, name, path, created_at FROM project_folder WHERE project_id = ? ORDER BY name
+SELECT id, project_id, name, path, node_id, repo, created_at FROM project_folder WHERE project_id = ? ORDER BY name, node_id
 `
 
 func (q *Queries) ListProjectFolders(ctx context.Context, projectID int64) ([]ProjectFolder, error) {
@@ -70,6 +167,8 @@ func (q *Queries) ListProjectFolders(ctx context.Context, projectID int64) ([]Pr
 			&i.ProjectID,
 			&i.Name,
 			&i.Path,
+			&i.NodeID,
+			&i.Repo,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -86,7 +185,7 @@ func (q *Queries) ListProjectFolders(ctx context.Context, projectID int64) ([]Pr
 }
 
 const listWorkspaceFolderPaths = `-- name: ListWorkspaceFolderPaths :many
-SELECT f.path FROM project_folder f JOIN project p ON p.id = f.project_id WHERE p.workspace_id = ? ORDER BY f.path
+SELECT f.path FROM project_folder f JOIN project p ON p.id = f.project_id WHERE p.workspace_id = ? AND f.node_id = 0 ORDER BY f.path
 `
 
 func (q *Queries) ListWorkspaceFolderPaths(ctx context.Context, workspaceID int64) ([]string, error) {
@@ -159,6 +258,24 @@ type RemoveProjectFolderParams struct {
 
 func (q *Queries) RemoveProjectFolder(ctx context.Context, arg RemoveProjectFolderParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, removeProjectFolder, arg.ProjectID, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const removeProjectFolderOn = `-- name: RemoveProjectFolderOn :execrows
+DELETE FROM project_folder WHERE project_id = ? AND name = ? AND node_id = ?
+`
+
+type RemoveProjectFolderOnParams struct {
+	ProjectID int64
+	Name      string
+	NodeID    int64
+}
+
+func (q *Queries) RemoveProjectFolderOn(ctx context.Context, arg RemoveProjectFolderOnParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, removeProjectFolderOn, arg.ProjectID, arg.Name, arg.NodeID)
 	if err != nil {
 		return 0, err
 	}

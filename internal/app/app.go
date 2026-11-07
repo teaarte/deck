@@ -149,11 +149,11 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			Hooks: []process.Hook{a.Chats.Hook(), a.Processes.Hook(), a.Triggers.Hook(), a.Answers.Hook()},
 			For:   a.Work.For, Next: a.Work.Next, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
+			Folders: a.Folders.Paths, ScriptsAt: a.Folders.ScriptsAt,
 			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
 	a.Secrets = secrets.Service{St: st, Emit: a.Bus.Emit, Home: h}
-	a.Folders = folders.Service{St: st, Home: h}
 	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Invoke: a.Registry.Invoke}
 	a.Journal = journal.Service{St: st, Now: cfg.Now, Groups: a.Work.Groups}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
@@ -171,8 +171,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		}
 	})
 	a.Nodes.Denied = func(device int64) { a.Owners.NodeChanged(device, true) }
+	a.Folders = folders.Service{St: st, Home: h, Node: a.Providers.NodeNamed, Probe: a.Nodes.Probe, Scripts: a.Providers.Scripts,
+		Online: func(device int64) bool { return a.Nodes.State(device).Online }}
 	a.Providers = providers.Service{St: st, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
-		Nodes: a.Nodes, NodeWait: cfg.NodeWait, Low: func(ctx context.Context, text string) {
+		Nodes: a.Nodes, NodeWait: cfg.NodeWait, NodeDenied: a.Nodes.Denied, Low: func(ctx context.Context, text string) {
 			if err := health.Write(ctx, st, health.Of{}, health.Disk, health.Warning, text); err != nil {
 				slog.Error("write health", "err", err)
 			}
@@ -185,7 +187,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Key: a.Secrets.Key, Resolve: a.Tools.Resolve, Invoke: a.Registry.Invoke, Builtin: builtin, Provider: a.Providers.Provider,
 		All: a.Providers.All, Off: a.Providers.Off, Up: a.Providers.Up, Health: a.Providers.Health, Exists: a.Providers.Exists,
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
-		Online: func(device int64) bool { return a.Nodes.State(device).Online }, Go: a.bg.Go}
+		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP,

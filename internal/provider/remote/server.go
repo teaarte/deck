@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/home"
 	"deck2/internal/node"
 	"deck2/internal/provider"
@@ -23,6 +24,7 @@ import (
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
 	"deck2/internal/sandbox"
+	"deck2/internal/script"
 	"deck2/internal/untrusted"
 )
 
@@ -36,6 +38,8 @@ type Server struct {
 	Back string
 	// Build makes the provider of a spec; the adapters of deck with the programs found on the node when nil.
 	Build func(spec Spec, api func(provider.ModelHooks) http.Handler) (provider.Provider, error)
+	// Folder is the real path of a folder of the node's machine its owner allows deck; nil allows none.
+	Folder func(path string) (string, error)
 
 	mu    sync.Mutex
 	turns map[string]*running
@@ -88,6 +92,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.check(w, r)
 	case r.URL.Path == loginPath && r.Method == http.MethodPost:
 		s.login(w, r)
+	case r.URL.Path == scriptPath && r.Method == http.MethodPost:
+		s.script(w, r)
 	default:
 		http.Error(w, "deck node: not found", http.StatusNotFound)
 	}
@@ -122,31 +128,60 @@ func with(cli provider.Modeled, spec Spec) provider.Provider {
 	return cli.With(spec.Name, spec.Model, spec.Effort)
 }
 
-// model is deck's proxy of the model of an agent on the node, reached at deck's side of its turn; it hears each answer
-// as deck's own proxy would.
-func (s *Server) model(side string, h provider.ModelHooks) http.Handler {
+// toDeck is deck's side of a turn or script on the node, under prefix.
+func (s *Server) toDeck(side, prefix string) *httputil.ReverseProxy {
 	to, _ := url.Parse(s.Back)
 	return &httputil.ReverseProxy{FlushInterval: -1,
 		Rewrite: func(pr *httputil.ProxyRequest) {
-			pr.Out.URL = &url.URL{Scheme: to.Scheme, Host: to.Host, Path: "/" + side + "/model" + pr.In.URL.Path, RawQuery: pr.In.URL.RawQuery}
+			pr.Out.URL = &url.URL{Scheme: to.Scheme, Host: to.Host, Path: "/" + side + prefix + pr.In.URL.Path, RawQuery: pr.In.URL.RawQuery}
 			pr.Out.Host = to.Host
-		},
-		ModifyResponse: func(resp *http.Response) error {
-			if h.Answer == nil {
-				return nil
-			}
-			a := provider.Answer{Status: resp.StatusCode, RetryAfter: resp.Header.Get("Retry-After"), Past: resp.Header.Get(provider.PastLimit) != ""}
-			if resp.StatusCode >= 400 {
-				b, _ := io.ReadAll(io.LimitReader(resp.Body, 2000))
-				resp.Body = struct {
-					io.Reader
-					io.Closer
-				}{io.MultiReader(strings.NewReader(string(b)), resp.Body), resp.Body}
-				a.Words = string(b)
-			}
-			h.Answer(a)
-			return nil
 		}}
+}
+
+// folders are the real paths of folders of the node's machine its owner allows deck; a folder not allowed is a
+// refusal deck shows in the node's health.
+func (s *Server) folders(w http.ResponseWriter, paths []string) ([]string, bool) {
+	var out []string
+	for _, p := range paths {
+		if s.Folder == nil {
+			http.Error(w, "deck node: this node gives deck no folders", http.StatusForbidden)
+			return nil, false
+		}
+		real, err := s.Folder(p)
+		var no *node.NotAllowed
+		if errors.As(err, &no) {
+			w.Header().Set(folderHeader, p)
+		}
+		if err != nil {
+			http.Error(w, "deck node: "+err.Error(), http.StatusForbidden)
+			return nil, false
+		}
+		out = append(out, real)
+	}
+	return out, true
+}
+
+// model is deck's proxy of the model of an agent on the node, reached at deck's side of its turn; it hears each answer
+// as deck's own proxy would.
+func (s *Server) model(side string, h provider.ModelHooks) http.Handler {
+	p := s.toDeck(side, "/model")
+	p.ModifyResponse = func(resp *http.Response) error {
+		if h.Answer == nil {
+			return nil
+		}
+		a := provider.Answer{Status: resp.StatusCode, RetryAfter: resp.Header.Get("Retry-After"), Past: resp.Header.Get(provider.PastLimit) != ""}
+		if resp.StatusCode >= 400 {
+			b, _ := io.ReadAll(io.LimitReader(resp.Body, 2000))
+			resp.Body = struct {
+				io.Reader
+				io.Closer
+			}{io.MultiReader(strings.NewReader(string(b)), resp.Body), resp.Body}
+			a.Words = string(b)
+		}
+		h.Answer(a)
+		return nil
+	}
+	return p
 }
 
 var sessionName = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)
@@ -330,8 +365,16 @@ func (s *Server) turn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "deck node: a turn names its session and deck's side", http.StatusBadRequest)
 		return
 	}
-	if err := root(append([]string{q.Cwd, q.Data}, q.Dirs...)...); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := root(append([]string{q.Cwd, q.Data}, q.Dirs...)...); err != nil || (q.Cwd == "") == (q.Folder == "") {
+		http.Error(w, "deck node: a turn works in a folder of deck's work or in one of this machine", http.StatusBadRequest)
+		return
+	}
+	paths := q.Read
+	if q.Folder != "" {
+		paths = append([]string{q.Folder}, q.Read...)
+	}
+	folder, ok := s.folders(w, paths)
+	if !ok {
 		return
 	}
 	pv, err := s.build(st.Spec, st.Side)
@@ -339,23 +382,10 @@ func (s *Server) turn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
-	s.mu.Lock()
-	t := s.turns[q.SessionID]
-	if t == nil {
-		s.mu.Unlock()
-		http.Error(w, "deck node: deck handed no files of this turn", http.StatusConflict)
+	done, ok := s.begin(w, q.SessionID)
+	if !ok {
 		return
 	}
-	select {
-	case <-t.done:
-	default:
-		s.mu.Unlock()
-		http.Error(w, "deck node: a turn of this session still runs", http.StatusConflict)
-		return
-	}
-	done := make(chan struct{})
-	t.done = done
-	s.mu.Unlock()
 	defer close(done)
 	dir := s.Home.Mirror(q.SessionID)
 	at := func(rel string) string {
@@ -372,6 +402,13 @@ func (s *Server) turn(w http.ResponseWriter, r *http.Request) {
 	req := provider.Request{Project: q.Project, Cwd: at(q.Cwd), Repo: q.Repo, Prompt: here.Replace(q.Prompt), ResultSchema: q.ResultSchema,
 		Skills: skills, MCPURL: s.Back + "/" + st.Side + q.MCP, Data: at(q.Data), Hosts: q.Hosts, GPU: q.GPU, AllowedTools: q.AllowedTools,
 		PermissionMCP: q.PermissionMCP, SessionID: q.SessionID, Resume: q.Resume}
+	if q.Folder != "" {
+		req.Cwd, req.Read, req.Folder = folder[0], folder[1:], true
+		_, err := os.Stat(filepath.Join(req.Cwd, ".git"))
+		req.Repo = err == nil
+	} else {
+		req.Read = folder
+	}
 	for _, d := range q.Dirs {
 		req.Dirs = append(req.Dirs, at(d))
 	}
@@ -428,6 +465,90 @@ func (s *Server) turn(w http.ResponseWriter, r *http.Request) {
 		e.Error = untrusted.Cut(e.Error, 8000)
 	}
 	send(frame{Done: &e})
+}
+
+// begin marks the session of a call running once deck handed it its files and no run of it still goes; done closes as
+// the run ends.
+func (s *Server) begin(w http.ResponseWriter, sess string) (chan struct{}, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t := s.turns[sess]
+	if t == nil {
+		http.Error(w, "deck node: deck handed no files of this run", http.StatusConflict)
+		return nil, false
+	}
+	select {
+	case <-t.done:
+	default:
+		http.Error(w, "deck node: a run of this session still goes", http.StatusConflict)
+		return nil, false
+	}
+	done := make(chan struct{})
+	t.done = done
+	return done, true
+}
+
+// script runs a script deck hands the node in its box, in the folders deck handed it and those of its project on the
+// node's machine, and tells deck its stderr as it goes and at last its stdout or failure.
+func (s *Server) script(w http.ResponseWriter, r *http.Request) {
+	var in scriptCall
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<20)).Decode(&in); err != nil {
+		http.Error(w, "deck node: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !sessionName.MatchString(in.Session) || !sessionName.MatchString(in.Side) || in.Dir == "" {
+		http.Error(w, "deck node: a script names its session, its folder and deck's side", http.StatusBadRequest)
+		return
+	}
+	if err := root(append([]string{in.Dir}, in.Read...)...); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	folders, ok := s.folders(w, in.Folders)
+	if !ok {
+		return
+	}
+	done, ok := s.begin(w, in.Session)
+	if !ok {
+		return
+	}
+	defer close(done)
+	dir := s.Home.Mirror(in.Session)
+	at := func(rel string) string { return filepath.Join(dir, filepath.FromSlash(rel)) }
+	tok, end := s.Sandbox.Side(s.toDeck(in.Side, ""))
+	defer end()
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.WriteHeader(http.StatusOK)
+	var mu sync.Mutex
+	rc := http.NewResponseController(w)
+	send := func(f scriptFrame) {
+		b, _ := json.Marshal(f)
+		mu.Lock()
+		defer mu.Unlock()
+		_, _ = w.Write(append(b, '\n'))
+		_ = rc.Flush()
+	}
+	_ = rc.Flush()
+	job := script.Job{Project: in.Project, Script: &in.Script, Source: in.Source, Dir: at(in.Dir), Stdin: in.Stdin, Token: in.Side,
+		Box: sandbox.Box{Kind: sandbox.KindScript, Read: folders, Hosts: in.Hosts, GPU: in.GPU,
+			Mark: s.Sandbox.Mark(sandbox.KindScript, in.Session), Deck: tok},
+		OnLine: func(line string) { send(scriptFrame{Line: &line}) }}
+	for _, rd := range in.Read {
+		job.Read = append(job.Read, at(rd))
+	}
+	out, err := script.New(s.Sandbox, home.Layout(dir)).Run(r.Context(), job)
+	if r.Context().Err() != nil {
+		return
+	}
+	d := scriptDone{Out: out}
+	var f *fault.F
+	switch {
+	case errors.As(err, &f):
+		d.Fault = f
+	case err != nil:
+		d.Error = untrusted.Cut(err.Error(), 8000)
+	}
+	send(scriptFrame{Done: &d})
 }
 
 // check runs the self-check of an agent on the node.

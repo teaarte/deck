@@ -36,7 +36,7 @@ func join(args []string) error {
 			uninstall = true
 		case "name", "allow":
 			if i+1 == len(args) {
-				return fmt.Errorf("%s takes a value: --name the name of the node, --allow the ports and agents deck may use, such as 8178,8190,claude-code", args[i])
+				return fmt.Errorf("%s takes a value: --name the name of the node, --allow the ports, agents and folders deck may use, such as 8178,8190,claude-code,~/code/repo", args[i])
 			}
 			i++
 			if strings.TrimLeft(args[i-1], "-") == "name" {
@@ -89,8 +89,8 @@ func join(args []string) error {
 			return err
 		}
 	}
-	if a := node.ReadAllowed(h); len(a.Ports)+len(a.Agents) == 0 {
-		fmt.Printf("Deck may use nothing on this machine yet: name the ports of its models and the agents with --allow, such as deck -join %s --install --allow 8178,claude-code, or in %s.\n", address, h.NodeAllowed())
+	if a := node.ReadAllowed(h); a.Empty() {
+		fmt.Printf("Deck may use nothing on this machine yet: name the ports of its models, the agents and the folders with --allow, such as deck -join %s --install --allow 8178,claude-code,~/code/repo, or in %s.\n", address, h.NodeAllowed())
 	} else {
 		fmt.Printf("Deck may use on this machine: %s (%s).\n", a, h.NodeAllowed())
 	}
@@ -110,9 +110,11 @@ func join(args []string) error {
 	defer back.Close()
 	sb := sandbox.New(h)
 	sb.Reap()
-	agents := &remote.Server{Home: h, Sandbox: sb, Back: back.URL, Allowed: func() node.Allowed { return node.ReadAllowed(h) }}
+	serving := node.Serving{Allowed: func() node.Allowed { return node.ReadAllowed(h) }, Own: ownFolders(h)}
+	agents := &remote.Server{Home: h, Sandbox: sb, Back: back.URL, Allowed: serving.Allowed, Folder: serving.Folder}
 	agents.Sweep()
-	node.Run(ctx, j, node.Serving{Allowed: agents.Allowed, Agents: agents, Has: agents.Has})
+	serving.Agents, serving.Has = agents, agents.Has
+	node.Run(ctx, j, serving)
 	return nil
 }
 
@@ -139,6 +141,16 @@ func nodeHome() (deckhome.Layout, error) {
 		fmt.Printf("The key of this node moved from %s to %s: a node keeps a folder of its own, apart from deck's.\n", old.Node(), h.Node())
 	}
 	return h, nil
+}
+
+// ownFolders are the folders of deck on this machine, which no folder of a project holds or is in: the node's own and
+// those of a deck and a node at their places.
+func ownFolders(h deckhome.Layout) []string {
+	out := []string{string(h)}
+	if u, err := os.UserHomeDir(); err == nil {
+		out = append(out, filepath.Join(u, ".deck2"), filepath.Join(u, ".deck2-node"))
+	}
+	return out
 }
 
 // lockNode holds the lock of the node of a home until it exits; one home serves one node.

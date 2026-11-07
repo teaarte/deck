@@ -162,7 +162,7 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 			at.session = o.Session
 		}
 		if !cmd.Executor.Folder.IsZero() {
-			if at.folder, err = r.deps.Folder(ctx, projectID, cmd.Executor.Folder); err != nil {
+			if at.folder, err = r.deps.Folder(ctx, projectID, cmd.Executor.Folder, at.provider); err != nil {
 				return at, err
 			}
 		}

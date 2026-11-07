@@ -62,18 +62,20 @@
       ]},
       {"title": "Access", "icon": "key", "blocks": [
           {"type": "dialog", "name": "folder", "title": "Add a folder", "icon": "folder-plus", "primary": true, "blocks": [
-            {"type": "form", "command": "deck.folder_add"}]},
+            {"type": "form", "command": "deck.folder_add",
+              "choices": {"node": {"source": {"from": "deck.devices_list", "where": "kind == 'node' && !revoked"}, "value": "name"}}}]},
           {"type": "dialog", "name": "secret", "title": "Set a secret", "icon": "key", "blocks": [
             {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
           {"type": "table", "title": "Folders", "source": {"from": "deck.folders_list"},
-            "description": "Folders on disk its agent commands work in, such as a repository; only you add one.",
+            "description": "Folders on disk its agent commands work in, such as a repository, on deck's machine or on that of a node; only you add one.",
             "empty": "No folders; add one for commands that work on the files of a repository",
             "columns": [
               {"label": "Name", "bind": "name"},
-              {"label": "Path", "bind": "path", "format": "copy"}
+              {"label": "Path", "bind": "path", "format": "copy"},
+              {"label": "Node", "bind": "node"}
             ],
             "actions": [
-              {"verb": "remove", "confirm": true, "command": "deck.folder_delete", "params": {"name": "=name"}}
+              {"verb": "remove", "confirm": true, "command": "deck.folder_delete", "params": {"name": "=name", "node": "=node"}}
             ]},
           {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
             "description": "Keys and passwords its tools need.",

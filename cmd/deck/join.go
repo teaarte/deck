@@ -64,11 +64,21 @@ func join(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	allowed, err := node.ParseAllowed(allow)
+	if err != nil {
+		return fmt.Errorf("--allow: %w", err)
+	}
 	var j node.Joined
 	if len(pos) == 2 {
 		host, _ := os.Hostname()
 		if j, err = node.Pair(ctx, address, pos[1], cmp.Or(name, strings.TrimSuffix(host, ".local"))); err != nil {
 			return err
+		}
+		// The list comes before the key, so a node that has its key has its list too.
+		if allow != "" {
+			if err := node.SaveAllowed(h, allowed); err != nil {
+				return err
+			}
 		}
 		if err := node.Save(h, j); err != nil {
 			return err
@@ -80,12 +90,8 @@ func join(args []string) error {
 	if j.Deck != address {
 		return fmt.Errorf("this machine is the node of deck at %s, not %s: pair it with a code of that deck, deck -join %s <code>", j.Deck, address, address)
 	}
-	if allow != "" {
-		a, err := node.ParseAllowed(allow)
-		if err != nil {
-			return fmt.Errorf("--allow: %w", err)
-		}
-		if err := node.SaveAllowed(h, a); err != nil {
+	if allow != "" && len(pos) < 2 {
+		if err := node.SaveAllowed(h, allowed); err != nil {
 			return err
 		}
 	}

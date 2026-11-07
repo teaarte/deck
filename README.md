@@ -166,7 +166,8 @@ the agents stay in the volume `deck`. Open the link, then sign in to the agents 
 Codex shows a link and a code, Claude Code a link whose page gives the code to enter. The models of the machine
 itself (Ollama, whisper and other local servers) and its folders reach deck in the container through a [node](#node).
 To update: `docker compose pull && docker compose up -d`; when a release is out, Settings → Advanced and the feed say
-so.
+so. From a checkout of deck, `sh install.sh` in it takes its master, builds the image `deck:local` and runs it in
+`~/deck` (its `compose.override.yaml` names that image; remove the line to go back to the published one).
 
 **Open deck.**
 

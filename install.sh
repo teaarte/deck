@@ -1,8 +1,11 @@
 #!/bin/sh
 # Installs deck in Docker, or updates it: curl -fsSL https://raw.githubusercontent.com/teaarte/deck/master/install.sh | sh
-# DECK_DIR is its folder (~/deck); DECK_SOURCE a folder of deck's files instead of GitHub, whose image is local too.
+# DECK_DIR is its folder (~/deck); DECK_SOURCE a folder of deck's files instead of GitHub. Run from a checkout of deck
+# (sh install.sh in it), it takes its master and runs the image deck:local built from it.
 set -eu
 dir=${DECK_DIR:-$HOME/deck}
+here=$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)
+case $0 in *install.sh) [ -n "${DECK_SOURCE:-}" ] || [ ! -f "$here/Dockerfile" ] || [ ! -f "$here/compose.yaml" ] || DECK_SOURCE=$here ;; esac
 src=${DECK_SOURCE:-https://raw.githubusercontent.com/teaarte/deck/master}
 say() { echo "deck: $*"; }
 command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 || {
@@ -26,7 +29,39 @@ if command -v apparmor_parser >/dev/null 2>&1 && ! cmp -s deck-box.apparmor /etc
   $as apparmor_parser -r /etc/apparmor.d/deck-box
 fi
 touch .env
-case $src in http*) docker compose pull -q deck ;; esac
+case $src in
+http*)
+  if grep -qs 'image: deck:local' compose.override.yaml; then
+    say "compose.override.yaml runs deck:local, the image of a checkout: remove its line image to run the published one"
+  fi
+  docker compose pull -q deck
+  ;;
+*)
+  if [ -f "$src/Dockerfile" ]; then
+    if [ "$(git -C "$src" branch --show-current 2>/dev/null)" = master ]; then
+      say "taking master of $src"
+      git -C "$src" pull -q --ff-only
+    fi
+    say "building the image deck:local of $src"
+    docker build -q -t deck:local "$src" >/dev/null
+    # The override names the image; whatever else it says stays.
+    if [ ! -f compose.override.yaml ]; then
+      printf 'services:\n  deck:\n    image: deck:local\n' > compose.override.yaml
+    elif ! grep -qs 'image: deck:local' compose.override.yaml; then
+      if grep -qs '^    image:' compose.override.yaml; then
+        sed -i.bak 's|^    image:.*|    image: deck:local|' compose.override.yaml
+      elif grep -qs '^  deck:' compose.override.yaml; then
+        sed -i.bak 's|^  deck:.*|&\
+    image: deck:local|' compose.override.yaml
+      else
+        say "add under services: deck: the line image: deck:local to compose.override.yaml, then run this again"
+        exit 1
+      fi
+      rm -f compose.override.yaml.bak
+    fi
+  fi
+  ;;
+esac
 docker compose up -d
 say "waiting for deck"
 i=0

@@ -24,6 +24,12 @@ func TestANodeProcessRunsTheScriptOfItsFolder(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(data, "notes.txt"), []byte("blue 101"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// A code of deck pair that begins with - is the code, not a flag.
+	dash := exec.Command(bin, "-join", "http://127.0.0.1:9", "-Code_that_begins_with_a_dash")
+	dash.Env = append(os.Environ(), "DECK_HOME="+t.TempDir())
+	if out, _ := dash.CombinedOutput(); strings.Contains(string(out), "knows no flag") {
+		t.Fatalf("deck -join takes a code that begins with -: %s", out)
+	}
 	e := harness.New(t)
 	var link struct{ Code string }
 	e.Must("deck.pair_link", map[string]any{"kind": "node", "name": "Mac"}, &link)

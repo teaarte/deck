@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -25,11 +26,14 @@ func join(args []string) error {
 	var install, uninstall bool
 	name, allow := "", ""
 	for i := 0; i < len(args); i++ {
-		if !strings.HasPrefix(args[i], "-") {
+		flag := strings.TrimLeft(args[i], "-")
+		// A code of deck pair may begin with -: after the address, a word no flag names is the code.
+		known := slices.Contains([]string{"install", "uninstall", "name", "allow"}, flag)
+		if !strings.HasPrefix(args[i], "-") || !known && len(pos) == 1 {
 			pos = append(pos, args[i])
 			continue
 		}
-		switch strings.TrimLeft(args[i], "-") {
+		switch flag {
 		case "install":
 			install = true
 		case "uninstall":
@@ -39,7 +43,7 @@ func join(args []string) error {
 				return fmt.Errorf("%s takes a value: --name the name of the node, --allow the ports, agents and folders deck may use, such as 8178,8190,claude-code,~/code/repo", args[i])
 			}
 			i++
-			if strings.TrimLeft(args[i-1], "-") == "name" {
+			if flag == "name" {
 				name = args[i]
 			} else {
 				allow = args[i]

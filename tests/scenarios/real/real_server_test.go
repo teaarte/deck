@@ -329,15 +329,20 @@ func TestServerFromScratch(t *testing.T) {
 	}
 }
 
-// TestServerOnOneComputer is deck from compose.yaml with no domain: no Caddy and no port 80 or 443, deck on loopback,
-// the first link at deck.localhost in its log, a browser pairing and calling there, a script in its box.
+// TestServerOnOneComputer is deck installed by install.sh with no domain: no Caddy and no port 80 or 443, deck on
+// loopback, a link at deck.localhost, a browser pairing and calling there, a script in its box.
 func TestServerOnOneComputer(t *testing.T) {
 	harness.Needs(t, "DECK_SERVER")
 	b := newBare(t)
 	b.origin = "http://deck.localhost:7700"
 	b.write("/srv/deck/.env", "")
-	b.files("compose.yaml", "seccomp.json", "deck-box.apparmor")
-	b.compose("up", "-d")
+	b.in("mkdir", "-p", "/srv/src")
+	for _, n := range []string{"install.sh", "compose.yaml", "seccomp.json", "deck-box.apparmor", "move-to-docker.sh"} {
+		b.host("docker", "cp", filepath.Join(harness.Root, n), b.name+":/srv/src/"+n)
+	}
+	if out := b.in("env", "DECK_SOURCE=/srv/src", "DECK_DIR=/srv/deck", "sh", "/srv/src/install.sh"); !strings.Contains(out, "http://deck.localhost:7700/#pair=") {
+		t.Fatalf("install.sh starts deck and prints a link that pairs a device:\n%s", out)
+	}
 	if running := b.compose("ps", "--services", "--status", "running"); strings.Contains(running, "caddy") || !strings.Contains(running, "deck") {
 		t.Fatalf("without a domain only deck runs: %s", running)
 	}

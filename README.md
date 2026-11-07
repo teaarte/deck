@@ -144,14 +144,22 @@ On Linux, Docker Engine; on a Mac, [OrbStack](https://orbstack.dev) or Docker De
 (not tried yet: GitHub's Windows runners do not run Linux containers, so no test covers it).
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/teaarte/deck/master/install.sh | sh
+```
+
+It puts deck in `~/deck` (`DECK_DIR` for another folder), loads the AppArmor profile on Ubuntu and Debian (`sudo` asks
+once), starts deck and prints a link that pairs your device; run again, the same line updates deck. By hand:
+
+```bash
 mkdir deck && cd deck
 for f in compose.yaml seccomp.json deck-box.apparmor move-to-docker.sh; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/master/$f; done
 # Ubuntu and Debian, once: the AppArmor profile the container runs under
 sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
 docker compose up -d
-docker compose logs deck | grep pair      # the link that pairs your first device
-docker compose exec deck deck pair        # a link for the next one
+docker compose exec deck deck pair        # a link that pairs a device
 ```
+
+On Windows run the commands by hand in WSL or PowerShell (`curl.exe`), skipping the AppArmor step.
 
 deck starts with Docker and after a restart of the machine (`restart: unless-stopped`); its data and the logins of
 the agents stay in the volume `deck`. Open the link, then sign in to the agents in Settings → Models → **Sign in**:

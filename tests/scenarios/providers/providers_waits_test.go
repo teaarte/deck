@@ -78,9 +78,10 @@ func TestTheModelsTabSaysFirstWhatWaitsForTheOwner(t *testing.T) {
 
 	var used struct {
 		Models []struct {
-			Name, UsedIn string `json:"used_in"`
-			Projects     int
-			Places       []string
+			Name     string
+			UsedIn   string `json:"used_in"`
+			Projects int
+			Places   []string
 		}
 	}
 	e.Must("deck.models_list", nil, &used)

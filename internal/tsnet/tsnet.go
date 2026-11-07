@@ -99,12 +99,9 @@ func (n *Node) watch(ctx context.Context) {
 			return
 		case err != nil:
 			n.report(&last, "error", err.Error(), "")
-		case st.BackendState == ipn.Running.String():
-			name := ""
-			if st.Self != nil {
-				name = st.Self.DNSName
-			}
-			n.report(&last, "ok", "https://"+trimDot(name), "https://"+trimDot(name))
+		case st.BackendState == ipn.Running.String() && st.Self != nil && trimDot(st.Self.DNSName) != "":
+			name := "https://" + trimDot(st.Self.DNSName)
+			n.report(&last, "ok", name, name)
 		case st.AuthURL != "":
 			n.report(&last, "needs_login", "sign in to Tailscale: "+st.AuthURL, "")
 		}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"deck2/internal/app"
 	"deck2/internal/auth"
@@ -27,6 +28,9 @@ func pair(args []string) error {
 	}
 	h, err := homeDir()
 	if err != nil {
+		return err
+	}
+	if err := asOwner(h); err != nil {
 		return err
 	}
 	code, until, err := app.PairCode(h, *device, *name)
@@ -54,6 +58,23 @@ func pair(args []string) error {
 		fmt.Println(l)
 	}
 	return nil
+}
+
+// asOwner makes deck pair, run by root as docker compose exec runs it, write its code as the user whose deck's home
+// is, so deck reads it.
+func asOwner(h deckhome.Layout) error {
+	fi, err := os.Stat(string(h))
+	if err != nil || os.Geteuid() != 0 {
+		return nil
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok || st.Uid == 0 {
+		return nil
+	}
+	if err := syscall.Setgid(int(st.Gid)); err != nil {
+		return err
+	}
+	return syscall.Setuid(int(st.Uid))
 }
 
 // homeDir is deck's home: DECK_HOME, else .deck2 in the user's home.

@@ -193,7 +193,8 @@ func (b *bare) signIn() string {
 	if strings.Contains(logs, "token=") {
 		b.t.Fatalf("the log of deck carries no token:\n%s", logs)
 	}
-	out := b.compose("exec", "-T", "-u", "deck", "deck", "deck", "pair")
+	// As README runs it: as root, which writes the code as the user of deck.
+	out := b.compose("exec", "-T", "deck", "deck", "pair")
 	m := regexp.MustCompile(regexp.QuoteMeta(b.origin) + `/#pair=([A-Za-z0-9_-]+)`).FindStringSubmatch(out)
 	if m == nil {
 		b.t.Fatalf("deck pair prints a link of %s: %s", b.origin, out)

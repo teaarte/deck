@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState, type DragEvent } from 'react';
 import { Group, Stack, Text, UnstyledButton } from '@mantine/core';
-import { IconAlertCircle, IconAlertTriangle, IconArrowRight, IconCheck } from '@tabler/icons-react';
+import { IconAlertCircle, IconAlertTriangle, IconArrowRight, IconCheck, IconChevronRight } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import s from './list.module.css';
 import { relative, show, when } from '../lib/format';
@@ -18,7 +18,7 @@ import { Details } from '../ui/Details';
 import { NamedIcon } from '../ui/NamedIcon';
 import { Logo } from '../ui/logo/Logo';
 import { QuestionPicker } from '../ui/QuestionPicker';
-import { opener, rowOpen } from '../ui/rowOpen';
+import { opener, opens as isOpener, rowOpen } from '../ui/rowOpen';
 import type { Data } from '../lib/catalog.gen';
 import { press, useBlockContext } from '../screen/press';
 import { Fit } from './around';
@@ -165,7 +165,7 @@ function Done({ text }: { text?: string }) {
 }
 
 // chip is an item drawn as a chip: no words under its title and one button beside its way to open.
-const chip = (it: Item) => !it.text && !it.meta && !it.questions && (it.actions ?? []).filter((a) => !(a.verb === 'open' && a.screen)).length === 1;
+const chip = (it: Item) => !it.text && !it.meta && !it.questions && (it.actions ?? []).filter((a) => !isOpener(it.actions)(a)).length === 1;
 
 // Chips are items in a row: what runs, each with its icon, how long and its one button, such as Stop.
 function Chips({ items }: { items: Item[] }) {
@@ -174,7 +174,7 @@ function Chips({ items }: { items: Item[] }) {
 
 function Chip({ it }: { it: Item }) {
   const ctx = useBlockContext();
-  const [act] = useVisibleActions((it.actions ?? []).filter((a) => !(a.verb === 'open' && a.screen)));
+  const [act] = useVisibleActions((it.actions ?? []).filter((a) => !isOpener(it.actions)(a)));
   return (
     <div className={s.chip} data-chip data-tone={it.tone} title={it.details} {...rowOpen(it.actions, ctx)}>
       {it.icon && <span className={s.chipIcon}><NamedIcon name={it.icon} fallback={it.title} size={15} /></span>}
@@ -196,16 +196,22 @@ function mark(it: Item) {
     : Tone ? <span className={s.itemIcon} data-tone-icon><Tone size={17} /></span> : null;
 }
 
+// lineOpen is the press of a line of a card, which is no stop of the keyboard: the card is the link.
+const lineOpen = (actions: Item['actions'], ctx: ReturnType<typeof useBlockContext>) => {
+  const { tabIndex: _, role: __, onKeyDown: ___, ...click } = rowOpen(actions, ctx) as Record<string, unknown>;
+  return click;
+};
+
 // FitLine is an item in a widget: one line of its title and one of its time, text and meta, its first button beside
 // them, words cut at the end rather than wrapped; a narrow line shows the button as its icon.
 function FitLine({ it }: { it: Item }) {
   const ctx = useBlockContext();
   const open = opener(it.actions);
-  // A plain open button goes, as on a screen: a click on the line opens it.
+  // A plain open button goes, as on a screen; a line of a card is no button of its own, so the opener stays.
   const [act] = useVisibleActions((it.actions ?? []).filter((a) => (!a.input || a.primary) && !(a === open && a.verb === 'open' && !a.primary)));
   const under = [it.text, it.meta].filter(Boolean).join(' · ');
   return (
-    <div className={s.fitLine} data-item data-tone={it.tone} {...rowOpen(it.actions, ctx)}>
+    <div className={s.fitLine} data-item data-tone={it.tone} {...lineOpen(it.actions, ctx)}>
       {it.cover ? <Cover cover={it.cover} className={s.fitCover} /> : mark(it)}
       <div className={s.fitWords}>
         <Text fw={600} size="sm" truncate className={s.fitTitle}>{it.title}</Text>
@@ -230,9 +236,9 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
   const { t } = useTranslation();
   const ctx = useBlockContext();
   const answer = it.questions ? it.actions?.find((a) => a.input) : undefined;
-  const open = opener(it.actions);
-  // A plain open button goes: a click on the line opens it.
-  const rest = (it.actions ?? []).filter((a) => a !== answer && !(a === open && a.verb === 'open' && !a.primary));
+  const own = isOpener(it.actions);
+  // The button that opens goes: a click on the line opens it, the chevron at its end says so.
+  const rest = (it.actions ?? []).filter((a) => a !== answer && !own(a));
   const opens = rowOpen(it.actions, ctx);
   const until = (it.actions ?? []).map((a) => a.until).filter(Boolean).sort()[0];
   const marked = mark(it);
@@ -253,6 +259,7 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
             </Group>
           )}
         </Stack>
+        {'onClick' in opens && <IconChevronRight size={18} className={s.opensMark} aria-hidden />}
       </Group>
       <div className={s.under}>
         {it.details && <Details text={it.details} />}

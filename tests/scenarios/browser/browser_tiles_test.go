@@ -246,8 +246,8 @@ func TestRealBrowserTilesAndCharts(t *testing.T) {
 		b.shot("main-" + look)
 		b.open(b.base + "/?reload=" + look + "#/p/lab/board")
 		b.until("the board", `document.querySelectorAll('[data-lane] [data-card]').length === 3`)
-		b.until("the accent of the board on the first card at work, none on Done", `document.querySelectorAll('[data-board] [data-verb][data-variant="filled"], [data-board] button[data-variant="filled"]').length === 1 &&
-			document.querySelector('[data-lane="todo"] button[data-variant="filled"]') && !document.querySelector('[data-lane="done"] button[data-variant="filled"]')`)
+		b.until("a card of the board opens by a press on it, with no Open button, its Move beside it", `[...document.querySelectorAll('[data-lane] [data-card]')].every((c) => c.querySelector('[data-opens]') &&
+			![...c.querySelectorAll('button')].some((x) => x.innerText.trim() === 'Open'))`)
 		b.shot("board-" + look)
 	}
 }

@@ -12,6 +12,7 @@
     {
       "type": "filter",
       "title": "Period",
+      "icon": "calendar",
       "param": "period",
       "options": [
         "Today",
@@ -74,6 +75,7 @@
     {
       "type": "chart",
       "title": "Paid by day",
+      "icon": "chart-bar",
       "kind": "bar",
       "span": "full",
       "source": {
@@ -95,6 +97,7 @@
     {
       "type": "table",
       "title": "By module",
+      "icon": "apps",
       "span": 1,
       "source": {
         "from": "deck.spend_days_list",
@@ -138,6 +141,7 @@
     {
       "type": "table",
       "title": "By model",
+      "icon": "cpu",
       "span": 1,
       "source": {
         "from": "deck.spend_days_list",

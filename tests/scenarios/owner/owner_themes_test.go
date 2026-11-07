@@ -239,10 +239,10 @@ func TestThemesStyleTheCardsOfModules(t *testing.T) {
 	cards := `{"version": 1, "title": {"en": "Cards"}, "mood": "m", "schemes": ["light"],
   "tokens": {"cockpit": "linear-gradient(180deg, #ffffff, #f2f6ee)", "tile": "#ffffff", "tile-text": "#0e1116", "tile-shade": "none",
     "tile-icon": "var(--accent-light)", "tile-min": "240px", "tile-height": "200px", "tile-lift": "translateY(-2px)",
-    "meadow": "radial-gradient(70% 100% at 22% 100%, #b7d79a 0%, transparent 75%)", "toast": "#1b1b21"},
+    "meadow": "radial-gradient(70% 100% at 22% 100%, #b7d79a 0%, transparent 75%)", "toast": "#1b1b21", "widget-row-gap": "2px"},
   "parts": {"tile": {"radius": "24px", "shadow": "var(--ring), var(--shadow)"}, "notification": {"radius": "14px"}, "tabs": {"weight": "600"},
     "bubble": {"radius": "18px"}, "menu": {"radius": "12px"}, "dialog": {"radius": "20px"}},
-  "css": ".today[data-cover] .h2 { color: var(--tile-text) }\n.tile:not([data-big]) .tile-icon { color: var(--accent) }\n.board-card { border-radius: 8px }\n.toast .button { font-weight: 600 }\n.meadow { opacity: 0.8 }\n.place[data-active] { font-weight: 700 }"}`
+  "css": ".today[data-cover] .h2 { color: var(--tile-text) }\n.tile:not([data-big]) .tile-icon { color: var(--accent) }\n.board-card { border-radius: 8px }\n.toast .button { font-weight: 600 }\n.meadow { opacity: 0.8 }\n.place[data-active] { font-weight: 700 }\n.widget-row { border-radius: 4px }"}`
 	var c struct {
 		OK       bool
 		Problems []string
@@ -258,7 +258,7 @@ func TestThemesStyleTheCardsOfModules(t *testing.T) {
 		"--deck-meadow: radial-gradient", "[data-app-tile]:not([data-big]) { border-radius: 24px; box-shadow: var(--deck-ring), var(--deck-shadow); }",
 		":is(.mantine-Notification-root, [data-toast]) { border-radius: 14px; }", ":is(.mantine-Tabs-tab, [data-places] > a) { font-weight: 600; }",
 		"[data-app-tile][data-big][data-cover] h2", "[data-app-tile]:not([data-big]) [data-app-tile-icon]", "[data-places] > a[data-active]", "[data-lane] [data-card]", "[data-toast] .mantine-Button-root",
-		"[data-meadow]"} {
+		"[data-meadow]", "--deck-widget-row-gap: 2px", "[data-widget] [data-item]"} {
 		if !strings.Contains(l.CSS, want) {
 			t.Fatalf("the cards theme as the client wears it has %q: %s", want, l.CSS)
 		}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActionIcon, Anchor, Badge, CopyButton, Text, Tooltip } from '@mantine/core';
-import { IconCheck, IconCopy } from '@tabler/icons-react';
+import { IconAlertCircle, IconAlertTriangle, IconCheck, IconCopy } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { formatted, show, tagColor, toneColor, type Shown } from '../lib/format';
 import { useClock } from '../hooks/useClock';
@@ -25,6 +25,9 @@ function Copied({ text }: { text: string }) {
   );
 }
 
+// TONED are the marks of a tag by its tone, so a state is not color alone.
+const TONED: Record<string, typeof IconCheck> = { ok: IconCheck, warn: IconAlertTriangle, error: IconAlertCircle };
+
 // Value shows a value by its format: a link opens, a tag is a badge by its tone or text with its hint on hover or a
 // tap, a relative time ages by the minute, a copy has a button that copies it.
 export function Value({ v, s, tone, hint }: { v: unknown; s: Shown; tone?: string | null; hint?: string | null }): ReactNode {
@@ -37,7 +40,9 @@ export function Value({ v, s, tone, hint }: { v: unknown; s: Shown; tone?: strin
     return <>{v.map((x, i) => <Value key={i} v={x} s={s} tone={tone} />)}</>;
   }
   if (s.format === 'tag' && v !== null && v !== undefined && v !== '') {
-    const badge = <Badge variant="light" color={color === 'dimmed' ? 'gray' : color ?? tagColor(v)} data-format="tag" data-tone={tone ?? undefined} miw="max-content" data-hint={hint ? true : undefined}>{show(v)}</Badge>;
+    const Mark = tone ? TONED[tone] : undefined;
+    const badge = <Badge variant="light" color={color === 'dimmed' ? 'gray' : color ?? tagColor(v)} data-format="tag" data-tone={tone ?? undefined} miw="max-content" data-hint={hint ? true : undefined}
+      leftSection={Mark ? <Mark size={12} stroke={2} /> : undefined}>{show(v)}</Badge>;
     if (!hint) return badge;
     return <Tooltip label={hint.length > 280 ? hint.slice(0, 280) + '…' : hint} multiline maw={360} withArrow events={{ hover: true, focus: true, touch: true }}>{badge}</Tooltip>;
   }

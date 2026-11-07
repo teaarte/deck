@@ -355,6 +355,11 @@
   user-select: none;
 }
 
+/* Lines on veils stand at least 6px apart, so the veils never touch. */
+.card[data-big][data-cover] .widget :global([data-fit-lines]) {
+  --row-gap: max(var(--deck-widget-row-gap, 0px), 6px);
+}
+
 /* Today's words read over any picture of the theme: each line on a veil, the color opposite to its text by default. */
 .card[data-big][data-cover] .widget :global([data-item]) {
   padding-inline: 8px;

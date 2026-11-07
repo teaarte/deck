@@ -10,7 +10,7 @@
             {"type": "form", "command": "deck.command_try", "keep_open": true, "values": {"command": "=param.command"},
               "description": "Runs a command once to see what it does: its calls outside deck are declined, and a paid model waits for your yes.",
               "choices": {"command": {"source": {"from": "deck.commands_list", "where": "executor != 'tool' && executor != ''", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}]},
-          {"type": "list", "title": "Module", "source": {"from": "deck.projects_list"},
+          {"type": "list", "title": "Module", "icon": "box", "source": {"from": "deck.projects_list"},
             "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
               "meta": "(title != name ? name + ' · ' : '') + meta",
               "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
@@ -26,14 +26,14 @@
             {"type": "form", "command": "deck.cover_draw", "fixed": ["project"], "values": {"project": "=param.name"},
               "description": "The master draws the pictures of the schemes of the theme in use in its mood. Without a model it takes a free one of deck.",
               "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + (free ? ' · free' : '')"}}}]},
-          {"type": "media", "title": "Covers", "description": "The picture of the module's card in each theme, light and dark; the card shows the one of the theme in use, else one for every theme, else any.",
+          {"type": "media", "title": "Covers", "icon": "photo", "description": "The picture of the module's card in each theme, light and dark; the card shows the one of the theme in use, else one for every theme, else any.",
             "source": {"from": "deck.project_covers_list"},
             "item": {"file": "file", "title": "title + ' · ' + (scheme == 'dark' ? 'dark scheme' : 'light scheme') + (shown ? ' · ' + 'on the card' : '')"},
             "empty": "The card has no picture yet: it shows the icon of the module.",
             "actions": [
               {"verb": "delete", "confirm": true, "command": "deck.project_cover_set", "params": {"project": "=project", "theme": "=theme", "scheme": "=scheme", "remove": "true"}}
             ]},
-          {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "input": {"fields": ["name", "title", "executor", "tool", "cron", "trigger", "own_paused"]}, "where": "tool == ''", "sort": "name"},
+          {"type": "table", "title": "Commands", "icon": "terminal-2", "source": {"from": "deck.commands_list", "input": {"fields": ["name", "title", "executor", "tool", "cron", "trigger", "own_paused"]}, "where": "tool == ''", "sort": "name"},
             "description": "What the module can do and when it runs by itself.",
             "columns": [
               {"label": "Command", "bind": "title"},
@@ -45,7 +45,7 @@
               {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=trigger", "paused": "true"}, "when": "(trigger ?? 0) != 0 && !(own_paused ?? false)"},
               {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "=name"}, "when": "executor != ''"}
             ]},
-          {"type": "table", "title": "Models", "when": "len(rows) > 0", "source": {"from": "deck.models_list", "rows": "work"},
+          {"type": "table", "title": "Models", "icon": "cpu", "when": "len(rows) > 0", "source": {"from": "deck.models_list", "rows": "work"},
             "description": "The model each command and each kind of work of its scripts runs on; pick one here for this module.",
             "columns": [
               {"label": "What", "bind": "command != nil ? title : role"},
@@ -66,7 +66,7 @@
               "choices": {"node": {"source": {"from": "deck.devices_list", "where": "kind == 'node' && !revoked"}, "value": "name"}}}]},
           {"type": "dialog", "name": "secret", "title": "Set a secret", "icon": "key", "blocks": [
             {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
-          {"type": "table", "title": "Folders", "source": {"from": "deck.folders_list"},
+          {"type": "table", "title": "Folders", "icon": "folder", "source": {"from": "deck.folders_list"},
             "description": "Folders on disk its agent commands work in, such as a repository, on deck's machine or on that of a node; only you add one.",
             "empty": "No folders; add one for commands that work on the files of a repository",
             "columns": [
@@ -77,7 +77,7 @@
             "actions": [
               {"verb": "remove", "confirm": true, "command": "deck.folder_delete", "params": {"name": "=name", "node": "=node"}}
             ]},
-          {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
+          {"type": "table", "title": "Secrets", "icon": "key", "source": {"from": "deck.secrets_list"},
             "description": "Keys and passwords its tools need.",
             "empty": "No secrets: set one its tools need with Set a secret",
             "columns": [
@@ -92,7 +92,7 @@
             ]}
       ]},
       {"title": "Health", "icon": "heartbeat", "blocks": [
-          {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["kind", "status"],
+          {"type": "table", "title": "Health", "icon": "heartbeat", "source": {"from": "deck.health_list"}, "filter": ["kind", "status"],
             "description": "What deck checks of the module, with why one fails.",
             "columns": [
               {"label": "What", "bind": "subject == kind ? kind : subject"},
@@ -105,7 +105,7 @@
               {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
               {"verb": "check", "command": "deck.program_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}
             ]},
-          {"type": "table", "title": "Failed runs", "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(failure ?? '') != ''", "sort": "command"},
+          {"type": "table", "title": "Failed runs", "icon": "alert-triangle", "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(failure ?? '') != ''", "sort": "command"},
             "description": "What runs by itself and failed its last run; change its model and run it again.",
             "columns": [
               {"label": "Command", "bind": "title"},
@@ -119,7 +119,7 @@
             ]}
       ]},
       {"title": "Advanced", "icon": "adjustments", "blocks": [
-          {"type": "table", "title": "Model calls", "when": "len(rows) > 0", "source": {"from": "deck.spend_list", "sort": "-last_at"},
+          {"type": "table", "title": "Model calls", "icon": "message-chatbot", "when": "len(rows) > 0", "source": {"from": "deck.spend_list", "sort": "-last_at"},
             "description": "Which model each command called, how often and what it cost.",
             "columns": [
               {"label": "Command", "bind": "command"},
@@ -129,13 +129,13 @@
               {"label": "Last", "bind": "last_at", "format": "relative"},
               {"label": "Subscription", "bind": "subscription ? '✓' : ''"}
             ]},
-          {"type": "table", "title": "Tools", "when": "len(rows) > 0", "description": "The web addresses, MCP servers and browser its manifest calls.", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
+          {"type": "table", "title": "Tools", "icon": "tool", "when": "len(rows) > 0", "description": "The web addresses, MCP servers and browser its manifest calls.", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
             "columns": [
               {"label": "Tool", "bind": "name", "format": "copy"},
               {"label": "Kind", "bind": "tool", "format": "tag"},
               {"label": "What it does", "bind": "description"}
             ]},
-          {"type": "table", "title": "Tokens with access", "when": "len(rows) > 0", "description": "Automation tokens that may call its commands.", "source": {"from": "deck.tokens_list", "sort": "-id"},
+          {"type": "table", "title": "Tokens with access", "icon": "lock-access", "when": "len(rows) > 0", "description": "Automation tokens that may call its commands.", "source": {"from": "deck.tokens_list", "sort": "-id"},
             "columns": [
               {"label": "Name", "bind": "name"},
               {"label": "Commands", "bind": "join(commands, ', ')"},

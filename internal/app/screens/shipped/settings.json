@@ -32,7 +32,7 @@
             {"label": "Devices", "icon": "devices", "primary": true, "screen": "settings", "params": {"tab": "Devices"}, "when": "kind == 'node'"},
             {"label": "Agents", "icon": "robot", "primary": true, "screen": "settings", "params": {"tab": "Advanced"}, "when": "kind == 'install'"}
           ]},
-        {"type": "table", "title": "Sign in to agents", "source": {"from": "deck.agent_logins_list"},
+        {"type": "table", "title": "Sign in to agents", "icon": "login", "source": {"from": "deck.agent_logins_list"},
           "empty": "No sign-in waits; Sign in on an agent that needs one gives its link here",
           "description": "Open the link, sign in there and enter the code; the self-check runs once the agent is signed in. The sign-in stays in deck's machine.",
           "columns": [
@@ -45,7 +45,7 @@
             {"label": "Enter the code", "icon": "key", "command": "deck.agent_login_finish", "params": {"provider": "=provider"}, "input": "code", "when": "paste && (error ?? '') == ''"},
             {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=provider"}, "when": "(error ?? '') != ''"}
           ]},
-        {"type": "table", "title": "Who does what", "icon": "route", "source": {"from": "deck.models_list", "rows": "work"}, "filter": ["kind", "project"],
+        {"type": "table", "title": "Who does what", "icon": "route", "source": {"from": "deck.models_list", "rows": "work"}, "filter": ["kind", "project", "model"],
           "description": "Each module's work and its model; pick another in the row. Agent work needs an agent: Claude Code, Codex or Goose on your model.",
           "empty": "Nothing of deck runs on a model yet",
           "columns": [
@@ -114,7 +114,7 @@
           {"type": "form", "command": "deck.cover_draw", "values": {"project": "=param.project"},
             "description": "Deki draws the cover of the module in the mood of the theme in use, for its schemes; without a module, of every module that has none in this theme.",
             "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + ' · ' + price"}}}]},
-        {"type": "list", "title": "Modules", "empty": "No modules yet: tell Deki what to do, or import a module", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
+        {"type": "list", "title": "Modules", "icon": "apps", "empty": "No modules yet: tell Deki what to do, or import a module", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
           "head": [{"label": "Arrange the tiles", "icon": "layout-grid", "screen": "apps", "params": {"edit": "1"}}],
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "cover": "cover ?? (builtin ? {'light': '/deki/chill.webp', 'color': '#f4ede4', 'dark_color': '#2a2522'} : nil)", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : ''",
             "meta": "status != 'enabled' || paused ? meta : ''",
@@ -129,7 +129,7 @@
             {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!builtin && manifest_error == ''"},
             {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
           ]},
-        {"type": "table", "title": "Secrets of the modules", "source": {"from": "deck.secrets_list", "sort": "project"}, "filter": ["project"],
+        {"type": "table", "title": "Secrets of the modules", "icon": "key", "source": {"from": "deck.secrets_list", "sort": "project"}, "filter": ["project"],
           "description": "The secrets each module keeps apart; set, replace or delete one in the settings of its module.",
           "empty": "No module names or keeps a secret",
           "columns": [
@@ -143,7 +143,7 @@
           ]}
       ]},
       {"title": "Health", "icon": "heartbeat", "count": "failures", "blocks": [
-        {"type": "list", "title": "Broken now", "span": "full", "source": {"from": "deck.feed_list", "input": {"kind": "failure"}},
+        {"type": "list", "title": "Broken now", "icon": "alert-triangle", "span": "full", "source": {"from": "deck.feed_list", "input": {"kind": "failure"}},
           "empty": "Everything works",
           "item": {"title": "text", "text": "error", "since": "created_at", "tone": "'error'",
             "icon": "(process ?? 0) != 0 ? 'player-play' : 'heartbeat'",
@@ -165,7 +165,7 @@
           "source": {"from": "deck.health_list", "where": "status == 'ok'"},
           "actions": [{"label": "All checks", "screen": "settings", "params": {"tab": "Health", "dialog": "checks"}}]},
         {"type": "dialog", "name": "checks", "title": "All checks", "icon": "list-check", "blocks": [
-          {"type": "table", "title": "Everything deck checks", "source": {"from": "deck.health_list"}, "filter": ["kind", "status", "project"],
+          {"type": "table", "title": "Everything deck checks", "icon": "list-check", "source": {"from": "deck.health_list"}, "filter": ["kind", "status", "project"],
             "columns": [
               {"label": "What", "bind": "subject == kind ? kind : subject"},
               {"label": "Status", "bind": "status", "format": "tag", "details": "error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
@@ -180,21 +180,22 @@
       {"title": "Devices", "icon": "devices", "blocks": [
         {"type": "dialog", "name": "pair", "title": "Pair a device", "icon": "qrcode", "blocks": [
           {"type": "form", "command": "deck.pair_link", "keep_open": true}]},
-        {"type": "table", "title": "Devices", "source": {"from": "deck.devices_list", "where": "!revoked"}, "span": 2,
+        {"type": "table", "title": "Devices", "icon": "devices", "source": {"from": "deck.devices_list", "where": "!revoked"}, "span": 2,
           "description": "Each browser signed in to deck and each node; revoking one signs out only that one. A device of pushes only came before passkeys: revoke it if you do not know it.",
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "Kind", "bind": "kind == 'node' ? 'node' : passkey != '' ? 'browser' : 'pushes only'", "format": "tag", "tone": "passkey != '' || kind != 'browser' ? 'ok' : 'warn'"},
             {"label": "Passkey", "bind": "passkey"},
-            {"label": "This device", "bind": "this ? '✓' : ''"},
+            {"label": "This device", "bind": "this ? 'you are here' : ''", "format": "tag", "tone": "'ok'"},
             {"label": "Pushes", "bind": "push ? 'on' : ''"},
             {"label": "Seen", "bind": "seen_at", "format": "relative"}
           ],
           "actions": [
             {"verb": "edit", "command": "deck.device_rename", "params": {"device": "=id"}, "input": "name"},
-            {"verb": "revoke", "confirm": true, "command": "deck.device_revoke", "params": {"device": "=id"}}
+            {"verb": "revoke", "confirm": true, "command": "deck.device_revoke", "params": {"device": "=id"}, "when": "!this"},
+            {"label": "Revoke this browser: you sign out for good", "icon": "ban", "confirm": true, "command": "deck.device_revoke", "params": {"device": "=id"}, "when": "this"}
           ]},
-        {"type": "table", "title": "Passkeys", "source": {"from": "deck.passkeys_list", "where": "!revoked"}, "span": 2,
+        {"type": "table", "title": "Passkeys", "icon": "fingerprint", "source": {"from": "deck.passkeys_list", "where": "!revoked"}, "span": 2,
           "description": "A passkey synced to many browsers signs each in as a device of its own; revoking it signs all of them out, and it pairs again only by a new link.",
           "columns": [
             {"label": "Name", "bind": "name"},
@@ -208,7 +209,7 @@
           ]}
       ]},
       {"title": "Advanced", "icon": "adjustments", "blocks": [
-        {"type": "table", "title": "deck", "source": {"from": "deck.health_list", "where": "subject == 'update'"},
+        {"type": "table", "title": "deck", "icon": "info-circle", "source": {"from": "deck.health_list", "where": "subject == 'update'"},
           "description": "The version of deck and whether a newer one is out; deck looks once a day.",
           "columns": [
             {"label": "Version", "bind": "version"},
@@ -221,7 +222,7 @@
         {"type": "dialog", "name": "token", "title": "Create a token", "icon": "ticket", "blocks": [
           {"type": "form", "command": "deck.token_create", "keep_open": true,
             "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}]},
-        {"type": "table", "title": "Limits", "source": {"from": "deck.settings_list", "where": "name != 'language' && name != 'push_text'"},
+        {"type": "table", "title": "Limits", "icon": "gauge", "source": {"from": "deck.settings_list", "where": "name != 'language' && name != 'push_text'"},
           "description": "How much deck runs at once and how long it waits for you.",
           "columns": [
             {"label": "Setting", "bind": "title"},
@@ -231,7 +232,7 @@
           "actions": [
             {"verb": "edit", "command": "deck.setting_set", "params": {"name": "=name"}, "input": "value", "options": "=options"}
           ]},
-        {"type": "table", "title": "Agents", "empty": "No agent found: install Claude Code or Codex, or add an ACP agent", "source": {"from": "deck.models_list", "rows": "agents"},
+        {"type": "table", "title": "Agents", "icon": "robot", "empty": "No agent found: install Claude Code or Codex, or add an ACP agent", "source": {"from": "deck.models_list", "rows": "agents"},
           "description": "The programs agent commands run in, with their version; change them only when an agent breaks.",
           "columns": [
             {"label": "Agent", "bind": "name"},
@@ -242,7 +243,7 @@
             {"verb": "turn_off", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "true"}, "when": "builtin && status != 'missing' && status != 'off'"},
             {"verb": "turn_on", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"}
           ]},
-        {"type": "table", "title": "Automation tokens", "source": {"from": "deck.tokens_list", "sort": "-id"},
+        {"type": "table", "title": "Automation tokens", "icon": "lock-access", "source": {"from": "deck.tokens_list", "sort": "-id"},
           "description": "A way in for Shortcuts or your scripts, to the commands it lists.",
           "empty": "No tokens yet: make one for a script or a service outside deck that calls its commands",
           "columns": [
@@ -260,7 +261,7 @@
             {"label": "Get pushes here", "command": "deck.push_subscribe"},
             {"label": "Stop pushes here", "command": "deck.push_unsubscribe"}
           ]},
-        {"type": "table", "title": "Text of pushes", "source": {"from": "deck.settings_list", "where": "name == 'push_text'"},
+        {"type": "table", "title": "Text of pushes", "icon": "bell", "source": {"from": "deck.settings_list", "where": "name == 'push_text'"},
           "description": "On a locked screen a push shows its text, or only the module it is of.",
           "columns": [
             {"label": "Setting", "bind": "title"},

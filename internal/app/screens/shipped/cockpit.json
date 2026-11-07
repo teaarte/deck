@@ -3,7 +3,7 @@
   "icon": "sun",
   "title": "Today",
   "blocks": [
-    {"type": "list", "title": "Decisions", "span": "full", "focus": true, "source": {"from": "deck.asks_list"},
+    {"type": "list", "title": "Decisions", "icon": "gavel", "span": "full", "focus": true, "source": {"from": "deck.asks_list"},
       "empty": "All decided",
       "item": {"title": "what", "text": "(why ?? '') != '' ? why : where",
         "kind": "kind == 'question' ? 'Question' : kind == 'grant' ? 'New right' : kind in ['sign_in', 'login'] ? 'Sign-in' : kind == 'unknown' ? 'Unknown outcome' : 'Action'",
@@ -20,7 +20,7 @@
         {"verb": "open", "screen": "process", "record": "=id"},
         {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
       ]},
-    {"type": "list", "title": "What was", "span": "full", "source": {"from": "deck.feed_list", "input": {"failures": true}, "limit": 20},
+    {"type": "list", "title": "What was", "icon": "history", "span": "full", "source": {"from": "deck.feed_list", "input": {"failures": true}, "limit": 20},
       "empty": "Nothing happened yet today",
       "head": [
         {"verb": "read_all", "command": "deck.feed_mark_read", "params": {"all": "true"}, "confirm": true, "when": "len(filter(rows, #.can_read)) > 0"}
@@ -41,7 +41,7 @@
         {"verb": "mark_read", "command": "deck.feed_mark_read", "params": {"entry": "=id"}, "when": "can_read"}
       ]},
     {"type": "dialog", "name": "changes", "title": "History", "icon": "history", "blocks": [
-      {"type": "table", "title": "Done without you", "empty": "Nothing was done without you yet", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}, "limit": 50},
+      {"type": "table", "title": "Done without you", "icon": "checks", "empty": "Nothing was done without you yet", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}, "limit": 50},
         "columns": [
           {"label": "What", "bind": "text"},
           {"label": "Module", "bind": "project", "format": "tag"},
@@ -51,7 +51,7 @@
         "actions": [
           {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "=id"}, "when": "can_undo"}
         ]},
-      {"type": "table", "title": "Notes", "empty": "No notes yet", "source": {"from": "deck.feed_list", "input": {"kind": "note", "limit": 500}, "limit": 50},
+      {"type": "table", "title": "Notes", "icon": "notes", "empty": "No notes yet", "source": {"from": "deck.feed_list", "input": {"kind": "note", "limit": 500}, "limit": 50},
         "description": "Every note, those read or read all at once too.",
         "columns": [
           {"label": "Note", "bind": "text"},

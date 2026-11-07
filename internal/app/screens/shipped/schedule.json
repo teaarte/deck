@@ -6,14 +6,14 @@
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Schedule", "icon": "calendar-time", "blocks": [
-        {"type": "list", "title": "Did not pass", "span": "full", "when": "len(rows) > 0", "source": {"from": "deck.triggers_list", "where": "(failure ?? '') != ''", "sort": "-last_at"},
+        {"type": "list", "title": "Did not pass", "icon": "clock-x", "span": "full", "when": "len(rows) > 0", "source": {"from": "deck.triggers_list", "where": "(failure ?? '') != ''", "sort": "-last_at"},
           "item": {"title": "title + ' · ' + project_title", "text": "failure", "since": "last_at", "tone": "'error'", "icon": "'alert-circle'"},
           "actions": [
             {"label": "Run again", "icon": "player-play", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
             {"label": "Change the model", "icon": "cpu", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
             {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
           ]},
-        {"type": "table", "title": "What runs by itself", "source": {"from": "deck.triggers_list", "sort": "project"}, "filter": ["project"],
+        {"type": "table", "title": "What runs by itself", "icon": "repeat", "source": {"from": "deck.triggers_list", "sort": "project"}, "filter": ["project"],
           "description": "Each command that runs on its own, when it runs next, how it last went and its model; a model picked here replaces the one the manifest suggests.",
           "empty": "Nothing runs by itself yet: the schedules of a module show here once it is enabled",
           "columns": [
@@ -33,7 +33,7 @@
           ]}
       ]},
       {"title": "Runs", "icon": "list", "blocks": [
-        {"type": "table", "title": "History", "empty": "No run yet: start a command of a module, or ask Deki in the chat", "source": {"from": "deck.processes_list", "input": {"limit": 100}, "sort": "-id"}, "filter": ["project", "state"],
+        {"type": "table", "title": "History", "icon": "history", "empty": "No run yet: start a command of a module, or ask Deki in the chat", "source": {"from": "deck.processes_list", "input": {"limit": 100}, "sort": "-id"}, "filter": ["project", "state"],
           "description": "Every run, by schedule, by a button or by Deki; a run shows its log and the calls it made.",
           "columns": [
             {"label": "What", "bind": "(title ?? '') != '' ? title : command"},

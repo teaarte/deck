@@ -288,11 +288,19 @@
 }
 
 /* A line of a widget: its thirds of a line high, nothing wraps (Fit). */
+/* The lines of a widget stand apart by the gap of the theme (--row-gap where a card sets its own least), inside the
+   height their thirds give them. */
+[data-fit-lines] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap, var(--deck-widget-row-gap, 0px));
+}
+
 .fitLine {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: calc(var(--line-thirds) * var(--third));
+  height: calc(var(--line-thirds) * var(--third) - var(--row-gap, var(--deck-widget-row-gap, 0px)));
   min-width: 0;
   container-type: inline-size;
 
@@ -351,4 +359,11 @@
 
 .groupHead {
   padding: 0 0 8px;
+}
+
+/* A line a click opens ends in a quiet chevron. */
+.opensMark {
+  flex: none;
+  align-self: center;
+  color: var(--mantine-color-dimmed);
 }

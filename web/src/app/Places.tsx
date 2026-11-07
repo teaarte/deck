@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { placesOf, useMenuData } from '../hooks/useMenu';
+import { entryOf, placesOf, useMenuData } from '../hooks/useMenu';
+import { usePhone } from '../hooks/usePhone';
+import { ModuleHead } from './ModuleHead';
 import { NamedIcon } from '../ui/NamedIcon';
 import { href, useRoute } from './router';
 import s from './shell.module.css';
@@ -9,10 +11,16 @@ import s from './shell.module.css';
 export function Places({ slot }: { slot?: (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
   const route = useRoute();
-  const places = placesOf(useMenuData(), route.project);
-  if (places.length < 2) return <div ref={slot} className={s.slot} data-side-slot data-alone />;
+  const menu = useMenuData();
+  const phone = usePhone();
+  const places = placesOf(menu, route.project);
+  const entry = route.project ? entryOf(menu, route.project) : undefined;
+  // On a phone the head of the screen names the module already.
+  const head = entry && !phone ? <ModuleHead entry={entry} /> : null;
+  if (places.length < 2) return head ? <div className={s.placesRow}>{head}<div ref={slot} className={s.slot} data-side-slot /></div> : <div ref={slot} className={s.slot} data-side-slot data-alone />;
   return (
     <div className={s.placesRow}>
+    {head}
     <nav className={s.places} aria-label={t('Screens')} data-places>
       {places.map((p) => (
         <a key={p.name} href={href({ project: p.project, screen: p.name })} className={s.place}

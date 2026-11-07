@@ -39,7 +39,7 @@ func TestRealBrowserSignsInWithAPasskey(t *testing.T) {
 	b := Open(t)
 	b.authenticator()
 	b.signIn(e, e.Https(), "#/deck/settings?tab=Devices")
-	b.until("the browser among the devices, marked as this one", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('BROWSER') && r.innerText.includes('✓'))`)
+	b.until("the browser among the devices, marked as this one", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('BROWSER') && r.innerText.toLowerCase().includes('you are here'))`)
 
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.context().clearCookies({ name: '__Host-deck' }); await page.reload(); }`})
 	b.until("the page that signs in with a passkey", `document.querySelector('[data-signin="passkey"]')`)
@@ -128,7 +128,7 @@ func TestRealBrowserTwoBrowsersOfOnePasskeyAreTwoDevices(t *testing.T) {
 	if len(passkeys(e)) != 2 {
 		t.Fatalf("the link makes no second passkey in a browser that holds one: %+v", passkeys(e))
 	}
-	mark := `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes(%q) && r.innerText.includes('✓'))`
+	mark := `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes(%q) && r.innerText.toLowerCase().includes('you are here'))`
 	a.until("the first browser marked as this one", fmt.Sprintf(mark, "the test's browser"))
 	b.until("the second browser marked as this one", fmt.Sprintf(mark, "Mac — Chrome"))
 	b.shot("signin-two-browsers")

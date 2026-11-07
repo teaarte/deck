@@ -93,6 +93,33 @@
   flex: 1.4 1 380px;
 }
 
+/* Numbers side by side stand two a line on a phone, the last odd one across, smaller and without their icon. */
+@media (max-width: 640px) {
+  .cols > .cell:has(> [data-stat-block]) {
+    flex: 1 1 calc(50% - var(--mantine-spacing-sm) / 2);
+  }
+
+  .cols:has(> .cell > [data-stat-block]) {
+    gap: var(--mantine-spacing-sm);
+  }
+
+  .cols > .cell > [data-stat-block] {
+    padding: 10px 12px;
+
+    & > span:first-child {
+      display: none;
+    }
+
+    & [data-stat] {
+      font-size: 20px;
+    }
+
+    & [data-stat-description] {
+      display: none;
+    }
+  }
+}
+
 .stack {
   display: flex;
   flex-direction: column;

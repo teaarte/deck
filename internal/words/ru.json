@@ -1113,5 +1113,7 @@
   "No work goes to these: assign one in Who does what, or remove it. For agent work, add a text model again with the agent goose.": "На этих моделях нет работы: назначьте модель в «Кто что делает» или удалите её. Для агентской работы добавьте текстовую модель ещё раз с агентом goose.",
   "An API on the web, a server of deck's machine, or one of a Mac through its node (deck pair --node). claude-code@Mac is Claude Code on that Mac, by its sign-in.": "API в интернете, сервер на машине deck или сервер Mac через его узел (deck pair --node). claude-code@Mac — Claude Code на том Mac, под его входом.",
   "By provider; a model's details say where it works.": "По провайдерам; в подробностях модели — где она работает.",
-  "Puts a model in place of another in every work of a kind that goes to that one first, such as a model that is down, where each takes its models from; the replaced one leaves those assignments.": "Ставит модель вместо другой во всех работах этого вида, где та стоит первой, — например, вместо неработающей, — там, откуда работа берёт модели; заменённая уходит из этих назначений."
+  "Puts a model in place of another in every work of a kind that goes to that one first, such as a model that is down, where each takes its models from; the replaced one leaves those assignments.": "Ставит модель вместо другой во всех работах этого вида, где та стоит первой, — например, вместо неработающей, — там, откуда работа берёт модели; заменённая уходит из этих назначений.",
+  "you are here": "вы здесь",
+  "Revoke this browser: you sign out for good": "Отозвать этот браузер: вы выйдете из deck насовсем"
 }

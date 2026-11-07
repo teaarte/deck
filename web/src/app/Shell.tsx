@@ -13,6 +13,7 @@ import { ScreenLead } from '../screen/lead';
 import { ScreenView } from '../screen/ScreenView';
 import { PressAsks } from '../ui/actions/PressAsks';
 import s from './shell.module.css';
+import { ModuleMark } from './ModuleHead';
 import { Backdrop } from './Backdrop';
 import { ChatPanel } from './ChatPanel';
 import { MasterButton } from './MasterButton';
@@ -78,6 +79,7 @@ export function Shell() {
             (heading || route.record) && (
               <header className={s.phoneHead} data-phone-head>
                 <BackButton />
+                {heading && route.project && entry && <ModuleMark entry={entry} />}
                 {heading && <Title order={1} className={s.phoneTitle} data-phone-title>{heading}</Title>}
               </header>
             )

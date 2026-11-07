@@ -391,3 +391,36 @@
     justify-content: flex-end;
   }
 }
+
+/* The module the owner is in: its mark and name, beside its tabs, as tall as a tab. */
+.moduleHead {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  height: 34px;
+  padding-right: 12px;
+  margin: -2px 4px 12px 0;
+  border-right: 1px solid var(--deck-line, var(--mantine-color-default-border));
+  color: var(--mantine-color-text);
+  text-decoration: none;
+}
+
+.moduleIcon,
+.moduleCover {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+  color: var(--mantine-primary-color-light-color);
+  background: var(--mantine-primary-color-light);
+}
+
+.moduleCover {
+  object-fit: cover;
+}

@@ -6,7 +6,7 @@
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Files", "icon": "files", "blocks": [
-        {"type": "media", "title": "Modules", "span": "full", "path": "param.path ?? ''",
+        {"type": "media", "title": "Modules", "icon": "folders", "span": "full", "path": "param.path ?? ''",
           "source": {"from": "deck.files_folder_list", "input": {"path": "=param.path ?? ''"}, "rows": "entries", "sort": "-dir"},
           "description": "The folders of the modules: what each made and took, what it works by and what it keeps on disk; master is Deki's.",
           "empty": "The folder is empty",
@@ -19,7 +19,7 @@
             {"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"}, "when": "kind == 'file' && (id ?? 0) != 0",
              "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}
           ]},
-        {"type": "media", "title": "All files", "span": "full", "when": "(param.path ?? '') == ''", "source": {"from": "deck.files_list", "sort": "-created_at"},
+        {"type": "media", "title": "All files", "icon": "files", "span": "full", "when": "(param.path ?? '') == ''", "source": {"from": "deck.files_list", "sort": "-created_at"},
           "filter": ["project", "type"], "search": ["name", "project", "type"],
           "empty": "No files yet: modules keep here what they make",
           "item": {"file": "id", "title": "name"},
@@ -30,7 +30,7 @@
       ]},
       {"title": "Snapshots", "icon": "camera", "blocks": [
         {"type": "actions", "title": "Take a snapshot now", "icon": "camera-plus", "actions": [{"label": "Take a snapshot", "icon": "camera-plus", "primary": true, "command": "deck.snapshot_create"}]},
-        {"type": "table", "title": "Snapshots", "source": {"from": "deck.snapshots_list"},
+        {"type": "table", "title": "Snapshots", "icon": "camera", "source": {"from": "deck.snapshots_list"},
           "description": "Copies of deck's base, files and the data folders of modules, without secrets: deck takes one a day and before a module is deleted, and keeps the newest. They lie in backups of deck's state folder.",
           "empty": "No snapshot yet: deck takes the first one today, or take one now",
           "columns": [

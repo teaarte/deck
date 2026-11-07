@@ -201,7 +201,9 @@ func TestAModelOfAnAgentNotInstalledSaysSo(t *testing.T) {
 	}
 	e.App.Providers.Checks(t.Context(), time.Now())
 	e.Until("the model of goose is not installed", func() bool {
-		var m struct{ Models []struct{ Name, Status string } }
+		var m struct {
+			Models []struct{ Name, Status string }
+		}
 		e.Must("deck.models_list", nil, &m)
 		for _, x := range m.Models {
 			if x.Name == "acp" {

@@ -90,8 +90,9 @@ hold; look inside a package for the rest.
   `deck.screen_get` with `block` reads one block, the blocks of a closed dialog get no data, a source's `limit` is a page.
 - `internal/api` — HTTP API, SSE, files and the second origin of `custom` blocks (`Sandbox`: the guard of
   `sandbox.html` stays its first script — no WebRTC, no frames).
-- `internal/sandbox` — the box of every foreign program, `Run(Box)` (bubblewrap on Linux; on macOS `sandbox-exec`,
-  the CLIs of Claude Code and Codex outside it until deck runs in a Linux container there), `Door` the one way out (no door, no network), `Env` the one environment, `Find`/`Path` the one search of
+- `internal/sandbox` — the box of every foreign program, `Run(Box)` (bubblewrap on Linux, folders mounted by what it
+  opens; on macOS — a node or deck without Docker — `sandbox-exec`, the CLIs of Claude Code and Codex outside it),
+  `Door` the one way out (no door, no network), `Env` the one environment, `Find`/`Path` the one search of
   programs (deck's PATH, then the login shell's, then the folders of installers).
 - `internal/untrusted` — text deck did not write, shaped (`Cut`, `Line`, `Block`) before a prompt, an ask or a
   journal.

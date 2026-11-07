@@ -52,7 +52,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		return
 	}
 	trial := p.Trial == 1
-	if t.cmd.Runs == manifest.RunsOne && !t.resume && !r.holdRun(bg, t) {
+	if (t.cmd.Runs == manifest.RunsOne || r.onNode(bg, t)) && !t.resume && !r.holdRun(bg, t) {
 		return
 	}
 	switch t.cmd.Executor.Type {

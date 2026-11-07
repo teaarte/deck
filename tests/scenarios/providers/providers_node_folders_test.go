@@ -1,11 +1,14 @@
 package providers
 
 import (
+	"cmp"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -235,5 +238,97 @@ func TestAnAgentCommitsInARepositoryOfItsNode(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(own.Dir, "calls")); err == nil {
 		t.Fatal("deck's own Codex took no turn")
+	}
+}
+
+// TestAFolderGoesOnlyFromTheMachineItIsOn: removing a folder takes only the row of the machine named, deck's own by
+// default; a revoked node takes its folders with it.
+func TestAFolderGoesOnlyFromTheMachineItIsOn(t *testing.T) {
+	t.Parallel()
+	mine, theirs := folderOf(t, "a"), folderOf(t, "b")
+	for _, dir := range []string{mine, theirs} {
+		if out, err := exec.Command("git", "-C", dir, "init", "-q").CombinedOutput(); err != nil {
+			t.Fatalf("git init: %v %s", err, out)
+		}
+	}
+	e, n := scriptsOnNode(t, time.Minute, theirs)
+	rows := func() (on []string) {
+		var rs []struct{ Name, Node string }
+		e.Must("deck.folders_list", map[string]any{"project": "lab"}, &rs)
+		for _, r := range rs {
+			on = append(on, r.Name+"@"+cmp.Or(r.Node, "deck"))
+		}
+		return on
+	}
+	addMine := func() { e.Must("deck.folder_add", map[string]any{"project": "lab", "path": mine, "name": "code"}, nil) }
+	addTheirs := func() {
+		e.Must("deck.folder_add", map[string]any{"project": "lab", "path": theirs, "name": "code", "node": "Mac"}, nil)
+	}
+	addMine()
+	addTheirs()
+	e.Must("deck.folder_delete", map[string]any{"project": "lab", "name": "code"}, nil)
+	if got := rows(); !slices.Equal(got, []string{"code@Mac"}) {
+		t.Fatalf("a folder removed without a node goes from deck's machine only: %v", got)
+	}
+	e.Refused("deck.folder_delete", map[string]any{"project": "lab", "name": "code"}, 404, "no folder code on deck's machine")
+	addMine()
+	e.Must("deck.folder_delete", map[string]any{"project": "lab", "name": "code", "node": "Mac"}, nil)
+	if got := rows(); !slices.Equal(got, []string{"code@deck"}) {
+		t.Fatalf("a folder removed on a node goes from that node only: %v", got)
+	}
+	addTheirs()
+	e.Must("deck.device_revoke", map[string]any{"device": n.Joined.Device}, nil)
+	if got := rows(); !slices.Equal(got, []string{"code@deck"}) {
+		t.Fatalf("a revoked node takes its folders with it: %v", got)
+	}
+}
+
+// TestScriptsOnANodeKeepEveryChangeOfTheirData: the scripts of a node work on a copy of the data of their project, so
+// runs of a command that may run side by side take turns there, and a file deck changed meanwhile stays deck's.
+func TestScriptsOnANodeKeepEveryChangeOfTheirData(t *testing.T) {
+	t.Parallel()
+	data := folderOf(t, "x")
+	e, _ := scriptsOnNode(t, time.Minute, data)
+	e.Project("count", strings.Replace(harness.ScriptManifest("read", "", ""), `"executor": {"type": "script"`, `"runs": "many", "executor": {"type": "script"`, 1))
+	e.SaveScript("count", "scripts/main.py", harness.PythonLib+`
+import time
+inp = json.load(sys.stdin)
+at = os.path.join(os.environ["DECK_DATA"], "count.txt")
+n = int(open(at).read()) if os.path.exists(at) else 0
+if inp.get("use") == "wait":
+    print("started", file=sys.stderr, flush=True)
+    while not os.path.exists(os.path.join(inp["allowed"], "go")):
+        time.sleep(0.1)
+else:
+    time.sleep(1)
+open(at, "w").write(str(n + 1))
+print(json.dumps({"n": n + 1}))
+`)
+	e.Must("deck.folder_add", map[string]any{"project": "count", "path": data, "name": "data", "node": "Mac"}, nil)
+	a, b := e.Start("count", "read", map[string]any{"allowed": data}), e.Start("count", "read", map[string]any{"allowed": data})
+	for _, id := range []int64{a, b} {
+		if p := e.WaitState(id, "done", "error"); p.State != "done" {
+			t.Fatalf("a script of a node runs: %+v %v", p, e.Log(id))
+		}
+	}
+	at := filepath.Join(deckhome.Layout(e.Home).Data(e.ProjectID("count")), "count.txt")
+	if b, _ := os.ReadFile(at); string(b) != "2" {
+		t.Fatalf("two runs of a node one after the other keep both changes: %q", b)
+	}
+
+	id := e.Start("count", "read", map[string]any{"allowed": data, "use": "wait"})
+	e.Until("the script to start on the node", func() bool { return strings.Contains(fmt.Sprint(e.Log(id)), "started") })
+	if err := os.WriteFile(at, []byte("10"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(data, "go"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p := e.WaitState(id, "done", "error")
+	if b, _ := os.ReadFile(at); p.State != "done" || string(b) != "10" {
+		t.Fatalf("a file deck changed while the script ran on the node stays deck's: %q %+v", b, p)
+	}
+	if log := fmt.Sprint(e.Log(id)); !strings.Contains(log, "count.txt") || !strings.Contains(log, "stay as they are on deck") {
+		t.Fatalf("the log of the run says which of its changes are lost: %s", log)
 	}
 }

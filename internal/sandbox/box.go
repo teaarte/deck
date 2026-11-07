@@ -131,8 +131,8 @@ func Leaves(kind string) (files, network bool) {
 	return out, out
 }
 
-// Homed says the CLI of an agent runs in a home deck keeps for its project, in a box of its own; else, on macOS until
-// deck moves into a Linux container there, in the home of the user.
+// Homed says the CLI of an agent runs in a home deck keeps for its project, in a box of its own; else, on macOS, in
+// the home of the user.
 func Homed() bool { return !outside(Box{Kind: KindCLI}) }
 
 // base is the environment every box starts from: deck's few variables, its PATH, the box's home and temp folder, so

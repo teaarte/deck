@@ -247,21 +247,13 @@ func (q *Queries) ReleaseFolderLocks(ctx context.Context, processID int64) error
 	return err
 }
 
-const removeProjectFolder = `-- name: RemoveProjectFolder :execrows
-DELETE FROM project_folder WHERE project_id = ? AND name = ?
+const removeNodeFolders = `-- name: RemoveNodeFolders :exec
+DELETE FROM project_folder WHERE node_id = ?
 `
 
-type RemoveProjectFolderParams struct {
-	ProjectID int64
-	Name      string
-}
-
-func (q *Queries) RemoveProjectFolder(ctx context.Context, arg RemoveProjectFolderParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, removeProjectFolder, arg.ProjectID, arg.Name)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+func (q *Queries) RemoveNodeFolders(ctx context.Context, nodeID int64) error {
+	_, err := q.db.ExecContext(ctx, removeNodeFolders, nodeID)
+	return err
 }
 
 const removeProjectFolderOn = `-- name: RemoveProjectFolderOn :execrows

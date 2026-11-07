@@ -139,8 +139,10 @@ func (p *Provider) Run(ctx context.Context, req provider.Request) (provider.Resu
 	if err != nil {
 		return provider.Result{}, err
 	}
+	var sent map[string]stamp
 	for tried := false; ; tried = true {
-		err := p.cfg.send(ctx, req.SessionID, roots)
+		var err error
+		sent, err = p.cfg.send(ctx, req.SessionID, roots)
 		var r *refused
 		var big *tooBig
 		switch {
@@ -174,11 +176,11 @@ func (p *Provider) Run(ctx context.Context, req provider.Request) (provider.Resu
 			return res, err
 		}
 		// What the turn did on the node before it went away comes to deck before the turn goes on in its session.
-		p.cfg.bring(context.WithoutCancel(ctx), req.SessionID, roots, p.say(req))
+		p.cfg.bring(context.WithoutCancel(ctx), req.SessionID, roots, sent, p.say(req))
 		return provider.Result{}, &provider.Killed{Program: p.Name(), Signal: syscall.SIGHUP,
 			Why: fmt.Sprintf("node %s %s and came back", p.cfg.Node, what)}
 	}
-	p.cfg.bring(context.WithoutCancel(ctx), req.SessionID, roots, p.say(req))
+	p.cfg.bring(context.WithoutCancel(ctx), req.SessionID, roots, sent, p.say(req))
 	return res, err
 }
 

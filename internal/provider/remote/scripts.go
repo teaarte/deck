@@ -44,8 +44,10 @@ func (s *Scripts) Run(ctx context.Context, j script.Job, side http.Handler, emit
 			return nil, err
 		}
 	}
+	var sent map[string]stamp
 	for tried := false; ; tried = true {
-		err := s.send(ctx, session, roots)
+		var err error
+		sent, err = s.send(ctx, session, roots)
 		var r *refused
 		var big *tooBig
 		switch {
@@ -100,7 +102,7 @@ func (s *Scripts) Run(ctx context.Context, j script.Job, side http.Handler, emit
 		case f.Line != nil:
 			say(*f.Line)
 		case f.Done != nil:
-			s.bring(context.WithoutCancel(ctx), session, roots, say)
+			s.bring(context.WithoutCancel(ctx), session, roots, sent, say)
 			switch {
 			case f.Done.Fault != nil:
 				return nil, f.Done.Fault

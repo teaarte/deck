@@ -16,9 +16,9 @@ import (
 // unpacked numbers the files Unpack writes apart before they move into place.
 var unpacked atomic.Int64
 
-// Unpack writes the folders and regular files of a tar under dir by their names, each file whole, never past dir nor
-// through a link in it; take refuses a name the caller does not expect, and nothing else of the tar is written.
-func Unpack(dir string, r io.Reader, take func(name string) bool) error {
+// Unpack writes the folders and files of a tar under dir whole, never past dir nor through a link in it; take refuses
+// a name the caller does not expect and stops it, a file keep names stays as it is.
+func Unpack(dir string, r io.Reader, take, keep func(name string) bool) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
@@ -39,6 +39,9 @@ func Unpack(dir string, r io.Reader, take func(name string) bool) error {
 		name := path.Clean(h.Name)
 		if !filepath.IsLocal(filepath.FromSlash(name)) || !take(name) {
 			return fmt.Errorf("%q is outside the folders it may write", h.Name)
+		}
+		if h.Typeflag == tar.TypeReg && keep != nil && keep(name) {
+			continue
 		}
 		at := filepath.FromSlash(name)
 		if err := Plain(root, at); err != nil {

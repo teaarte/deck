@@ -85,8 +85,9 @@ For those who want to know how it holds together; the full picture is in
   your machine or network is named by its IP:port, never by a name (Codex on a local model too: its `base_url` by
   IP:port). Model keys live in the
   proxy, never in a module. The login of Claude Code or Codex is one for all projects, and the agent in a box can read
-  it, as the CLI does; another project's data it cannot. On macOS, until deck runs in a Linux container there,
-  scripts, MCP servers and ACP agents run under `sandbox-exec`, and Claude Code and Codex outside it, as the owner's.
+  it, as the CLI does; another project's data it cannot. On a Mac deck runs in its container; a node on a Mac (and deck
+  without Docker there) runs scripts, MCP servers and ACP agents under `sandbox-exec`, and Claude Code and Codex
+  outside it, as the owner's.
 - **Screens are data.** Screens and widgets are JSON resolved on the server into [A2UI](https://github.com/google/A2UI)
   messages from a catalog of blocks (tables, boards, cards, forms, charts, media, a file manager, tabs, dialogs,
   side panels). Each read declares its topics; a committed write publishes the topic of its table, and the client
@@ -251,8 +252,8 @@ online, and an assignment picks it as any other agent, with fallbacks. Sign the 
 sign-in of `claude-code@Mac` runs on the node, its link comes to deck. A turn on a node works in the node's copy of the
 turn's folders (up to 2 GB), reaches deck's tools, questions and the model of an ACP agent through deck by the node's
 key, and brings the files it changed back to deck at its end; a turn in a project folder runs on the machine of that
-folder (below). On macOS the CLIs run outside a box until deck moves into a Linux container there, so an agent allowed on a
-Mac node acts as its user: allow it only on a machine you trust deck with. If the node goes away in the middle of a turn, the turn waits for it three minutes (a row in the feed
+folder (below). On a Mac node the CLIs run outside a box, so an agent allowed on a Mac node acts as its user: allow it
+only on a machine you trust deck with. If the node goes away in the middle of a turn, the turn waits for it three minutes (a row in the feed
 says so), goes on in its session if the node comes back, and otherwise goes to the next agent of the assignment.
 
 ### Folders on a node
@@ -273,7 +274,11 @@ script that needs it is refused and Settings → Health says the same in the row
   do.
 - The data of the module, its records and files stay on deck: a script or a turn on a node gets a copy of its run
   folder and of the module's data, and what it changed comes back to deck at its end (Health `disk` warns before deck's
-  disk fills).
+  disk fills). So runs of one command of a node's scripts take turns there, even with `"runs": "many"`; a file that
+  changed on deck meanwhile, by another run or by you, stays as it is on deck, and the run's log names the changes of
+  the run that did not come back.
+- Removing a folder in Access takes it from the one machine of its row; revoking a node in Settings → Devices takes its
+  folders from every module.
 - While the node is off, a turn or script of its folder waits for it a few minutes (the feed and the row of the node
   say so), runs once it is back, and otherwise a turn goes to the next agent and a script fails saying the node did not
   come back.

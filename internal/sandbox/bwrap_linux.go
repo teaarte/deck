@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 
 	"deck2/internal/home"
 )
@@ -99,12 +100,13 @@ func (s *Sandbox) addr(net.Listener) string { return bridgeAddr }
 
 func (s *Sandbox) command(ctx context.Context, b Box, door *Door, env []string) (*exec.Cmd, error) {
 	env = merged(append(base(b), env...))
-	args, argv, err := allowed(b, door, env)
+	args, argv, pinned, err := allowed(b, door, env)
 	if err != nil {
 		return nil, err
 	}
 	r, w, err := os.Pipe()
 	if err != nil {
+		closeAll(pinned)
 		return nil, err
 	}
 	var all []byte
@@ -119,7 +121,7 @@ func (s *Sandbox) command(ctx context.Context, b Box, door *Door, env []string) 
 	if b.Mark != "" {
 		cmd.Args[0] = b.Mark
 	}
-	cmd.Dir, cmd.Env, cmd.ExtraFiles = "/", []string{}, []*os.File{r}
+	cmd.Dir, cmd.Env, cmd.ExtraFiles = "/", []string{}, append([]*os.File{r}, pinned...)
 	return group(cmd), nil
 }
 
@@ -141,8 +143,9 @@ func roots() []string {
 	return args
 }
 
-// allowed are the arguments of bwrap for the box: only what is listed is there.
-func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
+// allowed are the arguments of bwrap for the box: only what is listed is there; the folders it reads and writes are
+// mounted by the files pinned opens, which bwrap takes from fd 4 on and closes.
+func allowed(b Box, door *Door, env []string) (args, argv []string, pinned []*os.File, err error) {
 	args = append([]string{"--die-with-parent", "--new-session", "--unshare-all"}, roots()...)
 	if b.HostNet {
 		args = append(args, "--share-net")
@@ -157,12 +160,32 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
 	if b.GPU {
 		args = append(args, "--dev-bind-try", "/dev/dri", "/dev/dri")
 	}
-	type mount struct{ flag, from, path string }
+	type mount struct{ flag, from, path, at string }
 	var mounts []mount
 	add := func(flag, p string) {
 		if filepath.IsAbs(p) {
-			mounts = append(mounts, mount{flag, real(p), p})
+			mounts = append(mounts, mount{flag, real(p), p, real(p)})
 		}
+	}
+	fail := func(err error) ([]string, []string, []*os.File, error) {
+		closeAll(pinned)
+		return nil, nil, nil, err
+	}
+	// hold mounts a folder of the box by what pin opens; one that is not there is not in the box.
+	hold := func(flag, p string) error {
+		if !filepath.IsAbs(p) {
+			return nil
+		}
+		f, at, err := pin(p)
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		pinned = append(pinned, f)
+		mounts = append(mounts, mount{flag, fmt.Sprint(3 + len(pinned)), p, at})
+		return nil
 	}
 	path := ""
 	for _, kv := range env {
@@ -177,15 +200,19 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
 	}
 	add("--ro-bind-try", b.Argv[0])
 	for _, r := range b.Read {
-		add("--ro-bind-try", r)
+		if err := hold("--ro-bind-fd", r); err != nil {
+			return fail(err)
+		}
 	}
 	for _, w := range b.Write {
-		add("--bind-try", w)
+		if err := hold("--bind-fd", w); err != nil {
+			return fail(err)
+		}
 	}
 	for at, p := range b.Shared {
 		// What is shared is deck's own and never a link a program put there.
 		if fi, err := os.Lstat(p); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) && filepath.IsAbs(at) {
-			mounts = append(mounts, mount{"--bind", real(p), at})
+			mounts = append(mounts, mount{"--bind", real(p), at, at})
 		}
 	}
 	// The links along the paths come first, then the paths, shallow before deep, so a path inside another keeps its
@@ -195,10 +222,10 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
 		args = append(args, links(m.path, made)...)
 	}
 	slices.SortStableFunc(mounts, func(a, b mount) int {
-		return strings.Count(real(a.path), "/") - strings.Count(real(b.path), "/")
+		return strings.Count(a.at, "/") - strings.Count(b.at, "/")
 	})
 	for _, m := range mounts {
-		args = append(args, m.flag, m.from, real(m.path))
+		args = append(args, m.flag, m.from, m.at)
 	}
 	var private []string
 	for _, p := range Private() {
@@ -211,7 +238,7 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
 	if door != nil && !b.HostNet {
 		self, err := os.Executable()
 		if err != nil {
-			return nil, nil, err
+			return fail(err)
 		}
 		sock := real(door.ln.Addr().String())
 		args = append(args, "--bind", filepath.Dir(sock), filepath.Dir(sock), "--ro-bind", real(self), real(self))
@@ -226,7 +253,13 @@ func allowed(b Box, door *Door, env []string) (args, argv []string, err error) {
 		k, v, _ := strings.Cut(kv, "=")
 		args = append(args, "--setenv", k, v)
 	}
-	return args, argv, nil
+	return args, argv, pinned, nil
+}
+
+func closeAll(files []*os.File) {
+	for _, f := range files {
+		_ = f.Close()
+	}
 }
 
 // programs are the folders of PATH outside /usr with the installations they belong to, and the runtimes of the

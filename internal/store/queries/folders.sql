@@ -14,12 +14,12 @@ SELECT * FROM project_folder WHERE project_id = ? AND node_id = ? ORDER BY name;
 SELECT f.*, p.name AS project FROM project_folder f JOIN project p ON p.id = f.project_id WHERE f.node_id = ? ORDER BY p.name, f.name;
 
 
--- name: RemoveProjectFolder :execrows
-DELETE FROM project_folder WHERE project_id = ? AND name = ?;
-
-
 -- name: RemoveProjectFolderOn :execrows
 DELETE FROM project_folder WHERE project_id = ? AND name = ? AND node_id = ?;
+
+
+-- name: RemoveNodeFolders :exec
+DELETE FROM project_folder WHERE node_id = ?;
 
 
 -- name: DropStaleFolderLocks :exec

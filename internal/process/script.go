@@ -102,6 +102,16 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	r.settle(bg, u, result, nil)
 }
 
+// onNode says t is a script that runs on a node, on a copy of the data of its project: runs of its command there take
+// turns, so none writes over what one beside it changed.
+func (r *Runner) onNode(ctx context.Context, t turn) bool {
+	if t.cmd.Executor.Type != KindScript {
+		return false
+	}
+	place, err := r.deps.ScriptsAt(ctx, t.project)
+	return err == nil && place.On != nil
+}
+
 // refused adds to the failure of a script deck's error answers to its calls; a failure it did not name takes the
 // type of the last one when that was its last call and a script may give that type.
 func refused(calls []gateway.Refusal, last bool, f *fault.F) *fault.F {

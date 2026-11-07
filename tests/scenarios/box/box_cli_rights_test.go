@@ -13,7 +13,7 @@ import (
 	"deck2/tests/harness"
 )
 
-// Outside a box of its own, on macOS until deck runs in a Linux container there, rules of the CLI close deck's state.
+// Outside a box of its own, on macOS, rules of the CLI close deck's state.
 func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	user := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(user, ".claude", "projects", "-elsewhere"), 0o700)

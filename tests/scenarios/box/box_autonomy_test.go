@@ -46,8 +46,8 @@ type cliSettings struct {
 	}
 }
 
-// On Linux Claude Code runs in a box of its own, without its web, which passes the door; on macOS, until deck runs in a
-// Linux container there, outside one with its web and with rules that close deck's state.
+// On Linux Claude Code runs in a box of its own, without its web, which passes the door; on macOS outside one, with its
+// web and with rules that close deck's state.
 func TestCommandAgentRunsInAutoModeInItsFolders(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)

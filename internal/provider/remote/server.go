@@ -229,7 +229,7 @@ func (s *Server) take(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "deck node: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	err = home.Unpack(dir, r.Body, func(name string) bool { return under(name, roots) })
+	err = home.Unpack(dir, r.Body, func(name string) bool { return under(name, roots) }, nil)
 	for _, rt := range roots {
 		if err == nil {
 			err = os.MkdirAll(filepath.Join(dir, filepath.FromSlash(rt)), 0o700)

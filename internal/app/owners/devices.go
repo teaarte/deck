@@ -101,10 +101,13 @@ func (s *Service) deviceRevoke(ctx context.Context, act registry.Actor, in devic
 	return map[string]any{"revoked": in.Device}, nil
 }
 
-// revoke revokes a device and ends its sessions.
+// revoke revokes a device and ends its sessions; the folders of a node leave the projects that had them.
 func revoke(ctx context.Context, q *db.Queries, space, device int64, now time.Time) (int64, error) {
 	n, err := q.RevokeDevice(ctx, db.RevokeDeviceParams{RevokedAt: store.At(now), ID: device, WorkspaceID: space})
 	if err != nil || n == 0 {
+		return n, err
+	}
+	if err := q.RemoveNodeFolders(ctx, device); err != nil {
 		return n, err
 	}
 	return n, q.DeleteDeviceSessions(ctx, device)

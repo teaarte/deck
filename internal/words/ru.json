@@ -1081,7 +1081,7 @@
   "deck: this node is not paired with deck, or it was revoked: pair it again with deck pair --node": "deck: этот узел не связан с deck или отозван: свяжите его снова командой deck pair --node",
   "nothing": "ничего",
   "The node whose machine holds the folder, by its name in Devices; deck's own machine when omitted. A git repository may have a clone on each machine under one name": "Узел, на машине которого лежит папка, по имени в «Устройствах»; без него — машина deck. У git-репозитория может быть клон на каждой машине под одним именем",
-  "The node whose clone of a repository goes; every machine's when omitted": "Узел, чей клон репозитория убрать; без него — на всех машинах",
+  "The node whose folder goes; deck's own machine's when omitted. Only the folder of that machine goes": "Узел, чья папка уходит; без него — папка машины deck. Уходит папка только этой машины",
   "node %s is online since %s": "узел %s в сети с %s",
   "%s; folder %s of %s is not on its machine: %s": "%s; папки %s модуля %s нет на его машине: %s",
   "%s; folder %s is not allowed on it: on its machine add it with deck -join %s --install --allow %s": "%s; папка %s на нём не разрешена: на его машине добавьте её командой deck -join %s --install --allow %s",

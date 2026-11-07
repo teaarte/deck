@@ -156,7 +156,7 @@ func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAd
 type folderDeleteIn struct {
 	Project string `type:"project" desc:"Project name"`
 	Name    string `desc:"Folder name in the project"`
-	Node    string `opt:"" desc:"The node whose clone of a repository goes; every machine's when omitted"`
+	Node    string `opt:"" desc:"The node whose folder goes; deck's own machine's when omitted. Only the folder of that machine goes"`
 }
 
 func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folderDeleteIn) (any, error) {
@@ -171,16 +171,16 @@ func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folde
 		}
 	}
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		if in.Node != "" {
-			return q.RemoveProjectFolderOn(ctx, db.RemoveProjectFolderOnParams{ProjectID: p.ID, Name: in.Name, NodeID: device})
-		}
-		return q.RemoveProjectFolder(ctx, db.RemoveProjectFolderParams{ProjectID: p.ID, Name: in.Name})
+		return q.RemoveProjectFolderOn(ctx, db.RemoveProjectFolderOnParams{ProjectID: p.ID, Name: in.Name, NodeID: device})
 	})
 	if err != nil {
 		return nil, err
 	}
+	if n == 0 && in.Node != "" {
+		return nil, registry.NotFound("project %s has no folder %s on node %s", p.Name, in.Name, in.Node)
+	}
 	if n == 0 {
-		return nil, registry.NotFound("project %s has no folder %s", p.Name, in.Name)
+		return nil, registry.NotFound("project %s has no folder %s on deck's machine", p.Name, in.Name)
 	}
 	return map[string]any{"project": p.Name, "removed": in.Name}, nil
 }

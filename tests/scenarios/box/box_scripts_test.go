@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -710,5 +711,45 @@ print(json.dumps({"code": code}))
 	}
 	if author != "script:"+harness.Itoa(id) {
 		t.Fatalf("the note is signed by the script: %q", author)
+	}
+}
+
+// TestAFolderTurnedIntoALinkLeadsNowhereElse: a project folder a program turned into a link to deck's state opens
+// nothing there: on Linux deck builds no box through such a link, on macOS no rule opens where it leads.
+func TestAFolderTurnedIntoALinkLeadsNowhereElse(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	code := filepath.Join(t.TempDir(), "code")
+	if err := os.MkdirAll(filepath.Join(code, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	e.Must("deck.folder_add", map[string]any{"project": "tools", "path": filepath.Join(code, "sub")}, nil)
+	secret := filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "taken")
+	if err := os.MkdirAll(secret, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(secret, "secret.txt"), []byte("deck's"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	real, _ := filepath.EvalSymlinks(filepath.Join(code, "sub"))
+	if err := os.Remove(real); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(secret, real); err != nil {
+		t.Fatal(err)
+	}
+	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
+inp = json.load(sys.stdin)
+print(json.dumps({"read": can_read(os.path.join(inp["folder"], "secret.txt"))}))
+`)
+	p := e.WaitState(e.Start("tools", "collect", map[string]any{"folder": real}), "done", "error")
+	var got struct{ Read bool }
+	_ = json.Unmarshal(p.Result, &got)
+	if got.Read || strings.Contains(string(p.Result), "deck's") {
+		t.Fatalf("a folder turned into a link opens nothing of deck's: %+v %s", p, p.Result)
+	}
+	if runtime.GOOS == "linux" && (p.State != "error" || !strings.Contains(p.Error, "a link a program could have made")) {
+		t.Fatalf("on Linux deck builds no box through such a link and says why: %+v", p)
 	}
 }

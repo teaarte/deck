@@ -1,5 +1,5 @@
 // Package sandbox runs every foreign program in a box: it sees only what its box lists and reaches only through its
-// door. bubblewrap on Linux; on macOS the frozen sandbox-exec until deck moves into a Linux container there.
+// door. bubblewrap on Linux; sandbox-exec on macOS, where a node and deck without Docker run.
 package sandbox
 
 import (

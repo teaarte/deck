@@ -97,7 +97,9 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   an install, an engine or a browser never break each other; the module writes no lock of its own for that.
   `"runs": "many"` lets runs go side by side — only for a command whose runs write nothing in common (each its own
   record and files), that must answer at once while another of its runs goes on, or that calls itself (a command
-  of one at a time that calls itself waits for the run that waits for it).
+  of one at a time that calls itself waits for the run that waits for it). Scripts of a module whose folders are on
+  a node work on a copy of `$DECK_DATA` there, so their runs of one command take turns even with `"many"`, and a file
+  deck changed meanwhile stays deck's: keep what two commands write apart.
 - **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
   input (path or query, never the host), `headers` with `$secret.<name>` (a secret of this module: the owner stores
   it with `secret_set` for the module, no other module reads it; deck cuts it out of what the service answers), `body`
@@ -440,7 +442,7 @@ everything its shell starts — runs in a box of its own that sees and reaches o
 - no secrets and no keys of the owner in its environment: a secret reaches a module only through what its
   manifest names (an HTTP tool, an MCP server).
 
-On macOS, until deck runs in a Linux container there, scripts, MCP servers and ACP agents run in `sandbox-exec`
+On a node on a Mac (and deck without Docker there) scripts, MCP servers and ACP agents run in `sandbox-exec`
 without local ports or the GPU, and the CLIs of Claude Code and Codex run outside the box, in the owner's home and
 network, deck's state closed only by their own rules.
 

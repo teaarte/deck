@@ -93,14 +93,15 @@ func (e *tooBig) Error() string {
 	return fmt.Sprintf("the folders of the run hold %d MB, more than the %d MB deck hands a node", e.n>>20, sendLimit>>20)
 }
 
-// send hands the node the files of the folders of a run, in place of those it kept of the session.
-func (m *Machine) send(ctx context.Context, session string, roots []string) error {
+// send hands the node the files of the folders of a run, in place of those it kept of the session; sent are the files
+// as they were on deck.
+func (m *Machine) send(ctx context.Context, session string, roots []string) (sent map[string]stamp, err error) {
 	files, err := walk(string(m.Home), roots)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if n := size(files); n > sendLimit {
-		return &tooBig{n}
+		return nil, &tooBig{n}
 	}
 	names := make([]string, 0, len(files))
 	for n := range files {
@@ -111,10 +112,10 @@ func (m *Machine) send(ctx context.Context, session string, roots []string) erro
 	resp, err := m.call(ctx, http.MethodPut, filesPath, url.Values{"session": {session}, "roots": roots}, r)
 	r.Close()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	resp.Body.Close()
-	return nil
+	return files, nil
 }
 
 // wait waits for the node while it is away, as the feed says with then, what waits; back is false when it did not
@@ -137,8 +138,9 @@ func (m *Machine) wait(ctx context.Context, emit func(provider.Event), what, the
 	return true, nil
 }
 
-// bring takes the files a run changed back from the node, unless deck's disk would not hold them; say tells its log.
-func (m *Machine) bring(ctx context.Context, session string, roots []string, say func(string)) {
+// bring takes the files a run changed back from the node, unless deck's disk would not hold them; a file that changed
+// on deck since it was sent, as by another run of the project, stays deck's, and say tells the run's log which.
+func (m *Machine) bring(ctx context.Context, session string, roots []string, sent map[string]stamp, say func(string)) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	q := url.Values{"session": {session}}
@@ -170,21 +172,35 @@ func (m *Machine) bring(ctx context.Context, session string, roots []string, say
 			m.low(ctx, fmt.Sprintf("the disk is almost full: the files of a run on node %s took %d MB, %d MB are free", m.Node, listed.Size>>20, (free-listed.Size)>>20))
 		}
 	}
+	var moved []string
+	changed := func(name string) bool {
+		now, there := stampOf(string(m.Home), name)
+		was, sentIt := sent[name]
+		if there != sentIt || there && (now.Size != was.Size || !now.Mod.Equal(was.Mod)) {
+			moved = append(moved, name)
+			return true
+		}
+		return false
+	}
 	resp, err := m.call(ctx, http.MethodGet, filesPath, q, nil)
 	if err == nil {
 		// A tar holds a header and padding of up to a KB a file beside what the node said its files hold.
 		body := io.LimitReader(resp.Body, listed.Size+64<<20)
-		err = home.Unpack(string(m.Home), body, func(name string) bool { return under(name, roots) })
+		err = home.Unpack(string(m.Home), body, func(name string) bool { return under(name, roots) }, changed)
 		resp.Body.Close()
 	}
-	var kept []string
+	var removed []string
 	for _, g := range listed.Gone {
-		if under(g, roots) {
-			kept = append(kept, g)
+		if under(g, roots) && !changed(g) {
+			removed = append(removed, g)
 		}
 	}
 	if err == nil {
-		err = home.RemoveIn(string(m.Home), kept)
+		err = home.RemoveIn(string(m.Home), removed)
+	}
+	if len(moved) > 0 {
+		say(fmt.Sprintf("deck: %d files the run changed on node %s changed on deck meanwhile and stay as they are on deck; the run's changes to them are lost: %s",
+			len(moved), m.Node, strings.Join(moved[:min(len(moved), 20)], ", ")))
 	}
 	if err != nil {
 		say(fmt.Sprintf("deck: the files the run changed on node %s did not all come back: %v", m.Node, err))

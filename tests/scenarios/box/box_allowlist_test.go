@@ -28,7 +28,7 @@ print(json.dumps({"top": sorted(os.listdir("/")), "var": sorted(os.listdir("/var
 // the graphics card without the right; with the right it has the card the host has.
 func TestABoxSeesOnlyWhatItLists(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("the box of macOS stays sandbox-exec until deck moves into a Linux container there")
+		t.Skip("the box of macOS is sandbox-exec, which lists what it closes")
 	}
 	// A folder of another disk on PATH, as the drives of Windows are in WSL, stays out of the box too.
 	t.Setenv("PATH", "/mnt"+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -91,7 +91,7 @@ print(json.dumps({"seen": seen}))
 // goes to the box past the command line of bwrap, and the script of another module sees neither.
 func TestASecretOfAServerIsNotInTheCommandLineNorSeenByAnotherBox(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("on macOS the arguments of a neighbour are readable until deck moves into a Linux container there")
+		t.Skip("on macOS the arguments of a neighbour are readable (procargs)")
 	}
 	t.Parallel()
 	const secret = "sk-server-secret-4711"
@@ -159,7 +159,7 @@ func TestTheBoxesACrashedDeckLeftAreKilledByTheirMarks(t *testing.T) {
 // script and says in health what the administrator adds; the row of scripts is red with it.
 func TestWithoutABoxDeckStartsNoForeignProgramAndSaysWhatToFix(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("the box of macOS stays sandbox-exec until deck moves into a Linux container there")
+		t.Skip("the box of macOS is sandbox-exec, which lists what it closes")
 	}
 	t.Parallel()
 	refusing := filepath.Join(t.TempDir(), "bwrap")

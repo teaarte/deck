@@ -58,19 +58,19 @@ func profile(p Policy) string {
 		fmt.Fprintf(&b, "(deny file-read* (subpath %s))\n", quote(real(h)))
 	}
 	for _, r := range p.Read {
-		fmt.Fprintf(&b, "(allow file-read* (subpath %s))\n", quote(real(r)))
+		fmt.Fprintf(&b, "(allow file-read* (subpath %s))\n", quote(r))
 	}
 	for _, h := range p.Private {
 		fmt.Fprintf(&b, "(deny file-read* (subpath %s))\n", quote(real(h)))
 	}
 	for _, w := range p.Write {
-		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", quote(real(w)))
+		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", quote(w))
 	}
 	open := append(slices.Clone(p.Read), p.Write...)
 	for _, d := range ancestors(open) {
 		fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", quote(d))
 		hidden := slices.ContainsFunc(p.Hide, func(h string) bool { return home.Within(real(h), d) })
-		if hidden && !slices.ContainsFunc(open, func(o string) bool { return home.Within(real(o), d) }) {
+		if hidden && !slices.ContainsFunc(open, func(o string) bool { return home.Within(o, d) }) {
 			fmt.Fprintf(&b, "(deny file-read-data (literal %s) (with no-report))\n", quote(d))
 		}
 	}
@@ -92,7 +92,7 @@ func profile(p Policy) string {
 func ancestors(paths []string) []string {
 	var out []string
 	for _, p := range paths {
-		for d := filepath.Dir(real(p)); d != "/" && !slices.Contains(out, d); d = filepath.Dir(d) {
+		for d := filepath.Dir(p); d != "/" && !slices.Contains(out, d); d = filepath.Dir(d) {
 			out = append(out, d)
 		}
 	}

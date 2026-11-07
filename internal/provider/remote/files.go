@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
@@ -53,6 +54,15 @@ func walk(dir string, roots []string) (map[string]stamp, error) {
 		}
 	}
 	return out, nil
+}
+
+// stampOf is the stamp of the regular file name under dir, if there is one.
+func stampOf(dir, name string) (stamp, bool) {
+	fi, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(name)))
+	if err != nil || !fi.Mode().IsRegular() {
+		return stamp{}, false
+	}
+	return stamp{Size: fi.Size(), Mod: fi.ModTime()}, true
 }
 
 // cache says p is the folder of caches in the data of a project: the caches of programs stay on each machine.

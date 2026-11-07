@@ -317,8 +317,8 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	}
 }
 
-// TestCodexShellOutsideItsBoxHasTheNetwork: outside a box of its own, on macOS until deck runs in a Linux container
-// there, the shell of Codex has the whole network, as the owner's, so its local ports work.
+// TestCodexShellOutsideItsBoxHasTheNetwork: outside a box of its own, on macOS, the shell of Codex has the whole
+// network, as the owner's, so its local ports work.
 func TestCodexShellOutsideItsBoxHasTheNetwork(t *testing.T) {
 	if sandbox.Homed() {
 		t.Skip("in its box the network of Codex is the door's")

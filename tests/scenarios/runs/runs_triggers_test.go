@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -370,15 +371,19 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	rows := func() []harness.ScreenRow {
 		var out []harness.ScreenRow
 		for _, r := range harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "schedule", nil)["b0-0-1"]["rows"]) {
-			if !strings.HasSuffix(fmt.Sprint(r.Cells[0]), " · master") {
+			if fmt.Sprint(r.Cells[4]) != "master" {
 				out = append(out, r)
 			}
 		}
 		return out
 	}
+	// What is paused stands apart, folded.
+	paused := func() []harness.ScreenRow {
+		return harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "schedule", nil)["b0-0-2"]["rows"])
+	}
 	find := func(rs []harness.ScreenRow, project string) harness.ScreenRow {
 		for _, r := range rs {
-			if strings.HasSuffix(fmt.Sprint(r.Cells[0]), " · "+project) {
+			if slices.ContainsFunc(r.Cells, func(c any) bool { return fmt.Sprint(c) == project }) {
 				return r
 			}
 		}
@@ -409,7 +414,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	}
 	rs := rows()
 	job := find(rs, "alpha")
-	if len(rs) != 2 || job.Cells[0] != "job · alpha" || job.Cells[1] != "0 9 * * *" || job.Cells[4] != "fake" {
+	if len(rs) != 2 || job.Cells[0] != "job" || job.Cells[2] != "0 9 * * *" || job.Cells[1] != "fake" {
 		t.Fatalf("every trigger of every project with its command, how often and its model: %+v", rs)
 	}
 	if m := button(job, "model"); m["pick"] != "model" || m["params"].(map[string]any)["command"] != "job" || m["params"].(map[string]any)["project"] != "alpha" {
@@ -426,8 +431,8 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	button(find(rows(), "alpha"), "open")
 
 	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
-	if word, _, _ := state("alpha"); word != "module paused" || fmt.Sprint(find(rows(), "alpha").Tones) != "[muted muted muted ok <nil> <nil>]" {
-		t.Fatalf("a paused project shows on its triggers: %s %+v", word, find(rows(), "alpha"))
+	if word, _, _ := state("alpha"); word != "module paused" || len(rows()) != 1 || fmt.Sprint(find(paused(), "alpha").Cells[3]) != "module paused" {
+		t.Fatalf("a paused project's triggers stand apart with why: %s %+v", word, paused())
 	}
 	e.Clock.Add(26 * time.Hour)
 	e.Tick()
@@ -441,11 +446,11 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	if word, _, _ := state("alpha"); word != "paused" {
 		t.Fatalf("a trigger pauses alone: %s", word)
 	}
-	press(button(find(rows(), "alpha"), "resume"), nil)
+	press(button(find(paused(), "alpha"), "resume"), nil)
 
 	history := e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"project": "alpha"}}`})["b0-1-0"]
 	hrows := harness.BlockData[[]harness.ScreenRow](t, history["rows"])
-	if len(hrows) != 1 || hrows[0].Cells[1] != "alpha" || !strings.Contains(string(history["filters"]), `"value":"alpha"`) {
+	if len(hrows) != 1 || hrows[0].Cells[2] != "alpha" || !strings.Contains(string(history["filters"]), `"value":"alpha"`) {
 		t.Fatalf("the history filters by project: %+v %s", hrows, history["filters"])
 	}
 	if states := harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(states) != 0 {
@@ -670,5 +675,44 @@ func TestAScheduleThatFailedIsFixedByALaterRunOfTheSameWork(t *testing.T) {
 	e.WaitState(e.Run(p, "job"), "done")
 	if word, tone := last(); tone != "muted" || word != "failed, fixed since" {
 		t.Fatalf("a later run of the same work that went well fixes the schedule too: %s %s", word, tone)
+	}
+}
+
+// TestTheScheduleReadsInTheOrderOfADay: what runs by itself stands by the time of day it runs, each command followed
+// by the commands that run after it, in their order.
+func TestTheScheduleReadsInTheOrderOfADay(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("day", harness.TestManifest(
+		[]string{harness.AgentCommand("late", ""), harness.AgentCommand("early", ""), harness.AgentCommand("then", harness.ProcessField), harness.AgentCommand("last", harness.ProcessField),
+			harness.AgentCommand("aside", harness.ProcessField), harness.AgentCommand("night", ""), harness.AgentCommand("after_night", harness.ProcessField)},
+		[]string{`{"command": "late", "cron": "0 18 * * *"}`, `{"command": "early", "cron": "0 7 * * *"}`, `{"command": "early", "cron": "0 20 * * *"}`,
+			`{"command": "last", "after": "then"}`, `{"command": "then", "after": "early"}`, `{"command": "aside", "after": "early"}`,
+			`{"command": "night", "cron": "0 23 * * *"}`, `{"command": "after_night", "after": "night"}`}))
+	var ts []struct {
+		ID      int64
+		Command string
+	}
+	e.Must("deck.triggers_list", map[string]any{"project": "day"}, &ts)
+	for _, tr := range ts {
+		if tr.Command == "night" {
+			e.Must("deck.trigger_pause", map[string]any{"trigger": tr.ID, "paused": true}, nil)
+		}
+	}
+	page := e.Screen("", "schedule", nil)
+	rows := func(id string, module int) []string {
+		var got []string
+		for _, r := range harness.BlockData[[]harness.ScreenRow](t, page[id]["rows"]) {
+			if fmt.Sprint(r.Cells[module]) == "day" {
+				got = append(got, fmt.Sprint(r.Cells[0]))
+			}
+		}
+		return got
+	}
+	if got, want := rows("b0-0-1", 4), []string{"early", "↳ aside", "↳ then", "\u00a0\u00a0↳ last", "late", "early"}; !slices.Equal(got, want) {
+		t.Fatalf("the schedule goes by the time of day, a chain under its earliest schedule, deeper steps further in: %q, not %q", got, want)
+	}
+	if got, want := rows("b0-0-2", 2), []string{"night", "↳ after_night"}; !slices.Equal(got, want) {
+		t.Fatalf("a command after a paused schedule stands with it: %q, not %q", got, want)
 	}
 }

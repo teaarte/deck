@@ -39,5 +39,18 @@ func (r *renderer) chart(b manifest.Block, items []map[string]any) (map[string]a
 		}
 		series = append(series, map[string]any{"label": s.Label, "values": values})
 	}
-	return map[string]any{"x": xs, "series": series}, nil
+	out := map[string]any{"x": xs, "series": series}
+	// Details of each point show beside its values when the owner points at it.
+	if b.Details != "" {
+		details := make([]any, 0, len(items))
+		for _, it := range items {
+			d, err := r.eval(b.Details, it)
+			if err != nil {
+				return nil, fmt.Errorf("details: %w", err)
+			}
+			details = append(details, d)
+		}
+		out["details"] = details
+	}
+	return out, nil
 }

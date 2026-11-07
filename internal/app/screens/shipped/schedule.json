@@ -13,23 +13,35 @@
             {"label": "Change the model", "icon": "cpu", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
             {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
           ]},
-        {"type": "table", "title": "What runs by itself", "icon": "repeat", "source": {"from": "deck.triggers_list", "sort": "project"}, "filter": ["project"],
-          "description": "Each command that runs on its own, when it runs next, how it last went and its model; a model picked here replaces the one the manifest suggests.",
+        {"type": "table", "title": "What runs by itself", "icon": "repeat", "source": {"from": "deck.triggers_list", "where": "!paused && !draft && !(held ?? false)", "sort": "order"}, "filter": ["project"],
+          "description": "In the order of a day: each command by the time it runs, and under it the commands that run after it, in their order; its model is picked in its row.",
           "empty": "Nothing runs by itself yet: the schedules of a module show here once it is enabled",
           "columns": [
-            {"label": "What", "bind": "title + ' · ' + project_title", "tone": "paused || draft ? 'muted' : ''"},
-            {"label": "When", "bind": "kind == 'cron' ? spec : every ?? spec", "format": "cron", "tone": "paused || draft ? 'muted' : ''"},
-            {"label": "Next", "bind": "paused || draft || (next_at ?? '') == '' ? word : next_at", "format": "relative", "tone": "paused || draft ? 'muted' : ''"},
+            {"label": "What", "bind": "step > 0 ? repeat('\u00a0\u00a0', step - 1) + '↳ ' + title : title"},
+            {"label": "Model", "bind": "model ?? ''", "pick": "model", "format": "logo"},
+            {"label": "When", "bind": "kind == 'cron' ? spec : every ?? spec", "format": "cron"},
             {"label": "Result", "bind": "(failure ?? '') != '' ? 'see above' : last_word ?? ''", "format": "tag", "tone": "(failure ?? '') != '' ? 'error' : last_tone ?? ''", "details": "last_at"},
-            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
+            {"label": "Module", "bind": "project_title"},
+            {"label": "Next", "bind": "kind == 'cron' && (next_at ?? '') != '' ? next_at : nil", "format": "relative"},
             {"label": "Price", "bind": "price ?? ''"}
           ],
           "actions": [
-            {"verb": "run_now", "icon": "player-play", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron' && !paused && !draft"},
-            {"verb": "resume", "icon": "player-play", "primary": true, "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
+            {"verb": "run_now", "icon": "player-play", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
-            {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
+            {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}},
             {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
+          ]},
+        {"type": "table", "title": "Paused and drafts", "icon": "player-pause", "collapsed": true, "source": {"from": "deck.triggers_list", "where": "paused || draft || (held ?? false)", "sort": "order"}, "filter": ["project"],
+          "description": "What would run by itself but does not now: paused here or with its module, or of a draft not enabled yet.",
+          "empty": "Nothing paused",
+          "columns": [
+            {"label": "What", "bind": "step > 0 ? repeat('\u00a0\u00a0', step - 1) + '↳ ' + title : title"},
+            {"label": "When", "bind": "kind == 'cron' ? spec : every ?? spec", "format": "cron"},
+            {"label": "Module", "bind": "project_title"},
+            {"label": "State", "bind": "word", "format": "tag", "tone": "'muted'"}
+          ],
+          "actions": [
+            {"verb": "resume", "icon": "player-play", "primary": true, "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"}
           ]}
       ]},
       {"title": "Runs", "icon": "list", "blocks": [
@@ -37,11 +49,11 @@
           "description": "Every run, by schedule, by a button or by Deki; a run shows its log and the calls it made.",
           "columns": [
             {"label": "What", "bind": "(title ?? '') != '' ? title : command"},
+            {"label": "Model", "bind": "kind == 'script' ? 'script' : kind == 'tool' ? 'tool' : provider ?? ''", "format": "logo"},
             {"label": "Module", "bind": "project", "format": "tag"},
             {"label": "State", "bind": "word", "format": "tag", "tone": "tone ?? ''"},
             {"label": "Started", "bind": "started_at", "format": "relative"},
-            {"label": "By", "bind": "(trigger ?? 0) != 0 ? 'by schedule' : project == 'master' || (topic ?? '') != '' ? 'Deki' : (parent ?? 0) != 0 ? 'by another run' : 'by a button'", "format": "tag"},
-            {"label": "Model", "bind": "provider ?? ''"}
+            {"label": "By", "bind": "(trigger ?? 0) != 0 ? 'by schedule' : project == 'master' || (topic ?? '') != '' ? 'Deki' : (parent ?? 0) != 0 ? 'by another run' : 'by a button'", "format": "tag"}
           ],
           "actions": [
             {"verb": "open", "screen": "process", "record": "=id"},

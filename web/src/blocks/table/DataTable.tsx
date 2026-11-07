@@ -8,6 +8,7 @@ import { usePhone } from '../../hooks/usePhone';
 import { Actions } from '../../ui/actions/Actions';
 import { opens as isOpener, rowOpen } from '../../ui/rowOpen';
 import { Value } from '../../ui/Value';
+import { NamedIcon } from '../../ui/NamedIcon';
 import { useBlockContext } from '../../screen/press';
 import { Cell } from './Cell';
 import { Pick } from './Pick';
@@ -41,7 +42,9 @@ export function DataTable({ columns, rows, searched }: { columns: Column[]; rows
   const cell = (r: Row, j: number) => {
     const pick = pickOf(r, j);
     if (pick) return <Pick act={pick} value={r.cells[j]} logo={columns[j]?.format === 'logo'} />;
-    return <Value v={r.cells[j]} s={columns[j] ?? {}} tone={r.tones?.[j]} hint={columns[j]?.format === 'tag' ? r.details?.[j] : undefined} />;
+    const value = <Value v={r.cells[j]} s={columns[j] ?? {}} tone={r.tones?.[j]} hint={columns[j]?.format === 'tag' ? r.details?.[j] : undefined} />;
+    const icon = r.icons?.[j];
+    return icon ? <span className={s.iconCell}><NamedIcon name={icon} fallback={text(r.cells[j])} size={16} />{value}</span> : value;
   };
   return (
     <div data-table>

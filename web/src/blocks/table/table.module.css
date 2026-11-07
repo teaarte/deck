@@ -105,3 +105,9 @@
   max-height: 24em;
   overflow: auto;
 }
+
+.iconCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

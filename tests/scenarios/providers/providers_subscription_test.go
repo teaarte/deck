@@ -36,15 +36,15 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 		t.Fatalf("the spend keeps the estimate out of the money: %+v", days)
 	}
 	page := e.Screen("", "spend", nil)
-	rows := harness.BlockData[[]harness.ScreenRow](t, page["b3"]["rows"])
-	if len(rows) != 1 || rows[0].Cells[0] != "plain" || rows[0].Cells[1] != nil || rows[0].Cells[2].(float64) < 0.04 {
+	rows := harness.BlockData[[]harness.ScreenRow](t, page["b4"]["rows"])
+	if len(rows) != 1 || rows[0].Cells[0] != "plain" || rows[0].Cells[1] != nil || rows[0].Cells[4].(float64) < 0.04 {
 		t.Fatalf("the spend of a project shows a model on a subscription apart from the money paid: %+v", rows)
 	}
-	if paid := string(page["b0"]["value"]); paid != "0" {
-		t.Fatalf("what is paid leaves the subscription out: %s", page["b0"])
+	if paid := string(page["b1"]["value"]); paid != "0" {
+		t.Fatalf("what is paid leaves the subscription out: %s", page["b1"])
 	}
-	if covered := string(page["b1"]["value"]); covered == "0" || covered == "" {
-		t.Fatalf("what a subscription covers is shown apart: %s", page["b1"])
+	if covered := string(page["b2"]["value"]); covered == "0" || covered == "" {
+		t.Fatalf("what a subscription covers is shown apart: %s", page["b2"])
 	}
 	var models struct {
 		Models []struct {

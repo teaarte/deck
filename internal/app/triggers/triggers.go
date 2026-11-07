@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"deck2/internal/access"
@@ -81,6 +82,13 @@ type triggerView struct {
 	LastTone string `json:"last_tone,omitempty"`
 	// Work is the model that does the work of an agent or a model command, with the models that could.
 	provider.Work
+	// Order puts the schedule in the order of a day: each command by the time of day it runs, then the commands that
+	// run after it, Step deep in its chain; At is that time of day, empty for a chain no schedule starts.
+	Order string `json:"order"`
+	Step  int    `json:"step"`
+	At    string `json:"at,omitempty"`
+	// Held is a command after another whose chain's schedule is paused or of a draft: it does not run either.
+	Held bool `json:"held,omitempty"`
 }
 
 func (s *Service) triggersList(ctx context.Context, act registry.Actor, in triggersListIn) ([]triggerView, error) {
@@ -168,7 +176,59 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		}
 		out = append(out, v)
 	}
+	ordered(out, s.Now())
 	return out, nil
+}
+
+// ordered gives each trigger its place in a day: a schedule by the time of day of its next run on the owner's clock,
+// a trigger after another command under the schedule its chain starts from, a step deeper each link.
+func ordered(ts []triggerView, now time.Time) {
+	// The first slot of a day of a cron is the time of day it runs; that of a command with several, its earliest.
+	day := func(t triggerView) string {
+		y, m, d := now.In(time.Local).Date()
+		next, err := trigger.Next(t.Spec, time.Date(y, m, d, 0, 0, 0, 0, time.Local).Add(-time.Second))
+		if err != nil {
+			return ""
+		}
+		at, err := time.Parse(time.RFC3339Nano, next)
+		if err != nil {
+			return ""
+		}
+		return at.In(time.Local).Format("15:04")
+	}
+	byCommand := map[string]int{}
+	for i, t := range ts {
+		k := t.Project + "." + t.Command
+		if j, ok := byCommand[k]; ok && (ts[j].Kind == trigger.KindCron && (t.Kind != trigger.KindCron || day(ts[j]) <= day(t))) {
+			continue
+		}
+		byCommand[k] = i
+	}
+	for i := range ts {
+		t := &ts[i]
+		root, path := t, []string{t.Command}
+		// A chain goes up to the schedule it starts from, never round a loop.
+		for seen := map[string]bool{}; root.Kind == trigger.KindAfter && !seen[root.Project+"."+root.Command]; {
+			seen[root.Project+"."+root.Command] = true
+			j, ok := byCommand[root.Project+"."+root.Spec]
+			if !ok {
+				break
+			}
+			root = &ts[j]
+			path = append([]string{root.Command}, path...)
+		}
+		t.Step = len(path) - 1
+		at := ""
+		if root.Kind == trigger.KindCron {
+			at = day(*root)
+		}
+		if t.Step == 0 {
+			t.At = at
+		} else {
+			t.Held = root.Paused || root.Draft
+		}
+		t.Order = cmp.Or(at, "~") + "|" + root.Project + "|" + strings.Join(path, "|")
+	}
 }
 
 type triggerRunIn struct {

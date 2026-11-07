@@ -349,7 +349,13 @@ func (r *renderer) table(b manifest.Block, items []map[string]any, out map[strin
 	for _, it := range items {
 		cells, tones, toned := make([]any, 0, len(b.Columns)), make([]any, len(b.Columns)), false
 		details, detailed := make([]any, len(b.Columns)), false
+		icons, iconed := make([]any, len(b.Columns)), false
 		for j, c := range b.Columns {
+			if c.Icon != "" {
+				if ic, err := r.eval(c.Icon, it); err == nil && ic != nil && ic != "" {
+					icons[j], iconed = fmt.Sprint(ic), true
+				}
+			}
 			v, err := r.eval(c.Bind, it)
 			if err != nil {
 				return nil, fmt.Errorf("column %q: %w", c.Label, err)
@@ -382,6 +388,9 @@ func (r *renderer) table(b manifest.Block, items []map[string]any, out map[strin
 		}
 		if detailed {
 			row["details"] = details
+		}
+		if iconed {
+			row["icons"] = icons
 		}
 		rows = append(rows, row)
 	}

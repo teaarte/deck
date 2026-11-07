@@ -4,8 +4,11 @@ package journal
 import (
 	"cmp"
 	"context"
+	"fmt"
+	"maps"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"deck2/internal/access"
@@ -143,6 +146,48 @@ type spendDayView struct {
 	Scheduled int64 `json:"scheduled"`
 	// Share is the part of all tokens of the days, from 0 to 1.
 	Share float64 `json:"share"`
+	// Icon is the icon of a project; Models what each model of a project or a day spent, a line each.
+	Icon   string `json:"icon,omitempty"`
+	Models string `json:"models,omitempty"`
+}
+
+// spent is what a model spent: its money and tokens.
+type spent struct {
+	cost, sub float64
+	tokens    int64
+}
+
+// spentLines are the models of a row by what they spent, the dearest and then the busiest first, a line each.
+func spentLines(by map[string]*spent, max int) string {
+	names := slices.Collect(maps.Keys(by))
+	slices.SortFunc(names, func(a, b string) int {
+		return cmp.Or(cmp.Compare(by[b].cost+by[b].sub, by[a].cost+by[a].sub), cmp.Compare(by[b].tokens, by[a].tokens), strings.Compare(a, b))
+	})
+	var lines []string
+	for i, n := range names {
+		if i == max {
+			lines = append(lines, fmt.Sprintf("… %d more", len(names)-max))
+			break
+		}
+		money := fmt.Sprintf("$%.2f", by[n].cost)
+		// A model on a subscription spends no money: its line says the estimate.
+		if by[n].cost == 0 && by[n].sub > 0 {
+			money = fmt.Sprintf("≈$%.2f", by[n].sub)
+		}
+		lines = append(lines, fmt.Sprintf("%s — %s · %s", n, money, compact(by[n].tokens)))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// compact is a count of tokens in short, such as 33.6M.
+func compact(n int64) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	case n >= 1_000:
+		return fmt.Sprintf("%.1fK", float64(n)/1_000)
+	}
+	return fmt.Sprint(n)
 }
 
 // window is the start of the first of the last days of the owner, as stored, and the days in order, oldest first.
@@ -199,8 +244,24 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		order = days
 	}
 	var total int64
+	models := map[string]map[string]*spent{}
 	for _, r := range rows {
 		total += r.InputTokens + r.OutputTokens
+		key := r.Project
+		if in.By == "" || in.By == "day" {
+			key = day(r.Minute)
+		}
+		if models[key] == nil {
+			models[key] = map[string]*spent{}
+		}
+		m := models[key][r.Provider]
+		if m == nil {
+			m = &spent{}
+			models[key][r.Provider] = m
+		}
+		m.cost += r.CostUsd
+		m.sub += r.SubscriptionUsd
+		m.tokens += r.InputTokens + r.OutputTokens
 		switch in.By {
 		case "provider":
 			add(r.Provider, r, spendDayView{Provider: r.Provider})
@@ -232,7 +293,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 			row.Runs, row.Scheduled = row.Runs+r.Runs, row.Scheduled+r.Scheduled
 		}
 	}
-	titles := s.titles(ctx, act, in)
+	titles, icons := s.titles(ctx, act, in), s.icons(ctx, act)
 	group := func(string) (string, int) { return "", 0 }
 	if in.By == "provider" && s.Groups != nil {
 		group = s.Groups(ctx, act.Workspace, registry.Lang(ctx))
@@ -243,7 +304,13 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		row := *by[k]
 		row.Group, place[row.Provider] = group(row.Provider)
 		if in.By == "project" || in.By == "project_provider" {
-			row.Title = titles(row.Project)
+			row.Title, row.Icon = titles(row.Project), icons(row.Project)
+		}
+		switch in.By {
+		case "project":
+			row.Models = spentLines(models[row.Project], 8)
+		case "", "day":
+			row.Models = spentLines(models[row.Day], 6)
 		}
 		if total > 0 {
 			row.Share = math.Round(float64(row.Tokens)*1000/float64(total)) / 1000
@@ -262,6 +329,28 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		}
 	}
 	return out, nil
+}
+
+// icons give the icon of a project by its name; deck's own work wears Deki's.
+func (s *Service) icons(ctx context.Context, act registry.Actor) func(string) string {
+	seen := map[string]string{}
+	return func(name string) string {
+		if name == "" {
+			return "sparkles"
+		}
+		if i, ok := seen[name]; ok {
+			return i
+		}
+		i := "box"
+		if p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
+			if m, err := docs.Manifest(ctx, s.St.Q, p); err == nil {
+				_, icon, _ := manifest.Nav(name, m, nil)
+				i = cmp.Or(icon, i)
+			}
+		}
+		seen[name] = i
+		return i
+	}
 }
 
 // titles give the title of a project by its name in the owner's words; deck's own work is Deki and deck.

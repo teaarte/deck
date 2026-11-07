@@ -5,7 +5,7 @@
   "params": {
     "period": {
       "type": "string",
-      "default": "Today"
+      "default": "30 days"
     }
   },
   "side": [
@@ -23,6 +23,54 @@
   ],
   "blocks": [
     {
+      "type": "dialog",
+      "name": "breakdown",
+      "title": "By provider and model",
+      "icon": "list-details",
+      "blocks": [
+        {
+          "type": "table",
+          "title": "By provider and model",
+          "source": {
+            "from": "deck.spend_days_list",
+            "input": {
+              "days": 30,
+              "by": "provider"
+            }
+          },
+          "description": "The last 30 days, as the numbers above.",
+          "columns": [
+            {
+              "label": "Model",
+              "bind": "provider",
+              "format": "logo"
+            },
+            {
+              "label": "Provider",
+              "bind": "group ?? ''"
+            },
+            {
+              "label": "Paid, $",
+              "bind": "cost_usd",
+              "format": "money",
+              "currency": "USD"
+            },
+            {
+              "label": "Tokens",
+              "bind": "tokens",
+              "format": "compact"
+            },
+            {
+              "label": "On subscriptions, about $",
+              "bind": "subscription_usd > 0 ? subscription_usd : nil",
+              "format": "money",
+              "currency": "USD"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "type": "stat",
       "title": "Paid in 30 days",
       "icon": "coin",
@@ -38,10 +86,11 @@
       "currency": "USD",
       "actions": [
         {
-          "verb": "open",
+          "label": "By provider and model",
+          "icon": "list-details",
           "screen": "spend",
           "params": {
-            "period": "30 days"
+            "dialog": "breakdown"
           }
         }
       ]
@@ -64,10 +113,11 @@
       "description": "What the work on the subscriptions of Claude Code and Codex would cost by the prices of their models.",
       "actions": [
         {
-          "verb": "open",
+          "label": "By provider and model",
+          "icon": "list-details",
           "screen": "spend",
           "params": {
-            "period": "30 days"
+            "dialog": "breakdown"
           }
         }
       ]
@@ -92,7 +142,8 @@
           "label": "Paid",
           "y": "cost_usd"
         }
-      ]
+      ],
+      "details": "models"
     },
     {
       "type": "table",
@@ -107,34 +158,40 @@
         },
         "sort": "-cost_usd"
       },
-      "description": "What each module paid for models; work on a subscription costs nothing beyond it.",
+      "description": "Each module and what its models spent; open a row for each model's money and tokens.",
       "empty": "No model calls",
       "columns": [
         {
           "label": "Module",
           "bind": "title",
-          "format": "tag"
+          "icon": "icon"
         },
         {
-          "label": "Paid",
+          "label": "Paid, $",
           "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
           "format": "money",
           "currency": "USD"
         },
         {
-          "label": "Subscription ≈",
+          "label": "Tokens",
+          "bind": "tokens",
+          "format": "compact"
+        },
+        {
+          "label": "Calls",
+          "bind": "calls",
+          "format": "number"
+        },
+        {
+          "label": "On subscriptions, about $",
           "bind": "subscription_usd > 0 ? subscription_usd : nil",
           "format": "money",
           "currency": "USD"
         },
         {
-          "label": "Calls",
-          "bind": "calls"
-        },
-        {
-          "label": "Tokens",
-          "bind": "tokens",
-          "format": "compact"
+          "label": "By model",
+          "bind": "nil",
+          "details": "models ?? ''"
         }
       ]
     },
@@ -153,19 +210,20 @@
       "empty": "No model calls",
       "columns": [
         {
-          "label": "Provider",
-          "bind": "group ?? ''"
-        },
-        {
           "label": "Model",
           "bind": "provider",
-          "format": "tag"
+          "format": "logo"
         },
         {
-          "label": "Paid",
+          "label": "Paid, $",
           "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
           "format": "money",
           "currency": "USD"
+        },
+        {
+          "label": "Tokens",
+          "bind": "tokens",
+          "format": "compact"
         },
         {
           "label": "Share",
@@ -174,18 +232,18 @@
         },
         {
           "label": "Calls",
-          "bind": "calls"
+          "bind": "calls",
+          "format": "number"
         },
         {
-          "label": "Tokens",
-          "bind": "tokens",
-          "format": "compact"
-        },
-        {
-          "label": "Subscription ≈",
+          "label": "On subscriptions, about $",
           "bind": "subscription_usd > 0 ? subscription_usd : nil",
           "format": "money",
           "currency": "USD"
+        },
+        {
+          "label": "Provider",
+          "bind": "group ?? ''"
         }
       ]
     }

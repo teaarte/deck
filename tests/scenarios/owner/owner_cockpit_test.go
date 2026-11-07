@@ -362,7 +362,7 @@ func TestFailedRunsStayInTheHistoryOfTheSchedule(t *testing.T) {
 	e.WaitState(id, "done", "error")
 	e.Must("deck.process_dismiss", map[string]any{"process": id}, nil)
 	failed := harness.BlockData[[]harness.ScreenRow](t, e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"])
-	if len(failed) != 1 || failed[0].Cells[0] != "Voice" || failed[0].ID != float64(id) || failed[0].Tones[2] != "error" || failed[0].Cells[4] != "by a button" {
+	if len(failed) != 1 || failed[0].Cells[0] != "Voice" || failed[0].ID != float64(id) || failed[0].Tones[3] != "error" || failed[0].Cells[5] != "by a button" {
 		t.Fatalf("the failed run is in the history by its state, closed on the cockpit or not: %+v", failed)
 	}
 	if page, _ := json.Marshal(e.Screen("", "process", map[string]any{"record": id})); !strings.Contains(string(page), "voice server is down") {

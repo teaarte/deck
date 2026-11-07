@@ -81,8 +81,8 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 
 	check.Messages(t, e.ScreenMessages("", "spend", nil))
 	data := e.Screen("", "spend", nil)
-	spend := harness.BlockData[[]harness.ScreenRow](t, data["b3"]["rows"])
-	if len(spend) != 1 || spend[0].Cells[0] != "web" || spend[0].Cells[3] != float64(2) || spend[0].Cells[4] != float64(2400) {
+	spend := harness.BlockData[[]harness.ScreenRow](t, data["b4"]["rows"])
+	if len(spend) != 1 || spend[0].Cells[0] != "web" || spend[0].Cells[3] != float64(2) || spend[0].Cells[2] != float64(2400) || !strings.Contains(fmt.Sprint(spend[0].Details[5]), "2.4K") {
 		t.Fatalf("spend sums the calls and tokens of each project: %+v", spend)
 	}
 	var by []struct {

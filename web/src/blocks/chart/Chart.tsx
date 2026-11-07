@@ -1,4 +1,5 @@
 import { BarChart, LineChart } from '@mantine/charts';
+import { Paper, Text } from '@mantine/core';
 import '@mantine/charts/styles.css';
 import { useLook } from '../../theme/look';
 import { formatted, show, when, type Shown } from '../../lib/format';
@@ -19,7 +20,9 @@ function short(v: number, s: Shown): string {
   try {
     if (s.format === 'percent') return new Intl.NumberFormat(locale(), { style: 'percent', maximumFractionDigits: 1 }).format(v);
     if (s.format === 'money' && s.currency) {
-      return new Intl.NumberFormat(locale(), { style: 'currency', currency: s.currency, notation: 'compact', maximumFractionDigits: 1 }).format(v);
+      // Cents stay on an axis of small sums, which would all read $0 rounded.
+      const small = Math.abs(v) > 0 && Math.abs(v) < 10;
+      return new Intl.NumberFormat(locale(), { style: 'currency', currency: s.currency, notation: 'compact', maximumFractionDigits: small ? 2 : 1 }).format(v);
     }
     if (s.format === 'bytes' || s.format === 'duration') return formatted(v, s);
   } catch {
@@ -80,7 +83,7 @@ export function Chart({ value, kind, s, h = 260 }: { value: ChartValue; kind?: s
     return span < 2 * 86400000 && !days ? d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(locale(), zone);
   };
   const data = value.x.map((x, i) => {
-    const row: Record<string, unknown> = { x: ms && kind !== 'bar' ? ms[i] : ms ? tick(ms[i]) : show(x) };
+    const row: Record<string, unknown> = { x: ms && kind !== 'bar' ? ms[i] : ms ? tick(ms[i]) : show(x), details: value.details?.[i] };
     value.series.forEach((sr, j) => { row['s' + j] = sr.values[i] ?? null; });
     return row;
   });
@@ -96,10 +99,31 @@ export function Chart({ value, kind, s, h = 260 }: { value: ChartValue; kind?: s
     xAxisProps: ms && kind !== 'bar'
       ? { type: 'number' as const, scale: 'time' as const, domain: ['dataMin', 'dataMax'], tickFormatter: tick, ticks, minTickGap: 16 }
       : undefined,
-    tooltipProps: ms && kind !== 'bar'
-      ? { labelFormatter: (v: unknown) => (days ? new Date(v as number).toLocaleDateString(locale(), zone) : new Date(v as number).toLocaleString(locale())) }
-      : undefined,
+    tooltipProps: {
+      ...(ms && kind !== 'bar'
+        ? { labelFormatter: (v: unknown) => (days ? new Date(v as number).toLocaleDateString(locale(), zone) : new Date(v as number).toLocaleString(locale())) }
+        : {}),
+      // A point with details says them under its values, such as what each model spent that day.
+      ...(value.details ? { content: ({ label, payload }: { label?: unknown; payload?: readonly { payload?: Record<string, unknown> }[] }) => (
+        <Details label={label} payload={payload} series={series} format={(v: number) => formatted(v, s)}
+          title={ms && kind !== 'bar' && typeof label === 'number' ? (days ? new Date(label).toLocaleDateString(locale(), zone) : new Date(label).toLocaleString(locale())) : show(label)} />
+      ) } : {}),
+    },
   };
   if (kind === 'bar') return <BarChart {...common} data-chart="bar" />;
   return <LineChart {...common} data-chart="line" connectNulls={false} withDots={data.length <= 60} />;
+}
+
+// Details is the tooltip of a point of a chart with details: its time, the value of each series and its details.
+function Details({ payload, series, format, title }: { label?: unknown; payload?: readonly { payload?: Record<string, unknown> }[]; series: { name: string; label?: string }[];
+  format: (v: number) => string; title: string }) {
+  const row = payload?.[0]?.payload;
+  if (!row) return null;
+  return (
+    <Paper p="xs" shadow="md" withBorder data-chart-details>
+      <Text size="xs" fw={700}>{title}</Text>
+      {series.map((sr) => typeof row[sr.name] === 'number' && <Text key={sr.name} size="xs">{sr.label}: {format(row[sr.name] as number)}</Text>)}
+      {typeof row.details === 'string' && row.details && <Text size="xs" c="dimmed" className="deck-pre" mt={4}>{row.details}</Text>}
+    </Paper>
+  );
 }

@@ -122,6 +122,8 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("the blocks of a row fill the width of the screen: %s", got)
 	}
 	b.open(b.base + "/#/deck/schedule")
+	// The master of a test is paused: its schedules stand folded with what does not run now.
+	b.until("the paused schedules, unfolded", unfold("Paused and drafts"))
 	b.until("the schedule of a trigger in words", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.toLowerCase().includes('master') && r.innerText.includes('review'))`)
 	if got := b.eval(`[...document.querySelectorAll('td')].filter((x) => x.offsetParent && /^[0-9*\/,-]+( [0-9*\/,-]+){4}$/.test(x.innerText.trim())).map((x) => x.innerText).join('|')`); got != "" {
 		t.Fatalf("no schedule shows as cron: %s", got)

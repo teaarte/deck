@@ -345,3 +345,9 @@ func (b *playwright) pick(sel, label string) {
 	b.until("the option "+label, opt)
 	b.eval(fmt.Sprintf(`(%s.click(), '')`, opt))
 }
+
+// unfold is a wait that opens the folded block of this title until it stands open.
+func unfold(title string) string {
+	return `(() => { const f = [...document.querySelectorAll('[data-fold]')].find((x) => x.innerText.includes(` + "'" + title + "'" + `));
+		if (f?.dataset.fold === 'closed') f.click(); return f?.dataset.fold === 'open' })()`
+}

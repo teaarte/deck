@@ -353,6 +353,10 @@ export interface Data {
      * the text of each cell shown in full on demand, null for none; such a cell shows its value in one line
      */
     details?: (string | null)[];
+    /**
+     * the Tabler icon each cell wears before its value, null for none
+     */
+    icons?: (string | null)[];
     actions?: Action[];
   }[];
   /**
@@ -640,6 +644,10 @@ export interface CardValue {
  */
 export interface ChartValue {
   x: unknown[];
+  /**
+   * the text of each point shown beside its values
+   */
+  details?: unknown[];
   series: {
     label: string;
     values: (number | null)[];

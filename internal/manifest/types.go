@@ -359,10 +359,12 @@ type Block struct {
 	Columns   []Column `json:"columns,omitempty"`
 	Fields    []Column `json:"fields,omitempty"`
 	Item      *Item    `json:"item,omitempty"`
-	// Kind, X and Series draw a chart: x and each y are expressions over an item.
-	Kind   string   `json:"kind,omitempty"`
-	X      string   `json:"x,omitempty"`
-	Series []Series `json:"series,omitempty"`
+	// Kind, X and Series draw a chart: x and each y are expressions over an item; Details the text a point shows
+	// beside its values.
+	Kind    string   `json:"kind,omitempty"`
+	X       string   `json:"x,omitempty"`
+	Series  []Series `json:"series,omitempty"`
+	Details string   `json:"details,omitempty"`
 	// Value is the expression of a stat block over rows, the items of its source.
 	Value string `json:"value,omitempty"`
 	// Format and Currency say how the client shows the value of a stat block.
@@ -528,6 +530,8 @@ type Column struct {
 	Details string `json:"details,omitempty"`
 	// Pick is the verb of the button of a table row whose input the cell picks from the button's options.
 	Pick string `json:"pick,omitempty"`
+	// Icon is an expression over the item giving the Tabler icon a table cell wears before its value.
+	Icon string `json:"icon,omitempty"`
 }
 
 // Action is a button. Params, Screen, Record, Project and Until take a fixed value or "=<expression>" over

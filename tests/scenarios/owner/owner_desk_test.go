@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -214,5 +215,83 @@ func TestTheOrderOfTheMenuBecomesALayout(t *testing.T) {
 	_ = st.DB.QueryRow(`SELECT count(*) FROM setting WHERE key = 'menu_order'`).Scan(&left)
 	if left != 0 {
 		t.Fatal("the setting of the order is gone")
+	}
+}
+
+// TestModulesStandInFoldersOnTheTiles: a folder is a card of its own with the modules in it, each of which leaves
+// the grid; a folder with nothing in it goes, and a module cannot stand in a folder the cards do not have.
+func TestModulesStandInFoldersOnTheTiles(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		e.Project(name, harness.PlainManifest)
+	}
+	e.Place("laptop", 4, harness.DeskCard{ID: "today", W: 2, H: 1}, harness.DeskCard{ID: "folder:Seldom", X: 2, W: 1, H: 2},
+		harness.DeskCard{ID: "alpha", In: "Seldom"}, harness.DeskCard{ID: "beta", In: "Seldom"}, harness.DeskCard{ID: "gamma", X: 3, W: 1, H: 1},
+		harness.DeskCard{ID: "folder:Empty", X: 0, Y: 1, W: 1, H: 1})
+	v := e.Desk("laptop", 4)
+	var folders, in []string
+	for _, c := range v.Cards {
+		if strings.HasPrefix(c.ID, "folder:") {
+			folders = append(folders, c.ID)
+		}
+		if c.In != "" {
+			in = append(in, c.ID+"@"+c.In)
+		}
+	}
+	if !slices.Equal(folders, []string{"folder:Seldom"}) || !slices.Equal(in, []string{"alpha@Seldom", "beta@Seldom"}) {
+		t.Fatalf("a folder keeps its modules and an empty one goes: %v %v", folders, in)
+	}
+	if code, out := e.Device("laptop").Call("deck.layout_set", map[string]any{"columns": 4, "cards": `[{"id": "alpha", "in": "Nowhere"}]`}); code != 422 || !strings.Contains(string(out), "Nowhere") {
+		t.Fatalf("a module stands only in a folder the cards have: %d %s", code, out)
+	}
+	// A folder whose only module is paused holds on while the client, which does not show that module, saves.
+	e.Place("laptop", 4, harness.DeskCard{ID: "today", W: 2, H: 1}, harness.DeskCard{ID: "folder:Quiet", X: 2, W: 1, H: 1},
+		harness.DeskCard{ID: "gamma", In: "Quiet"}, harness.DeskCard{ID: "alpha", X: 3, W: 1, H: 1}, harness.DeskCard{ID: "beta", X: 0, Y: 1, W: 1, H: 1})
+	e.Must("deck.project_pause", map[string]any{"project": "gamma", "paused": true}, nil)
+	e.Place("laptop", 4, harness.DeskCard{ID: "today", W: 2, H: 1}, harness.DeskCard{ID: "folder:Quiet", X: 2, W: 1, H: 1},
+		harness.DeskCard{ID: "alpha", X: 3, W: 1, H: 1}, harness.DeskCard{ID: "beta", X: 1, Y: 1, W: 1, H: 1})
+	e.Must("deck.project_pause", map[string]any{"project": "gamma", "paused": false}, nil)
+	if v := e.Desk("laptop", 4); !slices.ContainsFunc(v.Cards, func(c harness.DeskCard) bool { return c.ID == "gamma" && c.In == "Quiet" }) {
+		t.Fatalf("a paused module comes back into its folder: %+v", v.Cards)
+	}
+	if code, _ := e.Device("laptop").Call("deck.layout_set", map[string]any{"columns": 4, "cards": `[{"id": "folder:   ", "x": 0, "y": 0, "w": 1, "h": 1}]`}); code != 422 {
+		t.Fatalf("a folder of no words is refused: %d", code)
+	}
+}
+
+// TestTheLinesOfTodayOpenTheirPagesAndAnEmptyViewGivesWay: each line of Today opens its own page, and a view of a
+// card with nothing in any block says so, so the card shows the cover of its module.
+func TestTheLinesOfTodayOpenTheirPagesAndAnEmptyViewGivesWay(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("lab", harness.WidgetsOfWork)
+	lines := harness.BlockData[[]harness.ListItem](t, e.Screen("", "today", nil)["b0"]["items"])
+	opens := map[string]string{}
+	for _, l := range lines {
+		for _, a := range l.Actions {
+			opens[l.Title] = fmt.Sprint(a["screen"])
+		}
+	}
+	if !slices.Contains(slices.Collect(maps.Values(opens)), "schedule") {
+		t.Fatalf("a line of Today opens its page, the day the schedule: %v", opens)
+	}
+	empty := false
+	for _, m := range e.ScreenMessages("lab", "widget", map[string]any{"widget": "2x2"}) {
+		var uc struct{ Components []map[string]any }
+		if json.Unmarshal(m["updateComponents"], &uc) == nil {
+			for _, c := range uc.Components {
+				empty = empty || c["empty"] == true
+			}
+		}
+	}
+	if !empty {
+		t.Fatal("a view with nothing in any of its blocks gives way to the cover of its module")
+	}
+	e.Must("deck.record_upsert", map[string]any{"project": "lab", "collection": "items", "records": `{"name": "one", "n": 1}`}, nil)
+	for _, m := range e.ScreenMessages("lab", "widget", map[string]any{"widget": "2x2"}) {
+		if strings.Contains(string(m["updateComponents"]), `"empty":true`) {
+			t.Fatal("a view with something to show stays")
+		}
 	}
 }

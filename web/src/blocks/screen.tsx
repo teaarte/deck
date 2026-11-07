@@ -30,7 +30,7 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
   }, [p.name, p.key, context]);
   const side = children(p.side);
   const body = (
-    <Stack gap="lg" data-screen data-span="full">
+    <Stack gap="lg" data-screen data-span="full" data-widget-empty={p.empty || undefined}>
       {(titled || dialogs || under || (root && lead.beside)) && (
         <Group justify="space-between" align="center" gap="sm" data-screen-head>
           {titled ? <IconTitle order={2} className={s.screenTitle} title={String(p.title)} icon={p.icon} size={24} /> : under || <span />}

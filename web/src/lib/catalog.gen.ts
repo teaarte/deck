@@ -1402,6 +1402,10 @@ export interface ScreenProps {
    */
   dialogs?: string[];
   /**
+   * Of a widget: none of its blocks has anything to show, so its card shows the cover of its module instead.
+   */
+  empty?: boolean;
+  /**
    * Of a tab of Tabs: its title as written, its name in the address in every language.
    */
   key?: string;

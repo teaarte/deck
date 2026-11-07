@@ -36,6 +36,7 @@
         "description": {"type": "string"},
         "children": {"$ref": "common_types.json#/$defs/ChildList"},
         "dialogs": {"$ref": "common_types.json#/$defs/ChildList", "description": "The dialogs of the screen, Modals whose buttons stand beside its title."},
+        "empty": {"type": "boolean", "description": "Of a widget: none of its blocks has anything to show, so its card shows the cover of its module instead."},
         "key": {"type": "string", "description": "Of a tab of Tabs: its title as written, its name in the address in every language."}, "count": {"enum": ["failures"], "description": "Of a tab of Tabs: a count of deck the client shows beside its title, kept fresh, such as the open failures."},
         "name": {"type": "string", "description": "Of the window of a Modal: the name of its dialog, ?dialog=<name> in the address opens it."},
         "spans": {"type": "object", "additionalProperties": {"enum": [1, 2]}, "description": "The cells of the grid a standard child narrower than the screen takes, by its id."},
@@ -79,7 +80,7 @@
     },
     "card": {
       "description": "Fields of the record of a record page.",
-      "block": {"description": "Shows the record of a record page; takes no source, only fields and actions; a field with no value (null or empty text) is not shown; a field with markdown shows its value as markdown.", "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "bind"], "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of the record."}, "markdown": {"type": "boolean"}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "tone": {"$ref": "#/$defs/tone"}}}}, "actions": {"$ref": "#/$defs/actions"}}},
+      "block": {"description": "Shows the record of a record page; takes no source, only fields and actions; a field with no value (null or empty text) is not shown; a field with markdown shows its value as markdown.", "properties": {"source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"]}], "deck_only": true, "description": "A read of deck whose result, or its first row, the card shows instead of the record of the page."}, "fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "bind"], "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of the record."}, "markdown": {"type": "boolean"}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "tone": {"$ref": "#/$defs/tone"}}}}, "actions": {"$ref": "#/$defs/actions"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],

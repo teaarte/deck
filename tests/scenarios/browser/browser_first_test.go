@@ -21,6 +21,8 @@ func TestRealBrowserFirstRun(t *testing.T) {
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Add as a draft').click(), '')`)
 	b.until("its review offered", `[...document.querySelectorAll('button')].some((x) => x.innerText.trim() === 'What it can do')`)
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'What it can do').click(), '')`)
-	b.until("the review names what it needs and what it may do", `location.hash.startsWith('#/deck/draft') && document.body.innerText.includes('What it needs to work') && document.body.innerText.includes('Optional: add the connection nvidia') && document.body.innerText.includes('What it may do once enabled')`)
+	b.until("the card of the draft says what it may do, and what it needs stands folded", `location.hash.startsWith('#/deck/draft') && document.body.innerText.includes('What it may do once enabled') && [...document.querySelectorAll('[data-fold=closed]')].some((x) => x.innerText.includes('What it needs to work'))`)
+	b.eval(`([...document.querySelectorAll('[data-fold=closed]')].find((x) => x.innerText.includes('What it needs to work')).click(), '')`)
+	b.until("what it needs, opened", `document.body.innerText.includes('Optional: add the connection nvidia')`)
 	b.shot("first-run-draft")
 }

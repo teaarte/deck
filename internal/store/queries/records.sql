@@ -78,3 +78,19 @@ SELECT DISTINCT CAST(coalesce(j.value, '') AS TEXT) AS value
 FROM record r, json_each(CASE json_type(r.data, CAST(sqlc.arg(path) AS TEXT)) WHEN 'array' THEN json_extract(r.data, CAST(sqlc.arg(path) AS TEXT)) ELSE json_array(json_extract(r.data, CAST(sqlc.arg(path) AS TEXT))) END) j
 WHERE r.project_id = sqlc.arg(project_id) AND r.collection = sqlc.arg(collection) AND j.type = 'text'
 LIMIT sqlc.arg(lim);
+
+
+-- name: DeleteProjectRecordDocuments :exec
+DELETE FROM document WHERE project_id = ? AND record_id IS NOT NULL;
+
+
+-- name: DeleteProjectRecords :execrows
+DELETE FROM record WHERE project_id = ?;
+
+
+-- name: DropProjectMemory :exec
+UPDATE document SET deleted_at = ? WHERE project_id = ? AND kind = 'memory' AND deleted_at IS NULL;
+
+
+-- name: DeleteProjectRecordSnapshots :exec
+DELETE FROM record_snapshot WHERE project_id = ?;

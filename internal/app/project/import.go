@@ -3,6 +3,7 @@ package project
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -114,7 +115,24 @@ func (s *Service) projectImport(ctx context.Context, act registry.Actor, in proj
 	if len(skipped) > 0 {
 		return nil, registry.Invalid("%s has files deck cannot take: %s", from, strings.Join(skipped, "; "))
 	}
-	return s.importFiles(ctx, act, cmp.Or(in.Name, name), from, files)
+	out, err := s.importFiles(ctx, act, cmp.Or(in.Name, name), from, files)
+	if err != nil || in.File == "" {
+		return out, err
+	}
+	// A .zip with the data of the module brings it back into the draft.
+	res := out.(map[string]any)
+	p, err := s.St.Q.GetProject(ctx, res["id"].(int64))
+	if err != nil {
+		return out, err
+	}
+	n, err := s.restoreUpload(ctx, act, p, in.File)
+	if err != nil {
+		return nil, fmt.Errorf("deck: draft %s was made, its data did not come back: %w", p.Name, err)
+	}
+	if n > 0 {
+		res["data"] = n
+	}
+	return res, nil
 }
 
 // importFiles creates a draft from the files of a module; from is the folder they came from, or the file in words.

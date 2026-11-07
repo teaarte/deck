@@ -48,6 +48,8 @@ type TodayPulse struct {
 type DeskCard struct {
 	ID         string
 	X, Y, W, H int64
+	// In is the folder a card of a module stands in.
+	In string `json:"in,omitempty"`
 }
 
 type deskView struct {

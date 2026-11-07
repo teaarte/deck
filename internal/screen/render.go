@@ -127,6 +127,13 @@ func Render(ctx context.Context, src Sources, req Request) (Drawn, error) {
 	if r.recordTitle != "" {
 		root["title"] = r.tr(req.Screen.Title) + ": " + r.recordTitle
 	}
+	// A widget with nothing in any of its blocks is of no use: its card shows the cover of its module instead.
+	if req.Size[1] > 0 && len(r.data) > 0 && !slices.ContainsFunc(slices.Collect(maps.Values(r.data)), func(d any) bool {
+		m, _ := d.(map[string]any)
+		return m == nil || m["state"] != "empty"
+	}) {
+		root["empty"] = true
+	}
 	surface := r.surface()
 	out := []map[string]any{}
 	if req.Topic == "" && req.Block == "" {

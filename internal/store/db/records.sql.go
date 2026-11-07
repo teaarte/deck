@@ -74,12 +74,56 @@ func (q *Queries) DeleteOneRecordDocuments(ctx context.Context, recordID sql.Nul
 	return err
 }
 
+const deleteProjectRecordDocuments = `-- name: DeleteProjectRecordDocuments :exec
+DELETE FROM document WHERE project_id = ? AND record_id IS NOT NULL
+`
+
+func (q *Queries) DeleteProjectRecordDocuments(ctx context.Context, projectID sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, deleteProjectRecordDocuments, projectID)
+	return err
+}
+
+const deleteProjectRecordSnapshots = `-- name: DeleteProjectRecordSnapshots :exec
+DELETE FROM record_snapshot WHERE project_id = ?
+`
+
+func (q *Queries) DeleteProjectRecordSnapshots(ctx context.Context, projectID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteProjectRecordSnapshots, projectID)
+	return err
+}
+
+const deleteProjectRecords = `-- name: DeleteProjectRecords :execrows
+DELETE FROM record WHERE project_id = ?
+`
+
+func (q *Queries) DeleteProjectRecords(ctx context.Context, projectID int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteProjectRecords, projectID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteRecord = `-- name: DeleteRecord :exec
 DELETE FROM record WHERE id = ?
 `
 
 func (q *Queries) DeleteRecord(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteRecord, id)
+	return err
+}
+
+const dropProjectMemory = `-- name: DropProjectMemory :exec
+UPDATE document SET deleted_at = ? WHERE project_id = ? AND kind = 'memory' AND deleted_at IS NULL
+`
+
+type DropProjectMemoryParams struct {
+	DeletedAt sql.NullString
+	ProjectID sql.NullInt64
+}
+
+func (q *Queries) DropProjectMemory(ctx context.Context, arg DropProjectMemoryParams) error {
+	_, err := q.db.ExecContext(ctx, dropProjectMemory, arg.DeletedAt, arg.ProjectID)
 	return err
 }
 

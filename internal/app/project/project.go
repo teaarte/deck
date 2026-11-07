@@ -54,5 +54,5 @@ type Service struct {
 
 // Commands are the commands of projects.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.projectsCommands(), s.importCommands(), s.startersCommands(), s.draftsCommands(), s.projectDeleteCommands(), s.manifestCommands(), s.saveCheckCommands(), s.moduleZipCommands())
+	return slices.Concat(s.projectsCommands(), s.importCommands(), s.startersCommands(), s.draftsCommands(), s.projectDeleteCommands(), s.manifestCommands(), s.saveCheckCommands(), s.moduleZipCommands(), s.draftCommands(), s.dataCommands())
 }

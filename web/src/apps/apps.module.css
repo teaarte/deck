@@ -337,8 +337,26 @@
   opacity: 1;
 }
 
+/* The corner a card grows by, plain to see while the owner arranges the cards. */
 .room :global(.react-resizable-handle) {
   z-index: 4;
+  width: 28px;
+  height: 28px;
+  background: none;
+}
+
+.apps[data-placing] .room :global(.react-resizable-handle) {
+  opacity: 1;
+}
+
+.room :global(.react-resizable-handle::after) {
+  right: 6px;
+  bottom: 6px;
+  width: 14px;
+  height: 14px;
+  border-right: 3px solid var(--mantine-primary-color-filled);
+  border-bottom: 3px solid var(--mantine-primary-color-filled);
+  border-radius: 0 0 var(--mantine-radius-sm) 0;
 }
 
 .apps:not([data-placing]) .room :global(.react-resizable-handle) {
@@ -368,4 +386,138 @@
   background: var(--deck-tile-icon);
   background: var(--deck-tile-veil, var(--deck-tile-veil-auto));
   backdrop-filter: blur(8px);
+}
+
+/* A view with nothing to show: its card shows the cover of the module, as a card without a view. */
+.emptyCover {
+  display: none;
+}
+
+.card:has([data-widget-empty]) .body {
+  visibility: hidden;
+}
+
+.card:has([data-widget-empty]) .emptyCover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: var(--mantine-spacing-md);
+  pointer-events: none;
+}
+
+/* The pencil that arranges the cards, at the bottom right; a phone keeps it above its tabs. */
+.arrange {
+  position: fixed;
+  right: var(--mantine-spacing-xl);
+  bottom: var(--mantine-spacing-xl);
+  z-index: 20;
+  box-shadow: var(--deck-shadow);
+}
+
+@media (max-width: 36em) {
+  .arrange {
+    right: var(--mantine-spacing-md);
+    bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+}
+
+.cardMenu {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 6;
+  box-shadow: var(--deck-shadow);
+}
+
+.sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 8px 6px;
+}
+
+.newFolder {
+  padding: 4px 8px 6px;
+}
+
+.todaySettings {
+  display: inline-flex;
+  margin-left: auto;
+  padding: 4px;
+  border-radius: var(--mantine-radius-xl);
+  color: inherit;
+  opacity: 0.75;
+  pointer-events: auto;
+}
+
+.todaySettings:hover {
+  opacity: 1;
+  background: var(--deck-tile-veil, var(--deck-tile-veil-auto));
+}
+
+.card[data-big] .today {
+  width: 100%;
+}
+
+/* A line of Today with a page of its own opens it; the rest of the card opens Today. */
+.card[data-big] .widget :global([data-opens]) {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.apps[data-placing] .card[data-big] .widget :global([data-opens]),
+.apps[data-placing] .todaySettings {
+  pointer-events: none;
+}
+
+.folder {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--mantine-spacing-md);
+  gap: 8px;
+}
+
+.folderHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.folderList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.folderRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.folderLink {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: var(--mantine-radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+.folderLink:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.apps[data-placing] .folderLink {
+  pointer-events: none;
 }

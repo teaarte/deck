@@ -40,6 +40,8 @@ type menuEntry struct {
 	Next  *nextRun `json:"next,omitempty"`
 	// Draw is the button that asks for a view of the card for a size, given as size.
 	Draw map[string]any `json:"draw,omitempty"`
+	// Draft says the project waits to be enabled: its card opens the card of what enabling it means.
+	Draft bool `json:"draft,omitempty"`
 }
 
 // nextRun is the command a trigger of the schedule runs next, by its title, and when.
@@ -105,7 +107,7 @@ func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (m
 			continue
 		}
 		ws := wordsOf(registry.Lang(ctx), m)
-		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name],
+		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name], Draft: p.Status == "draft",
 			Draw: map[string]any{"label": manifest.Tr(deckWords, "Deki prepares a view for this size"), "icon": "sparkles",
 				"command": registry.Deck("widget_draw"), "params": map[string]any{"project": p.Name}, "input": "size", "chat": true}}
 		if c := files.CoverOf(pics, p.ID, theme); c != nil {

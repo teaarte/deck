@@ -2,7 +2,6 @@ package project
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"io"
 	"os"
@@ -15,6 +14,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -38,15 +38,30 @@ func (s *Service) readUpload(ctx context.Context, act registry.Actor, ref string
 	if _, err := access.Of(ctx, s.St.Q, act, f.ProjectID, missing); err != nil {
 		return nil, nil, "", err
 	}
-	if f.Size > maxFolder {
-		return nil, nil, "", registry.Invalid("%s is larger than 32 MB", f.Name)
-	}
 	file, err := os.Open(s.Home.File(f.ID))
 	if err != nil {
 		return nil, nil, "", missing
 	}
 	defer file.Close()
+	// A module with its data may be as large as an upload; one without it holds 32 MB of text at most.
+	if f.Size > maxFolder && !withData(file, f.Size) {
+		return nil, nil, "", registry.Invalid("%s is larger than 32 MB", f.Name)
+	}
 	return readZip(f.Name, file, f.Size)
+}
+
+// withData says a .zip of a module holds its data.
+func withData(r io.ReaderAt, size int64) bool {
+	zr, err := zip.NewReader(r, size)
+	if err != nil {
+		return false
+	}
+	for _, e := range zr.File {
+		if strings.Contains("/"+path.Clean(e.Name)+"/", "/"+dataDir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // readZip reads the text files of a .zip of a module folder; what it cannot take is in skipped, and name is its one
@@ -56,7 +71,14 @@ func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, sk
 	if err != nil {
 		return nil, nil, "", registry.Invalid("%s is not a .zip: %v", fileName, err)
 	}
-	if len(zr.File) > maxZipEntries {
+	// The data of a module, which its import reads apart, is not counted.
+	module := 0
+	for _, e := range zr.File {
+		if !strings.Contains("/"+path.Clean(e.Name)+"/", "/"+dataDir+"/") {
+			module++
+		}
+	}
+	if module > maxZipEntries {
 		return nil, nil, "", registry.Invalid("%s has more than %d entries", fileName, maxZipEntries)
 	}
 	total := 0
@@ -68,6 +90,7 @@ func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, sk
 		if e.FileInfo().IsDir() || hidden(p) {
 			continue
 		}
+
 		if !e.Mode().IsRegular() {
 			skipped = append(skipped, p+": not a regular file")
 			continue
@@ -137,9 +160,14 @@ type projectExportIn struct {
 	Project string `type:"project" desc:"Project name"`
 }
 
-// projectExport keeps a .zip of the documents of a module as a file to download; its artifacts, memory, records,
-// data and secrets stay with deck.
-func (s *Service) projectExport(ctx context.Context, act registry.Actor, in projectExportIn) (any, error) {
+type projectExportDataIn struct {
+	Project string `type:"project" desc:"Project name"`
+	Data    bool   `opt:"" desc:"With its data too: its records, memory and data folder, which an import of the .zip brings back; never its secrets"`
+}
+
+// projectExport keeps a .zip of the documents of a module as a file to download, with its data when asked; its
+// secrets and stored files stay with deck.
+func (s *Service) projectExport(ctx context.Context, act registry.Actor, in projectExportDataIn) (any, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -151,34 +179,58 @@ func (s *Service) projectExport(ctx context.Context, act registry.Actor, in proj
 	if err != nil {
 		return nil, err
 	}
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
+	// The .zip is written to a file apart first: a data folder may be large.
+	t, err := home.Create(s.Home.Files())
+	if err != nil {
+		return nil, err
+	}
+	defer t.Drop()
 	n := 0
+	if err := s.writeZip(ctx, t, p, ds, in.Data, &n); err != nil {
+		return nil, err
+	}
+	if _, err := t.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+	name := p.Name + ".zip"
+	if in.Data {
+		name = p.Name + "-with-data.zip"
+	}
+	id, err := s.Keep(ctx, act, p.Name, name, "application/zip", t)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"file": id, "name": name, "files": n}, nil
+}
+
+// writeZip writes the .zip of a module: its documents, and its data when asked.
+func (s *Service) writeZip(ctx context.Context, w io.Writer, p db.Project, ds []db.Document, data bool, n *int) error {
+	zw := zip.NewWriter(w)
 	for _, d := range ds {
 		if d.RecordID.Valid || !slices.Contains(moduleKinds, d.Kind) {
 			continue
 		}
 		text, err := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), d.Kind, d.Name)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		w, err := zw.Create(p.Name + "/" + d.Name)
+		f, err := zw.Create(p.Name + "/" + d.Name)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if _, err := io.WriteString(w, text); err != nil {
-			return nil, err
+		if _, err := io.WriteString(f, text); err != nil {
+			return err
 		}
-		n++
+		*n++
 	}
-	if err := zw.Close(); err != nil {
-		return nil, err
+	if data {
+		m, err := s.writeData(ctx, zw, p)
+		if err != nil {
+			return err
+		}
+		*n += m
 	}
-	id, err := s.Keep(ctx, act, p.Name, p.Name+".zip", "application/zip", &buf)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"file": id, "name": p.Name + ".zip", "files": n}, nil
+	return zw.Close()
 }
 
 // rightRow is one thing enabling a draft lets it do beyond its internal actions.
@@ -212,7 +264,7 @@ func (s *Service) projectRights(ctx context.Context, act registry.Actor, in proj
 func (s *Service) moduleZipCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_export", "Export project",
-			"Keeps a .zip of the documents of a project to share as a module: manifest, prompts, skills, scripts and the other documents, without its memory, records, data and secrets; the result names the file.",
+			"Keeps a .zip of the documents of a project to share as a module: manifest, prompts, skills, scripts and the other documents; with data, also its records, memory and data folder, which an import brings back, not the documents of its records or its stored files; never its secrets. The result names the file.",
 			registry.OwnerOnly, s.projectExport),
 		registry.Read("project_rights_list", "List what a draft may do",
 			"Lists what enabling a draft lets it do beyond its own records, such as the web, secrets, folders and models, and the calls that will wait for the owner each time.",

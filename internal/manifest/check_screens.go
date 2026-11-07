@@ -206,6 +206,13 @@ func (c *screenCheck) block(where string, b Block) {
 	case "actions":
 		fields = c.recordFields()
 	case "card":
+		// A card of deck may read its own source instead of the record of its page; a module's card shows its record.
+		if b.Source != nil {
+			if !c.deck {
+				c.fail("%s: a card of a module shows the record of its page and takes no source", where)
+			}
+			return
+		}
 		if c.screen.Record == "" {
 			c.fail("%s: a card shows the record of its page; the screen needs record", where)
 			return

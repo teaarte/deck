@@ -127,6 +127,7 @@
             {"label": "Draw a cover", "icon": "sparkles", "screen": "settings", "params": {"tab": "Modules", "dialog": "draw-cover", "project": "=name"}, "when": "!builtin"},
             {"label": "Take off the cover", "icon": "photo-off", "confirm": true, "command": "deck.project_cover_set", "params": {"project": "=name", "theme": "=cover.theme", "remove": "true"}, "when": "cover != nil"},
             {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!builtin && manifest_error == ''"},
+            {"label": "Export with data", "icon": "database-export", "command": "deck.project_export", "params": {"project": "=name", "data": "true"}, "download": true, "when": "!builtin && manifest_error == ''"},
             {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
           ]},
         {"type": "table", "title": "Secrets of the modules", "icon": "key", "source": {"from": "deck.secrets_list", "sort": "project"}, "filter": ["project"],

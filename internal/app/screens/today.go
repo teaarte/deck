@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"deck2/internal/manifest"
@@ -28,6 +30,8 @@ type todayLineView struct {
 	Icon  string `json:"icon"`
 	Tone  string `json:"tone,omitempty"`
 	Since string `json:"since,omitempty"`
+	// Actions open the page of the line: a press on the line presses its open.
+	Actions []map[string]any `json:"actions,omitempty"`
 }
 
 // today are the lines of the card of Today, read by the reads of deck as the caller.
@@ -114,6 +118,9 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		out = append(out, todayLineView{ID: "next", Kind: "next", Title: tr("Next: %s", ts[next].Title), Text: ts[next].ProjectTitle, Icon: "clock",
 			Since: ts[next].NextAt})
 	}
+	for i := range out {
+		out[i].Actions = opensOf(out[i])
+	}
 	return out, nil
 }
 
@@ -137,4 +144,34 @@ func (s *Service) todayCommands() []*registry.Command {
 			"Lists the lines of the card of Today, the most pressing first: what waits for the owner, what failed, what runs, what the day cost and what runs next.",
 			registry.OwnerSide, s.today).On("asks", "feed", "processes", "health", "usage", "triggers", "projects", "secrets", "models", "assignments", "documents"),
 	}
+}
+
+// opensOf is the open of a line of Today: what waits on Today, a failure in Health, a run on its page, the day in
+// the schedule, the spend in Spend.
+func opensOf(l todayLineView) []map[string]any {
+	open := func(screen string, params map[string]any, record any) []map[string]any {
+		a := map[string]any{"verb": "open", "screen": screen}
+		if params != nil {
+			a["params"] = params
+		}
+		if record != nil {
+			a["record"] = record
+		}
+		return []map[string]any{a}
+	}
+	switch l.Kind {
+	case "asks":
+		return open("cockpit", nil, nil)
+	case "failures":
+		return open("settings", map[string]any{"tab": "Health"}, nil)
+	case "running":
+		if id, err := strconv.ParseInt(strings.TrimPrefix(l.ID, "running-"), 10, 64); err == nil {
+			return open("process", nil, id)
+		}
+	case "day", "next":
+		return open("schedule", nil, nil)
+	case "spent":
+		return open("spend", nil, nil)
+	}
+	return nil
 }

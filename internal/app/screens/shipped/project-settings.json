@@ -18,6 +18,9 @@
               {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=name", "revision": "=revision"}, "when": "manifest_error == '' && status == 'draft'"},
               {"verb": "pause", "command": "deck.project_pause", "params": {"project": "=name", "paused": "true"}, "when": "!paused"},
               {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
+              {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!builtin"},
+              {"label": "Export with data", "icon": "database-export", "command": "deck.project_export", "params": {"project": "=name", "data": "true"}, "download": true, "when": "!builtin"},
+              {"label": "Reset the data", "icon": "eraser", "confirm": true, "command": "deck.project_reset", "params": {"project": "=name"}, "when": "!builtin"},
               {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
             ]},
           {"type": "dialog", "name": "cover", "title": "Upload a cover", "icon": "photo-up", "blocks": [

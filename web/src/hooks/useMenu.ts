@@ -27,6 +27,8 @@ export interface MenuEntry {
   widgets?: string[];
   doing?: string;
   next?: { title: string; at: string };
+  // draft says the project waits to be enabled.
+  draft?: boolean;
   // draw is the button that asks Deki for a view of the card for a size.
   draw?: Action;
 }

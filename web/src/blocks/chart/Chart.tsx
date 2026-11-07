@@ -59,7 +59,8 @@ function wide(values: number[], s: Shown): number {
   if (!values.length) return 40;
   ruler ??= document.createElement('canvas').getContext('2d');
   if (!ruler) return 64;
-  ruler.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+  // The ticks may wear a larger font of the theme than 12px: their room is measured at 14px, so none is cut.
+  ruler.font = `14px ${getComputedStyle(document.body).fontFamily}`;
   const lo = Math.min(...values), hi = Math.max(...values);
   const span = hi - lo || Math.abs(hi) || 1;
   const labels = [lo - span * 0.1, lo, (lo + hi) / 2, hi, hi + span * 0.1].map((v) => short(v, s));

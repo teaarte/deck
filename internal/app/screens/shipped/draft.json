@@ -4,7 +4,21 @@
   "title": "Review a draft",
   "params": {"project": "string", "revision": "number"},
   "blocks": [
-    {"type": "table", "title": "What it needs to work", "icon": "puzzle", "span": "full", "source": {"from": "deck.project_readiness_get", "input": {"project": "=param.project"}, "where": "kind != 'right'"},
+    {"type": "card", "title": "Before you enable it", "icon": "power", "span": "full", "source": {"from": "deck.project_draft_list", "input": {"project": "=param.project"}},
+      "description": "Install modules only from authors you know. Once enabled, a module does what is listed here without asking you again; until then it is a draft, and only its trials run.",
+      "fields": [
+        {"label": "Module", "bind": "title"},
+        {"label": "What it does", "bind": "description", "markdown": true},
+        {"label": "What it may do once enabled", "bind": "(rights ?? '') == '' ? 'Nothing beyond its own records: it reaches no site, reads no secret and calls no model' : rights", "markdown": true},
+        {"label": "Models it takes", "bind": "models ?? ''", "markdown": true},
+        {"label": "What it still lacks", "bind": "lacks ?? ''", "markdown": true}
+      ],
+      "actions": [
+        {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=name", "revision": "=revision"}, "when": "draft"},
+        {"label": "Set the secrets", "icon": "key", "screen": "settings", "project": "=name", "params": {"tab": "Access"}, "when": "secrets"},
+        {"label": "Models", "icon": "cpu", "screen": "settings", "params": {"tab": "Models"}, "when": "(lacks ?? '') != ''"}
+      ]},
+    {"type": "table", "title": "What it needs to work", "icon": "puzzle", "span": "full", "collapsed": true, "source": {"from": "deck.project_readiness_get", "input": {"project": "=param.project"}, "where": "kind != 'right'"},
       "description": "Secrets, programs and models it needs besides what enabling grants; give them before or after enabling it.",
       "empty": "Nothing more: it works once enabled",
       "columns": [
@@ -15,16 +29,6 @@
       "actions": [
         {"label": "Set a secret", "icon": "key", "screen": "settings", "project": "=param.project", "params": {"tab": "Access", "dialog": "secret", "name": "=what"}, "when": "kind == 'secret' && !done"},
         {"label": "Models", "icon": "cpu", "screen": "settings", "params": {"tab": "Models"}, "when": "kind == 'model'"}
-      ]},
-    {"type": "table", "title": "What it may do once enabled", "icon": "shield-check", "span": "full", "source": {"from": "deck.project_rights_list", "input": {"project": "=param.project"}},
-      "description": "Install modules only from authors you know. Once enabled, a module does what is listed here without asking you again.",
-      "empty": "Nothing beyond its own records: it reaches no site, reads no secret and calls no model",
-      "columns": [
-        {"label": "What", "bind": "what"},
-        {"label": "Which", "bind": "detail"}
-      ]},
-    {"type": "actions", "title": "Enable", "icon": "power",
-      "description": "Until then it is a draft: nothing runs by itself, and only its trials run.",
-      "actions": [{"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=param.project", "revision": "=param.revision"}}]}
+      ]}
   ]
 }

@@ -263,10 +263,30 @@ func (r *renderer) documentData(id string, b manifest.Block) (map[string]any, bo
 	return out, true, err
 }
 
-func (r *renderer) card(_ string, b manifest.Block) (map[string]any, bool, error) {
+func (r *renderer) card(id string, b manifest.Block) (map[string]any, bool, error) {
+	rec, recID := r.record, r.req.Record
+	// A card of deck may show a read of deck instead of the record of its page.
+	if b.Source != nil {
+		items, _, _, err := r.rows(id, b, nil)
+		if err != nil {
+			return nil, true, err
+		}
+		if len(items) == 0 {
+			return empty(map[string]any{"state": "ready"}, b), true, nil
+		}
+		rec = items[0]
+		switch n := items[0]["id"].(type) {
+		case float64:
+			recID = int64(n)
+		case int64:
+			recID = n
+		case json.Number:
+			recID, _ = n.Int64()
+		}
+	}
 	fields := make([]map[string]any, 0, len(b.Fields))
 	for _, f := range b.Fields {
-		v, err := r.eval(f.Bind, r.record)
+		v, err := r.eval(f.Bind, rec)
 		if err != nil {
 			return nil, true, fmt.Errorf("field %q: %w", f.Label, err)
 		}
@@ -278,10 +298,10 @@ func (r *renderer) card(_ string, b manifest.Block) (map[string]any, bool, error
 		if f.Markdown {
 			field["markdown"] = true
 		}
-		r.setTone(field, f.Tone, r.record)
+		r.setTone(field, f.Tone, rec)
 		fields = append(fields, field)
 	}
-	acts, err := r.actions(b.Actions, r.req.Record, r.record)
+	acts, err := r.actions(b.Actions, recID, rec)
 	if err != nil {
 		return nil, true, err
 	}

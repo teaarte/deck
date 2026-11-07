@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { setChatOpen } from '../chat/chatStore';
+import { useChatPanel } from '../chat/chatStore';
 import { useMenuData } from '../hooks/useMenu';
 import { useLook } from '../theme/look';
 import { Deki, poseOf, useMascot, useMasterName, type Pose } from '../ui/deki/Deki';
@@ -35,6 +35,7 @@ const HEAD = 34;
 // CardDeki is Deki on the cockpit's card in the pose of the pulse, turning to the pointer over the card and waking
 // as it comes; a press opens the chat with the master. It stands in the room under the lines, as large as it fits.
 export function CardDeki({ size, room }: { size: number; room: number }) {
+  const chat = useChatPanel();
   const { t } = useTranslation();
   const { pulse } = useMenuData();
   const { motion } = useLook();
@@ -77,7 +78,7 @@ export function CardDeki({ size, room }: { size: number; room: number }) {
   if (!mascot) return null;
   const head = room < 72;
   return (
-    <button ref={ref} type="button" className={s.deki} onClick={() => setChatOpen(true)} aria-label={t('Talk to {{name}}', { name })} data-card-deki={pulse.state}
+    <button ref={ref} type="button" className={s.deki} onClick={() => chat.setOpen(!chat.open)} aria-label={t('Talk to {{name}}', { name })} aria-expanded={chat.open} data-card-deki={pulse.state}
       data-head={head || undefined}>
       <Deki pose={pose} size={head ? HEAD : Math.min(size, room)} still={!motion} wake={wake} />
     </button>

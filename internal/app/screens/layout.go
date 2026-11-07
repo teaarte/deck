@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"slices"
 	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -23,15 +26,31 @@ type card struct {
 	Y  int64  `json:"y"`
 	W  int64  `json:"w"`
 	H  int64  `json:"h"`
+	// In is the folder a card of a module stands in instead of the grid.
+	In string `json:"in,omitempty"`
 }
 
-// storedCard is a card as the base keeps it: a project id, 0 for Today.
+// folderOf is the name of a folder a card id names, folder:<name>; empty for any other card.
+func folderOf(id string) string {
+	name, _ := strings.CutPrefix(id, folderPrefix)
+	if name == id {
+		return ""
+	}
+	return name
+}
+
+const folderPrefix = "folder:"
+
+// storedCard is a card as the base keeps it: a project id, 0 for Today, or a folder by its name with the projects
+// whose cards stand in it.
 type storedCard struct {
-	ID int64 `json:"id"`
-	X  int64 `json:"x"`
-	Y  int64 `json:"y"`
-	W  int64 `json:"w"`
-	H  int64 `json:"h"`
+	ID     int64  `json:"id"`
+	X      int64  `json:"x"`
+	Y      int64  `json:"y"`
+	W      int64  `json:"w"`
+	H      int64  `json:"h"`
+	Folder string `json:"folder,omitempty"`
+	In     string `json:"in,omitempty"`
 }
 
 type layoutGetIn struct {
@@ -100,16 +119,22 @@ func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutGetIn
 	}
 	out.Columns, out.Own = l.Columns, l.Device == me && !order
 	for _, c := range stored(l.Cards) {
+		if c.Folder != "" {
+			out.Cards = append(out.Cards, card{ID: folderPrefix + c.Folder, X: c.X, Y: c.Y, W: c.W, H: c.H})
+			continue
+		}
 		name, ok := names[c.ID]
 		if !ok {
 			continue
 		}
-		out.Cards = append(out.Cards, card{ID: name, X: c.X, Y: c.Y, W: c.W, H: c.H})
+		out.Cards = append(out.Cards, card{ID: name, X: c.X, Y: c.Y, W: c.W, H: c.H, In: c.In})
 	}
 	// A grid of one column is the order with the heights: its cards go across a wider grid as they went across it.
 	if !order && l.Columns == 1 && in.Columns > 1 {
 		for i := range out.Cards {
-			out.Cards[i].X, out.Cards[i].W = 0, in.Columns
+			if out.Cards[i].In == "" {
+				out.Cards[i].X, out.Cards[i].W = 0, in.Columns
+			}
 		}
 		out.Columns = in.Columns
 	}
@@ -122,7 +147,7 @@ func (s *Service) layout(ctx context.Context, act registry.Actor, in layoutGetIn
 
 type layoutSetIn struct {
 	Columns int64  `desc:"How many columns of cells the grid has"`
-	Cards   string `type:"json" desc:"The cards as a JSON list of {id, x, y, w, h} in cells: today or the name of a project"`
+	Cards   string `type:"json" desc:"The cards as a JSON list of {id, x, y, w, h} in cells: today, the name of a project, or folder:<name> a folder of cards; a card of a project with in, the name of a folder, stands in that folder"`
 }
 
 // layoutSet keeps where the cards of a device stand for its columns; a card of no project is dropped.
@@ -152,23 +177,64 @@ func (s *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutSe
 	}
 	keep := []storedCard{}
 	seen := map[string]bool{}
+	folders := map[string]bool{}
+	for i, c := range cards {
+		cards[i].In = strings.TrimSpace(c.In)
+		if f := folderOf(c.ID); f != "" {
+			name := strings.TrimSpace(f)
+			if name == "" || strings.ContainsFunc(name, unicode.IsControl) {
+				return nil, registry.Invalid("a folder is named by words, not %q", f)
+			}
+			cards[i].ID, folders[name] = folderPrefix+name, true
+		}
+	}
+	// A folder holds on while a card in it is of a project paused, which the tiles do not show.
+	held := map[string]bool{}
+	for _, c := range cards {
+		if c.In != "" && folders[c.In] && ids[c.ID] != 0 {
+			held[c.In] = true
+		}
+	}
+	for _, c := range paused {
+		if c.In != "" && folders[c.In] {
+			held[c.In] = true
+		}
+	}
 	for _, c := range cards {
 		id, ok := ids[c.ID]
+		folder := folderOf(c.ID)
 		switch {
-		case !ok:
+		case folder != "" && !held[folder]:
+			// A folder without a card in it goes.
+			continue
+		case folder != "" && utf8.RuneCountInString(folder) > 40:
+			return nil, registry.Invalid("a folder is named in 40 characters at most: %q", folder)
+		case folder == "" && !ok:
 			continue
 		case seen[c.ID]:
 			return nil, registry.Invalid("card %s is placed twice", c.ID)
-		case c.W < 1 || c.H < 1 || c.X < 0 || c.Y < 0 || c.X+c.W > in.Columns:
+		case c.In != "" && (!folders[c.In] || id == 0):
+			return nil, registry.Invalid("card %s stands in folder %q, which the cards do not have", c.ID, c.In)
+		case c.In == "" && (c.W < 1 || c.H < 1 || c.X < 0 || c.Y < 0 || c.X+c.W > in.Columns):
 			return nil, registry.Invalid("card %s does not fit %d columns", c.ID, in.Columns)
 		case c.ID == Today && c.W < min(2, in.Columns):
 			return nil, registry.Invalid("Today takes two cells of a row at least")
 		}
 		seen[c.ID] = true
-		keep = append(keep, storedCard{ID: id, X: c.X, Y: c.Y, W: c.W, H: c.H})
+		switch {
+		case folder != "":
+			keep = append(keep, storedCard{X: c.X, Y: c.Y, W: c.W, H: c.H, Folder: folder})
+		case c.In != "":
+			keep = append(keep, storedCard{ID: id, In: c.In})
+		default:
+			keep = append(keep, storedCard{ID: id, X: c.X, Y: c.Y, W: c.W, H: c.H})
+		}
 	}
 	for _, c := range paused {
-		if !slices.ContainsFunc(keep, func(k storedCard) bool { return overlap(k, c) }) {
+		if c.In != "" && !held[c.In] {
+			continue
+		}
+		if c.In != "" || !slices.ContainsFunc(keep, func(k storedCard) bool { return k.In == "" && overlap(k, c) }) {
 			keep = append(keep, c)
 		}
 	}
@@ -202,10 +268,15 @@ func (s *Service) order(ctx context.Context, q *db.Queries, workspace int64) []i
 		return nil
 	}
 	cs := stored(ls[0].Cards)
-	slices.SortStableFunc(cs, func(a, b storedCard) int { return cmp.Or(cmp.Compare(a.Y, b.Y), cmp.Compare(a.X, b.X)) })
+	// The modules in folders come after those of the grid, in the order they were put there.
+	slices.SortStableFunc(cs, func(a, b storedCard) int {
+		return cmp.Or(cmp.Compare(boolRank(a.In != ""), boolRank(b.In != "")), cmp.Compare(a.Y, b.Y), cmp.Compare(a.X, b.X))
+	})
 	out := make([]int64, 0, len(cs))
 	for _, c := range cs {
-		out = append(out, c.ID)
+		if c.Folder == "" {
+			out = append(out, c.ID)
+		}
 	}
 	return out
 }
@@ -273,4 +344,11 @@ func (s *Service) layoutCommands() []*registry.Command {
 			"Keeps where the cards of the tiles stand on a device for a number of columns, in cells.",
 			registry.OwnerSide, s.layoutSet),
 	}
+}
+
+func boolRank(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import GridLayout, { noCompactor, useContainerWidth, type Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
-import { Button, Text, Title, useComputedColorScheme } from '@mantine/core';
+import { ActionIcon, Button, Menu, Text, TextInput, Title, useComputedColorScheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconCheck, IconSparkles, IconSun } from '@tabler/icons-react';
+import { IconCheck, IconDots, IconEyeOff, IconFolder, IconFolderPlus, IconFolderUp, IconPencil, IconSettings, IconSparkles, IconSun } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { of } from '../app/Backdrop';
 import { NavStatus } from '../app/NavStatus';
@@ -17,7 +17,7 @@ import { useWorn } from '../theme/worn';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './apps.module.css';
 import { CardDeki } from './CardDeki';
-import { derive, least, TODAY, type Cell, type Saved } from './layout';
+import { derive, FOLDER, foldersOf, least, TODAY, type Cell, type Saved } from './layout';
 import { Widget } from './Widget';
 
 // hue is a color of a tile without a picture, the same for a name on every device.
@@ -50,7 +50,15 @@ function Tile({ to, title, cover, color, seed, big, plain, art, extra, children,
   );
 }
 
-const open = (e: MenuEntry) => href({ project: e.project, screen: (e.open ?? e.screens[0] ?? e.extra?.[0])?.name ?? 'settings' });
+// CoverImg is the picture of a module's card for the room its empty view leaves.
+function CoverImg({ at }: { at: string }) {
+  const src = useCover(at);
+  return src ? <img src={src} alt="" className={s.cover} data-shown /> : null;
+}
+
+// open is the page a card of a module opens: its first screen, or the card that enables a draft.
+const open = (e: MenuEntry) => (e.draft ? href({ screen: 'draft', params: { project: e.project ?? '' } })
+  : href({ project: e.project, screen: (e.open ?? e.screens[0] ?? e.extra?.[0])?.name ?? 'settings' }));
 
 // fits is the largest view of the widgets of a module a card of a size fits, by its least size; none when none fits.
 function fits(widgets: string[] | undefined, w: number, h: number): string | undefined {
@@ -133,25 +141,49 @@ export function Apps() {
   // The narrowest grid still has two columns, as a phone: a card across it is two cells wide, a half one.
   const cols = Math.max(2, Math.floor((width + cell.gap) / (cell.min + cell.gap)));
   const saved = useLiveRead<Saved>('deck.layout_get', { columns: cols }, EMPTY, !mounted);
-  const ids = [TODAY, ...menu.projects.map((p) => p.project ?? '')];
+  // held are the folders of the modules as the owner moved them, kept until deck gives the layout of the last save.
+  const [held, setHeld] = useState<Record<string, string>>();
+  const inFolder = held ?? foldersOf(saved);
+  const named = (p: MenuEntry) => p.project ?? '';
+  const folders = [...new Set(menu.projects.map(named).filter((id) => inFolder[id]).map((id) => inFolder[id]))];
+  const ids = [TODAY, ...folders.map((f) => FOLDER + f), ...menu.projects.map(named).filter((id) => !inFolder[id])];
   const [placing, setPlacing] = useState(route.params?.edit === '1');
   const [room, setRoom] = useState(0);
   const [moved, setMoved] = useState<Cell[]>();
   useEffect(() => { if (route.params?.edit) dropParam('edit'); }, [route.params?.edit]);
   // Saves go one after another; what was moved stays drawn until deck gives the layout of the last of them.
   const saving = useRef<{ queue: Promise<unknown>; left: number }>({ queue: Promise.resolve(), left: 0 });
-  useEffect(() => { if (!saving.current.left) setMoved(undefined); }, [saved, cols]);
-  const cells = moved ?? derive(saved, ids, cols);
-  const keep = (layout: Layout) => {
+  useEffect(() => { if (!saving.current.left) { setMoved(undefined); setHeld(undefined); } }, [saved, cols]);
+  const cells = (moved ?? derive(saved, ids, cols)).filter((c) => ids.includes(c.i));
+  const keep = (layout: Layout | Cell[], into: Record<string, string> = inFolder) => {
     const next = layout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h }));
     setMoved(next);
+    setHeld(into);
     const q = saving.current;
     q.left++;
     const save = saved.save;
+    // The modules of folders the menu shows go with the save; deck keeps those of paused modules itself.
+    const shown = new Set(menu.projects.map(named));
+    const cards = [...next.map(({ i, ...c }) => ({ id: i, ...c })),
+      ...Object.entries(into).filter(([id]) => shown.has(id)).map(([id, f]) => ({ id, in: f, x: 0, y: 0, w: 1, h: 1 }))];
     q.queue = q.queue.then(async () => {
-      const r = save ? await press(undefined, save, { cards: JSON.stringify(next.map(({ i, ...c }) => ({ id: i, ...c }))) }) : {};
+      const r = save ? await press(undefined, save, { cards: JSON.stringify(cards) }) : {};
       if (r.error) notifyError(r.error, t('The tiles could not be placed'));
     }).finally(() => { q.left--; });
+  };
+  // resize gives a card a size; the cards it now covers step down to the first free cells under it.
+  const resize = (id: string, w: number, h: number) => keep(settle(cells.map((c) => (c.i === id ? { ...c, w: Math.min(w, cols), h } : c)), id, cols));
+  // into puts a module in a folder, a new one standing where the module stood.
+  const into = (id: string, folder: string) => {
+    const at = cells.find((c) => c.i === id);
+    const rest = cells.filter((c) => c.i !== id);
+    const grid = folders.includes(folder) || !at ? rest : settle([...rest, { ...at, i: FOLDER + folder }], FOLDER + folder, cols);
+    keep(grid, { ...inFolder, [id]: folder });
+  };
+  // out takes a module out of its folder to the first free cells; a folder left empty goes.
+  const out = (id: string) => {
+    const { [id]: _, ...rest } = inFolder;
+    keep(cells, rest);
   };
   // A press held still opens the placing; a press beside the cards or Escape closes it.
   const hold = useRef<number>(undefined);
@@ -159,7 +191,8 @@ export function Apps() {
   const down = (e: React.PointerEvent) => {
     const onCard = (e.target as HTMLElement).closest('[data-cell]');
     if (placing) {
-      if (!onCard && !(e.target as HTMLElement).closest('[data-placing-done]')) setPlacing(false);
+      // A press in the menu of a card, drawn apart from the cards, keeps the placing.
+      if (!onCard && !(e.target as HTMLElement).closest('[data-placing-done], [data-card-menu-list]')) setPlacing(false);
       return;
     }
     if (!onCard) return;
@@ -187,8 +220,11 @@ export function Apps() {
       </Button>
     );
     if (view) {
+      // A view with nothing to show gives way to the cover of the module, as a card without a view.
       return (
-        <Tile to={open(p)} title={p.title} seed={id} plain data={{ 'data-module': id }} extra={ask}>
+        <Tile to={open(p)} title={p.title} seed={id} plain data={{ 'data-module': id }} extra={ask}
+          art={<span className={s.emptyCover} aria-hidden>{cover ? <CoverImg at={cover} /> : <span className={s.icon}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={24} /></span>}
+            <Title order={3} className={s.title}>{p.title}</Title></span>}>
           <span className={s.widgetHead}><NamedIcon name={p.icon ?? 'box'} fallback={p.title} size={16} /><Text size="sm" fw={700} lineClamp={2} lh={1.25}>{p.title}</Text></span>
           <Widget project={id} screen="widget" size={`${w}x${h}`} />
         </Tile>
@@ -215,15 +251,18 @@ export function Apps() {
       {saved === EMPTY && <span hidden data-awaits />}
       {placing && (
         <div className={s.placingBar}>
-          <Text size="sm" c="dimmed">{t('Drag a card to any cell or pull its corner')}</Text>
-          <Button size="xs" leftSection={<IconCheck size={14} />} onClick={() => setPlacing(false)} data-placing-done>{t('Done')}</Button>
+          <Text size="sm" c="dimmed">{t('Drag a card to any cell or pull its corner; its menu sets its size or puts it in a folder')}</Text>
         </div>
       )}
+      <ActionIcon className={s.arrange} size={48} variant={placing ? 'filled' : 'default'} onClick={() => setPlacing(!placing)}
+        aria-label={t('Arrange the cards')} aria-pressed={placing} title={t(placing ? 'Done' : 'Arrange the cards')} data-placing-toggle data-placing-done={placing || undefined}>
+        {placing ? <IconCheck size={22} /> : <IconPencil size={22} />}
+      </ActionIcon>
       <div ref={containerRef} className={s.room} data-cols={cols}>
         {mounted && (
           <GridLayout width={width} layout={cells.map((c) => ({ ...c, minW: least(c.i, cols).w, minH: 1, maxW: cols }))} compactor={noCompactor}
             gridConfig={{ cols, rowHeight: cell.height, margin: [cell.gap, cell.gap], containerPadding: [0, 0] }}
-            dragConfig={{ enabled: placing, threshold: 4 }} resizeConfig={{ enabled: placing, handles: ['se'] }}
+            dragConfig={{ enabled: placing, threshold: 4, cancel: '[data-card-menu], [data-out]' }} resizeConfig={{ enabled: placing, handles: ['se'] }}
             onDragStop={(layout) => keep(layout)} onResizeStop={(layout) => keep(layout)}>
             {cells.map((c) => {
               const p = menu.projects.find((x) => x.project === c.i);
@@ -232,17 +271,121 @@ export function Apps() {
                   <div key={c.i} data-cell={c.i}>
                     <Tile to={href({ screen: 'cockpit' })} title={t('Today')} seed="cockpit" big cover={of(scene, dark)}
                       color={(dark ? scene?.dark_color : undefined) || scene?.color} art={<CardDeki size={Math.min(phone ? 96 : 150, cell.height * 0.8)} room={room} />}>
-                      <span className={s.today}><IconSun size={15} aria-hidden />{t('Today')}</span>
+                      <span className={s.today}><IconSun size={15} aria-hidden />{t('Today')}
+                        <a href={href({ screen: 'settings' })} className={s.todaySettings} aria-label={t('Settings')} title={t('Settings')} data-today-settings><IconSettings size={16} /></a></span>
                       <Widget screen="today" size={`${c.w}x${c.h}`} rest={<Room onHeight={setRoom} />} />
                     </Tile>
                   </div>
                 );
               }
-              return <div key={c.i} data-cell={c.i}>{p && draw(c.i, p, c.w, c.h)}</div>;
+              if (c.i.startsWith(FOLDER)) {
+                const name = c.i.slice(FOLDER.length);
+                return (
+                  <div key={c.i} data-cell={c.i}>
+                    <FolderTile name={name} modules={menu.projects.filter((m) => inFolder[named(m)] === name)} placing={placing} onOut={out} />
+                    {placing && <CardMenu id={c.i} w={c.w} h={c.h} cols={cols} least={least(c.i, cols)} onSize={resize} />}
+                  </div>
+                );
+              }
+              return (
+                <div key={c.i} data-cell={c.i}>
+                  {p && draw(c.i, p, c.w, c.h)}
+                  {placing && p && <CardMenu id={c.i} w={c.w} h={c.h} cols={cols} least={least(c.i, cols)} onSize={resize}
+                    folders={folders} onFolder={(f) => into(c.i, f)} onHide={() => into(c.i, OFF)} />}
+                </div>
+              );
             })}
           </GridLayout>
         )}
       </div>
     </div>
   );
+}
+
+// OFF is the folder of the modules taken off the home, named in the owner's words where it shows.
+const OFF = 'More';
+
+// SIZES are the sizes a card takes from its menu, in cells.
+const SIZES: [number, number][] = [[1, 1], [2, 1], [1, 2], [2, 2], [3, 2], [4, 2]];
+
+// CardMenu is the pencil of a card while the owner arranges them: its size, its folder, or off the home.
+function CardMenu({ id, w, h, cols, least: min, onSize, folders, onFolder, onHide }: {
+  id: string; w: number; h: number; cols: number; least: { w: number; h: number }; onSize: (id: string, w: number, h: number) => void;
+  folders?: string[]; onFolder?: (folder: string) => void; onHide?: () => void;
+}) {
+  const { t } = useTranslation();
+  const [name, setName] = useState('');
+  const sizes = SIZES.filter(([sw, sh]) => sw <= cols && sw >= min.w && sh >= min.h);
+  return (
+    <Menu position="bottom-end" withinPortal shadow="md" closeOnItemClick>
+      <Menu.Target>
+        <ActionIcon className={s.cardMenu} size={32} variant="default" aria-label={t('Card')} data-card-menu={id}
+          onPointerDown={(e) => e.stopPropagation()}><IconDots size={16} /></ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown miw={200} data-card-menu-list={id}>
+        <Menu.Label>{t('Size')}</Menu.Label>
+        <div className={s.sizes}>
+          {sizes.map(([sw, sh]) => (
+            <Button key={`${sw}x${sh}`} size="compact-xs" variant={sw === w && sh === h ? 'filled' : 'default'} onClick={() => onSize(id, sw, sh)} data-size={`${sw}x${sh}`}
+              aria-pressed={sw === w && sh === h} aria-label={t('{{w}} by {{h}} cells', { w: sw, h: sh })}>{sw}×{sh}</Button>
+          ))}
+        </div>
+        {onFolder && (
+          <>
+            <Menu.Divider />
+            <Menu.Label>{t('Into a folder')}</Menu.Label>
+            {(folders ?? []).map((f) => <Menu.Item key={f} leftSection={<IconFolder size={15} />} onClick={() => onFolder(f)} data-into={f}>{f === OFF ? t(OFF) : f}</Menu.Item>)}
+            <div className={s.newFolder}>
+              <TextInput size="xs" placeholder={t('New folder')} aria-label={t('New folder')} value={name} onChange={(e) => setName(e.currentTarget.value)} maxLength={40}
+                onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onFolder(name.trim()); }} data-new-folder
+                rightSection={<ActionIcon size="sm" variant="subtle" disabled={!name.trim()} onClick={() => onFolder(name.trim())} aria-label={t('New folder')}><IconFolderPlus size={14} /></ActionIcon>} />
+            </div>
+          </>
+        )}
+        {onHide && <><Menu.Divider /><Menu.Item leftSection={<IconEyeOff size={15} />} onClick={onHide} data-hide>{t('Off the home')}</Menu.Item></>}
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
+// FolderTile is a folder of modules on the home: its name over a list of them, each a link; while the owner arranges
+// the cards each comes out of it by its button.
+function FolderTile({ name, modules, placing, onOut }: { name: string; modules: MenuEntry[]; placing: boolean; onOut: (id: string) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className={s.card} data-card data-app-tile data-folder={name} style={{ '--hue': hue(FOLDER + name) } as CSSProperties}>
+      <div className={s.folder}>
+        <span className={s.folderHead}><IconFolder size={16} /><Text size="sm" fw={700} truncate>{name === OFF ? t(OFF) : name}</Text></span>
+        <div className={s.folderList}>
+          {modules.map((m) => (
+            <div key={m.project} className={s.folderRow}>
+              <a href={open(m)} className={s.folderLink} data-folder-module={m.project}>
+                <NamedIcon name={m.icon ?? 'box'} fallback={m.title} size={16} /><Text size="sm" truncate>{m.title}</Text>
+              </a>
+              {placing && <ActionIcon size="sm" variant="subtle" onClick={() => onOut(m.project ?? '')} aria-label={t('Out of the folder')} title={t('Out of the folder')}
+                onPointerDown={(e) => e.stopPropagation()} data-out={m.project}><IconFolderUp size={14} /></ActionIcon>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// settle keeps the card of id where it is and moves each card it covers to the first free cells from where it stood.
+function settle(cells: Cell[], id: string, cols: number): Cell[] {
+  const fixed = cells.find((c) => c.i === id);
+  if (!fixed) return cells;
+  const placed: Cell[] = [fixed];
+  const hits = (a: Cell, b: Cell) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  for (const one of [...cells].filter((c) => c.i !== id).sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const c = { ...one, w: Math.min(one.w, cols) };
+    let at = c;
+    for (let y = c.y; placed.some((p) => hits(p, at)) && y < c.y + 1000; y++) {
+      const x = Array.from({ length: cols - c.w + 1 }, (_, k) => k).find((k) => !placed.some((p) => hits(p, { ...c, x: k, y })));
+      if (x !== undefined) at = { ...c, x, y };
+    }
+    placed.push(at);
+  }
+  return placed;
 }

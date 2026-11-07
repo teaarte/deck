@@ -4,7 +4,14 @@ export type Cell = { i: string; x: number; y: number; w: number; h: number };
 
 // Saved is the layout deck gives a device: of its columns, or 0 when it gives the order alone.
 // save is the button that keeps the cards the device placed.
-export type Saved = { columns: number; own: boolean; cards: { id: string; x: number; y: number; w: number; h: number }[]; save?: Action };
+export type Saved = { columns: number; own: boolean; cards: { id: string; x: number; y: number; w: number; h: number; in?: string }[]; save?: Action };
+
+// FOLDER starts the id of a card that is a folder of modules, folder:<name>.
+export const FOLDER = 'folder:';
+
+// folders are the modules that stand in a folder, by their name, from the layout deck gave.
+export const foldersOf = (saved: Saved): Record<string, string> =>
+  Object.fromEntries(saved.cards.filter((c) => c.in).map((c) => [c.id, c.in!]));
 
 export const TODAY = 'today';
 
@@ -29,7 +36,7 @@ export function derive(saved: Saved, ids: string[], cols: number): Cell[] {
   };
   const out: Cell[] = [];
   const rest: Cell[] = [];
-  const known = saved.cards.filter((c) => ids.includes(c.id));
+  const known = saved.cards.filter((c) => ids.includes(c.id) && !c.in);
   for (const c of known) {
     const { w, h } = size(c.id, c.w, c.h);
     const cell = { i: c.id, x: c.x, y: c.y, w, h };

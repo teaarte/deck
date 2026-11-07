@@ -63,6 +63,19 @@ func WriteFile(path string, data []byte) error {
 	return t.Keep(path)
 }
 
+// WriteFrom writes a file whole or not at all from what r gives, with mode 600, making its folder.
+func WriteFrom(path string, r io.Reader) error {
+	t, err := Create(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer t.Drop()
+	if _, err := io.Copy(t, r); err != nil {
+		return err
+	}
+	return t.Keep(path)
+}
+
 // Fresh writes a new file with mode 600 in place of whatever path held, never following a link a program put there.
 func Fresh(path, text string) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {

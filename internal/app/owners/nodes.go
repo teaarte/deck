@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -123,15 +124,24 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 		switch {
 		case len(conns) == 0 && len(st.Agents) > 0:
 			text = fmt.Sprintf("node %s is online since %s; it runs the agents %s", d.Name, at, strings.Join(st.Agents, ", "))
-		case len(conns) == 0:
-			text = fmt.Sprintf("node %s is online since %s", d.Name, at)
 		default:
-			text = fmt.Sprintf("node %s is online since %s; it serves %s", d.Name, at, cmp.Or(strings.Join(serves, ", "), "nothing"))
+			text = fmt.Sprintf("node %s is online since %s", d.Name, at)
 		}
-		if len(silent) > 0 {
+		switch len(serves) {
+		case 0:
+		case 1:
+			text = fmt.Sprintf("%s; it serves the connection %s", text, names(serves))
+		default:
+			text = fmt.Sprintf("%s; it serves the connections %s", text, names(serves))
+		}
+		switch len(silent) {
+		case 0:
+		case 1:
 			status = health.Warning
-			text = fmt.Sprintf("node %s is online since %s; it serves %s, and %s do not answer on its machine", d.Name, at,
-				cmp.Or(strings.Join(serves, ", "), "nothing"), strings.Join(silent, ", "))
+			text = fmt.Sprintf("%s; the connection %s does not answer on its machine", text, names(silent))
+		default:
+			status = health.Warning
+			text = fmt.Sprintf("%s; the connections %s do not answer on its machine", text, names(silent))
 		}
 		if len(ports) > 0 {
 			status = health.Warning
@@ -215,4 +225,13 @@ func hostPort(address string) string {
 func parsed(t string) time.Time {
 	at, _ := time.Parse(store.TimeLayout, t)
 	return at
+}
+
+// names are names in quotes, which a translation keeps as they are.
+func names(ns []string) string {
+	q := make([]string, len(ns))
+	for i, n := range ns {
+		q[i] = strconv.Quote(n)
+	}
+	return strings.Join(q, ", ")
 }

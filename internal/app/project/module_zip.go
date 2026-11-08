@@ -15,9 +15,11 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/home"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/words"
 )
 
 // maxZipEntries bounds the entries of an imported .zip.
@@ -250,15 +252,22 @@ func (s *Service) projectRights(ctx context.Context, act registry.Actor, in proj
 		return nil, registry.Invalid("the manifest of %s does not load: %v", p.Name, err)
 	}
 	v := s.viewProject(ctx, p, ms[p.ID], nil, "")
+	ws := words.In(registry.Lang(ctx))
 	out := []rightView{}
-	for _, r := range v.Rights {
-		what, detail, _ := strings.Cut(r, ": ")
+	for _, r := range append(v.Rights, asked(v.Asks)...) {
+		what, detail, _ := strings.Cut(manifest.TrNamed(ws, r), ": ")
 		out = append(out, rightView{What: what, Detail: detail})
 	}
-	for _, a := range v.Asks {
-		out = append(out, rightView{What: "asks you each time", Detail: a})
-	}
 	return out, nil
+}
+
+// asked are the lines of the calls that wait for the owner each time.
+func asked(asks []string) []string {
+	out := make([]string, len(asks))
+	for i, a := range asks {
+		out[i] = "asks you each time: " + a
+	}
+	return out
 }
 
 func (s *Service) moduleZipCommands() []*registry.Command {

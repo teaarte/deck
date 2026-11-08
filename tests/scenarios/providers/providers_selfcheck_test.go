@@ -96,6 +96,9 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 			e := harness.ClockCLIEnv(t, cli)
 			e.App.Providers.Checks(context.Background(), e.Clock.Now())
 			e.WaitHealth("provider:claude-code", c.status)
+			if got := healthIn(e, "ru", "provider:claude-code"); !strings.Contains(got, "; первый ход: ") {
+				t.Fatalf("the step of the self-check reads in Russian: %q", got)
+			}
 			p := e.Project("plain", harness.PlainManifest)
 			want := map[string]string{"paused": "waiting_provider", "needs_login": "done"}[c.status]
 			if got := e.WaitState(e.Run(p, "work"), "done", "error", "waiting_provider"); got.State != want {
@@ -208,9 +211,24 @@ func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
 	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "resume: token counts") {
+	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "turn after resume: token counts") {
 		t.Fatalf("a resume without usage turns the self-check red: %+v", h)
 	}
+	if got := healthIn(e, "ru", "provider:claude-code"); !strings.Contains(got, "не прошла: ход после продолжения: подсчёт токенов") {
+		t.Fatalf("the failed self-check reads in Russian: %q", got)
+	}
+}
+
+// healthIn is the text of the health row of subject in a language.
+func healthIn(e *harness.Env, lang, subject string) string {
+	var hs []harness.HealthRow
+	e.Must("deck.health_list", map[string]any{"lang": lang}, &hs)
+	for _, h := range hs {
+		if h.Subject == subject {
+			return h.Error
+		}
+	}
+	return ""
 }
 
 func readFile(t *testing.T, path string) string {

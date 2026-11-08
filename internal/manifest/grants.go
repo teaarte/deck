@@ -152,10 +152,10 @@ var rights = []right{
 				}
 			}
 			if r.Models && (old == nil || !old.Models) {
-				add("reads which models do the work of %s", readsWhose(r.Project))
+				whose(add, r.Project, "reads which models do the work of every project", "reads which models do the work of project %s")
 			}
 			if r.Runs && (old == nil || !old.Runs) {
-				add("reads the runs of %s", readsWhose(r.Project))
+				whose(add, r.Project, "reads the runs of every project", "reads the runs of project %s")
 			}
 			if r.Project != AnyProject && r.Data() && (old == nil || !old.Data()) {
 				add("reads project %s", r.Project)
@@ -499,9 +499,11 @@ func (m *Manifest) AskEachTime() []string {
 	return out
 }
 
-func readsWhose(project string) string {
+// whose says a read of every project or of the one named.
+func whose(add say, project, every, one string) {
 	if project == AnyProject {
-		return "every project"
+		add(every)
+		return
 	}
-	return "project " + project
+	add(one, project)
 }

@@ -56,7 +56,13 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	_ = json.Unmarshal(b, &qs)
 	texts := make([]string, 0, len(qs.Questions))
 	for _, q := range qs.Questions {
+		if strings.TrimSpace(q.Question) == "" {
+			return decision{Behavior: "deny", Message: "deck: a question without text reaches no one: put the text of each question in its question field"}
+		}
 		texts = append(texts, q.Question)
+	}
+	if len(texts) == 0 {
+		return decision{Behavior: "deny", Message: "deck: the call has no questions: put each in questions with its text in the question field"}
 	}
 	until := g.cfg.Now().Add(s.wait(g.cfg.QuestionWait))
 	a, err := g.asks.Create(ctx, s.ProcessID, ask.KindQuestion, strings.Join(texts, "\n"), in.Input, time.Time{})

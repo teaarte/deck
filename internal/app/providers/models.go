@@ -322,11 +322,18 @@ func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelD
 	return map[string]any{"removed": in.Name}, nil
 }
 
-// Exists reports whether a name is a built-in provider or a model of the workspace.
+// Exists reports whether a name is a built-in provider or a model of the workspace, on a node of it too.
 func (s *Service) Exists(ctx context.Context, workspace int64, name string) bool {
 	if s.builtinNamed(name) != nil {
 		return true
 	}
-	_, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
+	if _, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name}); err == nil {
+		return true
+	}
+	base, node, ok := provider.AtNode(name)
+	if !ok || strings.Contains(base, "@") || !s.Exists(ctx, workspace, base) {
+		return false
+	}
+	_, err := s.NodeNamed(ctx, workspace, node)
 	return err == nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -187,5 +188,51 @@ func TestQuestionAnsweredLateResumesSession(t *testing.T) {
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
 	if len(recs) == 0 || !strings.Contains(recs[0].Data, `"topic":"rust"`) {
 		t.Fatalf("late answer did not reach the agent: %v", recs)
+	}
+}
+
+// TestAQuestionWithoutTextReachesNoOne: a question with no text is refused to the agent and waits for no one.
+func TestAQuestionWithoutTextReachesNoOne(t *testing.T) {
+	t.Parallel()
+	var empty, none map[string]any
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		empty = c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": " ", "header": "Topic"}}})
+		none = c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{}})
+		return provider.Result{Text: "ok"}
+	}))
+	p := e.Project("plain", harness.PlainManifest)
+	e.WaitState(e.Run(p, "work"), "done")
+	for _, d := range []map[string]any{empty, none} {
+		if d["behavior"] != "deny" || !strings.Contains(fmt.Sprint(d["message"]), "question field") {
+			t.Fatalf("a question without text is refused with what to put in it: %v", d)
+		}
+	}
+	if as := e.Asks(); len(as) != 0 {
+		t.Fatalf("a question without text waits for no one: %+v", as)
+	}
+}
+
+// TestAProcessParkedOnACallSaysWhatItWaitsFor: a turn that ended with a frozen call open waits for it, and the
+// process says so with the text of the call.
+func TestAProcessParkedOnACallSaysWhatItWaitsFor(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "x"}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.N == 1 {
+			c.Tool(ctx, "notes__post", map[string]any{"id": "a1", "text": "hi"})
+		}
+		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
+	}))
+	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
+	e.Secret("notes", "svc", "key")
+	id := e.Run(p, "work")
+	e.WaitState(id, "waiting_answer")
+	var proc struct {
+		Ask      int64
+		Question string
+	}
+	e.Must("deck.process_get", map[string]any{"process": id}, &proc)
+	if a := e.WaitAsk(); proc.Ask != a.ID || !strings.Contains(proc.Question, "notes.post") {
+		t.Fatalf("a parked process says the call it waits for: %+v %+v", proc, a)
 	}
 }

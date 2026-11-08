@@ -155,7 +155,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			c.Slow = true
 			model(fmt.Errorf("%s: the model answered (%d tokens) but did not finish the steps within the ceiling: it is slow, such as a model that always reasons; commands with a long timeout_minutes may still run on it", what, counted))
 		case err != nil:
-			c.Err = fmt.Errorf("%s: %w", what, err)
+			c.Err = fmt.Errorf("%s: the turn failed: %w", what, err)
 		case strings.Contains(string(raw)+res.Text, secret):
 			c.Err = fmt.Errorf("%s: the agent read a file deck hides", what)
 		case res.Refusal != "" && raw == nil && strings.HasPrefix(res.Refusal, "404 "):
@@ -165,7 +165,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		case res.Refusal != "" && raw == nil:
 			c.Err = fmt.Errorf("%s: the model API refused what %s sent (%s): %s and this connection do not fit; pick another agent or connection for the model", what, s.Agent, res.Refusal, s.Agent)
 		case res.Fault != nil || res.SessionMissing:
-			c.Err = fmt.Errorf("%s: %s", what, res.Text)
+			c.Err = fmt.Errorf("%s: the turn broke off: %s", what, res.Text)
 		case raw == nil && asked == 0 && !wrote(work, word):
 			model(fmt.Errorf("%s: the model made no tool call and answered in words: the API may not pass tools to it, or it does not use them (%s)", what, said(res.Text)))
 		case raw == nil:
@@ -220,11 +220,11 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	}
 	req.Resume = true
 	req.Prompt = "deck did not keep the result of your last turn. Call the result_submit tool of the deck MCP server now with the same word and answer as before. Do not run any command."
-	if o, _, _, ok = step("resume", req); !ok {
+	if o, _, _, ok = step("turn after resume", req); !ok {
 		return c
 	}
 	if o.Word != word || o.Answer != answer {
-		model(fmt.Errorf("resume: the result was %+v, want the word %s and the answer %s", o, word, answer))
+		model(fmt.Errorf("turn after resume: the result was %+v, want the word %s and the answer %s", o, word, answer))
 		return c
 	}
 	off := Request{Cwd: work, SessionID: sessions[1], MCPURL: req.MCPURL, PermissionMCP: req.PermissionMCP, AllowedTools: req.AllowedTools, OnUsage: req.OnUsage,

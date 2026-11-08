@@ -53,7 +53,12 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 		v.Since = cmp.Or(p.ReopenedAt.String, p.StartedAt)
 		v.Long = s.long(ctx, p, v.Since)
 		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
-		if i := slices.IndexFunc(asks, holds); i >= 0 {
+		i := slices.IndexFunc(asks, holds)
+		// A parked process waits for every open ask, a frozen call too.
+		if i < 0 && p.State == process.StateWaitingAnswer && len(asks) > 0 {
+			i = 0
+		}
+		if i >= 0 {
 			v.Ask, v.Question = asks[i].ID, asks[i].Text
 			question = untrusted.Cut(asks[i].Text, 200)
 		}

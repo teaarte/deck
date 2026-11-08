@@ -153,12 +153,12 @@ func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest,
 	}
 	missing := s.Missing(ctx, p.ID, m)
 	for _, name := range slices.Sorted(maps.Keys(missing)) {
-		out = append(out, needView{Kind: "program", What: name, Detail: missing[name].Error()})
+		out = append(out, needView{Kind: "program", What: name, Detail: manifest.TrText(ws, missing[name].Error())})
 	}
 	out = append(out, s.missingModels(ctx, p.WorkspaceID, m, ws)...)
 	work := s.Unassigned(ctx, p.WorkspaceID, p.ID, m)
 	for _, name := range slices.Sorted(maps.Keys(work)) {
-		out = append(out, needView{Kind: "model", What: name, Detail: work[name]})
+		out = append(out, needView{Kind: "model", What: name, Detail: manifest.TrText(ws, work[name])})
 	}
 	return out
 }

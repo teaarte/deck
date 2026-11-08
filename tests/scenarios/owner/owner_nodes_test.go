@@ -99,7 +99,7 @@ func TestAModelOfANodeIsCalledThroughItsNode(t *testing.T) {
 	if calls := asked(api); len(calls) != 2 || calls[0].Path != "/v1/chat/completions" || calls[1].Path != "/v1/audio/speech" {
 		t.Fatalf("the server of the node gets the calls: %+v", calls)
 	}
-	if h := e.WaitHealth("node:Mac", "ok"); !strings.Contains(h.Error, "it serves media") {
+	if h := e.WaitHealth("node:Mac", "ok"); !strings.Contains(h.Error, `it serves the connection "media"`) {
 		t.Fatalf("health says what the node serves: %+v", h)
 	}
 	n.Stop()

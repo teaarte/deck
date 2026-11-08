@@ -287,7 +287,7 @@
   "failed, fixed since": "не получилось, потом исправлено",
   "deck has no such model, and the assignments of %s name it; pick another in Settings → Models": "такой модели в deck нет, а её называют назначения: %s; выберите другую в Настройки → Модели",
   "deck has no such model, so the work skips it": "такой модели в deck нет, работа её пропускает",
-  "agent": "агент",
+  "agent": "агент (работает с инструментами)",
   "api": "API",
   "call_usd": "USD за вызов",
   "check_minutes": "Минут на самопроверку",
@@ -420,7 +420,7 @@
   "checking": "проверяется",
   "needs_login": "нужен вход",
   "missing": "не установлено",
-  "text": "текст",
+  "text": "текст (один ответ без инструментов)",
   "image": "картинки",
   "tts": "озвучка",
   "stt": "распознавание речи",
@@ -1197,5 +1197,7 @@
   "%s: the turn failed: %w": "%s: ход не удался: %s",
   "%s: the turn broke off: %s": "%s: ход оборвался: %s",
   "its node %s is offline": "его узел %s не в сети",
-  "node %s does not run the agent %s: on its machine allow it with deck -join %s --install --allow %s": "узел %s не запускает агента %s: на его машине разрешите его командой deck -join %s --install --allow %s"
+  "node %s does not run the agent %s: on its machine allow it with deck -join %s --install --allow %s": "узел %s не запускает агента %s: на его машине разрешите его командой deck -join %s --install --allow %s",
+  "%.0f tok/s": "%.0f ток/с",
+  "context %s": "контекст %s"
 }

@@ -39,9 +39,10 @@ export function useTopics(value: ChatData, context: ComponentContext) {
   const working = new Set<string>();
   menu.projects.forEach((m) => { if (m.project && m.running && projects.includes(m.project)) working.add(m.project); });
   const rank = (v: string) => (recent.includes(v) ? recent.indexOf(v) : recent.length);
-  const modules = [{ value: NONE, label: t('Without a module') }, ...projects.map((p) => ({ value: p, label: p }))]
+  const entry = (p: string) => menu.projects.find((m) => m.project === p);
+  const modules = [{ value: NONE, label: t('Without a module'), icon: undefined as string | undefined }, ...projects.map((p) => ({ value: p, label: entry(p)?.title ?? p, icon: entry(p)?.icon ?? 'box' }))]
     .sort((a, b) => rank(a.value) - rank(b.value));
-  const scopes = [{ value: ALL, label: t('All modules') }, ...modules];
+  const scopes = [{ value: ALL, label: t('All modules'), icon: undefined as string | undefined }, ...modules];
   const open = (v: string) => {
     setScope(v === ALL ? null : v);
     if (v === ALL) return;

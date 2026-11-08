@@ -204,7 +204,7 @@ func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any
 				if b.Choices == nil {
 					b.Choices = map[string]manifest.Choice{}
 				}
-				b.Choices[field] = manifest.Choice{Source: manifest.Source{From: registry.Deck("projects_list"), Input: map[string]any{"project": ""}, Sort: "name"}, Value: "name"}
+				b.Choices[field] = manifest.Choice{Source: manifest.Source{From: registry.Deck("projects_list"), Input: map[string]any{"project": ""}, Sort: "name"}, Value: "name", Icon: "icon ?? nil"}
 			}
 		}
 	}
@@ -227,7 +227,20 @@ func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any
 				}
 				label = fmt.Sprint(l)
 			}
-			opts = append(opts, map[string]any{"value": v, "label": label})
+			opt := map[string]any{"value": v, "label": label}
+			for key, e := range map[string]string{"note": ch.Note, "logo": ch.Logo, "icon": ch.Icon} {
+				if e == "" {
+					continue
+				}
+				x, err := r.eval(e, it)
+				if err != nil {
+					return nil, fmt.Errorf("choices %q %s: %w", field, key, err)
+				}
+				if x != nil && x != "" {
+					opt[key] = fmt.Sprint(x)
+				}
+			}
+			opts = append(opts, opt)
 		}
 		out[field] = opts
 	}

@@ -128,3 +128,11 @@ and bring the modules in line.
   a self-check after resume is `turn after resume`. `project_readiness_get` with `lang` gives the rights in that
   language. A question to the owner without text is refused to the agent; a process parked on a frozen call shows
   the call as what it waits for.
+- 2026-11-08: a picker of models offers only those of its work and says each in short. `models_list` gives each model
+  `roles` (the kinds of work it can take: `agent` and `widget` for a model that runs agent turns, else its kind),
+  `note` (price, speed of its last self-check, tokens a request holds) and `logo` (words naming its provider, then
+  the model). The work of a command gives `choice_notes` and `choice_logos` beside `choices`. A button with `options`
+  takes `notes` and `logos` (lists in the order of options) and a choice of a form `note`, `logo` and `icon` (each an
+  expression over its item): the client shows the mark, the label and the note of each option, such as
+  `"choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "'tts' in roles"}, "value":
+  "name", "note": "note ?? nil", "logo": "logo"}}`.

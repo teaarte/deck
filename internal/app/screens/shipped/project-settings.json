@@ -47,7 +47,7 @@
             ],
             "actions": [
               {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
-              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
+              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "notes": "=choice_notes ?? nil", "logos": "=choice_logos ?? nil", "when": "len(choices ?? []) > 0"},
               {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!paused && !draft"},
               {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
               {"verb": "open", "screen": "process", "project": "", "record": "=last_process", "when": "last_process != 0"}
@@ -67,7 +67,7 @@
               "tone": "(why ?? '') != '' ? 'warn' : nil"},
             "actions": [
               {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command ?? ''"},
-                "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
+                "input": "model", "options": "=choices", "groups": "=choice_groups", "notes": "=choice_notes ?? nil", "logos": "=choice_logos ?? nil", "when": "len(choices ?? []) > 0"},
               {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "(why ?? '') != ''"}
             ]}
       ]},
@@ -110,7 +110,7 @@
               "meta": "model ?? ''", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'",
               "icon": "status == 'ok' ? 'circle-check' : 'alert-triangle'"},
             "actions": [
-              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
+              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "notes": "=choice_notes ?? nil", "logos": "=choice_logos ?? nil", "when": "len(choices ?? []) > 0"},
               {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
               {"verb": "check", "command": "deck.program_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}
             ]},
@@ -118,7 +118,7 @@
             "description": "What runs by itself and failed its last run; change its model and run it again.",
             "item": {"title": "title", "text": "failure", "meta": "model ?? ''", "logo": "model ?? ''", "tone": "'error'", "icon": "'alert-triangle'"},
             "actions": [
-              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
+              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "notes": "=choice_notes ?? nil", "logos": "=choice_logos ?? nil", "when": "len(choices ?? []) > 0"},
               {"verb": "run_now", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
               {"verb": "open", "screen": "process", "project": "", "record": "=last_process", "when": "last_process != 0"}
             ]}

@@ -140,8 +140,9 @@ type topicsView struct {
 	Archived []topicView `json:"archived"`
 	Models   []string    `json:"models"`
 	Model    string      `json:"model,omitempty"`
-	// Prices are the price of each model in words, such as subscription or free.
-	Prices map[string]string `json:"prices"`
+	// Notes say each model in short, such as its price and speed; Logos are the words naming its provider and model.
+	Notes map[string]string `json:"notes"`
+	Logos map[string]string `json:"logos"`
 }
 
 // turnPart is the turn going on in the topic picked: its lines, the questions of its reply and what it and the
@@ -321,12 +322,17 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 		return v, err
 	}
 	v.Models, v.Model = s.models(ctx, act.Workspace)
-	price := s.Prices(ctx, act.Workspace, registry.Lang(ctx))
-	v.Prices = map[string]string{}
+	facts := s.Facts(ctx, act.Workspace, registry.Lang(ctx))
+	v.Notes, v.Logos = map[string]string{}, map[string]string{}
 	for _, m := range append([]string{v.Model}, v.Models...) {
-		if p := price(m); m != "" && p != "" {
-			v.Prices[m] = p
+		if m == "" {
+			continue
 		}
+		note, logo := facts(m)
+		if note != "" {
+			v.Notes[m] = note
+		}
+		v.Logos[m] = logo
 	}
 	return v, nil
 }

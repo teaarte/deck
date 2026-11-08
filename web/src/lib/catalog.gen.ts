@@ -126,6 +126,14 @@ export interface Action {
    */
   groups?: string[];
   /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -199,6 +207,14 @@ export interface Action1 {
    * The heading each option stands under, in the order of options.
    */
   groups?: string[];
+  /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
@@ -540,6 +556,14 @@ export interface Action2 {
    */
   groups?: string[];
   /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -613,6 +637,14 @@ export interface Action3 {
    * The heading each option stands under, in the order of options.
    */
   groups?: string[];
+  /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
@@ -688,6 +720,18 @@ export interface FormValue {
     [k: string]: {
       value: unknown;
       label: string;
+      /**
+       * a short note of the value
+       */
+      note?: string;
+      /**
+       * words naming its model or provider, whose mark the client draws
+       */
+      logo?: string;
+      /**
+       * the name of a Tabler icon of the value
+       */
+      icon?: string;
     }[];
   };
 }
@@ -751,6 +795,14 @@ export interface Action4 {
    * The heading each option stands under, in the order of options.
    */
   groups?: string[];
+  /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
@@ -855,6 +907,14 @@ export interface Action5 {
    */
   groups?: string[];
   /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -928,6 +988,14 @@ export interface Action6 {
    * The heading each option stands under, in the order of options.
    */
   groups?: string[];
+  /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
@@ -1139,9 +1207,15 @@ export interface ChatValue {
    */
   models?: string[];
   /**
-   * the price of each model in words, such as subscription or free
+   * each model in short, in words: its price, speed and context
    */
-  prices?: {
+  notes?: {
+    [k: string]: string;
+  };
+  /**
+   * the words naming the provider and model of each model, whose mark the client draws
+   */
+  logos?: {
     [k: string]: string;
   };
   /**
@@ -1238,6 +1312,14 @@ export interface Action7 {
    */
   groups?: string[];
   /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -1312,6 +1394,14 @@ export interface Action8 {
    */
   groups?: string[];
   /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -1385,6 +1475,14 @@ export interface Action9 {
    * The heading each option stands under, in the order of options.
    */
   groups?: string[];
+  /**
+   * A short note of each option, such as the price and speed of a model, in the order of options.
+   */
+  notes?: string[];
+  /**
+   * Words naming the model or provider of each option, whose mark the client draws, in the order of options.
+   */
+  logos?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */

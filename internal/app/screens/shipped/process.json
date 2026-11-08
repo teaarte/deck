@@ -17,7 +17,7 @@
     ],
     "actions": [
       {"verb": "model", "primary": true, "command": "deck.assignment_set", "params": {"role": "=work.role", "project": "=project", "command": "=command"},
-        "input": "model", "options": "=work.choices", "groups": "=work.choice_groups", "when": "work != nil"},
+        "input": "model", "options": "=work.choices", "groups": "=work.choice_groups", "notes": "=work.choice_notes ?? nil", "logos": "=work.choice_logos ?? nil", "when": "work != nil"},
       {"verb": "retry", "command": "deck.process_retry", "params": {"process": "=id"}, "when": "retry ?? false"},
       {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
     ]},

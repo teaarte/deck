@@ -195,7 +195,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP,
 		Agent: a.Providers.Agent, Check: a.Providers.Check, Emit: a.Bus.Emit, Go: a.bg.Go}
 	a.Chats = chat.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Work.For,
-		Named: a.Providers.Named, Fits: a.Work.Fits, Able: a.Work.Able, Prices: a.Work.Prices, Go: a.bg.Go, Language: a.Settings.Language, Lookup: a.Registry.Lookup,
+		Named: a.Providers.Named, Fits: a.Work.Fits, Able: a.Work.Able, Facts: a.Work.Facts, Go: a.bg.Go, Language: a.Settings.Language, Lookup: a.Registry.Lookup,
 		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}

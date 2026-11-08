@@ -1,8 +1,9 @@
 import { FileInput, MultiSelect, NumberInput, PasswordInput, Select, Switch, TagsInput, TextInput, Textarea } from '@mantine/core';
 import { text } from '../../lib/format';
+import { Mark, OptionLine } from '../../ui/OptionLine';
 import { fromLocal, isFile, kind, toLocal, type Schema } from './schema';
 
-export type Choice = { value: unknown; label: string };
+export type Choice = { value: unknown; label: string; note?: string; logo?: string; icon?: string };
 
 // Field is the input of one property by its schema: offered values, files, an enum, or by its type.
 export function Field({ name, schema, value, files, readOnly, required, choices, onValue, onFiles }: {
@@ -12,21 +13,25 @@ export function Field({ name, schema, value, files, readOnly, required, choices,
   const label = schema.title || name;
   const common = { label, description: schema.description, required, disabled: readOnly, 'data-field': name };
   const t = kind(schema);
+  const facts = new Map((choices ?? []).map((c) => [String(c.value), c]));
+  const option = ({ option: o }: { option: { value: string; label?: string } }) => <OptionLine label={o.label ?? o.value} facts={facts.get(o.value)} />;
   // A list of an enum takes the values offered by their labels; another list takes those and others typed, such as
   // project.*; a single value is one of those offered.
   if (choices && t === 'array' && schema.items?.enum) {
     const data = [...new Map(choices.map((c) => [String(c.value), { value: String(c.value), label: c.label }])).values()];
-    return <MultiSelect {...common} data={data}
+    return <MultiSelect {...common} data={data} renderOption={option}
       value={Array.isArray(value) ? value.map(String) : []}
       onChange={(vs) => onValue(vs.map((v) => choices.find((c) => String(c.value) === v)?.value))} />;
   }
   if (choices && t === 'array') {
-    return <TagsInput {...common} data={[...new Set(choices.map((c) => String(c.value)))]} value={Array.isArray(value) ? value.map(String) : []}
+    return <TagsInput {...common} data={[...new Set(choices.map((c) => String(c.value)))]} renderOption={option} value={Array.isArray(value) ? value.map(String) : []}
       onChange={(vs) => onValue(['integer', 'number'].includes(kind(schema.items ?? {})) ? vs.map(Number) : vs)} />;
   }
   if (choices && !isFile(schema)) {
     const data = choices.map((c) => ({ value: String(c.value), label: c.label }));
+    const now = value === undefined || value === '' ? undefined : facts.get(String(value));
     return <Select {...common} searchable clearable data={data} value={value === undefined || value === '' ? null : String(value)}
+      renderOption={option} leftSection={now ? <Mark facts={now} /> : undefined}
       onChange={(v) => onValue(v === null ? undefined : choices.find((c) => String(c.value) === v)?.value)} />;
   }
   if (isFile(schema)) {

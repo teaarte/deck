@@ -32,6 +32,8 @@ type waitView struct {
 	Role    string   `json:"role,omitempty"`
 	Choices []string `json:"choices,omitempty"`
 	Groups  []string `json:"groups,omitempty"`
+	Notes   []string `json:"notes,omitempty"`
+	Logos   []string `json:"logos,omitempty"`
 	Why     string   `json:"why,omitempty"`
 	Places  []string `json:"places,omitempty"`
 }
@@ -60,7 +62,7 @@ func waits(out *modelsView, tr func(string) string) []waitView {
 	}
 	type downKey struct{ model, role string }
 	down := map[downKey]int{}
-	groups := map[string]string{}
+	groups, notes, logos := map[string]string{}, map[string]string{}, map[string]string{}
 	for _, v := range out.Work {
 		if v.Why == "" || len(v.Choices) == 0 {
 			continue
@@ -85,14 +87,17 @@ func waits(out *modelsView, tr func(string) string) []waitView {
 			if i < len(v.ChoiceGroups) {
 				groups[n] = v.ChoiceGroups[i]
 			}
+			if i < len(v.ChoiceNotes) && i < len(v.ChoiceLogos) {
+				notes[n], logos[n] = v.ChoiceNotes[i], v.ChoiceLogos[i]
+			}
 		}
 	}
 	for i := range w {
 		if d := &w[i]; d.Kind == "down" {
 			d.Text = fmt.Sprintf(tr("Waits for it: %s"), strings.Join(d.Places, "; "))
-			d.Groups = nil
+			d.Groups, d.Notes, d.Logos = nil, nil, nil
 			for _, n := range d.Choices {
-				d.Groups = append(d.Groups, groups[n])
+				d.Groups, d.Notes, d.Logos = append(d.Groups, groups[n]), append(d.Notes, notes[n]), append(d.Logos, cmp.Or(logos[n], n))
 			}
 		}
 	}

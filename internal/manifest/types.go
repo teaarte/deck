@@ -462,6 +462,11 @@ type Choice struct {
 	Source Source `json:"source"`
 	Value  string `json:"value"`
 	Label  string `json:"label,omitempty"`
+	// Note is a short note of each value; Logo the words naming its model or provider, for its mark; Icon the name
+	// of a Tabler icon of it, such as a module's.
+	Note string `json:"note,omitempty"`
+	Logo string `json:"logo,omitempty"`
+	Icon string `json:"icon,omitempty"`
 }
 
 // Item binds the lines of a list block.
@@ -555,8 +560,11 @@ type Action struct {
 	// Input is the param the owner types before the call, or picks from Options; Confirm asks the owner first.
 	Input   string `json:"input,omitempty"`
 	Options string `json:"options,omitempty"`
-	// Groups give the heading each option stands under, in the order of Options.
+	// Groups give the heading each option stands under, in the order of Options; Notes a short note of each, Logos
+	// the words naming the model or provider of each, for its mark.
 	Groups string `json:"groups,omitempty"`
+	Notes  string `json:"notes,omitempty"`
+	Logos  string `json:"logos,omitempty"`
 	// Chat opens the chat topic the result of the call names.
 	Chat bool `json:"chat,omitempty"`
 	// Download downloads the stored file the result of the call names.

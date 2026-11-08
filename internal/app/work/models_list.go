@@ -60,6 +60,11 @@ type modelView struct {
 	Places   []string `json:"places,omitempty"`
 	// UsedIn says in words how many modules it is in, empty for none.
 	UsedIn string `json:"used_in,omitempty"`
+	// Roles are the kinds of work it can take; Note says it in short, such as price, speed and context; Logo are
+	// the words naming its provider and model, for its mark.
+	Roles []string `json:"roles"`
+	Note  string   `json:"note,omitempty"`
+	Logo  string   `json:"logo"`
 }
 
 // lastCheck fills in the state of a model: of its last self-check in an agent, else of its last call.
@@ -188,7 +193,8 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		out.Models = append(out.Models, v)
 	}
 	for i := range out.Models {
-		out.Models[i].Provider = providerOf(out.Models[i], tr)
+		m := &out.Models[i]
+		m.Provider, m.Roles, m.Note, m.Logo = providerOf(*m, tr), Roles(*m), Note(*m, tr), LogoOf(*m)
 	}
 	rows, err := s.St.Q.ListAssignments(ctx, act.Workspace)
 	if err != nil {

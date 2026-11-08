@@ -12,7 +12,7 @@
               "input_usd": "=param.input_usd", "output_usd": "=param.output_usd", "call_usd": "=param.call_usd", "unit": "=param.unit", "options": "=param.options",
               "tpm": "=param.tpm", "context": "=param.context"},
             "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
-              "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing' && status != 'off'"}, "value": "name"}}}]},
+              "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing' && status != 'off'"}, "value": "name", "logo": "name"}}}]},
         {"type": "dialog", "name": "connections", "title": "Add a connection", "icon": "plug", "blocks": [
           {"type": "form", "command": "deck.connection_set", "description": "The address of a model API and its key, kept apart from modules. A server of a Mac on 127.0.0.1 is reached through its node.",
             "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "local": "=param.local", "node": "=param.node"},
@@ -20,13 +20,13 @@
         {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
           {"type": "form", "command": "deck.assignment_set", "description": "The first model does the work; the next ones take it while the first is down or refuses.",
             "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
-            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models"}, "value": "name"}}}]},
+            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(param.role ?? '') == '' || param.role in roles"}, "value": "name", "note": "note ?? nil", "logo": "logo"}}}]},
         {"type": "list", "title": "Waiting for you", "icon": "bell", "source": {"from": "deck.models_list", "rows": "waits"},
           "empty": "All works: the models answer and the agents are signed in",
           "item": {"title": "title", "text": "text ?? ''", "icon": "icon", "tone": "tone", "logo": "logo ?? ''", "details": "why ?? nil"},
           "actions": [
             {"verb": "sign_in", "primary": true, "command": "deck.agent_login", "params": {"provider": "=agent"}, "when": "kind == 'sign_in'"},
-            {"verb": "replace", "primary": true, "command": "deck.model_replace", "params": {"model": "=model", "role": "=role"}, "input": "to", "options": "=choices", "groups": "=groups", "when": "kind == 'down'"},
+            {"verb": "replace", "primary": true, "command": "deck.model_replace", "params": {"model": "=model", "role": "=role"}, "input": "to", "options": "=choices", "groups": "=groups", "notes": "=notes ?? nil", "logos": "=logos ?? nil", "when": "kind == 'down'"},
             {"label": "Health", "icon": "heartbeat", "screen": "settings", "params": {"tab": "Health"}, "when": "kind == 'down'"},
             {"label": "Add the key", "icon": "key", "primary": true, "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=connection.name", "api": "=connection.api", "url": "=connection.url", "local": "=connection.local", "node": "=connection.node ?? ''"}, "when": "kind == 'key'"},
             {"label": "Devices", "icon": "devices", "primary": true, "screen": "settings", "params": {"tab": "Devices"}, "when": "kind == 'node'"},
@@ -53,7 +53,7 @@
             "tone": "(why ?? '') != '' ? 'warn' : nil"},
           "actions": [
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project != '' ? project : nil", "command": "=command ?? nil"},
-              "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
+              "input": "model", "options": "=choices", "groups": "=choice_groups", "notes": "=choice_notes ?? nil", "logos": "=choice_logos ?? nil", "when": "len(choices ?? []) > 0"},
             {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=command ?? ''", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"},
             {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}, "when": "kind == 'default' && own"}
           ]},
@@ -151,7 +151,7 @@
             {"label": "Run again", "icon": "player-play", "primary": true, "command": "deck.process_retry", "params": {"process": "=process"}, "when": "retry ?? false"},
             {"label": "Run again", "icon": "player-play", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0 && (process ?? 0) == 0"},
             {"label": "Change the model", "icon": "cpu", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project != '' ? project : nil", "command": "=command ?? nil"},
-              "input": "model", "options": "=choices", "groups": "=choice_groups", "when": "len(choices ?? []) > 0"},
+              "input": "model", "options": "=choices", "groups": "=choice_groups", "notes": "=choice_notes ?? nil", "logos": "=choice_logos ?? nil", "when": "len(choices ?? []) > 0"},
             {"verb": "open", "screen": "process", "record": "=process", "when": "(process ?? 0) != 0"},
             {"label": "Got it", "icon": "check", "command": "deck.process_dismiss", "params": {"process": "=process"}, "when": "(process ?? 0) != 0"},
             {"verb": "open", "screen": "settings", "params": {"tab": "Advanced"}, "when": "check == 'push'"}, {"verb": "set", "primary": true, "screen": "settings", "project": "=project", "params": {"tab": "Access", "dialog": "secret", "name": "=trimPrefix(check, 'secret:' + project + '.')"}, "when": "hasPrefix(check ?? '', 'secret:')"},

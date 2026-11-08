@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import type { ChatData } from './chatData';
 import { notifyError } from '../lib/notify';
 import { ActionsMenu } from '../ui/actions/ActionsMenu';
+import { Logo } from '../ui/logo/Logo';
+import { NamedIcon } from '../ui/NamedIcon';
 import { press, useBlockContext } from '../screen/press';
 import type { useTopics } from './useTopics';
 
@@ -20,8 +22,9 @@ export function TopicBar({ value, topics, model, setModel }: {
   const own = topic ? topic.model ?? '' : model;
   const shown = own || value.model || '';
   const ctx = useBlockContext();
-  // price is how a model is paid for, in words, beside its name.
-  const price = (m?: string) => (m && value.prices?.[m] ? <Text size="xs" c="dimmed" data-model-price>{value.prices[m]}</Text> : undefined);
+  // note is a model in short, such as its price and speed, beside its name; mark the mark of its provider.
+  const note = (m?: string) => (m && value.notes?.[m] ? <Text size="xs" c="dimmed" data-model-note>{value.notes[m]}</Text> : undefined);
+  const mark = (m?: string) => (m ? <Logo names={value.logos?.[m] ?? m} size={14} /> : undefined);
   const choose = (m: string) => {
     if (!topic) return setModel(m);
     if (value.choose) void press(ctx, value.choose, { model: m }).then((r) => { if (r.error) notifyError(new Error(r.error), t('The model was not changed')); });
@@ -37,16 +40,16 @@ export function TopicBar({ value, topics, model, setModel }: {
           <Tooltip label={t('Model of this topic')}>
             <Menu.Target>
               <Button size="compact-xs" variant="light" maw={150}
-                leftSection={<IconCpu size={13} />} aria-label={`${t('Model of this topic')}: ${shown}`} data-topic-model={shown} data-own={own ? true : undefined}>
+                leftSection={shown ? mark(shown) : <IconCpu size={13} />} aria-label={`${t('Model of this topic')}: ${shown}`} data-topic-model={shown} data-own={own ? true : undefined}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{shown}</span>
               </Button>
             </Menu.Target>
           </Tooltip>
           <Menu.Dropdown data-topic-models>
             <Menu.Label>{t('Model of this topic')}</Menu.Label>
-            <Menu.Item leftSection={check(!own)} onClick={() => choose('')} data-model="" rightSection={price(value.model)}>{t("The master's own ({{model}})", { model: value.model ?? '' })}</Menu.Item>
+            <Menu.Item leftSection={<Group gap={6} wrap="nowrap">{check(!own)}{mark(value.model)}</Group>} onClick={() => choose('')} data-model="" rightSection={note(value.model)}>{t("The master's own ({{model}})", { model: value.model ?? '' })}</Menu.Item>
             {value.models!.filter((m) => m !== value.model || own === m).map((m) => (
-              <Menu.Item key={m} leftSection={check(own === m)} onClick={() => choose(m)} data-model={m} rightSection={price(m)}>{m}</Menu.Item>
+              <Menu.Item key={m} leftSection={<Group gap={6} wrap="nowrap">{check(own === m)}{mark(m)}</Group>} onClick={() => choose(m)} data-model={m} rightSection={note(m)}>{m}</Menu.Item>
             ))}
           </Menu.Dropdown>
         </Menu>
@@ -63,7 +66,7 @@ export function TopicBar({ value, topics, model, setModel }: {
           </Tooltip>
           <Menu.Dropdown data-topic-projects>
             {topics.scopes.map((x) => (
-              <Menu.Item key={x.value} onClick={() => topics.setScope(x.value)} data-scope={x.value} leftSection={check(x.value === topics.scope)}
+              <Menu.Item key={x.value} onClick={() => topics.setScope(x.value)} data-scope={x.value} leftSection={<Group gap={6} wrap="nowrap">{check(x.value === topics.scope)}{x.icon && <NamedIcon name={x.icon} fallback={x.label} size={15} />}</Group>}
                 rightSection={topics.working.has(x.value) ? <IconActivity size={14} color="var(--mantine-color-green-text)" aria-label={t('The master is working')} data-busy /> : undefined}>{x.label}</Menu.Item>
             ))}
           </Menu.Dropdown>

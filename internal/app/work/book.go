@@ -44,6 +44,52 @@ func Price(v modelView, tr func(string) string) string {
 	return fmt.Sprintf(tr("%s / %s per 1M"), usd(*v.InputUSD), usd(out))
 }
 
+// Note says a model in short: its price, the speed of its last self-check and the tokens a request holds, each when
+// known.
+func Note(v modelView, tr func(string) string) string {
+	var parts []string
+	if p := Price(v, tr); p != tr("unknown") {
+		parts = append(parts, p)
+	}
+	if v.Speed > 0 {
+		parts = append(parts, fmt.Sprintf(tr("%.0f tok/s"), v.Speed))
+	}
+	if v.Context > 0 {
+		parts = append(parts, fmt.Sprintf(tr("context %s"), thousands(v.Context)))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// thousands is a count of tokens in short, such as 128K or 1M.
+func thousands(n int64) string {
+	switch {
+	case n >= 1000000 && n%100000 == 0:
+		return strconv.FormatFloat(float64(n)/1000000, 'f', -1, 64) + "M"
+	case n >= 1000:
+		return strconv.FormatInt((n+500)/1000, 10) + "K"
+	}
+	return strconv.FormatInt(n, 10)
+}
+
+// LogoOf are the words that name a model's provider first, then the model, for the client to draw its mark.
+func LogoOf(v modelView) string {
+	var out []string
+	for _, w := range []string{v.Connection, v.Name, v.Model, v.Agent} {
+		if w != "" && !slices.Contains(out, w) {
+			out = append(out, w)
+		}
+	}
+	return strings.Join(out, " ")
+}
+
+// Roles are the kinds of work a model can take: the agent work for a model that runs agent turns, else its kind.
+func Roles(v modelView) []string {
+	if v.Agent != "" {
+		return []string{RoleAgent, RoleWidget}
+	}
+	return []string{v.Kind}
+}
+
 // Book is the models of a workspace by name, with what reads their price: the built-in providers and those of
 // connections.
 type Book struct {
@@ -62,8 +108,8 @@ func (s *Service) book(ctx context.Context, workspace int64, tr func(string) str
 	rows, _ := s.St.Q.ListModels(ctx, workspace)
 	for _, r := range rows {
 		m := r.Model
-		b.add(modelView{Name: m.Name, Connection: r.Connection.Name, Kind: m.Kind, Agent: m.Agent, InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd),
-			CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0, Subscription: m.Subscription != 0})
+		b.add(modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd),
+			CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0, Subscription: m.Subscription != 0, Context: m.Context})
 	}
 	base := make([]modelView, 0, len(b.order))
 	for _, n := range b.order {
@@ -71,6 +117,10 @@ func (s *Service) book(ctx context.Context, workspace int64, tr func(string) str
 	}
 	for _, v := range s.onNodes(ctx, workspace, base) {
 		b.add(v)
+	}
+	for n, v := range b.models {
+		s.lastCheck(ctx, workspace, &v)
+		b.models[n] = v
 	}
 	return b
 }
@@ -157,7 +207,10 @@ func (b *Book) Grouped(w provider.Work) provider.Work {
 		return cmp.Or(cmp.Compare(first[b.models[x].Provider], first[b.models[y].Provider]), cmp.Compare(costRank(b.models[x]), costRank(b.models[y])))
 	})
 	w.ChoiceGroups = make([]string, len(w.Choices))
+	w.ChoiceNotes = make([]string, len(w.Choices))
+	w.ChoiceLogos = make([]string, len(w.Choices))
 	for i, c := range w.Choices {
+		w.ChoiceNotes[i], w.ChoiceLogos[i] = Note(b.models[c], b.tr), LogoOf(b.models[c])
 		w.ChoiceGroups[i] = b.models[c].Provider
 		// The subscriptions say what they are by their group already.
 		if r := costRank(b.models[c]); r != 1 {
@@ -178,6 +231,24 @@ func costRank(m modelView) int {
 		return 0
 	}
 	return 2
+}
+
+// Note says a model of the book in short, empty for one it lacks.
+func (b *Book) Note(name string) string {
+	v, ok := b.models[name]
+	if !ok {
+		return ""
+	}
+	return Note(v, b.tr)
+}
+
+// Logo are the words naming a model of the book for its mark, the name alone for one it lacks.
+func (b *Book) Logo(name string) string {
+	v, ok := b.models[name]
+	if !ok {
+		return name
+	}
+	return LogoOf(v)
 }
 
 // Price is the price of a model of the book, empty for one it lacks.
@@ -207,10 +278,11 @@ func (s *Service) Works(ctx context.Context, workspace int64, lang string) func(
 	return func(projectID int64, command string) provider.Work { return s.commandWork(ctx, b, projectID, command) }
 }
 
-// Prices say the price of each model of a workspace in a language, such as subscription or free.
-func (s *Service) Prices(ctx context.Context, workspace int64, lang string) func(model string) string {
+// Facts say each model of a workspace in short in a language, and the words naming its provider and model.
+func (s *Service) Facts(ctx context.Context, workspace int64, lang string) func(model string) (note, logo string) {
 	ws := words.In(lang)
-	return s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) }).Price
+	b := s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
+	return func(model string) (string, string) { return b.Note(model), b.Logo(model) }
 }
 
 // Agents are the models of the book that run agent turns: the built-in providers and the models in an agent.

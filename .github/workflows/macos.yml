@@ -1,0 +1,25 @@
+# The tests with the race detector on macOS, all in one job: nightly on master and by hand (gh workflow run macos.yml
+# --ref <branch or tag>); release.yml tags only a commit this made green. Every push runs Linux only (ci.yml).
+name: macos
+
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SEGMENT_DOWNLOAD_TIMEOUT_MINS: "2"
+
+jobs:
+  race:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+        with:
+          sandbox: true
+      - run: go test -race -count=1 -timeout 40m $(.github/shard.sh box chat egress modules owner providers runs rest)

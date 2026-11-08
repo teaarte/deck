@@ -1,5 +1,5 @@
-# Every push of a branch and pull request from a fork: the checks, the tests with and without the race detector, on Linux
-# a shard a package of scenarios, on macOS all in one job, the tests in Linux containers; a tag goes out only if green.
+# Every push of a branch and pull request from a fork: the checks, the tests with and without the race detector on Linux
+# a shard a package of scenarios, the tests in Linux containers; macOS runs nightly (macos.yml); a tag needs both green.
 name: ci
 
 on:
@@ -82,16 +82,14 @@ jobs:
           - { os: ubuntu-latest, areas: providers }
           - { os: ubuntu-latest, areas: runs }
           - { os: ubuntu-latest, areas: rest }
-          # One job on macOS: its arm64 runners run short, and each job waits for one.
-          - { os: macos-15, areas: box chat egress modules owner providers runs rest, minutes: 45 }
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.minutes || 20 }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: ./.github/actions/setup
         with:
           sandbox: true
-      - run: go test -race -count=1 -timeout ${{ matrix.minutes && '40m' || '15m' }} $(.github/shard.sh ${{ matrix.areas }})
+      - run: go test -race -count=1 -timeout 15m $(.github/shard.sh ${{ matrix.areas }})
 
   # The hosts deck's compose.yaml is tried on: Ubuntu 22.04 with AppArmor 3, 24.04 with AppArmor 4, whose user
   # namespaces only a profile opens.

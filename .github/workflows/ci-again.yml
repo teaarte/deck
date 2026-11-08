@@ -4,7 +4,7 @@ name: ci again
 
 on:
   workflow_run:
-    workflows: [ci]
+    workflows: [ci, macos]
     types: [completed]
 
 permissions:

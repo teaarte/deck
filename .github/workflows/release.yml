@@ -1,4 +1,4 @@
-# A tag v* of a commit of master that ci made green pushes the server image to ghcr.io as the version and latest, then
+# A tag v* of a commit of master that ci and macos made green pushes the server image to ghcr.io as the version and latest, then
 # releases deck's binaries with release.json signed by DECK_RELEASE_KEY.
 name: release
 
@@ -33,6 +33,18 @@ jobs:
             sleep 30
           done
           echo "ci has no green run of $SHA"; exit 1
+      - name: macos made the commit green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          # The nightly run of master, or one by hand while this waits: gh workflow run macos.yml --ref <the tag>.
+          for _ in $(seq 120); do
+            runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow macos.yml --commit "$SHA" --json status,conclusion)
+            jq -e 'any(.[]; .conclusion == "success")' <<< "$runs" > /dev/null && exit 0
+            sleep 30
+          done
+          echo "macos has no green run of $SHA: run gh workflow run macos.yml --ref ${GITHUB_REF_NAME}"; exit 1
 
   version:
     needs: green

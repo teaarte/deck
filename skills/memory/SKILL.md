@@ -53,6 +53,7 @@ index, and says what it cut.
 
 Before you write, read the index: a fact on the same thing gets edited, not added again. When the owner
 contradicts a fact, change that fact (it keeps its history in revisions); do not keep both.
+Not in the index — search with `memory_search`: words across memory, topic summaries, skills and processes.
 
 ## Lessons
 

@@ -480,5 +480,8 @@ func (s *Service) documentsCommands() []*registry.Command {
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
 			registry.OwnerOnly, s.documentRestore),
+		registry.Read("memory_search", "Search memory",
+			"Finds words in memory, the summaries of the master's topics, skills and finished processes, those the caller reads; what an index does not list is found here.",
+			registry.Everyone, s.memorySearch).On("documents", "processes"),
 	}
 }

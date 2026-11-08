@@ -232,6 +232,11 @@ type McpTool struct {
 	Listed      int64
 }
 
+type MemoryFt struct {
+	Kind string
+	Body string
+}
+
 type Model struct {
 	ID           int64
 	WorkspaceID  int64

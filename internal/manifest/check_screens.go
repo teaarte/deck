@@ -277,9 +277,9 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 			c.format(fmt.Sprintf("%s column %q", where, col.Label), col.Format, col.Currency)
 			c.tone(fmt.Sprintf("%s column %q", where, col.Label), col.Tone, fields)
-			if col.Details != "" {
-				if _, err := compileField(col.Details, fields); err != nil {
-					c.fail("%s column %q details: %v", where, col.Label, err)
+			for k, e := range map[string]string{"details": col.Details, "logo": col.Logo} {
+				if _, err := compileField(e, fields); e != "" && err != nil {
+					c.fail("%s column %q %s: %v", where, col.Label, k, err)
 				}
 			}
 			if col.Pick != "" {

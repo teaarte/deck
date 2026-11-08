@@ -362,6 +362,39 @@ func (q *Queries) ListPendingMessages(ctx context.Context, topicID int64) ([]Cha
 	return items, nil
 }
 
+const listTopicProjects = `-- name: ListTopicProjects :many
+SELECT DISTINCT CAST(json_extract(m.context, '$.project') AS TEXT) AS project
+FROM chat_topic t JOIN chat_message m ON m.id = (SELECT m2.id FROM chat_message m2
+    WHERE m2.topic_id = t.id AND json_valid(m2.context) AND COALESCE(json_extract(m2.context, '$.project'), '') != '' ORDER BY m2.id LIMIT 1)
+JOIN project pr ON pr.workspace_id = t.workspace_id AND pr.name = json_extract(m.context, '$.project')
+WHERE t.workspace_id = ?1 AND t.deleted_at IS NULL
+ORDER BY 1
+`
+
+// The modules the topics of a workspace are about: the project of the screen of the first message of each.
+func (q *Queries) ListTopicProjects(ctx context.Context, workspaceID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listTopicProjects, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var project string
+		if err := rows.Scan(&project); err != nil {
+			return nil, err
+		}
+		items = append(items, project)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTopicSummaries = `-- name: ListTopicSummaries :many
 SELECT t.id, t.title, t.archived, t.updated_at, t.model,
     CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,
@@ -373,10 +406,6 @@ SELECT t.id, t.title, t.archived, t.updated_at, t.model,
                 WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
                 ORDER BY m.id LIMIT 1)),
         '') AS TEXT) AS project,
-    CAST(COALESCE((SELECT SUM(c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) FROM llm_call c
-        WHERE c.process_id IN (SELECT m.process_id FROM chat_message m WHERE m.topic_id = t.id AND m.process_id != 0)
-            OR c.process_id IN (SELECT p.id FROM process p WHERE p.parent_id IN
-                (SELECT m.process_id FROM chat_message m WHERE m.topic_id = t.id AND m.process_id != 0))), 0) AS INTEGER) AS tokens,
     CAST(COALESCE((SELECT p.provider FROM process p WHERE p.id =
         (SELECT MAX(m.process_id) FROM chat_message m WHERE m.topic_id = t.id AND m.process_id != 0 AND m.role != 'deck')), '') AS TEXT) AS replied_on
 FROM chat_topic t
@@ -385,14 +414,18 @@ LEFT JOIN process op ON op.id = (SELECT p.id FROM process p
     ORDER BY p.id DESC LIMIT 1)
 WHERE t.workspace_id = ?1 AND t.deleted_at IS NULL
     AND (CAST(?2 AS INTEGER) = 0 AND t.archived = ?3 OR t.id = CAST(?2 AS INTEGER))
+    AND (CAST(?4 AS TEXT) = '' OR CAST(?4 AS TEXT) = COALESCE((SELECT json_extract(m.context, '$.project') FROM chat_message m
+        WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
+        ORDER BY m.id LIMIT 1), '-'))
 ORDER BY t.updated_at DESC, t.id DESC
-LIMIT ?4
+LIMIT ?5
 `
 
 type ListTopicSummariesParams struct {
 	WorkspaceID int64
 	Topic       int64
 	Archived    int64
+	Project     string
 	Lim         int64
 }
 
@@ -408,7 +441,6 @@ type ListTopicSummariesRow struct {
 	OpenProvider string
 	OpenError    string
 	Project      string
-	Tokens       int64
 	RepliedOn    string
 }
 
@@ -417,6 +449,7 @@ func (q *Queries) ListTopicSummaries(ctx context.Context, arg ListTopicSummaries
 		arg.WorkspaceID,
 		arg.Topic,
 		arg.Archived,
+		arg.Project,
 		arg.Lim,
 	)
 	if err != nil {
@@ -438,7 +471,6 @@ func (q *Queries) ListTopicSummaries(ctx context.Context, arg ListTopicSummaries
 			&i.OpenProvider,
 			&i.OpenError,
 			&i.Project,
-			&i.Tokens,
 			&i.RepliedOn,
 		); err != nil {
 			return nil, err
@@ -685,6 +717,22 @@ func (q *Queries) TopicOfProcess(ctx context.Context, processID int64) (TopicOfP
 	var i TopicOfProcessRow
 	err := row.Scan(&i.ID, &i.Title)
 	return i, err
+}
+
+const topicTokens = `-- name: TopicTokens :one
+WITH RECURSIVE turn(id) AS (
+    SELECT m.process_id FROM chat_message m WHERE m.topic_id = ?1 AND m.process_id != 0
+    UNION SELECT p.id FROM process p JOIN turn ON p.parent_id = turn.id)
+SELECT CAST(COALESCE(SUM(c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens), 0) AS INTEGER) AS tokens
+FROM llm_call c WHERE c.process_id IN (SELECT id FROM turn)
+`
+
+// The tokens the replies of a topic and all the work they started spent.
+func (q *Queries) TopicTokens(ctx context.Context, topic int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, topicTokens, topic)
+	var tokens int64
+	err := row.Scan(&tokens)
+	return tokens, err
 }
 
 const touchTopic = `-- name: TouchTopic :exec

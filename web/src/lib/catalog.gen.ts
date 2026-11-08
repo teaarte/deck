@@ -1223,6 +1223,10 @@ export interface ChatValue {
    */
   models?: string[];
   /**
+   * the modules any topic is about, whatever the topics given
+   */
+  modules?: string[];
+  /**
    * each model in short, in words: its price, speed and context
    */
   notes?: {

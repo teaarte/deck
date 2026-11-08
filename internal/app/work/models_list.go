@@ -116,6 +116,17 @@ type workView struct {
 	provider.Work
 }
 
+// roleWord names a kind of work so that agent work and one answer of a text model read apart.
+func roleWord(role string) string {
+	switch role {
+	case RoleAgent:
+		return "agent, with tools"
+	case RoleText:
+		return "text, one answer"
+	}
+	return role
+}
+
 func nullable(f sql.NullFloat64) *float64 {
 	if !f.Valid {
 		return nil
@@ -346,7 +357,7 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 			}
 		}
 		for _, w := range roles {
-			out.Work = append(out.Work, workView{Kind: "script", Project: p.Name, ProjectTitle: title, Title: manifest.Tr(ws, w.Role),
+			out.Work = append(out.Work, workView{Kind: "script", Project: p.Name, ProjectTitle: title, Title: manifest.Tr(ws, roleWord(w.Role)),
 				Own: own("", w.Role), Work: w})
 		}
 	}
@@ -362,7 +373,7 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 			if w.Choices = b.Of(a.Role); agentic(a.Role) {
 				w.Choices = b.Agents()
 			}
-			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, a.Role), Own: true, Work: b.Grouped(w)})
+			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, roleWord(a.Role)), Own: true, Work: b.Grouped(w)})
 		}
 		// The views of cards go to the master's model until the owner picks one.
 		if !slices.ContainsFunc(out.Assignments, func(a assignmentView) bool { return a.Project == "" && a.Role == RoleWidget }) {

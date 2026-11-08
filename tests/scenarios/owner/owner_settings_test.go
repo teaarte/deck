@@ -279,7 +279,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 		t.Fatalf("a model in an ACP agent has a self-check and its button, under its connection: %+v", added)
 	}
 	remove := harness.Verb(t, added.Actions, "remove")
-	if remove["confirm"] != true || added.Meta != "agent" {
+	if remove["confirm"] != true || added.Meta != "agent, with tools" {
 		t.Fatalf("an added model in an agent says so and is removed after a yes: %+v", added)
 	}
 	edit := harness.Verb(t, added.Actions, "edit")["params"].(map[string]any)

@@ -823,9 +823,13 @@ func TestTheHistorySaysTheModuleModelAndTokensOfEachTopic(t *testing.T) {
 	// A work the reply started, which a fake agent does not start.
 	e.SQL(fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at, parent_id)
 		SELECT project_id, 'work', 'agent', 'done', started_at, id FROM process WHERE id = %d`, reply))
-	// The model calls of the reply and of its work, which a fake agent does not make.
+	// A work that work started in turn.
+	e.SQL(`INSERT INTO process (project_id, command, kind, state, started_at, parent_id)
+		SELECT project_id, 'work', 'agent', 'done', started_at, id FROM process WHERE id = (SELECT MAX(id) FROM process)`)
+	// The model calls of the reply, its work and the work of that, which a fake agent does not make.
 	e.SQL(fmt.Sprintf(`INSERT INTO llm_call (workspace_id, process_id, gen_ai_provider_name, gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, created_at)
-		VALUES (1, %d, 'fake', 1200, 300, '2026-11-08T10:00:00Z'), (1, (SELECT MAX(id) FROM process), 'fake', 400, 100, '2026-11-08T10:01:00Z')`, reply))
+		VALUES (1, %d, 'fake', 1200, 300, '2026-11-08T10:00:00Z'), (1, (SELECT MAX(id) - 1 FROM process), 'fake', 400, 100, '2026-11-08T10:01:00Z'),
+		(1, (SELECT MAX(id) FROM process), 'fake', 70, 30, '2026-11-08T10:02:00Z')`, reply))
 
 	var ts []struct {
 		ID        int64  `json:"id"`
@@ -840,10 +844,27 @@ func TestTheHistorySaysTheModuleModelAndTokensOfEachTopic(t *testing.T) {
 		got[x.ID] = i
 	}
 	w, n := ts[got[web]], ts[got[none]]
-	if len(ts) != 2 || ts[0].ID != none || w.Project != "web" || w.Tokens != 2000 || w.RepliedOn != "fake" || !strings.Contains(w.Logo, "fake") {
+	if len(ts) != 2 || ts[0].ID != none || w.Project != "web" || w.Tokens != 2100 || w.RepliedOn != "fake" || !strings.Contains(w.Logo, "fake") {
 		t.Fatalf("a topic says its module, the model of its last reply and the tokens of its replies and their work, newest first: %+v", ts)
 	}
 	if n.Project != "" || n.Tokens != 0 || n.RepliedOn != "fake" {
 		t.Fatalf("a topic without a module or model calls says so: %+v", n)
+	}
+	for i := 0; i < 3; i++ {
+		e.MasterSaid(e.Say(0, fmt.Sprintf("more %d", i)), 1)
+	}
+	var mod struct {
+		Topics []struct {
+			ID int64 `json:"id"`
+		} `json:"topics"`
+		Modules []string `json:"modules"`
+	}
+	e.Must("deck.chat_topics_list", map[string]any{"module": "web"}, &mod)
+	if len(mod.Topics) != 1 || mod.Topics[0].ID != web || !slices.Equal(mod.Modules, []string{"web"}) {
+		t.Fatalf("the history of a module gives only its topics, and the modules of all: %+v", mod)
+	}
+	e.Must("deck.chat_topics_list", map[string]any{"module": "-"}, &mod)
+	if len(mod.Topics) != 4 {
+		t.Fatalf("the history without a module gives the topics about none: %+v", mod)
 	}
 }

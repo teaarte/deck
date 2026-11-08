@@ -28,8 +28,8 @@ function TopicLine({ topic, label, checked, icon }: { topic?: Topic; label: stri
         {topic && (
           <Group gap={6} wrap="nowrap" c="dimmed" fz="xs">
             {at && <span>{relative(at, Date.now())}</span>}
-            {topic.logo && <><span>·</span><Logo names={topic.logo} size={12} /></>}
-            {(topic.tokens ?? 0) > 0 && <><span>·</span><span data-topic-tokens={topic.tokens}>{t("{{n}} tokens", { n: formatted(topic.tokens, { format: "compact" }) })}</span></>}
+            {topic.logo && <><span>·</span><span title={topic.replied_on ?? topic.model} aria-label={topic.replied_on ?? topic.model} role="img" data-topic-model-mark><Logo names={topic.logo} size={12} /></span></>}
+            {(topic.tokens ?? 0) > 0 && <><span>·</span><span data-topic-tokens={topic.tokens}>{t("{{n}} tokens", { count: topic.tokens, n: formatted(topic.tokens, { format: "compact" }) })}</span></>}
           </Group>
         )}
       </Stack>

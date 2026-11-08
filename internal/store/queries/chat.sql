@@ -118,10 +118,6 @@ SELECT t.id, t.title, t.archived, t.updated_at, t.model,
                 WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
                 ORDER BY m.id LIMIT 1)),
         '') AS TEXT) AS project,
-    CAST(COALESCE((SELECT SUM(c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) FROM llm_call c
-        WHERE c.process_id IN (SELECT m.process_id FROM chat_message m WHERE m.topic_id = t.id AND m.process_id != 0)
-            OR c.process_id IN (SELECT p.id FROM process p WHERE p.parent_id IN
-                (SELECT m.process_id FROM chat_message m WHERE m.topic_id = t.id AND m.process_id != 0))), 0) AS INTEGER) AS tokens,
     CAST(COALESCE((SELECT p.provider FROM process p WHERE p.id =
         (SELECT MAX(m.process_id) FROM chat_message m WHERE m.topic_id = t.id AND m.process_id != 0 AND m.role != 'deck')), '') AS TEXT) AS replied_on
 FROM chat_topic t
@@ -130,6 +126,9 @@ LEFT JOIN process op ON op.id = (SELECT p.id FROM process p
     ORDER BY p.id DESC LIMIT 1)
 WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL
     AND (CAST(sqlc.arg(topic) AS INTEGER) = 0 AND t.archived = sqlc.arg(archived) OR t.id = CAST(sqlc.arg(topic) AS INTEGER))
+    AND (CAST(sqlc.arg(project) AS TEXT) = '' OR CAST(sqlc.arg(project) AS TEXT) = COALESCE((SELECT json_extract(m.context, '$.project') FROM chat_message m
+        WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
+        ORDER BY m.id LIMIT 1), '-'))
 ORDER BY t.updated_at DESC, t.id DESC
 LIMIT sqlc.arg(lim);
 
@@ -159,3 +158,20 @@ SELECT CAST(COALESCE(MIN(
     COALESCE((SELECT MIN(d.id) - 1 FROM chat_message d WHERE d.topic_id = sqlc.arg(topic_id) AND d.role = 'deck'
         AND d.id > (SELECT MIN(f.id) FROM chat_message f WHERE f.topic_id = sqlc.arg(topic_id) AND f.process_id = sqlc.arg(process_id) AND f.role = 'owner')),
         9223372036854775807)), 0) AS INTEGER) AS seen;
+
+-- name: TopicTokens :one
+-- The tokens the replies of a topic and all the work they started spent.
+WITH RECURSIVE turn(id) AS (
+    SELECT m.process_id FROM chat_message m WHERE m.topic_id = sqlc.arg(topic) AND m.process_id != 0
+    UNION SELECT p.id FROM process p JOIN turn ON p.parent_id = turn.id)
+SELECT CAST(COALESCE(SUM(c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens), 0) AS INTEGER) AS tokens
+FROM llm_call c WHERE c.process_id IN (SELECT id FROM turn);
+
+-- name: ListTopicProjects :many
+-- The modules the topics of a workspace are about: the project of the screen of the first message of each.
+SELECT DISTINCT CAST(json_extract(m.context, '$.project') AS TEXT) AS project
+FROM chat_topic t JOIN chat_message m ON m.id = (SELECT m2.id FROM chat_message m2
+    WHERE m2.topic_id = t.id AND json_valid(m2.context) AND COALESCE(json_extract(m2.context, '$.project'), '') != '' ORDER BY m2.id LIMIT 1)
+JOIN project pr ON pr.workspace_id = t.workspace_id AND pr.name = json_extract(m.context, '$.project')
+WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL
+ORDER BY 1;

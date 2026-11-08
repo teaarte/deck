@@ -34,10 +34,11 @@ export function useTopics(value: ChatData, context: ComponentContext) {
   const topic = value.topic;
   useEffect(() => onTopicOpen((id) => pick(String(id))), []);
   useEffect(() => { if (topic && !pinned.current) pick(String(topic.id)); }, [topic?.id]);
-  const projects = [...new Set([...value.topics, ...value.archived].map((x) => x.project).filter(Boolean) as string[])].sort();
+  const projects = value.modules ?? [];
   const wanted = scope ?? route.project ?? ALL;
   const here = wanted === ALL || wanted === NONE || projects.includes(wanted) ? wanted : ALL;
-  useEffect(() => setAll(false), [here]);
+  // The server gives the topics of the module the history shows, so its last ten and Show all are whole.
+  useEffect(() => { setAll(false); readBlock(context, 'filter', { field: 'module', value: here === ALL ? '' : here }); }, [here]);
   const inScope = (x: Topic) => here === ALL || (here === NONE ? !x.project : x.project === here);
   // The topic open comes first, whatever its module, then the last of the scope.
   const open = value.topics.find((x) => x.id === topic?.id) ?? value.archived.find((x) => x.id === topic?.id) ?? topic;

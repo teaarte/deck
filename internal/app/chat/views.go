@@ -143,8 +143,10 @@ type chatView struct {
 type topicsView struct {
 	Topics   []topicView `json:"topics"`
 	Archived []topicView `json:"archived"`
-	Models   []string    `json:"models"`
-	Model    string      `json:"model,omitempty"`
+	// Modules are the modules any topic of the workspace is about, whatever the topics given.
+	Modules []string `json:"modules"`
+	Models  []string `json:"models"`
+	Model   string   `json:"model,omitempty"`
 	// Notes say each model in short, such as its price and speed; Logos are the words naming its provider and model.
 	Notes map[string]string `json:"notes"`
 	Logos map[string]string `json:"logos"`
@@ -182,7 +184,7 @@ func viewMessage(m db.ChatMessage) messageView {
 
 func viewTopic(t db.ListTopicSummariesRow, tr func(string) string) topicView {
 	v := topicView{ID: t.ID, Title: t.Title, Project: t.Project, Archived: t.Archived == 1,
-		UpdatedAt: t.UpdatedAt, Last: untrusted.Cut(t.LastText, 200), Model: t.Model, Tokens: t.Tokens, RepliedOn: t.RepliedOn}
+		UpdatedAt: t.UpdatedAt, Last: untrusted.Cut(t.LastText, 200), Model: t.Model, RepliedOn: t.RepliedOn}
 	if t.OpenID != 0 {
 		v.Reply = viewReply(db.Process{ID: t.OpenID, Kind: process.KindAgent, State: t.OpenState, Provider: t.OpenProvider, Error: t.OpenError}, tr)
 	}
@@ -190,8 +192,8 @@ func viewTopic(t db.ListTopicSummariesRow, tr func(string) string) topicView {
 }
 
 // topics are the summaries of the topics of a workspace, newest first; with topic, that one alone.
-func (s *Service) topics(ctx context.Context, workspace int64, archived bool, topic, lim int64, tr func(string) string) ([]topicView, error) {
-	rows, err := s.St.Q.ListTopicSummaries(ctx, db.ListTopicSummariesParams{WorkspaceID: workspace, Archived: store.Bool(archived), Topic: topic, Lim: lim})
+func (s *Service) topics(ctx context.Context, workspace int64, archived bool, topic, lim int64, module string, tr func(string) string) ([]topicView, error) {
+	rows, err := s.St.Q.ListTopicSummaries(ctx, db.ListTopicSummariesParams{WorkspaceID: workspace, Archived: store.Bool(archived), Topic: topic, Project: module, Lim: lim})
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +274,7 @@ func (s *Service) picked(ctx context.Context, workspace int64, topic string, tr 
 		}
 		id = n
 	}
-	ts, err := s.topics(ctx, workspace, false, id, 1, tr)
+	ts, err := s.topics(ctx, workspace, false, id, 1, "", tr)
 	if err != nil || len(ts) == 0 {
 		return nil, err
 	}
@@ -312,7 +314,8 @@ func (s *Service) chat(ctx context.Context, act registry.Actor, in chatGetIn) (c
 }
 
 type chatTopicsListIn struct {
-	Lang string `opt:"" desc:"Language of the words of the states of replies, such as ru; English without one"`
+	Lang   string `opt:"" desc:"Language of the words of the states of replies, such as ru; English without one"`
+	Module string `opt:"" desc:"Only the topics about this module, - for those about none; all without one"`
 }
 
 // chatTopics are the topics of the chat with the models of the master.
@@ -320,17 +323,24 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 	var v topicsView
 	var err error
 	tr := s.words(registry.Lang(ctx))
-	if v.Topics, err = s.topics(ctx, act.Workspace, false, 0, 50, tr); err != nil {
+	if v.Topics, err = s.topics(ctx, act.Workspace, false, 0, 50, in.Module, tr); err != nil {
 		return v, err
 	}
-	if v.Archived, err = s.topics(ctx, act.Workspace, true, 0, 20, tr); err != nil {
+	if v.Archived, err = s.topics(ctx, act.Workspace, true, 0, 20, in.Module, tr); err != nil {
 		return v, err
+	}
+	if v.Modules, err = s.St.Q.ListTopicProjects(ctx, act.Workspace); err != nil {
+		return v, err
+	}
+	if v.Modules == nil {
+		v.Modules = []string{}
 	}
 	v.Models, v.Model = s.models(ctx, act.Workspace)
 	facts := s.Facts(ctx, act.Workspace, registry.Lang(ctx))
 	for _, ts := range [][]topicView{v.Topics, v.Archived} {
 		for i := range ts {
 			_, ts[i].Logo = facts(cmp.Or(ts[i].RepliedOn, ts[i].Model, v.Model))
+			ts[i].Tokens, _ = s.St.Q.TopicTokens(ctx, ts[i].ID)
 		}
 	}
 	v.Notes, v.Logos = map[string]string{}, map[string]string{}

@@ -100,7 +100,7 @@ func (c *screenCheck) choices(where string, b Block) {
 		if !ok {
 			continue
 		}
-		for _, e := range []string{ch.Value, ch.Label} {
+		for _, e := range []string{ch.Value, ch.Label, ch.Note, ch.Logo, ch.Icon} {
 			if _, err := compileField(e, fields); e != "" && err != nil {
 				c.fail("%s: %v", at, err)
 			}

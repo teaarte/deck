@@ -139,4 +139,5 @@ and bring the modules in line.
   a model or its provider, such as `connection + ' ' + model`): the cell wears that mark before its value; the work of
   a command gives `logo` of its model, provider first.
 - 2026-11-08: a topic of `chat_topics_list` gives `tokens` (what its replies and the work they started spent),
-  `replied_on` (the model of its last reply) and `logo` (the words of that model's mark).
+  `replied_on` (the model of its last reply) and `logo` (the words of that model's mark); with `module` it gives only
+  the topics about that module (`-` for those about none), and `modules` names the modules of all topics.

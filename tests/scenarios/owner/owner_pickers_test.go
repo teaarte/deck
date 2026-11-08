@@ -108,3 +108,22 @@ func TestTheModelsOfSpendWearTheMarkOfTheirProvider(t *testing.T) {
 		}
 	}
 }
+
+// TestANewExpressionOfMarksAndNotesIsCheckedOnSave: the logo of a column, the notes and logos of a button and the
+// note, logo and icon of a choice are expressions a save compiles.
+func TestANewExpressionOfMarksAndNotesIsCheckedOnSave(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	for _, c := range []struct{ from, to, want string }{
+		{`"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title", "logo": "title +"}]`, `column "Title" logo`},
+		{`{"label": "Open", "screen": "note"}]}]}`, `{"label": "Open", "screen": "note"}, {"label": "Tag", "command": "tag", "input": "tag", "options": "=['a']", "notes": "=[1 +"}]}]}`, "notes: "},
+		{`{"type": "form", "title": "Score a title", "command": "score"}`,
+			`{"type": "form", "title": "Score a title", "command": "score", "choices": {"title": {"source": {"collection": "notes"}, "value": "title", "logo": "title +"}}}`, "choices"},
+	} {
+		bad := strings.Replace(harness.WebNotes, c.from, c.to, 1)
+		if bad == harness.WebNotes {
+			t.Fatalf("the manifest has no %s", c.from)
+		}
+		e.Refused("deck.project_create", map[string]any{"name": "bad", "manifest": bad}, 422, c.want)
+	}
+}

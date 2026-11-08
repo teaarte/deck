@@ -64,7 +64,7 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 		}
 	}
 	values := map[string]string{"screen": a.Screen, "record": a.Record, "project": a.Project, "until": a.Until,
-		"options": a.Options, "groups": a.Groups}
+		"options": a.Options, "groups": a.Groups, "notes": a.Notes, "logos": a.Logos}
 	for k, v := range a.Params {
 		values["param "+strconv.Quote(k)] = v
 	}

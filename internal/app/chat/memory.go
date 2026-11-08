@@ -67,7 +67,7 @@ func (s *Service) topicProject(ctx context.Context, topic int64) (db.Project, bo
 	if err != nil {
 		return db.Project{}, false
 	}
-	ts, err := s.topics(ctx, t.WorkspaceID, false, topic, 1, func(str string) string { return str })
+	ts, err := s.topics(ctx, t.WorkspaceID, false, topic, 1, "", func(str string) string { return str })
 	if err != nil || len(ts) == 0 || ts[0].Project == "" {
 		return db.Project{}, false
 	}

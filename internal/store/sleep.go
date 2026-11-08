@@ -11,7 +11,7 @@ import (
 
 // masterSleep puts the master's sleep in place of its memory in every revision of its manifest, the owner's too, so a
 // merge with what deck ships keeps their other edits; the trigger keeps its pause, the assignment moves.
-var masterSleep = goose.NewGoMigration(66, &goose.GoFunc{RunTx: toSleep}, nil)
+var masterSleep = goose.NewGoMigration(67, &goose.GoFunc{RunTx: toSleep}, nil)
 
 // sleepCommand and sleepTrigger are sleep as deck first shipped it.
 const (

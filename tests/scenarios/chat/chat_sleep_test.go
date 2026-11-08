@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -30,7 +31,7 @@ func TestSleepTurnsAFailedEpisodeIntoALessonWithItsSource(t *testing.T) {
 			prompts.Store("collect", c.Req.Prompt)
 			return harness.Ok(ctx, c)
 		case "sleep":
-			out, bad := c.Tool(ctx, "episodes_list", map[string]any{})
+			out, bad := c.Tool(ctx, "episodes_list", map[string]any{"since": "2020-01-01T00:00:00Z"})
 			said.Store("episodes", fmt.Sprint(bad, " ", out))
 			pid, _ := failed.Load("collect")
 			out, bad = c.Tool(ctx, "document_save", map[string]any{"project": "shop", "name": "memory/site-503.md", "kind": "memory",
@@ -48,6 +49,19 @@ func TestSleepTurnsAFailedEpisodeIntoALessonWithItsSource(t *testing.T) {
 	var r struct{ Process int64 }
 	e.Must("master.sleep", map[string]any{}, &r)
 	e.WaitState(r.Process, "done")
+	v, _ := said.Load("episodes")
+	ep, ok := strings.CutPrefix(fmt.Sprint(v), "false ")
+	type episode struct {
+		ID                      int64
+		Project, Command, State string
+		ErrorType               string `json:"error_type"`
+	}
+	var episodes struct{ Processes []episode }
+	if !ok || json.Unmarshal([]byte(ep), &episodes) != nil || !slices.ContainsFunc(episodes.Processes, func(p episode) bool {
+		return p.ID == first && p.Project == "shop" && p.Command == "collect" && p.State == "error" && p.ErrorType == "task.failed"
+	}) {
+		t.Fatalf("sleep reads the failed run among the episodes: %v", v)
+	}
 	if v, _ := said.Load("save"); !strings.HasPrefix(fmt.Sprint(v), "false ") {
 		t.Fatalf("sleep writes a lesson in the project of the failed command: %v", v)
 	}
@@ -145,7 +159,7 @@ func TestADeckBeforeSleepWakesUpWithIt(t *testing.T) {
 	}
 	e.UseModels("master.memory", "fake")
 	// A base of a deck before sleep.
-	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 66`)
+	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 67`)
 	e2 := e.Restart()
 	e2.Must("deck.triggers_list", map[string]any{"project": "master"}, &ts)
 	var sleeps int
@@ -181,7 +195,9 @@ func TestADeckBeforeSleepWakesUpWithIt(t *testing.T) {
 // a run handed on to the next model are none.
 func TestMemoryOverviewCountsFactsLessonsAndRepeats(t *testing.T) {
 	t.Parallel()
-	main := &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result { return provider.Fail(fault.ModelUnavailable, "the model is down") }}
+	main := &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result {
+		return provider.Fail(fault.ModelUnavailable, "the model is down")
+	}}
 	backup := &harness.Fake{ProviderName: "backup", Script: func(context.Context, *harness.Call) provider.Result {
 		return provider.Fail(fault.TaskFailed, "broken")
 	}}

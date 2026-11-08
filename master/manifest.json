@@ -136,6 +136,8 @@
           "deck.document_get",
           "deck.document_save",
           "deck.document_delete",
+          "deck.episodes_list",
+          "deck.memory_search",
           "deck.memory_overview",
           "deck.owner_notify"
         ]
